@@ -76,11 +76,28 @@ func TestWatchCRUD(t *testing.T) {
 		t.Errorf("foreign delete: got %d, want 404", rec.Code)
 	}
 	// own update + delete
-	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"mode":"regex","pattern":"\\d+","replacement":"E$0"}`, cookieA); rec.Code != http.StatusOK {
+	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"remotePath":"/x/Show","localPath":"anime","mode":"regex","pattern":"\\d+","replacement":"E$0"}`, cookieA); rec.Code != http.StatusOK {
 		t.Errorf("update: got %d: %s", rec.Code, rec.Body)
 	}
-	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"mode":"nope"}`, cookieA); rec.Code != http.StatusBadRequest {
+	// update may move the watch to another remote/local path
+	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"remotePath":"/x/Show v2","localPath":"anime2"}`, cookieA); rec.Code != http.StatusOK {
+		t.Errorf("path update: got %d: %s", rec.Code, rec.Body)
+	}
+	var gotRemote, gotLocal string
+	d.QueryRow(`SELECT remote_path, local_path FROM watches WHERE id = ?`, id).Scan(&gotRemote, &gotLocal)
+	if gotRemote != "/x/Show v2" || gotLocal != "anime2" {
+		t.Errorf("path update stored %q %q", gotRemote, gotLocal)
+	}
+	// moving onto another watch's paths conflicts
+	doReq(mux, "POST", "/api/watches", `{"serverId":1,"remotePath":"/x/Other","localPath":"anime"}`, cookieA)
+	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"remotePath":"/x/Other","localPath":"anime"}`, cookieA); rec.Code != http.StatusConflict {
+		t.Errorf("duplicate update: got %d, want 409", rec.Code)
+	}
+	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"remotePath":"/x/Show","mode":"nope"}`, cookieA); rec.Code != http.StatusBadRequest {
 		t.Errorf("invalid mode: got %d, want 400", rec.Code)
+	}
+	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"mode":"regex"}`, cookieA); rec.Code != http.StatusBadRequest {
+		t.Errorf("missing remotePath: got %d, want 400", rec.Code)
 	}
 	if rec := doReq(mux, "DELETE", fmt.Sprintf("/api/watches/%d", id), "", cookieA); rec.Code != http.StatusOK {
 		t.Errorf("delete: got %d", rec.Code)
