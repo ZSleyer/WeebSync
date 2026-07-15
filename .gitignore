@@ -1,0 +1,14 @@
+# agent instructions stay local
+AGENTS.md
+CLAUDE.md
+
+# dependencies / build
+node_modules/
+frontend/dist/
+backend/weebsync
+
+# runtime data
+*.db
+*.db-*
+data/
+.env
