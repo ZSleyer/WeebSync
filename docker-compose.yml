@@ -1,0 +1,19 @@
+services:
+  weebsync:
+    build: .
+    # image: ghcr.io/ch4d1/weebsync:latest
+    ports:
+      - "8080:8080"
+    environment:
+      # REQUIRED: encrypts server credentials at rest — any long random string
+      WEEBSYNC_SECRET: ${WEEBSYNC_SECRET:?set WEEBSYNC_SECRET in .env}
+      # optional: AniList API token (higher rate limit)
+      # ANILIST_TOKEN: ""
+      # optional: OIDC login (Authentik/Keycloak/…)
+      # OIDC_ISSUER: https://auth.example.com/application/o/weebsync/
+      # OIDC_CLIENT_ID: weebsync
+      # OIDC_CLIENT_SECRET: "…"
+      # OIDC_REDIRECT_URL: https://weebsync.example.com/api/auth/oidc/callback
+    volumes:
+      - ./data:/data # sqlite db + downloads (downloads under /data/downloads)
+    restart: unless-stopped
