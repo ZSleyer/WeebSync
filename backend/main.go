@@ -66,6 +66,7 @@ func main() {
 			pushSvc.Notify(d.UserID, "Download fehlgeschlagen", name+": "+d.Error)
 		}
 	}
+	go srv.WatchLoop(context.Background())
 	mux := http.NewServeMux()
 	srv.Register(mux)
 	mux.Handle("/", spaHandler(webDir))

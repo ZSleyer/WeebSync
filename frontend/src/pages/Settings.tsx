@@ -11,6 +11,7 @@ const ACCENTS = ['violet', 'acid', 'crimson', 'cyan', 'blue', 'green', 'pink', '
 interface SettingsState {
   maxConcurrent: number
   globalRateLimit: number
+  watchIntervalMin: number
   registrationDisabled: boolean
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
   anilistTokenSet: boolean
@@ -102,6 +103,17 @@ export default function Settings() {
                   min={0}
                   value={Math.round(form.globalRateLimit / 1024)}
                   onChange={(e) => set('globalRateLimit', Number(e.target.value) * 1024)}
+                />
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.watchInterval')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  type="number"
+                  min={5}
+                  max={1440}
+                  value={form.watchIntervalMin}
+                  onChange={(e) => set('watchIntervalMin', Number(e.target.value))}
                 />
               </label>
             </div>

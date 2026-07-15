@@ -13,7 +13,8 @@ import (
 // an empty string keeps the stored value, "-" clears it.
 type settingsPayload struct {
 	MaxConcurrent        int64  `json:"maxConcurrent"`
-	GlobalRateLimit      int64  `json:"globalRateLimit"` // bytes/s, 0 = unlimited
+	GlobalRateLimit      int64  `json:"globalRateLimit"`  // bytes/s, 0 = unlimited
+	WatchIntervalMin     int64  `json:"watchIntervalMin"` // global auto-sync check interval
 	RegistrationDisabled bool   `json:"registrationDisabled"`
 	AuthMode             string `json:"authMode"` // password | oidc-only | oidc-auto
 	AnilistTokenSet      bool   `json:"anilistTokenSet"`
@@ -40,6 +41,7 @@ func (s *Server) settingsState() settingsPayload {
 	return settingsPayload{
 		MaxConcurrent:        conc,
 		GlobalRateLimit:      limit,
+		WatchIntervalMin:     int64(s.watchInterval()),
 		RegistrationDisabled: auth.RegistrationDisabled(s.DB),
 		AuthMode:             auth.AuthMode(s.DB),
 		AnilistTokenSet:      db.SettingOrEnv(s.DB, "anilist_token", "ANILIST_TOKEN") != "",
@@ -72,6 +74,10 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "globalRateLimit must be >= 0")
 		return
 	}
+	if in.WatchIntervalMin < 5 || in.WatchIntervalMin > 1440 {
+		writeErr(w, http.StatusBadRequest, "watchIntervalMin must be 5-1440")
+		return
+	}
 	switch in.AuthMode {
 	case "password", "oidc-only", "oidc-auto":
 	default:
@@ -86,6 +92,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 
 	db.SetSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
 	db.SetSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
+	db.SetSetting(s.DB, "watch_interval_min", strconv.FormatInt(in.WatchIntervalMin, 10))
 	db.SetSetting(s.DB, "registration_disabled", strconv.FormatBool(in.RegistrationDisabled))
 	db.SetSetting(s.DB, "auth_mode", in.AuthMode)
 	db.SetSetting(s.DB, "oidc_provider_name", in.OidcProviderName)

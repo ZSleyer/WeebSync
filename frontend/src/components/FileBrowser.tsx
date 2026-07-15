@@ -32,6 +32,20 @@ export function FileBrowser({
 
   const crumbs = path.split('/').filter(Boolean)
 
+  // a leaf folder (only files inside) is selectable as a whole, so a season
+  // folder can be synced/watched from within; the absolute path comes from
+  // the first child since `path` is root-relative
+  const leafDir: Entry | null =
+    onSelect && !selectDirsOnly && path && entries.length > 0 && entries.every((e) => !e.isDir)
+      ? {
+          name: crumbs[crumbs.length - 1],
+          path: entries[0].path.slice(0, entries[0].path.lastIndexOf('/')),
+          size: 0,
+          isDir: true,
+          modTime: '',
+        }
+      : null
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <nav className="flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs" aria-label={t('browser.path')}>
@@ -56,6 +70,21 @@ export function FileBrowser({
         {error && <p className="p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>}
         {!isLoading && !error && entries.length === 0 && (
           <p className="p-4 text-sm text-t-muted">{emptyHint ?? t('browser.emptyDir')}</p>
+        )}
+        {leafDir && (
+          <div className="flex items-stretch border-b border-border-subtle bg-bg-secondary/50">
+            <span className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-sm text-t-muted">
+              <span aria-hidden className="font-mono text-xs text-accent">▾</span>
+              <span className="truncate">{t('browser.thisFolder', { name: leafDir.name })}</span>
+            </span>
+            <button
+              className="t-btn t-btn--sm my-1 mr-2 shrink-0"
+              aria-label={t('browser.selectItem', { name: leafDir.name })}
+              onClick={() => onSelect!(leafDir)}
+            >
+              {t('browser.select')}
+            </button>
+          </div>
         )}
         <ul>
           {entries

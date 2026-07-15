@@ -94,6 +94,13 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/push/subscribe", authed(http.HandlerFunc(s.handlePushSubscribe)))
 	mux.Handle("DELETE /api/push/subscribe", authed(http.HandlerFunc(s.handlePushUnsubscribe)))
 
+	// watches (persistent auto-sync)
+	mux.Handle("GET /api/watches", authed(http.HandlerFunc(s.handleWatchesList)))
+	mux.Handle("POST /api/watches", authed(http.HandlerFunc(s.handleWatchCreate)))
+	mux.Handle("PUT /api/watches/{id}", authed(http.HandlerFunc(s.handleWatchUpdate)))
+	mux.Handle("DELETE /api/watches/{id}", authed(http.HandlerFunc(s.handleWatchDelete)))
+	mux.Handle("POST /api/watches/{id}/check", authed(http.HandlerFunc(s.handleWatchCheck)))
+
 	// anilist + catalog
 	mux.Handle("GET /api/anilist/search", authed(http.HandlerFunc(s.handleAnilistSearch)))
 	mux.Handle("GET /api/anilist/media/{id}", authed(http.HandlerFunc(s.handleAnilistMedia)))
@@ -104,6 +111,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// rename
 	mux.Handle("POST /api/rename/preview", authed(http.HandlerFunc(s.handleRenamePreview)))
 	mux.Handle("POST /api/rename/apply", authed(http.HandlerFunc(s.handleRenameApply)))
+	mux.Handle("POST /api/rename/names", authed(http.HandlerFunc(s.handleRenameNames)))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

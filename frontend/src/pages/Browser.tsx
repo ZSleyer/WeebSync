@@ -4,6 +4,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { api, type CatalogItem, type Entry, type Media, type ServerInfo } from '../api'
 import { FileBrowser, LocalPicker } from '../components/FileBrowser'
+import WatchDialog from '../components/WatchDialog'
 
 export default function Browser() {
   const { t } = useTranslation()
@@ -17,6 +18,7 @@ export default function Browser() {
   const [localPath, setLocalPath] = useState('')
   const [selection, setSelection] = useState<Entry | null>(null)
   const [notice, setNotice] = useState('')
+  const [watchOpen, setWatchOpen] = useState(false)
 
   const active = serverId || servers[0]?.id || 0
 
@@ -117,6 +119,9 @@ export default function Browser() {
             >
               {selection?.isDir ? t('browser.syncFolder') : t('browser.downloadFile')} → downloads/{localPath || ''}
             </button>
+            <button className="t-btn mt-2 w-full" disabled={!selection?.isDir} onClick={() => setWatchOpen(true)}>
+              {t('watch.add')}
+            </button>
             {notice && (
               <p className="mt-2 text-center text-xs text-t-secondary" role="status">
                 {notice}
@@ -125,6 +130,28 @@ export default function Browser() {
           </div>
         </section>
       </div>
+      {watchOpen && selection && (
+        <WatchDialog
+          title={t('watch.addTitle', { name: selection.name })}
+          initial={{ mode: 'template', template: '', separator: '', titleOverride: '', pattern: '', replacement: '' }}
+          loadNames={async () => {
+            const entries = await api.get<Entry[]>(
+              `/api/servers/${active}/browse?path=${encodeURIComponent(selection.path)}`,
+            )
+            return entries.filter((e) => !e.isDir).map((e) => e.name)
+          }}
+          onSave={async (f) => {
+            await api.post('/api/watches', {
+              serverId: active,
+              remotePath: selection.path,
+              localPath,
+              ...f,
+            })
+            setNotice(t('watch.created'))
+          }}
+          onClose={() => setWatchOpen(false)}
+        />
+      )}
     </div>
   )
 }
