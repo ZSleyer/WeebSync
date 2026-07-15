@@ -22,6 +22,7 @@ CREATE TABLE servers (
     username   TEXT NOT NULL,
     secret_enc BLOB NOT NULL, -- AES-GCM encrypted password
     root_path  TEXT NOT NULL DEFAULT '/',
+    host_key   TEXT NOT NULL DEFAULT '', -- SSH host key, trust-on-first-use
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
