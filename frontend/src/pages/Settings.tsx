@@ -15,13 +15,15 @@ interface SettingsState {
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
   anilistTokenSet: boolean
   anilistToken?: string
+  oidcProviderName: string
   oidcIssuer: string
   oidcClientId: string
   oidcRedirectUrl: string
   oidcClientSecretSet: boolean
   oidcClientSecret?: string
-  oidcAdminClaim: string
-  oidcAdminValue: string
+  oidcClaim: string
+  oidcAdminValues: string
+  oidcUserValues: string
   oidcEnabled: boolean
   oidcError?: string
 }
@@ -37,7 +39,8 @@ export default function Settings() {
   const [form, setForm] = useState<SettingsState | null>(null)
   const [saved, setSaved] = useState(false)
   useEffect(() => {
-    if (data && !form) setForm({ ...data, anilistToken: '', oidcClientSecret: '' })
+    if (data && !form)
+      setForm({ ...data, anilistToken: '', oidcClientSecret: '', oidcClaim: data.oidcClaim || 'groups' })
   }, [data, form])
 
   const save = useMutation({
@@ -52,6 +55,19 @@ export default function Settings() {
 
   const isAdmin = !!user?.isAdmin
   const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => form && setForm({ ...form, [k]: v })
+
+  const [discovered, setDiscovered] = useState('')
+  const discover = async () => {
+    if (!form?.oidcIssuer) return
+    setDiscovered('')
+    try {
+      const out = await api.post<{ issuer: string }>('/api/auth/oidc/discover', { url: form.oidcIssuer })
+      set('oidcIssuer', out.issuer)
+      setDiscovered(t('settings.oidcDiscoverFound', { issuer: out.issuer }))
+    } catch (err) {
+      setDiscovered(err instanceof Error ? err.message : t('app.error'))
+    }
+  }
 
   return (
     <div className="max-w-2xl">
@@ -130,13 +146,38 @@ export default function Settings() {
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-xs text-t-muted sm:col-span-2">
-                    {t('settings.oidcIssuer')}
+                    {t('settings.oidcProviderName')}
                     <input
-                      className="t-input mt-1 font-mono"
-                      placeholder="https://auth.example.com/application/o/weebsync/"
-                      value={form.oidcIssuer}
-                      onChange={(e) => set('oidcIssuer', e.target.value)}
+                      className="t-input mt-1"
+                      placeholder="Authentik"
+                      value={form.oidcProviderName}
+                      onChange={(e) => set('oidcProviderName', e.target.value)}
                     />
+                    <span className="mt-1 block">{t('settings.oidcProviderNameHint')}</span>
+                  </label>
+                  <label className="text-xs text-t-muted sm:col-span-2">
+                    {t('settings.oidcIssuer')}
+                    <span className="mt-1 flex gap-2">
+                      <input
+                        className="t-input font-mono"
+                        placeholder="https://auth.example.com/application/o/weebsync/"
+                        value={form.oidcIssuer}
+                        onChange={(e) => set('oidcIssuer', e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="t-btn t-btn--sm shrink-0"
+                        disabled={!form.oidcIssuer}
+                        onClick={discover}
+                      >
+                        {t('settings.oidcDiscover')}
+                      </button>
+                    </span>
+                    {discovered && (
+                      <span className="mt-1 block" role="status">
+                        {discovered}
+                      </span>
+                    )}
                   </label>
                   <label className="text-xs text-t-muted">
                     {t('settings.oidcClientId')}
@@ -166,23 +207,35 @@ export default function Settings() {
                       onChange={(e) => set('oidcRedirectUrl', e.target.value)}
                     />
                   </label>
-                  <label className="text-xs text-t-muted">
-                    {t('settings.oidcAdminClaim')}
+                  <label className="text-xs text-t-muted sm:col-span-2">
+                    {t('settings.oidcClaim')}
                     <input
                       className="t-input mt-1 font-mono"
                       placeholder="groups"
-                      value={form.oidcAdminClaim}
-                      onChange={(e) => set('oidcAdminClaim', e.target.value)}
+                      value={form.oidcClaim}
+                      onChange={(e) => set('oidcClaim', e.target.value)}
                     />
+                    <span className="mt-1 block">{t('settings.oidcClaimHint')}</span>
                   </label>
                   <label className="text-xs text-t-muted">
-                    {t('settings.oidcAdminValue')}
+                    {t('settings.oidcAdminValues')}
                     <input
                       className="t-input mt-1 font-mono"
-                      placeholder="admin"
-                      value={form.oidcAdminValue}
-                      onChange={(e) => set('oidcAdminValue', e.target.value)}
+                      placeholder="admins"
+                      value={form.oidcAdminValues}
+                      onChange={(e) => set('oidcAdminValues', e.target.value)}
                     />
+                    <span className="mt-1 block">{t('settings.oidcAdminValuesHint')}</span>
+                  </label>
+                  <label className="text-xs text-t-muted">
+                    {t('settings.oidcUserValues')}
+                    <input
+                      className="t-input mt-1 font-mono"
+                      placeholder="users"
+                      value={form.oidcUserValues}
+                      onChange={(e) => set('oidcUserValues', e.target.value)}
+                    />
+                    <span className="mt-1 block">{t('settings.oidcUserValuesHint')}</span>
                   </label>
                   <p className="text-xs text-t-muted sm:col-span-2">{t('settings.oidcAdminHint')}</p>
                 </div>

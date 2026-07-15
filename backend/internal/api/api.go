@@ -43,6 +43,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.Handle("GET /api/auth/me", authed(http.HandlerFunc(s.handleMe)))
 	mux.HandleFunc("GET /api/auth/config", s.handleAuthConfig)
+	mux.HandleFunc("POST /api/auth/setup/oidc", s.handleSetupOIDC)
+	// optional session: guarded inside (open during first-run, admin afterwards)
+	mux.Handle("POST /api/auth/oidc/discover", auth.Middleware(s.DB, false)(http.HandlerFunc(s.handleOIDCDiscover)))
 	mux.HandleFunc("GET /api/auth/oidc/login", s.OIDC.LoginHandler)
 	mux.HandleFunc("GET /api/auth/oidc/callback", s.OIDC.CallbackHandler)
 

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -18,10 +20,13 @@ import (
 type OIDC struct {
 	config   oauth2.Config
 	verifier *oidc.IDTokenVerifier
-	// adminClaim/adminValue map an ID-token claim to is_admin (e.g. claim
-	// "groups" containing "admin"). Empty adminClaim disables the mapping.
-	adminClaim string
-	adminValue string
+	// claim names the ID-token claim holding roles/groups (usually "groups").
+	// adminValues: any match makes the user admin. userValues: if non-empty,
+	// only members of these (or the admin) groups may log in at all.
+	// Empty claim or both lists empty disables the mapping.
+	claim       string
+	adminValues []string
+	userValues  []string
 }
 
 // Manager holds the current OIDC provider; settings changes rebuild it at
@@ -69,11 +74,11 @@ func (m *Manager) Reload(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("oidc discovery: %w", err)
 	}
-	adminClaim := db.SettingOrEnv(m.DB, "oidc_admin_claim", "OIDC_ADMIN_CLAIM")
+	claim := db.SettingOrEnv(m.DB, "oidc_claim", "OIDC_CLAIM")
 	scopes := []string{oidc.ScopeOpenID, "email", "profile"}
-	if adminClaim != "" && adminClaim != "email" && adminClaim != "profile" {
+	if claim != "" && claim != "email" && claim != "profile" {
 		// claim usually needs its scope requested (e.g. VoidAuth "groups")
-		scopes = append(scopes, adminClaim)
+		scopes = append(scopes, claim)
 	}
 	o := &OIDC{
 		config: oauth2.Config{
@@ -83,9 +88,10 @@ func (m *Manager) Reload(ctx context.Context) error {
 			RedirectURL:  redirectURL,
 			Scopes:       scopes,
 		},
-		verifier:   provider.Verifier(&oidc.Config{ClientID: clientID}),
-		adminClaim: adminClaim,
-		adminValue: db.SettingOrEnv(m.DB, "oidc_admin_value", "OIDC_ADMIN_VALUE"),
+		verifier:    provider.Verifier(&oidc.Config{ClientID: clientID}),
+		claim:       claim,
+		adminValues: splitCSV(db.SettingOrEnv(m.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES")),
+		userValues:  splitCSV(db.SettingOrEnv(m.DB, "oidc_user_values", "OIDC_USER_VALUES")),
 	}
 	m.mu.Lock()
 	m.cur = o
@@ -155,13 +161,20 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no email claim", http.StatusBadGateway)
 		return
 	}
-	// admin mapping: only sync when the claim is present, so a misconfigured
-	// claim name never demotes anyone
 	var admin *bool
-	if o.adminClaim != "" {
-		if _, present := claims[o.adminClaim]; present {
-			v := claimGrantsAdmin(claims, o.adminClaim, o.adminValue)
-			admin = &v
+	if o.claim != "" {
+		_, present := claims[o.claim]
+		isAdmin := present && claimMatches(claims, o.claim, o.adminValues)
+		// access gate: with a user allowlist configured, only members of an
+		// allowed (or admin) group may log in, fail closed on a missing claim
+		if len(o.userValues) > 0 && !isAdmin && !(present && claimMatches(claims, o.claim, o.userValues)) {
+			http.Error(w, "access denied: not in an allowed group", http.StatusForbidden)
+			return
+		}
+		// admin mapping: only sync when the claim is present, so a
+		// misconfigured claim name never demotes anyone
+		if len(o.adminValues) > 0 && present {
+			admin = &isAdmin
 		}
 	}
 	userID, err := findOrCreateOIDCUser(m.DB, email, admin)
@@ -176,17 +189,31 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-// claimGrantsAdmin reports whether claims[name] equals or contains value.
+// splitCSV turns "a, b,c" into ["a","b","c"], dropping empty entries.
+func splitCSV(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// claimMatches reports whether claims[name] equals or contains any of values.
 // Handles string, bool and string-array claims (e.g. "groups": ["admin"]).
-func claimGrantsAdmin(claims map[string]any, name, value string) bool {
+func claimMatches(claims map[string]any, name string, values []string) bool {
+	match := func(s string) bool {
+		return slices.Contains(values, s)
+	}
 	switch v := claims[name].(type) {
 	case string:
-		return v == value
+		return match(v)
 	case bool:
-		return v && (value == "" || value == "true")
+		return v && match("true")
 	case []any:
 		for _, e := range v {
-			if s, ok := e.(string); ok && s == value {
+			if s, ok := e.(string); ok && match(s) {
 				return true
 			}
 		}

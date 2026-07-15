@@ -18,13 +18,15 @@ type settingsPayload struct {
 	AuthMode             string `json:"authMode"` // password | oidc-only | oidc-auto
 	AnilistTokenSet      bool   `json:"anilistTokenSet"`
 	AnilistToken         string `json:"anilistToken,omitempty"` // write-only
+	OidcProviderName     string `json:"oidcProviderName"` // login button label ("Sign in with X")
 	OidcIssuer           string `json:"oidcIssuer"`
 	OidcClientID         string `json:"oidcClientId"`
 	OidcRedirectURL      string `json:"oidcRedirectUrl"`
 	OidcClientSecretSet  bool   `json:"oidcClientSecretSet"`
 	OidcClientSecret     string `json:"oidcClientSecret,omitempty"` // write-only
-	OidcAdminClaim       string `json:"oidcAdminClaim"`
-	OidcAdminValue       string `json:"oidcAdminValue"`
+	OidcClaim            string `json:"oidcClaim"`       // token claim holding groups/roles
+	OidcAdminValues      string `json:"oidcAdminValues"` // csv, any match = admin
+	OidcUserValues       string `json:"oidcUserValues"`  // csv login allowlist, empty = everyone
 	OidcEnabled          bool   `json:"oidcEnabled"`
 	OidcError            string `json:"oidcError,omitempty"`
 }
@@ -41,12 +43,14 @@ func (s *Server) settingsState() settingsPayload {
 		RegistrationDisabled: auth.RegistrationDisabled(s.DB),
 		AuthMode:             auth.AuthMode(s.DB),
 		AnilistTokenSet:      db.SettingOrEnv(s.DB, "anilist_token", "ANILIST_TOKEN") != "",
+		OidcProviderName:     db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
 		OidcIssuer:           db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
 		OidcClientID:         db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
 		OidcRedirectURL:      db.SettingOrEnv(s.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL"),
 		OidcClientSecretSet:  db.SettingOrEnv(s.DB, "oidc_client_secret", "OIDC_CLIENT_SECRET") != "",
-		OidcAdminClaim:       db.SettingOrEnv(s.DB, "oidc_admin_claim", "OIDC_ADMIN_CLAIM"),
-		OidcAdminValue:       db.SettingOrEnv(s.DB, "oidc_admin_value", "OIDC_ADMIN_VALUE"),
+		OidcClaim:            db.SettingOrEnv(s.DB, "oidc_claim", "OIDC_CLAIM"),
+		OidcAdminValues:      db.SettingOrEnv(s.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES"),
+		OidcUserValues:       db.SettingOrEnv(s.DB, "oidc_user_values", "OIDC_USER_VALUES"),
 		OidcEnabled:          s.OIDC.Enabled(),
 	}
 }
@@ -84,11 +88,13 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	db.SetSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
 	db.SetSetting(s.DB, "registration_disabled", strconv.FormatBool(in.RegistrationDisabled))
 	db.SetSetting(s.DB, "auth_mode", in.AuthMode)
+	db.SetSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
 	db.SetSetting(s.DB, "oidc_issuer", in.OidcIssuer)
 	db.SetSetting(s.DB, "oidc_client_id", in.OidcClientID)
 	db.SetSetting(s.DB, "oidc_redirect_url", in.OidcRedirectURL)
-	db.SetSetting(s.DB, "oidc_admin_claim", in.OidcAdminClaim)
-	db.SetSetting(s.DB, "oidc_admin_value", in.OidcAdminValue)
+	db.SetSetting(s.DB, "oidc_claim", in.OidcClaim)
+	db.SetSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
+	db.SetSetting(s.DB, "oidc_user_values", in.OidcUserValues)
 	// secrets are write-only: "" keeps the stored value, "-" clears it
 	if in.AnilistToken == "-" {
 		db.SetSetting(s.DB, "anilist_token", "")
