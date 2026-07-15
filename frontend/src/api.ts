@@ -6,6 +6,13 @@ export interface User {
   isAdmin: boolean
 }
 
+export interface UserAccount {
+  id: number
+  email: string
+  isAdmin: boolean
+  createdAt: string
+}
+
 export interface ServerInfo {
   id: number
   name: string
