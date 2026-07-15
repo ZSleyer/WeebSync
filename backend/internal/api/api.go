@@ -23,7 +23,7 @@ type Server struct {
 	Push         *push.Service
 }
 
-// adminOnly guards mutating settings endpoints.
+// adminOnly guards admin-only endpoints (settings mutations, user management).
 func adminOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if u := auth.UserFrom(r.Context()); u == nil || !u.IsAdmin {
@@ -67,6 +67,12 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("PUT /api/downloads/{id}/ratelimit", authed(http.HandlerFunc(s.handleDownloadRateLimit)))
 	mux.Handle("DELETE /api/downloads/{id}", authed(http.HandlerFunc(s.handleDownloadDelete)))
 	mux.Handle("GET /api/events", authed(http.HandlerFunc(s.handleEvents)))
+
+	// user management (admin-only)
+	mux.Handle("GET /api/users", authed(adminOnly(http.HandlerFunc(s.handleUsersList))))
+	mux.Handle("POST /api/users", authed(adminOnly(http.HandlerFunc(s.handleUserCreate))))
+	mux.Handle("PUT /api/users/{id}", authed(adminOnly(http.HandlerFunc(s.handleUserUpdate))))
+	mux.Handle("DELETE /api/users/{id}", authed(adminOnly(http.HandlerFunc(s.handleUserDelete))))
 
 	// settings (mutations are admin-only)
 	mux.Handle("GET /api/settings", authed(http.HandlerFunc(s.handleSettingsGet)))
