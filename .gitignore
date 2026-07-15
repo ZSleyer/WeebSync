@@ -7,11 +7,18 @@ node_modules/
 frontend/dist/
 backend/weebsync
 
+# editor / debugger
+.vscode/
+.idea/
+__debug_bin*
+*.test
+
 # runtime data
 *.db
 *.db-*
 data/
 .env
+cookies.txt
 
 # sftp test fixtures (real server structure — never commit)
 tools/sftp-test/index.json
