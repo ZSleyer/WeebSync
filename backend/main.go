@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/api"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
@@ -47,7 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv := &api.Server{DB: database, OIDC: oidcProvider, DownloadRoot: downloadRoot}
+	srv := &api.Server{DB: database, OIDC: oidcProvider, DownloadRoot: downloadRoot, Anilist: anilist.New(database)}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
 	mux := http.NewServeMux()
 	srv.Register(mux)
