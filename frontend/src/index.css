@@ -188,7 +188,7 @@ body {
   clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
   border-radius: 0;
 }
-.t-cut:focus-visible {
+.kbd .t-cut:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 2px var(--bg-primary),
@@ -271,8 +271,13 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
 /* Accent surfaces carry dark text (WCAG 1.4.3) */
 .bg-accent { color: var(--bg-primary) !important; }
 
-/* Visible keyboard focus everywhere */
+/* Visible keyboard focus everywhere — but only once keyboard navigation
+   started (html.kbd, set in main.tsx), so programmatic focus never paints
+   a ring for pure mouse users. The bare rule suppresses the UA default. */
 :focus-visible {
+  outline: none;
+}
+.kbd :focus-visible {
   outline: 2px solid var(--accent-blue);
   outline-offset: 2px;
 }
