@@ -2,11 +2,14 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type User } from '../api'
+import Setup from './Setup'
 
 interface AuthConfig {
   oidc: boolean
+  oidcName: string
   registrationOpen: boolean
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
+  setupNeeded: boolean
 }
 
 export default function Login() {
@@ -57,7 +60,10 @@ export default function Login() {
     )
   }
 
+  if (cfg.setupNeeded) return <Setup />
+
   const oidcOnly = cfg.oidc && (cfg.authMode === 'oidc-only' || (cfg.authMode === 'oidc-auto' && !noRedirect))
+  const oidcLabel = cfg.oidcName ? t('login.oidcNamed', { name: cfg.oidcName }) : t('login.oidc')
 
   return (
     <main className="t-hatch grid min-h-screen place-items-center p-4">
@@ -77,7 +83,7 @@ export default function Login() {
               </p>
             ) : null}
             <a className="t-btn t-btn--primary t-cut block w-full" href="/api/auth/oidc/login">
-              {t('login.oidc')}
+              {oidcLabel}
             </a>
           </div>
         ) : (
@@ -137,7 +143,7 @@ export default function Login() {
             </button>
             {cfg.oidc && (
               <a className="t-btn mt-3 block w-full text-center" href="/api/auth/oidc/login">
-                {t('login.oidc')}
+                {oidcLabel}
               </a>
             )}
           </form>

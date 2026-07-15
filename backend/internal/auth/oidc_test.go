@@ -7,25 +7,27 @@ import (
 	"github.com/ch4d1/weebsync/internal/db"
 )
 
-func TestClaimGrantsAdmin(t *testing.T) {
+func TestClaimMatches(t *testing.T) {
 	cases := []struct {
 		claims map[string]any
 		name   string
-		value  string
+		values string
 		want   bool
 	}{
 		{map[string]any{"groups": []any{"admin", "users"}}, "groups", "admin", true},
 		{map[string]any{"groups": []any{"users"}}, "groups", "admin", false},
+		{map[string]any{"groups": []any{"users"}}, "groups", "admin, users", true},
+		{map[string]any{"groups": []any{"b"}}, "groups", "a,b,c", true},
 		{map[string]any{"role": "admin"}, "role", "admin", true},
 		{map[string]any{"role": "user"}, "role", "admin", false},
 		{map[string]any{"is_admin": true}, "is_admin", "true", true},
-		{map[string]any{"is_admin": true}, "is_admin", "", true},
 		{map[string]any{"is_admin": false}, "is_admin", "true", false},
 		{map[string]any{}, "groups", "admin", false},
+		{map[string]any{"groups": []any{"admin"}}, "groups", "", false},
 	}
 	for _, c := range cases {
-		if got := claimGrantsAdmin(c.claims, c.name, c.value); got != c.want {
-			t.Errorf("claimGrantsAdmin(%v, %q, %q) = %v, want %v", c.claims, c.name, c.value, got, c.want)
+		if got := claimMatches(c.claims, c.name, splitCSV(c.values)); got != c.want {
+			t.Errorf("claimMatches(%v, %q, %q) = %v, want %v", c.claims, c.name, c.values, got, c.want)
 		}
 	}
 }
