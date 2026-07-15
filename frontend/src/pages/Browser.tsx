@@ -133,20 +133,19 @@ export default function Browser() {
       {watchOpen && selection && (
         <WatchDialog
           title={t('watch.addTitle', { name: selection.name })}
-          initial={{ mode: 'template', template: '', separator: '', titleOverride: '', pattern: '', replacement: '' }}
-          loadNames={async () => {
-            const entries = await api.get<Entry[]>(
-              `/api/servers/${active}/browse?path=${encodeURIComponent(selection.path)}`,
-            )
-            return entries.filter((e) => !e.isDir).map((e) => e.name)
+          serverId={active}
+          initial={{
+            remotePath: selection.path,
+            localPath,
+            mode: 'template',
+            template: '',
+            separator: '',
+            titleOverride: '',
+            pattern: '',
+            replacement: '',
           }}
           onSave={async (f) => {
-            await api.post('/api/watches', {
-              serverId: active,
-              remotePath: selection.path,
-              localPath,
-              ...f,
-            })
+            await api.post('/api/watches', { serverId: active, ...f })
             setNotice(t('watch.created'))
           }}
           onClose={() => setWatchOpen(false)}
