@@ -20,6 +20,8 @@ interface SettingsState {
   oidcRedirectUrl: string
   oidcClientSecretSet: boolean
   oidcClientSecret?: string
+  oidcAdminClaim: string
+  oidcAdminValue: string
   oidcEnabled: boolean
   oidcError?: string
 }
@@ -164,6 +166,25 @@ export default function Settings() {
                       onChange={(e) => set('oidcRedirectUrl', e.target.value)}
                     />
                   </label>
+                  <label className="text-xs text-t-muted">
+                    {t('settings.oidcAdminClaim')}
+                    <input
+                      className="t-input mt-1 font-mono"
+                      placeholder="groups"
+                      value={form.oidcAdminClaim}
+                      onChange={(e) => set('oidcAdminClaim', e.target.value)}
+                    />
+                  </label>
+                  <label className="text-xs text-t-muted">
+                    {t('settings.oidcAdminValue')}
+                    <input
+                      className="t-input mt-1 font-mono"
+                      placeholder="admin"
+                      value={form.oidcAdminValue}
+                      onChange={(e) => set('oidcAdminValue', e.target.value)}
+                    />
+                  </label>
+                  <p className="text-xs text-t-muted sm:col-span-2">{t('settings.oidcAdminHint')}</p>
                 </div>
                 {form.oidcError && (
                   <p className="mt-2 text-xs text-err" role="alert">
