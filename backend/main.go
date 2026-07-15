@@ -11,6 +11,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/api"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 func env(key, fallback string) string {
@@ -47,6 +48,7 @@ func main() {
 	}
 
 	srv := &api.Server{DB: database, OIDC: oidcProvider, DownloadRoot: downloadRoot}
+	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
 	mux := http.NewServeMux()
 	srv.Register(mux)
 	mux.Handle("/", spaHandler(webDir))

@@ -145,7 +145,7 @@ func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	client, rootPath, err := s.dialServer(u.ID, id)
+	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
@@ -158,8 +158,8 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// dialServer loads a user's server config and opens a connection.
-func (s *Server) dialServer(userID, serverID int64) (remote.Client, string, error) {
+// DialServer loads a user's server config and opens a connection.
+func (s *Server) DialServer(userID, serverID int64) (remote.Client, string, error) {
 	var cfg remote.Config
 	var enc []byte
 	var rootPath string

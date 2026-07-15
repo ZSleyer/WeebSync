@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 type Server struct {
@@ -15,6 +16,7 @@ type Server struct {
 	OIDC *auth.OIDC
 	// DownloadRoot is the base directory all local file operations are jailed to.
 	DownloadRoot string
+	Transfers    *transfer.Manager
 }
 
 func (s *Server) Register(mux *http.ServeMux) {
@@ -42,6 +44,20 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/browse/local", authed(http.HandlerFunc(s.handleBrowseLocal)))
 	mux.Handle("POST /api/browse/local/mkdir", authed(http.HandlerFunc(s.handleMkdirLocal)))
 	mux.Handle("GET /api/servers/{id}/browse", authed(http.HandlerFunc(s.handleBrowseRemote)))
+
+	// downloads
+	mux.Handle("GET /api/downloads", authed(http.HandlerFunc(s.handleDownloadsList)))
+	mux.Handle("POST /api/downloads", authed(http.HandlerFunc(s.handleDownloadCreate)))
+	mux.Handle("POST /api/downloads/{id}/pause", authed(s.downloadAction(s.Transfers.Pause)))
+	mux.Handle("POST /api/downloads/{id}/resume", authed(s.downloadAction(s.Transfers.Resume)))
+	mux.Handle("POST /api/downloads/{id}/cancel", authed(s.downloadAction(s.Transfers.Cancel)))
+	mux.Handle("PUT /api/downloads/{id}/ratelimit", authed(http.HandlerFunc(s.handleDownloadRateLimit)))
+	mux.Handle("DELETE /api/downloads/{id}", authed(http.HandlerFunc(s.handleDownloadDelete)))
+	mux.Handle("GET /api/events", authed(http.HandlerFunc(s.handleEvents)))
+
+	// settings
+	mux.Handle("GET /api/settings", authed(http.HandlerFunc(s.handleSettingsGet)))
+	mux.Handle("PUT /api/settings", authed(http.HandlerFunc(s.handleSettingsPut)))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
