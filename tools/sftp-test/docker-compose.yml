@@ -1,0 +1,13 @@
+# Local SFTP test server serving the seeded dummy tree read-only.
+# 1. Generate index.json with backend/cmd/ftpindex (see AGENTS.md)
+# 2. ./seed.sh
+# 3. cp .env.example .env  (set credentials)
+# 4. docker compose up -d  → sftp://localhost:2222, root path /data
+services:
+  sftp:
+    image: atmoz/sftp
+    ports:
+      - "2222:22"
+    command: "${SFTP_TEST_USER:?set in .env}:${SFTP_TEST_PASS:?set in .env}:1001"
+    volumes:
+      - ./data:/home/${SFTP_TEST_USER:?set in .env}/data:ro

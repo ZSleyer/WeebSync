@@ -12,3 +12,6 @@ backend/weebsync
 *.db-*
 data/
 .env
+
+# sftp test fixtures (real server structure — never commit)
+tools/sftp-test/index.json
