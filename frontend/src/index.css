@@ -102,6 +102,15 @@
 [data-theme="light"][data-accent="green"]   { --accent-blue: #14753a; }
 [data-theme="light"][data-accent="pink"]    { --accent-blue: #be185d; }
 [data-theme="light"][data-accent="orange"]  { --accent-blue: #b03a0b; }
+/* Descendant variants so accent swatches inside light theme get light values */
+[data-theme="light"] [data-accent="violet"]  { --accent-blue: #6d28d9; }
+[data-theme="light"] [data-accent="acid"]    { --accent-blue: #566800; }
+[data-theme="light"] [data-accent="crimson"] { --accent-blue: #b8144a; }
+[data-theme="light"] [data-accent="cyan"]    { --accent-blue: #0b6379; }
+[data-theme="light"] [data-accent="blue"]    { --accent-blue: #1d53cc; }
+[data-theme="light"] [data-accent="green"]   { --accent-blue: #14753a; }
+[data-theme="light"] [data-accent="pink"]    { --accent-blue: #be185d; }
+[data-theme="light"] [data-accent="orange"]  { --accent-blue: #b03a0b; }
 
 body {
   margin: 0;
@@ -209,7 +218,7 @@ body {
 .t-btn--primary:hover { background: color-mix(in srgb, var(--accent-blue) 85%, var(--bg-primary)); }
 .t-btn--danger { color: var(--accent-red); border-color: color-mix(in srgb, var(--accent-red) 45%, transparent); }
 .t-btn--danger:hover { border-color: var(--accent-red); background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
-.t-btn--sm { padding: 3px 8px; font-size: 11px; }
+.t-btn--sm { padding: 4px 10px; font-size: 11px; min-height: 24px; min-width: 24px; } /* WCAG 2.5.8 target size */
 
 /* Inputs */
 .t-input {
@@ -281,6 +290,12 @@ dialog {
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   padding: 0;
+  /* Preflight resets margin:0 — restore UA centering for :modal.
+     width (not max-width) so per-dialog max-w-* utilities still cap it. */
+  margin: auto;
+  width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
   clip-path: inset(-2px); /* -2px keeps the hairline border visible */
   opacity: 1;
   transition:
