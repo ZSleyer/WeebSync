@@ -23,6 +23,8 @@ type settingsPayload struct {
 	OidcRedirectURL      string `json:"oidcRedirectUrl"`
 	OidcClientSecretSet  bool   `json:"oidcClientSecretSet"`
 	OidcClientSecret     string `json:"oidcClientSecret,omitempty"` // write-only
+	OidcAdminClaim       string `json:"oidcAdminClaim"`
+	OidcAdminValue       string `json:"oidcAdminValue"`
 	OidcEnabled          bool   `json:"oidcEnabled"`
 	OidcError            string `json:"oidcError,omitempty"`
 }
@@ -43,6 +45,8 @@ func (s *Server) settingsState() settingsPayload {
 		OidcClientID:         db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
 		OidcRedirectURL:      db.SettingOrEnv(s.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL"),
 		OidcClientSecretSet:  db.SettingOrEnv(s.DB, "oidc_client_secret", "OIDC_CLIENT_SECRET") != "",
+		OidcAdminClaim:       db.SettingOrEnv(s.DB, "oidc_admin_claim", "OIDC_ADMIN_CLAIM"),
+		OidcAdminValue:       db.SettingOrEnv(s.DB, "oidc_admin_value", "OIDC_ADMIN_VALUE"),
 		OidcEnabled:          s.OIDC.Enabled(),
 	}
 }
@@ -83,6 +87,8 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	db.SetSetting(s.DB, "oidc_issuer", in.OidcIssuer)
 	db.SetSetting(s.DB, "oidc_client_id", in.OidcClientID)
 	db.SetSetting(s.DB, "oidc_redirect_url", in.OidcRedirectURL)
+	db.SetSetting(s.DB, "oidc_admin_claim", in.OidcAdminClaim)
+	db.SetSetting(s.DB, "oidc_admin_value", in.OidcAdminValue)
 	// secrets are write-only: "" keeps the stored value, "-" clears it
 	if in.AnilistToken == "-" {
 		db.SetSetting(s.DB, "anilist_token", "")
