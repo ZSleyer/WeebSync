@@ -50,12 +50,13 @@ export function FileBrowser({
     <div className="flex min-h-0 flex-1 flex-col">
       <nav className="flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs" aria-label={t('browser.path')}>
         {/* min 24x24 target (WCAG 2.5.8) */}
-        <button className="min-h-6 min-w-6 px-1.5 text-accent hover:underline" onClick={() => onNavigate('')}>
+        <button type="button" className="min-h-6 min-w-6 px-1.5 text-accent hover:underline" onClick={() => onNavigate('')}>
           /
         </button>
         {crumbs.map((c, i) => (
           <span key={i} className="flex items-center">
             <button
+              type="button"
               className="min-h-6 max-w-40 truncate px-1.5 text-accent hover:underline"
               onClick={() => onNavigate(crumbs.slice(0, i + 1).join('/'))}
             >
@@ -78,6 +79,7 @@ export function FileBrowser({
               <span className="truncate">{t('browser.thisFolder', { name: leafDir.name })}</span>
             </span>
             <button
+              type="button"
               className="t-btn t-btn--sm my-1 mr-2 shrink-0"
               aria-label={t('browser.selectItem', { name: leafDir.name })}
               onClick={() => onSelect!(leafDir)}
@@ -95,6 +97,7 @@ export function FileBrowser({
               return (
                 <li key={e.path} className="flex items-stretch border-b border-border-subtle/50">
                   <button
+                    type="button"
                     className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${
                       selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'
                     }`}
@@ -114,6 +117,7 @@ export function FileBrowser({
                   </button>
                   {selectable && e.isDir && (
                     <button
+                      type="button"
                       className="t-btn t-btn--sm my-1 mr-2 shrink-0"
                       aria-label={t('browser.selectItem', { name: e.name })}
                       onClick={() => onSelect(e)}
@@ -162,7 +166,7 @@ export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p
           onChange={(e) => setNewDir(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && mkdir()}
         />
-        <button className="t-btn t-btn--sm shrink-0" onClick={mkdir}>
+        <button type="button" className="t-btn t-btn--sm shrink-0" onClick={mkdir}>
           mkdir
         </button>
       </div>
