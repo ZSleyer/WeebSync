@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api, type Media, type RenamePair } from '../api'
 import { LocalPicker } from '../components/FileBrowser'
 
 const PRESETS = [
-  { label: 'Plex: Series - S01E01', template: '{title} - S{season:02}E{episode:02}' },
-  { label: 'Kompakt: Series.S01E01', template: '{title}.S{season:02}E{episode:02}' },
-  { label: 'Mit Gruppe: [Group] Series - 01', template: '[{group}] {title} - {episode:02}' },
+  { key: 'rename.presetPlex', template: '{title} - S{season:02}E{episode:02}' },
+  { key: 'rename.presetCompact', template: '{title}.S{season:02}E{episode:02}' },
+  { key: 'rename.presetGroup', template: '[{group}] {title} - {episode:02}' },
 ]
 
 export default function Rename() {
+  const { t } = useTranslation()
   const [path, setPath] = useState('')
   const [mode, setMode] = useState<'template' | 'regex'>('template')
   const [template, setTemplate] = useState(PRESETS[0].template)
@@ -45,58 +47,60 @@ export default function Rename() {
   return (
     <div>
       <header className="mb-6">
-        <h2 className="font-display text-xl font-semibold tracking-wider">RENAME</h2>
-        <span className="t-label mt-1">template · regex · anilist</span>
+        <h2 className="font-display text-xl font-semibold tracking-wider">{t('rename.title')}</h2>
+        <span className="t-label mt-1">{t('rename.sub')}</span>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(16rem,0.5fr)_1fr]">
-        <section className="t-panel flex h-96 flex-col" aria-label="Ordnerwahl">
+        <section className="t-panel flex h-96 flex-col" aria-label={t('rename.folderSection')}>
           <div className="border-b border-border-subtle px-3 py-2">
-            <span className="t-label">ordner: downloads/{path}</span>
+            <span className="t-label">
+              {t('rename.folder')}: downloads/{path}
+            </span>
           </div>
           <LocalPicker path={path} onNavigate={setPath} />
         </section>
 
-        <section className="t-panel p-4" aria-label="Regeln">
-          <div role="group" aria-label="Modus" className="mb-4 flex">
+        <section className="t-panel p-4" aria-label={t('rename.rules')}>
+          <div role="group" aria-label={t('rename.mode')} className="mb-4 flex">
             <button
               className={`t-btn t-btn--sm ${mode === 'template' ? 't-btn--primary' : ''}`}
               aria-pressed={mode === 'template'}
               onClick={() => setMode('template')}
             >
-              Template
+              {t('rename.template')}
             </button>
             <button
               className={`t-btn t-btn--sm ${mode === 'regex' ? 't-btn--primary' : ''}`}
               aria-pressed={mode === 'regex'}
               onClick={() => setMode('regex')}
             >
-              RegEx
+              {t('rename.regex')}
             </button>
           </div>
 
           {mode === 'template' ? (
             <div className="grid gap-3">
               <label className="text-xs text-t-muted">
-                Template — Variablen: {'{title} {season:02} {episode:02} {year} {group} {resolution}'}
+                {t('rename.templateLabel')}
                 <input className="t-input mt-1 font-mono" value={template} onChange={(e) => setTemplate(e.target.value)} />
               </label>
               <div className="flex flex-wrap gap-2">
                 {PRESETS.map((p) => (
-                  <button key={p.label} className="t-btn t-btn--sm" onClick={() => setTemplate(p.template)}>
-                    {p.label}
+                  <button key={p.key} className="t-btn t-btn--sm" onClick={() => setTemplate(p.template)}>
+                    {t(p.key)}
                   </button>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-xs text-t-muted">
-                  Trennzeichen (ersetzt Leerzeichen)
+                  {t('rename.separator')}
                   <span className="t-select-wrap mt-1">
                     <select className="t-select font-mono" value={separator} onChange={(e) => setSeparator(e.target.value)}>
-                      <option value=" ">Leerzeichen</option>
-                      <option value="_">_ Unterstrich</option>
-                      <option value=".">. Punkt</option>
-                      <option value="-">- Bindestrich</option>
+                      <option value=" ">{t('rename.sepSpace')}</option>
+                      <option value="_">{t('rename.sepUnderscore')}</option>
+                      <option value=".">{t('rename.sepDot')}</option>
+                      <option value="-">{t('rename.sepDash')}</option>
                     </select>
                   </span>
                 </label>
@@ -104,9 +108,9 @@ export default function Rename() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs text-t-muted">
-                Pattern (Go-RegEx)
+                {t('rename.pattern')}
                 <input
                   className="t-input mt-1 font-mono"
                   value={pattern}
@@ -115,7 +119,7 @@ export default function Rename() {
                 />
               </label>
               <label className="text-xs text-t-muted">
-                Ersetzung ($1, ${'{name}'})
+                {t('rename.replacement')}
                 <input
                   className="t-input mt-1 font-mono"
                   value={replacement}
@@ -126,16 +130,16 @@ export default function Rename() {
             </div>
           )}
 
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             <button className="t-btn" onClick={() => doPreview.mutate()} disabled={doPreview.isPending}>
-              Vorschau (Dry-Run)
+              {t('rename.preview')}
             </button>
             <button
               className="t-btn t-btn--primary t-cut"
               disabled={!preview || preview.every((p) => p.error || p.old === p.new) || doApply.isPending}
               onClick={() => doApply.mutate()}
             >
-              Anwenden
+              {t('rename.apply')}
             </button>
           </div>
           {(doPreview.error || doApply.error) && (
@@ -147,20 +151,26 @@ export default function Rename() {
       </div>
 
       {(preview ?? applied) && (
-        <section className="t-panel mt-4 overflow-x-auto" aria-label="Ergebnis">
+        <section className="t-panel mt-4 overflow-x-auto" aria-label={t('rename.result')}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle text-left">
-                <th className="px-3 py-2"><span className="t-label">alt</span></th>
-                <th className="px-3 py-2"><span className="t-label">{applied ? 'ergebnis' : 'neu (vorschau)'}</span></th>
+                <th className="px-3 py-2">
+                  <span className="t-label">{t('rename.old')}</span>
+                </th>
+                <th className="px-3 py-2">
+                  <span className="t-label">{applied ? t('rename.applied') : t('rename.new')}</span>
+                </th>
               </tr>
             </thead>
             <tbody className="font-mono text-xs">
               {(preview ?? applied)!.map((p, i) => (
                 <tr key={i} className="border-b border-border-subtle/50">
                   <td className="px-3 py-1.5 text-t-muted">{p.old}</td>
-                  <td className={`px-3 py-1.5 ${p.error ? 'text-err' : p.old === p.new ? 'text-t-faint' : applied ? 'text-ok' : 'text-accent'}`}>
-                    {p.error ? `⚠ ${p.error}` : p.old === p.new ? 'unverändert' : p.new}
+                  <td
+                    className={`px-3 py-1.5 ${p.error ? 'text-err' : p.old === p.new ? 'text-t-muted' : applied ? 'text-ok' : 'text-accent'}`}
+                  >
+                    {p.error ? `⚠ ${p.error}` : p.old === p.new ? t('rename.unchanged') : p.new}
                   </td>
                 </tr>
               ))}
@@ -172,14 +182,20 @@ export default function Rename() {
   )
 }
 
-// AniList search box that fills the title override.
+// AniList search box that fills the title override. Fully keyboard
+// accessible: results are focusable buttons, the list closes only when
+// focus leaves the whole widget (WCAG 2.1.1).
 function TitleSearch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation()
   const [results, setResults] = useState<Media[]>([])
   const [open, setOpen] = useState(false)
+  const wrap = useRef<HTMLDivElement>(null)
+
   const search = async (q: string) => {
     onChange(q)
     if (q.length < 3) {
       setResults([])
+      setOpen(false)
       return
     }
     try {
@@ -189,16 +205,31 @@ function TitleSearch({ value, onChange }: { value: string; onChange: (v: string)
       /* ignore */
     }
   }
+
+  const pick = (m: Media) => {
+    onChange(m.title.romaji)
+    setOpen(false)
+  }
+
   return (
-    <label className="relative text-xs text-t-muted">
-      Titel-Override (AniList)
-      <input
-        className="t-input mt-1"
-        value={value}
-        placeholder="optional — Serientitel"
-        onChange={(e) => search(e.target.value)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-      />
+    <div
+      ref={wrap}
+      className="relative text-xs text-t-muted"
+      onBlur={(e) => {
+        if (!wrap.current?.contains(e.relatedTarget as Node)) setOpen(false)
+      }}
+      onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+    >
+      <label>
+        {t('rename.titleOverride')}
+        <input
+          className="t-input mt-1"
+          value={value}
+          placeholder={t('rename.titlePlaceholder')}
+          aria-expanded={open}
+          onChange={(e) => search(e.target.value)}
+        />
+      </label>
       {open && results.length > 0 && (
         <ul className="absolute left-0 right-0 top-full z-50 max-h-48 overflow-y-auto border border-border-subtle bg-bg-card shadow-lg">
           {results.map((m) => (
@@ -206,17 +237,14 @@ function TitleSearch({ value, onChange }: { value: string; onChange: (v: string)
               <button
                 type="button"
                 className="block w-full truncate px-3 py-1.5 text-left text-sm text-t-secondary hover:bg-bg-hover"
-                onMouseDown={() => {
-                  onChange(m.title.romaji)
-                  setOpen(false)
-                }}
+                onClick={() => pick(m)}
               >
-                {m.title.romaji} <span className="text-t-faint">({m.seasonYear})</span>
+                {m.title.romaji} <span className="text-t-muted">({m.seasonYear})</span>
               </button>
             </li>
           ))}
         </ul>
       )}
-    </label>
+    </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api, fmtBytes, type Entry } from '../api'
 
 // Breadcrumb + list view over a browse endpoint. Works for the local
@@ -23,6 +24,7 @@ export function FileBrowser({
   selectDirsOnly?: boolean
   emptyHint?: string
 }) {
+  const { t } = useTranslation()
   const { data: entries = [], isLoading, error } = useQuery<Entry[]>({
     queryKey: [...queryKey, path],
     queryFn: () => api.get(fetchPath(path)),
@@ -32,14 +34,15 @@ export function FileBrowser({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <nav className="flex flex-wrap items-center gap-1 border-b border-border-subtle px-3 py-2 font-mono text-xs" aria-label="Pfad">
-        <button className="text-accent hover:underline" onClick={() => onNavigate('')}>
+      <nav className="flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs" aria-label={t('browser.path')}>
+        {/* min 24x24 target (WCAG 2.5.8) */}
+        <button className="min-h-6 min-w-6 px-1.5 text-accent hover:underline" onClick={() => onNavigate('')}>
           /
         </button>
         {crumbs.map((c, i) => (
-          <span key={i} className="flex items-center gap-1">
+          <span key={i} className="flex items-center">
             <button
-              className="max-w-40 truncate text-accent hover:underline"
+              className="min-h-6 max-w-40 truncate px-1.5 text-accent hover:underline"
               onClick={() => onNavigate(crumbs.slice(0, i + 1).join('/'))}
             >
               {c}
@@ -49,10 +52,10 @@ export function FileBrowser({
         ))}
       </nav>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {isLoading && <p className="p-4 text-sm text-t-muted">lädt…</p>}
-        {error && <p className="p-4 text-sm text-err">{error instanceof Error ? error.message : 'Fehler'}</p>}
+        {isLoading && <p className="p-4 text-sm text-t-muted">{t('app.loading')}…</p>}
+        {error && <p className="p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>}
         {!isLoading && !error && entries.length === 0 && (
-          <p className="p-4 text-sm text-t-faint">{emptyHint ?? 'leer'}</p>
+          <p className="p-4 text-sm text-t-muted">{emptyHint ?? t('browser.emptyDir')}</p>
         )}
         <ul>
           {entries
@@ -78,15 +81,15 @@ export function FileBrowser({
                     <span className="min-w-0 flex-1 truncate" title={e.name}>
                       {e.name}
                     </span>
-                    {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-faint">{fmtBytes(e.size)}</span>}
+                    {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>}
                   </button>
                   {selectable && e.isDir && (
                     <button
                       className="t-btn t-btn--sm my-1 mr-2 shrink-0"
-                      aria-label={`${e.name} auswählen`}
+                      aria-label={t('browser.selectItem', { name: e.name })}
                       onClick={() => onSelect(e)}
                     >
-                      wählen
+                      {t('browser.select')}
                     </button>
                   )}
                 </li>
@@ -100,6 +103,7 @@ export function FileBrowser({
 
 // Local destination picker with mkdir.
 export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p: string) => void }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [newDir, setNewDir] = useState('')
   const mkdir = async () => {
@@ -115,12 +119,16 @@ export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p
         fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p)}`}
         path={path}
         onNavigate={onNavigate}
-        emptyHint="leer — Unterordner unten anlegen"
+        emptyHint={t('browser.emptyLocal')}
       />
       <div className="flex gap-2 border-t border-border-subtle p-2">
+        <label className="sr-only" htmlFor="mkdir-input">
+          {t('browser.newFolder')}
+        </label>
         <input
+          id="mkdir-input"
           className="t-input py-1 text-xs"
-          placeholder="neuer Ordner…"
+          placeholder={t('browser.newFolder')}
           value={newDir}
           onChange={(e) => setNewDir(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && mkdir()}

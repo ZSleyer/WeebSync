@@ -1,8 +1,16 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, type AuthConfig, type User } from '../api'
+import { useTranslation } from 'react-i18next'
+import { api, type User } from '../api'
+
+interface AuthConfig {
+  oidc: boolean
+  registrationOpen: boolean
+  authMode: 'password' | 'oidc-only' | 'oidc-auto'
+}
 
 export default function Login() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: cfg } = useQuery<AuthConfig>({
     queryKey: ['authConfig'],
@@ -14,6 +22,19 @@ export default function Login() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // oidc-auto: straight to the provider; ?noredirect=1 is the escape hatch
+  // (e.g. admin needs the password form while the provider is down)
+  const noRedirect = new URLSearchParams(window.location.search).has('noredirect')
+  useEffect(() => {
+    if (cfg?.authMode === 'oidc-auto' && cfg.oidc && !noRedirect) {
+      window.location.href = '/api/auth/oidc/login'
+    }
+  }, [cfg, noRedirect])
+
+  useEffect(() => {
+    document.title = `${t('login.login')} — WeebSync`
+  }, [t])
+
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -22,84 +43,106 @@ export default function Login() {
       await api.post<User>(`/api/auth/${mode}`, { email, password })
       await qc.invalidateQueries({ queryKey: ['me'] })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'unbekannter Fehler')
+      setError(err instanceof Error ? err.message : t('app.error'))
     } finally {
       setBusy(false)
     }
   }
 
+  if (!cfg) {
+    return (
+      <main className="grid min-h-screen place-items-center">
+        <span className="t-label t-label--accent">{t('app.loading')}</span>
+      </main>
+    )
+  }
+
+  const oidcOnly = cfg.oidc && (cfg.authMode === 'oidc-only' || (cfg.authMode === 'oidc-auto' && !noRedirect))
+
   return (
-    <div className="t-hatch grid min-h-screen place-items-center p-4">
+    <main className="t-hatch grid min-h-screen place-items-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
             WEEB<span className="text-accent">SYNC</span>
           </h1>
-          <span className="t-label mt-3">s/ftp anime sync · private use</span>
+          <span className="t-label mt-3">{t('login.tagline')}</span>
         </div>
-        <form className="t-panel animate-fadeIn p-6" onSubmit={submit}>
-          <div className="mb-4 flex gap-1" role="tablist" aria-label="Login oder Registrierung">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'login'}
-              className={`t-btn t-btn--sm flex-1 ${mode === 'login' ? 't-btn--primary t-cut' : ''}`}
-              onClick={() => setMode('login')}
-            >
-              Login
-            </button>
-            {cfg?.registrationOpen && (
+
+        {oidcOnly ? (
+          <div className="t-panel animate-fadeIn p-6 text-center">
+            {cfg.authMode === 'oidc-auto' ? (
+              <p className="mb-4 text-sm text-t-secondary" role="status">
+                {t('login.redirecting')}
+              </p>
+            ) : null}
+            <a className="t-btn t-btn--primary t-cut block w-full" href="/api/auth/oidc/login">
+              {t('login.oidc')}
+            </a>
+          </div>
+        ) : (
+          <form className="t-panel animate-fadeIn p-6" onSubmit={submit}>
+            <div className="mb-4 flex gap-1" role="group" aria-label={t('login.tabs')}>
               <button
                 type="button"
-                role="tab"
-                aria-selected={mode === 'register'}
-                className={`t-btn t-btn--sm flex-1 ${mode === 'register' ? 't-btn--primary t-cut' : ''}`}
-                onClick={() => setMode('register')}
+                aria-pressed={mode === 'login'}
+                className={`t-btn t-btn--sm flex-1 ${mode === 'login' ? 't-btn--primary t-cut' : ''}`}
+                onClick={() => setMode('login')}
               >
-                Registrieren
+                {t('login.login')}
               </button>
+              {cfg.registrationOpen && (
+                <button
+                  type="button"
+                  aria-pressed={mode === 'register'}
+                  className={`t-btn t-btn--sm flex-1 ${mode === 'register' ? 't-btn--primary t-cut' : ''}`}
+                  onClick={() => setMode('register')}
+                >
+                  {t('login.register')}
+                </button>
+              )}
+            </div>
+            <label className="t-label mb-1 block w-fit" htmlFor="email">
+              {t('login.email')}
+            </label>
+            <input
+              id="email"
+              className="t-input mb-4"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <label className="t-label mb-1 block w-fit" htmlFor="password">
+              {t('login.password')}
+            </label>
+            <input
+              id="password"
+              className="t-input mb-4"
+              type="password"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              required
+              minLength={mode === 'register' ? 10 : undefined}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            {error && (
+              <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+                {error}
+              </p>
             )}
-          </div>
-          <label className="t-label mb-1 block w-fit" htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            className="t-input mb-4"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <label className="t-label mb-1 block w-fit" htmlFor="password">
-            Passwort
-          </label>
-          <input
-            id="password"
-            className="t-input mb-4"
-            type="password"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            required
-            minLength={mode === 'register' ? 10 : undefined}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          {error && (
-            <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-              {error}
-            </p>
-          )}
-          <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
-            {mode === 'login' ? 'Anmelden' : 'Konto anlegen'}
-          </button>
-          {cfg?.oidc && (
-            <a className="t-btn mt-3 block w-full text-center" href="/api/auth/oidc/login">
-              Mit OIDC anmelden
-            </a>
-          )}
-        </form>
+            <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
+              {mode === 'login' ? t('login.submitLogin') : t('login.submitRegister')}
+            </button>
+            {cfg.oidc && (
+              <a className="t-btn mt-3 block w-full text-center" href="/api/auth/oidc/login">
+                {t('login.oidc')}
+              </a>
+            )}
+          </form>
+        )}
       </div>
-    </div>
+    </main>
   )
 }

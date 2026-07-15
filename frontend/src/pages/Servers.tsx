@@ -1,8 +1,10 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api, type ServerInfo } from '../api'
 
 export default function Servers() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: servers = [] } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
@@ -28,25 +30,23 @@ export default function Servers() {
       await api.post(`/api/servers/${id}/test`)
       setTestResult((r) => ({ ...r, [id]: 'ok' }))
     } catch (e) {
-      setTestResult((r) => ({ ...r, [id]: e instanceof Error ? e.message : 'Fehler' }))
+      setTestResult((r) => ({ ...r, [id]: e instanceof Error ? e.message : t('app.error') }))
     }
   }
 
   return (
     <div>
-      <header className="mb-6 flex items-end justify-between">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-display text-xl font-semibold tracking-wider">SERVER</h2>
-          <span className="t-label mt-1">remote sources</span>
+          <h2 className="font-display text-xl font-semibold tracking-wider">{t('servers.title')}</h2>
+          <span className="t-label mt-1">{t('servers.sub')}</span>
         </div>
         <button className="t-btn t-btn--primary t-cut" onClick={() => openDialog(null)}>
-          + Server hinzufügen
+          {t('servers.add')}
         </button>
       </header>
 
-      {servers.length === 0 && (
-        <div className="t-panel p-8 text-center text-t-muted">Noch keine Server konfiguriert.</div>
-      )}
+      {servers.length === 0 && <div className="t-panel p-8 text-center text-t-muted">{t('servers.none')}</div>}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {servers.map((s) => (
           <div key={s.id} className="t-panel p-4">
@@ -57,33 +57,34 @@ export default function Servers() {
             <p className="font-mono text-xs text-t-muted">
               {s.username}@{s.host}:{s.port}
             </p>
-            <p className="mb-3 font-mono text-xs text-t-faint">root: {s.rootPath}</p>
-            <div className="flex items-center gap-2">
+            <p className="mb-3 font-mono text-xs text-t-muted">root: {s.rootPath}</p>
+            <div className="flex flex-wrap items-center gap-2">
               <button className="t-btn t-btn--sm" onClick={() => test(s.id)}>
-                Test
+                {t('servers.test')}
               </button>
               <button className="t-btn t-btn--sm" onClick={() => openDialog(s)}>
-                Edit
+                {t('servers.edit')}
               </button>
               <button
                 className="t-btn t-btn--sm t-btn--danger"
                 onClick={() => {
-                  if (confirm(`Server "${s.name}" löschen?`)) del.mutate(s.id)
+                  if (confirm(t('servers.confirmDelete', { name: s.name }))) del.mutate(s.id)
                 }}
               >
-                Löschen
+                {t('servers.delete')}
               </button>
               {testResult[s.id] && (
                 <span
                   className={`t-label ${testResult[s.id] === 'ok' ? 't-label--ok' : testResult[s.id] === '…' ? '' : 't-label--err'}`}
-                  title={testResult[s.id]}
                 >
-                  {testResult[s.id] === 'ok' ? 'verbunden' : testResult[s.id] === '…' ? 'teste…' : 'fehler'}
+                  {testResult[s.id] === 'ok' ? t('servers.connected') : testResult[s.id] === '…' ? t('servers.testing') : t('servers.failed')}
                 </span>
               )}
             </div>
             {testResult[s.id] && testResult[s.id] !== 'ok' && testResult[s.id] !== '…' && (
-              <p className="mt-2 break-all text-xs text-err">{testResult[s.id]}</p>
+              <p className="mt-2 break-all text-xs text-err" role="alert">
+                {testResult[s.id]}
+              </p>
             )}
           </div>
         ))}
@@ -95,6 +96,7 @@ export default function Servers() {
 }
 
 function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement | null>; editing: ServerInfo | null }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [error, setError] = useState('')
 
@@ -117,24 +119,24 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
       qc.invalidateQueries({ queryKey: ['servers'] })
       ref.current?.close()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler')
+      setError(err instanceof Error ? err.message : t('app.error'))
     }
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-md" aria-label={editing ? 'Server bearbeiten' : 'Server hinzufügen'}>
+    <dialog ref={ref} className="w-full max-w-md" aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}>
       {/* key remounts the form so defaultValues follow the edited server */}
       <form key={editing?.id ?? 'new'} onSubmit={submit} className="p-6">
         <h3 className="mb-4 font-display text-lg font-semibold tracking-wider">
-          {editing ? 'SERVER BEARBEITEN' : 'NEUER SERVER'}
+          {editing ? t('servers.editTitle') : t('servers.newTitle')}
         </h3>
         <div className="grid grid-cols-2 gap-3">
           <label className="col-span-2 text-xs text-t-muted">
-            Name
+            {t('servers.name')}
             <input name="name" className="t-input mt-1" required defaultValue={editing?.name} />
           </label>
           <label className="text-xs text-t-muted">
-            Protokoll
+            {t('servers.protocol')}
             <span className="t-select-wrap mt-1">
               <select name="protocol" className="t-select" defaultValue={editing?.protocol ?? 'sftp'}>
                 <option value="sftp">SFTP (SSH)</option>
@@ -144,7 +146,7 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
             </span>
           </label>
           <label className="text-xs text-t-muted">
-            Port
+            {t('servers.port')}
             <input
               name="port"
               className="t-input mt-1 font-mono"
@@ -156,26 +158,26 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
             />
           </label>
           <label className="col-span-2 text-xs text-t-muted">
-            Host
+            {t('servers.host')}
             <input name="host" className="t-input mt-1 font-mono" required defaultValue={editing?.host} />
           </label>
           <label className="text-xs text-t-muted">
-            Benutzer
+            {t('servers.user')}
             <input name="username" className="t-input mt-1 font-mono" required defaultValue={editing?.username} />
           </label>
           <label className="text-xs text-t-muted">
-            Passwort
+            {t('servers.password')}
             <input
               name="password"
               className="t-input mt-1"
               type="password"
-              placeholder={editing ? '(unverändert)' : ''}
+              placeholder={editing ? t('servers.unchanged') : ''}
               required={!editing}
               autoComplete="new-password"
             />
           </label>
           <label className="col-span-2 text-xs text-t-muted">
-            Root-Pfad
+            {t('servers.rootPath')}
             <input name="rootPath" className="t-input mt-1 font-mono" defaultValue={editing?.rootPath ?? '/'} />
           </label>
         </div>
@@ -186,9 +188,9 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
         )}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="t-btn" onClick={() => ref.current?.close()}>
-            Abbrechen
+            {t('servers.cancel')}
           </button>
-          <button className="t-btn t-btn--primary t-cut">Speichern</button>
+          <button className="t-btn t-btn--primary t-cut">{t('servers.save')}</button>
         </div>
       </form>
     </dialog>

@@ -3,7 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
+import './locales'
 import App from './App'
+import { registerServiceWorker } from './push'
+
+registerServiceWorker()
 
 // apply persisted look before first paint
 const root = document.documentElement

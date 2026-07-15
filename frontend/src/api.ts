@@ -6,11 +6,6 @@ export interface User {
   isAdmin: boolean
 }
 
-export interface AuthConfig {
-  oidc: boolean
-  registrationOpen: boolean
-}
-
 export interface ServerInfo {
   id: number
   name: string
@@ -60,12 +55,6 @@ export interface Media {
 export interface CatalogItem {
   entry: Entry
   media?: Media
-}
-
-export interface Settings {
-  maxConcurrent: number
-  globalRateLimit: number
-  registrationDisabled: boolean
 }
 
 export interface RenamePair {
