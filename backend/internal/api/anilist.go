@@ -79,17 +79,24 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		}
 		item := catalogItem{Entry: e}
 		var mediaID int
-		err := s.DB.QueryRow(`SELECT media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+		// auto rows with media_id=0 are retried (search may have failed);
+		// only a manual unmatch (manual=1) is final
+		err := s.DB.QueryRow(`SELECT media_id FROM catalog_matches
+			WHERE server_id = ? AND folder = ? AND (media_id != 0 OR manual = 1)`,
 			serverID, e.Path).Scan(&mediaID)
 		if err != nil {
-			// no match yet: guess and search
-			if results, serr := s.Anilist.Search(r.Context(), GuessTitle(e.Name)); serr == nil && len(results) > 0 {
-				mediaID = results[0].ID
+			// no match yet: guess and search; persist only on success so a
+			// failed lookup (rate limit, canceled request) is retried later
+			if results, serr := s.Anilist.Search(r.Context(), GuessTitle(e.Name)); serr == nil {
+				if len(results) > 0 {
+					mediaID = results[0].ID
+					item.Media = &results[0] // search already returns all fields
+				}
+				s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual) VALUES (?, ?, ?, 0)`,
+					serverID, e.Path, mediaID)
 			}
-			s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual) VALUES (?, ?, ?, 0)`,
-				serverID, e.Path, mediaID)
 		}
-		if mediaID != 0 {
+		if mediaID != 0 && item.Media == nil {
 			if m, merr := s.Anilist.Media(r.Context(), mediaID); merr == nil {
 				item.Media = m
 			}
