@@ -1,111 +1,343 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import "@fontsource/chakra-petch/500.css";
+@import "@fontsource/chakra-petch/600.css";
+@import "@fontsource/chakra-petch/700.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "tailwindcss";
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+/* ═══ WeebSync — Tempest design language (from Encounty) ═══
+   Hard corners everywhere: radius 0, softness comes from corner cuts
+   (.t-cut) and L-brackets (.t-panel), never from rounding. Only toggles
+   and true indicator dots are round. */
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@theme {
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --font-display: "Chakra Petch", sans-serif;
+  --font-sans: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-card: var(--bg-card);
+  --color-bg-hover: var(--bg-hover);
+  --color-accent: var(--accent-blue);
+  --color-ok: var(--accent-green);
+  --color-warn: var(--accent-yellow);
+  --color-err: var(--accent-red);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-active: var(--border-active);
+  --color-t-primary: var(--text-primary);
+  --color-t-secondary: var(--text-secondary);
+  --color-t-muted: var(--text-muted);
+  --color-t-faint: var(--text-faint);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+/* ── Theme variables (WCAG AA pairs, see Encounty Tempest README) ── */
+:root,
+[data-theme="dark"] {
+  --bg-primary: #0d1117;
+  --bg-secondary: #131922;
+  --bg-card: #161e28;
+  --bg-hover: #1e2836;
+  --accent-blue: #a685f0; /* user-themable via [data-accent] */
+  --accent-green: #34d67a;
+  --accent-yellow: #ffb020;
+  --accent-red: #f05050;
+  --border-subtle: #2a3644;
+  --border-active: var(--accent-blue);
+  --text-primary: #eef3f8;
+  --text-secondary: #b7c5d3;
+  --text-muted: #8fa3b5;
+  --text-faint: #7a8ea0;
+  --scrollbar-track: #0d1117;
+  --scrollbar-thumb: #2a3644;
+  --scrollbar-thumb-hover: #4a5f73;
+  color-scheme: dark;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+[data-theme="light"] {
+  --bg-primary: #eef1f4;
+  --bg-secondary: #f8fafb;
+  --bg-card: #ffffff;
+  --bg-hover: #e2e7ed;
+  --accent-blue: #6d28d9;
+  --accent-green: #0c5f2c;
+  --accent-yellow: #854307;
+  --accent-red: #b91c1c;
+  --border-subtle: #c3ccd6;
+  --border-active: var(--accent-blue);
+  --text-primary: #0a1628;
+  --text-secondary: #2d4059;
+  --text-muted: #4a5f73;
+  --text-faint: #556270;
+  --scrollbar-track: #eef1f4;
+  --scrollbar-thumb: #c3ccd6;
+  --scrollbar-thumb-hover: #8fa3b5;
+  color-scheme: light;
 }
+
+/* ── Accent presets (each ≥4.5:1 on its mode's surfaces) ── */
+[data-accent="violet"]  { --accent-blue: #a685f0; }
+[data-accent="acid"]    { --accent-blue: #c8e04a; }
+[data-accent="crimson"] { --accent-blue: #f26389; }
+[data-accent="cyan"]    { --accent-blue: #3fd4e0; }
+[data-accent="blue"]    { --accent-blue: #7ab8ff; }
+[data-accent="green"]   { --accent-blue: #3fe08c; }
+[data-accent="pink"]    { --accent-blue: #f47ad0; }
+[data-accent="orange"]  { --accent-blue: #ffa14a; }
+[data-theme="light"][data-accent="violet"]  { --accent-blue: #6d28d9; }
+[data-theme="light"][data-accent="acid"]    { --accent-blue: #566800; }
+[data-theme="light"][data-accent="crimson"] { --accent-blue: #b8144a; }
+[data-theme="light"][data-accent="cyan"]    { --accent-blue: #0b6379; }
+[data-theme="light"][data-accent="blue"]    { --accent-blue: #1d53cc; }
+[data-theme="light"][data-accent="green"]   { --accent-blue: #14753a; }
+[data-theme="light"][data-accent="pink"]    { --accent-blue: #be185d; }
+[data-theme="light"][data-accent="orange"]  { --accent-blue: #b03a0b; }
 
 body {
   margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+/* ── Tempest surface utilities ── */
+
+/* Panel: flat card, hairline border, 10px L-brackets top-left/bottom-right. */
+.t-panel {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0;
+}
+.t-panel::before,
+.t-panel::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+.t-panel::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1px solid var(--panel-bracket, color-mix(in srgb, var(--accent-blue) 55%, transparent));
+  border-left: 1px solid var(--panel-bracket, color-mix(in srgb, var(--accent-blue) 55%, transparent));
+}
+.t-panel::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1px solid var(--panel-bracket, color-mix(in srgb, var(--accent-blue) 55%, transparent));
+  border-right: 1px solid var(--panel-bracket, color-mix(in srgb, var(--accent-blue) 55%, transparent));
+}
+.t-panel--danger { --panel-bracket: var(--accent-red); }
+
+/* Hatch texture: faint 135° diagonal hairlines. */
+.t-hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 7px,
+    color-mix(in srgb, var(--text-primary) 3%, transparent) 7px 8px
+  );
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
+/* Micro label chip: uppercase, letterspaced, hairline border. */
+.t-label {
   display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+  align-items: center;
+  gap: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0;
+  padding: 1px 6px;
+  color: var(--text-muted);
+}
+.t-label--accent {
+  border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  color: var(--accent-blue);
+}
+.t-label--ok    { border-color: color-mix(in srgb, var(--accent-green) 55%, transparent); color: var(--accent-green); }
+.t-label--warn  { border-color: color-mix(in srgb, var(--accent-yellow) 55%, transparent); color: var(--accent-yellow); }
+.t-label--err   { border-color: color-mix(in srgb, var(--accent-red) 55%, transparent); color: var(--accent-red); }
+
+/* Corner-cut CTA: clips top-right corner; focus ring via box-shadow
+   because the clip-path would clip an outline (WCAG 2.4.7). */
+.t-cut {
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  border-radius: 0;
+}
+.t-cut:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-primary),
+    0 0 0 4px var(--accent-blue);
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+/* Buttons */
+.t-btn {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-size: 13px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: border-color 150ms, background-color 150ms;
+}
+.t-btn:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); background: var(--bg-hover); }
+.t-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.t-btn--primary {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: var(--bg-primary);
+}
+.t-btn--primary:hover { background: color-mix(in srgb, var(--accent-blue) 85%, var(--bg-primary)); }
+.t-btn--danger { color: var(--accent-red); border-color: color-mix(in srgb, var(--accent-red) 45%, transparent); }
+.t-btn--danger:hover { border-color: var(--accent-red); background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
+.t-btn--sm { padding: 3px 8px; font-size: 11px; }
+
+/* Inputs */
+.t-input {
+  font: inherit;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0;
+  padding: 7px 10px;
+  width: 100%;
+  transition: border-color 150ms;
+}
+.t-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+}
+.t-input::placeholder { color: var(--text-faint); }
+
+/* Native select with hand-drawn chevron */
+.t-select-wrap { position: relative; display: block; }
+.t-select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--text-muted);
+  border-bottom: 1px solid var(--text-muted);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+.t-select {
+  font: inherit;
+  appearance: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0;
+  padding: 7px 30px 7px 10px;
+  width: 100%;
+  transition: border-color 150ms;
+}
+.t-select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+}
+option { background-color: var(--bg-secondary); color: var(--text-primary); }
+
+/* Accent surfaces carry dark text (WCAG 1.4.3) */
+.bg-accent { color: var(--bg-primary) !important; }
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+::-webkit-scrollbar-corner { background: var(--scrollbar-track); }
+
+/* ── Native dialog: Tempest panel + CRT reveal ── */
+dialog {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  padding: 0;
+  clip-path: inset(-2px); /* -2px keeps the hairline border visible */
+  opacity: 1;
+  transition:
+    clip-path 240ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 200ms ease-out,
+    overlay 240ms allow-discrete,
+    display 240ms allow-discrete;
+}
+dialog::backdrop {
+  background: color-mix(in srgb, #05070a 65%, transparent);
+  transition: opacity 240ms ease-out;
+  opacity: 1;
+}
+dialog:not([open]) { clip-path: inset(50% 0 50% 0); opacity: 0; }
+dialog:not([open])::backdrop { opacity: 0; }
+@starting-style {
+  dialog[open] { clip-path: inset(50% 0 50% 0); opacity: 0; }
+  dialog[open]::backdrop { opacity: 0; }
+}
+
+/* ── Tempest micro-transitions (direction-aware wipe) ── */
+@keyframes t-reveal {
+  from { clip-path: inset(0 100% 0 0); transform: translateX(-20px); opacity: 0.4; }
+  to   { clip-path: inset(0); transform: none; opacity: 1; }
+}
+.anim-t-reveal { animation: t-reveal 240ms cubic-bezier(0.7, 0, 0.2, 1) both; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+
+/* Progress bar stripes for running downloads */
+@keyframes t-stripes { to { background-position: 28px 0; } }
+.t-progress-running {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--bg-primary) 18%, transparent) 0 7px,
+    transparent 7px 14px
+  );
+  background-size: 28px 28px;
+  animation: t-stripes 700ms linear infinite;
+}
+
+/* ── Reduced-motion gating (in-app toggle + OS preference).
+   0.01ms instead of none so animationend handlers still fire. ── */
+[data-motion="off"] *,
+[data-motion="off"] *::before,
+[data-motion="off"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
