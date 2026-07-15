@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -17,6 +18,7 @@ type Server struct {
 	// DownloadRoot is the base directory all local file operations are jailed to.
 	DownloadRoot string
 	Transfers    *transfer.Manager
+	Anilist      *anilist.Client
 }
 
 func (s *Server) Register(mux *http.ServeMux) {
@@ -58,6 +60,12 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// settings
 	mux.Handle("GET /api/settings", authed(http.HandlerFunc(s.handleSettingsGet)))
 	mux.Handle("PUT /api/settings", authed(http.HandlerFunc(s.handleSettingsPut)))
+
+	// anilist + catalog
+	mux.Handle("GET /api/anilist/search", authed(http.HandlerFunc(s.handleAnilistSearch)))
+	mux.Handle("GET /api/anilist/media/{id}", authed(http.HandlerFunc(s.handleAnilistMedia)))
+	mux.Handle("GET /api/servers/{id}/catalog", authed(http.HandlerFunc(s.handleCatalog)))
+	mux.Handle("PUT /api/servers/{id}/catalog/match", authed(http.HandlerFunc(s.handleCatalogMatch)))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
