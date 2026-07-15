@@ -36,7 +36,7 @@ export function FileBrowser({
   // folder can be synced/watched from within; the absolute path comes from
   // the first child since `path` is root-relative
   const leafDir: Entry | null =
-    onSelect && !selectDirsOnly && path && entries.length > 0 && entries.every((e) => !e.isDir)
+    onSelect && path && entries.length > 0 && entries.every((e) => !e.isDir)
       ? {
           name: crumbs[crumbs.length - 1],
           path: entries[0].path.slice(0, entries[0].path.lastIndexOf('/')),

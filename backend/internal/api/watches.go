@@ -231,6 +231,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var in struct {
+		RemotePath    string `json:"remotePath"`
+		LocalPath     string `json:"localPath"`
 		Mode          string `json:"mode"`
 		Template      string `json:"template"`
 		Separator     string `json:"separator"`
@@ -241,6 +243,14 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
+	if in.RemotePath == "" {
+		writeErr(w, http.StatusBadRequest, "remotePath required")
+		return
+	}
+	if _, err := s.safeLocal(in.LocalPath); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if in.Mode == "" {
 		in.Mode = "template"
 	}
@@ -248,15 +258,20 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
-	res, err := s.DB.Exec(`UPDATE watches SET mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?
-		WHERE id = ? AND user_id = ?`, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, id, u.ID)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	var oldRemote, oldLocal string
+	if err := s.DB.QueryRow(`SELECT remote_path, local_path FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
+		Scan(&oldRemote, &oldLocal); err != nil {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
+	}
+	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?
+		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, id, u.ID)
+	if err != nil {
+		writeErr(w, http.StatusConflict, "watch already exists")
+		return
+	}
+	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
+		go s.runWatch(id) // paths changed: check the new folder right away
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

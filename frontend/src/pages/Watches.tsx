@@ -116,19 +116,16 @@ export default function Watches() {
       {edit && (
         <WatchDialog
           title={t('watch.editTitle')}
+          serverId={edit.serverId}
           initial={{
+            remotePath: edit.remotePath,
+            localPath: edit.localPath,
             mode: edit.mode || 'template',
             template: edit.template,
             separator: edit.separator,
             titleOverride: edit.titleOverride,
             pattern: edit.pattern,
             replacement: edit.replacement,
-          }}
-          loadNames={async () => {
-            const entries = await api.get<{ name: string; isDir: boolean }[]>(
-              `/api/servers/${edit.serverId}/browse?path=${encodeURIComponent(edit.remotePath)}`,
-            )
-            return entries.filter((e) => !e.isDir).map((e) => e.name)
           }}
           onSave={async (f) => {
             await api.put(`/api/watches/${edit.id}`, f)
