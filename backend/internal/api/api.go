@@ -30,6 +30,18 @@ func (s *Server) Register(mux *http.ServeMux) {
 		mux.HandleFunc("GET /api/auth/oidc/login", s.OIDC.LoginHandler)
 		mux.HandleFunc("GET /api/auth/oidc/callback", s.OIDC.CallbackHandler(s.DB))
 	}
+
+	// servers
+	mux.Handle("GET /api/servers", authed(http.HandlerFunc(s.handleServersList)))
+	mux.Handle("POST /api/servers", authed(http.HandlerFunc(s.handleServerCreate)))
+	mux.Handle("PUT /api/servers/{id}", authed(http.HandlerFunc(s.handleServerUpdate)))
+	mux.Handle("DELETE /api/servers/{id}", authed(http.HandlerFunc(s.handleServerDelete)))
+	mux.Handle("POST /api/servers/{id}/test", authed(http.HandlerFunc(s.handleServerTest)))
+
+	// browse
+	mux.Handle("GET /api/browse/local", authed(http.HandlerFunc(s.handleBrowseLocal)))
+	mux.Handle("POST /api/browse/local/mkdir", authed(http.HandlerFunc(s.handleMkdirLocal)))
+	mux.Handle("GET /api/servers/{id}/browse", authed(http.HandlerFunc(s.handleBrowseRemote)))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
