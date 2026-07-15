@@ -278,7 +278,13 @@ var ErrNotFound = fmt.Errorf("download not found")
 
 // Enqueue adds a single file, or every missing file under a directory
 // (sync). Returns the number of files queued.
-func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string) (int, error) {
+// Enqueue queues remotePath (file or directory, recursive) below localRel.
+// nameFn, when non-nil, maps each remote file name to its local name (watch
+// rename templates); existing files with matching size are skipped.
+func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string) (int, error) {
+	if nameFn == nil {
+		nameFn = func(s string) string { return s }
+	}
 	client, _, err := m.Dial(userID, serverID)
 	if err != nil {
 		return 0, err
@@ -300,7 +306,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string) (
 		if serr != nil {
 			return 0, fmt.Errorf("path is neither listable nor a file: %w", serr)
 		}
-		jobs = append(jobs, job{remotePath, path.Join(localRel, path.Base(remotePath)), size})
+		jobs = append(jobs, job{remotePath, path.Join(localRel, nameFn(path.Base(remotePath))), size})
 	} else {
 		var walk func(dir, rel string, depth int) error
 		walk = func(dir, rel string, depth int) error {
@@ -317,7 +323,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string) (
 						return err
 					}
 				} else {
-					jobs = append(jobs, job{e.Path, path.Join(rel, e.Name), e.Size})
+					jobs = append(jobs, job{e.Path, path.Join(rel, nameFn(e.Name)), e.Size})
 				}
 			}
 			return nil

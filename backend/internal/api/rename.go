@@ -51,6 +51,32 @@ func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pairs)
 }
 
+// handleRenameNames dry-runs rename options against a plain list of names,
+// no filesystem involved (watch preview: the names come from a remote folder).
+func (s *Server) handleRenameNames(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Names []string `json:"names"`
+		rename.Options
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	if len(in.Names) > 100 {
+		in.Names = in.Names[:100]
+	}
+	pairs := []renamePair{}
+	for _, name := range in.Names {
+		p := renamePair{Old: name}
+		if newName, err := rename.New(name, in.Options); err != nil {
+			p.New, p.Err = name, err.Error()
+		} else {
+			p.New = newName
+		}
+		pairs = append(pairs, p)
+	}
+	writeJSON(w, http.StatusOK, pairs)
+}
+
 // handleRenameApply performs the given renames inside one directory.
 func (s *Server) handleRenameApply(w http.ResponseWriter, r *http.Request) {
 	var in struct {
