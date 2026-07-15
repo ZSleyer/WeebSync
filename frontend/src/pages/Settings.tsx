@@ -1,149 +1,349 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, type Settings as SettingsT } from '../api'
+import { useTranslation } from 'react-i18next'
+import { api } from '../api'
+import { useAuth } from '../hooks'
+import { LOCALES } from '../locales'
+import { pushSubscription, pushSupported, subscribePush, unsubscribePush } from '../push'
 
 const ACCENTS = ['violet', 'acid', 'crimson', 'cyan', 'blue', 'green', 'pink', 'orange']
 
+interface SettingsState {
+  maxConcurrent: number
+  globalRateLimit: number
+  registrationDisabled: boolean
+  authMode: 'password' | 'oidc-only' | 'oidc-auto'
+  anilistTokenSet: boolean
+  anilistToken?: string
+  oidcIssuer: string
+  oidcClientId: string
+  oidcRedirectUrl: string
+  oidcClientSecretSet: boolean
+  oidcClientSecret?: string
+  oidcEnabled: boolean
+  oidcError?: string
+}
+
 export default function Settings() {
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
-  const { data } = useQuery<SettingsT>({
+  const { data: user } = useAuth()
+  const { data } = useQuery<SettingsState>({
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
   })
-  const [form, setForm] = useState<SettingsT | null>(null)
+  const [form, setForm] = useState<SettingsState | null>(null)
   const [saved, setSaved] = useState(false)
   useEffect(() => {
-    if (data && !form) setForm(data)
+    if (data && !form) setForm({ ...data, anilistToken: '', oidcClientSecret: '' })
   }, [data, form])
 
   const save = useMutation({
-    mutationFn: (s: SettingsT) => api.put('/api/settings', s),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['settings'] })
+    mutationFn: (s: SettingsState) => api.put<SettingsState>('/api/settings', s),
+    onSuccess: (fresh) => {
+      qc.setQueryData(['settings'], fresh)
+      setForm({ ...fresh, anilistToken: '', oidcClientSecret: '' })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
   })
 
-  // look & feel is client-side, persisted in localStorage
+  const isAdmin = !!user?.isAdmin
+  const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => form && setForm({ ...form, [k]: v })
+
+  return (
+    <div className="max-w-2xl">
+      <header className="mb-6">
+        <h2 className="font-display text-xl font-semibold tracking-wider">{t('settings.title')}</h2>
+        <span className="t-label mt-1">{t('settings.sub')}</span>
+      </header>
+
+      {!isAdmin && <p className="t-panel mb-4 p-3 text-sm text-t-secondary">{t('settings.adminOnly')}</p>}
+
+      {form && isAdmin && (
+        <>
+          <section className="t-panel mb-4 p-5" aria-label={t('settings.transfers')}>
+            <span className="t-label t-label--accent">{t('settings.transfers')}</span>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <label className="text-xs text-t-muted">
+                {t('settings.maxConcurrent')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={form.maxConcurrent}
+                  onChange={(e) => set('maxConcurrent', Number(e.target.value))}
+                />
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.globalLimit')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  type="number"
+                  min={0}
+                  value={Math.round(form.globalRateLimit / 1024)}
+                  onChange={(e) => set('globalRateLimit', Number(e.target.value) * 1024)}
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="t-panel mb-4 p-5" aria-label={t('settings.auth')}>
+            <span className="t-label t-label--accent">{t('settings.auth')}</span>
+            <div className="mt-3 grid gap-4">
+              <label className="flex items-center gap-2 text-sm text-t-secondary">
+                <input
+                  type="checkbox"
+                  checked={form.registrationDisabled}
+                  onChange={(e) => set('registrationDisabled', e.target.checked)}
+                />
+                {t('settings.registrationDisabled')}
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.authMode')}
+                <span className="t-select-wrap mt-1 max-w-sm">
+                  <select
+                    className="t-select"
+                    value={form.authMode}
+                    onChange={(e) => set('authMode', e.target.value as SettingsState['authMode'])}
+                  >
+                    <option value="password">{t('settings.authModePassword')}</option>
+                    <option value="oidc-only" disabled={!form.oidcIssuer}>
+                      {t('settings.authModeOidcOnly')}
+                    </option>
+                    <option value="oidc-auto" disabled={!form.oidcIssuer}>
+                      {t('settings.authModeOidcAuto')}
+                    </option>
+                  </select>
+                </span>
+              </label>
+
+              <fieldset className="border border-border-subtle p-3">
+                <legend className="t-label">
+                  {t('settings.oidc')} ·{' '}
+                  <span className={form.oidcEnabled ? 'text-ok' : 'text-t-muted'}>
+                    {form.oidcEnabled ? t('settings.oidcActive') : t('settings.oidcInactive')}
+                  </span>
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs text-t-muted sm:col-span-2">
+                    {t('settings.oidcIssuer')}
+                    <input
+                      className="t-input mt-1 font-mono"
+                      placeholder="https://auth.example.com/application/o/weebsync/"
+                      value={form.oidcIssuer}
+                      onChange={(e) => set('oidcIssuer', e.target.value)}
+                    />
+                  </label>
+                  <label className="text-xs text-t-muted">
+                    {t('settings.oidcClientId')}
+                    <input
+                      className="t-input mt-1 font-mono"
+                      value={form.oidcClientId}
+                      onChange={(e) => set('oidcClientId', e.target.value)}
+                    />
+                  </label>
+                  <label className="text-xs text-t-muted">
+                    {t('settings.oidcClientSecret')}
+                    <input
+                      className="t-input mt-1 font-mono"
+                      type="password"
+                      autoComplete="off"
+                      placeholder={form.oidcClientSecretSet ? t('settings.secretSet') : t('settings.secretUnset')}
+                      value={form.oidcClientSecret ?? ''}
+                      onChange={(e) => set('oidcClientSecret', e.target.value)}
+                    />
+                  </label>
+                  <label className="text-xs text-t-muted sm:col-span-2">
+                    {t('settings.oidcRedirectUrl')}
+                    <input
+                      className="t-input mt-1 font-mono"
+                      placeholder="https://weebsync.example.com/api/auth/oidc/callback"
+                      value={form.oidcRedirectUrl}
+                      onChange={(e) => set('oidcRedirectUrl', e.target.value)}
+                    />
+                  </label>
+                </div>
+                {form.oidcError && (
+                  <p className="mt-2 text-xs text-err" role="alert">
+                    {form.oidcError}
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-t-muted">{t('settings.oidcMigrationHint')}</p>
+              </fieldset>
+            </div>
+          </section>
+
+          <section className="t-panel mb-4 p-5" aria-label={t('settings.integrations')}>
+            <span className="t-label t-label--accent">{t('settings.integrations')}</span>
+            <label className="mt-3 block text-xs text-t-muted">
+              {t('settings.anilistToken')}
+              <input
+                className="t-input mt-1 font-mono"
+                type="password"
+                autoComplete="off"
+                placeholder={form.anilistTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
+                value={form.anilistToken ?? ''}
+                onChange={(e) => set('anilistToken', e.target.value)}
+              />
+            </label>
+          </section>
+
+          <div className="mb-6 flex items-center gap-3">
+            <button className="t-btn t-btn--primary t-cut" onClick={() => save.mutate(form)} disabled={save.isPending}>
+              {t('settings.save')}
+            </button>
+            {saved && <span className="t-label t-label--ok" role="status">{t('settings.saved')}</span>}
+            {save.error && (
+              <span className="text-sm text-err" role="alert">
+                {(save.error as Error).message}
+              </span>
+            )}
+          </div>
+        </>
+      )}
+
+      <PushSection />
+      <LookSection locales={LOCALES} language={i18n.language} onLanguage={(l) => i18n.changeLanguage(l)} />
+    </div>
+  )
+}
+
+function PushSection() {
+  const { t } = useTranslation()
+  const [enabled, setEnabled] = useState(false)
+  const [state, setState] = useState<'ok' | 'denied' | 'unsupported' | ''>('')
+  useEffect(() => {
+    pushSubscription().then((s) => setEnabled(!!s))
+    if (!pushSupported()) setState('unsupported')
+  }, [])
+
+  const toggle = async (on: boolean) => {
+    if (on) {
+      const r = await subscribePush()
+      setState(r)
+      setEnabled(r === 'ok')
+    } else {
+      await unsubscribePush()
+      setEnabled(false)
+      setState('')
+    }
+  }
+
+  return (
+    <section className="t-panel mb-4 p-5" aria-label={t('settings.notifications')}>
+      <span className="t-label t-label--accent">{t('settings.notifications')}</span>
+      <label className="mt-3 flex items-center gap-2 text-sm text-t-secondary">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={state === 'unsupported'}
+          onChange={(e) => toggle(e.target.checked)}
+        />
+        {t('settings.pushEnable')}
+      </label>
+      <p className="mt-2 text-xs text-t-muted">{t('settings.pushHint')}</p>
+      {state === 'denied' && (
+        <p className="mt-1 text-xs text-err" role="alert">
+          {t('settings.pushDenied')}
+        </p>
+      )}
+      {state === 'unsupported' && <p className="mt-1 text-xs text-t-muted">{t('settings.pushUnsupported')}</p>}
+    </section>
+  )
+}
+
+function LookSection({
+  locales,
+  language,
+  onLanguage,
+}: {
+  locales: typeof LOCALES
+  language: string
+  onLanguage: (l: string) => void
+}) {
+  const { t } = useTranslation()
   const [theme, setTheme] = useState(document.documentElement.dataset.theme ?? 'dark')
   const [accent, setAccent] = useState(document.documentElement.dataset.accent ?? 'violet')
   const [motion, setMotion] = useState(document.documentElement.dataset.motion !== 'off')
 
-  const applyLook = (t: string, a: string, m: boolean) => {
+  const applyLook = (th: string, a: string, m: boolean) => {
     const root = document.documentElement
-    root.dataset.theme = t
+    root.dataset.theme = th
     root.dataset.accent = a
     if (m) delete root.dataset.motion
     else root.dataset.motion = 'off'
-    localStorage.setItem('weebsync.theme', t)
+    localStorage.setItem('weebsync.theme', th)
     localStorage.setItem('weebsync.accent', a)
     localStorage.setItem('weebsync.motion', m ? 'on' : 'off')
   }
 
   return (
-    <div className="max-w-2xl">
-      <header className="mb-6">
-        <h2 className="font-display text-xl font-semibold tracking-wider">SETTINGS</h2>
-        <span className="t-label mt-1">transfers · look · account</span>
-      </header>
-
-      <section className="t-panel mb-4 p-5" aria-label="Transfer-Einstellungen">
-        <span className="t-label t-label--accent mb-4">transfers</span>
-        {form && (
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <label className="text-xs text-t-muted">
-              Parallele Downloads (1–20)
-              <input
-                className="t-input mt-1 font-mono"
-                type="number"
-                min={1}
-                max={20}
-                value={form.maxConcurrent}
-                onChange={(e) => setForm({ ...form, maxConcurrent: Number(e.target.value) })}
-              />
-            </label>
-            <label className="text-xs text-t-muted">
-              Globales Speed-Limit (KiB/s, 0 = unbegrenzt)
-              <input
-                className="t-input mt-1 font-mono"
-                type="number"
-                min={0}
-                value={Math.round(form.globalRateLimit / 1024)}
-                onChange={(e) => setForm({ ...form, globalRateLimit: Number(e.target.value) * 1024 })}
-              />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-t-secondary sm:col-span-2">
-              <input
-                type="checkbox"
-                checked={form.registrationDisabled}
-                onChange={(e) => setForm({ ...form, registrationDisabled: e.target.checked })}
-              />
-              Registrierung deaktivieren
-            </label>
-            <div className="flex items-center gap-3 sm:col-span-2">
-              <button className="t-btn t-btn--primary t-cut" onClick={() => save.mutate(form)} disabled={save.isPending}>
-                Speichern
-              </button>
-              {saved && <span className="t-label t-label--ok">gespeichert</span>}
-              {save.error && <span className="text-sm text-err">{(save.error as Error).message}</span>}
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section className="t-panel p-5" aria-label="Darstellung">
-        <span className="t-label t-label--accent mb-4">look</span>
-        <div className="mt-3 grid gap-4">
-          <div role="group" aria-label="Theme" className="flex items-center gap-2">
-            <span className="w-24 text-xs text-t-muted">Theme</span>
-            {(['dark', 'light'] as const).map((t) => (
+    <section className="t-panel p-5" aria-label={t('settings.look')}>
+      <span className="t-label t-label--accent">{t('settings.look')}</span>
+      <div className="mt-3 grid gap-4">
+        <div role="group" aria-label={t('settings.language')} className="flex items-center gap-2">
+          <span className="w-24 text-xs text-t-muted">{t('settings.language')}</span>
+          {locales.map((l) => (
+            <button
+              key={l.code}
+              className={`t-btn t-btn--sm ${language.startsWith(l.code) ? 't-btn--primary' : ''}`}
+              aria-pressed={language.startsWith(l.code)}
+              onClick={() => onLanguage(l.code)}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+        <div role="group" aria-label={t('settings.theme')} className="flex items-center gap-2">
+          <span className="w-24 text-xs text-t-muted">{t('settings.theme')}</span>
+          {(['dark', 'light'] as const).map((th) => (
+            <button
+              key={th}
+              className={`t-btn t-btn--sm ${theme === th ? 't-btn--primary' : ''}`}
+              aria-pressed={theme === th}
+              onClick={() => {
+                setTheme(th)
+                applyLook(th, accent, motion)
+              }}
+            >
+              {th}
+            </button>
+          ))}
+        </div>
+        <div role="group" aria-label={t('settings.accent')} className="flex items-center gap-2">
+          <span className="w-24 text-xs text-t-muted">{t('settings.accent')}</span>
+          <div className="flex flex-wrap gap-2">
+            {ACCENTS.map((a) => (
               <button
-                key={t}
-                className={`t-btn t-btn--sm ${theme === t ? 't-btn--primary' : ''}`}
-                aria-pressed={theme === t}
+                key={a}
+                title={a}
+                aria-pressed={accent === a}
+                aria-label={t('settings.accentName', { name: a })}
+                className={`h-6 w-6 border ${accent === a ? 'border-t-primary outline outline-2 outline-accent' : 'border-border-subtle'}`}
+                style={{ backgroundColor: `var(--accent-blue)` }}
+                data-accent={a}
                 onClick={() => {
-                  setTheme(t)
-                  applyLook(t, accent, motion)
+                  setAccent(a)
+                  applyLook(theme, a, motion)
                 }}
-              >
-                {t}
-              </button>
+              />
             ))}
           </div>
-          <div role="group" aria-label="Akzentfarbe" className="flex items-center gap-2">
-            <span className="w-24 text-xs text-t-muted">Akzent</span>
-            <div className="flex flex-wrap gap-2">
-              {ACCENTS.map((a) => (
-                <button
-                  key={a}
-                  title={a}
-                  aria-pressed={accent === a}
-                  aria-label={`Akzent ${a}`}
-                  className={`h-6 w-6 border ${accent === a ? 'border-t-primary outline outline-2 outline-accent' : 'border-border-subtle'}`}
-                  style={{ backgroundColor: `var(--accent-blue)` }}
-                  data-accent={a}
-                  onClick={() => {
-                    setAccent(a)
-                    applyLook(theme, a, motion)
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-          <label className="flex items-center gap-2 text-sm text-t-secondary">
-            <input
-              type="checkbox"
-              checked={motion}
-              onChange={(e) => {
-                setMotion(e.target.checked)
-                applyLook(theme, accent, e.target.checked)
-              }}
-            />
-            Animationen aktiviert
-          </label>
         </div>
-      </section>
-    </div>
+        <label className="flex items-center gap-2 text-sm text-t-secondary">
+          <input
+            type="checkbox"
+            checked={motion}
+            onChange={(e) => {
+              setMotion(e.target.checked)
+              applyLook(theme, accent, e.target.checked)
+            }}
+          />
+          {t('settings.motion')}
+        </label>
+      </div>
+    </section>
   )
 }
