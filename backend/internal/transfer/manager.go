@@ -48,6 +48,9 @@ type Manager struct {
 	DB           *sql.DB
 	Dial         Dialer
 	DownloadRoot string
+	// OnFinished is called when a download reaches done/error (for push
+	// notifications); may be nil.
+	OnFinished func(d *Download)
 
 	global *rate.Limiter
 
@@ -417,6 +420,9 @@ func (m *Manager) setStatus(id int64, status, errMsg string) {
 	m.DB.Exec(`UPDATE downloads SET status = ?, error = ?, updated_at = datetime('now') WHERE id = ?`, status, errMsg, id)
 	if d, err := m.get(id); err == nil {
 		m.publish(d)
+		if m.OnFinished != nil && (status == "done" || status == "error") {
+			go m.OnFinished(d)
+		}
 	}
 }
 

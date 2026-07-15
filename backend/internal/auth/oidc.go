@@ -6,51 +6,99 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/http"
-	"os"
+	"sync"
 
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 )
 
-// OIDC is nil when OIDC_ISSUER is unset — email/password only.
 type OIDC struct {
-	provider *oidc.Provider
 	config   oauth2.Config
 	verifier *oidc.IDTokenVerifier
 }
 
-func NewOIDCFromEnv(ctx context.Context) (*OIDC, error) {
-	issuer := os.Getenv("OIDC_ISSUER")
-	if issuer == "" {
-		return nil, nil
+// Manager holds the current OIDC provider; settings changes rebuild it at
+// runtime (no restart). Settings come from the DB with env fallback.
+type Manager struct {
+	DB  *sql.DB
+	mu  sync.RWMutex
+	cur *OIDC
+}
+
+func NewManager(ctx context.Context, d *sql.DB) *Manager {
+	m := &Manager{DB: d}
+	if err := m.Reload(ctx); err != nil {
+		// misconfigured OIDC must not take the whole app down; login page
+		// simply won't offer it and the settings UI shows the error
+		slog.Warn("oidc init", "err", err)
 	}
-	clientID := os.Getenv("OIDC_CLIENT_ID")
-	clientSecret := os.Getenv("OIDC_CLIENT_SECRET")
-	redirectURL := os.Getenv("OIDC_REDIRECT_URL") // e.g. https://weebsync.example.com/api/auth/oidc/callback
+	return m
+}
+
+func (m *Manager) Get() *OIDC {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cur
+}
+
+func (m *Manager) Enabled() bool { return m.Get() != nil }
+
+// Reload rebuilds the provider from current settings. Empty issuer disables OIDC.
+func (m *Manager) Reload(ctx context.Context) error {
+	issuer := db.SettingOrEnv(m.DB, "oidc_issuer", "OIDC_ISSUER")
+	if issuer == "" {
+		m.mu.Lock()
+		m.cur = nil
+		m.mu.Unlock()
+		return nil
+	}
+	clientID := db.SettingOrEnv(m.DB, "oidc_client_id", "OIDC_CLIENT_ID")
+	clientSecret := db.SettingOrEnv(m.DB, "oidc_client_secret", "OIDC_CLIENT_SECRET")
+	redirectURL := db.SettingOrEnv(m.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL")
 	if clientID == "" || redirectURL == "" {
-		return nil, fmt.Errorf("OIDC_ISSUER set but OIDC_CLIENT_ID or OIDC_REDIRECT_URL missing")
+		return fmt.Errorf("oidc: issuer set but client id or redirect url missing")
 	}
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
-		return nil, fmt.Errorf("oidc discovery: %w", err)
+		return fmt.Errorf("oidc discovery: %w", err)
 	}
-	cfg := oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Endpoint:     provider.Endpoint(),
-		RedirectURL:  redirectURL,
-		Scopes:       []string{oidc.ScopeOpenID, "email", "profile"},
-	}
-	return &OIDC{
-		provider: provider,
-		config:   cfg,
+	o := &OIDC{
+		config: oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Endpoint:     provider.Endpoint(),
+			RedirectURL:  redirectURL,
+			Scopes:       []string{oidc.ScopeOpenID, "email", "profile"},
+		},
 		verifier: provider.Verifier(&oidc.Config{ClientID: clientID}),
-	}, nil
+	}
+	m.mu.Lock()
+	m.cur = o
+	m.mu.Unlock()
+	return nil
+}
+
+// AuthMode: "password" (default, password + optional OIDC button),
+// "oidc-only" (no password form), "oidc-auto" (login page redirects).
+func AuthMode(d *sql.DB) string {
+	switch v := db.Setting(d, "auth_mode"); v {
+	case "oidc-only", "oidc-auto":
+		return v
+	default:
+		return "password"
+	}
 }
 
 // LoginHandler redirects to the identity provider with a random state cookie.
-func (o *OIDC) LoginHandler(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) LoginHandler(w http.ResponseWriter, r *http.Request) {
+	o := m.Get()
+	if o == nil {
+		http.Error(w, "oidc not configured", http.StatusNotFound)
+		return
+	}
 	raw := make([]byte, 16)
 	rand.Read(raw)
 	state := hex.EncodeToString(raw)
@@ -63,43 +111,45 @@ func (o *OIDC) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 // CallbackHandler exchanges the code, verifies the ID token, links or creates
 // the user by verified email and starts a session.
-func (o *OIDC) CallbackHandler(d *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		stateCookie, err := r.Cookie("weebsync_oidc_state")
-		if err != nil || r.URL.Query().Get("state") != stateCookie.Value {
-			http.Error(w, "invalid state", http.StatusBadRequest)
-			return
-		}
-		token, err := o.config.Exchange(r.Context(), r.URL.Query().Get("code"))
-		if err != nil {
-			http.Error(w, "token exchange failed", http.StatusBadGateway)
-			return
-		}
-		rawID, _ := token.Extra("id_token").(string)
-		idToken, err := o.verifier.Verify(r.Context(), rawID)
-		if err != nil {
-			http.Error(w, "id token verification failed", http.StatusBadGateway)
-			return
-		}
-		var claims struct {
-			Email         string `json:"email"`
-			EmailVerified bool   `json:"email_verified"`
-		}
-		if err := idToken.Claims(&claims); err != nil || claims.Email == "" {
-			http.Error(w, "no email claim", http.StatusBadGateway)
-			return
-		}
-		userID, err := findOrCreateOIDCUser(d, claims.Email)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusForbidden)
-			return
-		}
-		if err := CreateSession(d, w, r, userID); err != nil {
-			http.Error(w, "session error", http.StatusInternalServerError)
-			return
-		}
-		http.Redirect(w, r, "/", http.StatusFound)
+func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
+	o := m.Get()
+	if o == nil {
+		http.Error(w, "oidc not configured", http.StatusNotFound)
+		return
 	}
+	stateCookie, err := r.Cookie("weebsync_oidc_state")
+	if err != nil || r.URL.Query().Get("state") != stateCookie.Value {
+		http.Error(w, "invalid state", http.StatusBadRequest)
+		return
+	}
+	token, err := o.config.Exchange(r.Context(), r.URL.Query().Get("code"))
+	if err != nil {
+		http.Error(w, "token exchange failed", http.StatusBadGateway)
+		return
+	}
+	rawID, _ := token.Extra("id_token").(string)
+	idToken, err := o.verifier.Verify(r.Context(), rawID)
+	if err != nil {
+		http.Error(w, "id token verification failed", http.StatusBadGateway)
+		return
+	}
+	var claims struct {
+		Email string `json:"email"`
+	}
+	if err := idToken.Claims(&claims); err != nil || claims.Email == "" {
+		http.Error(w, "no email claim", http.StatusBadGateway)
+		return
+	}
+	userID, err := findOrCreateOIDCUser(m.DB, claims.Email)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	if err := CreateSession(m.DB, w, r, userID); err != nil {
+		http.Error(w, "session error", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 func findOrCreateOIDCUser(d *sql.DB, email string) (int64, error) {
@@ -122,7 +172,5 @@ func findOrCreateOIDCUser(d *sql.DB, email string) (int64, error) {
 }
 
 func RegistrationDisabled(d *sql.DB) bool {
-	var v string
-	d.QueryRow(`SELECT value FROM settings WHERE key = 'registration_disabled'`).Scan(&v)
-	return v == "true"
+	return db.Setting(d, "registration_disabled") == "true"
 }

@@ -14,7 +14,19 @@ type credentials struct {
 	Password string `json:"password"`
 }
 
+// passwordAuthBlocked: in oidc-only/auto mode the password endpoints are
+// disabled — but only while OIDC actually works, so a broken provider can
+// never lock everyone out. Existing local users migrate automatically: the
+// OIDC callback links accounts by email address.
+func (s *Server) passwordAuthBlocked() bool {
+	return auth.AuthMode(s.DB) != "password" && s.OIDC.Enabled()
+}
+
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
+	if s.passwordAuthBlocked() {
+		writeErr(w, http.StatusForbidden, "password auth is disabled, use OIDC")
+		return
+	}
 	var c credentials
 	if !readJSON(w, r, &c) {
 		return
@@ -53,6 +65,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if s.passwordAuthBlocked() {
+		writeErr(w, http.StatusForbidden, "password auth is disabled, use OIDC")
+		return
+	}
 	var c credentials
 	if !readJSON(w, r, &c) {
 		return
@@ -85,11 +101,17 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, auth.UserFrom(r.Context()))
 }
 
-// handleAuthConfig tells the login page whether OIDC is available and
-// whether registration is open (for showing/hiding the register form).
+// handleAuthConfig tells the login page whether OIDC is available, whether
+// registration is open and which auth mode is active (password | oidc-only |
+// oidc-auto).
 func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]bool{
-		"oidc":             s.OIDC != nil,
+	mode := auth.AuthMode(s.DB)
+	if !s.OIDC.Enabled() {
+		mode = "password" // never lock the UI on a broken OIDC config
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"oidc":             s.OIDC.Enabled(),
 		"registrationOpen": !auth.RegistrationDisabled(s.DB),
+		"authMode":         mode,
 	})
 }

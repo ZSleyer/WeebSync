@@ -6,12 +6,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/api"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/push"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
@@ -42,14 +44,28 @@ func main() {
 	}
 	defer database.Close()
 
-	oidcProvider, err := auth.NewOIDCFromEnv(context.Background())
+	pushSvc, err := push.New(database)
 	if err != nil {
-		slog.Error("oidc init", "err", err)
+		slog.Error("push init", "err", err)
 		os.Exit(1)
 	}
 
-	srv := &api.Server{DB: database, OIDC: oidcProvider, DownloadRoot: downloadRoot, Anilist: anilist.New(database)}
+	srv := &api.Server{
+		DB:           database,
+		OIDC:         auth.NewManager(context.Background(), database),
+		DownloadRoot: downloadRoot,
+		Anilist:      anilist.New(database),
+		Push:         pushSvc,
+	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
+	srv.Transfers.OnFinished = func(d *transfer.Download) {
+		name := path.Base(d.RemotePath)
+		if d.Status == "done" {
+			pushSvc.Notify(d.UserID, "Download fertig", name)
+		} else {
+			pushSvc.Notify(d.UserID, "Download fehlgeschlagen", name+": "+d.Error)
+		}
+	}
 	mux := http.NewServeMux()
 	srv.Register(mux)
 	mux.Handle("/", spaHandler(webDir))

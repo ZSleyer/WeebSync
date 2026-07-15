@@ -9,10 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/db"
 	"golang.org/x/time/rate"
 )
 
@@ -43,24 +43,22 @@ const mediaFields = `id title { romaji english } coverImage { large } bannerImag
 type Client struct {
 	DB      *sql.DB
 	HTTP    *http.Client
-	token   string // optional AniList API token (ANILIST_TOKEN): higher rate limit
 	limiter *rate.Limiter
 }
 
-func New(db *sql.DB) *Client {
-	token := os.Getenv("ANILIST_TOKEN")
-	// AniList allows ~90 req/min per IP; authenticated requests get their
-	// own (higher) per-user budget, so pace less conservatively then.
-	every := time.Second
-	if token != "" {
-		every = 500 * time.Millisecond
-	}
+func New(d *sql.DB) *Client {
 	return &Client{
-		DB:      db,
-		HTTP:    &http.Client{Timeout: 15 * time.Second},
-		token:   token,
-		limiter: rate.NewLimiter(rate.Every(every), 1),
+		DB:   d,
+		HTTP: &http.Client{Timeout: 15 * time.Second},
+		// AniList allows ~90 req/min per IP; 1 req/s stays well under it
+		// (an API token gets its own, higher budget — headers still respected)
+		limiter: rate.NewLimiter(rate.Every(time.Second), 1),
 	}
+}
+
+// token is read per request so the settings UI can change it at runtime.
+func (c *Client) token() string {
+	return db.SettingOrEnv(c.DB, "anilist_token", "ANILIST_TOKEN")
 }
 
 // cached returns the raw JSON payload for key if fresh enough.
@@ -94,8 +92,8 @@ func (c *Client) query(ctx context.Context, query string, variables map[string]a
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json")
-		if c.token != "" {
-			req.Header.Set("Authorization", "Bearer "+c.token)
+		if t := c.token(); t != "" {
+			req.Header.Set("Authorization", "Bearer "+t)
 		}
 		resp, err := c.HTTP.Do(req)
 		if err != nil {
