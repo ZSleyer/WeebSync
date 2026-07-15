@@ -127,7 +127,7 @@ function Shell({ email }: { email: string }) {
 
       {/* mobile bottom nav */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 flex border-t border-border-subtle bg-bg-secondary lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 flex border-t border-border-subtle bg-bg-secondary pb-[env(safe-area-inset-bottom)] lg:hidden"
         aria-label={t('nav.main')}
       >
         {NAV.map((n) => navLink(n, true))}
