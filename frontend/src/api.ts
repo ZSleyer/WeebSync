@@ -67,6 +67,29 @@ export interface CatalogItem {
   pending?: boolean // metadata still resolving in the background
 }
 
+export interface Watch {
+  id: number
+  userId: number
+  serverId: number
+  serverName: string
+  remotePath: string
+  localPath: string
+  mode: string
+  template: string
+  separator: string
+  titleOverride: string
+  pattern: string
+  replacement: string
+  intervalMin: number
+  lastCheck: string
+  lastResult: string
+  createdAt: string
+  media?: Media
+  localFiles: number
+  active: number
+  complete: boolean
+}
+
 export interface RenamePair {
   old: string
   new: string

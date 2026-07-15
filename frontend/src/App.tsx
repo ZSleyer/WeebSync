@@ -8,15 +8,17 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Servers from './pages/Servers'
 import Browser from './pages/Browser'
+import Watches from './pages/Watches'
 import Rename from './pages/Rename'
 import Settings from './pages/Settings'
 
 const NAV = [
   { to: '/', key: 'nav.dashboard', code: '01' },
   { to: '/browser', key: 'nav.browser', code: '02' },
-  { to: '/servers', key: 'nav.servers', code: '03' },
-  { to: '/rename', key: 'nav.rename', code: '04' },
-  { to: '/settings', key: 'nav.settings', code: '05' },
+  { to: '/watches', key: 'nav.watches', code: '03' },
+  { to: '/servers', key: 'nav.servers', code: '04' },
+  { to: '/rename', key: 'nav.rename', code: '05' },
+  { to: '/settings', key: 'nav.settings', code: '06' },
 ]
 
 export default function App() {
@@ -117,6 +119,7 @@ function Shell({ email }: { email: string }) {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/browser" element={<Browser />} />
+            <Route path="/watches" element={<Watches />} />
             <Route path="/servers" element={<Servers />} />
             <Route path="/rename" element={<Rename />} />
             <Route path="/settings" element={<Settings />} />
