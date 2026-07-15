@@ -66,6 +66,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/anilist/media/{id}", authed(http.HandlerFunc(s.handleAnilistMedia)))
 	mux.Handle("GET /api/servers/{id}/catalog", authed(http.HandlerFunc(s.handleCatalog)))
 	mux.Handle("PUT /api/servers/{id}/catalog/match", authed(http.HandlerFunc(s.handleCatalogMatch)))
+
+	// rename
+	mux.Handle("POST /api/rename/preview", authed(http.HandlerFunc(s.handleRenamePreview)))
+	mux.Handle("POST /api/rename/apply", authed(http.HandlerFunc(s.handleRenameApply)))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

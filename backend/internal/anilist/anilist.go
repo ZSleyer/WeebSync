@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -41,15 +43,23 @@ const mediaFields = `id title { romaji english } coverImage { large } bannerImag
 type Client struct {
 	DB      *sql.DB
 	HTTP    *http.Client
+	token   string // optional AniList API token (ANILIST_TOKEN): higher rate limit
 	limiter *rate.Limiter
 }
 
 func New(db *sql.DB) *Client {
+	token := os.Getenv("ANILIST_TOKEN")
+	// AniList allows ~90 req/min per IP; authenticated requests get their
+	// own (higher) per-user budget, so pace less conservatively then.
+	every := time.Second
+	if token != "" {
+		every = 500 * time.Millisecond
+	}
 	return &Client{
-		DB:   db,
-		HTTP: &http.Client{Timeout: 15 * time.Second},
-		// AniList allows ~90 req/min; stay well under it
-		limiter: rate.NewLimiter(rate.Every(time.Second), 1),
+		DB:      db,
+		HTTP:    &http.Client{Timeout: 15 * time.Second},
+		token:   token,
+		limiter: rate.NewLimiter(rate.Every(every), 1),
 	}
 }
 
@@ -73,25 +83,50 @@ func (c *Client) store(key, payload string) {
 }
 
 func (c *Client) query(ctx context.Context, query string, variables map[string]any, out any) error {
-	if err := c.limiter.Wait(ctx); err != nil {
-		return err
-	}
 	body, _ := json.Marshal(map[string]any{"query": query, "variables": variables})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
+	for attempt := 0; ; attempt++ {
+		if err := c.limiter.Wait(ctx); err != nil {
+			return err
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		if c.token != "" {
+			req.Header.Set("Authorization", "Bearer "+c.token)
+		}
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			return err
+		}
+		// hard limit hit: honor Retry-After once, then give up
+		if resp.StatusCode == http.StatusTooManyRequests && attempt == 0 {
+			resp.Body.Close()
+			wait := 60 * time.Second
+			if ra, perr := strconv.Atoi(resp.Header.Get("Retry-After")); perr == nil && ra > 0 {
+				wait = time.Duration(ra) * time.Second
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(wait):
+				continue
+			}
+		}
+		// nearly out of budget: slow the next request down
+		if rem, perr := strconv.Atoi(resp.Header.Get("X-RateLimit-Remaining")); perr == nil && rem < 5 {
+			c.limiter.ReserveN(time.Now(), c.limiter.Burst())
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return fmt.Errorf("anilist: HTTP %d", resp.StatusCode)
+		}
+		err = json.NewDecoder(resp.Body).Decode(out)
+		resp.Body.Close()
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("anilist: HTTP %d", resp.StatusCode)
-	}
-	return json.NewDecoder(resp.Body).Decode(out)
 }
 
 func (c *Client) Search(ctx context.Context, q string) ([]Media, error) {
