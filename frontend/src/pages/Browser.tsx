@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -146,8 +146,38 @@ function CatalogGrid({
     queryKey: ['catalog', serverId, path],
     queryFn: () => api.get(`/api/servers/${serverId}/catalog${path ? `?path=${encodeURIComponent('/' + path)}` : ''}`),
     staleTime: 5 * 60_000,
+    // matching runs server-side in the background: poll while items are pending
+    refetchInterval: (q) => (q.state.data?.some((i) => i.pending) ? 2500 : false),
   })
+  const qc = useQueryClient()
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
+  const [detail, setDetail] = useState<CatalogGroup | null>(null)
+  const pendingCount = items.filter((i) => i.pending).length
+  const noMatchCount = items.filter((i) => !i.media && !i.pending).length
+
+  const triggerRematch = async (all: boolean) => {
+    if (all && !confirm(t('browser.confirmRematchAll'))) return
+    await api.post(`/api/servers/${serverId}/catalog/rematch`, { path: path ? '/' + path : '', all })
+    qc.invalidateQueries({ queryKey: ['catalog', serverId, path] })
+  }
+
+  // bundle folders matched to the same anime into one card; the version
+  // (folder) is picked in a dialog. Unmatched/pending folders stay individual.
+  const groups = useMemo(() => {
+    const out: CatalogGroup[] = []
+    const byMedia = new Map<number, CatalogGroup>()
+    for (const it of items) {
+      const existing = it.media && byMedia.get(it.media.id)
+      if (existing) {
+        existing.items.push(it)
+        continue
+      }
+      const g: CatalogGroup = { key: it.media ? `m${it.media.id}` : it.entry.path, media: it.media, pending: it.pending, items: [it] }
+      if (it.media) byMedia.set(it.media.id, g)
+      out.push(g)
+    }
+    return out
+  }, [items])
 
   if (isLoading)
     return (
@@ -160,51 +190,213 @@ function CatalogGrid({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        {pendingCount > 0 ? (
+          <p className="text-xs text-t-muted" role="status">
+            {t('browser.matchingCount', { count: pendingCount })}
+          </p>
+        ) : (
+          <>
+            {noMatchCount > 0 && (
+              <button className="t-btn t-btn--sm" onClick={() => triggerRematch(false)}>
+                {t('browser.retryUnmatched', { count: noMatchCount })}
+              </button>
+            )}
+            <button className="t-btn t-btn--sm" onClick={() => triggerRematch(true)}>
+              {t('browser.rematchAll')}
+            </button>
+          </>
+        )}
+      </div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-        {items.map((it) => (
-          <article
-            key={it.entry.path}
-            className={`t-panel group flex flex-col ${selected === it.entry.path ? 'outline outline-2 outline-accent' : ''}`}
-          >
-            <button
-              className="text-left"
-              onClick={() => onSelect(it.entry)}
-              aria-label={t('browser.selectItem', { name: it.entry.name })}
+        {groups.map((g) => {
+          const it = g.items[0]
+          const multi = g.items.length > 1
+          const isSelected = g.items.some((v) => v.entry.path === selected)
+          return (
+            <article
+              key={g.key}
+              className={`t-panel group flex flex-col ${isSelected ? 'outline outline-2 outline-accent' : ''}`}
             >
-              {it.media?.coverImage?.large ? (
-                <img
-                  src={it.media.coverImage.large}
-                  alt=""
-                  loading="lazy"
-                  className="aspect-2/3 w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
-                />
-              ) : (
-                <div className="t-hatch grid aspect-2/3 w-full place-items-center text-t-muted">{t('browser.noMatch')}</div>
-              )}
-              <div className="p-2">
-                <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={it.media?.title.romaji ?? it.entry.name}>
-                  {it.media?.title.romaji ?? it.entry.name}
-                </h4>
-                <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
-                  {it.entry.name}
-                </p>
-                {it.media && (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {it.media.seasonYear > 0 && <span className="t-label">{it.media.seasonYear}</span>}
-                    {it.media.episodes > 0 && <span className="t-label">{it.media.episodes} EP</span>}
-                    {it.media.averageScore > 0 && <span className="t-label t-label--accent">★ {it.media.averageScore}</span>}
+              <button
+                className="text-left"
+                onClick={() => (g.media ? setDetail(g) : onSelect(it.entry))}
+                aria-label={
+                  g.media
+                    ? t('browser.detailsFor', { name: g.media.title.romaji })
+                    : t('browser.selectItem', { name: it.entry.name })
+                }
+              >
+                {g.media?.coverImage?.large ? (
+                  <img
+                    src={g.media.coverImage.large}
+                    alt=""
+                    loading="lazy"
+                    className="aspect-2/3 w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
+                  />
+                ) : g.pending ? (
+                  <div className="t-hatch grid aspect-2/3 w-full animate-pulse place-items-center text-t-muted">
+                    {t('browser.matching')}
                   </div>
+                ) : (
+                  <div className="t-hatch grid aspect-2/3 w-full place-items-center text-t-muted">{t('browser.noMatch')}</div>
                 )}
-              </div>
-            </button>
-            <button className="t-btn t-btn--sm mx-2 mb-2 mt-auto" onClick={() => setRematch(it)}>
-              {t('browser.changeMatch')}
-            </button>
-          </article>
-        ))}
+                <div className="p-2">
+                  <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={g.media?.title.romaji ?? it.entry.name}>
+                    {g.media?.title.romaji ?? it.entry.name}
+                  </h4>
+                  {multi ? (
+                    <p className="font-mono text-[10px] text-accent">{t('browser.versions', { count: g.items.length })}</p>
+                  ) : (
+                    <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
+                      {it.entry.name}
+                    </p>
+                  )}
+                  {g.media && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {g.media.seasonYear > 0 && <span className="t-label">{g.media.seasonYear}</span>}
+                      {g.media.episodes > 0 && <span className="t-label">{g.media.episodes} EP</span>}
+                      {g.media.averageScore > 0 && <span className="t-label t-label--accent">★ {g.media.averageScore}</span>}
+                    </div>
+                  )}
+                </div>
+              </button>
+              {!multi && (
+                <button className="t-btn t-btn--sm mx-2 mb-2 mt-auto" onClick={() => setRematch(it)}>
+                  {t('browser.changeMatch')}
+                </button>
+              )}
+            </article>
+          )
+        })}
       </div>
       {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
+      {detail && (
+        <DetailDialog
+          group={detail}
+          selected={selected}
+          onSelect={(e) => {
+            onSelect(e)
+            setDetail(null)
+          }}
+          onRematch={(it) => {
+            setDetail(null)
+            setRematch(it)
+          }}
+          onClose={() => setDetail(null)}
+        />
+      )}
     </div>
+  )
+}
+
+interface CatalogGroup {
+  key: string
+  media?: Media
+  pending?: boolean
+  items: CatalogItem[]
+}
+
+// DetailDialog shows the anime's full metadata (banner, description, trailer,
+// genres) plus every folder version matched to it, each selectable for sync
+// and individually re-matchable.
+function DetailDialog({
+  group,
+  selected,
+  onSelect,
+  onRematch,
+  onClose,
+}: {
+  group: CatalogGroup
+  selected?: string
+  onSelect: (e: Entry) => void
+  onRematch: (it: CatalogItem) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const ref = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    ref.current?.showModal()
+  }, [])
+  const m = group.media!
+  const trailerUrl =
+    m.trailer?.site === 'youtube'
+      ? `https://www.youtube.com/watch?v=${m.trailer.id}`
+      : m.trailer?.site === 'dailymotion'
+        ? `https://www.dailymotion.com/video/${m.trailer.id}`
+        : undefined
+
+  return (
+    <dialog ref={ref} className="w-full max-w-2xl" aria-label={t('browser.detailsFor', { name: m.title.romaji })} onClose={onClose}>
+      {m.bannerImage && <img src={m.bannerImage} alt="" className="max-h-36 w-full object-cover" />}
+      <div className="p-5">
+        <div className="flex gap-4">
+          {m.coverImage?.large && <img src={m.coverImage.large} alt="" className="h-40 w-28 shrink-0 object-cover" />}
+          <div className="min-w-0">
+            <h3 className="font-display font-semibold tracking-wider">{m.title.romaji}</h3>
+            {m.title.english && m.title.english !== m.title.romaji && (
+              <p className="text-sm text-t-muted">{m.title.english}</p>
+            )}
+            <div className="mt-2 flex flex-wrap gap-1">
+              {m.seasonYear > 0 && <span className="t-label">{m.seasonYear}</span>}
+              {m.format && <span className="t-label">{m.format}</span>}
+              {m.episodes > 0 && <span className="t-label">{m.episodes} EP</span>}
+              {m.status && <span className="t-label">{t(`browser.status.${m.status}`, m.status)}</span>}
+              {m.averageScore > 0 && <span className="t-label t-label--accent">★ {m.averageScore}</span>}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {m.genres?.map((g) => (
+                <span key={g} className="t-label">
+                  {g}
+                </span>
+              ))}
+            </div>
+            <p className="mt-1 font-mono text-[10px] text-t-muted">
+              <a className="hover:text-accent" href={`https://anilist.co/anime/${m.id}`} target="_blank" rel="noreferrer">
+                AniList #{m.id}
+              </a>
+            </p>
+          </div>
+        </div>
+        {m.description && (
+          <p className="mt-3 max-h-32 overflow-y-auto text-sm whitespace-pre-line text-t-secondary">
+            {/* AniList descriptions still carry some inline HTML */}
+            {m.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')}
+          </p>
+        )}
+        {trailerUrl && (
+          <a className="t-btn t-btn--sm mt-3 inline-flex items-center gap-2" href={trailerUrl} target="_blank" rel="noreferrer">
+            ▶ {t('browser.trailer')}
+            {m.trailer?.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
+          </a>
+        )}
+
+        <h4 className="t-label mt-4 mb-1">{t('browser.versions', { count: group.items.length })}</h4>
+        <ul className="max-h-48 overflow-y-auto">
+          {group.items.map((it) => (
+            <li key={it.entry.path} className="flex items-center gap-2 border-b border-border-subtle px-2 py-2">
+              <span
+                className={`min-w-0 flex-1 truncate text-sm ${selected === it.entry.path ? 'text-accent' : ''}`}
+                title={it.entry.path}
+              >
+                {it.entry.name}
+              </span>
+              <button className="t-btn t-btn--sm t-btn--primary shrink-0" onClick={() => onSelect(it.entry)}>
+                {t('browser.select')}
+              </button>
+              <button className="t-btn t-btn--sm shrink-0" onClick={() => onRematch(it)}>
+                {t('browser.changeMatch')}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 flex justify-end">
+          <button className="t-btn" onClick={() => ref.current?.close()}>
+            {t('browser.close')}
+          </button>
+        </div>
+      </div>
+    </dialog>
   )
 }
 
@@ -220,7 +412,19 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
     ref.current?.showModal()
   }, [])
 
-  const search = async () => setResults(await api.get<Media[]>(`/api/anilist/search?q=${encodeURIComponent(q)}`))
+  // search accepts a title, a bare AniList ID or an anilist.co link
+  const search = async () => {
+    const idm = q.match(/anilist\.co\/anime\/(\d+)/) ?? q.match(/^\s*(\d+)\s*$/)
+    try {
+      setResults(
+        idm
+          ? [await api.get<Media>(`/api/anilist/media/${idm[1]}`)]
+          : await api.get<Media[]>(`/api/anilist/search?q=${encodeURIComponent(q)}`),
+      )
+    } catch {
+      setResults([])
+    }
+  }
   const pick = async (mediaId: number) => {
     await api.put(`/api/servers/${serverId}/catalog/match`, { folder: item.entry.path, mediaId })
     qc.invalidateQueries({ queryKey: ['catalog', serverId] })
@@ -230,8 +434,13 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
   return (
     <dialog ref={ref} className="w-full max-w-lg" aria-label={t('browser.matchFor', { name: item.entry.name })} onClose={onClose}>
       <div className="p-5">
-        <h3 className="mb-3 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
-        <div className="mb-3 flex gap-2">
+        <h3 className="mb-1 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
+        {item.media && (
+          <p className="mb-2 text-xs text-t-muted">
+            {t('browser.currentMatch', { title: item.media.title.romaji, id: item.media.id })}
+          </p>
+        )}
+        <div className="mb-1 flex gap-2">
           <label className="sr-only" htmlFor="rematch-q">
             {t('browser.search')}
           </label>
@@ -239,6 +448,7 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
             id="rematch-q"
             className="t-input"
             value={q}
+            placeholder={t('browser.searchHint')}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && search()}
           />

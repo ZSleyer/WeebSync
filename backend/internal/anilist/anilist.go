@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -28,17 +29,24 @@ type Media struct {
 	CoverImage struct {
 		Large string `json:"large"`
 	} `json:"coverImage"`
-	BannerImage  string   `json:"bannerImage"`
+	BannerImage string `json:"bannerImage"`
+	Trailer     *struct {
+		ID        string `json:"id"`
+		Site      string `json:"site"` // "youtube" | "dailymotion"
+		Thumbnail string `json:"thumbnail"`
+	} `json:"trailer"`
 	Episodes     int      `json:"episodes"`
 	SeasonYear   int      `json:"seasonYear"`
 	Format       string   `json:"format"`
+	Status       string   `json:"status"` // FINISHED | RELEASING | NOT_YET_RELEASED | CANCELLED | HIATUS
 	AverageScore int      `json:"averageScore"`
 	Genres       []string `json:"genres"`
 	Description  string   `json:"description"`
 }
 
 const mediaFields = `id title { romaji english } coverImage { large } bannerImage
-	episodes seasonYear format averageScore genres description(asHtml: false)`
+	trailer { id site thumbnail }
+	episodes seasonYear format status averageScore genres description(asHtml: false)`
 
 type Client struct {
 	DB      *sql.DB
@@ -50,9 +58,11 @@ func New(d *sql.DB) *Client {
 	return &Client{
 		DB:   d,
 		HTTP: &http.Client{Timeout: 15 * time.Second},
-		// AniList allows ~90 req/min per IP; 1 req/s stays well under it
-		// (an API token gets its own, higher budget — headers still respected)
-		limiter: rate.NewLimiter(rate.Every(time.Second), 1),
+		// AniList currently serves 30 req/min (X-RateLimit-Limit header);
+		// one request every 2s stays exactly within that. Batched searches
+		// put up to 10 lookups into a single request, so effective matching
+		// throughput is ~300 folders/min.
+		limiter: rate.NewLimiter(rate.Every(2*time.Second), 1),
 	}
 }
 
@@ -125,6 +135,105 @@ func (c *Client) query(ctx context.Context, query string, variables map[string]a
 		resp.Body.Close()
 		return err
 	}
+}
+
+// SearchReq is one lookup in a batched search. Season (WINTER/SPRING/SUMMER/
+// FALL) and Year narrow the query when the folder structure provides them.
+// Force bypasses the response cache (user-triggered re-match).
+type SearchReq struct {
+	Query  string
+	Season string
+	Year   int
+	Force  bool
+}
+
+func (r SearchReq) cacheKey() string {
+	if r.Season == "" && r.Year == 0 {
+		return "search:" + r.Query
+	}
+	return fmt.Sprintf("search:%s|%s%d", r.Query, r.Season, r.Year)
+}
+
+// SearchBatch resolves several searches with one GraphQL request using field
+// aliases, so a whole batch costs a single slot of the rate limit. Results
+// are cached per request like Search.
+func (c *Client) SearchBatch(ctx context.Context, reqs []SearchReq) ([][]Media, error) {
+	out := make([][]Media, len(reqs))
+	var missing []int
+	for i, r := range reqs {
+		if payload, ok := c.cached(r.cacheKey()); ok && !r.Force {
+			var list []Media
+			if json.Unmarshal([]byte(payload), &list) == nil {
+				out[i] = list
+				continue
+			}
+		}
+		missing = append(missing, i)
+	}
+	if len(missing) == 0 {
+		return out, nil
+	}
+
+	var decls, parts []string
+	variables := map[string]any{}
+	for n, i := range missing {
+		r := reqs[i]
+		decls = append(decls, fmt.Sprintf("$q%d: String", n))
+		args := fmt.Sprintf("search: $q%d, type: ANIME", n)
+		if r.Season != "" {
+			decls = append(decls, fmt.Sprintf("$se%d: MediaSeason", n))
+			args += fmt.Sprintf(", season: $se%d", n)
+			variables[fmt.Sprintf("se%d", n)] = r.Season
+		}
+		if r.Year != 0 {
+			decls = append(decls, fmt.Sprintf("$y%d: Int", n))
+			args += fmt.Sprintf(", seasonYear: $y%d", n)
+			variables[fmt.Sprintf("y%d", n)] = r.Year
+		}
+		parts = append(parts, fmt.Sprintf("r%d: Page(perPage: 10) { media(%s) { %s } }", n, args, mediaFields))
+		variables[fmt.Sprintf("q%d", n)] = r.Query
+	}
+	gql := fmt.Sprintf("query (%s) { %s }", strings.Join(decls, ", "), strings.Join(parts, " "))
+	var resp struct {
+		Data map[string]struct {
+			Media []Media `json:"media"`
+		} `json:"data"`
+	}
+	if err := c.query(ctx, gql, variables, &resp); err != nil {
+		return nil, err
+	}
+	for n, i := range missing {
+		list := resp.Data[fmt.Sprintf("r%d", n)].Media
+		out[i] = list
+		payload, _ := json.Marshal(list)
+		c.store(reqs[i].cacheKey(), string(payload))
+	}
+	return out, nil
+}
+
+// CachedMedia returns the cached media even when stale: the catalog favors
+// instant display over freshness. fresh reports whether the entry is within
+// the TTL, so the caller can decide to refresh airing titles in the
+// background (finished ones never change). nil means nothing cached.
+func (c *Client) CachedMedia(id int) (m *Media, fresh bool) {
+	var payload, fetched string
+	if err := c.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`,
+		fmt.Sprintf("media:%d", id)).Scan(&payload, &fetched); err != nil {
+		return nil, false
+	}
+	var out Media
+	if json.Unmarshal([]byte(payload), &out) != nil {
+		return nil, false
+	}
+	t, err := time.Parse("2006-01-02 15:04:05", fetched)
+	return &out, err == nil && time.Since(t) <= cacheTTL
+}
+
+// CacheMedia stores m in the response cache, used when a search already
+// returned the full object so no second Media request is needed.
+func (c *Client) CacheMedia(m *Media) {
+	payload, _ := json.Marshal(m)
+	c.store(fmt.Sprintf("media:%d", m.ID), string(payload))
 }
 
 func (c *Client) Search(ctx context.Context, q string) ([]Media, error) {

@@ -51,9 +51,11 @@ export interface Media {
   title: { romaji: string; english: string }
   coverImage: { large: string }
   bannerImage: string
+  trailer?: { id: string; site: string; thumbnail: string } | null
   episodes: number
   seasonYear: number
   format: string
+  status: string
   averageScore: number
   genres: string[]
   description: string
@@ -62,6 +64,7 @@ export interface Media {
 export interface CatalogItem {
   entry: Entry
   media?: Media
+  pending?: boolean // metadata still resolving in the background
 }
 
 export interface RenamePair {

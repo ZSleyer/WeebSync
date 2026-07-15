@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -21,6 +22,13 @@ type Server struct {
 	Transfers    *transfer.Manager
 	Anilist      *anilist.Client
 	Push         *push.Service
+
+	// background AniList matching (see queueMatch in anilist.go):
+	// dedup of in-flight jobs plus a queue drained in batches by one worker
+	matchMu   sync.Mutex
+	matchJobs map[string]bool
+	matchCh   chan matchJob
+	matchOnce sync.Once
 }
 
 // adminOnly guards admin-only endpoints (settings mutations, user management).
@@ -91,6 +99,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/anilist/media/{id}", authed(http.HandlerFunc(s.handleAnilistMedia)))
 	mux.Handle("GET /api/servers/{id}/catalog", authed(http.HandlerFunc(s.handleCatalog)))
 	mux.Handle("PUT /api/servers/{id}/catalog/match", authed(http.HandlerFunc(s.handleCatalogMatch)))
+	mux.Handle("POST /api/servers/{id}/catalog/rematch", authed(http.HandlerFunc(s.handleCatalogRematch)))
 
 	// rename
 	mux.Handle("POST /api/rename/preview", authed(http.HandlerFunc(s.handleRenamePreview)))
