@@ -9,16 +9,29 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/push"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 type Server struct {
 	DB   *sql.DB
-	OIDC *auth.OIDC
+	OIDC *auth.Manager
 	// DownloadRoot is the base directory all local file operations are jailed to.
 	DownloadRoot string
 	Transfers    *transfer.Manager
 	Anilist      *anilist.Client
+	Push         *push.Service
+}
+
+// adminOnly guards mutating settings endpoints.
+func adminOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if u := auth.UserFrom(r.Context()); u == nil || !u.IsAdmin {
+			writeErr(w, http.StatusForbidden, "admin only")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) Register(mux *http.ServeMux) {
@@ -30,10 +43,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.Handle("GET /api/auth/me", authed(http.HandlerFunc(s.handleMe)))
 	mux.HandleFunc("GET /api/auth/config", s.handleAuthConfig)
-	if s.OIDC != nil {
-		mux.HandleFunc("GET /api/auth/oidc/login", s.OIDC.LoginHandler)
-		mux.HandleFunc("GET /api/auth/oidc/callback", s.OIDC.CallbackHandler(s.DB))
-	}
+	mux.HandleFunc("GET /api/auth/oidc/login", s.OIDC.LoginHandler)
+	mux.HandleFunc("GET /api/auth/oidc/callback", s.OIDC.CallbackHandler)
 
 	// servers
 	mux.Handle("GET /api/servers", authed(http.HandlerFunc(s.handleServersList)))
@@ -57,9 +68,14 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/downloads/{id}", authed(http.HandlerFunc(s.handleDownloadDelete)))
 	mux.Handle("GET /api/events", authed(http.HandlerFunc(s.handleEvents)))
 
-	// settings
+	// settings (mutations are admin-only)
 	mux.Handle("GET /api/settings", authed(http.HandlerFunc(s.handleSettingsGet)))
-	mux.Handle("PUT /api/settings", authed(http.HandlerFunc(s.handleSettingsPut)))
+	mux.Handle("PUT /api/settings", authed(adminOnly(http.HandlerFunc(s.handleSettingsPut))))
+
+	// web push
+	mux.Handle("GET /api/push/key", authed(http.HandlerFunc(s.handlePushKey)))
+	mux.Handle("POST /api/push/subscribe", authed(http.HandlerFunc(s.handlePushSubscribe)))
+	mux.Handle("DELETE /api/push/subscribe", authed(http.HandlerFunc(s.handlePushUnsubscribe)))
 
 	// anilist + catalog
 	mux.Handle("GET /api/anilist/search", authed(http.HandlerFunc(s.handleAnilistSearch)))
