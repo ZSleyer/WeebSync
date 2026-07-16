@@ -323,7 +323,10 @@ func looksUploading(size int64, siblings []int64) bool {
 // sizeGuard skips video files that look mid-upload (see looksUploading);
 // their count is returned as uploading so the caller can report them.
 // The returned ids allow callers to offer an undo/cancel for the batch.
-func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, sizeGuard bool) (ids []int64, uploading int, err error) {
+// flat writes a directory's files directly into localRel instead of
+// creating a subfolder named after the remote directory (for building
+// layouts like Title/Season 01/ from arbitrary remote names).
+func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, sizeGuard, flat bool) (ids []int64, uploading int, err error) {
 	if nameFn == nil {
 		nameFn = func(s string) string { return s }
 	}
@@ -375,6 +378,9 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 			return nil
 		}
 		base := path.Join(localRel, path.Base(remotePath))
+		if flat {
+			base = localRel
+		}
 		if err := walk(remotePath, base, 0); err != nil {
 			return nil, 0, err
 		}
