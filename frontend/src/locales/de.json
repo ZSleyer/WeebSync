@@ -320,7 +320,10 @@
     "folder": "Plex-Ordner",
     "folderHint": "Bisheriger Speicherort der Serie, dort weiterführen für eine einheitliche Ablage.",
     "candidates": "Remote-Kandidaten aus dem Index",
-    "openBrowser": "Im Browser öffnen"
+    "openBrowser": "Im Browser öffnen",
+    "syncOnce": "Syncen",
+    "watchHint": "Auto-Sync anlegen, vorbefüllt mit Plex-Ordnername und Rename-Vorschlag.",
+    "syncHint": "Einmalig in den Plex-Ordnernamen unter downloads/ herunterladen."
   },
   "suggestions": {
     "title": "VORSCHLÄGE",
