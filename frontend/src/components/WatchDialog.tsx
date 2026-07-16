@@ -58,6 +58,7 @@ export default function WatchDialog({
       setPairs(null)
       return
     }
+    let stale = false // an in-flight preview must not overwrite a newer one
     const run = setTimeout(async () => {
       setPreviewBusy(true)
       try {
@@ -65,14 +66,18 @@ export default function WatchDialog({
           `/api/servers/${serverId}/browse?path=${encodeURIComponent(f.remotePath)}`,
         )
         const names = entries.filter((e) => !e.isDir).map((e) => e.name).slice(0, 8)
-        setPairs(names.length ? await api.post<RenamePair[]>('/api/rename/names', { names, ...f }) : [])
+        const next = names.length ? await api.post<RenamePair[]>('/api/rename/names', { names, ...f }) : []
+        if (!stale) setPairs(next)
       } catch {
-        setPairs(null) // preview is best-effort; saving reports real errors
+        if (!stale) setPairs(null) // preview is best-effort; saving reports real errors
       } finally {
-        setPreviewBusy(false)
+        if (!stale) setPreviewBusy(false)
       }
     }, 500)
-    return () => clearTimeout(run)
+    return () => {
+      stale = true
+      clearTimeout(run)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renameOn, hasRule, serverId, f.remotePath, f.mode, f.template, f.separator, f.titleOverride, f.pattern, f.replacement])
 

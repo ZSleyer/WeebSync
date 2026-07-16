@@ -73,7 +73,7 @@ func (s *Server) handleAnilistConnect(w http.ResponseWriter, r *http.Request) {
 	state := hex.EncodeToString(raw)
 	http.SetCookie(w, &http.Cookie{
 		Name: "weebsync_anilist_state", Value: state, Path: "/api/anilist",
-		MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
 	})
 	q := url.Values{
 		"client_id":     {clientID},
@@ -86,7 +86,7 @@ func (s *Server) handleAnilistConnect(w http.ResponseWriter, r *http.Request) {
 
 func requestOrigin(r *http.Request) string {
 	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+	if auth.IsHTTPS(r) {
 		scheme = "https"
 	}
 	return scheme + "://" + r.Host
@@ -101,6 +101,12 @@ func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
+	// state is single-use: invalidate the cookie so the callback URL
+	// cannot be replayed within the cookie's lifetime
+	http.SetCookie(w, &http.Cookie{
+		Name: "weebsync_anilist_state", Value: "", Path: "/api/anilist",
+		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode,
+	})
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		http.Error(w, "missing code", http.StatusBadRequest)
@@ -129,8 +135,11 @@ func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 	if expiresIn > 0 {
 		expires = time.Now().UTC().Add(time.Duration(expiresIn) * time.Second).Format(sqliteTime)
 	}
-	s.DB.Exec(`INSERT OR REPLACE INTO anilist_accounts (user_id, anilist_user_id, anilist_name, avatar, token_enc, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, u.ID, alID, name, avatar, enc, expires)
+	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO anilist_accounts (user_id, anilist_user_id, anilist_name, avatar, token_enc, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?)`, u.ID, alID, name, avatar, enc, expires); err != nil {
+		http.Error(w, "failed to store linked account", http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/settings", http.StatusFound)
 }
 

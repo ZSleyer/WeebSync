@@ -190,16 +190,20 @@ function TitleSearch({ value, onChange }: { value: string; onChange: (v: string)
   const [results, setResults] = useState<Media[]>([])
   const [open, setOpen] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
+  const seq = useRef(0) // drop out-of-order responses while typing
 
   const search = async (q: string) => {
     onChange(q)
+    const mySeq = ++seq.current
     if (q.length < 3) {
       setResults([])
       setOpen(false)
       return
     }
     try {
-      setResults(await api.get<Media[]>(`/api/anilist/search?q=${encodeURIComponent(q)}`))
+      const r = await api.get<Media[]>(`/api/anilist/search?q=${encodeURIComponent(q)}`)
+      if (mySeq !== seq.current) return // a newer request superseded this one
+      setResults(r)
       setOpen(true)
     } catch {
       /* ignore */

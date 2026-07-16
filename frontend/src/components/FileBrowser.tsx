@@ -139,9 +139,16 @@ export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [newDir, setNewDir] = useState('')
+  const [mkdirError, setMkdirError] = useState('')
   const mkdir = async () => {
     if (!newDir.trim()) return
-    await api.post('/api/browse/local/mkdir', { path: `${path}/${newDir.trim()}` })
+    setMkdirError('')
+    try {
+      await api.post('/api/browse/local/mkdir', { path: `${path}/${newDir.trim()}` })
+    } catch (err) {
+      setMkdirError(err instanceof Error ? err.message : t('app.error'))
+      return
+    }
     setNewDir('')
     qc.invalidateQueries({ queryKey: ['local'] })
   }
@@ -170,6 +177,11 @@ export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p
           mkdir
         </button>
       </div>
+      {mkdirError && (
+        <p className="px-2 pb-2 text-xs text-err" role="alert">
+          {mkdirError}
+        </p>
+      )}
     </div>
   )
 }

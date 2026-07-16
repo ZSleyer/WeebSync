@@ -189,8 +189,12 @@ function RateLimitInput({ d }: { d: Download }) {
   const save = async () => {
     const kib = Number(val)
     if (Number.isNaN(kib) || kib < 0) return
-    await api.put(`/api/downloads/${d.id}/ratelimit`, { rateLimit: Math.round(kib * 1024) })
-    qc.invalidateQueries({ queryKey: ['downloads'] })
+    try {
+      await api.put(`/api/downloads/${d.id}/ratelimit`, { rateLimit: Math.round(kib * 1024) })
+      qc.invalidateQueries({ queryKey: ['downloads'] })
+    } catch {
+      setVal(d.rateLimit > 0 ? String(d.rateLimit / 1024) : '') // revert to server state
+    }
   }
   return (
     <label className="ml-auto flex items-center gap-2 text-xs text-t-muted">

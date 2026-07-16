@@ -8,17 +8,21 @@ import (
 )
 
 // throttledReader limits read bandwidth against up to two limiters
-// (global + per-download). A nil limiter means unlimited.
+// (global + per-download). A nil limiter means unlimited. The limiters are
+// re-fetched on every Read so a live SetRateLimit/settings change that swaps
+// a limiter pointer (nil ↔ *Limiter) takes effect mid-transfer, not only on
+// the next download start.
 type throttledReader struct {
 	r        io.Reader
 	ctx      context.Context
-	limiters []*rate.Limiter
+	limiters func() []*rate.Limiter
 }
 
 func (t *throttledReader) Read(p []byte) (int, error) {
+	limiters := t.limiters()
 	// cap chunk size so WaitN never exceeds a limiter's burst
 	max := len(p)
-	for _, l := range t.limiters {
+	for _, l := range limiters {
 		if l != nil && l.Limit() != rate.Inf {
 			if b := l.Burst(); b < max {
 				max = b
@@ -30,7 +34,7 @@ func (t *throttledReader) Read(p []byte) (int, error) {
 	}
 	n, err := t.r.Read(p[:max])
 	if n > 0 {
-		for _, l := range t.limiters {
+		for _, l := range limiters {
 			if l == nil || l.Limit() == rate.Inf {
 				continue
 			}

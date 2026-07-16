@@ -24,7 +24,12 @@ export function useEvents(enabled: boolean) {
     if (!enabled) return
     const es = new EventSource('/api/events')
     es.onmessage = (ev) => {
-      const d: Download = JSON.parse(ev.data)
+      let d: Download
+      try {
+        d = JSON.parse(ev.data)
+      } catch {
+        return // ignore malformed/keepalive frames
+      }
       qc.setQueryData<Download[]>(['downloads'], (old) => {
         if (!old) return old
         const idx = old.findIndex((x) => x.id === d.id)
