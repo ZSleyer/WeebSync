@@ -41,8 +41,9 @@ func (s *Server) handleAnilistMedia(w http.ResponseWriter, r *http.Request) {
 }
 
 type catalogItem struct {
-	Entry remote.Entry   `json:"entry"`
-	Media *anilist.Media `json:"media,omitempty"`
+	Entry  remote.Entry   `json:"entry"`
+	Media  *anilist.Media `json:"media,omitempty"`
+	Source string         `json:"source,omitempty"` // anilist | tmdb:tv | tmdb:movie
 	// Pending: metadata is being resolved in the background, poll again
 	Pending bool `json:"pending,omitempty"`
 }
@@ -273,40 +274,49 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	scope := s.scopeFor(serverID, dir)
+	source := sourceForScope(scope)
 	items := []catalogItem{}
 	for _, e := range entries {
 		if !e.IsDir {
 			continue
 		}
-		item := catalogItem{Entry: e}
+		item := catalogItem{Entry: e, Source: source}
 		var mediaID, manual int
-		err := s.DB.QueryRow(`SELECT media_id, manual FROM catalog_matches
-			WHERE server_id = ? AND folder = ?`, serverID, e.Path).Scan(&mediaID, &manual)
+		var rowSource string
+		err := s.DB.QueryRow(`SELECT media_id, manual, source FROM catalog_matches
+			WHERE server_id = ? AND folder = ?`, serverID, e.Path).Scan(&mediaID, &manual, &rowSource)
 		switch {
-		case err != nil:
-			// never looked up: match in the background, show the folder now
+		case err != nil || rowSource != source:
+			// never looked up, or the folder's scope changed since the match
+			// was stored: match in the background, show the folder now
 			item.Pending = true
-			s.queueMatch(serverID, e.Path, e.Name, false)
+			s.queueScopedMatch(serverID, e.Path, e.Name, scope, false)
 		case mediaID == 0 && manual == 0:
 			// searched before, nothing found: display "no match" but retry
 			// quietly (search cache makes this cheap); manual unmatch is final
-			s.queueMatch(serverID, e.Path, e.Name, false)
+			s.queueScopedMatch(serverID, e.Path, e.Name, scope, false)
 		case mediaID != 0:
-			m, fresh := s.Anilist.CachedMedia(mediaID)
-			item.Media = m
-			switch {
-			case m == nil:
-				item.Pending = true
-				s.queueMediaFetch(mediaID)
-			case !fresh && m.Status != "FINISHED" && m.Status != "CANCELLED":
-				// airing/upcoming titles change (episodes, score): refresh
-				// quietly in the background; finished ones never do
-				s.queueMediaFetch(mediaID)
-			}
+			item.Media, item.Pending = s.sourceMedia(source, mediaID)
 		}
 		items = append(items, item)
 	}
-	writeJSON(w, http.StatusOK, items)
+	var ownKind string
+	s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, dir).Scan(&ownKind)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"scope":     scope,
+		"inherited": scope != "" && ownKind == "",
+		"items":     items,
+	})
+}
+
+// queueScopedMatch dispatches folder matching to the scope's metadata source.
+func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, force bool) {
+	if scope == "" || scope == "anime" {
+		s.queueMatch(serverID, folder, name, force)
+		return
+	}
+	s.queueTmdbMatch(serverID, folder, name, scope, force)
 }
 
 // handleCatalogRematch re-queues automatic matches directly under the given
@@ -337,15 +347,16 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid path")
 		return
 	}
+	scope := s.scopeFor(serverID, in.Path)
 	// direct children only: no second slash after the prefix
 	cond := "AND media_id = 0"
 	if in.All {
 		cond = ""
 	}
 	rows, err := s.DB.Query(`SELECT folder FROM catalog_matches
-		WHERE server_id = ? AND manual = 0 `+cond+`
+		WHERE server_id = ? AND manual = 0 AND source = ? `+cond+`
 		AND folder LIKE ? || '/%' AND folder NOT LIKE ? || '/%/%'`,
-		serverID, in.Path, in.Path)
+		serverID, sourceForScope(scope), in.Path, in.Path)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "db error")
 		return
@@ -358,7 +369,7 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 	for _, f := range folders {
-		s.queueMatch(serverID, f, path.Base(f), true)
+		s.queueScopedMatch(serverID, f, path.Base(f), scope, true)
 		// drop the row so the catalog shows these as pending while the
 		// forced search runs (poll picks the fresh result up)
 		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`, serverID, f)
@@ -388,7 +399,7 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
 	}
-	s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual) VALUES (?, ?, ?, 1)`,
-		serverID, in.Folder, in.MediaID)
+	s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, 1, ?)`,
+		serverID, in.Folder, in.MediaID, sourceForScope(s.scopeFor(serverID, in.Folder)))
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

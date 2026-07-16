@@ -19,6 +19,8 @@ type settingsPayload struct {
 	AuthMode             string `json:"authMode"` // password | oidc-only | oidc-auto
 	AnilistTokenSet      bool   `json:"anilistTokenSet"`
 	AnilistToken         string `json:"anilistToken,omitempty"` // write-only
+	TmdbApiKeySet        bool   `json:"tmdbApiKeySet"`
+	TmdbApiKey           string `json:"tmdbApiKey,omitempty"` // write-only
 	PlexURL              string `json:"plexUrl"`
 	PlexTokenSet         bool   `json:"plexTokenSet"`
 	PlexToken            string `json:"plexToken,omitempty"` // write-only
@@ -49,6 +51,7 @@ func (s *Server) settingsState() settingsPayload {
 		RegistrationDisabled: auth.RegistrationDisabled(s.DB),
 		AuthMode:             auth.AuthMode(s.DB),
 		AnilistTokenSet:      db.SettingOrEnv(s.DB, "anilist_token", "ANILIST_TOKEN") != "",
+		TmdbApiKeySet:        db.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
 		PlexURL:              db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
 		PlexTokenSet:         db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
 		PlexSections:         db.Setting(s.DB, "plex_sections"),
@@ -116,6 +119,11 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		db.SetSetting(s.DB, "anilist_token", "")
 	} else if in.AnilistToken != "" {
 		db.SetSetting(s.DB, "anilist_token", in.AnilistToken)
+	}
+	if in.TmdbApiKey == "-" {
+		db.SetSetting(s.DB, "tmdb_api_key", "")
+	} else if in.TmdbApiKey != "" {
+		db.SetSetting(s.DB, "tmdb_api_key", in.TmdbApiKey)
 	}
 	if in.PlexToken == "-" {
 		db.SetSetting(s.DB, "plex_token", "")

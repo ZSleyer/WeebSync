@@ -16,6 +16,8 @@ interface SettingsState {
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
   anilistTokenSet: boolean
   anilistToken?: string
+  tmdbApiKeySet: boolean
+  tmdbApiKey?: string
   plexUrl: string
   plexTokenSet: boolean
   plexToken?: string
@@ -45,14 +47,14 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   useEffect(() => {
     if (data && !form)
-      setForm({ ...data, anilistToken: '', plexToken: '', oidcClientSecret: '', oidcClaim: data.oidcClaim || 'groups' })
+      setForm({ ...data, anilistToken: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '', oidcClaim: data.oidcClaim || 'groups' })
   }, [data, form])
 
   const save = useMutation({
     mutationFn: (s: SettingsState) => api.put<SettingsState>('/api/settings', s),
     onSuccess: (fresh) => {
       qc.setQueryData(['settings'], fresh)
-      setForm({ ...fresh, anilistToken: '', plexToken: '', oidcClientSecret: '' })
+      setForm({ ...fresh, anilistToken: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '' })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
@@ -277,6 +279,18 @@ export default function Settings() {
                 value={form.anilistToken ?? ''}
                 onChange={(e) => set('anilistToken', e.target.value)}
               />
+            </label>
+            <label className="mt-3 block text-xs text-t-muted">
+              {t('settings.tmdbApiKey')}
+              <input
+                className="t-input mt-1 font-mono"
+                type="password"
+                autoComplete="off"
+                placeholder={form.tmdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
+                value={form.tmdbApiKey ?? ''}
+                onChange={(e) => set('tmdbApiKey', e.target.value)}
+              />
+              <span className="mt-1 block">{t('settings.tmdbApiKeyHint')}</span>
             </label>
 
             <div className="mt-5 grid grid-cols-1 gap-4">
