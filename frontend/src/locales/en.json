@@ -125,7 +125,11 @@
     "scopeInherited": "inherited",
     "scopeInheritedHint": "Mark comes from a parent folder.",
     "scopeClear": "Remove mark",
-    "scopeClearHint": "Delete this folder's own mark, the parent applies again."
+    "scopeClearHint": "Delete this folder's own mark, the parent applies again.",
+    "scopeNone": "Pick a source…",
+    "scopePick": "No metadata source chosen for this folder yet. The choice is saved and applies to all subfolders.",
+    "undoSync": "Cancel",
+    "syncCanceled": "{{count}} download(s) canceled."
   },
   "watch": {
     "title": "AUTO-SYNC",
