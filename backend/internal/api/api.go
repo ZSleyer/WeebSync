@@ -75,6 +75,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// downloads
 	mux.Handle("GET /api/downloads", authed(http.HandlerFunc(s.handleDownloadsList)))
 	mux.Handle("POST /api/downloads", authed(http.HandlerFunc(s.handleDownloadCreate)))
+	mux.Handle("POST /api/downloads/cancel", authed(http.HandlerFunc(s.handleDownloadsCancel)))
 	mux.Handle("POST /api/downloads/{id}/pause", authed(s.downloadAction(s.Transfers.Pause)))
 	mux.Handle("POST /api/downloads/{id}/resume", authed(s.downloadAction(s.Transfers.Resume)))
 	mux.Handle("POST /api/downloads/{id}/cancel", authed(s.downloadAction(s.Transfers.Cancel)))

@@ -281,7 +281,14 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		if !e.IsDir {
 			continue
 		}
-		item := catalogItem{Entry: e, Source: source}
+		item := catalogItem{Entry: e}
+		if scope == "" {
+			// no metadata source chosen for this path yet: show the plain
+			// structure and wait for the user to pick one (persisted mark)
+			items = append(items, item)
+			continue
+		}
+		item.Source = source
 		var mediaID, manual int
 		var rowSource string
 		err := s.DB.QueryRow(`SELECT media_id, manual, source FROM catalog_matches
@@ -348,6 +355,11 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scope := s.scopeFor(serverID, in.Path)
+	if scope == "" {
+		// no metadata source chosen: nothing to re-match
+		writeJSON(w, http.StatusOK, map[string]int{"queued": 0})
+		return
+	}
 	// direct children only: no second slash after the prefix
 	cond := "AND media_id = 0"
 	if in.All {

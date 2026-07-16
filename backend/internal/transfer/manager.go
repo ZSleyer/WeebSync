@@ -301,13 +301,14 @@ func looksUploading(size int64, siblings []int64) bool {
 // rename templates); existing files with matching size are skipped.
 // sizeGuard skips video files that look mid-upload (see looksUploading);
 // their count is returned as uploading so the caller can report them.
-func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, sizeGuard bool) (queued, uploading int, err error) {
+// The returned ids allow callers to offer an undo/cancel for the batch.
+func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, sizeGuard bool) (ids []int64, uploading int, err error) {
 	if nameFn == nil {
 		nameFn = func(s string) string { return s }
 	}
 	client, _, err := m.Dial(userID, serverID)
 	if err != nil {
-		return 0, 0, err
+		return nil, 0, err
 	}
 	defer client.Close()
 
@@ -325,7 +326,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 	if isFile {
 		size, serr := client.Size(remotePath)
 		if serr != nil {
-			return 0, 0, fmt.Errorf("path is neither listable nor a file: %w", serr)
+			return nil, 0, fmt.Errorf("path is neither listable nor a file: %w", serr)
 		}
 		jobs = append(jobs, job{remotePath, path.Join(localRel, nameFn(path.Base(remotePath))), "", size})
 	} else {
@@ -354,7 +355,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		}
 		base := path.Join(localRel, path.Base(remotePath))
 		if err := walk(remotePath, base, 0); err != nil {
-			return 0, 0, err
+			return nil, 0, err
 		}
 	}
 
@@ -376,12 +377,16 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		if existing > 0 {
 			continue
 		}
-		m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size)
+		res, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size)
 			VALUES (?, ?, ?, ?, ?)`, userID, serverID, j.remote, local, j.size)
-		queued++
+		if ierr == nil {
+			if id, lerr := res.LastInsertId(); lerr == nil {
+				ids = append(ids, id)
+			}
+		}
 	}
 	m.Wake()
-	return queued, uploading, nil
+	return ids, uploading, nil
 }
 
 func (m *Manager) Pause(userID, id int64) error {

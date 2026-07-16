@@ -25,16 +25,29 @@ export default function Browser() {
 
   const active = serverId || servers[0]?.id || 0
 
+  const [lastIds, setLastIds] = useState<number[]>([])
   const enqueue = useMutation({
     mutationFn: () =>
-      api.post<{ queued: number }>('/api/downloads', {
+      api.post<{ queued: number; ids: number[] }>('/api/downloads', {
         serverId: active,
         remotePath: selection!.path,
         localPath,
       }),
-    onSuccess: (r) => setNotice(t('browser.queued', { count: r.queued })),
-    onError: (e) => setNotice(e instanceof Error ? e.message : t('app.error')),
+    onSuccess: (r) => {
+      setNotice(t('browser.queued', { count: r.queued }))
+      setLastIds(r.ids ?? [])
+    },
+    onError: (e) => {
+      setNotice(e instanceof Error ? e.message : t('app.error'))
+      setLastIds([])
+    },
   })
+  // undo for an accidental sync click: cancel the just-queued batch
+  const cancelLast = async () => {
+    const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
+    setNotice(t('browser.syncCanceled', { count: out.canceled }))
+    setLastIds([])
+  }
 
   if (servers.length === 0) {
     return (
@@ -146,8 +159,13 @@ export default function Browser() {
               {t('watch.add')}
             </button>
             {notice && (
-              <p className="mt-2 text-center text-xs text-t-secondary" role="status">
+              <p className="mt-2 flex items-center justify-center gap-2 text-center text-xs text-t-secondary" role="status">
                 {notice}
+                {lastIds.length > 0 && (
+                  <button className="t-btn t-btn--sm t-btn--danger" onClick={cancelLast}>
+                    {t('browser.undoSync')}
+                  </button>
+                )}
               </p>
             )}
           </div>
@@ -321,11 +339,10 @@ function CatalogGrid({
         <label className="flex items-center gap-2 text-xs text-t-muted">
           {t('browser.scope')}
           <span className="t-select-wrap w-44">
-            <select
-              className="t-select"
-              value={data?.scope || 'anime'}
-              onChange={(e) => setScope(e.target.value)}
-            >
+            <select className="t-select" value={data?.scope ?? ''} onChange={(e) => setScope(e.target.value)}>
+              <option value="" disabled>
+                {t('browser.scopeNone')}
+              </option>
               <option value="anime">{t('browser.scopeAnime')}</option>
               <option value="tv">{t('browser.scopeTv')}</option>
               <option value="movie">{t('browser.scopeMovie')}</option>
@@ -343,7 +360,11 @@ function CatalogGrid({
             {scopeError}
           </span>
         )}
-        {pendingCount > 0 ? (
+        {data?.scope === '' ? (
+          <p className="text-xs text-t-muted" role="status">
+            {t('browser.scopePick')}
+          </p>
+        ) : pendingCount > 0 ? (
           <p className="text-xs text-t-muted" role="status">
             {t('browser.matchingCount', { count: pendingCount })}
           </p>
@@ -394,7 +415,9 @@ function CatalogGrid({
                     {t('browser.matching')}
                   </div>
                 ) : (
-                  <div className="t-hatch grid aspect-2/3 w-full place-items-center text-t-muted">{t('browser.noMatch')}</div>
+                  <div className="t-hatch grid aspect-2/3 w-full place-items-center text-t-muted">
+                    {it.source ? t('browser.noMatch') : ''}
+                  </div>
                 )}
                 <div className="p-2">
                   <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={g.media?.title.romaji ?? it.entry.name}>
@@ -416,7 +439,7 @@ function CatalogGrid({
                   )}
                 </div>
               </button>
-              {!multi && (
+              {!multi && !!it.source && (
                 <button className="t-btn t-btn--sm mx-2 mb-2 mt-auto" onClick={() => setRematch(it)}>
                   {t('browser.changeMatch')}
                 </button>
