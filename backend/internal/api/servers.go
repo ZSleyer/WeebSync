@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -147,12 +148,42 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		if errors.Is(err, remote.ErrHostKeyMismatch) {
+			// 409 + code so the UI can offer "trust the new host key"
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"error": err.Error(),
+				"code":  "host_key_mismatch",
+			})
+			return
+		}
+		status := http.StatusBadGateway
+		if err == errNotFound {
+			status = http.StatusNotFound
+		}
+		writeErr(w, status, err.Error())
 		return
 	}
 	defer client.Close()
 	if _, err := client.List(rootPath); err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleServerTrustHostKey drops the learned SSH host key after the user
+// explicitly accepted that the server key changed; the next connect
+// re-learns the new key via trust-on-first-use.
+func (s *Server) handleServerTrustHostKey(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	res, err := s.DB.Exec(`UPDATE servers SET host_key='' WHERE id = ? AND user_id = ?`, id, u.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeErr(w, http.StatusNotFound, "server not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

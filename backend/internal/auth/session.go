@@ -6,11 +6,45 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"net"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
 const sessionTTL = 30 * 24 * time.Hour
+
+// Deployment posture from env, read once at startup:
+//
+//	WEEBSYNC_TRUSTED_PROXY — trust X-Forwarded-* (set only behind a proxy that
+//	  overwrites these headers, else a direct client can spoof them).
+//	WEEBSYNC_FORCE_HTTPS — always set Secure on cookies (recommended when a
+//	  reverse proxy terminates TLS, so the app never sees r.TLS).
+var (
+	trustProxy = envBool("WEEBSYNC_TRUSTED_PROXY")
+	forceHTTPS = envBool("WEEBSYNC_FORCE_HTTPS")
+)
+
+func envBool(key string) bool {
+	v := strings.ToLower(os.Getenv(key))
+	return v == "1" || v == "true" || v == "yes"
+}
+
+// ClientIP returns the caller's IP, honoring X-Forwarded-For only in trusted-
+// proxy mode. Used for per-IP rate limiting.
+func ClientIP(r *http.Request) string {
+	if trustProxy {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			return strings.TrimSpace(strings.Split(xff, ",")[0])
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
 
 type User struct {
 	ID      int64  `json:"id"`
@@ -64,8 +98,13 @@ func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) {
 }
 
 func isHTTPS(r *http.Request) bool {
-	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	return forceHTTPS || r.TLS != nil || (trustProxy && r.Header.Get("X-Forwarded-Proto") == "https")
 }
+
+// IsHTTPS reports whether the request should be treated as HTTPS, honoring the
+// trusted-proxy / force-https env settings. For callers outside this package
+// that build redirect origins or set their own cookies.
+func IsHTTPS(r *http.Request) bool { return isHTTPS(r) }
 
 // Middleware resolves the session cookie to a user; 401 when required and absent.
 func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {

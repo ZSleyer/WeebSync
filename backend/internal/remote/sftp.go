@@ -20,6 +20,9 @@ type sftpClient struct {
 func dialSFTP(cfg Config) (Client, error) {
 	// Trust-on-first-use: accept and persist the key on first connect,
 	// require an exact match afterwards.
+	// mismatch flags the failure outside the callback because the ssh
+	// package does not reliably wrap the callback error for errors.Is.
+	var mismatch bool
 	hostKeyCB := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 		got := base64.StdEncoding.EncodeToString(key.Marshal())
 		if cfg.HostKey == "" {
@@ -29,6 +32,7 @@ func dialSFTP(cfg Config) (Client, error) {
 			return nil
 		}
 		if got != cfg.HostKey {
+			mismatch = true
 			return fmt.Errorf("ssh host key mismatch for %s — server changed or MITM", hostname)
 		}
 		return nil
@@ -40,6 +44,9 @@ func dialSFTP(cfg Config) (Client, error) {
 		Timeout:         15 * time.Second,
 	})
 	if err != nil {
+		if mismatch {
+			return nil, fmt.Errorf("%w for %s:%d", ErrHostKeyMismatch, cfg.Host, cfg.Port)
+		}
 		return nil, err
 	}
 	sc, err := sftp.NewClient(conn)
