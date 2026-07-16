@@ -91,6 +91,7 @@ export interface Watch {
   intervalMin: number
   lastCheck: string
   lastResult: string
+  lastUploading: number
   createdAt: string
   media?: Media
   localFiles: number

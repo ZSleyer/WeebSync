@@ -37,7 +37,8 @@ type Watch struct {
 	Replacement   string `json:"replacement"`
 	IntervalMin   int    `json:"intervalMin"` // global setting, echoed for the UI
 	LastCheck     string `json:"lastCheck"`
-	LastResult    string `json:"lastResult"`
+	LastResult    string `json:"lastResult"`    // human-readable, display only
+	LastUploading int    `json:"lastUploading"` // files still uploading remotely at the last check
 	CreatedAt     string `json:"createdAt"`
 
 	// enriched for the overview
@@ -163,9 +164,10 @@ func (s *Server) runWatch(id int64) {
 	}
 	if err != nil {
 		result = err.Error()
+		uploading = 0
 		slog.Warn("watch check", "id", id, "err", err)
 	}
-	s.DB.Exec(`UPDATE watches SET last_result = ? WHERE id = ?`, result, id)
+	s.DB.Exec(`UPDATE watches SET last_result = ?, last_uploading = ? WHERE id = ?`, result, uploading, id)
 }
 
 // watchNameFn maps remote file names to local ones via the watch's rename
@@ -194,7 +196,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.last_check, w.last_result, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.last_check, w.last_result, w.last_uploading, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -208,7 +210,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		var it Watch
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
 			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement,
-			&it.LastCheck, &it.LastResult, &it.CreatedAt); err != nil {
+			&it.LastCheck, &it.LastResult, &it.LastUploading, &it.CreatedAt); err != nil {
 			writeErr(w, http.StatusInternalServerError, "db error")
 			return
 		}
