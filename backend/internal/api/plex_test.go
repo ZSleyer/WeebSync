@@ -20,7 +20,7 @@ func TestMissingSequel(t *testing.T) {
 		1: {{RelationType: "SEQUEL", Node: s2}, {RelationType: "SOURCE", Node: media(9, 0, "MANGA", "FINISHED")}},
 		2: {{RelationType: "SEQUEL", Node: s3}},
 	}
-	chain := walkChain(s1, rels)
+	chain := walkChain(s1, rels, sequelFormats)
 	if len(chain) != 3 {
 		t.Fatalf("chain length %d", len(chain))
 	}
@@ -43,13 +43,36 @@ func TestMissingSequel(t *testing.T) {
 			t.Errorf("leaf %d: got %d, want %d", c.leaf, gotID, c.wantID)
 		}
 	}
-	// movie sequels and unaired seasons never enter the chain
+	// movie sequels and unaired seasons never enter a series chain
 	rels[3] = []anilist.Relation{
 		{RelationType: "SEQUEL", Node: media(4, 1, "MOVIE", "FINISHED")},
 		{RelationType: "SEQUEL", Node: media(5, 12, "TV", "NOT_YET_RELEASED")},
 	}
-	if chain := walkChain(s1, rels); len(chain) != 3 {
+	if chain := walkChain(s1, rels, sequelFormats); len(chain) != 3 {
 		t.Errorf("movie/unaired in chain: %d", len(chain))
+	}
+}
+
+func TestMovieChain(t *testing.T) {
+	m1 := media(1, 1, "MOVIE", "FINISHED")
+	m2 := media(2, 1, "MOVIE", "FINISHED")
+	rels := map[int][]anilist.Relation{
+		1: {
+			{RelationType: "SEQUEL", Node: media(8, 12, "TV", "FINISHED")}, // TV sequel ignored for movies
+			{RelationType: "SEQUEL", Node: m2},
+		},
+	}
+	chain := walkChain(m1, rels, movieFormats)
+	if len(chain) != 2 || chain[1].ID != 2 {
+		t.Fatalf("movie chain: %v", chain)
+	}
+	// the movie itself is present (leaf 1) → its sequel movie is suggested
+	if got, _ := missingSequel(chain, 1); got == nil || got.ID != 2 {
+		t.Errorf("movie sequel: got %v", got)
+	}
+	// both present → nothing to suggest
+	if got, _ := missingSequel(chain, 2); got != nil {
+		t.Errorf("complete movie chain: got %v", got)
 	}
 }
 
