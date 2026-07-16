@@ -50,7 +50,7 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	queued, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil)
+	queued, _, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, false)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return

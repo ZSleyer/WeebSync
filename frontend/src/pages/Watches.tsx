@@ -73,12 +73,28 @@ export default function Watches() {
                 <p className="truncate font-mono text-[11px] text-t-muted" title={w.remotePath}>
                   {w.serverName}:{w.remotePath} → downloads/{w.localPath}
                 </p>
-                <p className="mt-1 flex flex-wrap gap-2 text-[11px] text-t-muted">
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-t-muted">
                   <span>
                     {t('watch.lastCheck')}: {ago(w.lastCheck)}
                     {w.lastResult && ` (${w.lastResult})`}
                   </span>
-                  {w.lastCheck && <span>{next(w)}</span>}
+                  {w.waiting && w.nextAiringAt ? (
+                    <span className="t-label t-label--ok">
+                      {t('watch.waitingFor', { n: w.nextEpisode })} ·{' '}
+                      {new Date(w.nextAiringAt * 1000).toLocaleString([], {
+                        weekday: 'short',
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  ) : (
+                    w.lastCheck && <span>{next(w)}</span>
+                  )}
+                  {w.lastResult.includes('im Upload') && (
+                    <span className="t-label t-label--warn">{t('watch.uploading')}</span>
+                  )}
                   {(w.template || w.pattern) && <span className="t-label">{t('watch.renamed')}</span>}
                   {w.active > 0 && <span className="t-label t-label--accent">{t('watch.active', { count: w.active })}</span>}
                 </p>
