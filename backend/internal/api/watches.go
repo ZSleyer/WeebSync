@@ -156,7 +156,7 @@ func (s *Server) runWatch(id int64) {
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
-	ids, uploading, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), true)
+	ids, uploading, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), true, false)
 	queued := len(ids)
 	result := fmt.Sprintf("%d neu", queued)
 	if uploading > 0 {
