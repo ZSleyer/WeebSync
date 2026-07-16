@@ -12,7 +12,8 @@
     "servers": "Servers",
     "rename": "Rename",
     "settings": "Settings",
-    "main": "Main navigation"
+    "main": "Main navigation",
+    "plex": "Plex"
   },
   "login": {
     "tagline": "s/ftp anime sync · private use",
@@ -241,7 +242,14 @@
     "pushHint": "Notifies on finished or failed downloads. On iOS available after \"Add to Home Screen\".",
     "pushDenied": "Notifications are blocked in this browser.",
     "pushUnsupported": "This browser does not support Web Push.",
-    "oidcMigrationHint": "Existing local accounts are linked automatically by email address on first OIDC login."
+    "oidcMigrationHint": "Existing local accounts are linked automatically by email address on first OIDC login.",
+    "plex": "Plex",
+    "plexUrl": "Plex URL",
+    "plexUrlHint": "Address of your Plex Media Server, e.g. https://plex.example.com.",
+    "plexToken": "Plex token",
+    "plexTokenHint": "Your server's X-Plex-Token, findable via the Plex web UI (XML view of any item).",
+    "plexSections": "Libraries for suggestions",
+    "plexSectionsHint": "No selection = all show libraries. Picking only anime libraries saves AniList requests."
   },
   "status": {
     "queued": "queued",
@@ -278,5 +286,20 @@
     "dialogEdit": "Edit server",
     "dialogNew": "Add server",
     "validation": "Name, protocol (sftp|ftps|ftp), host, username, password required"
+  },
+  "plex": {
+    "title": "PLEX",
+    "sub": "missing sequels",
+    "building": "Matching runs in the background…",
+    "buildingLong": "Matching the Plex library against AniList, the first run takes a few minutes…",
+    "refresh": "Re-check",
+    "empty": "No missing sequels found.",
+    "notConfigured": "Plex is not set up. Add URL and token under <1>Settings</1>.",
+    "have": "{{have}} of {{need}} episodes present",
+    "missing": "Missing",
+    "folder": "Plex folder",
+    "folderHint": "Where the series is stored so far, continue there for consistent storage.",
+    "candidates": "Remote candidates from the index",
+    "openBrowser": "Open in browser"
   }
 }

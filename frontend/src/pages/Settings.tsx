@@ -16,6 +16,10 @@ interface SettingsState {
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
   anilistTokenSet: boolean
   anilistToken?: string
+  plexUrl: string
+  plexTokenSet: boolean
+  plexToken?: string
+  plexSections: string
   oidcProviderName: string
   oidcIssuer: string
   oidcClientId: string
@@ -41,14 +45,14 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   useEffect(() => {
     if (data && !form)
-      setForm({ ...data, anilistToken: '', oidcClientSecret: '', oidcClaim: data.oidcClaim || 'groups' })
+      setForm({ ...data, anilistToken: '', plexToken: '', oidcClientSecret: '', oidcClaim: data.oidcClaim || 'groups' })
   }, [data, form])
 
   const save = useMutation({
     mutationFn: (s: SettingsState) => api.put<SettingsState>('/api/settings', s),
     onSuccess: (fresh) => {
       qc.setQueryData(['settings'], fresh)
-      setForm({ ...fresh, anilistToken: '', oidcClientSecret: '' })
+      setForm({ ...fresh, anilistToken: '', plexToken: '', oidcClientSecret: '' })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
@@ -274,6 +278,35 @@ export default function Settings() {
                 onChange={(e) => set('anilistToken', e.target.value)}
               />
             </label>
+
+            <div className="mt-5 grid gap-4">
+              <span className="t-label">{t('settings.plex')}</span>
+              <label className="text-xs text-t-muted">
+                {t('settings.plexUrl')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  placeholder="https://plex.example.com"
+                  value={form.plexUrl}
+                  onChange={(e) => set('plexUrl', e.target.value)}
+                />
+                <span className="mt-1 block">{t('settings.plexUrlHint')}</span>
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.plexToken')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  type="password"
+                  autoComplete="off"
+                  placeholder={form.plexTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
+                  value={form.plexToken ?? ''}
+                  onChange={(e) => set('plexToken', e.target.value)}
+                />
+                <span className="mt-1 block">{t('settings.plexTokenHint')}</span>
+              </label>
+              {form.plexTokenSet && form.plexUrl && (
+                <PlexSections value={form.plexSections} onChange={(v) => set('plexSections', v)} />
+              )}
+            </div>
           </section>
 
           <div className="mb-6 flex items-center gap-3">
@@ -541,5 +574,42 @@ function LookSection({
         </label>
       </div>
     </section>
+  )
+}
+
+// Plex show sections as checkboxes (empty selection = all show sections).
+function PlexSections({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation()
+  const { data: sections = [], error } = useQuery<{ key: string; title: string }[]>({
+    queryKey: ['plex-sections'],
+    queryFn: () => api.get('/api/plex/sections'),
+    retry: false,
+  })
+  const selected = new Set(value.split(',').map((s) => s.trim()).filter(Boolean))
+  const toggle = (key: string) => {
+    const next = new Set(selected)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    onChange([...next].join(','))
+  }
+  if (error)
+    return (
+      <p className="text-xs text-err" role="alert">
+        {(error as Error).message}
+      </p>
+    )
+  return (
+    <fieldset className="text-xs text-t-muted">
+      <legend>{t('settings.plexSections')}</legend>
+      <div className="mt-1 flex flex-wrap gap-3">
+        {sections.map((s) => (
+          <label key={s.key} className="flex items-center gap-1.5 text-t-secondary">
+            <input type="checkbox" checked={selected.has(s.key)} onChange={() => toggle(s.key)} />
+            {s.title}
+          </label>
+        ))}
+      </div>
+      <p className="mt-1">{t('settings.plexSectionsHint')}</p>
+    </fieldset>
   )
 }

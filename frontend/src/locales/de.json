@@ -12,7 +12,8 @@
     "servers": "Server",
     "rename": "Umbenennen",
     "settings": "Einstellungen",
-    "main": "Hauptnavigation"
+    "main": "Hauptnavigation",
+    "plex": "Plex"
   },
   "login": {
     "tagline": "s/ftp anime sync · privatgebrauch",
@@ -241,7 +242,14 @@
     "pushHint": "Meldung bei fertigen oder fehlgeschlagenen Downloads. Auf iOS erst nach \"Zum Home-Bildschirm hinzufügen\" verfügbar.",
     "pushDenied": "Benachrichtigungen im Browser blockiert.",
     "pushUnsupported": "Dieser Browser unterstützt kein Web-Push.",
-    "oidcMigrationHint": "Bestehende lokale Konten werden beim ersten OIDC-Login automatisch über die Email-Adresse verknüpft."
+    "oidcMigrationHint": "Bestehende lokale Konten werden beim ersten OIDC-Login automatisch über die Email-Adresse verknüpft.",
+    "plex": "Plex",
+    "plexUrl": "Plex-URL",
+    "plexUrlHint": "Adresse deines Plex Media Servers, z. B. https://plex.example.com.",
+    "plexToken": "Plex-Token",
+    "plexTokenHint": "X-Plex-Token deines Servers, findbar über die Plex-Weboberfläche (XML-Ansicht eines Titels).",
+    "plexSections": "Bibliotheken für Vorschläge",
+    "plexSectionsHint": "Keine Auswahl = alle Serien-Bibliotheken. Nur Anime-Bibliotheken auszuwählen spart AniList-Anfragen."
   },
   "status": {
     "queued": "wartend",
@@ -278,5 +286,20 @@
     "dialogEdit": "Server bearbeiten",
     "dialogNew": "Server hinzufügen",
     "validation": "Name, Protokoll (sftp|ftps|ftp), Host, Benutzer, Passwort erforderlich"
+  },
+  "plex": {
+    "title": "PLEX",
+    "sub": "fehlende fortsetzungen",
+    "building": "Abgleich läuft im Hintergrund…",
+    "buildingLong": "Plex-Bibliothek wird mit AniList abgeglichen, das dauert beim ersten Mal ein paar Minuten…",
+    "refresh": "Neu prüfen",
+    "empty": "Keine fehlenden Fortsetzungen gefunden.",
+    "notConfigured": "Plex ist nicht eingerichtet. URL und Token unter <1>Einstellungen</1> hinterlegen.",
+    "have": "{{have}} von {{need}} Folgen vorhanden",
+    "missing": "Fehlt",
+    "folder": "Plex-Ordner",
+    "folderHint": "Bisheriger Speicherort der Serie, dort weiterführen für eine einheitliche Ablage.",
+    "candidates": "Remote-Kandidaten aus dem Index",
+    "openBrowser": "Im Browser öffnen"
   }
 }

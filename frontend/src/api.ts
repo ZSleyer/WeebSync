@@ -94,6 +94,20 @@ export interface Watch {
   waiting: boolean
 }
 
+export interface PlexSuggestions {
+  configured: boolean
+  building: boolean
+  suggestions: {
+    showTitle: string
+    year: number
+    leafCount: number
+    folder: string
+    sequel: Media
+    chainNeed: number
+    candidates: { serverId: number; serverName: string; path: string }[]
+  }[]
+}
+
 export interface SearchResult {
   results: Entry[]
   indexed: number
