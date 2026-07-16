@@ -103,7 +103,7 @@
     "matchingCount": "{{count}} Ordner werden im Hintergrund gematcht…",
     "changeMatch": "Match ändern",
     "matchFor": "AniList-Match für {{name}}",
-    "search": "Suchen",
+    "search": "Suchen…",
     "removeMatch": "Match entfernen",
     "close": "Schließen",
     "select": "wählen",
@@ -113,7 +113,10 @@
     "emptyLocal": "leer, Unterordner unten anlegen",
     "path": "Pfad",
     "thisFolder": "Dieser Ordner: {{name}}",
-    "localTarget": "Lokales Ziel"
+    "localTarget": "Lokales Ziel",
+    "noResults": "Keine Treffer im Index.",
+    "indexBuilding": "Der Index wird noch aufgebaut und verbessert sich über Zeit.",
+    "indexCount": "{{count}} Einträge im Index"
   },
   "watch": {
     "title": "AUTO-SYNC",

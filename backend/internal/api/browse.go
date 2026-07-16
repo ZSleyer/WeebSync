@@ -98,5 +98,6 @@ func (s *Server) handleBrowseRemote(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	go s.indexDir(id, dir, entries) // free index feed, no extra remote requests
 	writeJSON(w, http.StatusOK, entries)
 }
