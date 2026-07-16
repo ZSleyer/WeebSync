@@ -97,6 +97,7 @@ export default function Servers() {
 
 function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement | null>; editing: ServerInfo | null }) {
   const { t } = useTranslation()
+  const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   const qc = useQueryClient()
   const [error, setError] = useState('')
 
@@ -124,7 +125,7 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-md" onClick={(e) => e.target === ref.current && ref.current?.close()} aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}>
+    <dialog ref={ref} className="w-full max-w-md" onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()} aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}>
       {/* key remounts the form so defaultValues follow the edited server */}
       <form key={editing?.id ?? 'new'} onSubmit={submit} className="p-6">
         <h3 className="mb-4 font-display text-lg font-semibold tracking-wider">
