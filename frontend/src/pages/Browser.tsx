@@ -411,7 +411,7 @@ function CatalogGrid({
           return (
             <article
               key={g.key}
-              className={`t-panel group flex flex-col ${isSelected ? 'outline outline-2 outline-accent' : ''}`}
+              className={`t-panel group flex flex-col ${isSelected ? 'outline-2 outline-accent' : ''}`}
             >
               <button
                 className="text-left"

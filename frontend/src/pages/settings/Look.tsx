@@ -63,7 +63,7 @@ export default function Look() {
                 title={a}
                 aria-pressed={accent === a}
                 aria-label={t('settings.accentName', { name: a })}
-                className={`h-6 w-6 border ${accent === a ? 'border-t-primary outline outline-2 outline-accent' : 'border-border-subtle'}`}
+                className={`h-6 w-6 border ${accent === a ? 'border-t-primary outline-2 outline-accent' : 'border-border-subtle'}`}
                 style={{ backgroundColor: `var(--accent-blue)` }}
                 data-accent={a}
                 onClick={() => {
