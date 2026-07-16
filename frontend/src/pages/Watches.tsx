@@ -4,6 +4,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { api, type Watch } from '../api'
 import WatchDialog from '../components/WatchDialog'
+import { SkeletonCards } from '../components/Loading'
 
 // Watches: persistent auto-sync overview. Each watch re-checks its remote
 // folder on an interval; the list polls so check results appear live.
@@ -67,9 +68,7 @@ export default function Watches() {
       )}
 
       {isLoading ? (
-        <p className="text-sm text-t-muted" role="status">
-          {t('app.loading')}
-        </p>
+        <SkeletonCards />
       ) : watches.length === 0 ? (
         <div className="t-panel p-8 text-center text-t-muted">
           <Trans i18nKey="watch.empty">

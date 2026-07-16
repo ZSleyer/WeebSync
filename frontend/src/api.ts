@@ -113,6 +113,7 @@ export interface PlexSuggestions {
     folder: string
     sequel: Media
     chainNeed: number
+    source?: string // "" = anilist, else "tmdb:tv" | "tmdb:movie"
     candidates: { serverId: number; serverName: string; path: string }[]
   }[]
 }
@@ -124,6 +125,7 @@ export interface AnilistSuggestions {
     status: string // CURRENT | PLANNING
     progress: number
     media: Media
+    plexFolder?: string // matching Plex folder basename, if any
     candidates: { serverId: number; serverName: string; path: string }[]
   }[]
 }
