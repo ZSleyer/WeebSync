@@ -78,15 +78,34 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, out an
 	if bearer {
 		req.Header.Set("Authorization", "Bearer "+key)
 	}
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
+	for attempt := 0; ; attempt++ {
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			return err
+		}
+		// rate limited: honor Retry-After once, then give up (same policy
+		// as the AniList client)
+		if resp.StatusCode == http.StatusTooManyRequests && attempt == 0 {
+			resp.Body.Close()
+			wait := 10 * time.Second
+			if ra, perr := strconv.Atoi(resp.Header.Get("Retry-After")); perr == nil && ra > 0 {
+				wait = time.Duration(ra) * time.Second
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(wait):
+				continue
+			}
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return fmt.Errorf("tmdb: HTTP %d", resp.StatusCode)
+		}
+		err = json.NewDecoder(resp.Body).Decode(out)
+		resp.Body.Close()
 		return err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("tmdb: HTTP %d", resp.StatusCode)
-	}
-	return json.NewDecoder(resp.Body).Decode(out)
 }
 
 // ── cache (shared KV table) ─────────────────────────────────
@@ -240,7 +259,9 @@ func firstOf(a, b string) string {
 // Search looks up series (kind "tv") or movies (kind "movie") by title,
 // optionally narrowed by year. Cached like AniList searches.
 func (c *Client) Search(ctx context.Context, kind, query string, year int) ([]anilist.Media, error) {
-	cacheKey := fmt.Sprintf("tmdb:search:%s:%s|%d", kind, query, year)
+	// normalized key: folder-name variants of the same title share the entry
+	norm := strings.ToLower(strings.Join(strings.Fields(query), " "))
+	cacheKey := fmt.Sprintf("tmdb:search:%s:%s|%d", kind, norm, year)
 	if payload, ok := c.cached(cacheKey); ok {
 		var list []anilist.Media
 		if json.Unmarshal([]byte(payload), &list) == nil {
@@ -270,6 +291,11 @@ func (c *Client) Search(ctx context.Context, kind, query string, year int) ([]an
 	}
 	payload, _ := json.Marshal(list)
 	c.store(cacheKey, string(payload))
+	// a year-narrowed hit also answers the plain search for the same title
+	// ("Show (2020)" vs "Show" folders); empty results don't poison it
+	if year > 0 && len(list) > 0 {
+		c.store(fmt.Sprintf("tmdb:search:%s:%s|0", kind, norm), string(payload))
+	}
 	return list, nil
 }
 
