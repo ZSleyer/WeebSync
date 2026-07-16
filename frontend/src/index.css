@@ -282,12 +282,27 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
   outline-offset: 2px;
 }
 
-/* ── Scrollbars ── */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+/* ── Scrollbars ──
+   Slim and trackless so inner scroll containers (file lists, dialogs,
+   previews) don't eat layout width or paint bars across the UI. */
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 0; }
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
-::-webkit-scrollbar-corner { background: var(--scrollbar-track); }
+::-webkit-scrollbar-corner { background: transparent; }
+/* touch devices get overlay-like minimal bars */
+@media (pointer: coarse) {
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+}
+
+/* ── Form controls ── */
+input[type='checkbox'] {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--accent-blue);
+  flex-shrink: 0;
+}
 
 /* ── Native dialog: Tempest panel + CRT reveal ── */
 dialog {

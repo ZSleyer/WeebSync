@@ -57,7 +57,7 @@ export default function Plex() {
           {data.building ? t('plex.buildingLong') : t('plex.empty')}
         </div>
       ) : (
-        <ul className="grid gap-3">
+        <ul className="grid grid-cols-1 gap-3">
           {data.suggestions.map((s) => (
             <li key={`${s.showTitle}-${s.sequel.id}`} className="t-panel p-4">
               <div className="flex flex-wrap items-baseline gap-2">
@@ -83,14 +83,14 @@ export default function Plex() {
                 </a>
               </p>
               {s.folder && (
-                <p className="mt-1 font-mono text-[11px] text-t-muted" title={t('plex.folderHint')}>
+                <p className="mt-1 break-all font-mono text-[11px] text-t-muted" title={t('plex.folderHint')}>
                   {t('plex.folder')}: {s.folder}
                 </p>
               )}
               {s.candidates.length > 0 && (
                 <div className="mt-2 border-t border-border-subtle pt-2">
                   <span className="t-label">{t('plex.candidates')}</span>
-                  <ul className="mt-1 grid gap-1">
+                  <ul className="mt-1 grid grid-cols-1 gap-1">
                     {s.candidates.map((c) => (
                       <li key={c.path} className="flex flex-wrap items-center gap-2">
                         <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-t-secondary" title={c.path}>

@@ -125,7 +125,7 @@ export default function Settings() {
 
           <section className="t-panel mb-4 p-5" aria-label={t('settings.auth')}>
             <span className="t-label t-label--accent">{t('settings.auth')}</span>
-            <div className="mt-3 grid gap-4">
+            <div className="mt-3 grid grid-cols-1 gap-4">
               <label className="flex items-center gap-2 text-sm text-t-secondary">
                 <input
                   type="checkbox"
@@ -279,7 +279,7 @@ export default function Settings() {
               />
             </label>
 
-            <div className="mt-5 grid gap-4">
+            <div className="mt-5 grid grid-cols-1 gap-4">
               <span className="t-label">{t('settings.plex')}</span>
               <label className="text-xs text-t-muted">
                 {t('settings.plexUrl')}
@@ -369,7 +369,7 @@ function UsersSection({ meId }: { meId: number }) {
   return (
     <section className="t-panel mb-4 p-5" aria-label={t('settings.users')}>
       <span className="t-label t-label--accent">{t('settings.users')}</span>
-      <ul className="mt-3 grid gap-2">
+      <ul className="mt-3 grid grid-cols-1 gap-2">
         {(users ?? []).map((u) => (
           <li key={u.id} className="flex flex-wrap items-center gap-2 border-b border-border-subtle pb-2 text-sm">
             <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-secondary" title={u.email}>
@@ -511,7 +511,7 @@ function LookSection({
   return (
     <section className="t-panel p-5" aria-label={t('settings.look')}>
       <span className="t-label t-label--accent">{t('settings.look')}</span>
-      <div className="mt-3 grid gap-4">
+      <div className="mt-3 grid grid-cols-1 gap-4">
         <div role="group" aria-label={t('settings.language')} className="flex items-center gap-2">
           <span className="w-24 text-xs text-t-muted">{t('settings.language')}</span>
           {locales.map((l) => (

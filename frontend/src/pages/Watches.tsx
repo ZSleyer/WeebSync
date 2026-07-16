@@ -58,7 +58,7 @@ export default function Watches() {
           </Trans>
         </div>
       ) : (
-        <ul className="grid gap-3">
+        <ul className="grid grid-cols-1 gap-3">
           {watches.map((w) => (
             <li key={w.id} className="t-panel flex flex-wrap items-center gap-4 p-3">
               {w.media?.coverImage?.large ? (
