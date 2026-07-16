@@ -11,7 +11,14 @@ import Browser from './pages/Browser'
 import Watches from './pages/Watches'
 import Suggestions from './pages/Suggestions'
 import Rename from './pages/Rename'
-import Settings from './pages/Settings'
+import SettingsLayout, { AdminRoute } from './pages/settings/SettingsLayout'
+import Look from './pages/settings/Look'
+import Notifications from './pages/settings/Notifications'
+import Transfers from './pages/settings/Transfers'
+import Security from './pages/settings/Security'
+import Integrations from './pages/settings/Integrations'
+import Smtp from './pages/settings/Smtp'
+import Users from './pages/settings/Users'
 
 const NAV = [
   { to: '/', key: 'nav.dashboard', code: '01' },
@@ -44,7 +51,9 @@ function RouteTitle() {
   const { t } = useTranslation()
   const location = useLocation()
   useEffect(() => {
-    const item = NAV.find((n) => n.to === location.pathname)
+    const item = NAV.find(
+      (n) => n.to === location.pathname || (n.to !== '/' && location.pathname.startsWith(n.to + '/')),
+    )
     document.title = item ? `${t(item.key)} — WeebSync` : 'WeebSync'
   }, [location.pathname, t])
   return null
@@ -61,6 +70,9 @@ function Shell({ email }: { email: string }) {
     } catch {
       /* drop to the login screen either way — the user wants out */
     }
+    // wipe the whole cache: the next login may be a different user and must
+    // not see the previous user's downloads/servers/settings
+    qc.clear()
     qc.setQueryData(['me'], null)
   }
 
@@ -134,7 +146,16 @@ function Shell({ email }: { email: string }) {
             <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
             <Route path="/servers" element={<Servers />} />
             <Route path="/rename" element={<Rename />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings" element={<SettingsLayout />}>
+              <Route index element={<Navigate to="look" replace />} />
+              <Route path="look" element={<Look />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} />
+              <Route path="security" element={<AdminRoute><Security /></AdminRoute>} />
+              <Route path="integrations" element={<AdminRoute><Integrations /></AdminRoute>} />
+              <Route path="email" element={<AdminRoute><Smtp /></AdminRoute>} />
+              <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
+            </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

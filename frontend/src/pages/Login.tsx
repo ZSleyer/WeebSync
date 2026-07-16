@@ -60,6 +60,9 @@ export default function Login() {
         setPassword('')
         return
       }
+      // clear leftovers from a previous session (e.g. expired session of
+      // another user) before the new identity loads
+      qc.clear()
       await qc.invalidateQueries({ queryKey: ['me'] })
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
