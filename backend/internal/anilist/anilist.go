@@ -179,11 +179,18 @@ type SearchReq struct {
 	Force  bool
 }
 
+// normQuery folds case and whitespace so folder-name variants of the same
+// title ("Show Name" vs "show  name") share one cache entry.
+func normQuery(q string) string {
+	return strings.ToLower(strings.Join(strings.Fields(q), " "))
+}
+
 func (r SearchReq) cacheKey() string {
+	q := normQuery(r.Query)
 	if r.Season == "" && r.Year == 0 {
-		return "search:" + r.Query
+		return "search:" + q
 	}
-	return fmt.Sprintf("search:%s|%s%d", r.Query, r.Season, r.Year)
+	return fmt.Sprintf("search:%s|%s%d", q, r.Season, r.Year)
 }
 
 // SearchBatch resolves several searches with one GraphQL request using field
@@ -239,6 +246,12 @@ func (c *Client) SearchBatch(ctx context.Context, reqs []SearchReq) ([][]Media, 
 		out[i] = list
 		payload, _ := json.Marshal(list)
 		c.store(reqs[i].cacheKey(), string(payload))
+		// a season/year-filtered hit also answers the plain search for the
+		// same title, so folders without season info (other servers/paths)
+		// reuse it instead of re-querying; empty results don't poison it
+		if r := reqs[i]; (r.Season != "" || r.Year != 0) && len(list) > 0 {
+			c.store("search:"+normQuery(r.Query), string(payload))
+		}
 	}
 	return out, nil
 }
@@ -323,7 +336,7 @@ func (c *Client) RelationsBatch(ctx context.Context, ids []int) (map[int][]Relat
 }
 
 func (c *Client) Search(ctx context.Context, q string) ([]Media, error) {
-	key := "search:" + q
+	key := "search:" + normQuery(q)
 	if payload, ok := c.cached(key); ok {
 		var list []Media
 		if json.Unmarshal([]byte(payload), &list) == nil {
