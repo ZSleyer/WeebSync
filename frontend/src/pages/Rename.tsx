@@ -80,7 +80,7 @@ export default function Rename() {
           </div>
 
           {mode === 'template' ? (
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <label className="text-xs text-t-muted">
                 {t('rename.templateLabel')}
                 <input className="t-input mt-1 font-mono" value={template} onChange={(e) => setTemplate(e.target.value)} />

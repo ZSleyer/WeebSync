@@ -67,7 +67,7 @@ function Shell({ email }: { email: string }) {
       end={n.to === '/'}
       className={({ isActive }) =>
         mobile
-          ? `flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-1 font-display text-[11px] ${
+          ? `flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[10px] leading-tight ${
               isActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
             }`
           : `group flex items-center gap-3 border-l-2 px-4 py-2.5 font-display text-sm transition-colors ${
@@ -77,8 +77,12 @@ function Shell({ email }: { email: string }) {
             }`
       }
     >
-      <span className={`font-mono ${mobile ? 'text-[10px]' : 'text-[10px]'} text-t-muted`}>{n.code}</span>
-      {t(n.key)}
+      <span className={`font-mono ${mobile ? 'text-[9px]' : 'text-[10px]'} text-t-muted`}>{n.code}</span>
+      {mobile ? (
+        <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
+      ) : (
+        t(n.key)
+      )}
     </NavLink>
   )
 
