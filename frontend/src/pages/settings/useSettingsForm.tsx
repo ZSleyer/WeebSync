@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../../api'
 
 export interface SettingsState {
+  baseUrl: string
   maxConcurrent: number
   globalRateLimit: number
   watchIntervalMin: number
@@ -20,6 +21,7 @@ export interface SettingsState {
   plexTokenSet: boolean
   plexToken?: string
   plexSections: string
+  plexSectionSources: string
   oidcProviderName: string
   oidcIssuer: string
   oidcClientId: string

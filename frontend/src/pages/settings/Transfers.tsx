@@ -8,6 +8,21 @@ export default function Transfers() {
 
   return (
     <>
+      <section className="t-panel mb-4 p-5" aria-label={t('settings.instance')}>
+        <span className="t-label t-label--accent">{t('settings.instance')}</span>
+        <label className="mt-3 block text-xs text-t-muted">
+          {t('settings.baseUrl')}
+          <input
+            className="t-input mt-1 font-mono"
+            type="url"
+            placeholder="https://weebsync.example.com"
+            value={form.baseUrl}
+            onChange={(e) => set('baseUrl', e.target.value)}
+          />
+          <span className="mt-1 block">{t('settings.baseUrlHint')}</span>
+        </label>
+      </section>
+
       <section className="t-panel mb-4 p-5" aria-label={t('settings.transfers')}>
         <span className="t-label t-label--accent">{t('settings.transfers')}</span>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
