@@ -44,9 +44,13 @@ export default function Browser() {
   })
   // undo for an accidental sync click: cancel the just-queued batch
   const cancelLast = async () => {
-    const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
-    setNotice(t('browser.syncCanceled', { count: out.canceled }))
-    setLastIds([])
+    try {
+      const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
+      setNotice(t('browser.syncCanceled', { count: out.canceled }))
+      setLastIds([])
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : t('app.error'))
+    }
   }
 
   if (servers.length === 0) {
@@ -291,8 +295,13 @@ function CatalogGrid({
 
   const triggerRematch = async (all: boolean) => {
     if (all && !confirm(t('browser.confirmRematchAll'))) return
-    await api.post(`/api/servers/${serverId}/catalog/rematch`, { path: path ? '/' + path : '', all })
-    qc.invalidateQueries({ queryKey: ['catalog', serverId, path] })
+    setScopeError('')
+    try {
+      await api.post(`/api/servers/${serverId}/catalog/rematch`, { path: path ? '/' + path : '', all })
+      qc.invalidateQueries({ queryKey: ['catalog', serverId, path] })
+    } catch (err) {
+      setScopeError(err instanceof Error ? err.message : t('app.error'))
+    }
   }
 
   // mark the current folder's metadata source; '' clears the own mark so the
@@ -597,6 +606,7 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
   const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   const [q, setQ] = useState(item.entry.name)
   const [results, setResults] = useState<Media[]>([])
+  const [pickError, setPickError] = useState('')
 
   // real modal: focus trap + Escape via the native dialog
   useEffect(() => {
@@ -606,33 +616,43 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
   // search accepts a title, a bare ID or an anilist.co/themoviedb.org link;
   // the metadata source follows the folder's scope
   const tmdbKind = item.source?.startsWith('tmdb:') ? item.source.slice(5) : ''
+  const seq = useRef(0) // drop out-of-order responses
   const search = async () => {
+    const mySeq = ++seq.current
     const idm =
       q.match(/themoviedb\.org\/(?:tv|movie)\/(\d+)/) ??
       q.match(/anilist\.co\/anime\/(\d+)/) ??
       q.match(/^\s*(\d+)\s*$/)
     try {
+      let next: Media[]
       if (idm) {
-        setResults([
+        next = [
           await api.get<Media>(
             tmdbKind ? `/api/tmdb/media?kind=${tmdbKind}&id=${idm[1]}` : `/api/anilist/media/${idm[1]}`,
           ),
-        ])
+        ]
       } else {
-        setResults(
-          await api.get<Media[]>(
-            tmdbKind
-              ? `/api/tmdb/search?kind=${tmdbKind}&q=${encodeURIComponent(q)}`
-              : `/api/anilist/search?q=${encodeURIComponent(q)}`,
-          ),
+        next = await api.get<Media[]>(
+          tmdbKind
+            ? `/api/tmdb/search?kind=${tmdbKind}&q=${encodeURIComponent(q)}`
+            : `/api/anilist/search?q=${encodeURIComponent(q)}`,
         )
       }
+      if (mySeq !== seq.current) return // a newer request superseded this one
+      setResults(next)
     } catch {
+      if (mySeq !== seq.current) return
       setResults([])
     }
   }
   const pick = async (mediaId: number) => {
-    await api.put(`/api/servers/${serverId}/catalog/match`, { folder: item.entry.path, mediaId })
+    setPickError('')
+    try {
+      await api.put(`/api/servers/${serverId}/catalog/match`, { folder: item.entry.path, mediaId })
+    } catch (err) {
+      setPickError(err instanceof Error ? err.message : t('app.error'))
+      return
+    }
     qc.invalidateQueries({ queryKey: ['catalog', serverId] })
     onClose()
   }
@@ -680,6 +700,11 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
             </li>
           ))}
         </ul>
+        {pickError && (
+          <p className="mt-2 text-xs text-err" role="alert">
+            {pickError}
+          </p>
+        )}
         <div className="mt-4 flex justify-between">
           <button className="t-btn t-btn--danger t-btn--sm" onClick={() => pick(0)}>
             {t('browser.removeMatch')}

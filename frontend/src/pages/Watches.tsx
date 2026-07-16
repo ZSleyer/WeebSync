@@ -16,15 +16,28 @@ export default function Watches() {
     refetchInterval: 10_000,
   })
   const [edit, setEdit] = useState<Watch | null>(null)
+  const [error, setError] = useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['watches'] })
 
   const check = async (id: number) => {
-    await api.post(`/api/watches/${id}/check`)
+    setError('')
+    try {
+      await api.post(`/api/watches/${id}/check`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('app.error'))
+      return
+    }
     setTimeout(refresh, 1500)
   }
   const del = async (w: Watch) => {
     if (!confirm(t('watch.confirmDelete', { name: w.remotePath }))) return
-    await api.del(`/api/watches/${w.id}`)
+    setError('')
+    try {
+      await api.del(`/api/watches/${w.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('app.error'))
+      return
+    }
     refresh()
   }
 
@@ -46,6 +59,12 @@ export default function Watches() {
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('watch.title')}</h2>
         <span className="t-label mt-1">{t('watch.sub')}</span>
       </header>
+
+      {error && (
+        <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+          {error}
+        </p>
+      )}
 
       {isLoading ? (
         <p className="text-sm text-t-muted" role="status">
@@ -92,7 +111,7 @@ export default function Watches() {
                   ) : (
                     w.lastCheck && <span>{next(w)}</span>
                   )}
-                  {w.lastResult.includes('im Upload') && (
+                  {w.lastUploading > 0 && (
                     <span className="t-label t-label--warn">{t('watch.uploading')}</span>
                   )}
                   {(w.seenEpisodes ?? 0) > 0 && (

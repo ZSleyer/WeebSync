@@ -63,13 +63,10 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "email": c.Email})
 }
 
-// lastAdmin reports whether no admin exists besides the given user id.
-func (s *Server) lastAdmin(excludeID int64) bool {
-	var n int
-	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE is_admin = 1 AND id != ?`, excludeID).Scan(&n); err != nil {
-		return true // fail safe: treat db errors as "would remove last admin"
-	}
-	return n == 0
+// userExists reports whether the given user id is present.
+func (s *Server) userExists(id int64) bool {
+	var one int
+	return s.DB.QueryRow(`SELECT 1 FROM users WHERE id = ?`, id).Scan(&one) == nil
 }
 
 func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
@@ -84,16 +81,20 @@ func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &body) {
 		return
 	}
-	if !body.IsAdmin && s.lastAdmin(id) {
-		writeErr(w, http.StatusConflict, "cannot demote the last admin")
-		return
-	}
-	res, err := s.DB.Exec(`UPDATE users SET is_admin = ? WHERE id = ?`, body.IsAdmin, id)
+	// last-admin guard baked into the statement so check and write are
+	// atomic (no TOCTOU between a COUNT and the UPDATE)
+	res, err := s.DB.Exec(`UPDATE users SET is_admin = ? WHERE id = ?
+		AND NOT (? = 0 AND is_admin = 1 AND (SELECT COUNT(*) FROM users WHERE is_admin = 1) <= 1)`,
+		body.IsAdmin, id, body.IsAdmin)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "db error")
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		if s.userExists(id) {
+			writeErr(w, http.StatusConflict, "cannot demote the last admin")
+			return
+		}
 		writeErr(w, http.StatusNotFound, "user not found")
 		return
 	}
@@ -110,16 +111,18 @@ func (s *Server) handleUserDelete(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "cannot delete yourself")
 		return
 	}
-	if s.lastAdmin(id) {
-		writeErr(w, http.StatusConflict, "cannot delete the last admin")
-		return
-	}
-	res, err := s.DB.Exec(`DELETE FROM users WHERE id = ?`, id)
+	// atomic last-admin guard, same pattern as handleUserUpdate
+	res, err := s.DB.Exec(`DELETE FROM users WHERE id = ?
+		AND NOT (is_admin = 1 AND (SELECT COUNT(*) FROM users WHERE is_admin = 1) <= 1)`, id)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "db error")
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		if s.userExists(id) {
+			writeErr(w, http.StatusConflict, "cannot delete the last admin")
+			return
+		}
 		writeErr(w, http.StatusNotFound, "user not found")
 		return
 	}

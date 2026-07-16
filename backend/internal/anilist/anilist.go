@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -149,9 +150,22 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 			resp.Body.Close()
 			return fmt.Errorf("anilist: HTTP %d", resp.StatusCode)
 		}
-		err = json.NewDecoder(resp.Body).Decode(out)
+		raw, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return err
+		if err != nil {
+			return err
+		}
+		// GraphQL errors arrive with HTTP 200: surface them instead of
+		// handing callers an empty result they might cache for a day
+		var envelope struct {
+			Errors []struct {
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+		if json.Unmarshal(raw, &envelope) == nil && len(envelope.Errors) > 0 {
+			return fmt.Errorf("anilist: graphql: %s", envelope.Errors[0].Message)
+		}
+		return json.Unmarshal(raw, out)
 	}
 }
 

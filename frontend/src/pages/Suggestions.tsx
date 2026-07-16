@@ -46,6 +46,7 @@ function CandidateRow({ serverId, serverName, path }: { serverId: number; server
 function AnilistSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [error, setError] = useState('')
   const { data, isLoading } = useQuery<AnilistSuggestions>({
     queryKey: ['anilist-suggestions'],
     queryFn: () => api.get('/api/anilist/suggestions'),
@@ -60,8 +61,13 @@ function AnilistSection() {
           <button
             className="t-btn t-btn--sm"
             onClick={async () => {
-              await api.get('/api/anilist/suggestions?force=1')
-              qc.invalidateQueries({ queryKey: ['anilist-suggestions'] })
+              try {
+                await api.get('/api/anilist/suggestions?force=1')
+                setError('')
+                qc.invalidateQueries({ queryKey: ['anilist-suggestions'] })
+              } catch (err) {
+                setError(err instanceof Error ? err.message : t('app.error'))
+              }
             }}
           >
             {t('plex.refresh')}
@@ -70,6 +76,11 @@ function AnilistSection() {
         {data?.building && (
           <span className="text-xs text-t-muted" role="status">
             {t('plex.building')}
+          </span>
+        )}
+        {error && (
+          <span className="text-xs text-err" role="alert">
+            {error}
           </span>
         )}
       </div>
@@ -108,8 +119,13 @@ function AnilistSection() {
                     className="t-btn t-btn--sm"
                     title={t('suggestions.plusOneHint')}
                     onClick={async () => {
-                      await api.post('/api/anilist/progress', { mediaId: s.media.id, progress: s.progress + 1 })
-                      qc.invalidateQueries({ queryKey: ['anilist-suggestions'] })
+                      try {
+                        await api.post('/api/anilist/progress', { mediaId: s.media.id, progress: s.progress + 1 })
+                        setError('')
+                        qc.invalidateQueries({ queryKey: ['anilist-suggestions'] })
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : t('app.error'))
+                      }
                     }}
                   >
                     {t('suggestions.plusOne')}
@@ -154,8 +170,13 @@ function PlexSection() {
   const [lastIds, setLastIds] = useState<number[]>([])
 
   const refresh = async () => {
-    await api.get('/api/plex/suggestions?force=1')
-    qc.invalidateQueries({ queryKey: ['plex-suggestions'] })
+    try {
+      await api.get('/api/plex/suggestions?force=1')
+      qc.invalidateQueries({ queryKey: ['plex-suggestions'] })
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : t('app.error'))
+      setLastIds([])
+    }
   }
 
   // prefill recommendations from the Plex data
@@ -306,9 +327,13 @@ function PlexSection() {
             <button
               className="t-btn t-btn--sm t-btn--danger"
               onClick={async () => {
-                const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
-                setNotice(t('browser.syncCanceled', { count: out.canceled }))
-                setLastIds([])
+                try {
+                  const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
+                  setNotice(t('browser.syncCanceled', { count: out.canceled }))
+                  setLastIds([])
+                } catch (err) {
+                  setNotice(err instanceof Error ? err.message : t('app.error'))
+                }
               }}
             >
               {t('browser.undoSync')}

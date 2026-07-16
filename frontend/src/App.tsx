@@ -56,7 +56,11 @@ function Shell({ email }: { email: string }) {
   const location = useLocation()
 
   const logout = async () => {
-    await api.post('/api/auth/logout')
+    try {
+      await api.post('/api/auth/logout')
+    } catch {
+      /* drop to the login screen either way — the user wants out */
+    }
     qc.setQueryData(['me'], null)
   }
 

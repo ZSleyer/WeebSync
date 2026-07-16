@@ -260,7 +260,11 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	serverID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	client, rootPath, err := s.DialServer(u.ID, serverID)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		status := http.StatusBadGateway
+		if err == errNotFound {
+			status = http.StatusNotFound
+		}
+		writeErr(w, status, err.Error())
 		return
 	}
 	defer client.Close()
