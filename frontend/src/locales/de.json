@@ -125,6 +125,11 @@
     "remotePath": "Remote-Ordner (Anime/Version)",
     "localPath": "Lokales Ziel",
     "browse": "Durchsuchen",
+    "sectionPaths": "Quelle & Ziel",
+    "sectionRename": "Umbenennen",
+    "renameToggle": "Dateien umbenennen",
+    "waitingFor": "wartet auf Folge {{n}}",
+    "uploading": "Upload läuft",
     "template": "Rename-Template (leer = Originalnamen behalten)",
     "templateHint": "Neue Dateien werden beim Download direkt umbenannt. Variablen: {title} {season:02} {episode:02} {year} {group} {resolution} {dub} {sub}",
     "noRename": "Kein Rename",
@@ -139,9 +144,7 @@
     "files": "{{count}} Dateien",
     "complete": "Komplett, Sync kann entfernt werden",
     "confirmDelete": "Auto-Sync für \"{{name}}\" entfernen? Heruntergeladene Dateien bleiben erhalten.",
-    "empty": "Im <1>Browser</1> einen Ordner auswählen und \"Beobachten\" klicken.",
-    "waitingFor": "wartet auf Folge {{n}}",
-    "uploading": "Upload läuft"
+    "empty": "Im <1>Browser</1> einen Ordner auswählen und \"Beobachten\" klicken."
   },
   "rename": {
     "title": "UMBENENNEN",
@@ -171,6 +174,7 @@
     "unchanged": "unverändert",
     "presetPlex": "Plex: Series - S01E01",
     "presetCompact": "Kompakt: Series.S01E01",
+    "presetTags": "Mit Tags: Serie - S01E01 [Dub][1080p]",
     "presetGroup": "Mit Gruppe: [Group] Series - 01"
   },
   "settings": {
