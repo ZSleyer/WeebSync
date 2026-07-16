@@ -95,6 +95,9 @@ export default function Watches() {
                   {w.lastResult.includes('im Upload') && (
                     <span className="t-label t-label--warn">{t('watch.uploading')}</span>
                   )}
+                  {(w.seenEpisodes ?? 0) > 0 && (
+                    <span className="t-label">{t('watch.seen', { count: w.seenEpisodes })}</span>
+                  )}
                   {(w.template || w.pattern) && <span className="t-label">{t('watch.renamed')}</span>}
                   {w.active > 0 && <span className="t-label t-label--accent">{t('watch.active', { count: w.active })}</span>}
                 </p>
