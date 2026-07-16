@@ -45,18 +45,38 @@ export default function SettingsLayout() {
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        <nav aria-label={t('settings.navLabel')} className="shrink-0 lg:w-44">
-          <div className="flex gap-4 overflow-x-auto lg:flex-col lg:gap-5 lg:overflow-visible">
+        {/* phone: wrapping chip tabs — every section visible at once, one tap */}
+        <nav aria-label={t('settings.navLabel')} className="flex flex-col gap-3 lg:hidden">
+          {groups.map((g) => (
+            <div key={g.label}>
+              <span className="t-label mb-1.5">{t(g.label)}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {g.items.map((i) => (
+                  <NavLink
+                    key={i.to}
+                    to={i.to}
+                    className={({ isActive }) => `t-btn t-btn--sm ${isActive ? 't-btn--primary' : ''}`}
+                  >
+                    {t(i.key)}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+        {/* desktop: grouped side menu */}
+        <nav aria-label={t('settings.navLabel')} className="hidden shrink-0 lg:block lg:w-44">
+          <div className="flex flex-col gap-5">
             {groups.map((g) => (
-              <div key={g.label} className="shrink-0 lg:shrink">
+              <div key={g.label}>
                 <span className="t-label mb-1">{t(g.label)}</span>
-                <ul className="flex gap-1 lg:flex-col">
+                <ul className="flex flex-col gap-1">
                   {g.items.map((i) => (
-                    <li key={i.to} className="shrink-0">
+                    <li key={i.to}>
                       <NavLink
                         to={i.to}
                         className={({ isActive }) =>
-                          `flex min-h-12 items-center whitespace-nowrap border-b-2 px-3 font-display text-sm transition-colors lg:min-h-0 lg:border-b-0 lg:border-l-2 lg:px-4 lg:py-2 ${
+                          `flex items-center whitespace-nowrap border-l-2 px-4 py-2 font-display text-sm transition-colors ${
                             isActive
                               ? 'border-accent bg-bg-hover text-accent'
                               : 'border-transparent text-t-muted hover:bg-bg-hover hover:text-t-primary'

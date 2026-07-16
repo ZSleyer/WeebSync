@@ -86,7 +86,12 @@ export default function Integrations() {
             <span className="mt-1 block">{t('settings.plexTokenHint')}</span>
           </label>
           {form.plexTokenSet && form.plexUrl && (
-            <PlexSections value={form.plexSections} onChange={(v) => set('plexSections', v)} />
+            <PlexSections
+              value={form.plexSections}
+              onChange={(v) => set('plexSections', v)}
+              sources={form.plexSectionSources}
+              onSources={(v) => set('plexSectionSources', v)}
+            />
           )}
         </div>
       </section>
@@ -95,8 +100,20 @@ export default function Integrations() {
   )
 }
 
-// Plex show sections as checkboxes (empty selection = all show sections).
-function PlexSections({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+// Plex library sections: pick which to use and choose the metadata source
+// per library (AniList for anime, TMDB for live action). A library without a
+// stored choice defaults to AniList when its title contains "anime".
+function PlexSections({
+  value,
+  onChange,
+  sources,
+  onSources,
+}: {
+  value: string
+  onChange: (v: string) => void
+  sources: string
+  onSources: (v: string) => void
+}) {
   const { t } = useTranslation()
   const { data: sections = [], error } = useQuery<{ key: string; type: string; title: string }[]>({
     queryKey: ['plex-sections'],
@@ -104,11 +121,30 @@ function PlexSections({ value, onChange }: { value: string; onChange: (v: string
     retry: false,
   })
   const selected = new Set(value.split(',').map((s) => s.trim()).filter(Boolean))
-  const toggle = (key: string) => {
+  const srcMap = new Map(
+    sources
+      .split(',')
+      .map((kv) => kv.trim())
+      .filter((kv) => kv.includes(':'))
+      .map((kv) => [kv.slice(0, kv.indexOf(':')), kv.slice(kv.indexOf(':') + 1)] as [string, string]),
+  )
+  const defaultSource = (title: string) => (title.toLowerCase().includes('anime') ? 'anilist' : 'tmdb')
+  const sourceOf = (s: { key: string; title: string }) => srcMap.get(s.key) ?? defaultSource(s.title)
+  const writeSources = (map: Map<string, string>) =>
+    onSources([...map.entries()].map(([k, v]) => `${k}:${v}`).join(','))
+  const toggle = (s: { key: string; title: string }) => {
     const next = new Set(selected)
-    if (next.has(key)) next.delete(key)
-    else next.add(key)
+    const nextSrc = new Map(srcMap)
+    if (next.has(s.key)) {
+      next.delete(s.key)
+      nextSrc.delete(s.key)
+    } else {
+      next.add(s.key)
+      // store the preselection explicitly so the backend never guesses
+      nextSrc.set(s.key, defaultSource(s.title))
+    }
     onChange([...next].join(','))
+    writeSources(nextSrc)
   }
   if (error)
     return (
@@ -119,16 +155,35 @@ function PlexSections({ value, onChange }: { value: string; onChange: (v: string
   return (
     <fieldset className="text-xs text-t-muted">
       <legend>{t('settings.plexSections')}</legend>
-      <div className="mt-1 flex flex-wrap gap-3">
+      <ul className="mt-1 grid grid-cols-1 gap-1.5">
         {sections.map((s) => (
-          <label key={s.key} className="flex items-center gap-1.5 text-t-secondary">
-            <input type="checkbox" checked={selected.has(s.key)} onChange={() => toggle(s.key)} />
-            {s.title}
-            {s.type === 'movie' && <span className="t-label">{t('settings.plexMovies')}</span>}
-          </label>
+          <li key={s.key} className="flex flex-wrap items-center gap-2">
+            <label className="flex min-w-0 items-center gap-1.5 text-t-secondary">
+              <input type="checkbox" checked={selected.has(s.key)} onChange={() => toggle(s)} />
+              <span className="truncate">{s.title}</span>
+            </label>
+            <span className="t-label">{s.type === 'movie' ? t('settings.plexMovies') : t('settings.plexShows')}</span>
+            {selected.has(s.key) && (
+              <span className="t-select-wrap">
+                <select
+                  className="t-select py-1 text-xs"
+                  aria-label={t('settings.plexSource', { name: s.title })}
+                  value={sourceOf(s)}
+                  onChange={(e) => {
+                    const nextSrc = new Map(srcMap)
+                    nextSrc.set(s.key, e.target.value)
+                    writeSources(nextSrc)
+                  }}
+                >
+                  <option value="anilist">AniList</option>
+                  <option value="tmdb">TMDB</option>
+                </select>
+              </span>
+            )}
+          </li>
         ))}
-      </div>
-      <p className="mt-1">{t('settings.plexSectionsHint')}</p>
+      </ul>
+      <p className="mt-1.5">{t('settings.plexSectionsHint')}</p>
     </fieldset>
   )
 }

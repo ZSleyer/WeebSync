@@ -52,7 +52,7 @@ export default function Rename() {
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(16rem,0.5fr)_1fr]">
-        <section className="t-panel flex h-96 flex-col" aria-label={t('rename.folderSection')}>
+        <section className="t-panel flex h-96 min-w-0 flex-col" aria-label={t('rename.folderSection')}>
           <div className="border-b border-border-subtle px-3 py-2">
             <span className="t-label">
               {t('rename.folder')}: downloads/{path}
@@ -61,7 +61,7 @@ export default function Rename() {
           <LocalPicker path={path} onNavigate={setPath} />
         </section>
 
-        <section className="t-panel p-4" aria-label={t('rename.rules')}>
+        <section className="t-panel min-w-0 p-4" aria-label={t('rename.rules')}>
           <div role="group" aria-label={t('rename.mode')} className="mb-4 flex">
             <button
               className={`t-btn t-btn--sm ${mode === 'template' ? 't-btn--primary' : ''}`}

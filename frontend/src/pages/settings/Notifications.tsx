@@ -37,8 +37,9 @@ function EmailPrefsSection() {
   })
   if (!data) return null
 
+  const enabled = data.enabled ?? []
   const toggle = (cat: string, on: boolean) => {
-    const next = on ? [...data.enabled, cat] : data.enabled.filter((c) => c !== cat)
+    const next = on ? [...enabled, cat] : enabled.filter((c) => c !== cat)
     save.mutate(next)
   }
 
@@ -49,11 +50,11 @@ function EmailPrefsSection() {
         <p className="mt-2 text-sm text-t-secondary">{t('settings.emailNotConfigured')}</p>
       ) : (
         <div className="mt-3 grid grid-cols-1 gap-2">
-          {data.available.map((cat) => (
+          {(data.available ?? []).map((cat) => (
             <label key={cat} className="flex items-center gap-2 text-sm text-t-secondary">
               <input
                 type="checkbox"
-                checked={data.enabled.includes(cat)}
+                checked={enabled.includes(cat)}
                 disabled={save.isPending}
                 onChange={(e) => toggle(cat, e.target.checked)}
               />

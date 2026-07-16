@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, fmtBytes, type Entry } from '../api'
+import Loading from './Loading'
 
 // Breadcrumb + list view over a browse endpoint. Works for the local
 // picker (/api/browse/local) and the classic remote view.
@@ -67,8 +68,8 @@ export function FileBrowser({
         ))}
       </nav>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {isLoading && <p className="p-4 text-sm text-t-muted">{t('app.loading')}…</p>}
-        {error && <p className="p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>}
+        {isLoading && <Loading className="p-4" />}
+        {error && <p className="wrap-break-word p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>}
         {!isLoading && !error && entries.length === 0 && (
           <p className="p-4 text-sm text-t-muted">{emptyHint ?? t('browser.emptyDir')}</p>
         )}
@@ -174,7 +175,7 @@ export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p
           onKeyDown={(e) => e.key === 'Enter' && mkdir()}
         />
         <button type="button" className="t-btn t-btn--sm shrink-0" onClick={mkdir}>
-          mkdir
+          {t('browser.createFolder')}
         </button>
       </div>
       {mkdirError && (
