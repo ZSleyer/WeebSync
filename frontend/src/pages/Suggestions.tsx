@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, type AnilistSuggestions, type PlexSuggestions } from '../api'
+import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 
 // Suggestions, two sections: AniList lists watchlist titles (watching /
 // planning) that exist on the user's servers via the remote index; Plex
@@ -127,19 +129,60 @@ function AnilistSection() {
   )
 }
 
-// Plex: missing sequels of shows in the configured libraries.
+// guessSeason reads a season number out of a sequel title ("2nd Season",
+// "Season 3", "Part 2" not counted) for the rename template prefill.
+function guessSeason(title: string): number {
+  const m = title.match(/(\d+)(?:nd|rd|th)\s+Season/i) ?? title.match(/Season\s+(\d+)/i) ?? title.match(/\bS(\d+)\b/)
+  return m ? Number(m[1]) : 0
+}
+
+// Plex: missing sequels of shows in the configured libraries. Each remote
+// candidate can be synced once or watched permanently, prefilled from the
+// Plex data: local folder = the show's Plex folder name (consistent
+// placement) and a Plex-style rename template with the library's title.
 function PlexSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const { data, isLoading } = useQuery<PlexSuggestions>({
     queryKey: ['plex-suggestions'],
     queryFn: () => api.get('/api/plex/suggestions'),
     refetchInterval: (q) => (q.state.data?.building ? 5000 : false),
   })
+  const [watch, setWatch] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
+  const [notice, setNotice] = useState('')
 
   const refresh = async () => {
     await api.get('/api/plex/suggestions?force=1')
     qc.invalidateQueries({ queryKey: ['plex-suggestions'] })
+  }
+
+  // prefill recommendations from the Plex data
+  const prefill = (s: PlexSuggestions['suggestions'][number], path: string): WatchFields => {
+    const season = guessSeason(s.sequel.title.romaji)
+    return {
+      remotePath: path,
+      localPath: s.folder ? (s.folder.split('/').pop() ?? '') : '',
+      mode: 'template',
+      template: season > 0 ? `{title} - S${String(season).padStart(2, '0')}E{episode:02}` : '{title} - S{season:02}E{episode:02}',
+      separator: '',
+      titleOverride: s.showTitle,
+      pattern: '',
+      replacement: '',
+    }
+  }
+
+  const syncOnce = async (s: PlexSuggestions['suggestions'][number], serverId: number, path: string) => {
+    try {
+      const r = await api.post<{ queued: number }>('/api/downloads', {
+        serverId,
+        remotePath: path,
+        localPath: s.folder ? (s.folder.split('/').pop() ?? '') : '',
+      })
+      setNotice(t('browser.queued', { count: r.queued }))
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : t('app.error'))
+    }
   }
 
   return (
@@ -174,40 +217,101 @@ function PlexSection() {
       ) : (
         <ul className="grid grid-cols-1 gap-3">
           {data.suggestions.map((s) => (
-            <li key={`${s.showTitle}-${s.sequel.id}`} className="t-panel p-4">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <h3 className="text-sm font-medium text-t-primary">
-                  {s.showTitle} {s.year > 0 && <span className="text-t-muted">({s.year})</span>}
-                </h3>
-                <span className="text-xs text-t-muted">{t('plex.have', { have: s.leafCount, need: s.chainNeed })}</span>
-              </div>
-              <p className="mt-1 text-sm text-accent">
-                {t('plex.missing')}: {s.sequel.title.romaji}
-                {s.sequel.episodes > 0 && ` · ${t('watch.files', { count: s.sequel.episodes })}`}
-                {s.sequel.status && ` · ${t('browser.status.' + s.sequel.status, s.sequel.status)}`}
-                {' · '}
-                <a className="underline" href={`https://anilist.co/anime/${s.sequel.id}`} target="_blank" rel="noreferrer">
-                  AniList
-                </a>
-              </p>
-              {s.folder && (
-                <p className="mt-1 break-all font-mono text-[11px] text-t-muted" title={t('plex.folderHint')}>
-                  {t('plex.folder')}: {s.folder}
-                </p>
+            <li key={`${s.showTitle}-${s.sequel.id}`} className="t-panel flex flex-wrap gap-4 p-4">
+              {s.sequel.coverImage?.large ? (
+                <img src={s.sequel.coverImage.large} alt="" className="h-28 w-20 shrink-0 object-cover" />
+              ) : (
+                <div className="t-hatch h-28 w-20 shrink-0" />
               )}
-              {s.candidates.length > 0 && (
-                <div className="mt-2 border-t border-border-subtle pt-2">
-                  <span className="t-label">{t('plex.candidates')}</span>
-                  <ul className="mt-1 grid grid-cols-1 gap-1">
-                    {s.candidates.map((c) => (
-                      <CandidateRow key={c.path} serverId={c.serverId} serverName={c.serverName} path={c.path} />
-                    ))}
-                  </ul>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <h3 className="text-sm font-medium text-t-primary">
+                    {s.showTitle} {s.year > 0 && <span className="text-t-muted">({s.year})</span>}
+                  </h3>
+                  <span className="text-xs text-t-muted">{t('plex.have', { have: s.leafCount, need: s.chainNeed })}</span>
                 </div>
-              )}
+                <p className="mt-1 text-sm text-accent">
+                  {t('plex.missing')}: {s.sequel.title.romaji}
+                </p>
+                <p className="mt-1.5 flex flex-wrap gap-1">
+                  {s.sequel.seasonYear > 0 && <span className="t-label">{s.sequel.seasonYear}</span>}
+                  {s.sequel.episodes > 0 && <span className="t-label">{s.sequel.episodes} EP</span>}
+                  {s.sequel.status && (
+                    <span className="t-label">{t('browser.status.' + s.sequel.status, s.sequel.status)}</span>
+                  )}
+                  {s.sequel.averageScore > 0 && (
+                    <span className="t-label t-label--accent">★ {s.sequel.averageScore}</span>
+                  )}
+                  <a
+                    className="t-label hover:text-accent"
+                    href={`https://anilist.co/anime/${s.sequel.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    AniList ↗
+                  </a>
+                </p>
+                {s.folder && (
+                  <p className="mt-1 break-all font-mono text-[11px] text-t-muted" title={t('plex.folderHint')}>
+                    {t('plex.folder')}: {s.folder}
+                  </p>
+                )}
+                {s.candidates.length > 0 && (
+                  <div className="mt-2 border-t border-border-subtle pt-2">
+                    <span className="t-label">{t('plex.candidates')}</span>
+                    <ul className="mt-1 grid grid-cols-1 gap-1">
+                      {s.candidates.map((c) => (
+                        <li key={c.path} className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className="min-w-0 flex-1 truncate font-mono text-[11px] text-t-secondary"
+                            title={c.path}
+                          >
+                            {c.serverName}:{c.path}
+                          </span>
+                          <button
+                            className="t-btn t-btn--sm t-btn--primary"
+                            title={t('plex.watchHint')}
+                            onClick={() =>
+                              setWatch({ serverId: c.serverId, name: s.sequel.title.romaji, initial: prefill(s, c.path) })
+                            }
+                          >
+                            {t('watch.add')}
+                          </button>
+                          <button className="t-btn t-btn--sm" title={t('plex.syncHint')} onClick={() => syncOnce(s, c.serverId, c.path)}>
+                            {t('plex.syncOnce')}
+                          </button>
+                          <button
+                            className="t-btn t-btn--sm"
+                            onClick={() => navigate(`/browser?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}
+                          >
+                            {t('plex.openBrowser')}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </li>
           ))}
         </ul>
+      )}
+      {notice && (
+        <p className="mt-3 text-center text-xs text-t-secondary" role="status">
+          {notice}
+        </p>
+      )}
+      {watch && (
+        <WatchDialog
+          title={t('watch.addTitle', { name: watch.name })}
+          serverId={watch.serverId}
+          initial={watch.initial}
+          onSave={async (f) => {
+            await api.post('/api/watches', { serverId: watch.serverId, ...f })
+            setNotice(t('watch.created'))
+          }}
+          onClose={() => setWatch(null)}
+        />
       )}
     </section>
   )
