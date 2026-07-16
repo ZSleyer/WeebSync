@@ -41,13 +41,13 @@ func (s *Server) handlePlexSections(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	shows := []plex.Section{}
+	out := []plex.Section{}
 	for _, sec := range sections {
-		if sec.Type == "show" {
-			shows = append(shows, sec)
+		if sec.Type == "show" || sec.Type == "movie" {
+			out = append(out, sec)
 		}
 	}
-	writeJSON(w, http.StatusOK, shows)
+	writeJSON(w, http.StatusOK, out)
 }
 
 type plexSuggestion struct {
@@ -153,18 +153,20 @@ func significantWords(title string, n int) []string {
 	return out
 }
 
-// sequelFormats: chain steps we count as "the series continues".
+// sequelFormats: chain steps we count as "the series continues". Movie
+// libraries walk their own chain of MOVIE sequels instead.
 var sequelFormats = map[string]bool{"TV": true, "TV_SHORT": true, "ONA": true}
+var movieFormats = map[string]bool{"MOVIE": true}
 
-// walkChain follows SEQUEL edges from base, one step per relations wave the
-// caller resolved. Returns the chain including base.
-func walkChain(base anilist.Media, rels map[int][]anilist.Relation) []anilist.Media {
+// walkChain follows SEQUEL edges (restricted to formats) from base, one step
+// per relations wave the caller resolved. Returns the chain including base.
+func walkChain(base anilist.Media, rels map[int][]anilist.Relation, formats map[string]bool) []anilist.Media {
 	chain := []anilist.Media{base}
 	cur := base
 	for range [8]int{} { // safety bound
 		var next *anilist.Media
 		for _, r := range rels[cur.ID] {
-			if r.RelationType == "SEQUEL" && sequelFormats[r.Node.Format] && r.Node.Status != "NOT_YET_RELEASED" {
+			if r.RelationType == "SEQUEL" && formats[r.Node.Format] && r.Node.Status != "NOT_YET_RELEASED" {
 				n := r.Node
 				next = &n
 				break
@@ -217,14 +219,20 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		}
 	}
 	var shows []plex.Show
+	isMovie := map[string]bool{} // ratingKey → item lives in a movie library
 	for _, sec := range sections {
-		if sec.Type != "show" || (len(wanted) > 0 && !wanted[sec.Key]) {
+		if (sec.Type != "show" && sec.Type != "movie") || (len(wanted) > 0 && !wanted[sec.Key]) {
 			continue
 		}
 		list, err := c.Shows(sec.Key)
 		if err != nil {
 			slog.Warn("plex shows", "section", sec.Key, "err", err)
 			continue
+		}
+		if sec.Type == "movie" {
+			for _, sh := range list {
+				isMovie[sh.RatingKey] = true
+			}
 		}
 		shows = append(shows, list...)
 	}
@@ -247,9 +255,22 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 			return
 		}
 		for i, list := range results {
-			if len(list) > 0 {
-				matched[shows[start+i].RatingKey] = list[0]
+			if len(list) == 0 {
+				continue
 			}
+			sh := shows[start+i]
+			pick := list[0]
+			// a movie title often also matches its parent TV series —
+			// prefer the first MOVIE-format result for movie libraries
+			if isMovie[sh.RatingKey] {
+				for _, m := range list {
+					if m.Format == "MOVIE" {
+						pick = m
+						break
+					}
+				}
+			}
+			matched[sh.RatingKey] = pick
 		}
 	}
 
@@ -277,7 +298,7 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		for id, r := range got {
 			rels[id] = r
 			for _, e := range r {
-				if e.RelationType == "SEQUEL" && sequelFormats[e.Node.Format] {
+				if e.RelationType == "SEQUEL" && (sequelFormats[e.Node.Format] || movieFormats[e.Node.Format]) {
 					need[e.Node.ID] = true
 				}
 			}
@@ -290,12 +311,16 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		if !ok {
 			continue
 		}
-		chain := walkChain(m, rels)
-		sequel, cum := missingSequel(chain, sh.LeafCount)
+		formats, leaf := sequelFormats, sh.LeafCount
+		if isMovie[sh.RatingKey] {
+			formats, leaf = movieFormats, 1 // the movie itself counts as present
+		}
+		chain := walkChain(m, rels, formats)
+		sequel, cum := missingSequel(chain, leaf)
 		if sequel == nil {
 			continue
 		}
-		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: sh.LeafCount, Sequel: *sequel, ChainNeed: cum}
+		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: leaf, Sequel: *sequel, ChainNeed: cum}
 		if detail, err := c.ShowDetail(sh.RatingKey); err == nil && len(detail.Locations) > 0 {
 			sug.Folder = detail.Locations[0]
 		}
