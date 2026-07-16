@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, type Entry, type RenamePair } from '../api'
 import { FileBrowser, LocalPicker } from './FileBrowser'
+import Loading from './Loading'
 
 export interface WatchFields {
   remotePath: string
@@ -283,11 +284,7 @@ export default function WatchDialog({
             <section className="space-y-2 border-t border-border-subtle pt-4" aria-label={t('rename.preview')}>
               <div className="flex items-center gap-2">
                 <span className="t-label t-label--accent">{t('rename.preview')}</span>
-                {previewBusy && (
-                  <span className="text-xs text-t-muted" role="status">
-                    {t('app.loading')}…
-                  </span>
-                )}
+                {previewBusy && <Loading />}
               </div>
               {pairs && (
                 <div className="max-h-40 overflow-y-auto border border-border-subtle">

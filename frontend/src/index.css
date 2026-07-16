@@ -356,13 +356,32 @@ dialog:not([open])::backdrop { opacity: 0; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
 
-/* Progress bar stripes for running downloads */
-@keyframes t-stripes { to { background-position: 28px 0; } }
+/* Loading indicator: three staggered pulsing bars (see components/Loading) */
+@keyframes t-load {
+  0%, 100% { transform: scaleY(0.35); opacity: 0.45; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+.t-load-bar {
+  width: 4px;
+  height: 16px;
+  background: var(--color-accent);
+  transform-origin: bottom;
+  animation: t-load 900ms ease-in-out infinite;
+}
+.t-load-bar:nth-child(2) { animation-delay: 150ms; }
+.t-load-bar:nth-child(3) { animation-delay: 300ms; }
+
+/* Progress bar stripes for running downloads. 25/50/75% stops tile
+   seamlessly into the 28px background-size; shifting by exactly one tile
+   per loop keeps the scroll continuous. */
+@keyframes t-stripes { from { background-position: 28px 0; } to { background-position: 0 0; } }
 .t-progress-running {
-  background-image: repeating-linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--bg-primary) 18%, transparent) 0 7px,
-    transparent 7px 14px
+  background-image: linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--bg-primary) 18%, transparent) 25%,
+    transparent 25% 50%,
+    color-mix(in srgb, var(--bg-primary) 18%, transparent) 50% 75%,
+    transparent 75%
   );
   background-size: 28px 28px;
   animation: t-stripes 700ms linear infinite;
