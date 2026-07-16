@@ -5,7 +5,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -96,8 +95,12 @@ func main() {
 	}
 }
 
-// harden sets security headers on every response and rejects cross-origin
-// state-changing requests (defense in depth beyond the SameSite=Lax cookie).
+// harden sets security headers on every response. CSRF is covered by the
+// application/json requirement in readJSON (a cross-site form can't set that
+// content-type without a CORS preflight the server never allows) plus the
+// SameSite=Lax session cookie (not sent on cross-site POST). An Origin==Host
+// check was intentionally dropped: it breaks legitimate proxied setups (dev
+// Vite proxy, reverse proxies that rewrite Host but not Origin).
 func harden(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
@@ -112,15 +115,6 @@ func harden(next http.Handler) http.Handler {
 				"frame-ancestors 'none'; base-uri 'self'")
 		if auth.IsHTTPS(r) {
 			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		}
-		switch r.Method {
-		case http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch:
-			if o := r.Header.Get("Origin"); o != "" {
-				if u, err := url.Parse(o); err != nil || u.Host != r.Host {
-					http.Error(w, `{"error":"cross-origin request blocked"}`, http.StatusForbidden)
-					return
-				}
-			}
 		}
 		next.ServeHTTP(w, r)
 	})
