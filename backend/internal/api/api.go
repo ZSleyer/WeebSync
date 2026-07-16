@@ -143,6 +143,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/servers/{id}/catalog/rematch", authed(http.HandlerFunc(s.handleCatalogRematch)))
 	mux.Handle("PUT /api/servers/{id}/catalog/scope", authed(http.HandlerFunc(s.handleCatalogScope)))
 	mux.Handle("GET /api/anilist/connect", authed(http.HandlerFunc(s.handleAnilistConnect)))
+	mux.Handle("POST /api/anilist/token", authed(http.HandlerFunc(s.handleAnilistToken)))
 	mux.Handle("GET /api/anilist/callback", authed(http.HandlerFunc(s.handleAnilistCallback)))
 	mux.Handle("DELETE /api/anilist/connect", authed(http.HandlerFunc(s.handleAnilistDisconnect)))
 	mux.Handle("GET /api/anilist/me", authed(http.HandlerFunc(s.handleAnilistMe)))
