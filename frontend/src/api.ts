@@ -94,6 +94,11 @@ export interface Watch {
   waiting: boolean
 }
 
+export interface SearchResult {
+  results: Entry[]
+  indexed: number
+}
+
 export interface RenamePair {
   old: string
   new: string
