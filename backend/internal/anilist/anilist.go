@@ -243,6 +243,59 @@ func (c *Client) CacheMedia(m *Media) {
 	c.store(fmt.Sprintf("media:%d", m.ID), string(payload))
 }
 
+// Relation is one edge of a media's relation graph (SEQUEL, PREQUEL, ...).
+type Relation struct {
+	RelationType string `json:"relationType"`
+	Node         Media  `json:"node"`
+}
+
+// RelationsBatch resolves the relation edges of several media with one
+// aliased GraphQL request, cached per id ("rel:<id>").
+func (c *Client) RelationsBatch(ctx context.Context, ids []int) (map[int][]Relation, error) {
+	out := make(map[int][]Relation, len(ids))
+	var missing []int
+	for _, id := range ids {
+		if payload, ok := c.cached(fmt.Sprintf("rel:%d", id)); ok {
+			var rels []Relation
+			if json.Unmarshal([]byte(payload), &rels) == nil {
+				out[id] = rels
+				continue
+			}
+		}
+		missing = append(missing, id)
+	}
+	// aliased batches of 10, same budget thinking as SearchBatch
+	for start := 0; start < len(missing); start += 10 {
+		chunk := missing[start:min(start+10, len(missing))]
+		var decls, parts []string
+		variables := map[string]any{}
+		for n, id := range chunk {
+			decls = append(decls, fmt.Sprintf("$id%d: Int", n))
+			parts = append(parts, fmt.Sprintf(
+				`r%d: Media(id: $id%d, type: ANIME) { relations { edges { relationType(version: 2) node { id title { romaji english } format status episodes } } } }`, n, n))
+			variables[fmt.Sprintf("id%d", n)] = id
+		}
+		gql := fmt.Sprintf("query (%s) { %s }", strings.Join(decls, ", "), strings.Join(parts, " "))
+		var resp struct {
+			Data map[string]struct {
+				Relations struct {
+					Edges []Relation `json:"edges"`
+				} `json:"relations"`
+			} `json:"data"`
+		}
+		if err := c.query(ctx, gql, variables, &resp); err != nil {
+			return out, err
+		}
+		for n, id := range chunk {
+			rels := resp.Data[fmt.Sprintf("r%d", n)].Relations.Edges
+			out[id] = rels
+			payload, _ := json.Marshal(rels)
+			c.store(fmt.Sprintf("rel:%d", id), string(payload))
+		}
+	}
+	return out, nil
+}
+
 func (c *Client) Search(ctx context.Context, q string) ([]Media, error) {
 	key := "search:" + q
 	if payload, ok := c.cached(key); ok {
