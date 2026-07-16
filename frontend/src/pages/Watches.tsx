@@ -113,14 +113,14 @@ export default function Watches() {
                   </p>
                 )}
               </div>
-              <div className="flex gap-1">
-                <button className="t-btn t-btn--sm" onClick={() => check(w.id)}>
+              <div className="flex w-full gap-1 sm:w-auto">
+                <button className="t-btn t-btn--sm flex-1 sm:flex-initial" onClick={() => check(w.id)}>
                   {t('watch.checkNow')}
                 </button>
-                <button className="t-btn t-btn--sm" onClick={() => setEdit(w)}>
+                <button className="t-btn t-btn--sm flex-1 sm:flex-initial" onClick={() => setEdit(w)}>
                   {t('servers.edit')}
                 </button>
-                <button className="t-btn t-btn--sm t-btn--danger" onClick={() => del(w)}>
+                <button className="t-btn t-btn--sm t-btn--danger flex-1 sm:flex-initial" onClick={() => del(w)}>
                   {t('servers.delete')}
                 </button>
               </div>

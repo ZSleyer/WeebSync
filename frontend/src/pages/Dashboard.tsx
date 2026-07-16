@@ -30,7 +30,7 @@ export default function Dashboard() {
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
           <span className="t-label mt-1">{t('dash.sub')}</span>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto">
           <StatTile label={t('dash.active')} value={String(active.filter((d) => d.status === 'running').length)} />
           <StatTile label={t('dash.queue')} value={String(active.filter((d) => d.status === 'queued').length)} />
           <StatTile label={t('dash.speed')} value={fmtSpeed(totalSpeed)} wide>
@@ -89,7 +89,7 @@ export default function Dashboard() {
 
 function StatTile({ label, value, wide, children }: { label: string; value: string; wide?: boolean; children?: React.ReactNode }) {
   return (
-    <div className={`t-panel px-4 py-2 ${wide ? 'min-w-44' : 'min-w-20'}`}>
+    <div className={`t-panel px-4 py-2 ${wide ? 'col-span-2 sm:min-w-44' : 'sm:min-w-20'}`}>
       <span className="t-label">{label}</span>
       <div className="flex items-end gap-2">
         <p className="font-mono text-lg text-t-primary">{value}</p>
