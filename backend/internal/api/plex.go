@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -56,7 +58,8 @@ type plexSuggestion struct {
 	LeafCount  int             `json:"leafCount"`
 	Folder     string          `json:"folder"` // Plex storage folder of the show
 	Sequel     anilist.Media   `json:"sequel"`
-	ChainNeed  int             `json:"chainNeed"` // episodes through the sequel
+	ChainNeed  int             `json:"chainNeed"`        // episodes through the sequel
+	Source     string          `json:"source,omitempty"` // "" = anilist, else tmdb:tv | tmdb:movie
 	Candidates []plexCandidate `json:"candidates"`
 }
 
@@ -108,16 +111,17 @@ func (s *Server) remoteCandidates(userID int64, m anilist.Media) []plexCandidate
 		if len(words) == 0 {
 			continue
 		}
-		q := `SELECT i.server_id, s.name, i.path FROM remote_index i
+		var q strings.Builder
+		q.WriteString(`SELECT i.server_id, s.name, i.path FROM remote_index i
 			JOIN servers s ON s.id = i.server_id AND s.user_id = ?
-			WHERE i.is_dir = 1`
+			WHERE i.is_dir = 1`)
 		args := []any{userID}
 		for _, wd := range words {
-			q += ` AND i.name LIKE '%' || ? || '%' COLLATE NOCASE`
+			q.WriteString(` AND i.name LIKE '%' || ? || '%' COLLATE NOCASE`)
 			args = append(args, wd)
 		}
-		q += ` LIMIT 3`
-		rows, err := s.DB.Query(q, args...)
+		q.WriteString(` LIMIT 3`)
+		rows, err := s.DB.Query(q.String(), args...)
 		if err != nil {
 			continue
 		}
@@ -213,13 +217,30 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		return
 	}
 	wanted := map[string]bool{}
-	for _, k := range strings.Split(db.Setting(s.DB, "plex_sections"), ",") {
+	for k := range strings.SplitSeq(db.Setting(s.DB, "plex_sections"), ",") {
 		if k = strings.TrimSpace(k); k != "" {
 			wanted[k] = true
 		}
 	}
-	var shows []plex.Show
+	// per-section metadata source: explicit key:source entries from the
+	// settings; a section without an entry falls back to its library title
+	// ("anime" in the name → AniList, otherwise TMDB)
+	srcOf := map[string]string{}
+	for kv := range strings.SplitSeq(db.Setting(s.DB, "plex_section_sources"), ",") {
+		if k, v, ok := strings.Cut(strings.TrimSpace(kv), ":"); ok && k != "" {
+			srcOf[k] = v
+		}
+	}
+	isAnime := func(sec plex.Section) bool {
+		if v, ok := srcOf[sec.Key]; ok {
+			return v == "anilist"
+		}
+		return strings.Contains(strings.ToLower(sec.Title), "anime")
+	}
+
+	var shows []plex.Show        // anime → AniList matching
 	isMovie := map[string]bool{} // ratingKey → item lives in a movie library
+	var liveTV, liveMovies []plex.Show
 	for _, sec := range sections {
 		if (sec.Type != "show" && sec.Type != "movie") || (len(wanted) > 0 && !wanted[sec.Key]) {
 			continue
@@ -229,12 +250,19 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 			slog.Warn("plex shows", "section", sec.Key, "err", err)
 			continue
 		}
-		if sec.Type == "movie" {
+		switch {
+		case !isAnime(sec) && sec.Type == "movie":
+			liveMovies = append(liveMovies, list...)
+		case !isAnime(sec):
+			liveTV = append(liveTV, list...)
+		case sec.Type == "movie":
 			for _, sh := range list {
 				isMovie[sh.RatingKey] = true
 			}
+			shows = append(shows, list...)
+		default:
+			shows = append(shows, list...)
 		}
-		shows = append(shows, list...)
 	}
 
 	// match shows against AniList in batches; the response cache makes
@@ -326,8 +354,212 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		}
 		suggestions = append(suggestions, sug)
 	}
+	// live-action sections go through TMDB instead of AniList
+	if s.Tmdb.Enabled() {
+		suggestions = append(suggestions, s.liveTVSuggestions(ctx, c, liveTV)...)
+		suggestions = append(suggestions, s.liveMovieSuggestions(ctx, liveMovies)...)
+	} else if len(liveTV)+len(liveMovies) > 0 {
+		slog.Warn("plex live-action sections skipped: no TMDB key configured")
+	}
+
 	payload, _ := json.Marshal(suggestions)
 	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('plex:suggestions', ?, datetime('now'))
 		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, string(payload))
-	slog.Info("plex suggestions built", "shows", len(shows), "matched", len(matched), "suggestions", len(suggestions))
+	slog.Info("plex suggestions built", "shows", len(shows), "matched", len(matched),
+		"liveTV", len(liveTV), "liveMovies", len(liveMovies), "suggestions", len(suggestions))
+}
+
+// normTitle folds case and whitespace for title-presence checks.
+func normTitle(t string) string {
+	return strings.ToLower(strings.Join(strings.Fields(t), " "))
+}
+
+// cacheGet/cacheSet: small KV helpers on the shared anilist_cache table.
+func (s *Server) cacheGet(key string, maxAge time.Duration) (string, bool) {
+	var payload, fetched string
+	if err := s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, key).
+		Scan(&payload, &fetched); err != nil {
+		return "", false
+	}
+	t, err := time.Parse(sqliteTime, fetched)
+	if err != nil || time.Since(t) > maxAge {
+		return "", false
+	}
+	return payload, true
+}
+
+func (s *Server) cacheSet(key, payload string) {
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, ?, datetime('now'))
+		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, key, payload)
+}
+
+// plexTitleIndex maps normalized titles of the Plex show libraries to their
+// ratingKey. One round of cheap listings, cached for an hour.
+func (s *Server) plexTitleIndex(c *plex.Client) map[string]string {
+	idx := map[string]string{}
+	if p, ok := s.cacheGet("plex:titleidx", time.Hour); ok {
+		json.Unmarshal([]byte(p), &idx)
+		return idx
+	}
+	sections, err := c.Sections()
+	if err != nil {
+		return idx
+	}
+	for _, sec := range sections {
+		if sec.Type != "show" {
+			continue
+		}
+		shows, err := c.Shows(sec.Key)
+		if err != nil {
+			continue
+		}
+		for _, sh := range shows {
+			idx[normTitle(sh.Title)] = sh.RatingKey
+			if sh.OriginalTitle != "" {
+				idx[normTitle(sh.OriginalTitle)] = sh.RatingKey
+			}
+		}
+	}
+	p, _ := json.Marshal(idx)
+	s.cacheSet("plex:titleidx", string(p))
+	return idx
+}
+
+// plexWebLink returns the app.plex.tv deep link to a library entry matching
+// one of the given titles; "" when Plex is unconfigured or has no match.
+// app.plex.tv works from anywhere (local URLs often don't).
+func (s *Server) plexWebLink(titles ...string) string {
+	c := s.plexClient()
+	if c == nil {
+		return ""
+	}
+	idx := s.plexTitleIndex(c)
+	key := ""
+	for _, t := range titles {
+		if t == "" {
+			continue
+		}
+		if k, ok := idx[normTitle(t)]; ok {
+			key = k
+			break
+		}
+	}
+	if key == "" {
+		return ""
+	}
+	mid, ok := s.cacheGet("plex:machineid", 24*time.Hour)
+	if !ok {
+		var err error
+		if mid, err = c.MachineID(); err != nil || mid == "" {
+			return ""
+		}
+		s.cacheSet("plex:machineid", mid)
+	}
+	return "https://app.plex.tv/desktop/#!/server/" + mid + "/details?key=" + url.QueryEscape("/library/metadata/"+key)
+}
+
+// plexFolderNames maps media ids to the Plex folder basename of the same
+// title, so watchlist syncs can reuse the existing Plex naming. Best effort:
+// nil when Plex is not configured; title matching via normTitle. The title
+// index is one round of cheap listings (cached 1h); folder locations are
+// fetched once per matched show (cached 24h).
+func (s *Server) plexFolderNames(medias []anilist.Media) map[int]string {
+	c := s.plexClient()
+	if c == nil || len(medias) == 0 {
+		return nil
+	}
+	idx := s.plexTitleIndex(c)
+	out := map[int]string{}
+	for _, m := range medias {
+		key, ok := idx[normTitle(m.Title.Romaji)]
+		if !ok {
+			key, ok = idx[normTitle(m.Title.English)]
+		}
+		if !ok {
+			continue
+		}
+		ck := "plex:loc:" + key
+		folder, cached := s.cacheGet(ck, 24*time.Hour)
+		if !cached {
+			if detail, err := c.ShowDetail(key); err == nil && len(detail.Locations) > 0 {
+				folder = path.Base(detail.Locations[0])
+				s.cacheSet(ck, folder)
+			}
+		}
+		if folder != "" {
+			out[m.ID] = folder
+		}
+	}
+	return out
+}
+
+// liveTVSuggestions: a non-anime show is "incomplete" when TMDB knows more
+// episodes than Plex has — TMDB models seasons inside one entry, so there is
+// no sequel chain to walk.
+func (s *Server) liveTVSuggestions(ctx context.Context, c *plex.Client, shows []plex.Show) []plexSuggestion {
+	var out []plexSuggestion
+	for _, sh := range shows {
+		if ctx.Err() != nil {
+			return out
+		}
+		list, err := s.Tmdb.Search(ctx, "tv", sh.Title, sh.Year)
+		if err != nil || len(list) == 0 {
+			list, err = s.Tmdb.Search(ctx, "tv", sh.Title, 0)
+		}
+		if err != nil || len(list) == 0 {
+			continue
+		}
+		m, err := s.Tmdb.Media(ctx, "tv", list[0].ID) // details carry the episode count
+		if err != nil || m.Episodes <= sh.LeafCount || m.Status == "NOT_YET_RELEASED" {
+			continue
+		}
+		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: sh.LeafCount,
+			Sequel: *m, ChainNeed: m.Episodes, Source: "tmdb:tv"}
+		if detail, err := c.ShowDetail(sh.RatingKey); err == nil && len(detail.Locations) > 0 {
+			sug.Folder = detail.Locations[0]
+		}
+		out = append(out, sug)
+	}
+	return out
+}
+
+// liveMovieSuggestions: for each movie that belongs to a TMDB collection,
+// suggest the released parts missing from the library.
+func (s *Server) liveMovieSuggestions(ctx context.Context, movies []plex.Show) []plexSuggestion {
+	have := map[string]bool{}
+	for _, mv := range movies {
+		have[normTitle(mv.Title)] = true
+	}
+	var out []plexSuggestion
+	seenColl := map[int]bool{}
+	for _, mv := range movies {
+		if ctx.Err() != nil {
+			return out
+		}
+		list, err := s.Tmdb.Search(ctx, "movie", mv.Title, mv.Year)
+		if err != nil || len(list) == 0 {
+			list, err = s.Tmdb.Search(ctx, "movie", mv.Title, 0)
+		}
+		if err != nil || len(list) == 0 {
+			continue
+		}
+		collID, err := s.Tmdb.MovieCollection(ctx, list[0].ID)
+		if err != nil || collID == 0 || seenColl[collID] {
+			continue
+		}
+		seenColl[collID] = true
+		parts, err := s.Tmdb.Collection(ctx, collID)
+		if err != nil {
+			continue
+		}
+		for _, p := range parts {
+			// Plex titles may be localized or original — accept either
+			if have[normTitle(p.Title.Romaji)] || have[normTitle(p.Title.English)] {
+				continue
+			}
+			out = append(out, plexSuggestion{ShowTitle: mv.Title, Year: mv.Year, LeafCount: 1,
+				Sequel: p, ChainNeed: len(parts), Source: "tmdb:movie"})
+		}
+	}
+	return out
 }

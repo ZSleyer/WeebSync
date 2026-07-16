@@ -102,6 +102,20 @@ func (c *Client) Shows(sectionKey string) ([]Show, error) {
 	return shows, nil
 }
 
+// MachineID returns the server's machine identifier, needed for Plex Web
+// deep links.
+func (c *Client) MachineID() (string, error) {
+	var resp struct {
+		MediaContainer struct {
+			MachineIdentifier string `json:"machineIdentifier"`
+		} `json:"MediaContainer"`
+	}
+	if err := c.get("/", &resp); err != nil {
+		return "", err
+	}
+	return resp.MediaContainer.MachineIdentifier, nil
+}
+
 // ShowDetail fetches one show's full metadata, including the storage
 // folder(s) and the original (often Japanese) title. Called lazily for
 // suggestion candidates only, to keep Plex request counts low.
