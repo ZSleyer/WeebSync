@@ -52,6 +52,7 @@ export interface Media {
   coverImage: { large: string }
   bannerImage: string
   trailer?: { id: string; site: string; thumbnail: string } | null
+  nextAiringEpisode?: { airingAt: number; episode: number } | null
   episodes: number
   seasonYear: number
   format: string
@@ -88,6 +89,9 @@ export interface Watch {
   localFiles: number
   active: number
   complete: boolean
+  nextEpisode?: number
+  nextAiringAt?: number
+  waiting: boolean
 }
 
 export interface RenamePair {

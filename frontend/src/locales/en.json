@@ -139,7 +139,9 @@
     "files": "{{count}} files",
     "complete": "Complete, sync can be removed",
     "confirmDelete": "Remove auto-sync for \"{{name}}\"? Downloaded files are kept.",
-    "empty": "Select a folder in the <1>Browser</1> and click \"Watch\"."
+    "empty": "Select a folder in the <1>Browser</1> and click \"Watch\".",
+    "waitingFor": "waiting for episode {{n}}",
+    "uploading": "upload in progress"
   },
   "rename": {
     "title": "RENAME",

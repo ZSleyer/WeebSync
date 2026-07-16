@@ -35,6 +35,12 @@ type Media struct {
 		Site      string `json:"site"` // "youtube" | "dailymotion"
 		Thumbnail string `json:"thumbnail"`
 	} `json:"trailer"`
+	// NextAiring is the upcoming episode's release slot (RELEASING titles);
+	// nil for finished titles or cache entries predating the field.
+	NextAiring *struct {
+		AiringAt int64 `json:"airingAt"` // unix seconds
+		Episode  int   `json:"episode"`
+	} `json:"nextAiringEpisode"`
 	Episodes     int      `json:"episodes"`
 	SeasonYear   int      `json:"seasonYear"`
 	Format       string   `json:"format"`
@@ -46,6 +52,7 @@ type Media struct {
 
 const mediaFields = `id title { romaji english } coverImage { large } bannerImage
 	trailer { id site thumbnail }
+	nextAiringEpisode { airingAt episode }
 	episodes seasonYear format status averageScore genres description(asHtml: false)`
 
 type Client struct {

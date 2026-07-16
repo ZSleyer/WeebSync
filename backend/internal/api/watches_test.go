@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -101,6 +102,37 @@ func TestWatchCRUD(t *testing.T) {
 	}
 	if rec := doReq(mux, "DELETE", fmt.Sprintf("/api/watches/%d", id), "", cookieA); rec.Code != http.StatusOK {
 		t.Errorf("delete: got %d", rec.Code)
+	}
+}
+
+func TestSmartDue(t *testing.T) {
+	now := time.Now()
+	airing := func(ep int, at time.Time) *anilist.Media {
+		m := &anilist.Media{Status: "RELEASING"}
+		m.NextAiring = &struct {
+			AiringAt int64 `json:"airingAt"`
+			Episode  int   `json:"episode"`
+		}{AiringAt: at.Unix(), Episode: ep}
+		return m
+	}
+	cases := []struct {
+		name        string
+		intervalDue bool
+		media       *anilist.Media
+		have        int
+		want        bool
+	}{
+		{"interval not reached", false, nil, 0, false},
+		{"no match: plain interval", true, nil, 0, true},
+		{"no schedule: plain interval", true, &anilist.Media{Status: "FINISHED"}, 12, true},
+		{"all aired synced, before release: wait", true, airing(5, now.Add(2*time.Hour)), 4, false},
+		{"all aired synced, release time reached: check", true, airing(5, now.Add(-10*time.Minute)), 4, true},
+		{"episode missing: keep checking", true, airing(5, now.Add(2*time.Hour)), 3, true},
+	}
+	for _, c := range cases {
+		if got := smartDue(c.intervalDue, c.media, c.have, now); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 
