@@ -164,36 +164,38 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	db.SetSetting(s.DB, "trusted_networks", strings.TrimSpace(in.TrustedNetworks))
 	db.SetSetting(s.DB, "auth_mode", in.AuthMode)
 	db.SetSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
-	db.SetSetting(s.DB, "oidc_issuer", in.OidcIssuer)
-	db.SetSetting(s.DB, "oidc_client_id", in.OidcClientID)
-	db.SetSetting(s.DB, "oidc_redirect_url", in.OidcRedirectURL)
+	db.SetSetting(s.DB, "oidc_issuer", strings.TrimSpace(in.OidcIssuer))
+	db.SetSetting(s.DB, "oidc_client_id", strings.TrimSpace(in.OidcClientID))
+	db.SetSetting(s.DB, "oidc_redirect_url", strings.TrimSpace(in.OidcRedirectURL))
 	db.SetSetting(s.DB, "oidc_claim", in.OidcClaim)
 	db.SetSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
 	db.SetSetting(s.DB, "oidc_user_values", in.OidcUserValues)
-	db.SetSetting(s.DB, "plex_url", in.PlexURL)
+	db.SetSetting(s.DB, "plex_url", strings.TrimSpace(in.PlexURL))
 	db.SetSetting(s.DB, "plex_sections", in.PlexSections)
-	db.SetSetting(s.DB, "anilist_client_id", in.AnilistClientID)
-	db.SetSetting(s.DB, "anilist_redirect_url", in.AnilistRedirectURL)
-	// secrets are write-only: "" keeps the stored value, "-" clears it
-	if in.AnilistClientSecret == "-" {
+	db.SetSetting(s.DB, "anilist_client_id", strings.TrimSpace(in.AnilistClientID))
+	db.SetSetting(s.DB, "anilist_redirect_url", strings.TrimSpace(in.AnilistRedirectURL))
+	// secrets are write-only: "" keeps the stored value, "-" clears it.
+	// Trimmed: IDs/secrets/keys are pasted and stray whitespace breaks
+	// authentication in ways that are invisible in the UI.
+	if v := strings.TrimSpace(in.AnilistClientSecret); v == "-" {
 		db.SetSetting(s.DB, "anilist_client_secret", "")
-	} else if in.AnilistClientSecret != "" {
-		db.SetSetting(s.DB, "anilist_client_secret", in.AnilistClientSecret)
+	} else if v != "" {
+		db.SetSetting(s.DB, "anilist_client_secret", v)
 	}
-	if in.TmdbApiKey == "-" {
+	if v := strings.TrimSpace(in.TmdbApiKey); v == "-" {
 		db.SetSetting(s.DB, "tmdb_api_key", "")
-	} else if in.TmdbApiKey != "" {
-		db.SetSetting(s.DB, "tmdb_api_key", in.TmdbApiKey)
+	} else if v != "" {
+		db.SetSetting(s.DB, "tmdb_api_key", v)
 	}
-	if in.PlexToken == "-" {
+	if v := strings.TrimSpace(in.PlexToken); v == "-" {
 		db.SetSetting(s.DB, "plex_token", "")
-	} else if in.PlexToken != "" {
-		db.SetSetting(s.DB, "plex_token", in.PlexToken)
+	} else if v != "" {
+		db.SetSetting(s.DB, "plex_token", v)
 	}
-	if in.OidcClientSecret == "-" {
+	if v := strings.TrimSpace(in.OidcClientSecret); v == "-" {
 		db.SetSetting(s.DB, "oidc_client_secret", "")
-	} else if in.OidcClientSecret != "" {
-		db.SetSetting(s.DB, "oidc_client_secret", in.OidcClientSecret)
+	} else if v != "" {
+		db.SetSetting(s.DB, "oidc_client_secret", v)
 	}
 
 	// SMTP
