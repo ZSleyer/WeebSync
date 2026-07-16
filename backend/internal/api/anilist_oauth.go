@@ -3,11 +3,14 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
@@ -19,6 +22,10 @@ import (
 // AniList account linking (OAuth authorization code flow). Replaces the old
 // manual API-token setting: once any account is linked, background matching
 // runs authenticated via AnilistToken below.
+
+// defaultAnilistClientID is the public "WeebSync" app for the pin flow
+// (implicit grant, redirect URL = https://anilist.co/api/v2/oauth/pin).
+const defaultAnilistClientID = "46125"
 
 // AnilistToken is the client's TokenSource: operator env token first, then
 // any linked account's token (background matching has no user context).
@@ -143,6 +150,60 @@ func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/settings", http.StatusFound)
 }
 
+// jwtExpiry extracts the exp claim of a JWT (unverified — display only).
+func jwtExpiry(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if json.Unmarshal(payload, &claims) != nil || claims.Exp == 0 {
+		return ""
+	}
+	return time.Unix(claims.Exp, 0).UTC().Format(sqliteTime)
+}
+
+// handleAnilistToken links an account from a manually pasted access token
+// (AniList pin flow: redirect URL https://anilist.co/api/v2/oauth/pin shows
+// the token to copy). Needs no client secret and no matching redirect URL,
+// so it works for any deployment origin.
+func (s *Server) handleAnilistToken(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	var in struct {
+		Token string `json:"token"`
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	token := strings.TrimSpace(in.Token)
+	if token == "" {
+		writeErr(w, http.StatusBadRequest, "token required")
+		return
+	}
+	alID, name, avatar, err := s.Anilist.Viewer(r.Context(), token)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, "token rejected by AniList: "+err.Error())
+		return
+	}
+	enc, err := secret.Encrypt(token)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "encrypt error")
+		return
+	}
+	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO anilist_accounts (user_id, anilist_user_id, anilist_name, avatar, token_enc, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?)`, u.ID, alID, name, avatar, enc, jwtExpiry(token)); err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to store linked account")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "name": name})
+}
+
 func (s *Server) handleAnilistDisconnect(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	s.DB.Exec(`DELETE FROM anilist_accounts WHERE user_id = ?`, u.ID)
@@ -153,7 +214,18 @@ func (s *Server) handleAnilistDisconnect(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleAnilistMe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	clientID, clientSecret, _ := s.anilistClientConfig()
-	out := map[string]any{"configured": clientID != "" && clientSecret != "", "connected": false}
+	// pin flow needs only a client id; fall back to the public WeebSync app
+	// (client IDs are not secret — the registered redirect is AniList's own
+	// pin page, so one app serves every self-hosted instance)
+	pinID := clientID
+	if pinID == "" {
+		pinID = defaultAnilistClientID
+	}
+	out := map[string]any{
+		"configured": clientID != "" && clientSecret != "", // redirect flow needs both
+		"clientId":   pinID,
+		"connected":  false,
+	}
 	var name, avatar, expires string
 	if err := s.DB.QueryRow(`SELECT anilist_name, avatar, expires_at FROM anilist_accounts WHERE user_id = ?`, u.ID).
 		Scan(&name, &avatar, &expires); err == nil {
