@@ -41,6 +41,9 @@ func setupUsersTest(t *testing.T) (*http.ServeMux, *Server, *http.Cookie, *http.
 
 func doReq(mux *http.ServeMux, method, path, body string, c *http.Cookie) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if c != nil {
 		req.AddCookie(c)
 	}

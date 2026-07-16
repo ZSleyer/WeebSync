@@ -41,6 +41,7 @@ type Download struct {
 }
 
 type running struct {
+	userID  int64 // owner, so the in-memory pause/cancel path stays user-scoped
 	cancel  context.CancelFunc
 	paused  bool // pause vs. hard cancel, checked when the ctx fires
 	limiter *rate.Limiter
@@ -162,8 +163,13 @@ func (m *Manager) startDownload(id int64) {
 	if err != nil {
 		return
 	}
+	// re-check: the user may have paused/canceled between the queue query
+	// and now — starting anyway would resurrect the download
+	if d.Status != "queued" {
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &running{cancel: cancel, limiter: newLimiter(d.RateLimit)}
+	r := &running{userID: d.UserID, cancel: cancel, limiter: newLimiter(d.RateLimit)}
 	m.mu.Lock()
 	if _, dup := m.active[id]; dup {
 		m.mu.Unlock()
@@ -219,6 +225,9 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	}
 	if offset > size {
 		offset = 0 // remote file changed, start over
+		if err := os.Truncate(part, 0); err != nil {
+			return err
+		}
 	}
 
 	src, err := client.Open(d.RemotePath, offset)
@@ -233,10 +242,13 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	}
 	defer dst.Close()
 
-	m.mu.Lock()
-	global := m.global
-	m.mu.Unlock()
-	reader := &throttledReader{r: src, ctx: ctx, limiters: []*rate.Limiter{global, r.limiter}}
+	// fetched per Read under mu: SetRateLimit and reloadSettings swap these
+	// pointers concurrently (including nil ↔ *Limiter transitions)
+	reader := &throttledReader{r: src, ctx: ctx, limiters: func() []*rate.Limiter {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		return []*rate.Limiter{m.global, r.limiter}
+	}}
 
 	transferred := offset
 	lastReport := time.Now()
@@ -271,6 +283,11 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		return err
 	}
 	m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, transferred, d.ID)
+	// a dropped connection can surface as plain EOF (FTP data channel):
+	// never rename a short file into place as if it were complete
+	if transferred < size {
+		return fmt.Errorf("incomplete transfer: %d of %d bytes", transferred, size)
+	}
 	return os.Rename(part, d.LocalPath)
 }
 
@@ -391,7 +408,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 
 func (m *Manager) Pause(userID, id int64) error {
 	m.mu.Lock()
-	if r, ok := m.active[id]; ok {
+	if r, ok := m.active[id]; ok && r.userID == userID {
 		r.paused = true
 		r.cancel()
 		m.mu.Unlock()
@@ -411,7 +428,7 @@ func (m *Manager) Resume(userID, id int64) error {
 
 func (m *Manager) Cancel(userID, id int64) error {
 	m.mu.Lock()
-	if r, ok := m.active[id]; ok {
+	if r, ok := m.active[id]; ok && r.userID == userID {
 		r.cancel()
 		m.mu.Unlock()
 		return nil

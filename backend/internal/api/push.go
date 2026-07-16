@@ -2,8 +2,10 @@ package api
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/netguard"
 )
 
 func (s *Server) handlePushKey(w http.ResponseWriter, r *http.Request) {
@@ -26,6 +28,15 @@ func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Endpoint == "" || in.Keys.P256dh == "" || in.Keys.Auth == "" {
 		writeErr(w, http.StatusBadRequest, "endpoint and keys required")
+		return
+	}
+	// the push endpoint is fetched server-side on every notification; block
+	// metadata/link-local targets so it can't become an SSRF primitive
+	if u, err := url.Parse(in.Endpoint); err != nil || u.Hostname() == "" {
+		writeErr(w, http.StatusBadRequest, "invalid endpoint")
+		return
+	} else if err := netguard.Allowed(u.Hostname()); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := s.Push.Subscribe(u.ID, in.Endpoint, in.Keys.P256dh, in.Keys.Auth); err != nil {
