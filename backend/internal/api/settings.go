@@ -19,15 +19,15 @@ type settingsPayload struct {
 	AuthMode             string `json:"authMode"` // password | oidc-only | oidc-auto
 	AnilistTokenSet      bool   `json:"anilistTokenSet"`
 	AnilistToken         string `json:"anilistToken,omitempty"` // write-only
-	OidcProviderName     string `json:"oidcProviderName"` // login button label ("Sign in with X")
+	OidcProviderName     string `json:"oidcProviderName"`       // login button label ("Sign in with X")
 	OidcIssuer           string `json:"oidcIssuer"`
 	OidcClientID         string `json:"oidcClientId"`
 	OidcRedirectURL      string `json:"oidcRedirectUrl"`
 	OidcClientSecretSet  bool   `json:"oidcClientSecretSet"`
 	OidcClientSecret     string `json:"oidcClientSecret,omitempty"` // write-only
-	OidcClaim            string `json:"oidcClaim"`       // token claim holding groups/roles
-	OidcAdminValues      string `json:"oidcAdminValues"` // csv, any match = admin
-	OidcUserValues       string `json:"oidcUserValues"`  // csv login allowlist, empty = everyone
+	OidcClaim            string `json:"oidcClaim"`                  // token claim holding groups/roles
+	OidcAdminValues      string `json:"oidcAdminValues"`            // csv, any match = admin
+	OidcUserValues       string `json:"oidcUserValues"`             // csv login allowlist, empty = everyone
 	OidcEnabled          bool   `json:"oidcEnabled"`
 	OidcError            string `json:"oidcError,omitempty"`
 }
