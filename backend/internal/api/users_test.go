@@ -89,6 +89,25 @@ func TestUserGuards(t *testing.T) {
 	}
 }
 
+func TestUserUpdateOIDCManaged(t *testing.T) {
+	mux, s, adminC, _, _, userID := setupUsersTest(t)
+
+	// OIDC group mapping active → local role changes rejected
+	if err := db.SetSetting(s.DB, "oidc_admin_values", "weebsync-admins"); err != nil {
+		t.Fatal(err)
+	}
+	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/users/%d", userID), `{"isAdmin":true}`, adminC); rec.Code != http.StatusConflict {
+		t.Errorf("oidc-managed promote: got %d, want 409: %s", rec.Code, rec.Body)
+	}
+	// cleared → toggle works again
+	if err := db.SetSetting(s.DB, "oidc_admin_values", ""); err != nil {
+		t.Fatal(err)
+	}
+	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/users/%d", userID), `{"isAdmin":true}`, adminC); rec.Code != http.StatusOK {
+		t.Errorf("promote after clear: got %d, want 200: %s", rec.Code, rec.Body)
+	}
+}
+
 func TestUserCreate(t *testing.T) {
 	mux, _, adminC, _, _, _ := setupUsersTest(t)
 
