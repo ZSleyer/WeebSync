@@ -27,7 +27,8 @@ export default function Setup() {
     oidcAdminValues: '',
     oidcUserValues: '',
   })
-  const [registrationDisabled, setRegistrationDisabled] = useState(false)
+  // recommended default for public instances: close open registration
+  const [registrationDisabled, setRegistrationDisabled] = useState(true)
   const [discovered, setDiscovered] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -68,18 +69,15 @@ export default function Setup() {
     })
   }
 
-  // account path: session from step 1 is admin → normal settings API
-  const saveOidc = (e: FormEvent) => {
-    e.preventDefault()
-    if (!oidc.oidcIssuer) {
-      setStep('done') // nothing to save — same as skip
-      return
-    }
+  // account path: session from step 1 is admin → normal settings API.
+  // Always persists the registration choice, even when OIDC is skipped, so the
+  // recommended "close registration" default actually takes effect.
+  const persistAndDone = (withOidc: boolean) =>
     run(async () => {
       const cur = await api.get<Record<string, unknown>>('/api/settings')
       const out = await api.put<{ oidcError?: string }>('/api/settings', {
         ...cur,
-        ...oidc,
+        ...(withOidc && oidc.oidcIssuer ? oidc : {}),
         registrationDisabled,
       })
       if (out.oidcError) {
@@ -88,6 +86,10 @@ export default function Setup() {
       }
       setStep('done')
     })
+
+  const saveOidc = (e: FormEvent) => {
+    e.preventDefault()
+    persistAndDone(true)
   }
 
   // pure-OIDC path: no account yet → unauthenticated setup endpoint
@@ -277,17 +279,18 @@ export default function Setup() {
               {heading(t('setup.stepOidc'))}
               <p className="mb-4 text-sm text-t-secondary">{t('setup.oidcHint')}</p>
               {oidcFields(false)}
-              <label className="mb-4 flex items-center gap-2 text-sm">
+              <label className="mb-1 flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={registrationDisabled}
                   onChange={(e) => setRegistrationDisabled(e.target.checked)}
                 />
-                {t('settings.registrationDisabled')}
+                {t('setup.closeRegistration')}
               </label>
+              <p className="mb-4 text-xs text-t-muted">{t('setup.closeRegistrationHint')}</p>
               {errorBox}
               <div className="flex gap-2">
-                <button type="button" className="t-btn flex-1" disabled={busy} onClick={() => setStep('done')}>
+                <button type="button" className="t-btn flex-1" disabled={busy} onClick={() => persistAndDone(false)}>
                   {t('setup.skip')}
                 </button>
                 <button className="t-btn t-btn--primary t-cut flex-1" disabled={busy}>
