@@ -256,18 +256,26 @@ func (s *Server) renderDigest(intro string, items []digestItem) (text, content s
 	c.WriteString(emailLines([]string{intro}))
 	for _, gk := range order {
 		g := groups[gk]
-		t.WriteString("\r\n\r\n" + g.title + ":\r\n  " + strings.Join(g.names, "\r\n  "))
+		t.WriteString("\r\n\r\n")
+		t.WriteString(g.title)
+		t.WriteString(":\r\n  ")
+		t.WriteString(strings.Join(g.names, "\r\n  "))
 		body := `<p style="margin:0 0 6px;color:#e6edf3;font-size:14px;font-weight:600">` + html.EscapeString(g.title) + `</p>` + emailLines(g.names)
 		if g.plexLink != "" {
 			body += `<p style="margin:4px 0 0"><a href="` + html.EscapeString(g.plexLink) + `" style="color:#a685f0;font-size:12px;text-decoration:none">In Plex öffnen ↗</a></p>`
-			t.WriteString("\r\n  In Plex: " + g.plexLink)
+			t.WriteString("\r\n  In Plex: ")
+			t.WriteString(g.plexLink)
 		}
 		if g.cover != "" {
-			c.WriteString(`<table role="presentation" style="margin:14px 0 0;border-collapse:collapse"><tr>` +
-				`<td style="vertical-align:top;padding-right:12px"><img src="` + html.EscapeString(g.cover) + `" width="64" alt="" style="display:block;border:1px solid #30363d"></td>` +
-				`<td style="vertical-align:top">` + body + `</td></tr></table>`)
+			c.WriteString(`<table role="presentation" style="margin:14px 0 0;border-collapse:collapse"><tr><td style="vertical-align:top;padding-right:12px"><img src="`)
+			c.WriteString(html.EscapeString(g.cover))
+			c.WriteString(`" width="64" alt="" style="display:block;border:1px solid #30363d"></td><td style="vertical-align:top">`)
+			c.WriteString(body)
+			c.WriteString(`</td></tr></table>`)
 		} else {
-			c.WriteString(`<div style="margin:14px 0 0">` + body + `</div>`)
+			c.WriteString(`<div style="margin:14px 0 0">`)
+			c.WriteString(body)
+			c.WriteString(`</div>`)
 		}
 	}
 	return t.String(), c.String()
