@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
@@ -38,6 +40,7 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 		ServerID   int64  `json:"serverId"`
 		RemotePath string `json:"remotePath"`
 		LocalPath  string `json:"localPath"` // relative to download root
+		Flat       bool   `json:"flat"`      // no subfolder: files straight into localPath
 	}
 	if !readJSON(w, r, &in) {
 		return
@@ -50,7 +53,7 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	ids, _, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, false)
+	ids, _, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, false, in.Flat)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
@@ -75,6 +78,102 @@ func (s *Server) handleDownloadsCancel(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"canceled": canceled})
+}
+
+// handleDownloadsBulk applies pause/resume/cancel/delete to the caller's
+// matching downloads — all of them, or only the given ids (multi-select).
+func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	var in struct {
+		Action string  `json:"action"`
+		IDs    []int64 `json:"ids"` // empty = every matching download
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	var from []string
+	var fn func(userID, id int64) error
+	switch in.Action {
+	case "pause":
+		from, fn = []string{"running", "queued"}, s.Transfers.Pause
+	case "resume":
+		from, fn = []string{"paused"}, s.Transfers.Resume
+		// explicit selection may also retry failed/canceled entries;
+		// a global "resume all" must not resurrect the whole history
+		if len(in.IDs) > 0 {
+			from = []string{"paused", "error", "canceled"}
+		}
+	case "cancel":
+		from, fn = []string{"running", "queued", "paused"}, s.Transfers.Cancel
+	case "delete":
+		from = []string{"done", "error", "canceled"}
+	default:
+		writeErr(w, http.StatusBadRequest, "invalid action")
+		return
+	}
+	q := `user_id = ? AND status IN (?` + strings.Repeat(",?", len(from)-1) + `)`
+	args := []any{u.ID}
+	for _, f := range from {
+		args = append(args, f)
+	}
+	if len(in.IDs) > 0 {
+		q += ` AND id IN (?` + strings.Repeat(",?", len(in.IDs)-1) + `)`
+		for _, id := range in.IDs {
+			args = append(args, id)
+		}
+	}
+	if in.Action == "delete" {
+		res, err := s.DB.Exec(`DELETE FROM downloads WHERE `+q, args...)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "db error")
+			return
+		}
+		n, _ := res.RowsAffected()
+		writeJSON(w, http.StatusOK, map[string]int64{"affected": n})
+		return
+	}
+	rows, err := s.DB.Query(`SELECT id FROM downloads WHERE `+q, args...)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
+		}
+	}
+	rows.Close()
+	affected := 0
+	for _, id := range ids {
+		if fn(u.ID, id) == nil {
+			affected++
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"affected": affected})
+}
+
+// handleGlobalRateLimit sets the global transfer limit (bytes/s, 0 =
+// unlimited) without going through the full settings payload — the
+// dashboard's quick control. Admin only.
+func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		RateLimit int64 `json:"rateLimit"`
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	if in.RateLimit < 0 {
+		writeErr(w, http.StatusBadRequest, "rateLimit must be >= 0")
+		return
+	}
+	if err := db.SetSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.RateLimit, 10)); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	s.Transfers.SettingsChanged()
+	writeJSON(w, http.StatusOK, map[string]int64{"rateLimit": in.RateLimit})
 }
 
 func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFunc {
