@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 )
 
 type userInfo struct {
@@ -73,6 +74,12 @@ func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	// when OIDC group mapping is configured, the IdP is the sole role
+	// source — local role changes would be overwritten on next login
+	if db.SettingOrEnv(s.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES") != "" {
+		writeErr(w, http.StatusConflict, "roles managed by OIDC")
 		return
 	}
 	var body struct {
