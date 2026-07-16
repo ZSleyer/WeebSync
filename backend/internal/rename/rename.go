@@ -28,6 +28,54 @@ type Options struct {
 
 var placeholderRe = regexp.MustCompile(`\{(\w+)(?::(\d+))?\}`)
 
+// Generic patterns only, never real release-group or provider names:
+// language tags are composed language prefixes ending in Dub/Sub
+// (GerDub, JapDub, GerEngSub, GerJapDub, ...), plus resolution and
+// common tech terms. Anything matching these is metadata, not a group.
+var (
+	langRe  = regexp.MustCompile(`(?i)^(?:Ger|Eng|Jap|Chi|Kor|Fre|Spa|Ita|Por|Rus|Tur|Ara|Hin|De|En|Ja)+(Dub|Sub)$`)
+	resRe   = regexp.MustCompile(`(?i)^(?:\d{3,4}p|[48]k)$`)
+	techRe  = regexp.MustCompile(`(?i)^(?:aac|e?ac3|dts|flac|opus|mp3|x\.?26[45]|h\.?26[45]|hevc|av1|avc|web-?(?:dl|rip)?|bd(?:rip)?|blu-?ray|dvd(?:rip)?|hdtv|vhs|hdr(?:10)?|10bit|8bit|remux|uncensored)$`)
+	tokenRe = regexp.MustCompile(`[\[\(]([^\]\)]*)[\]\)]`)
+)
+
+// langTags scans all bracket/paren token groups of a name and returns the
+// first ...Dub and ...Sub language tag (e.g. "GerJapDub", "GerEngSub").
+func langTags(name string) (dub, sub string) {
+	for _, g := range tokenRe.FindAllStringSubmatch(name, -1) {
+		for _, tok := range strings.Split(g[1], ",") {
+			tok = strings.TrimSpace(tok)
+			m := langRe.FindStringSubmatch(tok)
+			if m == nil {
+				continue
+			}
+			if strings.EqualFold(m[1], "dub") && dub == "" {
+				dub = tok
+			}
+			if strings.EqualFold(m[1], "sub") && sub == "" {
+				sub = tok
+			}
+		}
+	}
+	return dub, sub
+}
+
+// cleanGroup strips language/resolution/tech tokens from anitogo's
+// ReleaseGroup guess. Names like "Show E01 [JapDub][GerEngSub]" make
+// anitogo report the language tag as the release group; after cleaning
+// only real group-ish tokens survive (possibly none).
+func cleanGroup(group string) string {
+	var kept []string
+	for _, tok := range strings.Split(group, ",") {
+		tok = strings.TrimSpace(tok)
+		if tok == "" || langRe.MatchString(tok) || resRe.MatchString(tok) || techRe.MatchString(tok) {
+			continue
+		}
+		kept = append(kept, tok)
+	}
+	return strings.Join(kept, ",")
+}
+
 // New returns the new filename for name, or "" when the name cannot be
 // processed (e.g. no episode parsed and the template needs one).
 func New(name string, o Options) (string, error) {
@@ -47,17 +95,30 @@ func New(name string, o Options) (string, error) {
 
 func templateName(name string, o Options) (string, error) {
 	parsed := anitogo.Parse(name, anitogo.DefaultOptions)
+	dub, sub := langTags(name)
 	vars := map[string]string{
 		"title":      parsed.AnimeTitle,
 		"season":     first(parsed.AnimeSeason),
 		"episode":    first(parsed.EpisodeNumber),
 		"year":       parsed.AnimeYear,
-		"group":      parsed.ReleaseGroup,
+		"group":      cleanGroup(parsed.ReleaseGroup),
 		"resolution": parsed.VideoResolution,
+		"dub":        dub,
+		"sub":        sub,
 		"ext":        parsed.FileExtension,
 	}
 	if vars["season"] == "" {
 		vars["season"] = "1" // no season marker in the name → season 1
+	}
+	if vars["resolution"] == "" { // anitogo missed it, e.g. resolution inside a tag list
+		for _, g := range tokenRe.FindAllStringSubmatch(name, -1) {
+			for _, tok := range strings.Split(g[1], ",") {
+				if tok = strings.TrimSpace(tok); resRe.MatchString(tok) {
+					vars["resolution"] = tok
+					break
+				}
+			}
+		}
 	}
 	if o.TitleOverride != "" {
 		vars["title"] = o.TitleOverride

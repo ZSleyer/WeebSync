@@ -58,6 +58,56 @@ func TestRegexMode(t *testing.T) {
 	}
 }
 
+func TestLangTags(t *testing.T) {
+	cases := []struct{ name, dub, sub string }{
+		{"Some Show E01 [1080p][AAC][JapDub][GerEngSub][Web-DL].mkv", "JapDub", "GerEngSub"},
+		{"Some Show - 03 (720p) [GerDub,GerSub,XY].mkv", "GerDub", "GerSub"},
+		{"Some Show S02E04 [GerJapDub][x265][720p].mkv", "GerJapDub", ""},
+		{"[FakeSubs] Some Show - 05 [1080p].mkv", "", ""},
+	}
+	for _, c := range cases {
+		dub, sub := langTags(c.name)
+		if dub != c.dub || sub != c.sub {
+			t.Errorf("%q: got dub=%q sub=%q, want %q %q", c.name, dub, sub, c.dub, c.sub)
+		}
+	}
+}
+
+func TestCleanGroup(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"JapDub", ""},             // language tag, not a group
+		{"GerJapDub", ""},          // composed language tag
+		{"GerDub,GerSub,XY", "XY"}, // language tags stripped, tag rest kept
+		{"FakeSubs", "FakeSubs"},   // real-looking group survives
+		{"1080p", ""},              // resolution
+		{"Web-DL", ""},             // tech term
+		{"x265", ""},               // codec
+	}
+	for _, c := range cases {
+		if got := cleanGroup(c.in); got != c.want {
+			t.Errorf("cleanGroup(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestTemplateLangAndQuality(t *testing.T) {
+	got, err := New("Some Show E01 [1080p][AAC][JapDub][GerEngSub][Web-DL].mkv", Options{
+		Mode: "template", Template: "{title} - S{season:02}E{episode:02} [{dub}][{sub}][{resolution}]",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "Some Show - S01E01 [JapDub][GerEngSub][1080p].mkv" {
+		t.Errorf("got %q", got)
+	}
+	// language tag must never leak into {group}
+	if _, err := New("Some Show E01 [JapDub][GerEngSub].mkv", Options{
+		Mode: "template", Template: "[{group}] {title}",
+	}); err == nil {
+		t.Error("expected missing-group error, language tag treated as group")
+	}
+}
+
 func TestSanitize(t *testing.T) {
 	if s := sanitize("a/b\\c:d*e?f\"g<h>i|j"); s != "abcdefghij" {
 		t.Errorf("got %q", s)
