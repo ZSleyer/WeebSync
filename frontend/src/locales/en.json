@@ -320,7 +320,10 @@
     "folder": "Plex folder",
     "folderHint": "Where the series is stored so far, continue there for consistent storage.",
     "candidates": "Remote candidates from the index",
-    "openBrowser": "Open in browser"
+    "openBrowser": "Open in browser",
+    "syncOnce": "Sync",
+    "watchHint": "Create an auto-sync, prefilled with the Plex folder name and a rename suggestion.",
+    "syncHint": "One-time download into the Plex folder name under downloads/."
   },
   "suggestions": {
     "title": "SUGGESTIONS",
