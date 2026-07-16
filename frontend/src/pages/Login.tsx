@@ -23,7 +23,15 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+
+  // email verification redirect lands here with ?verify=ok|invalid
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('verify')
+    if (v === 'ok') setNotice(t('login.verifyOk'))
+    else if (v === 'invalid') setError(t('login.verifyInvalid'))
+  }, [t])
 
   // oidc-auto: straight to the provider; ?noredirect=1 is the escape hatch
   // (e.g. admin needs the password form while the provider is down)
@@ -42,8 +50,16 @@ export default function Login() {
     e.preventDefault()
     setBusy(true)
     setError('')
+    setNotice('')
     try {
-      await api.post<User>(`/api/auth/${mode}`, { email, password })
+      const res = await api.post<User & { needsVerification?: boolean }>(`/api/auth/${mode}`, { email, password })
+      if (res.needsVerification) {
+        // account created but must confirm email before logging in
+        setNotice(t('login.verifySent'))
+        setMode('login')
+        setPassword('')
+        return
+      }
       await qc.invalidateQueries({ queryKey: ['me'] })
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
@@ -133,6 +149,11 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            {notice && (
+              <p className="mb-3 border border-ok/40 px-3 py-2 text-sm text-ok" role="status">
+                {notice}
+              </p>
+            )}
             {error && (
               <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
                 {error}

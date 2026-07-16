@@ -6,11 +6,13 @@ import (
 	"io"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/netguard"
 )
 
 type credentials struct {
@@ -53,14 +55,36 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "hash error")
 		return
 	}
+	// Email verification is required for local accounts only when SMTP is set
+	// up, and never for the very first account (the admin during first-run,
+	// before SMTP can exist) — requiring it there would lock the instance out.
+	var existing int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&existing)
+	needVerify := existing > 0 && s.Mail != nil && s.Mail.Configured()
+
+	verified, token := 1, ""
+	if needVerify {
+		verified, token = 0, randToken()
+	}
 	// first user becomes admin
-	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin)
-		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users))`, c.Email, hash)
+	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin, email_verified, verify_token)
+		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?)`, c.Email, hash, verified, token)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "email already registered")
 		return
 	}
 	id, _ := res.LastInsertId()
+
+	// notify admins who subscribed (skip the very first account — it IS the admin)
+	if existing > 0 {
+		s.EmailNotifyAdmins("admin_new_user", "Neue Registrierung", "Neues Konto registriert: "+c.Email)
+	}
+
+	if needVerify {
+		go s.sendVerifyEmail(c.Email, token, requestOrigin(r))
+		writeJSON(w, http.StatusOK, map[string]any{"needsVerification": true, "email": c.Email})
+		return
+	}
 	if err := auth.CreateSession(s.DB, w, r, id); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
@@ -80,13 +104,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	c.Email = strings.TrimSpace(strings.ToLower(c.Email))
 	var id int64
 	var hash string
-	err := s.DB.QueryRow(`SELECT id, password_hash FROM users WHERE email = ?`, c.Email).Scan(&id, &hash)
+	var verified int
+	err := s.DB.QueryRow(`SELECT id, password_hash, email_verified FROM users WHERE email = ?`, c.Email).Scan(&id, &hash, &verified)
+	if err != nil && err != sql.ErrNoRows {
+		writeErr(w, http.StatusInternalServerError, "db error")
+		return
+	}
 	if err == sql.ErrNoRows || hash == "" || !auth.VerifyPassword(c.Password, hash) {
 		writeErr(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+	if verified == 0 {
+		writeErr(w, http.StatusForbidden, "email not verified — check your inbox")
 		return
 	}
 	if err := auth.CreateSession(s.DB, w, r, id); err != nil {
@@ -111,7 +140,11 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 // afterwards OIDC config requires an admin session via the settings API.
 func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 	var users int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users)
+	// fail closed: a db error must not reopen the unauthenticated setup path
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db error")
+		return
+	}
 	if users > 0 {
 		writeErr(w, http.StatusForbidden, "setup already completed")
 		return
@@ -157,7 +190,11 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 // admin session afterwards.
 func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 	var users int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users)
+	// fail closed: a db error must not reopen the unauthenticated probe
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db error")
+		return
+	}
 	if u := auth.UserFrom(r.Context()); users > 0 && (u == nil || !u.IsAdmin) {
 		writeErr(w, http.StatusForbidden, "admin only")
 		return
@@ -178,6 +215,14 @@ func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 	}
 	base = strings.TrimSuffix(base, "/.well-known/openid-configuration")
 	base = strings.TrimRight(base, "/")
+
+	if u, uerr := url.Parse(base); uerr != nil || u.Hostname() == "" {
+		writeErr(w, http.StatusBadRequest, "invalid url")
+		return
+	} else if err := netguard.Allowed(u.Hostname()); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	for _, cand := range []string{base, base + "/oidc"} {

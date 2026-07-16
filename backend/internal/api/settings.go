@@ -1,13 +1,39 @@
 package api
 
 import (
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
+
+// validateTrustedNetworks rejects a CSV that contains anything but valid CIDRs
+// or bare IPs, so a typo can't silently disable the rate-limit bypass.
+func validateTrustedNetworks(csv string) error {
+	for _, part := range strings.Split(csv, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.Contains(part, "/") {
+			if _, _, err := net.ParseCIDR(part); err != nil {
+				return fmt.Errorf("invalid network %q", part)
+			}
+		} else if net.ParseIP(part) == nil {
+			return fmt.Errorf("invalid ip %q", part)
+		}
+	}
+	return nil
+}
 
 // Secrets are write-only: GET reports only whether they are set, PUT with
 // an empty string keeps the stored value, "-" clears it.
@@ -16,7 +42,8 @@ type settingsPayload struct {
 	GlobalRateLimit      int64  `json:"globalRateLimit"`  // bytes/s, 0 = unlimited
 	WatchIntervalMin     int64  `json:"watchIntervalMin"` // global auto-sync check interval
 	RegistrationDisabled bool   `json:"registrationDisabled"`
-	AuthMode             string `json:"authMode"` // password | oidc-only | oidc-auto
+	TrustedNetworks      string `json:"trustedNetworks"` // csv of CIDRs/IPs that bypass the login rate limit
+	AuthMode             string `json:"authMode"`        // password | oidc-only | oidc-auto
 	AnilistClientID      string `json:"anilistClientId"`
 	AnilistSecretSet     bool   `json:"anilistSecretSet"`
 	AnilistClientSecret  string `json:"anilistClientSecret,omitempty"` // write-only
@@ -38,6 +65,13 @@ type settingsPayload struct {
 	OidcUserValues       string `json:"oidcUserValues"`             // csv login allowlist, empty = everyone
 	OidcEnabled          bool   `json:"oidcEnabled"`
 	OidcError            string `json:"oidcError,omitempty"`
+	SmtpHost             string `json:"smtpHost"`
+	SmtpPort             int64  `json:"smtpPort"`
+	SmtpUsername         string `json:"smtpUsername"`
+	SmtpFrom             string `json:"smtpFrom"`
+	SmtpSecurity         string `json:"smtpSecurity"` // starttls | tls | none
+	SmtpPasswordSet      bool   `json:"smtpPasswordSet"`
+	SmtpPassword         string `json:"smtpPassword,omitempty"` // write-only
 }
 
 func (s *Server) settingsState() settingsPayload {
@@ -46,11 +80,13 @@ func (s *Server) settingsState() settingsPayload {
 		conc = 3
 	}
 	limit, _ := strconv.ParseInt(db.Setting(s.DB, "global_rate_limit"), 10, 64)
+	smtpPort, _ := strconv.ParseInt(db.SettingOrEnv(s.DB, "smtp_port", "SMTP_PORT"), 10, 64)
 	return settingsPayload{
 		MaxConcurrent:        conc,
 		GlobalRateLimit:      limit,
 		WatchIntervalMin:     int64(s.watchInterval()),
 		RegistrationDisabled: auth.RegistrationDisabled(s.DB),
+		TrustedNetworks:      db.Setting(s.DB, "trusted_networks"),
 		AuthMode:             auth.AuthMode(s.DB),
 		AnilistClientID:      db.SettingOrEnv(s.DB, "anilist_client_id", "ANILIST_CLIENT_ID"),
 		AnilistSecretSet:     db.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET") != "",
@@ -68,7 +104,20 @@ func (s *Server) settingsState() settingsPayload {
 		OidcAdminValues:      db.SettingOrEnv(s.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES"),
 		OidcUserValues:       db.SettingOrEnv(s.DB, "oidc_user_values", "OIDC_USER_VALUES"),
 		OidcEnabled:          s.OIDC.Enabled(),
+		SmtpHost:             db.SettingOrEnv(s.DB, "smtp_host", "SMTP_HOST"),
+		SmtpPort:             smtpPort,
+		SmtpUsername:         db.SettingOrEnv(s.DB, "smtp_username", "SMTP_USERNAME"),
+		SmtpFrom:             db.SettingOrEnv(s.DB, "smtp_from", "SMTP_FROM"),
+		SmtpSecurity:         smtpSecurity(s.DB),
+		SmtpPasswordSet:      db.Setting(s.DB, "smtp_password") != "" || os.Getenv("SMTP_PASSWORD") != "",
 	}
+}
+
+func smtpSecurity(d *sql.DB) string {
+	if v := db.SettingOrEnv(d, "smtp_security", "SMTP_SECURITY"); v != "" {
+		return v
+	}
+	return "starttls"
 }
 
 func (s *Server) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +156,12 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	db.SetSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
 	db.SetSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
 	db.SetSetting(s.DB, "watch_interval_min", strconv.FormatInt(in.WatchIntervalMin, 10))
+	if err := validateTrustedNetworks(in.TrustedNetworks); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	db.SetSetting(s.DB, "registration_disabled", strconv.FormatBool(in.RegistrationDisabled))
+	db.SetSetting(s.DB, "trusted_networks", strings.TrimSpace(in.TrustedNetworks))
 	db.SetSetting(s.DB, "auth_mode", in.AuthMode)
 	db.SetSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
 	db.SetSetting(s.DB, "oidc_issuer", in.OidcIssuer)
@@ -140,6 +194,31 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		db.SetSetting(s.DB, "oidc_client_secret", "")
 	} else if in.OidcClientSecret != "" {
 		db.SetSetting(s.DB, "oidc_client_secret", in.OidcClientSecret)
+	}
+
+	// SMTP
+	switch in.SmtpSecurity {
+	case "", "starttls", "tls", "none":
+	default:
+		writeErr(w, http.StatusBadRequest, "invalid smtpSecurity")
+		return
+	}
+	db.SetSetting(s.DB, "smtp_host", strings.TrimSpace(in.SmtpHost))
+	db.SetSetting(s.DB, "smtp_port", strconv.FormatInt(in.SmtpPort, 10))
+	db.SetSetting(s.DB, "smtp_username", in.SmtpUsername)
+	db.SetSetting(s.DB, "smtp_from", strings.TrimSpace(in.SmtpFrom))
+	db.SetSetting(s.DB, "smtp_security", in.SmtpSecurity)
+	// password is write-only and stored encrypted: "" keeps, "-" clears
+	if in.SmtpPassword == "-" {
+		db.SetSetting(s.DB, "smtp_password", "")
+	} else if in.SmtpPassword != "" {
+		enc, err := secret.Encrypt(in.SmtpPassword)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "encrypt error")
+			return
+		}
+		// settings are TEXT: base64 so the raw AES bytes survive storage
+		db.SetSetting(s.DB, "smtp_password", base64.StdEncoding.EncodeToString(enc))
 	}
 
 	s.Transfers.SettingsChanged()

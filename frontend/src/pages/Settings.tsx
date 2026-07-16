@@ -13,6 +13,7 @@ interface SettingsState {
   globalRateLimit: number
   watchIntervalMin: number
   registrationDisabled: boolean
+  trustedNetworks: string
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
   anilistClientId: string
   anilistSecretSet: boolean
@@ -35,6 +36,13 @@ interface SettingsState {
   oidcUserValues: string
   oidcEnabled: boolean
   oidcError?: string
+  smtpHost: string
+  smtpPort: number
+  smtpUsername: string
+  smtpFrom: string
+  smtpSecurity: 'starttls' | 'tls' | 'none'
+  smtpPasswordSet: boolean
+  smtpPassword?: string
 }
 
 export default function Settings() {
@@ -49,14 +57,14 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   useEffect(() => {
     if (data && !form)
-      setForm({ ...data, anilistClientSecret: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '', oidcClaim: data.oidcClaim || 'groups' })
+      setForm({ ...data, anilistClientSecret: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '', smtpPassword: '', oidcClaim: data.oidcClaim || 'groups' })
   }, [data, form])
 
   const save = useMutation({
     mutationFn: (s: SettingsState) => api.put<SettingsState>('/api/settings', s),
     onSuccess: (fresh) => {
       qc.setQueryData(['settings'], fresh)
-      setForm({ ...fresh, anilistClientSecret: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '' })
+      setForm({ ...fresh, anilistClientSecret: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '', smtpPassword: '' })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
@@ -137,6 +145,17 @@ export default function Settings() {
                   onChange={(e) => set('registrationDisabled', e.target.checked)}
                 />
                 {t('settings.registrationDisabled')}
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.trustedNetworks')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  type="text"
+                  placeholder="192.168.0.0/16, 10.0.0.0/8"
+                  value={form.trustedNetworks}
+                  onChange={(e) => set('trustedNetworks', e.target.value)}
+                />
+                <span className="mt-1 block text-xs text-t-muted">{t('settings.trustedNetworksHint')}</span>
               </label>
               <label className="text-xs text-t-muted">
                 {t('settings.authMode')}
@@ -349,6 +368,78 @@ export default function Settings() {
             </div>
           </section>
 
+          <section className="t-panel mb-4 p-5" aria-label={t('settings.email')}>
+            <span className="t-label t-label--accent">{t('settings.email')}</span>
+            <p className="mt-2 text-xs text-t-muted">{t('settings.emailHint')}</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs text-t-muted sm:col-span-2">
+                {t('settings.smtpHost')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  placeholder="smtp.example.com"
+                  value={form.smtpHost}
+                  onChange={(e) => set('smtpHost', e.target.value)}
+                />
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.smtpPort')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  placeholder="587"
+                  value={form.smtpPort || ''}
+                  onChange={(e) => set('smtpPort', Number(e.target.value))}
+                />
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.smtpSecurity')}
+                <span className="t-select-wrap mt-1">
+                  <select
+                    className="t-select"
+                    value={form.smtpSecurity}
+                    onChange={(e) => set('smtpSecurity', e.target.value as SettingsState['smtpSecurity'])}
+                  >
+                    <option value="starttls">STARTTLS (587)</option>
+                    <option value="tls">TLS (465)</option>
+                    <option value="none">{t('settings.smtpSecurityNone')}</option>
+                  </select>
+                </span>
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.smtpUsername')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  autoComplete="off"
+                  value={form.smtpUsername}
+                  onChange={(e) => set('smtpUsername', e.target.value)}
+                />
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.smtpPassword')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  type="password"
+                  autoComplete="off"
+                  placeholder={form.smtpPasswordSet ? t('settings.secretSet') : t('settings.secretUnset')}
+                  value={form.smtpPassword ?? ''}
+                  onChange={(e) => set('smtpPassword', e.target.value)}
+                />
+              </label>
+              <label className="text-xs text-t-muted sm:col-span-2">
+                {t('settings.smtpFrom')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  placeholder="weebsync@example.com"
+                  value={form.smtpFrom}
+                  onChange={(e) => set('smtpFrom', e.target.value)}
+                />
+                <span className="mt-1 block">{t('settings.smtpFromHint')}</span>
+              </label>
+            </div>
+          </section>
+
           <div className="mb-6 flex items-center gap-3">
             <button className="t-btn t-btn--primary t-cut" onClick={() => save.mutate(form)} disabled={save.isPending}>
               {t('settings.save')}
@@ -364,6 +455,8 @@ export default function Settings() {
       )}
 
       {isAdmin && user && <UsersSection meId={user.id} />}
+      {isAdmin && <RateLimitSection />}
+      <EmailPrefsSection />
       <PushSection />
       <LookSection locales={LOCALES} language={i18n.language} onLanguage={(l) => i18n.changeLanguage(l)} />
     </div>
@@ -479,24 +572,150 @@ function UsersSection({ meId }: { meId: number }) {
   )
 }
 
+interface EmailPrefs {
+  enabled: string[]
+  available: string[]
+  smtpAvailable: boolean
+}
+
+function EmailPrefsSection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [error, setError] = useState('')
+  const { data } = useQuery<EmailPrefs>({
+    queryKey: ['email-prefs'],
+    queryFn: () => api.get('/api/auth/email-prefs'),
+  })
+  const save = useMutation({
+    mutationFn: (enabled: string[]) => api.put('/api/auth/email-prefs', { enabled }),
+    onSuccess: () => {
+      setError('')
+      qc.invalidateQueries({ queryKey: ['email-prefs'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+  if (!data) return null
+
+  const toggle = (cat: string, on: boolean) => {
+    const next = on ? [...data.enabled, cat] : data.enabled.filter((c) => c !== cat)
+    save.mutate(next)
+  }
+
+  return (
+    <section className="t-panel mb-4 p-5" aria-label={t('settings.emailNotifications')}>
+      <span className="t-label t-label--accent">{t('settings.emailNotifications')}</span>
+      {!data.smtpAvailable ? (
+        <p className="mt-2 text-sm text-t-secondary">{t('settings.emailNotConfigured')}</p>
+      ) : (
+        <div className="mt-3 grid grid-cols-1 gap-2">
+          {data.available.map((cat) => (
+            <label key={cat} className="flex items-center gap-2 text-sm text-t-secondary">
+              <input
+                type="checkbox"
+                checked={data.enabled.includes(cat)}
+                disabled={save.isPending}
+                onChange={(e) => toggle(cat, e.target.checked)}
+              />
+              {t(`settings.emailCat_${cat}`)}
+            </label>
+          ))}
+        </div>
+      )}
+      {error && (
+        <p className="mt-2 text-xs text-err" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  )
+}
+
+interface IpStatus {
+  ip: string
+  blocked: boolean
+  tokens: number
+}
+
+function RateLimitSection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [error, setError] = useState('')
+  const { data: ips } = useQuery<IpStatus[]>({
+    queryKey: ['ratelimit'],
+    queryFn: () => api.get('/api/auth/ratelimit'),
+    refetchInterval: 10000,
+  })
+  const opts = {
+    onSuccess: () => {
+      setError('')
+      qc.invalidateQueries({ queryKey: ['ratelimit'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  }
+  const reset = useMutation({ mutationFn: (ip: string) => api.post('/api/auth/ratelimit/reset', { ip }), ...opts })
+  const resetAll = useMutation({ mutationFn: () => api.post('/api/auth/ratelimit/reset', { all: true }), ...opts })
+
+  const list = ips ?? []
+  return (
+    <section className="t-panel mb-4 p-5" aria-label={t('settings.rateLimit')}>
+      <span className="t-label t-label--accent">{t('settings.rateLimit')}</span>
+      <p className="mt-2 text-xs text-t-muted">{t('settings.rateLimitHint')}</p>
+      {list.length === 0 ? (
+        <p className="mt-3 text-sm text-t-secondary">{t('settings.rateLimitEmpty')}</p>
+      ) : (
+        <>
+          <ul className="mt-3 grid grid-cols-1 gap-2">
+            {list.map((s) => (
+              <li key={s.ip} className="flex flex-wrap items-center gap-2 border-b border-border-subtle pb-2 text-sm">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-secondary" title={s.ip}>
+                  {s.ip}
+                </span>
+                <span className={`t-label ${s.blocked ? 't-label--err' : ''}`}>
+                  {s.blocked ? t('settings.rateLimitBlocked') : t('settings.rateLimitOk')}
+                </span>
+                <button className="t-btn t-btn--sm" disabled={reset.isPending} onClick={() => reset.mutate(s.ip)}>
+                  {t('settings.rateLimitUnblock')}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button className="t-btn t-btn--sm mt-3" disabled={resetAll.isPending} onClick={() => resetAll.mutate()}>
+            {t('settings.rateLimitUnblockAll')}
+          </button>
+        </>
+      )}
+      {error && (
+        <p className="mt-2 text-xs text-err" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  )
+}
+
 function PushSection() {
   const { t } = useTranslation()
   const [enabled, setEnabled] = useState(false)
   const [state, setState] = useState<'ok' | 'denied' | 'unsupported' | ''>('')
   useEffect(() => {
-    pushSubscription().then((s) => setEnabled(!!s))
+    pushSubscription().then((s) => setEnabled(!!s)).catch(() => {})
     if (!pushSupported()) setState('unsupported')
   }, [])
 
   const toggle = async (on: boolean) => {
-    if (on) {
-      const r = await subscribePush()
-      setState(r)
-      setEnabled(r === 'ok')
-    } else {
-      await unsubscribePush()
-      setEnabled(false)
-      setState('')
+    try {
+      if (on) {
+        const r = await subscribePush()
+        setState(r)
+        setEnabled(r === 'ok')
+      } else {
+        await unsubscribePush()
+        setEnabled(false)
+        setState('')
+      }
+    } catch {
+      // subscribe/unsubscribe failed (API or PushManager) — reflect reality
+      setEnabled(!!(await pushSubscription().catch(() => null)))
     }
   }
 
@@ -659,6 +878,7 @@ function PlexSections({ value, onChange }: { value: string; onChange: (v: string
 function AnilistAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [error, setError] = useState('')
   const { data } = useQuery<{ configured: boolean; connected: boolean; name?: string; expiresAt?: string }>({
     queryKey: ['anilist-me'],
     queryFn: () => api.get('/api/anilist/me'),
@@ -680,12 +900,22 @@ function AnilistAccount() {
           <button
             className="t-btn t-btn--sm"
             onClick={async () => {
-              await api.del('/api/anilist/connect')
-              qc.invalidateQueries({ queryKey: ['anilist-me'] })
+              try {
+                await api.del('/api/anilist/connect')
+                setError('')
+                qc.invalidateQueries({ queryKey: ['anilist-me'] })
+              } catch (err) {
+                setError(err instanceof Error ? err.message : t('app.error'))
+              }
             }}
           >
             {t('settings.anilistDisconnect')}
           </button>
+          {error && (
+            <span className="text-err" role="alert">
+              {error}
+            </span>
+          )}
         </>
       ) : (
         <>
