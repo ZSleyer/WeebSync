@@ -125,7 +125,11 @@
     "scopeInherited": "geerbt",
     "scopeInheritedHint": "Markierung stammt von einem übergeordneten Ordner.",
     "scopeClear": "Markierung entfernen",
-    "scopeClearHint": "Eigene Markierung löschen, es gilt wieder der übergeordnete Ordner."
+    "scopeClearHint": "Eigene Markierung löschen, es gilt wieder der übergeordnete Ordner.",
+    "scopeNone": "Quelle wählen…",
+    "scopePick": "Für diesen Ordner ist noch keine Metadaten-Quelle gewählt. Auswahl wird gespeichert und gilt für alle Unterordner.",
+    "undoSync": "Abbrechen",
+    "syncCanceled": "{{count}} Download(s) abgebrochen."
   },
   "watch": {
     "title": "AUTO-SYNC",

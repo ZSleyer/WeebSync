@@ -151,6 +151,7 @@ function PlexSection() {
   })
   const [watch, setWatch] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
   const [notice, setNotice] = useState('')
+  const [lastIds, setLastIds] = useState<number[]>([])
 
   const refresh = async () => {
     await api.get('/api/plex/suggestions?force=1')
@@ -174,14 +175,16 @@ function PlexSection() {
 
   const syncOnce = async (s: PlexSuggestions['suggestions'][number], serverId: number, path: string) => {
     try {
-      const r = await api.post<{ queued: number }>('/api/downloads', {
+      const r = await api.post<{ queued: number; ids: number[] }>('/api/downloads', {
         serverId,
         remotePath: path,
         localPath: s.folder ? (s.folder.split('/').pop() ?? '') : '',
       })
       setNotice(t('browser.queued', { count: r.queued }))
+      setLastIds(r.ids ?? [])
     } catch (err) {
       setNotice(err instanceof Error ? err.message : t('app.error'))
+      setLastIds([])
     }
   }
 
@@ -297,8 +300,20 @@ function PlexSection() {
         </ul>
       )}
       {notice && (
-        <p className="mt-3 text-center text-xs text-t-secondary" role="status">
+        <p className="mt-3 flex items-center justify-center gap-2 text-xs text-t-secondary" role="status">
           {notice}
+          {lastIds.length > 0 && (
+            <button
+              className="t-btn t-btn--sm t-btn--danger"
+              onClick={async () => {
+                const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
+                setNotice(t('browser.syncCanceled', { count: out.canceled }))
+                setLastIds([])
+              }}
+            >
+              {t('browser.undoSync')}
+            </button>
+          )}
         </p>
       )}
       {watch && (

@@ -50,12 +50,31 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	queued, _, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, false)
+	ids, _, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, false)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]int{"queued": queued})
+	writeJSON(w, http.StatusCreated, map[string]any{"queued": len(ids), "ids": ids})
+}
+
+// handleDownloadsCancel cancels a batch of downloads (undo for an
+// accidental sync click); done/errored entries are skipped silently.
+func (s *Server) handleDownloadsCancel(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	var in struct {
+		IDs []int64 `json:"ids"`
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	canceled := 0
+	for _, id := range in.IDs {
+		if s.Transfers.Cancel(u.ID, id) == nil {
+			canceled++
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"canceled": canceled})
 }
 
 func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFunc {
