@@ -68,6 +68,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/browse/local", authed(http.HandlerFunc(s.handleBrowseLocal)))
 	mux.Handle("POST /api/browse/local/mkdir", authed(http.HandlerFunc(s.handleMkdirLocal)))
 	mux.Handle("GET /api/servers/{id}/browse", authed(http.HandlerFunc(s.handleBrowseRemote)))
+	mux.Handle("GET /api/servers/{id}/search", authed(http.HandlerFunc(s.handleServerSearch)))
 
 	// downloads
 	mux.Handle("GET /api/downloads", authed(http.HandlerFunc(s.handleDownloadsList)))

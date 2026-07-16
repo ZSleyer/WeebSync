@@ -103,7 +103,7 @@
     "matchingCount": "{{count}} folders matching in the background…",
     "changeMatch": "Change match",
     "matchFor": "AniList match for {{name}}",
-    "search": "Search",
+    "search": "Search…",
     "removeMatch": "Remove match",
     "close": "Close",
     "select": "select",
@@ -113,7 +113,10 @@
     "emptyLocal": "empty, create a subfolder below",
     "path": "Path",
     "thisFolder": "This folder: {{name}}",
-    "localTarget": "Local target"
+    "localTarget": "Local target",
+    "noResults": "No matches in the index.",
+    "indexBuilding": "The index is still being built and improves over time.",
+    "indexCount": "{{count}} entries in the index"
   },
   "watch": {
     "title": "AUTO-SYNC",

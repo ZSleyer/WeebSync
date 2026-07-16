@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import { api, type CatalogItem, type Entry, type Media, type ServerInfo } from '../api'
+import { Link, useSearchParams } from 'react-router-dom'
+import { api, fmtBytes, type CatalogItem, type Entry, type Media, type SearchResult, type ServerInfo } from '../api'
 import { FileBrowser, LocalPicker } from '../components/FileBrowser'
 import WatchDialog from '../components/WatchDialog'
 
@@ -12,13 +12,16 @@ export default function Browser() {
     queryKey: ['servers'],
     queryFn: () => api.get('/api/servers'),
   })
-  const [serverId, setServerId] = useState<number>(0)
+  const [params] = useSearchParams()
+  const [serverId, setServerId] = useState<number>(Number(params.get('server')) || 0)
   const [view, setView] = useState<'classic' | 'catalog'>('classic')
-  const [remotePath, setRemotePath] = useState('')
+  // deep links (e.g. Plex suggestions) open the browser at a remote path
+  const [remotePath, setRemotePath] = useState((params.get('path') ?? '').replace(/^\//, ''))
   const [localPath, setLocalPath] = useState('')
   const [selection, setSelection] = useState<Entry | null>(null)
   const [notice, setNotice] = useState('')
   const [watchOpen, setWatchOpen] = useState(false)
+  const [query, setQuery] = useState('')
 
   const active = serverId || servers[0]?.id || 0
 
@@ -84,11 +87,31 @@ export default function Browser() {
         <section className="t-panel flex min-h-64 flex-col lg:min-h-0" aria-label={t('browser.remote')}>
           <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
             <span className="t-label t-label--accent">{t('browser.remote')}</span>
-            <span className="truncate font-mono text-xs text-t-muted">
+            <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">
               {selection ? selection.path : t('browser.noSelection')}
             </span>
+            <input
+              className="t-input w-40 py-1 text-xs sm:w-56"
+              type="search"
+              placeholder={t('browser.search')}
+              aria-label={t('browser.search')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
           </div>
-          {view === 'classic' ? (
+          {query.trim() ? (
+            <SearchResults
+              serverId={active}
+              query={query}
+              onOpenDir={(p) => {
+                setRemotePath(p.replace(/^\//, ''))
+                setSelection(null)
+                setQuery('')
+              }}
+              onSelect={setSelection}
+              selected={selection?.path}
+            />
+          ) : view === 'classic' ? (
             <FileBrowser
               queryKey={['remote', active]}
               fetchPath={(p) => `/api/servers/${active}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`}
@@ -150,6 +173,71 @@ export default function Browser() {
           }}
           onClose={() => setWatchOpen(false)}
         />
+      )}
+    </div>
+  )
+}
+
+// Search over the server's remote index (built passively + by the crawler,
+// may be incomplete while it grows).
+function SearchResults({
+  serverId,
+  query,
+  onOpenDir,
+  onSelect,
+  selected,
+}: {
+  serverId: number
+  query: string
+  onOpenDir: (path: string) => void
+  onSelect: (e: Entry) => void
+  selected?: string
+}) {
+  const { t } = useTranslation()
+  const [q, setQ] = useState(query)
+  useEffect(() => {
+    const id = setTimeout(() => setQ(query), 300)
+    return () => clearTimeout(id)
+  }, [query])
+  const { data, isLoading } = useQuery<SearchResult>({
+    queryKey: ['search', serverId, q],
+    queryFn: () => api.get(`/api/servers/${serverId}/search?q=${encodeURIComponent(q)}`),
+    enabled: !!q.trim(),
+  })
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      {isLoading && <p className="p-4 text-sm text-t-muted">{t('app.loading')}…</p>}
+      {data && data.results.length === 0 && (
+        <p className="p-4 text-sm text-t-muted">
+          {t('browser.noResults')}
+          {data.indexed < 100 && <span className="mt-1 block text-xs">{t('browser.indexBuilding')}</span>}
+        </p>
+      )}
+      <ul>
+        {data?.results.map((e) => (
+          <li key={e.path} className="border-b border-border-subtle/50">
+            <button
+              type="button"
+              className={`flex w-full min-w-0 items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${
+                selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'
+              }`}
+              onClick={() => (e.isDir ? onOpenDir(e.path) : onSelect(e))}
+            >
+              <span aria-hidden className={`font-mono text-xs ${e.isDir ? 'text-accent' : 'text-t-faint'}`}>
+                {e.isDir ? '▸' : '·'}
+              </span>
+              <span className="min-w-0 flex-1 truncate">
+                {e.name}
+                <span className="mt-0.5 block truncate font-mono text-[10px] text-t-faint">{e.path}</span>
+              </span>
+              {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {data && (
+        <p className="px-3 py-2 text-[10px] text-t-faint">{t('browser.indexCount', { count: data.indexed })}</p>
       )}
     </div>
   )

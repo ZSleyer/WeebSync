@@ -67,6 +67,7 @@ func main() {
 		}
 	}
 	go srv.WatchLoop(context.Background())
+	go srv.IndexLoop(context.Background())
 	mux := http.NewServeMux()
 	srv.Register(mux)
 	mux.Handle("/", spaHandler(webDir))
