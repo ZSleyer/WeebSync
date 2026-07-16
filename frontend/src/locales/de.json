@@ -13,7 +13,8 @@
     "rename": "Umbenennen",
     "settings": "Einstellungen",
     "main": "Hauptnavigation",
-    "suggestions": "Vorschläge"
+    "suggestions": "Vorschläge",
+    "more": "Mehr"
   },
   "login": {
     "tagline": "s/ftp anime sync · privatgebrauch",
@@ -70,7 +71,23 @@
     "retry": "Erneut",
     "remove": "Eintrag {{id}} entfernen",
     "limit": "Limit",
-    "progressOf": "Fortschritt {{name}}"
+    "progressOf": "Fortschritt {{name}}",
+    "pauseAll": "Alle pausieren",
+    "resumeAll": "Alle fortsetzen",
+    "cancelAll": "Alle abbrechen",
+    "cancelAllConfirm": "Alle aktiven und wartenden Downloads abbrechen?",
+    "search": "Warteschlange durchsuchen…",
+    "filterStatus": "Nach Status filtern",
+    "filterClear": "Zurücksetzen",
+    "noMatches": "Keine Downloads passen zum Filter.",
+    "globalLimit": "Globales Limit",
+    "selectAll": "Alle auswählen",
+    "select": "{{name}} auswählen",
+    "selectedCount": "{{count}} ausgewählt",
+    "selectionActions": "Aktionen für Auswahl",
+    "removeSelected": "Entfernen",
+    "clearSelection": "Auswahl aufheben",
+    "limitUnit": "Einheit des Limits"
   },
   "browser": {
     "title": "BROWSER",
@@ -134,7 +151,9 @@
     "scopeNone": "Quelle wählen…",
     "scopePick": "Für diesen Ordner ist noch keine Metadaten-Quelle gewählt. Auswahl wird gespeichert und gilt für alle Unterordner.",
     "undoSync": "Abbrechen",
-    "syncCanceled": "{{count}} Download(s) abgebrochen."
+    "syncCanceled": "{{count}} Download(s) abgebrochen.",
+    "createFolder": "Neuen Ordner erstellen",
+    "flatSync": "Dateien direkt ins Ziel schreiben (kein Unterordner) — z. B. für Titel/Season 01/-Strukturen"
   },
   "watch": {
     "title": "AUTO-SYNC",
@@ -257,7 +276,7 @@
     "notifications": "benachrichtigungen",
     "pushEnable": "Push-Benachrichtigungen aktivieren",
     "pushHint": "Meldung bei fertigen oder fehlgeschlagenen Downloads. Auf iOS erst nach \"Zum Home-Bildschirm hinzufügen\" verfügbar.",
-    "pushDenied": "Benachrichtigungen im Browser blockiert.",
+    "pushDenied": "Benachrichtigungen sind für diese Seite im Browser blockiert. Über das Symbol in der Adressleiste erlauben (Firefox: Schild/Berechtigungen; Chrome: Schloss → Website-Einstellungen → Benachrichtigungen), dann erneut aktivieren. Hinweis: Push funktioniert nur über https:// oder localhost; private Fenster blockieren immer.",
     "pushUnsupported": "Dieser Browser unterstützt kein Web-Push.",
     "oidcMigrationHint": "Bestehende lokale Konten werden beim ersten OIDC-Login automatisch über die Email-Adresse verknüpft.",
     "plex": "Plex",
@@ -266,7 +285,7 @@
     "plexToken": "Plex-Token",
     "plexTokenHint": "X-Plex-Token deines Servers, findbar über die Plex-Weboberfläche (XML-Ansicht eines Titels).",
     "plexSections": "Bibliotheken für Vorschläge",
-    "plexSectionsHint": "Keine Auswahl = alle Serien- und Film-Bibliotheken. Nur Anime-Bibliotheken auszuwählen spart AniList-Anfragen.",
+    "plexSectionsHint": "Keine Auswahl = alle Serien- und Film-Bibliotheken. Pro Bibliothek: AniList (Anime) oder TMDB (Live Action, API-Key nötig). Bibliotheken mit „anime\" im Namen wählen AniList vor.",
     "tmdbApiKey": "TMDB API-Key (Serien/Filme-Katalog)",
     "tmdbApiKeyHint": "Kostenloser Key von themoviedb.org (Einstellungen, API). Ohne Key bleibt die Serien/Filme-Markierung deaktiviert.",
     "anilistClientId": "AniList Client-ID",
@@ -297,7 +316,7 @@
     "smtpUsername": "Benutzername",
     "smtpPassword": "Passwort",
     "smtpFrom": "Absender (From)",
-    "smtpFromHint": "Absenderadresse der Mails. Leer = Benutzername.",
+    "smtpFromHint": "Absenderadresse (Envelope-From) — muss eine echte E-Mail-Adresse sein, z. B. no-reply@deine-domain. Ein bloßer Name wird von Relays umgeschrieben und als Spam markiert. Leer = Benutzername.",
     "emailNotifications": "E-Mail-Benachrichtigungen",
     "emailNotConfigured": "Kein SMTP-Server konfiguriert. Ein Admin muss zuerst SMTP einrichten.",
     "emailCat_download_done": "Download abgeschlossen",
@@ -332,7 +351,12 @@
     "anilistPinPlaceholder": "AniList-Access-Token",
     "anilistPinConnect": "Verbinden",
     "anilistPinGet": "Token bei AniList holen (öffnet neuen Tab, angezeigten Token kopieren)",
-    "anilistPinHint": "Redirect-URL der AniList-App auf https://anilist.co/api/v2/oauth/pin setzen, autorisieren und den angezeigten Token hier einfügen."
+    "anilistPinHint": "Redirect-URL der AniList-App auf https://anilist.co/api/v2/oauth/pin setzen, autorisieren und den angezeigten Token hier einfügen.",
+    "plexShows": "Serien",
+    "plexSource": "Metadaten-Quelle für {{name}}",
+    "instance": "Instanz",
+    "baseUrl": "Instanz-URL",
+    "baseUrlHint": "Öffentliche Adresse dieser WeebSync-Instanz — wird für Links in E-Mails genutzt (Bestätigung, Dashboard). Leer = aus der OIDC-Redirect-URL abgeleitet."
   },
   "status": {
     "queued": "wartend",
@@ -388,7 +412,8 @@
     "openBrowser": "Im Browser öffnen",
     "syncOnce": "Syncen",
     "watchHint": "Auto-Sync anlegen, vorbefüllt mit Plex-Ordnername und Rename-Vorschlag.",
-    "syncHint": "Einmalig in den Plex-Ordnernamen unter downloads/ herunterladen."
+    "syncHint": "Einmalig in den Plex-Ordnernamen unter downloads/ herunterladen.",
+    "open": "Öffnen"
   },
   "suggestions": {
     "title": "VORSCHLÄGE",
@@ -401,6 +426,7 @@
     "statusPLANNING": "geplant",
     "seen": "{{seen}} / {{total}} gesehen",
     "plusOne": "+1 gesehen",
-    "plusOneHint": "AniList-Fortschritt um eine Folge erhöhen."
+    "plusOneHint": "AniList-Fortschritt um eine Folge erhöhen.",
+    "plexFolder": "Plex-Ordner"
   }
 }

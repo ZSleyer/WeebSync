@@ -13,7 +13,8 @@
     "rename": "Rename",
     "settings": "Settings",
     "main": "Main navigation",
-    "suggestions": "Suggestions"
+    "suggestions": "Suggestions",
+    "more": "More"
   },
   "login": {
     "tagline": "s/ftp anime sync · private use",
@@ -70,7 +71,23 @@
     "retry": "Retry",
     "remove": "Remove entry {{id}}",
     "limit": "Limit",
-    "progressOf": "Progress {{name}}"
+    "progressOf": "Progress {{name}}",
+    "pauseAll": "Pause all",
+    "resumeAll": "Resume all",
+    "cancelAll": "Cancel all",
+    "cancelAllConfirm": "Cancel all active and queued downloads?",
+    "search": "Search queue…",
+    "filterStatus": "Filter by status",
+    "filterClear": "Clear",
+    "noMatches": "No downloads match the filter.",
+    "globalLimit": "Global limit",
+    "selectAll": "Select all",
+    "select": "Select {{name}}",
+    "selectedCount": "{{count}} selected",
+    "selectionActions": "Actions for selection",
+    "removeSelected": "Remove",
+    "clearSelection": "Clear selection",
+    "limitUnit": "Rate limit unit"
   },
   "browser": {
     "title": "BROWSER",
@@ -134,7 +151,9 @@
     "scopeNone": "Pick a source…",
     "scopePick": "No metadata source chosen for this folder yet. The choice is saved and applies to all subfolders.",
     "undoSync": "Cancel",
-    "syncCanceled": "{{count}} download(s) canceled."
+    "syncCanceled": "{{count}} download(s) canceled.",
+    "createFolder": "Create new folder",
+    "flatSync": "Write files directly into the target (no subfolder) — e.g. for Title/Season 01/ layouts"
   },
   "watch": {
     "title": "AUTO-SYNC",
@@ -257,7 +276,7 @@
     "notifications": "notifications",
     "pushEnable": "Enable push notifications",
     "pushHint": "Notifies on finished or failed downloads. On iOS available after \"Add to Home Screen\".",
-    "pushDenied": "Notifications are blocked in this browser.",
+    "pushDenied": "Notifications are blocked for this site in the browser. Allow them via the icon in the address bar (Firefox: shield/permissions; Chrome: lock → site settings → notifications), then try again. Note: push only works over https:// or localhost, and private windows always block it.",
     "pushUnsupported": "This browser does not support Web Push.",
     "oidcMigrationHint": "Existing local accounts are linked automatically by email address on first OIDC login.",
     "plex": "Plex",
@@ -266,7 +285,7 @@
     "plexToken": "Plex token",
     "plexTokenHint": "Your server's X-Plex-Token, findable via the Plex web UI (XML view of any item).",
     "plexSections": "Libraries for suggestions",
-    "plexSectionsHint": "No selection = all show and movie libraries. Picking only anime libraries saves AniList requests.",
+    "plexSectionsHint": "No selection = all show and movie libraries. Per library: AniList (anime) or TMDB (live action, API key required). Libraries with \"anime\" in the name preselect AniList.",
     "tmdbApiKey": "TMDB API key (series/movies catalog)",
     "tmdbApiKeyHint": "Free key from themoviedb.org (settings, API). Without a key the series/movies mark stays disabled.",
     "anilistClientId": "AniList client ID",
@@ -297,7 +316,7 @@
     "smtpUsername": "Username",
     "smtpPassword": "Password",
     "smtpFrom": "From address",
-    "smtpFromHint": "Sender address for emails. Empty = username.",
+    "smtpFromHint": "Sender address (envelope from) — must be a real email address, e.g. no-reply@your-domain. A bare name gets rewritten by relays and flagged as spam. Empty = username.",
     "emailNotifications": "Email notifications",
     "emailNotConfigured": "No SMTP server configured. An admin must set up SMTP first.",
     "emailCat_download_done": "Download finished",
@@ -332,7 +351,12 @@
     "anilistPinPlaceholder": "AniList access token",
     "anilistPinConnect": "Connect",
     "anilistPinGet": "Get a token from AniList (opens in a new tab, copy the shown token)",
-    "anilistPinHint": "Set the AniList app redirect URL to https://anilist.co/api/v2/oauth/pin, authorize, and paste the shown token here."
+    "anilistPinHint": "Set the AniList app redirect URL to https://anilist.co/api/v2/oauth/pin, authorize, and paste the shown token here.",
+    "plexShows": "Shows",
+    "plexSource": "Metadata source for {{name}}",
+    "instance": "Instance",
+    "baseUrl": "Instance URL",
+    "baseUrlHint": "Public address of this WeebSync instance — used for links in emails (verification, dashboard). Empty = derived from the OIDC redirect URL."
   },
   "status": {
     "queued": "queued",
@@ -388,7 +412,8 @@
     "openBrowser": "Open in browser",
     "syncOnce": "Sync",
     "watchHint": "Create an auto-sync, prefilled with the Plex folder name and a rename suggestion.",
-    "syncHint": "One-time download into the Plex folder name under downloads/."
+    "syncHint": "One-time download into the Plex folder name under downloads/.",
+    "open": "Open"
   },
   "suggestions": {
     "title": "SUGGESTIONS",
@@ -401,6 +426,7 @@
     "statusPLANNING": "planned",
     "seen": "{{seen}} / {{total}} watched",
     "plusOne": "+1 watched",
-    "plusOneHint": "Bump the AniList progress by one episode."
+    "plusOneHint": "Bump the AniList progress by one episode.",
+    "plexFolder": "Plex folder"
   }
 }

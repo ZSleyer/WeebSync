@@ -78,6 +78,8 @@ export default function Setup() {
       const out = await api.put<{ oidcError?: string }>('/api/settings', {
         ...cur,
         ...(withOidc && oidc.oidcIssuer ? oidc : {}),
+        // instance URL for email links: keep what's set, else the setup origin
+        baseUrl: (cur.baseUrl as string) || window.location.origin,
         registrationDisabled,
       })
       if (out.oidcError) {
@@ -96,7 +98,7 @@ export default function Setup() {
   const saveOidcFirst = (e: FormEvent) => {
     e.preventDefault()
     run(async () => {
-      const out = await api.post<{ oidcEnabled: boolean; oidcError?: string }>('/api/auth/setup/oidc', oidc)
+      const out = await api.post<{ oidcEnabled: boolean; oidcError?: string }>('/api/auth/setup/oidc', { ...oidc, baseUrl: window.location.origin })
       if (out.oidcError || !out.oidcEnabled) {
         setError(out.oidcError || t('app.error'))
         return

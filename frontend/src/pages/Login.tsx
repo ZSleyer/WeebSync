@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type User } from '../api'
+import Loading from '../components/Loading'
 import Setup from './Setup'
 
 interface AuthConfig {
@@ -74,7 +75,7 @@ export default function Login() {
   if (!cfg) {
     return (
       <main className="grid min-h-screen place-items-center">
-        <span className="t-label t-label--accent">{t('app.loading')}</span>
+        <Loading />
       </main>
     )
   }

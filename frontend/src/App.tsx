@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from './api'
 import { useAuth, useEvents } from './hooks'
+import Loading from './components/Loading'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Servers from './pages/Servers'
@@ -29,16 +30,19 @@ const NAV = [
   { to: '/rename', key: 'nav.rename', code: '06' },
   { to: '/settings', key: 'nav.settings', code: '07' },
 ]
+// mobile bottom bar: only the daily-use targets get a tab, the rest moves
+// into a "more" sheet so touch targets stay wide enough
+const NAV_PRIMARY = NAV.slice(0, 4)
+const NAV_MORE = NAV.slice(4)
 
 export default function App() {
-  const { t } = useTranslation()
   const { data: user, isLoading } = useAuth()
   useEvents(!!user)
 
   if (isLoading) {
     return (
       <div className="grid min-h-screen place-items-center">
-        <span className="t-label t-label--accent">{t('app.loading')}</span>
+        <Loading />
       </div>
     )
   }
@@ -63,6 +67,16 @@ function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const location = useLocation()
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreActive = NAV_MORE.some((n) => location.pathname === n.to || location.pathname.startsWith(n.to + '/'))
+  // navigating (via sheet or otherwise) closes the sheet; Escape too
+  useEffect(() => setMoreOpen(false), [location.pathname])
+  useEffect(() => {
+    if (!moreOpen) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMoreOpen(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [moreOpen])
 
   const logout = async () => {
     try {
@@ -161,12 +175,44 @@ function Shell({ email }: { email: string }) {
         </div>
       </main>
 
-      {/* mobile bottom nav */}
+      {/* mobile bottom nav: primary tabs + "more" sheet */}
+      {moreOpen && <div className="fixed inset-0 z-40 lg:hidden" aria-hidden onClick={() => setMoreOpen(false)} />}
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 flex border-t border-border-subtle bg-bg-secondary pb-[env(safe-area-inset-bottom)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-border-subtle bg-bg-secondary pb-[env(safe-area-inset-bottom)] lg:hidden"
         aria-label={t('nav.main')}
       >
-        {NAV.map((n) => navLink(n, true))}
+        {moreOpen && (
+          <div id="nav-more" className="border-b border-border-subtle">
+            {NAV_MORE.map((n) => (
+              <NavLink
+                key={n.to}
+                to={n.to}
+                className={({ isActive }) =>
+                  `flex min-h-12 items-center gap-3 px-5 font-display text-sm ${
+                    isActive ? 'text-accent' : 'text-t-secondary'
+                  }`
+                }
+              >
+                <span className="font-mono text-[10px] text-t-muted">{n.code}</span>
+                {t(n.key)}
+              </NavLink>
+            ))}
+          </div>
+        )}
+        <div className="flex">
+          {NAV_PRIMARY.map((n) => navLink(n, true))}
+          <button
+            className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[10px] leading-tight ${
+              moreOpen || moreActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
+            }`}
+            aria-expanded={moreOpen}
+            aria-controls="nav-more"
+            onClick={() => setMoreOpen((o) => !o)}
+          >
+            <span className="font-mono text-[9px] text-t-muted">⋯</span>
+            <span className="max-w-full truncate whitespace-nowrap">{t('nav.more')}</span>
+          </button>
+        </div>
       </nav>
     </div>
   )

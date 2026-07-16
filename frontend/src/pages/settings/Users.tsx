@@ -64,7 +64,8 @@ export default function Users() {
       <ul className="mt-3 grid grid-cols-1 gap-2">
         {(users ?? []).map((u) => (
           <li key={u.id} className="flex flex-wrap items-center gap-2 border-b border-border-subtle pb-2 text-sm">
-            <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-secondary" title={u.email}>
+            {/* full row on phones so the address stays readable */}
+            <span className="min-w-0 basis-full truncate font-mono text-xs text-t-secondary sm:flex-1 sm:basis-auto" title={u.email}>
               {u.email}
             </span>
             {u.id === meId && <span className="t-label">{t('settings.usersYou')}</span>}
