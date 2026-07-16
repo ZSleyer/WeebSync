@@ -72,6 +72,7 @@ type settingsPayload struct {
 	SmtpSecurity         string `json:"smtpSecurity"` // starttls | tls | none
 	SmtpPasswordSet      bool   `json:"smtpPasswordSet"`
 	SmtpPassword         string `json:"smtpPassword,omitempty"` // write-only
+	ApiTokenSet          bool   `json:"apiTokenSet"`            // read-only, managed via /api/settings/token
 }
 
 func (s *Server) settingsState() settingsPayload {
@@ -110,6 +111,7 @@ func (s *Server) settingsState() settingsPayload {
 		SmtpFrom:             db.SettingOrEnv(s.DB, "smtp_from", "SMTP_FROM"),
 		SmtpSecurity:         smtpSecurity(s.DB),
 		SmtpPasswordSet:      db.Setting(s.DB, "smtp_password") != "" || os.Getenv("SMTP_PASSWORD") != "",
+		ApiTokenSet:          db.Setting(s.DB, "api_token_hash") != "",
 	}
 }
 

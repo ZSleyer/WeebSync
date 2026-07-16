@@ -107,6 +107,14 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/settings", authed(adminOnly(http.HandlerFunc(s.handleSettingsGet))))
 	mux.Handle("PUT /api/settings", authed(adminOnly(http.HandlerFunc(s.handleSettingsPut))))
 
+	// machine API token (Home Assistant etc.); raw token is shown once
+	mux.Handle("POST /api/settings/token", authed(adminOnly(http.HandlerFunc(s.handleTokenCreate))))
+	mux.Handle("DELETE /api/settings/token", authed(adminOnly(http.HandlerFunc(s.handleTokenDelete))))
+
+	// aggregate status: admin session or machine token
+	statusH := http.HandlerFunc(s.handleStatus)
+	mux.Handle("GET /api/status", s.bearerOr(authed(adminOnly(statusH)), statusH))
+
 	// rate-limit admin: inspect and unblock throttled IPs
 	mux.Handle("GET /api/auth/ratelimit", authed(adminOnly(http.HandlerFunc(s.handleRateLimitList))))
 	mux.Handle("POST /api/auth/ratelimit/reset", authed(adminOnly(http.HandlerFunc(s.handleRateLimitReset))))
@@ -121,7 +129,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/watches", authed(http.HandlerFunc(s.handleWatchCreate)))
 	mux.Handle("PUT /api/watches/{id}", authed(http.HandlerFunc(s.handleWatchUpdate)))
 	mux.Handle("DELETE /api/watches/{id}", authed(http.HandlerFunc(s.handleWatchDelete)))
-	mux.Handle("POST /api/watches/{id}/check", authed(http.HandlerFunc(s.handleWatchCheck)))
+	checkH := http.HandlerFunc(s.handleWatchCheck)
+	mux.Handle("POST /api/watches/{id}/check", s.bearerOr(authed(checkH), checkH))
 
 	// anilist + catalog
 	mux.Handle("GET /api/anilist/search", authed(http.HandlerFunc(s.handleAnilistSearch)))
