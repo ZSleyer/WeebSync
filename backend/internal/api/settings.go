@@ -19,7 +19,11 @@ type settingsPayload struct {
 	AuthMode             string `json:"authMode"` // password | oidc-only | oidc-auto
 	AnilistTokenSet      bool   `json:"anilistTokenSet"`
 	AnilistToken         string `json:"anilistToken,omitempty"` // write-only
-	OidcProviderName     string `json:"oidcProviderName"`       // login button label ("Sign in with X")
+	PlexURL              string `json:"plexUrl"`
+	PlexTokenSet         bool   `json:"plexTokenSet"`
+	PlexToken            string `json:"plexToken,omitempty"` // write-only
+	PlexSections         string `json:"plexSections"`        // csv of section keys, empty = all show sections
+	OidcProviderName     string `json:"oidcProviderName"`    // login button label ("Sign in with X")
 	OidcIssuer           string `json:"oidcIssuer"`
 	OidcClientID         string `json:"oidcClientId"`
 	OidcRedirectURL      string `json:"oidcRedirectUrl"`
@@ -45,6 +49,9 @@ func (s *Server) settingsState() settingsPayload {
 		RegistrationDisabled: auth.RegistrationDisabled(s.DB),
 		AuthMode:             auth.AuthMode(s.DB),
 		AnilistTokenSet:      db.SettingOrEnv(s.DB, "anilist_token", "ANILIST_TOKEN") != "",
+		PlexURL:              db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
+		PlexTokenSet:         db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
+		PlexSections:         db.Setting(s.DB, "plex_sections"),
 		OidcProviderName:     db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
 		OidcIssuer:           db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
 		OidcClientID:         db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
@@ -102,11 +109,18 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	db.SetSetting(s.DB, "oidc_claim", in.OidcClaim)
 	db.SetSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
 	db.SetSetting(s.DB, "oidc_user_values", in.OidcUserValues)
+	db.SetSetting(s.DB, "plex_url", in.PlexURL)
+	db.SetSetting(s.DB, "plex_sections", in.PlexSections)
 	// secrets are write-only: "" keeps the stored value, "-" clears it
 	if in.AnilistToken == "-" {
 		db.SetSetting(s.DB, "anilist_token", "")
 	} else if in.AnilistToken != "" {
 		db.SetSetting(s.DB, "anilist_token", in.AnilistToken)
+	}
+	if in.PlexToken == "-" {
+		db.SetSetting(s.DB, "plex_token", "")
+	} else if in.PlexToken != "" {
+		db.SetSetting(s.DB, "plex_token", in.PlexToken)
 	}
 	if in.OidcClientSecret == "-" {
 		db.SetSetting(s.DB, "oidc_client_secret", "")
