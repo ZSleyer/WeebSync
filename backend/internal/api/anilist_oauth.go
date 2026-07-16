@@ -283,6 +283,7 @@ type anilistSuggestion struct {
 	Status     string          `json:"status"` // CURRENT | PLANNING
 	Progress   int             `json:"progress"`
 	Media      anilist.Media   `json:"media"`
+	PlexFolder string          `json:"plexFolder,omitempty"` // matching Plex folder basename, if any
 	Candidates []plexCandidate `json:"candidates"`
 }
 
@@ -319,6 +320,15 @@ func (s *Server) handleAnilistSuggestions(w http.ResponseWriter, r *http.Request
 			continue
 		}
 		suggestions = append(suggestions, anilistSuggestion{Status: e.Status, Progress: e.Progress, Media: e.Media, Candidates: cands})
+	}
+	// same title already in Plex? reuse its folder name as the sync target
+	medias := make([]anilist.Media, 0, len(suggestions))
+	for _, sug := range suggestions {
+		medias = append(medias, sug.Media)
+	}
+	folders := s.plexFolderNames(medias)
+	for i := range suggestions {
+		suggestions[i].PlexFolder = folders[suggestions[i].Media.ID]
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"connected": true, "building": building, "suggestions": suggestions})
 }
