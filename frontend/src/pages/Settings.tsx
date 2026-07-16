@@ -14,8 +14,10 @@ interface SettingsState {
   watchIntervalMin: number
   registrationDisabled: boolean
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
-  anilistTokenSet: boolean
-  anilistToken?: string
+  anilistClientId: string
+  anilistSecretSet: boolean
+  anilistClientSecret?: string
+  anilistRedirectUrl: string
   tmdbApiKeySet: boolean
   tmdbApiKey?: string
   plexUrl: string
@@ -47,14 +49,14 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   useEffect(() => {
     if (data && !form)
-      setForm({ ...data, anilistToken: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '', oidcClaim: data.oidcClaim || 'groups' })
+      setForm({ ...data, anilistClientSecret: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '', oidcClaim: data.oidcClaim || 'groups' })
   }, [data, form])
 
   const save = useMutation({
     mutationFn: (s: SettingsState) => api.put<SettingsState>('/api/settings', s),
     onSuccess: (fresh) => {
       qc.setQueryData(['settings'], fresh)
-      setForm({ ...fresh, anilistToken: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '' })
+      setForm({ ...fresh, anilistClientSecret: '', tmdbApiKey: '', plexToken: '', oidcClientSecret: '' })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
@@ -269,17 +271,41 @@ export default function Settings() {
 
           <section className="t-panel mb-4 p-5" aria-label={t('settings.integrations')}>
             <span className="t-label t-label--accent">{t('settings.integrations')}</span>
-            <label className="mt-3 block text-xs text-t-muted">
-              {t('settings.anilistToken')}
-              <input
-                className="t-input mt-1 font-mono"
-                type="password"
-                autoComplete="off"
-                placeholder={form.anilistTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
-                value={form.anilistToken ?? ''}
-                onChange={(e) => set('anilistToken', e.target.value)}
-              />
-            </label>
+            <div className="mt-3 grid grid-cols-1 gap-4">
+              <span className="t-label">AniList</span>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-xs text-t-muted">
+                  {t('settings.anilistClientId')}
+                  <input
+                    className="t-input mt-1 font-mono"
+                    value={form.anilistClientId}
+                    onChange={(e) => set('anilistClientId', e.target.value)}
+                  />
+                </label>
+                <label className="text-xs text-t-muted">
+                  {t('settings.anilistClientSecret')}
+                  <input
+                    className="t-input mt-1 font-mono"
+                    type="password"
+                    autoComplete="off"
+                    placeholder={form.anilistSecretSet ? t('settings.secretSet') : t('settings.secretUnset')}
+                    value={form.anilistClientSecret ?? ''}
+                    onChange={(e) => set('anilistClientSecret', e.target.value)}
+                  />
+                </label>
+              </div>
+              <label className="text-xs text-t-muted">
+                {t('settings.anilistRedirectUrl')}
+                <input
+                  className="t-input mt-1 font-mono"
+                  placeholder={`${window.location.origin}/api/anilist/callback`}
+                  value={form.anilistRedirectUrl}
+                  onChange={(e) => set('anilistRedirectUrl', e.target.value)}
+                />
+                <span className="mt-1 block">{t('settings.anilistClientHint')}</span>
+              </label>
+              <AnilistAccount />
+            </div>
             <label className="mt-3 block text-xs text-t-muted">
               {t('settings.tmdbApiKey')}
               <input
@@ -625,5 +651,54 @@ function PlexSections({ value, onChange }: { value: string; onChange: (v: string
       </div>
       <p className="mt-1">{t('settings.plexSectionsHint')}</p>
     </fieldset>
+  )
+}
+
+// Linked AniList account of the current user (OAuth). Connecting redirects
+// to AniList; tokens live about a year, so an expiry hint prompts re-connect.
+function AnilistAccount() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const { data } = useQuery<{ configured: boolean; connected: boolean; name?: string; expiresAt?: string }>({
+    queryKey: ['anilist-me'],
+    queryFn: () => api.get('/api/anilist/me'),
+  })
+  if (!data) return null
+  const expires = data.expiresAt ? Date.parse(data.expiresAt.replace(' ', 'T') + 'Z') : 0
+  const expiringSoon = expires > 0 && expires - Date.now() < 30 * 86_400_000
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+      {data.connected ? (
+        <>
+          <span className="t-label t-label--ok">{t('settings.anilistConnectedAs', { name: data.name })}</span>
+          {expires > 0 && (
+            <span className={expiringSoon ? 'text-warn' : ''}>
+              {t('settings.anilistExpires', { date: new Date(expires).toLocaleDateString() })}
+              {expiringSoon && ` ${t('settings.anilistReconnect')}`}
+            </span>
+          )}
+          <button
+            className="t-btn t-btn--sm"
+            onClick={async () => {
+              await api.del('/api/anilist/connect')
+              qc.invalidateQueries({ queryKey: ['anilist-me'] })
+            }}
+          >
+            {t('settings.anilistDisconnect')}
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            className="t-btn t-btn--sm"
+            disabled={!data.configured}
+            onClick={() => (window.location.href = '/api/anilist/connect')}
+          >
+            {t('settings.anilistConnect')}
+          </button>
+          {!data.configured && <span>{t('settings.anilistNotConfigured')}</span>}
+        </>
+      )}
+    </div>
   )
 }

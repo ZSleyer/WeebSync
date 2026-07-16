@@ -9,7 +9,7 @@ import Dashboard from './pages/Dashboard'
 import Servers from './pages/Servers'
 import Browser from './pages/Browser'
 import Watches from './pages/Watches'
-import Plex from './pages/Plex'
+import Suggestions from './pages/Suggestions'
 import Rename from './pages/Rename'
 import Settings from './pages/Settings'
 
@@ -17,7 +17,7 @@ const NAV = [
   { to: '/', key: 'nav.dashboard', code: '01' },
   { to: '/browser', key: 'nav.browser', code: '02' },
   { to: '/watches', key: 'nav.watches', code: '03' },
-  { to: '/plex', key: 'nav.plex', code: '04' },
+  { to: '/suggestions', key: 'nav.suggestions', code: '04' },
   { to: '/servers', key: 'nav.servers', code: '05' },
   { to: '/rename', key: 'nav.rename', code: '06' },
   { to: '/settings', key: 'nav.settings', code: '07' },
@@ -126,7 +126,8 @@ function Shell({ email }: { email: string }) {
             <Route path="/" element={<Dashboard />} />
             <Route path="/browser" element={<Browser />} />
             <Route path="/watches" element={<Watches />} />
-            <Route path="/plex" element={<Plex />} />
+            <Route path="/suggestions" element={<Suggestions />} />
+            <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
             <Route path="/servers" element={<Servers />} />
             <Route path="/rename" element={<Rename />} />
             <Route path="/settings" element={<Settings />} />

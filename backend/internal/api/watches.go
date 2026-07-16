@@ -46,6 +46,7 @@ type Watch struct {
 	Active       int            `json:"active"`                 // queued/running downloads for this watch
 	Complete     bool           `json:"complete"`               // finished title, all episodes synced
 	NextEpisode  int            `json:"nextEpisode,omitempty"`  // upcoming episode number (AniList)
+	SeenEpisodes int            `json:"seenEpisodes,omitempty"` // watched episodes from the linked AniList list
 	NextAiringAt int64          `json:"nextAiringAt,omitempty"` // unix seconds of its release
 	Waiting      bool           `json:"waiting"`                // smart sync: idle until NextAiringAt
 }
@@ -200,6 +201,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
+	progress := s.anilistProgress(u.ID)
 	list := []Watch{}
 	for rows.Next() {
 		var it Watch
@@ -217,6 +219,9 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
 		it.Complete = it.Media != nil && it.Media.Status == "FINISHED" && it.Media.Episodes > 0 &&
 			it.LocalFiles >= it.Media.Episodes && it.Active == 0
+		if it.Media != nil {
+			it.SeenEpisodes = progress[it.Media.ID]
+		}
 		if it.Media != nil && it.Media.NextAiring != nil {
 			it.NextEpisode = it.Media.NextAiring.Episode
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
