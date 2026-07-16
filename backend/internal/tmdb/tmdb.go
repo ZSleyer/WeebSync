@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -167,6 +168,9 @@ type rawResult struct {
 		AirDate       string `json:"air_date"`
 		EpisodeNumber int    `json:"episode_number"`
 	} `json:"next_episode_to_air"`
+	Collection *struct {
+		ID int `json:"id"`
+	} `json:"belongs_to_collection"` // movie details only
 	Videos struct {
 		Results []struct {
 			Key  string `json:"key"`
@@ -321,5 +325,63 @@ func (c *Client) Media(ctx context.Context, kind string, id int) (*anilist.Media
 	m := c.toMedia(kind, r)
 	payload, _ := json.Marshal(m)
 	c.store(cacheKey, string(payload))
+	if kind == "movie" {
+		collID := 0
+		if r.Collection != nil {
+			collID = r.Collection.ID
+		}
+		c.store(fmt.Sprintf("tmdb:coll-of:%d", id), strconv.Itoa(collID))
+	}
 	return &m, nil
+}
+
+// MovieCollection returns the id of the collection a movie belongs to
+// (0 = standalone). Cached alongside the movie details.
+func (c *Client) MovieCollection(ctx context.Context, movieID int) (int, error) {
+	key := fmt.Sprintf("tmdb:coll-of:%d", movieID)
+	if payload, ok := c.cached(key); ok {
+		id, _ := strconv.Atoi(payload)
+		return id, nil
+	}
+	var r rawResult
+	if err := c.get(ctx, fmt.Sprintf("/movie/%d", movieID), url.Values{"language": {"de-DE"}}, &r); err != nil {
+		return 0, err
+	}
+	id := 0
+	if r.Collection != nil {
+		id = r.Collection.ID
+	}
+	c.store(key, strconv.Itoa(id))
+	return id, nil
+}
+
+// Collection lists the released movies of a TMDB collection, oldest first.
+// Unreleased parts (empty or future release date) are skipped — they can't
+// be downloaded yet.
+func (c *Client) Collection(ctx context.Context, id int) ([]anilist.Media, error) {
+	cacheKey := fmt.Sprintf("tmdb:collection:%d", id)
+	if payload, ok := c.cached(cacheKey); ok {
+		var list []anilist.Media
+		if json.Unmarshal([]byte(payload), &list) == nil {
+			return list, nil
+		}
+	}
+	var resp struct {
+		Parts []rawResult `json:"parts"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/collection/%d", id), url.Values{"language": {"de-DE"}}, &resp); err != nil {
+		return nil, err
+	}
+	today := time.Now().UTC().Format("2006-01-02")
+	list := make([]anilist.Media, 0, len(resp.Parts))
+	for _, p := range resp.Parts {
+		if p.ReleaseDate == "" || p.ReleaseDate > today {
+			continue
+		}
+		list = append(list, c.toMedia("movie", p))
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].SeasonYear < list[j].SeasonYear })
+	payload, _ := json.Marshal(list)
+	c.store(cacheKey, string(payload))
+	return list, nil
 }
