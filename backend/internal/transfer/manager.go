@@ -12,7 +12,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -276,26 +278,45 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 
 var ErrNotFound = fmt.Errorf("download not found")
 
-// Enqueue adds a single file, or every missing file under a directory
-// (sync). Returns the number of files queued.
+// VideoExt lists file extensions treated as episodes (upload guard,
+// completeness checks).
+var VideoExt = map[string]bool{".mkv": true, ".mp4": true, ".avi": true, ".ts": true, ".m2ts": true, ".webm": true, ".mov": true}
+
+// looksUploading reports whether a video file is probably still being
+// uploaded: far smaller than its siblings in the same directory.
+// ponytail: 50%-of-median heuristic; compression varies between episodes,
+// but no episode drops from 1.4GB to 200MB. Needs >= 3 reference files.
+func looksUploading(size int64, siblings []int64) bool {
+	if len(siblings) < 3 {
+		return false
+	}
+	s := append([]int64(nil), siblings...)
+	slices.Sort(s)
+	median := s[len(s)/2]
+	return size < median/2
+}
+
 // Enqueue queues remotePath (file or directory, recursive) below localRel.
 // nameFn, when non-nil, maps each remote file name to its local name (watch
 // rename templates); existing files with matching size are skipped.
-func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string) (int, error) {
+// sizeGuard skips video files that look mid-upload (see looksUploading);
+// their count is returned as uploading so the caller can report them.
+func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, sizeGuard bool) (queued, uploading int, err error) {
 	if nameFn == nil {
 		nameFn = func(s string) string { return s }
 	}
 	client, _, err := m.Dial(userID, serverID)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	defer client.Close()
 
 	type job struct {
-		remote, localRel string
-		size             int64
+		remote, localRel, dir string
+		size                  int64
 	}
 	var jobs []job
+	dirSizes := map[string][]int64{} // per remote dir: sizes of all video files
 
 	entries, listErr := client.List(remotePath)
 	// a file: List errors (SFTP) or lists exactly itself (FTP)
@@ -304,9 +325,9 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 	if isFile {
 		size, serr := client.Size(remotePath)
 		if serr != nil {
-			return 0, fmt.Errorf("path is neither listable nor a file: %w", serr)
+			return 0, 0, fmt.Errorf("path is neither listable nor a file: %w", serr)
 		}
-		jobs = append(jobs, job{remotePath, path.Join(localRel, nameFn(path.Base(remotePath))), size})
+		jobs = append(jobs, job{remotePath, path.Join(localRel, nameFn(path.Base(remotePath))), "", size})
 	} else {
 		var walk func(dir, rel string, depth int) error
 		walk = func(dir, rel string, depth int) error {
@@ -323,22 +344,29 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 						return err
 					}
 				} else {
-					jobs = append(jobs, job{e.Path, path.Join(rel, nameFn(e.Name)), e.Size})
+					if VideoExt[strings.ToLower(path.Ext(e.Name))] {
+						dirSizes[dir] = append(dirSizes[dir], e.Size)
+					}
+					jobs = append(jobs, job{e.Path, path.Join(rel, nameFn(e.Name)), dir, e.Size})
 				}
 			}
 			return nil
 		}
 		base := path.Join(localRel, path.Base(remotePath))
 		if err := walk(remotePath, base, 0); err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 	}
 
-	queued := 0
 	for _, j := range jobs {
 		local := filepath.Join(m.DownloadRoot, filepath.Clean("/"+j.localRel))
 		// sync: skip files that already exist with the right size
 		if fi, err := os.Stat(local); err == nil && fi.Size() == j.size {
+			continue
+		}
+		// probably still being uploaded: wait for a later check
+		if sizeGuard && VideoExt[strings.ToLower(path.Ext(j.remote))] && looksUploading(j.size, dirSizes[j.dir]) {
+			uploading++
 			continue
 		}
 		// skip duplicates already in the queue
@@ -353,7 +381,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		queued++
 	}
 	m.Wake()
-	return queued, nil
+	return queued, uploading, nil
 }
 
 func (m *Manager) Pause(userID, id int64) error {

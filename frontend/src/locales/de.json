@@ -139,7 +139,9 @@
     "files": "{{count}} Dateien",
     "complete": "Komplett, Sync kann entfernt werden",
     "confirmDelete": "Auto-Sync für \"{{name}}\" entfernen? Heruntergeladene Dateien bleiben erhalten.",
-    "empty": "Im <1>Browser</1> einen Ordner auswählen und \"Beobachten\" klicken."
+    "empty": "Im <1>Browser</1> einen Ordner auswählen und \"Beobachten\" klicken.",
+    "waitingFor": "wartet auf Folge {{n}}",
+    "uploading": "Upload läuft"
   },
   "rename": {
     "title": "UMBENENNEN",

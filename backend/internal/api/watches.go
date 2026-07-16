@@ -16,6 +16,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/rename"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // Watch is a persistent remote-folder subscription: the folder is re-checked
@@ -40,15 +41,18 @@ type Watch struct {
 	CreatedAt     string `json:"createdAt"`
 
 	// enriched for the overview
-	Media      *anilist.Media `json:"media,omitempty"`
-	LocalFiles int            `json:"localFiles"`
-	Active     int            `json:"active"`   // queued/running downloads for this watch
-	Complete   bool           `json:"complete"` // finished title, all episodes synced
+	Media        *anilist.Media `json:"media,omitempty"`
+	LocalFiles   int            `json:"localFiles"`
+	Active       int            `json:"active"`                 // queued/running downloads for this watch
+	Complete     bool           `json:"complete"`               // finished title, all episodes synced
+	NextEpisode  int            `json:"nextEpisode,omitempty"`  // upcoming episode number (AniList)
+	NextAiringAt int64          `json:"nextAiringAt,omitempty"` // unix seconds of its release
+	Waiting      bool           `json:"waiting"`                // smart sync: idle until NextAiringAt
 }
 
 // videoExt: files counted as episodes for the completeness check.
 // ponytail: extension heuristic; parsing episode numbers would be the upgrade.
-var videoExt = map[string]bool{".mkv": true, ".mp4": true, ".avi": true, ".ts": true, ".m2ts": true, ".webm": true, ".mov": true}
+var videoExt = transfer.VideoExt
 
 // watchInterval returns the global check interval in minutes
 // (setting "watch_interval_min", default 30, minimum 5).
@@ -62,6 +66,9 @@ func (s *Server) watchInterval() int {
 
 // WatchLoop periodically runs due watches; the interval is a global setting.
 // A manual check updates last_check, which naturally resets the countdown.
+// Watches with an AniList match sync smart: once every aired episode is
+// local, checks pause until the next episode's release time (airingAt), then
+// resume on the normal interval until the episode arrived.
 func (s *Server) WatchLoop(ctx context.Context) {
 	tick := time.NewTicker(time.Minute)
 	defer tick.Stop()
@@ -70,24 +77,70 @@ func (s *Server) WatchLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			rows, err := s.DB.Query(`SELECT id FROM watches
-				WHERE last_check = '' OR datetime(last_check, ?) <= datetime('now')`,
-				fmt.Sprintf("+%d minutes", s.watchInterval()))
+			interval := time.Duration(s.watchInterval()) * time.Minute
+			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, last_check FROM watches`)
 			if err != nil {
 				continue
 			}
-			var due []int64
+			type cand struct {
+				id                               int64
+				serverID                         int64
+				remotePath, localPath, lastCheck string
+			}
+			var cands []cand
 			for rows.Next() {
-				var id int64
-				rows.Scan(&id)
-				due = append(due, id)
+				var c cand
+				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.lastCheck)
+				cands = append(cands, c)
 			}
 			rows.Close()
-			for _, id := range due {
-				s.runWatch(id)
+			now := time.Now()
+			for _, c := range cands {
+				intervalDue := true
+				if t, err := time.Parse("2006-01-02 15:04:05", c.lastCheck); err == nil {
+					intervalDue = !t.Add(interval).After(now.UTC())
+				}
+				media := s.watchMedia(c.serverID, c.remotePath)
+				have := s.countVideos(path.Join(c.localPath, path.Base(c.remotePath)))
+				if smartDue(intervalDue, media, have, now) {
+					s.runWatch(c.id)
+				}
 			}
 		}
 	}
+}
+
+// smartDue decides whether a watch should check now. Without an AniList
+// airing schedule the plain interval rule applies. With one, a watch that
+// already holds every aired episode stays idle until the next episode's
+// release time.
+func smartDue(intervalDue bool, media *anilist.Media, haveEps int, now time.Time) bool {
+	if !intervalDue {
+		return false
+	}
+	if media == nil || media.NextAiring == nil {
+		return true
+	}
+	if haveEps >= media.NextAiring.Episode-1 && now.Unix() < media.NextAiring.AiringAt {
+		return false // all aired episodes synced, wait for the release slot
+	}
+	return true
+}
+
+// watchMedia returns the AniList match of a watched folder, refreshing
+// stale non-finished entries in the background (release schedules move).
+func (s *Server) watchMedia(serverID int64, remotePath string) *anilist.Media {
+	var id int
+	s.DB.QueryRow(`SELECT media_id FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
+		serverID, remotePath).Scan(&id)
+	if id == 0 {
+		return nil
+	}
+	m, fresh := s.Anilist.CachedMedia(id)
+	if m == nil || (!fresh && m.Status != "FINISHED") {
+		s.queueMediaFetch(id)
+	}
+	return m
 }
 
 // runWatch checks one watch now: stamps last_check first (self-reset), then
@@ -102,8 +155,11 @@ func (s *Server) runWatch(id int64) {
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
-	queued, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w))
+	queued, uploading, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), true)
 	result := fmt.Sprintf("%d neu", queued)
+	if uploading > 0 {
+		result = fmt.Sprintf("%d neu, %d im Upload", queued, uploading)
+	}
 	if err != nil {
 		result = err.Error()
 		slog.Warn("watch check", "id", id, "err", err)
@@ -155,19 +211,18 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		it.IntervalMin = interval
-		// AniList match of the watched folder, if the catalog knows it
-		var mediaID int
-		s.DB.QueryRow(`SELECT media_id FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
-			it.ServerID, it.RemotePath).Scan(&mediaID)
-		if mediaID != 0 {
-			it.Media, _ = s.Anilist.CachedMedia(mediaID)
-		}
+		it.Media = s.watchMedia(it.ServerID, it.RemotePath)
 		it.LocalFiles = s.countVideos(path.Join(it.LocalPath, path.Base(it.RemotePath)))
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
 		it.Complete = it.Media != nil && it.Media.Status == "FINISHED" && it.Media.Episodes > 0 &&
 			it.LocalFiles >= it.Media.Episodes && it.Active == 0
+		if it.Media != nil && it.Media.NextAiring != nil {
+			it.NextEpisode = it.Media.NextAiring.Episode
+			it.NextAiringAt = it.Media.NextAiring.AiringAt
+			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, time.Now())
+		}
 		list = append(list, it)
 	}
 	writeJSON(w, http.StatusOK, list)
