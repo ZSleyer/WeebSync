@@ -429,6 +429,7 @@ function DetailDialog({
 }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDialogElement>(null)
+  const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   useEffect(() => {
     ref.current?.showModal()
   }, [])
@@ -441,7 +442,7 @@ function DetailDialog({
         : undefined
 
   return (
-    <dialog ref={ref} className="w-full max-w-2xl" aria-label={t('browser.detailsFor', { name: m.title.romaji })} onClose={onClose} onClick={(e) => e.target === ref.current && ref.current?.close()}>
+    <dialog ref={ref} className="w-full max-w-2xl" aria-label={t('browser.detailsFor', { name: m.title.romaji })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
       {m.bannerImage && <img src={m.bannerImage} alt="" className="max-h-36 w-full object-cover" />}
       <div className="p-5">
         <div className="flex gap-4">
@@ -518,6 +519,7 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
   const { t } = useTranslation()
   const qc = useQueryClient()
   const ref = useRef<HTMLDialogElement>(null)
+  const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   const [q, setQ] = useState(item.entry.name)
   const [results, setResults] = useState<Media[]>([])
 
@@ -546,7 +548,7 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-lg" aria-label={t('browser.matchFor', { name: item.entry.name })} onClose={onClose} onClick={(e) => e.target === ref.current && ref.current?.close()}>
+    <dialog ref={ref} className="w-full max-w-lg" aria-label={t('browser.matchFor', { name: item.entry.name })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
       <div className="p-5">
         <h3 className="mb-1 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
         {item.media && (

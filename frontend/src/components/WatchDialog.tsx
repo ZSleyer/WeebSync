@@ -34,6 +34,7 @@ export default function WatchDialog({
 }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDialogElement>(null)
+  const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   const [f, setF] = useState(initial)
   const [renameOn, setRenameOn] = useState(!!(initial.template || initial.pattern))
   const [browse, setBrowse] = useState<'remote' | 'local' | null>(null)
@@ -139,7 +140,7 @@ export default function WatchDialog({
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-2xl p-0" aria-label={title} onClose={onClose} onClick={(e) => e.target === ref.current && ref.current?.close()}>
+    <dialog ref={ref} className="w-full max-w-2xl p-0" aria-label={title} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
       <form className="flex max-h-[85vh] flex-col" onSubmit={submit}>
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
