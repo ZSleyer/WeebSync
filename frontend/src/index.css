@@ -296,6 +296,16 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
   ::-webkit-scrollbar { width: 3px; height: 3px; }
 }
 
+/* ── Touch ergonomics ──
+   16px input font stops iOS Safari from zooming into focused fields;
+   taller controls give comfortable thumb targets without changing the
+   desktop density. */
+@media (pointer: coarse) {
+  .t-input, .t-select { font-size: 16px; min-height: 40px; }
+  .t-btn { min-height: 40px; }
+  .t-btn--sm { min-height: 32px; padding: 4px 12px; }
+}
+
 /* ── Form controls ── */
 input[type='checkbox'] {
   width: 1.125rem;
