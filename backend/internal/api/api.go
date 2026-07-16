@@ -11,6 +11,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/push"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
@@ -21,6 +22,7 @@ type Server struct {
 	DownloadRoot string
 	Transfers    *transfer.Manager
 	Anilist      *anilist.Client
+	Tmdb         *tmdb.Client
 	Push         *push.Service
 
 	// background AniList matching (see queueMatch in anilist.go):
@@ -111,6 +113,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/servers/{id}/catalog", authed(http.HandlerFunc(s.handleCatalog)))
 	mux.Handle("PUT /api/servers/{id}/catalog/match", authed(http.HandlerFunc(s.handleCatalogMatch)))
 	mux.Handle("POST /api/servers/{id}/catalog/rematch", authed(http.HandlerFunc(s.handleCatalogRematch)))
+	mux.Handle("PUT /api/servers/{id}/catalog/scope", authed(http.HandlerFunc(s.handleCatalogScope)))
+	mux.Handle("GET /api/tmdb/search", authed(http.HandlerFunc(s.handleTmdbSearch)))
+	mux.Handle("GET /api/tmdb/media", authed(http.HandlerFunc(s.handleTmdbMedia)))
 
 	// rename
 	mux.Handle("POST /api/rename/preview", authed(http.HandlerFunc(s.handleRenamePreview)))

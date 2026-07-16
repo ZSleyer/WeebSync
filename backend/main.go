@@ -14,6 +14,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/push"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
@@ -55,6 +56,7 @@ func main() {
 		OIDC:         auth.NewManager(context.Background(), database),
 		DownloadRoot: downloadRoot,
 		Anilist:      anilist.New(database),
+		Tmdb:         tmdb.New(database),
 		Push:         pushSvc,
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)

@@ -127,19 +127,18 @@ func smartDue(intervalDue bool, media *anilist.Media, haveEps int, now time.Time
 	return true
 }
 
-// watchMedia returns the AniList match of a watched folder, refreshing
-// stale non-finished entries in the background (release schedules move).
+// watchMedia returns the metadata match of a watched folder (AniList or
+// TMDB, depending on the stored source), refreshing stale non-finished
+// entries in the background (release schedules move).
 func (s *Server) watchMedia(serverID int64, remotePath string) *anilist.Media {
 	var id int
-	s.DB.QueryRow(`SELECT media_id FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
-		serverID, remotePath).Scan(&id)
+	var source string
+	s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
+		serverID, remotePath).Scan(&id, &source)
 	if id == 0 {
 		return nil
 	}
-	m, fresh := s.Anilist.CachedMedia(id)
-	if m == nil || (!fresh && m.Status != "FINISHED") {
-		s.queueMediaFetch(id)
-	}
+	m, _ := s.sourceMedia(source, id)
 	return m
 }
 

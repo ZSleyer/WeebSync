@@ -65,7 +65,14 @@ export interface Media {
 export interface CatalogItem {
   entry: Entry
   media?: Media
+  source?: string // anilist | tmdb:tv | tmdb:movie
   pending?: boolean // metadata still resolving in the background
+}
+
+export interface CatalogResponse {
+  scope: string // '' = anime (AniList), 'tv' | 'movie' = TMDB
+  inherited: boolean // scope comes from a parent folder mark
+  items: CatalogItem[]
 }
 
 export interface Watch {
