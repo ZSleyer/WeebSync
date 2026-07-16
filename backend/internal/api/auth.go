@@ -150,6 +150,7 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
+		BaseURL          string `json:"baseUrl"`
 		OidcProviderName string `json:"oidcProviderName"`
 		OidcIssuer       string `json:"oidcIssuer"`
 		OidcClientID     string `json:"oidcClientId"`
@@ -165,6 +166,9 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 	if in.OidcIssuer == "" {
 		writeErr(w, http.StatusBadRequest, "issuer required")
 		return
+	}
+	if b := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/"); b != "" {
+		db.SetSetting(s.DB, "base_url", b)
 	}
 	db.SetSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
 	db.SetSetting(s.DB, "oidc_issuer", in.OidcIssuer)

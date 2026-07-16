@@ -4,11 +4,16 @@
 package mailer
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"mime"
+	"mime/quotedprintable"
 	"net"
+	"net/mail"
 	"net/smtp"
 	"os"
 	"strconv"
@@ -54,6 +59,11 @@ func (s *Service) load() (config, error) {
 	if c.from == "" {
 		c.from = c.username
 	}
+	// the envelope sender must be a real address: a bare name gets
+	// SRS-rewritten by relays into garbage and lands in spam
+	if _, err := mail.ParseAddress(c.from); err != nil {
+		return c, fmt.Errorf("smtp from %q is not a valid email address — set a real sender in the email settings", c.from)
+	}
 	// password is stored base64(AES-GCM) like other secrets
 	if enc := db.Setting(s.DB, "smtp_password"); enc != "" {
 		raw, err := base64.StdEncoding.DecodeString(enc)
@@ -71,15 +81,16 @@ func (s *Service) load() (config, error) {
 	return c, nil
 }
 
-// Send delivers a plain-text email to one recipient. Blocking; call from a
-// goroutine for fire-and-forget notifications.
-func (s *Service) Send(to, subject, body string) error {
+// Send delivers an email to one recipient: text always, html as the rich
+// alternative when non-empty. Blocking; call from a goroutine for
+// fire-and-forget notifications.
+func (s *Service) Send(to, subject, text, html string) error {
 	c, err := s.load()
 	if err != nil {
 		return err
 	}
 	addr := net.JoinHostPort(c.host, strconv.Itoa(c.port))
-	msg := buildMessage(c.from, to, subject, body)
+	msg := buildMessage(c.from, to, subject, text, html)
 
 	var auth smtp.Auth
 	if c.username != "" {
@@ -128,14 +139,50 @@ func sendImplicitTLS(addr, host string, auth smtp.Auth, from, to string, msg []b
 	return cl.Quit()
 }
 
-func buildMessage(from, to, subject, body string) []byte {
+// buildMessage assembles a standards-compliant message: display-name From,
+// RFC-2047-encoded subject (umlauts/dashes must never arrive as "???"),
+// Date and Message-ID headers (their absence scores spam points), and a
+// multipart/alternative body when an HTML part is provided.
+func buildMessage(from, to, subject, text, html string) []byte {
+	domain := "weebsync"
+	if i := strings.LastIndex(from, "@"); i != -1 {
+		domain = from[i+1:]
+	}
+	idRaw := make([]byte, 16)
+	rand.Read(idRaw)
+
 	var b strings.Builder
-	fmt.Fprintf(&b, "From: %s\r\n", from)
+	fmt.Fprintf(&b, "From: %s <%s>\r\n", mime.QEncoding.Encode("utf-8", "WeebSync"), from)
 	fmt.Fprintf(&b, "To: %s\r\n", to)
-	fmt.Fprintf(&b, "Subject: %s\r\n", subject)
+	fmt.Fprintf(&b, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", subject))
+	fmt.Fprintf(&b, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
+	fmt.Fprintf(&b, "Message-ID: <%s@%s>\r\n", hex.EncodeToString(idRaw), domain)
 	b.WriteString("MIME-Version: 1.0\r\n")
-	b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-	b.WriteString("\r\n")
-	b.WriteString(body)
+
+	if html == "" {
+		b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+		b.WriteString("Content-Transfer-Encoding: quoted-printable\r\n\r\n")
+		b.WriteString(qp(text))
+		return []byte(b.String())
+	}
+
+	boundaryRaw := make([]byte, 12)
+	rand.Read(boundaryRaw)
+	boundary := "ws-" + hex.EncodeToString(boundaryRaw)
+	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=%q\r\n\r\n", boundary)
+	fmt.Fprintf(&b, "--%s\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n%s\r\n", boundary, qp(text))
+	fmt.Fprintf(&b, "--%s\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n%s\r\n", boundary, qp(html))
+	fmt.Fprintf(&b, "--%s--\r\n", boundary)
 	return []byte(b.String())
+}
+
+// qp encodes a body as quoted-printable: SMTP folds raw lines longer than
+// 998 chars mid-word (Gmail renders the fold as a space), QP keeps lines
+// short with soft breaks instead.
+func qp(s string) string {
+	var b strings.Builder
+	w := quotedprintable.NewWriter(&b)
+	w.Write([]byte(s))
+	w.Close()
+	return b.String()
 }

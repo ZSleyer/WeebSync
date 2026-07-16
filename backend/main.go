@@ -67,10 +67,10 @@ func main() {
 		name := path.Base(d.RemotePath)
 		if d.Status == "done" {
 			pushSvc.Notify(d.UserID, "Download fertig", name)
-			srv.EmailNotify(d.UserID, "download_done", "Download fertig", name+" wurde heruntergeladen.")
+			srv.EmailNotifyDownload(d.UserID, "download_done", d.ServerID, d.RemotePath, "")
 		} else {
 			pushSvc.Notify(d.UserID, "Download fehlgeschlagen", name+": "+d.Error)
-			srv.EmailNotify(d.UserID, "download_failed", "Download fehlgeschlagen", name+": "+d.Error)
+			srv.EmailNotifyDownload(d.UserID, "download_failed", d.ServerID, d.RemotePath, d.Error)
 		}
 	}
 	srv.Anilist.TokenSource = srv.AnilistToken // linked-account bearer for API calls

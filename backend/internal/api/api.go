@@ -37,6 +37,10 @@ type Server struct {
 
 	// per-IP brute-force limiter on the auth endpoints; admin-inspectable
 	authLimiter *ipLimiter
+
+	// pending download-notification digests: "userID|category" → items
+	digestMu sync.Mutex
+	digest   map[string][]digestItem
 }
 
 // adminOnly guards admin-only endpoints (settings mutations, user management).
@@ -90,6 +94,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/downloads", authed(http.HandlerFunc(s.handleDownloadsList)))
 	mux.Handle("POST /api/downloads", authed(http.HandlerFunc(s.handleDownloadCreate)))
 	mux.Handle("POST /api/downloads/cancel", authed(http.HandlerFunc(s.handleDownloadsCancel)))
+	mux.Handle("POST /api/downloads/bulk", authed(http.HandlerFunc(s.handleDownloadsBulk)))
+	mux.Handle("PUT /api/downloads/ratelimit", authed(adminOnly(http.HandlerFunc(s.handleGlobalRateLimit))))
 	mux.Handle("POST /api/downloads/{id}/pause", authed(s.downloadAction(s.Transfers.Pause)))
 	mux.Handle("POST /api/downloads/{id}/resume", authed(s.downloadAction(s.Transfers.Resume)))
 	mux.Handle("POST /api/downloads/{id}/cancel", authed(s.downloadAction(s.Transfers.Cancel)))

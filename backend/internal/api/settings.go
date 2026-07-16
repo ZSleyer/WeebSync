@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/mail"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -19,7 +21,7 @@ import (
 // validateTrustedNetworks rejects a CSV that contains anything but valid CIDRs
 // or bare IPs, so a typo can't silently disable the rate-limit bypass.
 func validateTrustedNetworks(csv string) error {
-	for _, part := range strings.Split(csv, ",") {
+	for part := range strings.SplitSeq(csv, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
@@ -38,6 +40,7 @@ func validateTrustedNetworks(csv string) error {
 // Secrets are write-only: GET reports only whether they are set, PUT with
 // an empty string keeps the stored value, "-" clears it.
 type settingsPayload struct {
+	BaseURL              string `json:"baseUrl"` // public origin of this instance, used in email links
 	MaxConcurrent        int64  `json:"maxConcurrent"`
 	GlobalRateLimit      int64  `json:"globalRateLimit"`  // bytes/s, 0 = unlimited
 	WatchIntervalMin     int64  `json:"watchIntervalMin"` // global auto-sync check interval
@@ -53,7 +56,8 @@ type settingsPayload struct {
 	PlexURL              string `json:"plexUrl"`
 	PlexTokenSet         bool   `json:"plexTokenSet"`
 	PlexToken            string `json:"plexToken,omitempty"` // write-only
-	PlexSections         string `json:"plexSections"`        // csv of section keys, empty = all show sections
+	PlexSections         string `json:"plexSections"`        // csv of section keys, empty = all show/movie sections
+	PlexSectionSources   string `json:"plexSectionSources"`  // csv of key:source (anilist|tmdb); missing key = by library title
 	OidcProviderName     string `json:"oidcProviderName"`    // login button label ("Sign in with X")
 	OidcIssuer           string `json:"oidcIssuer"`
 	OidcClientID         string `json:"oidcClientId"`
@@ -83,6 +87,7 @@ func (s *Server) settingsState() settingsPayload {
 	limit, _ := strconv.ParseInt(db.Setting(s.DB, "global_rate_limit"), 10, 64)
 	smtpPort, _ := strconv.ParseInt(db.SettingOrEnv(s.DB, "smtp_port", "SMTP_PORT"), 10, 64)
 	return settingsPayload{
+		BaseURL:              db.SettingOrEnv(s.DB, "base_url", "WEEBSYNC_BASE_URL"),
 		MaxConcurrent:        conc,
 		GlobalRateLimit:      limit,
 		WatchIntervalMin:     int64(s.watchInterval()),
@@ -96,6 +101,7 @@ func (s *Server) settingsState() settingsPayload {
 		PlexURL:              db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
 		PlexTokenSet:         db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
 		PlexSections:         db.Setting(s.DB, "plex_sections"),
+		PlexSectionSources:   db.Setting(s.DB, "plex_section_sources"),
 		OidcProviderName:     db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
 		OidcIssuer:           db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
 		OidcClientID:         db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
@@ -155,6 +161,16 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// instance URL: empty or an absolute http(s) origin
+	baseURL := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")
+	if baseURL != "" {
+		u, err := url.Parse(baseURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			writeErr(w, http.StatusBadRequest, "baseUrl must be an absolute http(s) URL")
+			return
+		}
+	}
+	db.SetSetting(s.DB, "base_url", baseURL)
 	db.SetSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
 	db.SetSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
 	db.SetSetting(s.DB, "watch_interval_min", strconv.FormatInt(in.WatchIntervalMin, 10))
@@ -174,6 +190,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	db.SetSetting(s.DB, "oidc_user_values", in.OidcUserValues)
 	db.SetSetting(s.DB, "plex_url", strings.TrimSpace(in.PlexURL))
 	db.SetSetting(s.DB, "plex_sections", in.PlexSections)
+	db.SetSetting(s.DB, "plex_section_sources", in.PlexSectionSources)
 	db.SetSetting(s.DB, "anilist_client_id", strings.TrimSpace(in.AnilistClientID))
 	db.SetSetting(s.DB, "anilist_redirect_url", strings.TrimSpace(in.AnilistRedirectURL))
 	// secrets are write-only: "" keeps the stored value, "-" clears it.
@@ -206,6 +223,14 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeErr(w, http.StatusBadRequest, "invalid smtpSecurity")
 		return
+	}
+	// the from address becomes the SMTP envelope sender: a bare name gets
+	// SRS-rewritten by relays into garbage and flagged as spam
+	if f := strings.TrimSpace(in.SmtpFrom); f != "" {
+		if _, err := mail.ParseAddress(f); err != nil {
+			writeErr(w, http.StatusBadRequest, "smtpFrom must be a valid email address")
+			return
+		}
 	}
 	db.SetSetting(s.DB, "smtp_host", strings.TrimSpace(in.SmtpHost))
 	db.SetSetting(s.DB, "smtp_port", strconv.FormatInt(in.SmtpPort, 10))
