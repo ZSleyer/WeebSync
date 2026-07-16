@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/mailer"
 	"github.com/ch4d1/weebsync/internal/push"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 	"github.com/ch4d1/weebsync/internal/transfer"
@@ -24,6 +26,7 @@ type Server struct {
 	Anilist      *anilist.Client
 	Tmdb         *tmdb.Client
 	Push         *push.Service
+	Mail         *mailer.Service
 
 	// background AniList matching (see queueMatch in anilist.go):
 	// dedup of in-flight jobs plus a queue drained in batches by one worker
@@ -31,6 +34,9 @@ type Server struct {
 	matchJobs map[string]bool
 	matchCh   chan matchJob
 	matchOnce sync.Once
+
+	// per-IP brute-force limiter on the auth endpoints; admin-inspectable
+	authLimiter *ipLimiter
 }
 
 // adminOnly guards admin-only endpoints (settings mutations, user management).
@@ -47,9 +53,13 @@ func adminOnly(next http.Handler) http.Handler {
 func (s *Server) Register(mux *http.ServeMux) {
 	authed := auth.Middleware(s.DB, true)
 
-	// auth
-	mux.HandleFunc("POST /api/auth/register", s.handleRegister)
-	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
+	// auth — login/register are rate-limited per IP against brute-force;
+	// admin-configured trusted networks bypass the limit
+	if s.authLimiter == nil {
+		s.authLimiter = newIPLimiter(5, 5, s.ipTrusted)
+	}
+	mux.HandleFunc("POST /api/auth/register", s.authLimiter.limit(s.handleRegister))
+	mux.HandleFunc("POST /api/auth/login", s.authLimiter.limit(s.handleLogin))
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.Handle("GET /api/auth/me", authed(http.HandlerFunc(s.handleMe)))
 	mux.HandleFunc("GET /api/auth/config", s.handleAuthConfig)
@@ -58,6 +68,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/auth/oidc/discover", auth.Middleware(s.DB, false)(http.HandlerFunc(s.handleOIDCDiscover)))
 	mux.HandleFunc("GET /api/auth/oidc/login", s.OIDC.LoginHandler)
 	mux.HandleFunc("GET /api/auth/oidc/callback", s.OIDC.CallbackHandler)
+	mux.HandleFunc("GET /api/auth/verify", s.handleVerifyEmail)
+	mux.Handle("GET /api/auth/email-prefs", authed(http.HandlerFunc(s.handleEmailPrefsGet)))
+	mux.Handle("PUT /api/auth/email-prefs", authed(http.HandlerFunc(s.handleEmailPrefsPut)))
 
 	// servers
 	mux.Handle("GET /api/servers", authed(http.HandlerFunc(s.handleServersList)))
@@ -65,6 +78,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("PUT /api/servers/{id}", authed(http.HandlerFunc(s.handleServerUpdate)))
 	mux.Handle("DELETE /api/servers/{id}", authed(http.HandlerFunc(s.handleServerDelete)))
 	mux.Handle("POST /api/servers/{id}/test", authed(http.HandlerFunc(s.handleServerTest)))
+	mux.Handle("POST /api/servers/{id}/trust-hostkey", authed(http.HandlerFunc(s.handleServerTrustHostKey)))
 
 	// browse
 	mux.Handle("GET /api/browse/local", authed(http.HandlerFunc(s.handleBrowseLocal)))
@@ -90,8 +104,12 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/users/{id}", authed(adminOnly(http.HandlerFunc(s.handleUserDelete))))
 
 	// settings (mutations are admin-only)
-	mux.Handle("GET /api/settings", authed(http.HandlerFunc(s.handleSettingsGet)))
+	mux.Handle("GET /api/settings", authed(adminOnly(http.HandlerFunc(s.handleSettingsGet))))
 	mux.Handle("PUT /api/settings", authed(adminOnly(http.HandlerFunc(s.handleSettingsPut))))
+
+	// rate-limit admin: inspect and unblock throttled IPs
+	mux.Handle("GET /api/auth/ratelimit", authed(adminOnly(http.HandlerFunc(s.handleRateLimitList))))
+	mux.Handle("POST /api/auth/ratelimit/reset", authed(adminOnly(http.HandlerFunc(s.handleRateLimitReset))))
 
 	// web push
 	mux.Handle("GET /api/push/key", authed(http.HandlerFunc(s.handlePushKey)))
@@ -143,6 +161,12 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 }
 
 func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	// require a JSON content-type: HTML forms can only send text/plain or
+	// form-urlencoded, so this blocks simple-form CSRF on state-changing routes
+	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		writeErr(w, http.StatusUnsupportedMediaType, "content-type must be application/json")
+		return false
+	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(v); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid json")
 		return false

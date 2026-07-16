@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api, type ServerInfo } from '../api'
+import { api, ApiError, type ServerInfo } from '../api'
 
 export default function Servers() {
   const { t } = useTranslation()
@@ -24,11 +24,25 @@ export default function Servers() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['servers'] }),
   })
 
+  // 409 on /test = SSH host key changed; the user can explicitly trust the new key
+  const [keyMismatch, setKeyMismatch] = useState<Record<number, boolean>>({})
+
   const test = async (id: number) => {
     setTestResult((r) => ({ ...r, [id]: '…' }))
+    setKeyMismatch((m) => ({ ...m, [id]: false }))
     try {
       await api.post(`/api/servers/${id}/test`)
       setTestResult((r) => ({ ...r, [id]: 'ok' }))
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) setKeyMismatch((m) => ({ ...m, [id]: true }))
+      setTestResult((r) => ({ ...r, [id]: e instanceof Error ? e.message : t('app.error') }))
+    }
+  }
+
+  const trustKey = async (id: number) => {
+    try {
+      await api.post(`/api/servers/${id}/trust-hostkey`)
+      await test(id) // re-learns the new key via TOFU
     } catch (e) {
       setTestResult((r) => ({ ...r, [id]: e instanceof Error ? e.message : t('app.error') }))
     }
@@ -85,6 +99,14 @@ export default function Servers() {
               <p className="mt-2 break-all text-xs text-err" role="alert">
                 {testResult[s.id]}
               </p>
+            )}
+            {keyMismatch[s.id] && (
+              <div className="mt-2">
+                <p className="mb-2 text-xs text-t-muted">{t('servers.hostKeyChanged')}</p>
+                <button className="t-btn t-btn--sm t-btn--danger" onClick={() => trustKey(s.id)}>
+                  {t('servers.trustHostKey')}
+                </button>
+              </div>
             )}
           </div>
         ))}

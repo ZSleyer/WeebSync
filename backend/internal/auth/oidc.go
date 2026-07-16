@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/netguard"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 )
@@ -69,6 +71,11 @@ func (m *Manager) Reload(ctx context.Context) error {
 	redirectURL := db.SettingOrEnv(m.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL")
 	if clientID == "" || redirectURL == "" {
 		return fmt.Errorf("oidc: issuer set but client id or redirect url missing")
+	}
+	if u, uerr := url.Parse(issuer); uerr != nil || u.Hostname() == "" {
+		return fmt.Errorf("oidc: invalid issuer url")
+	} else if err := netguard.Allowed(u.Hostname()); err != nil {
+		return fmt.Errorf("oidc issuer: %w", err)
 	}
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
@@ -140,6 +147,12 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
+	// state is single-use: invalidate the cookie so the callback URL
+	// cannot be replayed within the cookie's lifetime
+	http.SetCookie(w, &http.Cookie{
+		Name: "weebsync_oidc_state", Value: "", Path: "/api/auth/oidc",
+		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
+	})
 	token, err := o.config.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
 		http.Error(w, "token exchange failed", http.StatusBadGateway)

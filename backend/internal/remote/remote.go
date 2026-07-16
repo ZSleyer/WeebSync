@@ -2,10 +2,17 @@
 package remote
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/netguard"
 )
+
+// ErrHostKeyMismatch marks a failed SSH handshake caused by a host key that
+// differs from the learned TOFU key. Callers can offer a key reset.
+var ErrHostKeyMismatch = errors.New("ssh host key mismatch — server changed or MITM")
 
 type Entry struct {
 	Name    string    `json:"name"`
@@ -36,6 +43,9 @@ type Config struct {
 }
 
 func Dial(cfg Config) (Client, error) {
+	if err := netguard.Allowed(cfg.Host); err != nil {
+		return nil, err
+	}
 	switch cfg.Protocol {
 	case "sftp":
 		return dialSFTP(cfg)
