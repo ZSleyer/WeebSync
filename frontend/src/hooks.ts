@@ -16,6 +16,42 @@ export function useAuth() {
   })
 }
 
+// usePersistedQuery: useQuery + localStorage snapshot. The last result shows
+// instantly (marked stale, so a live refetch starts right away and entries
+// may disappear after it) instead of a skeleton on every page load. The
+// storage key is scoped per user id, so accounts never see each other's data.
+export function usePersistedQuery<T>(
+  key: string,
+  queryFn: () => Promise<T>,
+  opts?: { refetchInterval?: (q: { state: { data?: T } }) => number | false },
+) {
+  const { data: user } = useAuth()
+  const storageKey = `weebsync.cache.${user?.id ?? 0}.${key}`
+  const q = useQuery<T>({
+    queryKey: [key],
+    queryFn,
+    ...opts,
+    initialData: () => {
+      try {
+        const v = localStorage.getItem(storageKey)
+        return v ? (JSON.parse(v) as T) : undefined
+      } catch {
+        return undefined
+      }
+    },
+    initialDataUpdatedAt: 0, // always stale → refetch immediately
+  })
+  useEffect(() => {
+    if (q.data === undefined) return
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(q.data))
+    } catch {
+      /* storage full/blocked — cache is best effort */
+    }
+  }, [q.data, storageKey])
+  return q
+}
+
 // useEvents subscribes to the SSE progress stream and patches the
 // downloads query cache in place.
 export function useEvents(enabled: boolean) {
