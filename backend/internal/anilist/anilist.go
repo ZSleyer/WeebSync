@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ch4d1/weebsync/internal/db"
 	"golang.org/x/time/rate"
 )
 
@@ -56,9 +55,12 @@ const mediaFields = `id title { romaji english } coverImage { large } bannerImag
 	episodes seasonYear format status averageScore genres description(asHtml: false)`
 
 type Client struct {
-	DB      *sql.DB
-	HTTP    *http.Client
-	limiter *rate.Limiter
+	DB   *sql.DB
+	HTTP *http.Client
+	// TokenSource supplies the bearer token for API requests (a linked
+	// account's token, or an operator-provided one). Nil/empty = anonymous.
+	TokenSource func() string
+	limiter     *rate.Limiter
 }
 
 func New(d *sql.DB) *Client {
@@ -73,9 +75,12 @@ func New(d *sql.DB) *Client {
 	}
 }
 
-// token is read per request so the settings UI can change it at runtime.
+// token is resolved per request so linked accounts take effect immediately.
 func (c *Client) token() string {
-	return db.SettingOrEnv(c.DB, "anilist_token", "ANILIST_TOKEN")
+	if c.TokenSource != nil {
+		return c.TokenSource()
+	}
+	return ""
 }
 
 // cached returns the raw JSON payload for key if fresh enough.
@@ -98,6 +103,12 @@ func (c *Client) store(key, payload string) {
 }
 
 func (c *Client) query(ctx context.Context, query string, variables map[string]any, out any) error {
+	return c.queryAs(ctx, c.token(), query, variables, out)
+}
+
+// queryAs runs a GraphQL request with an explicit bearer token (linked
+// account calls: lists, mutations). Empty token = anonymous.
+func (c *Client) queryAs(ctx context.Context, token, query string, variables map[string]any, out any) error {
 	body, _ := json.Marshal(map[string]any{"query": query, "variables": variables})
 	for attempt := 0; ; attempt++ {
 		if err := c.limiter.Wait(ctx); err != nil {
@@ -109,8 +120,8 @@ func (c *Client) query(ctx context.Context, query string, variables map[string]a
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json")
-		if t := c.token(); t != "" {
-			req.Header.Set("Authorization", "Bearer "+t)
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
 		}
 		resp, err := c.HTTP.Do(req)
 		if err != nil {

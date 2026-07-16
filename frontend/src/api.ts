@@ -97,6 +97,7 @@ export interface Watch {
   active: number
   complete: boolean
   nextEpisode?: number
+  seenEpisodes?: number
   nextAiringAt?: number
   waiting: boolean
 }
@@ -111,6 +112,17 @@ export interface PlexSuggestions {
     folder: string
     sequel: Media
     chainNeed: number
+    candidates: { serverId: number; serverName: string; path: string }[]
+  }[]
+}
+
+export interface AnilistSuggestions {
+  connected: boolean
+  building: boolean
+  suggestions: {
+    status: string // CURRENT | PLANNING
+    progress: number
+    media: Media
     candidates: { serverId: number; serverName: string; path: string }[]
   }[]
 }

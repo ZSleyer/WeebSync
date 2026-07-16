@@ -17,8 +17,10 @@ type settingsPayload struct {
 	WatchIntervalMin     int64  `json:"watchIntervalMin"` // global auto-sync check interval
 	RegistrationDisabled bool   `json:"registrationDisabled"`
 	AuthMode             string `json:"authMode"` // password | oidc-only | oidc-auto
-	AnilistTokenSet      bool   `json:"anilistTokenSet"`
-	AnilistToken         string `json:"anilistToken,omitempty"` // write-only
+	AnilistClientID      string `json:"anilistClientId"`
+	AnilistSecretSet     bool   `json:"anilistSecretSet"`
+	AnilistClientSecret  string `json:"anilistClientSecret,omitempty"` // write-only
+	AnilistRedirectURL   string `json:"anilistRedirectUrl"`
 	TmdbApiKeySet        bool   `json:"tmdbApiKeySet"`
 	TmdbApiKey           string `json:"tmdbApiKey,omitempty"` // write-only
 	PlexURL              string `json:"plexUrl"`
@@ -50,7 +52,9 @@ func (s *Server) settingsState() settingsPayload {
 		WatchIntervalMin:     int64(s.watchInterval()),
 		RegistrationDisabled: auth.RegistrationDisabled(s.DB),
 		AuthMode:             auth.AuthMode(s.DB),
-		AnilistTokenSet:      db.SettingOrEnv(s.DB, "anilist_token", "ANILIST_TOKEN") != "",
+		AnilistClientID:      db.SettingOrEnv(s.DB, "anilist_client_id", "ANILIST_CLIENT_ID"),
+		AnilistSecretSet:     db.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET") != "",
+		AnilistRedirectURL:   db.Setting(s.DB, "anilist_redirect_url"),
 		TmdbApiKeySet:        db.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
 		PlexURL:              db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
 		PlexTokenSet:         db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
@@ -114,11 +118,13 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	db.SetSetting(s.DB, "oidc_user_values", in.OidcUserValues)
 	db.SetSetting(s.DB, "plex_url", in.PlexURL)
 	db.SetSetting(s.DB, "plex_sections", in.PlexSections)
+	db.SetSetting(s.DB, "anilist_client_id", in.AnilistClientID)
+	db.SetSetting(s.DB, "anilist_redirect_url", in.AnilistRedirectURL)
 	// secrets are write-only: "" keeps the stored value, "-" clears it
-	if in.AnilistToken == "-" {
-		db.SetSetting(s.DB, "anilist_token", "")
-	} else if in.AnilistToken != "" {
-		db.SetSetting(s.DB, "anilist_token", in.AnilistToken)
+	if in.AnilistClientSecret == "-" {
+		db.SetSetting(s.DB, "anilist_client_secret", "")
+	} else if in.AnilistClientSecret != "" {
+		db.SetSetting(s.DB, "anilist_client_secret", in.AnilistClientSecret)
 	}
 	if in.TmdbApiKey == "-" {
 		db.SetSetting(s.DB, "tmdb_api_key", "")

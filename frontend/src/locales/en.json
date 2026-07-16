@@ -13,7 +13,7 @@
     "rename": "Rename",
     "settings": "Settings",
     "main": "Main navigation",
-    "plex": "Plex"
+    "suggestions": "Suggestions"
   },
   "login": {
     "tagline": "s/ftp anime sync · private use",
@@ -156,7 +156,8 @@
     "files": "{{count}} files",
     "complete": "Complete, sync can be removed",
     "confirmDelete": "Remove auto-sync for \"{{name}}\"? Downloaded files are kept.",
-    "empty": "Select a folder in the <1>Browser</1> and click \"Watch\"."
+    "empty": "Select a folder in the <1>Browser</1> and click \"Watch\".",
+    "seen": "{{count}} watched"
   },
   "rename": {
     "title": "RENAME",
@@ -230,7 +231,6 @@
     "secretSet": "set, leave empty to keep, \"-\" to clear",
     "secretUnset": "not set",
     "integrations": "integrations",
-    "anilistToken": "AniList API token (higher rate limit)",
     "adminOnly": "Only admins can change settings.",
     "users": "users",
     "usersCreate": "Create",
@@ -259,7 +259,17 @@
     "plexSections": "Libraries for suggestions",
     "plexSectionsHint": "No selection = all show libraries. Picking only anime libraries saves AniList requests.",
     "tmdbApiKey": "TMDB API key (series/movies catalog)",
-    "tmdbApiKeyHint": "Free key from themoviedb.org (settings, API). Without a key the series/movies mark stays disabled."
+    "tmdbApiKeyHint": "Free key from themoviedb.org (settings, API). Without a key the series/movies mark stays disabled.",
+    "anilistClientId": "AniList client ID",
+    "anilistClientSecret": "AniList client secret",
+    "anilistRedirectUrl": "AniList redirect URL",
+    "anilistClientHint": "API client from anilist.co (settings, developer). The redirect URL must match exactly there; empty = derived from the address.",
+    "anilistConnect": "Connect with AniList",
+    "anilistDisconnect": "Disconnect",
+    "anilistConnectedAs": "connected as {{name}}",
+    "anilistExpires": "Token valid until {{date}}.",
+    "anilistReconnect": "Re-connect soon!",
+    "anilistNotConfigured": "Save client ID and secret first."
   },
   "status": {
     "queued": "queued",
@@ -311,5 +321,18 @@
     "folderHint": "Where the series is stored so far, continue there for consistent storage.",
     "candidates": "Remote candidates from the index",
     "openBrowser": "Open in browser"
+  },
+  "suggestions": {
+    "title": "SUGGESTIONS",
+    "sub": "anilist watchlist · plex sequels",
+    "anilist": "AniList: your watchlist on the server",
+    "plex": "Plex: missing sequels",
+    "notConnected": "No AniList account linked. Connect under <1>Settings</1>.",
+    "anilistEmpty": "No watchlist title found in the index. The index grows over time.",
+    "statusCURRENT": "watching",
+    "statusPLANNING": "planned",
+    "seen": "{{seen}} / {{total}} watched",
+    "plusOne": "+1 watched",
+    "plusOneHint": "Bump the AniList progress by one episode."
   }
 }

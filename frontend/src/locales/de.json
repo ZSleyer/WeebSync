@@ -13,7 +13,7 @@
     "rename": "Umbenennen",
     "settings": "Einstellungen",
     "main": "Hauptnavigation",
-    "plex": "Plex"
+    "suggestions": "Vorschläge"
   },
   "login": {
     "tagline": "s/ftp anime sync · privatgebrauch",
@@ -156,7 +156,8 @@
     "files": "{{count}} Dateien",
     "complete": "Komplett, Sync kann entfernt werden",
     "confirmDelete": "Auto-Sync für \"{{name}}\" entfernen? Heruntergeladene Dateien bleiben erhalten.",
-    "empty": "Im <1>Browser</1> einen Ordner auswählen und \"Beobachten\" klicken."
+    "empty": "Im <1>Browser</1> einen Ordner auswählen und \"Beobachten\" klicken.",
+    "seen": "{{count}} gesehen"
   },
   "rename": {
     "title": "UMBENENNEN",
@@ -230,7 +231,6 @@
     "secretSet": "gesetzt, leer lassen zum Behalten, \"-\" zum Löschen",
     "secretUnset": "nicht gesetzt",
     "integrations": "integrationen",
-    "anilistToken": "AniList-API-Token (höheres Rate-Limit)",
     "adminOnly": "Nur Admins können Einstellungen ändern.",
     "users": "benutzer",
     "usersCreate": "Anlegen",
@@ -259,7 +259,17 @@
     "plexSections": "Bibliotheken für Vorschläge",
     "plexSectionsHint": "Keine Auswahl = alle Serien-Bibliotheken. Nur Anime-Bibliotheken auszuwählen spart AniList-Anfragen.",
     "tmdbApiKey": "TMDB API-Key (Serien/Filme-Katalog)",
-    "tmdbApiKeyHint": "Kostenloser Key von themoviedb.org (Einstellungen, API). Ohne Key bleibt die Serien/Filme-Markierung deaktiviert."
+    "tmdbApiKeyHint": "Kostenloser Key von themoviedb.org (Einstellungen, API). Ohne Key bleibt die Serien/Filme-Markierung deaktiviert.",
+    "anilistClientId": "AniList Client-ID",
+    "anilistClientSecret": "AniList Client-Secret",
+    "anilistRedirectUrl": "AniList Redirect-URL",
+    "anilistClientHint": "API-Client von anilist.co (Einstellungen, Developer). Redirect-URL muss dort exakt so eingetragen sein; leer = automatisch aus der Adresse.",
+    "anilistConnect": "Mit AniList verbinden",
+    "anilistDisconnect": "Trennen",
+    "anilistConnectedAs": "verbunden als {{name}}",
+    "anilistExpires": "Token gültig bis {{date}}.",
+    "anilistReconnect": "Bald neu verbinden!",
+    "anilistNotConfigured": "Erst Client-ID und Secret speichern."
   },
   "status": {
     "queued": "wartend",
@@ -311,5 +321,18 @@
     "folderHint": "Bisheriger Speicherort der Serie, dort weiterführen für eine einheitliche Ablage.",
     "candidates": "Remote-Kandidaten aus dem Index",
     "openBrowser": "Im Browser öffnen"
+  },
+  "suggestions": {
+    "title": "VORSCHLÄGE",
+    "sub": "anilist watchlist · plex fortsetzungen",
+    "anilist": "AniList: deine Watchlist auf dem Server",
+    "plex": "Plex: fehlende Fortsetzungen",
+    "notConnected": "Kein AniList-Konto verbunden. Unter <1>Einstellungen</1> verbinden.",
+    "anilistEmpty": "Kein Watchlist-Titel im Index gefunden. Der Index wächst über Zeit.",
+    "statusCURRENT": "schaue ich",
+    "statusPLANNING": "geplant",
+    "seen": "{{seen}} / {{total}} gesehen",
+    "plusOne": "+1 gesehen",
+    "plusOneHint": "AniList-Fortschritt um eine Folge erhöhen."
   }
 }

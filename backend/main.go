@@ -68,6 +68,7 @@ func main() {
 			pushSvc.Notify(d.UserID, "Download fehlgeschlagen", name+": "+d.Error)
 		}
 	}
+	srv.Anilist.TokenSource = srv.AnilistToken // linked-account bearer for API calls
 	go srv.WatchLoop(context.Background())
 	go srv.IndexLoop(context.Background())
 	mux := http.NewServeMux()
