@@ -356,10 +356,15 @@ func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {
 // handleWatchCheck triggers a manual check; last_check is stamped inside
 // runWatch, so the 30min countdown restarts from now.
 func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
-	u := auth.UserFrom(r.Context())
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	// machine token (admin-scoped) may trigger any watch; sessions only their own
+	q, args := `SELECT COUNT(*) FROM watches WHERE id = ?`, []any{id}
+	if !isMachine(r.Context()) {
+		q += ` AND user_id = ?`
+		args = append(args, auth.UserFrom(r.Context()).ID)
+	}
 	var owned int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned)
+	s.DB.QueryRow(q, args...).Scan(&owned)
 	if owned == 0 {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return

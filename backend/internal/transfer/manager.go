@@ -45,6 +45,7 @@ type running struct {
 	cancel  context.CancelFunc
 	paused  bool // pause vs. hard cancel, checked when the ctx fires
 	limiter *rate.Limiter
+	bps     int64 // last measured rate, for the aggregate status endpoint
 }
 
 type Manager struct {
@@ -269,6 +270,9 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 			bps := int64(float64(transferred-lastBytes) / now.Sub(lastReport).Seconds())
 			lastReport, lastBytes = now, transferred
 			m.DB.Exec(`UPDATE downloads SET transferred = ?, updated_at = datetime('now') WHERE id = ?`, transferred, d.ID)
+			m.mu.Lock()
+			r.bps = bps
+			m.mu.Unlock()
 			d.Transferred, d.BytesPerSec, d.Status = transferred, bps, "running"
 			m.publish(d)
 		}
@@ -459,6 +463,17 @@ func (m *Manager) SetRateLimit(userID, id, bytesPerSec int64) error {
 	}
 	m.mu.Unlock()
 	return nil
+}
+
+// RunningRates returns the last measured transfer rate per active download.
+func (m *Manager) RunningRates() map[int64]int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rates := make(map[int64]int64, len(m.active))
+	for id, r := range m.active {
+		rates[id] = r.bps
+	}
+	return rates
 }
 
 func (m *Manager) get(id int64) (*Download, error) {
