@@ -1,6 +1,7 @@
 # agent instructions stay local
 AGENTS.md
 CLAUDE.md
+graphify-out
 
 # dependencies / build
 node_modules/
