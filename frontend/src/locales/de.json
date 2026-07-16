@@ -117,7 +117,15 @@
     "localTarget": "Lokales Ziel",
     "noResults": "Keine Treffer im Index.",
     "indexBuilding": "Der Index wird noch aufgebaut und verbessert sich über Zeit.",
-    "indexCount": "{{count}} Einträge im Index"
+    "indexCount": "{{count}} Einträge im Index",
+    "scope": "Quelle",
+    "scopeAnime": "Anime (AniList)",
+    "scopeTv": "Serien (TMDB)",
+    "scopeMovie": "Filme (TMDB)",
+    "scopeInherited": "geerbt",
+    "scopeInheritedHint": "Markierung stammt von einem übergeordneten Ordner.",
+    "scopeClear": "Markierung entfernen",
+    "scopeClearHint": "Eigene Markierung löschen, es gilt wieder der übergeordnete Ordner."
   },
   "watch": {
     "title": "AUTO-SYNC",
@@ -249,7 +257,9 @@
     "plexToken": "Plex-Token",
     "plexTokenHint": "X-Plex-Token deines Servers, findbar über die Plex-Weboberfläche (XML-Ansicht eines Titels).",
     "plexSections": "Bibliotheken für Vorschläge",
-    "plexSectionsHint": "Keine Auswahl = alle Serien-Bibliotheken. Nur Anime-Bibliotheken auszuwählen spart AniList-Anfragen."
+    "plexSectionsHint": "Keine Auswahl = alle Serien-Bibliotheken. Nur Anime-Bibliotheken auszuwählen spart AniList-Anfragen.",
+    "tmdbApiKey": "TMDB API-Key (Serien/Filme-Katalog)",
+    "tmdbApiKeyHint": "Kostenloser Key von themoviedb.org (Einstellungen, API). Ohne Key bleibt die Serien/Filme-Markierung deaktiviert."
   },
   "status": {
     "queued": "wartend",

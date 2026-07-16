@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
-import { api, fmtBytes, type CatalogItem, type Entry, type Media, type SearchResult, type ServerInfo } from '../api'
+import { api, fmtBytes, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo } from '../api'
 import { FileBrowser, LocalPicker } from '../components/FileBrowser'
 import WatchDialog from '../components/WatchDialog'
 
@@ -256,16 +256,18 @@ function CatalogGrid({
   selected?: string
 }) {
   const { t } = useTranslation()
-  const { data: items = [], isLoading, error } = useQuery<CatalogItem[]>({
+  const { data, isLoading, error } = useQuery<CatalogResponse>({
     queryKey: ['catalog', serverId, path],
     queryFn: () => api.get(`/api/servers/${serverId}/catalog${path ? `?path=${encodeURIComponent('/' + path)}` : ''}`),
     staleTime: 5 * 60_000,
     // matching runs server-side in the background: poll while items are pending
-    refetchInterval: (q) => (q.state.data?.some((i) => i.pending) ? 2500 : false),
+    refetchInterval: (q) => (q.state.data?.items.some((i) => i.pending) ? 2500 : false),
   })
+  const items = useMemo(() => data?.items ?? [], [data])
   const qc = useQueryClient()
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   const [detail, setDetail] = useState<CatalogGroup | null>(null)
+  const [scopeError, setScopeError] = useState('')
   const pendingCount = items.filter((i) => i.pending).length
   const noMatchCount = items.filter((i) => !i.media && !i.pending).length
 
@@ -273,6 +275,18 @@ function CatalogGrid({
     if (all && !confirm(t('browser.confirmRematchAll'))) return
     await api.post(`/api/servers/${serverId}/catalog/rematch`, { path: path ? '/' + path : '', all })
     qc.invalidateQueries({ queryKey: ['catalog', serverId, path] })
+  }
+
+  // mark the current folder's metadata source; '' clears the own mark so the
+  // parent's (or the anime default) applies again
+  const setScope = async (kind: string) => {
+    setScopeError('')
+    try {
+      await api.put(`/api/servers/${serverId}/catalog/scope`, { path: path ? '/' + path : '', kind })
+      qc.invalidateQueries({ queryKey: ['catalog', serverId] })
+    } catch (err) {
+      setScopeError(err instanceof Error ? err.message : t('app.error'))
+    }
   }
 
   // bundle folders matched to the same anime into one card; the version
@@ -300,28 +314,55 @@ function CatalogGrid({
       </p>
     )
   if (error) return <p className="p-6 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>
-  if (items.length === 0) return <p className="p-6 text-sm text-t-muted">{t('browser.noFolders')}</p>
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-4">
       <div className="mb-3 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-t-muted">
+          {t('browser.scope')}
+          <span className="t-select-wrap w-44">
+            <select
+              className="t-select"
+              value={data?.scope || 'anime'}
+              onChange={(e) => setScope(e.target.value)}
+            >
+              <option value="anime">{t('browser.scopeAnime')}</option>
+              <option value="tv">{t('browser.scopeTv')}</option>
+              <option value="movie">{t('browser.scopeMovie')}</option>
+            </select>
+          </span>
+        </label>
+        {data?.inherited && <span className="t-label" title={t('browser.scopeInheritedHint')}>{t('browser.scopeInherited')}</span>}
+        {data && data.scope !== '' && !data.inherited && (
+          <button className="t-btn t-btn--sm" title={t('browser.scopeClearHint')} onClick={() => setScope('')}>
+            {t('browser.scopeClear')}
+          </button>
+        )}
+        {scopeError && (
+          <span className="text-xs text-err" role="alert">
+            {scopeError}
+          </span>
+        )}
         {pendingCount > 0 ? (
           <p className="text-xs text-t-muted" role="status">
             {t('browser.matchingCount', { count: pendingCount })}
           </p>
         ) : (
-          <>
-            {noMatchCount > 0 && (
-              <button className="t-btn t-btn--sm" onClick={() => triggerRematch(false)}>
-                {t('browser.retryUnmatched', { count: noMatchCount })}
+          items.length > 0 && (
+            <>
+              {noMatchCount > 0 && (
+                <button className="t-btn t-btn--sm" onClick={() => triggerRematch(false)}>
+                  {t('browser.retryUnmatched', { count: noMatchCount })}
+                </button>
+              )}
+              <button className="t-btn t-btn--sm" onClick={() => triggerRematch(true)}>
+                {t('browser.rematchAll')}
               </button>
-            )}
-            <button className="t-btn t-btn--sm" onClick={() => triggerRematch(true)}>
-              {t('browser.rematchAll')}
-            </button>
-          </>
+            </>
+          )
         )}
       </div>
+      {items.length === 0 && <p className="p-6 text-sm text-t-muted">{t('browser.noFolders')}</p>}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
         {groups.map((g) => {
           const it = g.items[0]
@@ -411,6 +452,12 @@ interface CatalogGroup {
   items: CatalogItem[]
 }
 
+// source-dependent external link (AniList for anime, TMDB for marked folders)
+const mediaLink = (source: string | undefined, id: number) =>
+  source?.startsWith('tmdb:')
+    ? { href: `https://www.themoviedb.org/${source.slice(5)}/${id}`, label: 'TMDB' }
+    : { href: `https://anilist.co/anime/${id}`, label: 'AniList' }
+
 // DetailDialog shows the anime's full metadata (banner, description, trailer,
 // genres) plus every folder version matched to it, each selectable for sync
 // and individually re-matchable.
@@ -467,9 +514,14 @@ function DetailDialog({
               ))}
             </div>
             <p className="mt-1 font-mono text-[10px] text-t-muted">
-              <a className="hover:text-accent" href={`https://anilist.co/anime/${m.id}`} target="_blank" rel="noreferrer">
-                AniList #{m.id}
-              </a>
+              {(() => {
+                const l = mediaLink(group.items[0].source, m.id)
+                return (
+                  <a className="hover:text-accent" href={l.href} target="_blank" rel="noreferrer">
+                    {l.label} #{m.id}
+                  </a>
+                )
+              })()}
             </p>
           </div>
         </div>
@@ -528,15 +580,30 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
     ref.current?.showModal()
   }, [])
 
-  // search accepts a title, a bare AniList ID or an anilist.co link
+  // search accepts a title, a bare ID or an anilist.co/themoviedb.org link;
+  // the metadata source follows the folder's scope
+  const tmdbKind = item.source?.startsWith('tmdb:') ? item.source.slice(5) : ''
   const search = async () => {
-    const idm = q.match(/anilist\.co\/anime\/(\d+)/) ?? q.match(/^\s*(\d+)\s*$/)
+    const idm =
+      q.match(/themoviedb\.org\/(?:tv|movie)\/(\d+)/) ??
+      q.match(/anilist\.co\/anime\/(\d+)/) ??
+      q.match(/^\s*(\d+)\s*$/)
     try {
-      setResults(
-        idm
-          ? [await api.get<Media>(`/api/anilist/media/${idm[1]}`)]
-          : await api.get<Media[]>(`/api/anilist/search?q=${encodeURIComponent(q)}`),
-      )
+      if (idm) {
+        setResults([
+          await api.get<Media>(
+            tmdbKind ? `/api/tmdb/media?kind=${tmdbKind}&id=${idm[1]}` : `/api/anilist/media/${idm[1]}`,
+          ),
+        ])
+      } else {
+        setResults(
+          await api.get<Media[]>(
+            tmdbKind
+              ? `/api/tmdb/search?kind=${tmdbKind}&q=${encodeURIComponent(q)}`
+              : `/api/anilist/search?q=${encodeURIComponent(q)}`,
+          ),
+        )
+      }
     } catch {
       setResults([])
     }
