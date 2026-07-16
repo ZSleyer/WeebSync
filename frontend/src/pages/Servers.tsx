@@ -124,7 +124,7 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-md" aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}>
+    <dialog ref={ref} className="w-full max-w-md" onClick={(e) => e.target === ref.current && ref.current?.close()} aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}>
       {/* key remounts the form so defaultValues follow the edited server */}
       <form key={editing?.id ?? 'new'} onSubmit={submit} className="p-6">
         <h3 className="mb-4 font-display text-lg font-semibold tracking-wider">
