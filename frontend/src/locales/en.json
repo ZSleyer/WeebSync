@@ -26,7 +26,10 @@
     "oidc": "Sign in with OIDC",
     "oidcNamed": "Sign in with {{name}}",
     "redirecting": "Redirecting to login…",
-    "tabs": "Login or registration"
+    "tabs": "Login or registration",
+    "verifySent": "Account created. Please confirm your email address via the link we sent you.",
+    "verifyOk": "Email confirmed. You can log in now.",
+    "verifyInvalid": "Confirmation link invalid or already used."
   },
   "setup": {
     "title": "First-run setup",
@@ -46,7 +49,9 @@
     "back": "Back",
     "skip": "Skip",
     "done": "Setup complete, you are signed in as admin.",
-    "start": "Get started"
+    "start": "Get started",
+    "closeRegistration": "Close registration after setup (recommended)",
+    "closeRegistrationHint": "Recommended for publicly reachable instances: stops strangers from creating accounts. Add new users afterwards via user management. With OIDC enabled, password registration is disabled anyway; new OIDC users are still provisioned automatically."
   },
   "dash": {
     "title": "DASHBOARD",
@@ -273,7 +278,31 @@
     "anilistConnectedAs": "connected as {{name}}",
     "anilistExpires": "Token valid until {{date}}.",
     "anilistReconnect": "Re-connect soon!",
-    "anilistNotConfigured": "Save client ID and secret first."
+    "anilistNotConfigured": "Save client ID and secret first.",
+    "trustedNetworks": "Trusted networks",
+    "trustedNetworksHint": "CIDRs or IPs (comma-separated) that bypass the login rate limit — e.g. your home network. Do not add public ranges.",
+    "rateLimit": "Login rate limit",
+    "rateLimitHint": "IPs with failed login attempts. Unblock throttled IPs here immediately.",
+    "rateLimitEmpty": "No tracked IPs right now.",
+    "rateLimitBlocked": "blocked",
+    "rateLimitOk": "ok",
+    "rateLimitUnblock": "Unblock",
+    "rateLimitUnblockAll": "Unblock all",
+    "email": "Email / SMTP",
+    "emailHint": "SMTP server for verification and notification emails. Without it, local accounts are created without email confirmation.",
+    "smtpHost": "SMTP host",
+    "smtpPort": "Port",
+    "smtpSecurity": "Encryption",
+    "smtpSecurityNone": "None (plaintext)",
+    "smtpUsername": "Username",
+    "smtpPassword": "Password",
+    "smtpFrom": "From address",
+    "smtpFromHint": "Sender address for emails. Empty = username.",
+    "emailNotifications": "Email notifications",
+    "emailNotConfigured": "No SMTP server configured. An admin must set up SMTP first.",
+    "emailCat_download_done": "Download finished",
+    "emailCat_download_failed": "Download failed",
+    "emailCat_admin_new_user": "New registration (admin)"
   },
   "status": {
     "queued": "queued",
@@ -309,7 +338,9 @@
     "save": "Save",
     "dialogEdit": "Edit server",
     "dialogNew": "Add server",
-    "validation": "Name, protocol (sftp|ftps|ftp), host, username, password required"
+    "validation": "Name, protocol (sftp|ftps|ftp), host, username, password required",
+    "hostKeyChanged": "The server's SSH host key has changed. Only trust it if the change is expected (e.g. server reinstalled) — otherwise this could be a man-in-the-middle attack.",
+    "trustHostKey": "Trust new host key"
   },
   "plex": {
     "title": "PLEX",

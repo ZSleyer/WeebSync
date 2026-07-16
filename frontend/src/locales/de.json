@@ -26,7 +26,10 @@
     "oidc": "Mit OIDC anmelden",
     "oidcNamed": "Mit {{name}} anmelden",
     "redirecting": "Weiterleitung zum Login…",
-    "tabs": "Login oder Registrierung"
+    "tabs": "Login oder Registrierung",
+    "verifySent": "Konto erstellt. Bitte bestätige deine E-Mail-Adresse über den Link, den wir dir geschickt haben.",
+    "verifyOk": "E-Mail bestätigt. Du kannst dich jetzt anmelden.",
+    "verifyInvalid": "Bestätigungslink ungültig oder bereits verwendet."
   },
   "setup": {
     "title": "Ersteinrichtung",
@@ -46,7 +49,9 @@
     "back": "Zurück",
     "skip": "Überspringen",
     "done": "Einrichtung abgeschlossen, du bist als Admin angemeldet.",
-    "start": "Los geht's"
+    "start": "Los geht's",
+    "closeRegistration": "Registrierung nach der Einrichtung schließen (empfohlen)",
+    "closeRegistrationHint": "Für öffentlich erreichbare Instanzen empfohlen: verhindert, dass sich Fremde ein Konto anlegen. Neue Nutzer legst du danach über die Nutzerverwaltung an. Bei aktivem OIDC ist die Passwort-Registrierung ohnehin deaktiviert; neue OIDC-Nutzer werden weiter automatisch angelegt."
   },
   "dash": {
     "title": "DASHBOARD",
@@ -273,7 +278,31 @@
     "anilistConnectedAs": "verbunden als {{name}}",
     "anilistExpires": "Token gültig bis {{date}}.",
     "anilistReconnect": "Bald neu verbinden!",
-    "anilistNotConfigured": "Erst Client-ID und Secret speichern."
+    "anilistNotConfigured": "Erst Client-ID und Secret speichern.",
+    "trustedNetworks": "Vertrauenswürdige Netzwerke",
+    "trustedNetworksHint": "CIDRs oder IPs (kommagetrennt), die das Login-Rate-Limit umgehen — z. B. dein Heimnetz. Vorsicht: keine öffentlichen Ranges eintragen.",
+    "rateLimit": "Login-Rate-Limit",
+    "rateLimitHint": "IPs mit fehlgeschlagenen Login-Versuchen. Geblockte IPs kannst du hier sofort wieder freischalten.",
+    "rateLimitEmpty": "Aktuell keine erfassten IPs.",
+    "rateLimitBlocked": "geblockt",
+    "rateLimitOk": "ok",
+    "rateLimitUnblock": "Freischalten",
+    "rateLimitUnblockAll": "Alle freischalten",
+    "email": "E-Mail / SMTP",
+    "emailHint": "SMTP-Server für Verifizierungs- und Benachrichtigungs-Mails. Ohne Konfiguration werden lokale Konten ohne E-Mail-Bestätigung angelegt.",
+    "smtpHost": "SMTP-Host",
+    "smtpPort": "Port",
+    "smtpSecurity": "Verschlüsselung",
+    "smtpSecurityNone": "Keine (unverschlüsselt)",
+    "smtpUsername": "Benutzername",
+    "smtpPassword": "Passwort",
+    "smtpFrom": "Absender (From)",
+    "smtpFromHint": "Absenderadresse der Mails. Leer = Benutzername.",
+    "emailNotifications": "E-Mail-Benachrichtigungen",
+    "emailNotConfigured": "Kein SMTP-Server konfiguriert. Ein Admin muss zuerst SMTP einrichten.",
+    "emailCat_download_done": "Download abgeschlossen",
+    "emailCat_download_failed": "Download fehlgeschlagen",
+    "emailCat_admin_new_user": "Neue Registrierung (Admin)"
   },
   "status": {
     "queued": "wartend",
@@ -309,7 +338,9 @@
     "save": "Speichern",
     "dialogEdit": "Server bearbeiten",
     "dialogNew": "Server hinzufügen",
-    "validation": "Name, Protokoll (sftp|ftps|ftp), Host, Benutzer, Passwort erforderlich"
+    "validation": "Name, Protokoll (sftp|ftps|ftp), Host, Benutzer, Passwort erforderlich",
+    "hostKeyChanged": "Der SSH-Host-Key des Servers hat sich geändert. Nur vertrauen, wenn die Änderung erwartet ist (z. B. Server neu aufgesetzt) — sonst mögliche Man-in-the-Middle-Attacke.",
+    "trustHostKey": "Neuem Host-Key vertrauen"
   },
   "plex": {
     "title": "PLEX",
