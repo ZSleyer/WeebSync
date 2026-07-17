@@ -216,6 +216,7 @@ function AnilistSection() {
       pattern: '',
       replacement: '',
       subfolder: false,
+      mediaId: 0,
     }
   }
   const syncOnce = async (s: Sug, serverId: number, path: string) => {
@@ -441,6 +442,7 @@ function PlexSection() {
       pattern: '',
       replacement: '',
       subfolder: false,
+      mediaId: 0,
     }
   }
 
@@ -654,6 +656,7 @@ function TmdbSection() {
       pattern: '',
       replacement: '',
       subfolder: false,
+      mediaId: 0,
     }
   }
   const syncOnce = async (s: Sug, serverId: number, path: string) => {

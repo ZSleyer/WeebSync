@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -35,6 +36,7 @@ type Watch struct {
 	Pattern       string `json:"pattern"`
 	Replacement   string `json:"replacement"`
 	Subfolder     bool   `json:"subfolder"`   // write into local_path/<remote name> instead of local_path directly
+	MediaID       int    `json:"mediaId"`     // linked AniList/TMDB id → metadata (cover, episodes, airing); 0 = auto/none
 	IntervalMin   int    `json:"intervalMin"` // global setting, echoed for the UI
 	LastCheck     string `json:"lastCheck"`
 	LastResult    string `json:"lastResult"`    // error text of the last check, "" on success
@@ -81,20 +83,20 @@ func (s *Server) WatchLoop(ctx context.Context) {
 			return
 		case <-tick.C:
 			interval := time.Duration(s.watchInterval()) * time.Minute
-			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, last_check FROM watches`)
+			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, last_check FROM watches`)
 			if err != nil {
 				continue
 			}
 			type cand struct {
-				id                               int64
-				serverID                         int64
-				remotePath, localPath, lastCheck string
-				subfolder                        bool
+				id                                         int64
+				serverID                                   int64
+				remotePath, localPath, template, lastCheck string
+				subfolder                                  bool
 			}
 			var cands []cand
 			for rows.Next() {
 				var c cand
-				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.lastCheck)
+				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.lastCheck)
 				cands = append(cands, c)
 			}
 			rows.Close()
@@ -110,7 +112,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 					local = path.Join(c.localPath, path.Base(c.remotePath))
 				}
 				have := s.countVideos(local)
-				if smartDue(intervalDue, media, have, now) {
+				if smartDue(intervalDue, media, have, watchOffset(c.template), now) {
 					s.runWatch(c.id)
 				}
 			}
@@ -118,18 +120,33 @@ func (s *Server) WatchLoop(ctx context.Context) {
 	}
 }
 
+// offsetRe extracts the numeric offset from a rename template's {episode±N}
+// placeholder, mapping absolute (broadcast) episode numbers to the local
+// season-relative ones. e.g. "{episode-1155:02}" → -1155.
+var offsetRe = regexp.MustCompile(`\{episode([+-]\d+)`)
+
+func watchOffset(template string) int {
+	m := offsetRe.FindStringSubmatch(template)
+	if m == nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(m[1])
+	return n
+}
+
 // smartDue decides whether a watch should check now. Without an AniList
 // airing schedule the plain interval rule applies. With one, a watch that
 // already holds every aired episode stays idle until the next episode's
-// release time.
-func smartDue(intervalDue bool, media *anilist.Media, haveEps int, now time.Time) bool {
+// release time. offset aligns AniList's absolute episode numbering with the
+// local season-relative one (from the rename template).
+func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset int, now time.Time) bool {
 	if !intervalDue {
 		return false
 	}
 	if media == nil || media.NextAiring == nil {
 		return true
 	}
-	if haveEps >= media.NextAiring.Episode-1 && now.Unix() < media.NextAiring.AiringAt {
+	if haveEps >= media.NextAiring.Episode-1+offset && now.Unix() < media.NextAiring.AiringAt {
 		return false // all aired episodes synced, wait for the release slot
 	}
 	return true
@@ -227,15 +244,17 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
+		offset := watchOffset(it.Template)
 		it.Complete = it.Media != nil && it.Media.Status == "FINISHED" && it.Media.Episodes > 0 &&
-			it.LocalFiles >= it.Media.Episodes && it.Active == 0
+			it.LocalFiles >= it.Media.Episodes+offset && it.Active == 0
 		if it.Media != nil {
+			it.MediaID = it.Media.ID
 			it.SeenEpisodes = progress[it.Media.ID]
 		}
 		if it.Media != nil && it.Media.NextAiring != nil {
-			it.NextEpisode = it.Media.NextAiring.Episode
+			it.NextEpisode = it.Media.NextAiring.Episode + offset
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
-			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, time.Now())
+			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, time.Now())
 		}
 		list = append(list, it)
 	}
@@ -292,6 +311,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := res.LastInsertId()
+	s.linkMedia(in.ServerID, in.RemotePath, in.MediaID)
 	go s.runWatch(id) // first sync right away
 	writeJSON(w, http.StatusCreated, map[string]int64{"id": id})
 }
@@ -309,6 +329,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		Pattern       string `json:"pattern"`
 		Replacement   string `json:"replacement"`
 		Subfolder     bool   `json:"subfolder"`
+		MediaID       int    `json:"mediaId"`
 	}
 	if !readJSON(w, r, &in) {
 		return
@@ -329,8 +350,9 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var oldRemote, oldLocal string
-	if err := s.DB.QueryRow(`SELECT remote_path, local_path FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
-		Scan(&oldRemote, &oldLocal); err != nil {
+	var serverID int64
+	if err := s.DB.QueryRow(`SELECT server_id, remote_path, local_path FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
+		Scan(&serverID, &oldRemote, &oldLocal); err != nil {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
@@ -340,10 +362,24 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
 	}
+	s.linkMedia(serverID, in.RemotePath, in.MediaID)
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
 		go s.runWatch(id) // paths changed: check the new folder right away
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// linkMedia records a manual folder→media match so the overview shows real
+// metadata (cover, episodes, airing) for a watch whose folder the catalog
+// couldn't auto-match (e.g. an arc subfolder). id 0 leaves any match as-is.
+func (s *Server) linkMedia(serverID int64, folder string, mediaID int) {
+	if mediaID <= 0 {
+		return
+	}
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)
+		VALUES (?, ?, ?, 1, 'anilist')
+		ON CONFLICT(server_id, folder) DO UPDATE SET media_id = excluded.media_id, manual = 1, source = 'anilist'`,
+		serverID, folder, mediaID)
 }
 
 func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {

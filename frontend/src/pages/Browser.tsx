@@ -213,6 +213,7 @@ export default function Browser() {
             pattern: '',
             replacement: '',
             subfolder: false,
+            mediaId: 0,
           }}
           onSave={async (f) => {
             await api.post('/api/watches', { serverId: active, ...f })

@@ -197,6 +197,7 @@ export default function Watches() {
             pattern: edit.pattern,
             replacement: edit.replacement,
             subfolder: edit.subfolder,
+            mediaId: edit.mediaId,
           }}
           onSave={async (f) => {
             await api.put(`/api/watches/${edit.id}`, f)
