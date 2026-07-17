@@ -346,7 +346,7 @@ func (c *Client) Media(ctx context.Context, kind string, id int) (*anilist.Media
 // AniList review shape. No language filter — German reviews barely exist, the
 // default returns mostly-English ones.
 func (c *Client) Reviews(ctx context.Context, kind string, id int) ([]anilist.Review, error) {
-	cacheKey := fmt.Sprintf("tmdb:reviews2:%s:%d", kind, id)
+	cacheKey := fmt.Sprintf("tmdb:reviews3:%s:%d", kind, id)
 	if payload, ok := c.cached(cacheKey); ok {
 		var list []anilist.Review
 		if json.Unmarshal([]byte(payload), &list) == nil {
@@ -368,7 +368,7 @@ func (c *Client) Reviews(ctx context.Context, kind string, id int) ([]anilist.Re
 	}
 	list := make([]anilist.Review, 0, len(resp.Results))
 	for i, r := range resp.Results {
-		if i == 5 {
+		if i == 15 {
 			break
 		}
 		var rev anilist.Review
