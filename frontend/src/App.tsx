@@ -121,7 +121,7 @@ function Shell({ email }: { email: string }) {
     <div className="t-hatch flex min-h-screen flex-col lg:flex-row">
       <RouteTitle />
       {/* desktop sidebar */}
-      <aside className="hidden w-52 shrink-0 flex-col border-r border-border-subtle bg-bg-secondary lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
         <div className="border-b border-border-subtle px-4 py-5">
           <h1 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
             WEEB<span className="text-accent">SYNC</span>
