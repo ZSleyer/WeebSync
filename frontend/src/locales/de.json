@@ -153,7 +153,10 @@
     "undoSync": "Abbrechen",
     "syncCanceled": "{{count}} Download(s) abgebrochen.",
     "createFolder": "Neuen Ordner erstellen",
-    "flatSync": "Dateien direkt ins Ziel schreiben (kein Unterordner) — z. B. für Titel/Season 01/-Strukturen"
+    "flatSync": "Dateien direkt ins Ziel schreiben (kein Unterordner) — z. B. für Titel/Season 01/-Strukturen",
+    "playTrailer": "Trailer abspielen",
+    "reviews": "Community-Reviews",
+    "details": "Details"
   },
   "watch": {
     "title": "AUTO-SYNC",

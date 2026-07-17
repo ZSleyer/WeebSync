@@ -334,6 +334,18 @@ dialog {
     overlay 240ms allow-discrete,
     display 240ms allow-discrete;
 }
+/* Detail modal: fullscreen sheet on phones (same cascade context as the
+   base dialog rules above, so it wins without !important and the CRT
+   reveal transition stays intact) */
+@media (max-width: 40rem) {
+  dialog.dialog-sheet {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    max-width: none;
+    margin: 0;
+  }
+}
 dialog::backdrop {
   background: color-mix(in srgb, #05070a 65%, transparent);
   transition: opacity 240ms ease-out;

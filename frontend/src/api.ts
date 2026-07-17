@@ -130,6 +130,13 @@ export interface AnilistSuggestions {
   }[]
 }
 
+export interface Review {
+  summary: string
+  score: number // reviewer's 0-100 rating
+  rating: number // upvotes (AniList only)
+  user: { name: string; avatar?: { medium: string } }
+}
+
 export interface SearchResult {
   results: Entry[]
   indexed: number
