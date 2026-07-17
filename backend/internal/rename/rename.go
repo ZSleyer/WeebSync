@@ -26,7 +26,10 @@ type Options struct {
 	Replacement string `json:"replacement"` // Go syntax: $1, ${name}
 }
 
-var placeholderRe = regexp.MustCompile(`\{(\w+)(?::(\d+))?\}`)
+// {name}, {name:0W} (zero-pad width W), {name+N}/{name-N} (numeric offset),
+// and both combined as {name-N:0W} — e.g. {episode-1155:02} turns an absolute
+// One Piece "E1156" into a season-relative "01".
+var placeholderRe = regexp.MustCompile(`\{(\w+)([+-]\d+)?(?::(\d+))?\}`)
 
 // Generic patterns only, never real release-group or provider names:
 // language tags are composed language prefixes ending in Dub/Sub
@@ -132,13 +135,21 @@ func templateName(name string, o Options) (string, error) {
 			missing = g[1]
 			return m
 		}
-		if g[2] != "" { // zero padding, numeric values only
-			if n, err := strconv.Atoi(val); err == nil {
-				width, _ := strconv.Atoi(g[2])
-				return fmt.Sprintf("%0*d", width, n)
-			}
+		// offset and zero-pad apply to integer values only; a fractional
+		// episode (e.g. a "1163.5" special) passes through untouched.
+		n, err := strconv.Atoi(val)
+		if err != nil {
+			return val
 		}
-		return val
+		if g[2] != "" { // signed offset, e.g. -1155
+			off, _ := strconv.Atoi(g[2])
+			n += off
+		}
+		if g[3] != "" { // zero-pad width
+			width, _ := strconv.Atoi(g[3])
+			return fmt.Sprintf("%0*d", width, n)
+		}
+		return strconv.Itoa(n)
 	})
 	if missing != "" {
 		return "", fmt.Errorf("no %q found in %q", missing, name)
