@@ -1,42 +1,117 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
-import { api, type AnilistSuggestions, type PlexSuggestions } from '../api'
+import { api, type AnilistSuggestions, type PlexSuggestions, type TmdbSuggestions } from '../api'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { usePersistedQuery } from '../hooks'
 import { SkeletonCards } from '../components/Loading'
 
-// Suggestions, two sections: AniList lists watchlist titles (watching /
-// planning) that exist on the user's servers via the remote index; Plex
-// reads the configured show libraries and lists missing sequels, with the
-// Plex storage folder for consistent placement.
+// Suggestions, three sections: AniList lists watchlist titles (watching /
+// planning) that exist on the user's servers via the remote index, plus
+// trending anime; Plex reads the configured libraries (grouped per library)
+// and lists missing sequels, with the Plex storage folder for consistent
+// placement; TMDB lists the linked account's watchlist plus trending titles.
 export default function Suggestions() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'plex' | 'anilist'>('plex')
+  const [tab, setTab] = useState<'plex' | 'anilist' | 'tmdb'>('plex')
+  const tabs = [
+    ['plex', 'Plex'],
+    ['anilist', 'AniList'],
+    ['tmdb', 'TMDB'],
+  ] as const
   return (
     <div className="max-w-4xl">
       <header className="mb-6">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>
         <span className="t-label mt-1">{t('suggestions.sub')}</span>
       </header>
-      <div role="group" aria-label={t('suggestions.title')} className="mb-4 flex">
-        <button
-          className={`t-btn t-btn--sm ${tab === 'plex' ? 't-btn--primary' : ''}`}
-          aria-pressed={tab === 'plex'}
-          onClick={() => setTab('plex')}
-        >
-          Plex
-        </button>
-        <button
-          className={`t-btn t-btn--sm ${tab === 'anilist' ? 't-btn--primary' : ''}`}
-          aria-pressed={tab === 'anilist'}
-          onClick={() => setTab('anilist')}
-        >
-          AniList
-        </button>
+      <TabBar
+        label={t('suggestions.title')}
+        tabs={tabs.map(([key, label]) => ({ key, label }))}
+        active={tab}
+        onChange={setTab}
+      />
+      {tab === 'plex' ? <PlexSection /> : tab === 'anilist' ? <AnilistSection /> : <TmdbSection />}
+    </div>
+  )
+}
+
+// proper tab navigation (ARIA tabs pattern): underline bar, roving tabindex,
+// arrow-key switching — shared by the source tabs and the Plex library tabs
+function TabBar<T extends string>({
+  tabs,
+  active,
+  onChange,
+  label,
+}: {
+  tabs: { key: T; label: string }[]
+  active: T
+  onChange: (k: T) => void
+  label: string
+}) {
+  const onKey = (e: KeyboardEvent<HTMLButtonElement>, idx: number) => {
+    const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    if (!dir) return
+    e.preventDefault()
+    const next = (idx + dir + tabs.length) % tabs.length
+    onChange(tabs[next].key)
+    const els = e.currentTarget.closest('[role="tablist"]')?.querySelectorAll<HTMLElement>('[role="tab"]')
+    els?.[next]?.focus()
+  }
+  // chevron scroll hints when the bar overflows (phones)
+  const listRef = useRef<HTMLDivElement>(null)
+  const [more, setMore] = useState({ left: false, right: false })
+  const check = () => {
+    const el = listRef.current
+    if (!el) return
+    const left = el.scrollLeft > 4
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+    setMore((m) => (m.left === left && m.right === right ? m : { left, right }))
+  }
+  useEffect(() => {
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  })
+  return (
+    <div className="relative mb-4">
+      <div role="tablist" aria-label={label} className="t-tabs" ref={listRef} onScroll={check}>
+        {tabs.map((tb, i) => (
+          <button
+            key={tb.key}
+            role="tab"
+            aria-selected={active === tb.key}
+            tabIndex={active === tb.key ? 0 : -1}
+            className="t-tab"
+            onClick={() => onChange(tb.key)}
+            onKeyDown={(e) => onKey(e, i)}
+          >
+            {tb.label}
+          </button>
+        ))}
       </div>
-      {tab === 'plex' ? <PlexSection /> : <AnilistSection />}
+      {/* decorative scroll hints — swipe and arrow keys do the real work */}
+      {more.left && (
+        <button
+          aria-hidden
+          tabIndex={-1}
+          className="t-tabs-more t-tabs-more--l"
+          onClick={() => listRef.current?.scrollBy({ left: -160, behavior: 'smooth' })}
+        >
+          ‹
+        </button>
+      )}
+      {more.right && (
+        <button
+          aria-hidden
+          tabIndex={-1}
+          className="t-tabs-more t-tabs-more--r"
+          onClick={() => listRef.current?.scrollBy({ left: 160, behavior: 'smooth' })}
+        >
+          ›
+        </button>
+      )}
     </div>
   )
 }
@@ -157,6 +232,67 @@ function AnilistSection() {
     }
   }
 
+  // card shared by watchlist and trending; trending entries carry no
+  // watchlist status, so status label / progress / +1 render conditionally
+  const card = (s: Sug) => (
+    <li key={s.media.id} className="t-panel flex flex-wrap items-center gap-4 p-3">
+      {s.media.coverImage?.large ? (
+        <img src={s.media.coverImage.large} alt="" className="h-20 w-14 shrink-0 object-cover" />
+      ) : (
+        <div className="t-hatch h-20 w-14 shrink-0" />
+      )}
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate text-sm font-medium text-t-primary">{s.media.title.romaji}</h3>
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-t-muted">
+          {s.status && (
+            <span className={`t-label ${s.status === 'CURRENT' ? 't-label--accent' : ''}`}>
+              {t(`suggestions.status${s.status}`)}
+            </span>
+          )}
+          {s.status && s.media.episodes > 0 && (
+            <span>{t('suggestions.seen', { seen: s.progress, total: s.media.episodes })}</span>
+          )}
+          {s.media.status && <span>{t(`browser.status.${s.media.status}`, s.media.status)}</span>}
+          {s.media.averageScore > 0 && <span className="t-label t-label--accent">★ {s.media.averageScore}</span>}
+          {s.status && (
+            <button
+              className="t-btn t-btn--sm"
+              title={t('suggestions.plusOneHint')}
+              onClick={async () => {
+                try {
+                  await api.post('/api/anilist/progress', { mediaId: s.media.id, progress: s.progress + 1 })
+                  setError('')
+                  qc.invalidateQueries({ queryKey: ['anilist-suggestions'] })
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : t('app.error'))
+                }
+              }}
+            >
+              {t('suggestions.plusOne')}
+            </button>
+          )}
+        </p>
+        {s.plexFolder && (
+          <p className="mt-1 truncate font-mono text-[11px] text-t-muted" title={s.plexFolder}>
+            {t('suggestions.plexFolder')}: {s.plexFolder}
+          </p>
+        )}
+        <ul className="mt-2 grid grid-cols-1 gap-1">
+          {s.candidates.map((c) => (
+            <CandidateRow
+              key={c.path}
+              serverId={c.serverId}
+              serverName={c.serverName}
+              path={c.path}
+              onWatch={() => setWatch({ serverId: c.serverId, name: s.media.title.romaji, initial: prefill(s, c.path) })}
+              onSync={() => syncOnce(s, c.serverId, c.path)}
+            />
+          ))}
+        </ul>
+      </div>
+    </li>
+  )
+
   return (
     <section className="mb-8" aria-label={t('suggestions.anilist')}>
       <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -190,72 +326,31 @@ function AnilistSection() {
       </div>
       {isLoading ? (
         <SkeletonCards />
-      ) : !data?.connected ? (
-        <div className="t-panel p-6 text-center text-sm text-t-muted">
-          <Trans i18nKey="suggestions.notConnected">
-            Kein AniList-Konto verbunden. Unter <Link to="/settings" className="text-accent underline">Einstellungen</Link> verbinden.
-          </Trans>
-        </div>
-      ) : data.suggestions.length === 0 ? (
-        <div className="t-panel p-6 text-center text-sm text-t-muted">
-          {data.building ? t('plex.buildingLong') : t('suggestions.anilistEmpty')}
-        </div>
       ) : (
-        <ul className="grid grid-cols-1 gap-3">
-          {data.suggestions.map((s) => (
-            <li key={s.media.id} className="t-panel flex flex-wrap items-center gap-4 p-3">
-              {s.media.coverImage?.large ? (
-                <img src={s.media.coverImage.large} alt="" className="h-20 w-14 shrink-0 object-cover" />
-              ) : (
-                <div className="t-hatch h-20 w-14 shrink-0" />
-              )}
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate text-sm font-medium text-t-primary">{s.media.title.romaji}</h3>
-                <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-t-muted">
-                  <span className={`t-label ${s.status === 'CURRENT' ? 't-label--accent' : ''}`}>
-                    {t(`suggestions.status${s.status}`)}
-                  </span>
-                  {s.media.episodes > 0 && (
-                    <span>{t('suggestions.seen', { seen: s.progress, total: s.media.episodes })}</span>
-                  )}
-                  {s.media.status && <span>{t(`browser.status.${s.media.status}`, s.media.status)}</span>}
-                  <button
-                    className="t-btn t-btn--sm"
-                    title={t('suggestions.plusOneHint')}
-                    onClick={async () => {
-                      try {
-                        await api.post('/api/anilist/progress', { mediaId: s.media.id, progress: s.progress + 1 })
-                        setError('')
-                        qc.invalidateQueries({ queryKey: ['anilist-suggestions'] })
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : t('app.error'))
-                      }
-                    }}
-                  >
-                    {t('suggestions.plusOne')}
-                  </button>
-                </p>
-                {s.plexFolder && (
-                  <p className="mt-1 truncate font-mono text-[11px] text-t-muted" title={s.plexFolder}>
-                    {t('suggestions.plexFolder')}: {s.plexFolder}
-                  </p>
-                )}
-                <ul className="mt-2 grid grid-cols-1 gap-1">
-                  {s.candidates.map((c) => (
-                    <CandidateRow
-                      key={c.path}
-                      serverId={c.serverId}
-                      serverName={c.serverName}
-                      path={c.path}
-                      onWatch={() => setWatch({ serverId: c.serverId, name: s.media.title.romaji, initial: prefill(s, c.path) })}
-                      onSync={() => syncOnce(s, c.serverId, c.path)}
-                    />
-                  ))}
-                </ul>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          <h3 className="t-label mb-2">{t('suggestions.anilistWatchlist')}</h3>
+          {!data?.connected ? (
+            <div className="t-panel p-6 text-center text-sm text-t-muted">
+              <Trans i18nKey="suggestions.notConnected">
+                Kein AniList-Konto verbunden. Unter <Link to="/settings" className="text-accent underline">Einstellungen</Link> verbinden.
+              </Trans>
+            </div>
+          ) : data.suggestions.length === 0 ? (
+            <div className="t-panel p-6 text-center text-sm text-t-muted">
+              {data.building ? t('plex.buildingLong') : t('suggestions.anilistEmpty')}
+            </div>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3">{data.suggestions.map(card)}</ul>
+          )}
+          {(data?.trending?.length ?? 0) > 0 && (
+            <>
+              <h3 className="t-label mt-6 mb-2 border-t border-border-subtle pt-4">
+                {t('suggestions.anilistTrending')}
+              </h3>
+              <ul className="grid grid-cols-1 gap-3">{data!.trending.map(card)}</ul>
+            </>
+          )}
+        </>
       )}
       {lastIds.length > 0 && (
         <p className="mt-3 flex items-center justify-center gap-2 text-xs text-t-secondary" role="status">
@@ -313,6 +408,7 @@ function PlexSection() {
   const [watch, setWatch] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
   const [notice, setNotice] = useState('')
   const [lastIds, setLastIds] = useState<number[]>([])
+  const [lib, setLib] = useState('') // active library sub-tab; '' = first
 
   const refresh = async () => {
     try {
@@ -389,9 +485,28 @@ function PlexSection() {
           {data.building ? t('plex.buildingLong') : t('plex.empty')}
         </div>
       ) : (
-        <ul className="grid grid-cols-1 gap-3">
-          {data.suggestions.map((s) => (
-            <li key={`${s.showTitle}-${s.sequel.id}`} className="t-panel flex flex-wrap gap-4 p-4">
+        (() => {
+          // one sub-tab per Plex library instead of one long scroll
+          const groups = data.suggestions.reduce<Record<string, PlexSuggestions['suggestions']>>((acc, s) => {
+            const l = s.library || t('suggestions.otherLibrary')
+            ;(acc[l] ??= []).push(s)
+            return acc
+          }, {})
+          const libs = Object.keys(groups)
+          const active = libs.includes(lib) ? lib : libs[0]
+          return (
+            <section role="tabpanel" aria-label={active}>
+              {libs.length > 1 && (
+                <TabBar
+                  label={t('suggestions.plexLibraries')}
+                  tabs={libs.map((l) => ({ key: l, label: `${l} (${groups[l].length})` }))}
+                  active={active}
+                  onChange={setLib}
+                />
+              )}
+              <ul className="grid grid-cols-1 gap-3">
+                {groups[active].map((s) => (
+                <li key={`${s.showTitle}-${s.sequel.id}`} className="t-panel flex flex-wrap gap-4 p-4">
               {s.sequel.coverImage?.large ? (
                 <img src={s.sequel.coverImage.large} alt="" className="h-28 w-20 shrink-0 object-cover" />
               ) : (
@@ -460,10 +575,193 @@ function PlexSection() {
                     </ul>
                   </div>
                 )}
-              </div>
-            </li>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+          )
+        })()
+      )}
+      {notice && (
+        <p className="mt-3 flex items-center justify-center gap-2 text-xs text-t-secondary" role="status">
+          {notice}
+          {lastIds.length > 0 && (
+            <button
+              className="t-btn t-btn--sm t-btn--danger"
+              onClick={async () => {
+                try {
+                  const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
+                  setNotice(t('browser.syncCanceled', { count: out.canceled }))
+                  setLastIds([])
+                } catch (err) {
+                  setNotice(err instanceof Error ? err.message : t('app.error'))
+                }
+              }}
+            >
+              {t('browser.undoSync')}
+            </button>
+          )}
+        </p>
+      )}
+      {watch && (
+        <WatchDialog
+          title={t('watch.addTitle', { name: watch.name })}
+          serverId={watch.serverId}
+          initial={watch.initial}
+          onSave={async (f) => {
+            await api.post('/api/watches', { serverId: watch.serverId, ...f })
+            setNotice(t('watch.created'))
+          }}
+          onClose={() => setWatch(null)}
+        />
+      )}
+    </section>
+  )
+}
+
+// TMDB: the linked account's watchlist plus this week's trending titles,
+// each filtered to what exists on the user's servers.
+function TmdbSection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [notice, setNotice] = useState('')
+  const [lastIds, setLastIds] = useState<number[]>([])
+  const [watch, setWatch] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
+  const { data, isLoading } = usePersistedQuery<TmdbSuggestions>('tmdb-suggestions', () =>
+    api.get('/api/tmdb/suggestions'),
+  )
+
+  type Sug = TmdbSuggestions['watchlist'][number]
+  const prefill = (s: Sug, path: string): WatchFields => {
+    const season = guessSeason(s.media.title.romaji)
+    // movies get no SxxEyy episode template — empty template = no rename
+    const template =
+      s.source === 'tmdb:movie'
+        ? ''
+        : season > 0
+          ? `{title} - S${String(season).padStart(2, '0')}E{episode:02}`
+          : '{title} - S{season:02}E{episode:02}'
+    return {
+      remotePath: path,
+      localPath: s.plexFolder ?? '',
+      mode: 'template',
+      template,
+      separator: '',
+      titleOverride: s.media.title.romaji,
+      pattern: '',
+      replacement: '',
+    }
+  }
+  const syncOnce = async (s: Sug, serverId: number, path: string) => {
+    try {
+      const r = await api.post<{ queued: number; ids: number[] }>('/api/downloads', {
+        serverId,
+        remotePath: path,
+        localPath: s.plexFolder ?? '',
+      })
+      setNotice(t('browser.queued', { count: r.queued }))
+      setLastIds(r.ids ?? [])
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : t('app.error'))
+      setLastIds([])
+    }
+  }
+
+  const card = (s: Sug) => (
+    <li key={`${s.source}-${s.media.id}`} className="t-panel flex flex-wrap items-center gap-4 p-3">
+      {s.media.coverImage?.large ? (
+        <img src={s.media.coverImage.large} alt="" className="h-20 w-14 shrink-0 object-cover" />
+      ) : (
+        <div className="t-hatch h-20 w-14 shrink-0" />
+      )}
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate text-sm font-medium text-t-primary">{s.media.title.romaji}</h3>
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-t-muted">
+          {s.media.seasonYear > 0 && <span className="t-label">{s.media.seasonYear}</span>}
+          {s.media.format && <span className="t-label">{s.media.format}</span>}
+          {s.media.status && <span>{t(`browser.status.${s.media.status}`, s.media.status)}</span>}
+          {s.media.averageScore > 0 && <span className="t-label t-label--accent">★ {s.media.averageScore}</span>}
+          <a
+            className="t-label hover:text-accent"
+            href={`https://www.themoviedb.org/${s.source.slice(5)}/${s.media.id}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            TMDB ↗
+          </a>
+        </p>
+        {s.plexFolder && (
+          <p className="mt-1 truncate font-mono text-[11px] text-t-muted" title={s.plexFolder}>
+            {t('suggestions.plexFolder')}: {s.plexFolder}
+          </p>
+        )}
+        <ul className="mt-2 grid grid-cols-1 gap-1">
+          {s.candidates.map((c) => (
+            <CandidateRow
+              key={c.path}
+              serverId={c.serverId}
+              serverName={c.serverName}
+              path={c.path}
+              onWatch={() => setWatch({ serverId: c.serverId, name: s.media.title.romaji, initial: prefill(s, c.path) })}
+              onSync={() => syncOnce(s, c.serverId, c.path)}
+            />
           ))}
         </ul>
+      </div>
+    </li>
+  )
+
+  return (
+    <section className="mb-8" aria-label="TMDB">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <span className="t-label t-label--accent">TMDB</span>
+        {data?.configured && (
+          <button
+            className="t-btn t-btn--sm"
+            onClick={async () => {
+              try {
+                await api.get('/api/tmdb/suggestions?force=1')
+                setNotice('')
+                qc.invalidateQueries({ queryKey: ['tmdb-suggestions'] })
+              } catch (err) {
+                setNotice(err instanceof Error ? err.message : t('app.error'))
+              }
+            }}
+          >
+            {t('plex.refresh')}
+          </button>
+        )}
+      </div>
+      {isLoading ? (
+        <SkeletonCards />
+      ) : !data?.configured ? (
+        <div className="t-panel p-6 text-center text-sm text-t-muted">
+          <Trans i18nKey="suggestions.tmdbNotConfigured">
+            Kein TMDB-API-Key hinterlegt. Unter <Link to="/settings" className="text-accent underline">Einstellungen</Link> eintragen.
+          </Trans>
+        </div>
+      ) : (
+        <>
+          <h3 className="t-label mb-2">{t('suggestions.tmdbWatchlist')}</h3>
+          {!data.connected ? (
+            <div className="t-panel p-6 text-center text-sm text-t-muted">
+              <Trans i18nKey="suggestions.tmdbNotConnected">
+                Kein TMDB-Konto verbunden. Unter <Link to="/settings" className="text-accent underline">Einstellungen</Link> verbinden.
+              </Trans>
+            </div>
+          ) : data.watchlist.length === 0 ? (
+            <div className="t-panel p-6 text-center text-sm text-t-muted">{t('suggestions.tmdbEmpty')}</div>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3">{data.watchlist.map(card)}</ul>
+          )}
+          <h3 className="t-label mt-6 mb-2 border-t border-border-subtle pt-4">{t('suggestions.tmdbTrending')}</h3>
+          {data.trending.length === 0 ? (
+            <div className="t-panel p-6 text-center text-sm text-t-muted">{t('suggestions.trendingEmpty')}</div>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3">{data.trending.map(card)}</ul>
+          )}
+        </>
       )}
       {notice && (
         <p className="mt-3 flex items-center justify-center gap-2 text-xs text-t-secondary" role="status">

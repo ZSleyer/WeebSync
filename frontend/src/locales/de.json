@@ -431,7 +431,11 @@
     "plexSource": "Metadaten-Quelle für {{name}}",
     "instance": "Instanz",
     "baseUrl": "Instanz-URL",
-    "baseUrlHint": "Öffentliche Adresse dieser WeebSync-Instanz — wird für Links in E-Mails genutzt (Bestätigung, Dashboard). Leer = aus der OIDC-Redirect-URL abgeleitet."
+    "baseUrlHint": "Öffentliche Adresse dieser WeebSync-Instanz — wird für Links in E-Mails genutzt (Bestätigung, Dashboard). Leer = aus der OIDC-Redirect-URL abgeleitet.",
+    "tmdbConnect": "TMDB-Konto verbinden",
+    "tmdbConnectedAs": "TMDB: verbunden als {{name}}",
+    "tmdbDisconnect": "Trennen",
+    "tmdbConnectHint": "Benötigt den TMDB-API-Key oben."
   },
   "status": {
     "queued": "wartend",
@@ -492,7 +496,7 @@
   },
   "suggestions": {
     "title": "VORSCHLÄGE",
-    "sub": "anilist watchlist · plex fortsetzungen",
+    "sub": "anilist- & tmdb-watchlist · plex-fortsetzungen · trending",
     "anilist": "AniList: deine Watchlist auf dem Server",
     "plex": "Plex: fehlende Fortsetzungen",
     "notConnected": "Kein AniList-Konto verbunden. Unter <1>Einstellungen</1> verbinden.",
@@ -502,6 +506,16 @@
     "seen": "{{seen}} / {{total}} gesehen",
     "plusOne": "+1 gesehen",
     "plusOneHint": "AniList-Fortschritt um eine Folge erhöhen.",
-    "plexFolder": "Plex-Ordner"
+    "plexFolder": "Plex-Ordner",
+    "anilistWatchlist": "Watchlist auf deinen Servern",
+    "anilistTrending": "Trending auf deinen Servern",
+    "tmdbWatchlist": "TMDB-Watchlist auf deinen Servern",
+    "tmdbTrending": "TMDB-Trending auf deinen Servern",
+    "tmdbNotConfigured": "Kein TMDB-API-Key hinterlegt. Unter <1>Einstellungen</1> eintragen.",
+    "tmdbNotConnected": "Kein TMDB-Konto verbunden. Unter <1>Einstellungen</1> verbinden.",
+    "tmdbEmpty": "Kein Watchlist-Titel im Index gefunden.",
+    "trendingEmpty": "Kein Trending-Titel im Index gefunden.",
+    "otherLibrary": "Sonstige",
+    "plexLibraries": "Plex-Bibliotheken"
   }
 }
