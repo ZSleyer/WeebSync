@@ -141,10 +141,12 @@ export default function Setup() {
   )
   const field = (key: keyof typeof oidc, label: string, type = 'text', required = false, hint = '') => (
     <div className="mb-3">
-      <label className="t-label mb-1 block w-fit" htmlFor={`setup-${key}`}>
-        {label}
+      <span className="mb-1 flex w-fit items-center">
+        <label className="t-label block w-fit" htmlFor={`setup-${key}`}>
+          {label}
+        </label>
         <EnvBadge show={envLocked(key)} />
-      </label>
+      </span>
       <input
         id={`setup-${key}`}
         className="t-input"
@@ -166,10 +168,12 @@ export default function Setup() {
     <>
       {field('oidcProviderName', t('settings.oidcProviderName'), 'text', false, t('settings.oidcProviderNameHint'))}
       <div className="mb-3">
-        <label className="t-label mb-1 block w-fit" htmlFor="setup-oidcIssuer">
-          {t('settings.oidcIssuer')}
+        <span className="mb-1 flex w-fit items-center">
+          <label className="t-label block w-fit" htmlFor="setup-oidcIssuer">
+            {t('settings.oidcIssuer')}
+          </label>
           <EnvBadge show={envLocked('oidcIssuer')} />
-        </label>
+        </span>
         <div className="flex gap-2">
           <input
             id="setup-oidcIssuer"
