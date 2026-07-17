@@ -82,6 +82,7 @@
     "noMatches": "Keine Downloads passen zum Filter.",
     "globalLimit": "Globales Limit",
     "selectAll": "Alle auswählen",
+    "showAllHistory": "Ganzen Verlauf anzeigen ({{count}})",
     "select": "{{name}} auswählen",
     "selectedCount": "{{count}} ausgewählt",
     "selectionActions": "Aktionen für Auswahl",
