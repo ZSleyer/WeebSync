@@ -1,10 +1,10 @@
 # ── frontend build ──
 FROM node:24-alpine AS web
 WORKDIR /src
-COPY frontend/package.json frontend/package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+COPY frontend/package.json frontend/yarn.lock ./
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn yarn install --frozen-lockfile
 COPY frontend/ ./
-RUN npm run build
+RUN yarn build
 
 # ── backend build ──
 FROM golang:1.26-alpine AS build
