@@ -20,7 +20,11 @@ import (
 // AniList and suggest missing sequels, including the Plex storage folder (to
 // keep a series in one place) and remote folder candidates from the index.
 
-const plexSuggestTTL = 6 * time.Hour
+// plexSuggestTTL is the suggestions-cache lifetime: the ttl_plex_h setting
+// in hours, default 6.
+func (s *Server) plexSuggestTTL() time.Duration {
+	return s.ttlSetting("ttl_plex_h", 6*time.Hour)
+}
 
 func (s *Server) plexClient() *plex.Client {
 	u := db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL")
@@ -83,7 +87,7 @@ func (s *Server) handlePlexSuggestions(w http.ResponseWriter, r *http.Request) {
 	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions'`).Scan(&payload, &fetched)
 	fresh := false
 	if t, err := time.Parse(sqliteTime, fetched); err == nil {
-		fresh = time.Since(t) <= plexSuggestTTL
+		fresh = time.Since(t) <= s.plexSuggestTTL()
 	}
 	building := false
 	if payload == "" || !fresh || force {

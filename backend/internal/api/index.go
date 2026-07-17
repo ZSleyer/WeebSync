@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/remote"
 )
 
@@ -19,10 +21,13 @@ import (
 // directory mtime did not change are not re-listed.
 
 const (
-	crawlTick     = 5 * time.Minute
-	crawlBatch    = 20              // max listings per server per tick
-	crawlPause    = 2 * time.Second // pause between listings, spares real servers
-	crawlMaxDepth = 16
+	crawlTick        = time.Minute     // scheduler granularity, not the crawl rate
+	crawlInterval    = 5 * time.Minute // default per-server crawl interval
+	crawlBatch       = 20              // default max listings per server per crawl
+	crawlPause       = 2 * time.Second // pause between listings, spares real servers
+	crawlMaxDepth    = 16
+	crawlMaxInterval = 1440 // admin config bounds (minutes / listings)
+	crawlMaxBatch    = 500
 	// re-list even unchanged directories once in a while (mtime detection
 	// misses in-place file changes); ponytail: fixed week-scale horizon.
 	crawlRecheck = 7 * 24 * time.Hour
@@ -103,11 +108,31 @@ func (s *Server) nextCrawlDirs(serverID int64, limit int) []string {
 	return dirs
 }
 
-// IndexLoop runs the background crawler: per tick and server one budgeted
-// batch of listings over a single connection.
+// crawlIntervalFor returns a server's crawl interval: the per-server
+// crawl_interval_min:<id> setting in minutes, default 5.
+func (s *Server) crawlIntervalFor(serverID int64) time.Duration {
+	if n, _ := strconv.Atoi(db.Setting(s.DB, fmt.Sprintf("crawl_interval_min:%d", serverID))); n > 0 {
+		return time.Duration(n) * time.Minute
+	}
+	return crawlInterval
+}
+
+// crawlBatchFor returns a server's per-crawl listing budget: the per-server
+// crawl_batch:<id> setting, default 20.
+func (s *Server) crawlBatchFor(serverID int64) int {
+	if n, _ := strconv.Atoi(db.Setting(s.DB, fmt.Sprintf("crawl_batch:%d", serverID))); n > 0 {
+		return n
+	}
+	return crawlBatch
+}
+
+// IndexLoop runs the background crawler: one budgeted batch of listings per
+// due server over a single connection. The tick is only the scheduler
+// granularity; each server crawls on its own (configurable) interval.
 func (s *Server) IndexLoop(ctx context.Context) {
 	tick := time.NewTicker(crawlTick)
 	defer tick.Stop()
+	lastCrawl := map[int64]time.Time{} // only this goroutine touches it
 	for {
 		select {
 		case <-ctx.Done():
@@ -128,19 +153,24 @@ func (s *Server) IndexLoop(ctx context.Context) {
 				servers = append(servers, v)
 			}
 			rows.Close()
+			now := time.Now()
 			for _, v := range servers {
-				s.crawlServer(ctx, v.userID, v.id, v.root)
+				if now.Sub(lastCrawl[v.id]) < s.crawlIntervalFor(v.id) {
+					continue
+				}
+				lastCrawl[v.id] = now
+				s.crawlServer(ctx, v.userID, v.id, v.root, s.crawlBatchFor(v.id))
 			}
 		}
 	}
 }
 
-func (s *Server) crawlServer(ctx context.Context, userID, serverID int64, root string) {
+func (s *Server) crawlServer(ctx context.Context, userID, serverID int64, root string, batch int) {
 	// seed: the root is always a known directory
 	s.DB.Exec(`INSERT OR IGNORE INTO remote_index (server_id, path, parent, name, is_dir)
 		VALUES (?, ?, '', ?, 1)`, serverID, root, pathBase(root))
 
-	dirs := s.nextCrawlDirs(serverID, crawlBatch)
+	dirs := s.nextCrawlDirs(serverID, batch)
 	if len(dirs) == 0 {
 		return
 	}
