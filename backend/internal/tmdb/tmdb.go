@@ -22,8 +22,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const cacheTTL = 24 * time.Hour
-
 type Client struct {
 	DB      *sql.DB
 	BaseURL string // overridable for tests
@@ -55,6 +53,15 @@ func (c *Client) key() string {
 
 // Enabled reports whether a TMDB key is configured.
 func (c *Client) Enabled() bool { return c.key() != "" }
+
+// cacheTTL is the response-cache lifetime: the ttl_tmdb_h setting in hours,
+// default 24 (read per call so changes take effect immediately).
+func (c *Client) cacheTTL() time.Duration {
+	if h, _ := strconv.Atoi(db.Setting(c.DB, "ttl_tmdb_h")); h > 0 {
+		return time.Duration(h) * time.Hour
+	}
+	return 24 * time.Hour
+}
 
 func (c *Client) get(ctx context.Context, path string, params url.Values, out any) error {
 	if err := c.limiter.Wait(ctx); err != nil {
@@ -118,7 +125,7 @@ func (c *Client) cached(key string) (string, bool) {
 		return "", false
 	}
 	t, err := time.Parse("2006-01-02 15:04:05", fetched)
-	if err != nil || time.Since(t) > cacheTTL {
+	if err != nil || time.Since(t) > c.cacheTTL() {
 		return "", false
 	}
 	return payload, true
@@ -142,7 +149,7 @@ func (c *Client) CachedMedia(kind string, id int) (m *anilist.Media, fresh bool)
 		return nil, false
 	}
 	t, err := time.Parse("2006-01-02 15:04:05", fetched)
-	return &out, err == nil && time.Since(t) <= cacheTTL
+	return &out, err == nil && time.Since(t) <= c.cacheTTL()
 }
 
 // ── mapping ─────────────────────────────────────────────────
