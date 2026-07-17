@@ -59,7 +59,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT id, remote_path, status, size, transferred FROM downloads
 		WHERE status IN ('queued','running','paused') ORDER BY id`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	for rows.Next() {
@@ -88,7 +88,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	rows, err = s.DB.Query(`SELECT id, remote_path, status, error, updated_at FROM downloads
 		WHERE status IN ('done','error') ORDER BY updated_at DESC, id DESC LIMIT 10`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	for rows.Next() {
@@ -104,7 +104,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	rows, err = s.DB.Query(`SELECT id, title_override, remote_path, last_check, last_result FROM watches ORDER BY id`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	for rows.Next() {

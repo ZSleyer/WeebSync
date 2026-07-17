@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -174,6 +175,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeErr(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// dbErr writes the uniform response for internal database failures.
+func dbErr(w http.ResponseWriter) {
+	writeErr(w, http.StatusInternalServerError, "db error")
+}
+
+// pathID parses the {id} path segment. Invalid input yields 0, which no
+// row ever matches, so handlers fall through to their "not found" path.
+func pathID(r *http.Request) int64 {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	return id
 }
 
 func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {

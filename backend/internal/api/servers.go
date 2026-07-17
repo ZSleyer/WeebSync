@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/remote"
@@ -55,7 +54,7 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path
 		FROM servers WHERE user_id = ? ORDER BY name`, u.ID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	defer rows.Close()
@@ -63,7 +62,7 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var si serverInfo
 		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath); err != nil {
-			writeErr(w, http.StatusInternalServerError, "db error")
+			dbErr(w)
 			return
 		}
 		list = append(list, si)
@@ -90,7 +89,7 @@ func (s *Server) handleServerCreate(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	id, _ := res.LastInsertId()
@@ -100,7 +99,7 @@ func (s *Server) handleServerCreate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	var in serverInput
 	if !readJSON(w, r, &in) {
 		return
@@ -119,13 +118,13 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 		_, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, host_key=''
 			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, id, u.ID)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "db error")
+			dbErr(w)
 			return
 		}
 	} else {
 		if _, err := s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?
 			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, id, u.ID); err != nil {
-			writeErr(w, http.StatusInternalServerError, "db error")
+			dbErr(w)
 			return
 		}
 	}
@@ -134,9 +133,9 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	if _, err := s.DB.Exec(`DELETE FROM servers WHERE id = ? AND user_id = ?`, id, u.ID); err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -145,7 +144,7 @@ func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 // handleServerTest dials the server and lists its root to validate the config.
 func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
 		if errors.Is(err, remote.ErrHostKeyMismatch) {
@@ -176,10 +175,10 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 // re-learns the new key via trust-on-first-use.
 func (s *Server) handleServerTrustHostKey(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	res, err := s.DB.Exec(`UPDATE servers SET host_key='' WHERE id = ? AND user_id = ?`, id, u.ID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

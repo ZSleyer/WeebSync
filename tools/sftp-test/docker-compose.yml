@@ -1,5 +1,5 @@
 # Local SFTP test server serving the seeded dummy tree read-only.
-# 1. Generate index.json with backend/cmd/ftpindex (see AGENTS.md)
+# 1. Generate index.json: FTPINDEX_PASS=... go run ./backend/cmd/ftpindex -host <host> -user <user> -out index.json
 # 2. ./seed.sh
 # 3. cp .env.example .env  (set credentials)
 # 4. docker compose up -d  → sftp://localhost:2222, root path /data

@@ -39,7 +39,7 @@ func sourceForScope(kind string) string {
 // PUT /api/servers/{id}/catalog/scope {path, kind: ”|'tv'|'movie'}
 func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	serverID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	serverID := pathID(r)
 	var in struct {
 		Path string `json:"path"`
 		Kind string `json:"kind"`

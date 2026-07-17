@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -78,7 +77,7 @@ func (s *Server) handleMkdirLocal(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleBrowseRemote(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
 		status := http.StatusBadGateway
