@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
-import { api, fmtBytes, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo } from '../api'
+import { api, fmtBytes, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
 import { FileBrowser, LocalPicker } from '../components/FileBrowser'
 import WatchDialog from '../components/WatchDialog'
 import Loading from '../components/Loading'
@@ -29,12 +29,13 @@ export default function Browser() {
 
   const [lastIds, setLastIds] = useState<number[]>([])
   const enqueue = useMutation({
-    mutationFn: () =>
+    // entry overrides the panel selection (catalog card sync button)
+    mutationFn: (entry?: Entry) =>
       api.post<{ queued: number; ids: number[] }>('/api/downloads', {
         serverId: active,
-        remotePath: selection!.path,
+        remotePath: (entry ?? selection!).path,
         localPath,
-        flat: flat && !!selection?.isDir,
+        flat: flat && !!(entry ?? selection)?.isDir,
       }),
     onSuccess: (r) => {
       setNotice(t('browser.queued', { count: r.queued }))
@@ -144,7 +145,20 @@ export default function Browser() {
               selected={selection?.path}
             />
           ) : (
-            <CatalogGrid serverId={active} path={remotePath} onSelect={setSelection} selected={selection?.path} />
+            <CatalogGrid
+              serverId={active}
+              path={remotePath}
+              onSelect={setSelection}
+              selected={selection?.path}
+              onSync={(e) => {
+                setSelection(e)
+                enqueue.mutate(e)
+              }}
+              onWatch={(e) => {
+                setSelection(e)
+                setWatchOpen(true)
+              }}
+            />
           )}
         </section>
 
@@ -164,7 +178,7 @@ export default function Browser() {
             <button
               className="t-btn t-btn--primary t-cut w-full"
               disabled={!selection || enqueue.isPending}
-              onClick={() => enqueue.mutate()}
+              onClick={() => enqueue.mutate(undefined)}
             >
               {selection?.isDir ? t('browser.syncFolder') : t('browser.downloadFile')} → downloads/
               {selection?.isDir && !flat ? [localPath, selection.name].filter(Boolean).join('/') : localPath || ''}
@@ -281,11 +295,15 @@ function CatalogGrid({
   path,
   onSelect,
   selected,
+  onSync,
+  onWatch,
 }: {
   serverId: number
   path: string
   onSelect: (e: Entry) => void
   selected?: string
+  onSync: (e: Entry) => void
+  onWatch: (e: Entry) => void
 }) {
   const { t } = useTranslation()
   const { data, isLoading, error } = useQuery<CatalogResponse>({
@@ -411,8 +429,20 @@ function CatalogGrid({
           return (
             <article
               key={g.key}
-              className={`t-panel group flex flex-col ${isSelected ? 'outline-2 outline-accent' : ''}`}
+              className={`t-panel group relative flex flex-col ${isSelected ? 'outline-2 outline-accent' : ''}`}
             >
+              {/* rematch tucked away as a pencil over the cover (hover/focus);
+                  unmatched folders keep the explicit button below instead */}
+              {g.media && !multi && !!it.source && (
+                <button
+                  className="t-btn t-btn--sm absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  aria-label={t('browser.changeMatch')}
+                  title={t('browser.changeMatch')}
+                  onClick={() => setRematch(it)}
+                >
+                  ✎
+                </button>
+              )}
               <button
                 className="text-left"
                 onClick={() => (g.media ? setDetail(g) : onSelect(it.entry))}
@@ -458,10 +488,44 @@ function CatalogGrid({
                   )}
                 </div>
               </button>
-              {!multi && !!it.source && (
-                <button className="t-btn t-btn--sm mx-2 mb-2 mt-auto" onClick={() => setRematch(it)}>
-                  {t('browser.changeMatch')}
-                </button>
+              {g.media ? (
+                <div className="mx-2 mb-2 mt-auto flex gap-1.5">
+                  <button
+                    className="t-btn t-btn--sm flex-1"
+                    aria-label={t('browser.detailsFor', { name: g.media.title.romaji })}
+                    title={t('browser.details')}
+                    onClick={() => setDetail(g)}
+                  >
+                    ℹ
+                  </button>
+                  {!multi && (
+                    <>
+                      <button
+                        className="t-btn t-btn--sm flex-1"
+                        aria-label={`${t('plex.syncOnce')}: ${it.entry.name}`}
+                        title={t('plex.syncOnce')}
+                        onClick={() => onSync(it.entry)}
+                      >
+                        ⇣
+                      </button>
+                      <button
+                        className="t-btn t-btn--sm flex-1"
+                        aria-label={`${t('watch.add')}: ${it.entry.name}`}
+                        title={t('watch.add')}
+                        onClick={() => onWatch(it.entry)}
+                      >
+                        ◉
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                !g.pending &&
+                !!it.source && (
+                  <button className="t-btn t-btn--sm mx-2 mb-2 mt-auto" onClick={() => setRematch(it)}>
+                    {t('browser.changeMatch')}
+                  </button>
+                )
               )}
             </article>
           )
@@ -523,18 +587,26 @@ function DetailDialog({
     ref.current?.showModal()
   }, [])
   const m = group.media!
-  const trailerUrl =
-    m.trailer?.site === 'youtube'
-      ? `https://www.youtube.com/watch?v=${m.trailer.id}`
-      : m.trailer?.site === 'dailymotion'
-        ? `https://www.dailymotion.com/video/${m.trailer.id}`
-        : undefined
+  const source = group.items[0].source
+  const [playTrailer, setPlayTrailer] = useState(false)
+  // reviews load lazily with the modal, never with the catalog grid
+  const { data: rev } = useQuery<{ reviews: Review[] }>({
+    queryKey: ['reviews', source ?? 'anilist', m.id],
+    queryFn: () => api.get(`/api/media/reviews?source=${source ?? 'anilist'}&id=${m.id}`),
+    staleTime: 5 * 60_000,
+  })
 
   return (
-    <dialog ref={ref} className="w-full max-w-2xl" aria-label={t('browser.detailsFor', { name: m.title.romaji })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
+    <dialog ref={ref} className="dialog-sheet w-full max-w-4xl" aria-label={t('browser.detailsFor', { name: m.title.romaji })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
+      {/* close button stays reachable while the dialog scrolls */}
+      <div className="sticky top-2 z-10 h-0 text-right">
+        <button type="button" className="t-btn t-btn--sm mr-2" aria-label={t('browser.close')} onClick={() => ref.current?.close()}>
+          ✕
+        </button>
+      </div>
       {m.bannerImage && <img src={m.bannerImage} alt="" className="max-h-36 w-full object-cover" />}
       <div className="p-5">
-        <div className="flex gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row">
           {m.coverImage?.large && <img src={m.coverImage.large} alt="" className="h-40 w-28 shrink-0 object-cover" />}
           <div className="min-w-0">
             <h3 className="font-display font-semibold tracking-wider">{m.title.romaji}</h3>
@@ -568,20 +640,81 @@ function DetailDialog({
           </div>
         </div>
         {m.description && (
-          <p className="mt-3 max-h-32 overflow-y-auto text-sm whitespace-pre-line text-t-secondary">
+          <p className="mt-3 text-sm whitespace-pre-line text-t-secondary">
             {/* AniList descriptions still carry some inline HTML */}
             {m.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')}
           </p>
         )}
-        {trailerUrl && (
-          <a className="t-btn t-btn--sm mt-3 inline-flex items-center gap-2" href={trailerUrl} target="_blank" rel="noreferrer">
+        {m.trailer?.site === 'youtube' &&
+          (playTrailer ? (
+            <iframe
+              className="mt-3 aspect-video w-full"
+              title={t('browser.trailer')}
+              src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}?autoplay=1`}
+              allow="autoplay; encrypted-media; fullscreen"
+              allowFullScreen
+            />
+          ) : (
+            <button
+              type="button"
+              className="relative mt-3 block w-full max-w-md"
+              aria-label={t('browser.playTrailer')}
+              onClick={() => setPlayTrailer(true)}
+            >
+              <img
+                src={m.trailer.thumbnail || `https://i.ytimg.com/vi/${m.trailer.id}/hqdefault.jpg`}
+                alt=""
+                className="aspect-video w-full object-cover"
+              />
+              <span aria-hidden className="absolute inset-0 flex items-center justify-center">
+                <span className="t-btn t-btn--primary">▶ {t('browser.trailer')}</span>
+              </span>
+            </button>
+          ))}
+        {m.trailer?.site === 'dailymotion' && (
+          <a
+            className="t-btn t-btn--sm mt-3 inline-flex items-center gap-2"
+            href={`https://www.dailymotion.com/video/${m.trailer.id}`}
+            target="_blank"
+            rel="noreferrer"
+          >
             ▶ {t('browser.trailer')}
-            {m.trailer?.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
+            {m.trailer.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
           </a>
         )}
+        {rev && rev.reviews.length > 0 && (
+          <details className="mt-4 border-t border-border-subtle pt-4">
+            <summary className="t-label cursor-pointer">
+              {t('browser.reviews')} ({rev.reviews.length})
+            </summary>
+            {/* chat-bubble layout: avatar beside a bordered bubble per review */}
+            <ul className="mt-3 grid gap-3">
+              {rev.reviews.map((r, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  {r.user.avatar?.medium ? (
+                    <img src={r.user.avatar.medium} alt="" className="h-9 w-9 shrink-0 object-cover" />
+                  ) : (
+                    <div aria-hidden className="t-hatch flex h-9 w-9 shrink-0 items-center justify-center font-display text-xs text-t-muted">
+                      {r.user.name.slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1 border border-border-subtle bg-bg-secondary p-3 text-sm text-t-secondary">
+                    <p className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="t-label">{r.user.name}</span>
+                      {r.score > 0 && <span className="t-label t-label--accent">★ {r.score}</span>}
+                    </p>
+                    <p className="whitespace-pre-line">{r.summary}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
-        <h4 className="t-label mt-4 mb-1">{t('browser.versions', { count: group.items.length })}</h4>
-        <ul className="max-h-48 overflow-y-auto">
+        <h4 className="t-label mt-4 mb-1 border-t border-border-subtle pt-4">
+          {t('browser.versions', { count: group.items.length })}
+        </h4>
+        <ul>
           {group.items.map((it) => (
             <li key={it.entry.path} className="flex items-center gap-2 border-b border-border-subtle px-2 py-2">
               <span
