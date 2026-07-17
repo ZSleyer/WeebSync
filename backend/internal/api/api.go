@@ -142,6 +142,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// anilist + catalog
 	mux.Handle("GET /api/anilist/search", authed(http.HandlerFunc(s.handleAnilistSearch)))
 	mux.Handle("GET /api/anilist/media/{id}", authed(http.HandlerFunc(s.handleAnilistMedia)))
+	mux.Handle("GET /api/media/reviews", authed(http.HandlerFunc(s.handleMediaReviews)))
 	mux.Handle("GET /api/plex/sections", authed(http.HandlerFunc(s.handlePlexSections)))
 	mux.Handle("GET /api/plex/suggestions", authed(http.HandlerFunc(s.handlePlexSuggestions)))
 
