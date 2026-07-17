@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -37,7 +36,8 @@ type Watch struct {
 	Replacement   string `json:"replacement"`
 	IntervalMin   int    `json:"intervalMin"` // global setting, echoed for the UI
 	LastCheck     string `json:"lastCheck"`
-	LastResult    string `json:"lastResult"`    // human-readable, display only
+	LastResult    string `json:"lastResult"`    // error text of the last check, "" on success
+	LastQueued    int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
 	LastUploading int    `json:"lastUploading"` // files still uploading remotely at the last check
 	CreatedAt     string `json:"createdAt"`
 
@@ -157,17 +157,14 @@ func (s *Server) runWatch(id int64) {
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
 	ids, uploading, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), true, false)
-	queued := len(ids)
-	result := fmt.Sprintf("%d neu", queued)
-	if uploading > 0 {
-		result = fmt.Sprintf("%d neu, %d im Upload", queued, uploading)
-	}
+	// structured result: the frontend localizes the counts; last_result only
+	// carries the error text of a failed check
+	result, queued := "", len(ids)
 	if err != nil {
-		result = err.Error()
-		uploading = 0
+		result, queued, uploading = err.Error(), -1, 0
 		slog.Warn("watch check", "id", id, "err", err)
 	}
-	s.DB.Exec(`UPDATE watches SET last_result = ?, last_uploading = ? WHERE id = ?`, result, uploading, id)
+	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ? WHERE id = ?`, result, queued, uploading, id)
 }
 
 // watchNameFn maps remote file names to local ones via the watch's rename
@@ -196,7 +193,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.last_check, w.last_result, w.last_uploading, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -210,7 +207,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		var it Watch
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
 			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement,
-			&it.LastCheck, &it.LastResult, &it.LastUploading, &it.CreatedAt); err != nil {
+			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.CreatedAt); err != nil {
 			dbErr(w)
 			return
 		}

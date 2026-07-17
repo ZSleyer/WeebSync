@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -81,16 +80,7 @@ func main() {
 		Mail:         mailer.New(database),
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
-	srv.Transfers.OnFinished = func(d *transfer.Download) {
-		name := path.Base(d.RemotePath)
-		if d.Status == "done" {
-			pushSvc.Notify(d.UserID, "Download fertig", name)
-			srv.EmailNotifyDownload(d.UserID, "download_done", d.ServerID, d.RemotePath, "")
-		} else {
-			pushSvc.Notify(d.UserID, "Download fehlgeschlagen", name+": "+d.Error)
-			srv.EmailNotifyDownload(d.UserID, "download_failed", d.ServerID, d.RemotePath, d.Error)
-		}
-	}
+	srv.Transfers.OnFinished = srv.NotifyDownloadFinished
 	srv.Anilist.TokenSource = srv.AnilistToken // linked-account bearer for API calls
 
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

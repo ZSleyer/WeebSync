@@ -18,6 +18,16 @@ import (
 type credentials struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	// ui language at registration time, so the verify email is localized
+	// before the first locale sync can happen
+	Locale string `json:"locale,omitempty"`
+}
+
+func validLocale(l string) string {
+	if l == "de" || l == "en" {
+		return l
+	}
+	return ""
 }
 
 // passwordAuthBlocked: in oidc-only/auto mode the password endpoints are
@@ -67,8 +77,8 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		verified, token = 0, randToken()
 	}
 	// first user becomes admin
-	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin, email_verified, verify_token)
-		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?)`, c.Email, hash, verified, token)
+	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin, email_verified, verify_token, locale)
+		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?, ?)`, c.Email, hash, verified, token, validLocale(c.Locale))
 	if err != nil {
 		writeErr(w, http.StatusConflict, "email already registered")
 		return
@@ -77,11 +87,11 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	// notify admins who subscribed (skip the very first account — it IS the admin)
 	if existing > 0 {
-		s.EmailNotifyAdmins("admin_new_user", "Neue Registrierung", "Neues Konto registriert: "+c.Email)
+		s.EmailNotifyAdmins("admin_new_user", "email.newUserSubject", "email.newUserBody", c.Email)
 	}
 
 	if needVerify {
-		go s.sendVerifyEmail(c.Email, token, requestOrigin(r))
+		go s.sendVerifyEmail(c.Email, token, requestOrigin(r), s.userLocale(id))
 		writeJSON(w, http.StatusOK, map[string]any{"needsVerification": true, "email": c.Email})
 		return
 	}
@@ -90,6 +100,28 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "email": c.Email})
+}
+
+// handleLocalePut stores the caller's ui language so server-delivered texts
+// (email, web push) match it. The frontend syncs it fire-and-forget.
+func (s *Server) handleLocalePut(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	var in struct {
+		Locale string `json:"locale"`
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	l := validLocale(in.Locale)
+	if l == "" {
+		writeErr(w, http.StatusBadRequest, "locale must be de or en")
+		return
+	}
+	if _, err := s.DB.Exec(`UPDATE users SET locale = ? WHERE id = ?`, l, u.ID); err != nil {
+		dbErr(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"locale": l})
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {

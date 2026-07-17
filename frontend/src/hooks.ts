@@ -1,13 +1,23 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, type Download, type User } from './api'
+import i18n, { syncLocale } from './locales'
+
+let localeSynced = false
 
 export function useAuth() {
   return useQuery<User | null>({
     queryKey: ['me'],
     queryFn: async () => {
       try {
-        return await api.get<User>('/api/auth/me')
+        const me = await api.get<User>('/api/auth/me')
+        // one sync per app load, so the backend knows the language even if
+        // the user never touches the switcher
+        if (!localeSynced) {
+          localeSynced = true
+          syncLocale(i18n.language)
+        }
+        return me
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) return null
         throw e

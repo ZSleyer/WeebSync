@@ -188,7 +188,9 @@
     "complete": "Complete, sync can be removed",
     "confirmDelete": "Remove auto-sync for \"{{name}}\"? Downloaded files are kept.",
     "empty": "Select a folder in the <1>Browser</1> and click \"Watch\".",
-    "seen": "{{count}} watched"
+    "seen": "{{count}} watched",
+    "lastQueued_one": "{{count}} new",
+    "lastQueued_other": "{{count}} new"
   },
   "rename": {
     "title": "RENAME",
