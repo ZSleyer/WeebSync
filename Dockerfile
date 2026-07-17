@@ -1,20 +1,22 @@
-# ── frontend build ──
-FROM node:24-alpine AS web
+# ── frontend build ── (arch-independent JS, always native)
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 WORKDIR /src
 COPY frontend/package.json frontend/yarn.lock ./
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn yarn install --frozen-lockfile
 COPY frontend/ ./
 RUN yarn build
 
-# ── backend build ──
-FROM golang:1.26-alpine AS build
+# ── backend build ── (native toolchain, cross-compiled to $TARGETARCH)
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+ARG TARGETOS TARGETARCH
 WORKDIR /src
 COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY backend/ ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /weebsync . \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o /weebsync . \
     && mkdir -p /data/downloads
 
 # ── runtime ──
