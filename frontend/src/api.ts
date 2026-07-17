@@ -111,6 +111,7 @@ export interface PlexSuggestions {
     year: number
     leafCount: number
     folder: string
+    library: string // Plex library (section) title, for grouping
     sequel: Media
     chainNeed: number
     source?: string // "" = anilist, else "tmdb:tv" | "tmdb:movie"
@@ -122,12 +123,25 @@ export interface AnilistSuggestions {
   connected: boolean
   building: boolean
   suggestions: {
-    status: string // CURRENT | PLANNING
+    status: string // CURRENT | PLANNING; "" for trending entries
     progress: number
     media: Media
     plexFolder?: string // matching Plex folder basename, if any
     candidates: { serverId: number; serverName: string; path: string }[]
   }[]
+  trending: AnilistSuggestions['suggestions']
+}
+
+export interface TmdbSuggestions {
+  configured: boolean
+  connected: boolean
+  watchlist: {
+    media: Media
+    source: string // tmdb:tv | tmdb:movie
+    plexFolder?: string
+    candidates: { serverId: number; serverName: string; path: string }[]
+  }[]
+  trending: TmdbSuggestions['watchlist']
 }
 
 export interface Review {
