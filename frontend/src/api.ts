@@ -89,6 +89,7 @@ export interface Watch {
   pattern: string
   replacement: string
   subfolder: boolean
+  mediaId: number
   intervalMin: number
   lastCheck: string
   lastResult: string // error text of the last check, '' on success

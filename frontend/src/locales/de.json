@@ -169,6 +169,7 @@
     "sortLast": "Letzter Sync",
     "sortName": "Name",
     "sortSeason": "Season",
+    "mediaId": "AniList-ID (für Metadaten / Cover, optional)",
     "add": "Beobachten",
     "addTitle": "Beobachten: {{name}}",
     "editTitle": "Auto-Sync bearbeiten",
