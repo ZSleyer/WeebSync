@@ -11,6 +11,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/match"
 )
 
 // Folder scopes: a folder marked 'tv' or 'movie' switches catalog matching
@@ -145,6 +146,12 @@ func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force
 		}
 		if len(list) == 0 && GuessAltTitle(name) != "" {
 			list, err = s.Tmdb.Search(ctx, kind, GuessAltTitle(name), 0)
+			if err != nil {
+				return
+			}
+		}
+		if nq := match.Normalize(query); len(list) == 0 && nq != normTitle(query) {
+			list, err = s.Tmdb.Search(ctx, kind, nq, 0)
 			if err != nil {
 				return
 			}

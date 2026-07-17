@@ -12,8 +12,8 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/remote"
-	"github.com/nssteinbrenner/anitogo"
 )
 
 func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +165,9 @@ func (s *Server) matchBatch(batch []matchJob) {
 		return
 	}
 	// fallback chain for empty results: season-filtered miss → unfiltered
-	// search → alternative title from parens ("Romaji (English)" folders)
+	// search → alternative title from parens ("Romaji (English)" folders) →
+	// normalized query (typographic quotes, diacritics) → base title with
+	// season/OVA markers stripped
 	runFallback := func(idx []int, build func(i int) anilist.SearchReq) {
 		if len(idx) == 0 {
 			return
@@ -198,15 +200,155 @@ func (s *Server) matchBatch(batch []matchJob) {
 	runFallback(alt, func(i int) anilist.SearchReq {
 		return anilist.SearchReq{Query: GuessAltTitle(batch[i].name), Force: reqs[i].Force}
 	})
+	infos := make([]match.Info, len(batch))
+	for i, b := range batch {
+		infos[i] = match.ParseName(b.name, reqs[i].Query, GuessAltTitle(b.name))
+	}
+	var normed []int
+	for i := range results {
+		if len(results[i]) == 0 && match.Normalize(reqs[i].Query) != normTitle(reqs[i].Query) {
+			normed = append(normed, i)
+		}
+	}
+	runFallback(normed, func(i int) anilist.SearchReq {
+		return anilist.SearchReq{Query: match.Normalize(reqs[i].Query), Force: reqs[i].Force}
+	})
+	var stripped []int
+	for i := range results {
+		if len(results[i]) == 0 && (infos[i].Season >= 2 || infos[i].OVA) {
+			if base := match.StripMarkers(reqs[i].Query); base != "" && normTitle(base) != normTitle(reqs[i].Query) {
+				stripped = append(stripped, i)
+			}
+		}
+	}
+	runFallback(stripped, func(i int) anilist.SearchReq {
+		return anilist.SearchReq{Query: match.StripMarkers(reqs[i].Query), Force: reqs[i].Force}
+	})
+
+	// pick the best-scoring candidate per folder instead of the first hit;
+	// a non-confident best for an explicit sequel folder is kept tentatively
+	// so the relations pass can confirm or discard it
+	picked := make([]*anilist.Media, len(batch))
+	rescue := make([]bool, len(batch))
+	for i := range batch {
+		if len(results[i]) == 0 {
+			continue
+		}
+		idx, ok := match.Pick(infos[i], results[i])
+		if ok {
+			picked[i] = &results[i][idx]
+		} else if infos[i].Season >= 2 && match.SeasonOf(results[i][idx]) == 0 {
+			picked[i], rescue[i] = &results[i][idx], true
+		}
+	}
+	s.fixSequelPicks(ctx, infos, picked, rescue)
 	for i, b := range batch {
 		mediaID := 0
-		if len(results[i]) > 0 {
-			mediaID = results[i][0].ID
-			s.Anilist.CacheMedia(&results[i][0])
+		if picked[i] != nil {
+			mediaID = picked[i].ID
+			s.Anilist.CacheMedia(picked[i])
 		}
 		s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual) VALUES (?, ?, ?, 0)`,
 			b.serverID, b.folder, mediaID)
 	}
+}
+
+// fixSequelPicks resolves folders that name season N but whose pick carries
+// no season marker, using relation edges (batched 10/request, cached):
+//   - a pick with a PREQUEL edge already is a sequel entry ("Ni no Shou",
+//     "Ultra Romantic") — keep it, walking onward would overshoot;
+//   - a true base entry is upgraded to the N-th SEQUEL-chain entry when the
+//     chain is long enough (3 relation waves, so up to season 4).
+//
+// Confident picks are never dropped (never worse than today's first hit);
+// rescue picks (below the confidence threshold) survive only when the
+// relations confirm them.
+func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked []*anilist.Media, rescue []bool) {
+	var fix []int
+	frontier := map[int]bool{}
+	for i, m := range picked {
+		if m != nil && infos[i].Season >= 2 && match.SeasonOf(*m) == 0 {
+			fix = append(fix, i)
+			frontier[m.ID] = true
+		}
+	}
+	if len(fix) == 0 {
+		return
+	}
+	rels := map[int][]anilist.Relation{}
+	for range [3]int{} {
+		var ids []int
+		for id := range frontier {
+			if _, ok := rels[id]; !ok {
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) == 0 {
+			break
+		}
+		got, err := s.Anilist.RelationsBatch(ctx, ids)
+		if err != nil {
+			break // judge with what we have
+		}
+		frontier = map[int]bool{}
+		for id, r := range got {
+			rels[id] = r
+			for _, e := range r {
+				if e.RelationType == "SEQUEL" && sequelFormats[e.Node.Format] {
+					frontier[e.Node.ID] = true
+				}
+			}
+		}
+	}
+	for _, i := range fix {
+		edges, known := rels[picked[i].ID]
+		if !known {
+			if rescue[i] {
+				picked[i] = nil // unconfirmed low-score pick
+			}
+			continue
+		}
+		if hasPrequel(edges) {
+			continue // already a sequel entry, keep it
+		}
+		if m := seasonTarget(walkChain(*picked[i], rels, sequelFormats), infos[i].Season); m != nil {
+			picked[i] = m
+		} else if rescue[i] {
+			picked[i] = nil
+		}
+	}
+}
+
+// seasonTarget scans a SEQUEL chain (base first) for the entry representing
+// season want. Positions advance by the nodes' own markers where present:
+// AniList splits some seasons into "Part 2" entries that must not count as
+// a full season step ("Attack on Titan Season 3 Part 2").
+func seasonTarget(chain []anilist.Media, want int) *anilist.Media {
+	pos := 1
+	for k := 1; k < len(chain); k++ {
+		if so := match.SeasonOf(chain[k]); so > 0 {
+			pos = so
+		} else {
+			pos++ // unmarked entry or FINAL season: one season further
+		}
+		switch {
+		case pos == want:
+			return &chain[k]
+		case pos > want:
+			return nil
+		}
+	}
+	return nil
+}
+
+// hasPrequel reports whether the relation edges include a series PREQUEL.
+func hasPrequel(edges []anilist.Relation) bool {
+	for _, e := range edges {
+		if e.RelationType == "PREQUEL" && (sequelFormats[e.Node.Format] || e.Node.Format == "MOVIE") {
+			return true
+		}
+	}
+	return false
 }
 
 // queueMediaFetch refreshes missing/stale media metadata in the background.
@@ -216,41 +358,12 @@ func (s *Server) queueMediaFetch(id int) {
 	})
 }
 
+// GuessTitle/GuessAltTitle live in internal/match; the aliases keep the
+// call sites (and their tests) in this package unchanged.
 var (
-	bracketRe = regexp.MustCompile(`\[[^\]]*\]`)
-	parenRe   = regexp.MustCompile(`\([^)]*\)`)
+	GuessTitle    = match.GuessTitle
+	GuessAltTitle = match.GuessAltTitle
 )
-
-// GuessTitle extracts a searchable series title from a release folder/file
-// name. anitogo handles release-style filenames; folder names in the wild
-// look like "Romaji Titel (English Title) [GerDub,CR]", where the bracket
-// tags and the alternative title in parens ruin the search, so both are
-// stripped afterwards.
-func GuessTitle(name string) string {
-	parsed := anitogo.Parse(name, anitogo.DefaultOptions)
-	t := parsed.AnimeTitle
-	if t == "" {
-		t = name
-	}
-	t = bracketRe.ReplaceAllString(t, " ")
-	t = parenRe.ReplaceAllString(t, " ")
-	if t = strings.Join(strings.Fields(t), " "); t != "" {
-		return t
-	}
-	return strings.TrimSpace(name)
-}
-
-// GuessAltTitle returns the alternative title from a parenthesized group
-// ("Romaji (English) [Tags]" → "English"), used as a search fallback.
-func GuessAltTitle(name string) string {
-	for _, m := range parenRe.FindAllString(bracketRe.ReplaceAllString(name, " "), -1) {
-		alt := strings.Trim(m, "() ")
-		if len(strings.Fields(alt)) >= 2 { // "(2022)", "(Ko)" are no titles
-			return alt
-		}
-	}
-	return ""
-}
 
 // handleCatalog lists remote folders enriched with AniList metadata. The
 // structure is returned immediately; unmatched folders are resolved by
