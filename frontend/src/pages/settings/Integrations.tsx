@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../api'
-import { SaveBar, useSettingsForm } from './useSettingsForm'
+import { EnvBadge, SaveBar, useSettingsForm } from './useSettingsForm'
 
 export default function Integrations() {
   const { t } = useTranslation()
-  const { form, set, save, saved } = useSettingsForm()
+  const { form, set, save, saved, locked } = useSettingsForm()
   if (!form) return null
 
   return (
@@ -18,20 +18,24 @@ export default function Integrations() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs text-t-muted">
               {t('settings.anilistClientId')}
+              <EnvBadge show={locked('anilistClientId')} />
               <input
                 className="t-input mt-1 font-mono"
                 value={form.anilistClientId}
+                disabled={locked('anilistClientId')}
                 onChange={(e) => set('anilistClientId', e.target.value)}
               />
             </label>
             <label className="text-xs text-t-muted">
               {t('settings.anilistClientSecret')}
+              <EnvBadge show={locked('anilistClientSecret')} />
               <input
                 className="t-input mt-1 font-mono"
                 type="password"
                 autoComplete="off"
                 placeholder={form.anilistSecretSet ? t('settings.secretSet') : t('settings.secretUnset')}
                 value={form.anilistClientSecret ?? ''}
+                disabled={locked('anilistClientSecret')}
                 onChange={(e) => set('anilistClientSecret', e.target.value)}
               />
             </label>
@@ -50,12 +54,14 @@ export default function Integrations() {
         </div>
         <label className="mt-3 block text-xs text-t-muted">
           {t('settings.tmdbApiKey')}
+          <EnvBadge show={locked('tmdbApiKey')} />
           <input
             className="t-input mt-1 font-mono"
             type="password"
             autoComplete="off"
             placeholder={form.tmdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
             value={form.tmdbApiKey ?? ''}
+            disabled={locked('tmdbApiKey')}
             onChange={(e) => set('tmdbApiKey', e.target.value)}
           />
           <span className="mt-1 block">{t('settings.tmdbApiKeyHint')}</span>
@@ -68,22 +74,26 @@ export default function Integrations() {
           <span className="t-label">{t('settings.plex')}</span>
           <label className="text-xs text-t-muted">
             {t('settings.plexUrl')}
+            <EnvBadge show={locked('plexUrl')} />
             <input
               className="t-input mt-1 font-mono"
               placeholder="https://plex.example.com"
               value={form.plexUrl}
+              disabled={locked('plexUrl')}
               onChange={(e) => set('plexUrl', e.target.value)}
             />
             <span className="mt-1 block">{t('settings.plexUrlHint')}</span>
           </label>
           <label className="text-xs text-t-muted">
             {t('settings.plexToken')}
+            <EnvBadge show={locked('plexToken')} />
             <input
               className="t-input mt-1 font-mono"
               type="password"
               autoComplete="off"
               placeholder={form.plexTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
               value={form.plexToken ?? ''}
+              disabled={locked('plexToken')}
               onChange={(e) => set('plexToken', e.target.value)}
             />
             <span className="mt-1 block">{t('settings.plexTokenHint')}</span>

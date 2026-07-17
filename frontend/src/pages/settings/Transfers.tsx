@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import { SaveBar, useSettingsForm } from './useSettingsForm'
+import { EnvBadge, SaveBar, useSettingsForm } from './useSettingsForm'
 
 export default function Transfers() {
   const { t } = useTranslation()
-  const { form, set, save, saved } = useSettingsForm()
+  const { form, set, save, saved, locked } = useSettingsForm()
   if (!form) return null
 
   return (
@@ -12,11 +12,13 @@ export default function Transfers() {
         <span className="t-label t-label--accent">{t('settings.instance')}</span>
         <label className="mt-3 block text-xs text-t-muted">
           {t('settings.baseUrl')}
+          <EnvBadge show={locked('baseUrl')} />
           <input
             className="t-input mt-1 font-mono"
             type="url"
             placeholder="https://weebsync.example.com"
             value={form.baseUrl}
+            disabled={locked('baseUrl')}
             onChange={(e) => set('baseUrl', e.target.value)}
           />
           <span className="mt-1 block">{t('settings.baseUrlHint')}</span>

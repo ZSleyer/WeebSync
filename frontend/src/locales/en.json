@@ -435,7 +435,8 @@
     "tmdbConnect": "Link TMDB account",
     "tmdbConnectedAs": "TMDB: linked as {{name}}",
     "tmdbDisconnect": "Disconnect",
-    "tmdbConnectHint": "Requires the TMDB API key above."
+    "tmdbConnectHint": "Requires the TMDB API key above.",
+    "envLockedHint": "Set via environment variable – not editable here"
   },
   "status": {
     "queued": "queued",

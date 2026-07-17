@@ -64,8 +64,11 @@ func (s *Service) load() (config, error) {
 	if _, err := mail.ParseAddress(c.from); err != nil {
 		return c, fmt.Errorf("smtp from %q is not a valid email address — set a real sender in the email settings", c.from)
 	}
-	// password is stored base64(AES-GCM) like other secrets
-	if enc := db.Setting(s.DB, "smtp_password"); enc != "" {
+	// env override wins (matches SettingOrEnv semantics); the DB value is
+	// stored base64(AES-GCM) like other secrets
+	if pw := os.Getenv("SMTP_PASSWORD"); pw != "" {
+		c.password = pw
+	} else if enc := db.Setting(s.DB, "smtp_password"); enc != "" {
 		raw, err := base64.StdEncoding.DecodeString(enc)
 		if err != nil {
 			return c, fmt.Errorf("smtp password decode: %w", err)
@@ -75,8 +78,6 @@ func (s *Service) load() (config, error) {
 			return c, fmt.Errorf("smtp password decrypt: %w", err)
 		}
 		c.password = pw
-	} else {
-		c.password = os.Getenv("SMTP_PASSWORD")
 	}
 	return c, nil
 }
