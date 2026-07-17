@@ -111,6 +111,7 @@
     "versions_other": "{{count}} Versionen",
     "detailsFor": "Details zu {{name}}",
     "trailer": "Trailer",
+    "description": "Beschreibung",
     "status": {
       "FINISHED": "abgeschlossen",
       "RELEASING": "laufend",

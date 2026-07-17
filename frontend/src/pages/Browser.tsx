@@ -597,7 +597,7 @@ function DetailDialog({
   })
 
   return (
-    <dialog ref={ref} className="dialog-sheet w-full max-w-4xl" aria-label={t('browser.detailsFor', { name: m.title.romaji })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
+    <dialog ref={ref} className="dialog-sheet w-full max-w-4xl lg:max-w-6xl" aria-label={t('browser.detailsFor', { name: m.title.romaji })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
       {/* close button stays reachable while the dialog scrolls */}
       <div className="sticky top-2 z-10 h-0 text-right">
         <button type="button" className="t-btn t-btn--sm mr-2" aria-label={t('browser.close')} onClick={() => ref.current?.close()}>
@@ -627,66 +627,79 @@ function DetailDialog({
                 </span>
               ))}
             </div>
-            <p className="mt-1 font-mono text-[10px] text-t-muted">
-              {(() => {
-                const l = mediaLink(group.items[0].source, m.id)
-                return (
-                  <a className="hover:text-accent" href={l.href} target="_blank" rel="noreferrer">
-                    {l.label} #{m.id}
-                  </a>
-                )
-              })()}
-            </p>
+            {(() => {
+              const l = mediaLink(source, m.id)
+              return (
+                <a
+                  className="t-btn t-btn--sm mt-3 inline-flex items-center gap-1.5"
+                  href={l.href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {l.label} #{m.id}
+                  <span aria-hidden>↗</span>
+                </a>
+              )
+            })()}
           </div>
         </div>
         {m.description && (
-          <p className="mt-3 text-sm whitespace-pre-line text-t-secondary">
-            {/* AniList descriptions still carry some inline HTML */}
-            {m.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')}
-          </p>
+          <section className="mt-4 border-t border-border-subtle pt-4">
+            <h4 className="t-label mb-2">{t('browser.description')}</h4>
+            <p className="text-sm whitespace-pre-line text-t-secondary">
+              {/* AniList descriptions still carry some inline HTML */}
+              {m.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')}
+            </p>
+          </section>
         )}
-        {m.trailer?.site === 'youtube' &&
-          (playTrailer ? (
-            <iframe
-              className="mt-3 aspect-video w-full"
-              title={t('browser.trailer')}
-              src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}?autoplay=1`}
-              allow="autoplay; encrypted-media; fullscreen"
-              allowFullScreen
-            />
-          ) : (
-            <button
-              type="button"
-              className="relative mt-3 block w-full max-w-md"
-              aria-label={t('browser.playTrailer')}
-              onClick={() => setPlayTrailer(true)}
-            >
-              <img
-                src={m.trailer.thumbnail || `https://i.ytimg.com/vi/${m.trailer.id}/hqdefault.jpg`}
-                alt=""
-                className="aspect-video w-full object-cover"
-              />
-              <span aria-hidden className="absolute inset-0 flex items-center justify-center">
-                <span className="t-btn t-btn--primary">▶ {t('browser.trailer')}</span>
-              </span>
-            </button>
-          ))}
-        {m.trailer?.site === 'dailymotion' && (
-          <a
-            className="t-btn t-btn--sm mt-3 inline-flex items-center gap-2"
-            href={`https://www.dailymotion.com/video/${m.trailer.id}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            ▶ {t('browser.trailer')}
-            {m.trailer.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
-          </a>
+        {(m.trailer?.site === 'youtube' || m.trailer?.site === 'dailymotion') && (
+          <section className="mt-4 border-t border-border-subtle pt-4">
+            <h4 className="t-label mb-2">{t('browser.trailer')}</h4>
+            {m.trailer?.site === 'youtube' &&
+              (playTrailer ? (
+                <iframe
+                  className="aspect-video w-full"
+                  title={t('browser.trailer')}
+                  src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}?autoplay=1`}
+                  allow="autoplay; encrypted-media; fullscreen"
+                  allowFullScreen
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="relative block w-full max-w-md"
+                  aria-label={t('browser.playTrailer')}
+                  onClick={() => setPlayTrailer(true)}
+                >
+                  <img
+                    src={m.trailer.thumbnail || `https://i.ytimg.com/vi/${m.trailer.id}/hqdefault.jpg`}
+                    alt=""
+                    className="aspect-video w-full object-cover"
+                  />
+                  <span aria-hidden className="absolute inset-0 flex items-center justify-center">
+                    <span className="t-btn t-btn--primary">▶ {t('browser.trailer')}</span>
+                  </span>
+                </button>
+              ))}
+            {m.trailer?.site === 'dailymotion' && (
+              <a
+                className="t-btn t-btn--sm inline-flex items-center gap-2"
+                href={`https://www.dailymotion.com/video/${m.trailer.id}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                ▶ {t('browser.trailer')}
+                {m.trailer.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
+                <span aria-hidden>↗</span>
+              </a>
+            )}
+          </section>
         )}
         {rev && rev.reviews.length > 0 && (
-          <details className="mt-4 border-t border-border-subtle pt-4">
-            <summary className="t-label cursor-pointer">
+          <section className="mt-4 border-t border-border-subtle pt-4">
+            <h4 className="t-label mb-2">
               {t('browser.reviews')} ({rev.reviews.length})
-            </summary>
+            </h4>
             {/* chat-bubble layout: avatar beside a bordered bubble per review */}
             <ul className="mt-3 grid gap-3">
               {rev.reviews.map((r, i) => (
@@ -708,7 +721,7 @@ function DetailDialog({
                 </li>
               ))}
             </ul>
-          </details>
+          </section>
         )}
 
         <h4 className="t-label mt-4 mb-1 border-t border-border-subtle pt-4">
