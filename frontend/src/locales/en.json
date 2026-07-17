@@ -155,8 +155,9 @@
     "syncCanceled": "{{count}} download(s) canceled.",
     "createFolder": "Create new folder",
     "flatSync": "Write files directly into the target (no subfolder) — e.g. for Title/Season 01/ layouts",
-    "playTrailer": "Play trailer",
     "reviews": "Community reviews",
+    "noReviews": "No reviews yet.",
+    "moreReviews": "Show {{count}} more",
     "details": "Details"
   },
   "watch": {
