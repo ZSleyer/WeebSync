@@ -3,11 +3,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
@@ -16,6 +20,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/mailer"
 	"github.com/ch4d1/weebsync/internal/push"
+	"github.com/ch4d1/weebsync/internal/secret"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -29,6 +34,13 @@ func env(key, fallback string) string {
 
 func main() {
 	addr := env("WEEBSYNC_ADDR", ":8080")
+
+	// docker HEALTHCHECK entrypoint: distroless has no shell/curl, so the
+	// binary probes itself.
+	if len(os.Args) > 1 && os.Args[1] == "-healthcheck" {
+		os.Exit(healthcheck(addr))
+	}
+
 	dataDir := env("WEEBSYNC_DATA", "./data")
 	downloadRoot := env("WEEBSYNC_DOWNLOADS", filepath.Join(dataDir, "downloads"))
 	webDir := env("WEEBSYNC_WEB", "./web")
@@ -38,6 +50,12 @@ func main() {
 			slog.Error("mkdir", "dir", dir, "err", err)
 			os.Exit(1)
 		}
+	}
+
+	// env override or auto-generated key file; fail fast on unreadable key
+	if err := secret.Init(dataDir); err != nil {
+		slog.Error("secret init", "err", err)
+		os.Exit(1)
 	}
 
 	database, err := db.Open(filepath.Join(dataDir, "weebsync.db"))
@@ -74,25 +92,69 @@ func main() {
 		}
 	}
 	srv.Anilist.TokenSource = srv.AnilistToken // linked-account bearer for API calls
-	go srv.WatchLoop(context.Background())
-	go srv.IndexLoop(context.Background())
+
+	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go srv.WatchLoop(rootCtx)
+	go srv.IndexLoop(rootCtx)
 	mux := http.NewServeMux()
 	srv.Register(mux)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		if err := database.PingContext(r.Context()); err != nil {
+			http.Error(w, "db: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		w.Write([]byte("ok"))
+	})
 	mux.Handle("/", spaHandler(webDir))
 
 	httpSrv := &http.Server{
 		Addr:    addr,
 		Handler: harden(mux),
+		// request contexts inherit rootCtx: on SIGTERM the SSE streams
+		// (/api/events) end immediately, so Shutdown below returns fast
+		BaseContext: func(net.Listener) context.Context { return rootCtx },
 		// Slowloris protection. No WriteTimeout: /api/events is a long-lived
 		// SSE stream that a write deadline would sever.
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
 	slog.Info("weebsync listening", "addr", addr, "downloads", downloadRoot)
-	if err := httpSrv.ListenAndServe(); err != nil {
-		slog.Error("listen", "err", err)
-		os.Exit(1)
+	go func() {
+		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("listen", "err", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-rootCtx.Done()
+	slog.Info("shutting down")
+	// docker's default grace is 10s before SIGKILL; stay under it
+	shutCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	if err := httpSrv.Shutdown(shutCtx); err != nil {
+		httpSrv.Close()
 	}
+	srv.Transfers.Shutdown(shutCtx) // requeue active downloads, wait for workers
+	slog.Info("shutdown complete")
+}
+
+// healthcheck probes the local /healthz endpoint; exit code for HEALTHCHECK.
+func healthcheck(addr string) int {
+	if _, port, err := net.SplitHostPort(addr); err == nil {
+		addr = "127.0.0.1:" + port
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://" + addr + "/healthz")
+	if err != nil {
+		return 1
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 1
+	}
+	return 0
 }
 
 // harden sets security headers on every response. CSRF is covered by the
