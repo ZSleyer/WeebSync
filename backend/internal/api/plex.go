@@ -60,7 +60,8 @@ type plexSuggestion struct {
 	ShowTitle  string          `json:"showTitle"`
 	Year       int             `json:"year"`
 	LeafCount  int             `json:"leafCount"`
-	Folder     string          `json:"folder"` // Plex storage folder of the show
+	Folder     string          `json:"folder"`  // Plex storage folder of the show
+	Library    string          `json:"library"` // Plex library (section) title, for grouping
 	Sequel     anilist.Media   `json:"sequel"`
 	ChainNeed  int             `json:"chainNeed"`        // episodes through the sequel
 	Source     string          `json:"source,omitempty"` // "" = anilist, else tmdb:tv | tmdb:movie
@@ -84,7 +85,7 @@ func (s *Server) handlePlexSuggestions(w http.ResponseWriter, r *http.Request) {
 	}
 	force := r.URL.Query().Get("force") == "1"
 	var payload, fetched string
-	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions'`).Scan(&payload, &fetched)
+	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v2'`).Scan(&payload, &fetched)
 	fresh := false
 	if t, err := time.Parse(sqliteTime, fetched); err == nil {
 		fresh = time.Since(t) <= s.plexSuggestTTL()
@@ -244,6 +245,7 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 
 	var shows []plex.Show        // anime → AniList matching
 	isMovie := map[string]bool{} // ratingKey → item lives in a movie library
+	libOf := map[string]string{} // ratingKey → library (section) title, for grouping
 	var liveTV, liveMovies []plex.Show
 	for _, sec := range sections {
 		if (sec.Type != "show" && sec.Type != "movie") || (len(wanted) > 0 && !wanted[sec.Key]) {
@@ -253,6 +255,9 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		if err != nil {
 			slog.Warn("plex shows", "section", sec.Key, "err", err)
 			continue
+		}
+		for _, sh := range list {
+			libOf[sh.RatingKey] = sec.Title
 		}
 		switch {
 		case !isAnime(sec) && sec.Type == "movie":
@@ -352,7 +357,8 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		if sequel == nil {
 			continue
 		}
-		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: leaf, Sequel: *sequel, ChainNeed: cum}
+		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: leaf,
+			Library: libOf[sh.RatingKey], Sequel: *sequel, ChainNeed: cum}
 		if detail, err := c.ShowDetail(sh.RatingKey); err == nil && len(detail.Locations) > 0 {
 			sug.Folder = detail.Locations[0]
 		}
@@ -360,14 +366,14 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 	}
 	// live-action sections go through TMDB instead of AniList
 	if s.Tmdb.Enabled() {
-		suggestions = append(suggestions, s.liveTVSuggestions(ctx, c, liveTV)...)
-		suggestions = append(suggestions, s.liveMovieSuggestions(ctx, liveMovies)...)
+		suggestions = append(suggestions, s.liveTVSuggestions(ctx, c, liveTV, libOf)...)
+		suggestions = append(suggestions, s.liveMovieSuggestions(ctx, liveMovies, libOf)...)
 	} else if len(liveTV)+len(liveMovies) > 0 {
 		slog.Warn("plex live-action sections skipped: no TMDB key configured")
 	}
 
 	payload, _ := json.Marshal(suggestions)
-	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('plex:suggestions', ?, datetime('now'))
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('plex:suggestions:v2', ?, datetime('now'))
 		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, string(payload))
 	slog.Info("plex suggestions built", "shows", len(shows), "matched", len(matched),
 		"liveTV", len(liveTV), "liveMovies", len(liveMovies), "suggestions", len(suggestions))
@@ -500,7 +506,7 @@ func (s *Server) plexFolderNames(medias []anilist.Media) map[int]string {
 // liveTVSuggestions: a non-anime show is "incomplete" when TMDB knows more
 // episodes than Plex has — TMDB models seasons inside one entry, so there is
 // no sequel chain to walk.
-func (s *Server) liveTVSuggestions(ctx context.Context, c *plex.Client, shows []plex.Show) []plexSuggestion {
+func (s *Server) liveTVSuggestions(ctx context.Context, c *plex.Client, shows []plex.Show, libOf map[string]string) []plexSuggestion {
 	var out []plexSuggestion
 	for _, sh := range shows {
 		if ctx.Err() != nil {
@@ -518,7 +524,7 @@ func (s *Server) liveTVSuggestions(ctx context.Context, c *plex.Client, shows []
 			continue
 		}
 		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: sh.LeafCount,
-			Sequel: *m, ChainNeed: m.Episodes, Source: "tmdb:tv"}
+			Library: libOf[sh.RatingKey], Sequel: *m, ChainNeed: m.Episodes, Source: "tmdb:tv"}
 		if detail, err := c.ShowDetail(sh.RatingKey); err == nil && len(detail.Locations) > 0 {
 			sug.Folder = detail.Locations[0]
 		}
@@ -529,7 +535,7 @@ func (s *Server) liveTVSuggestions(ctx context.Context, c *plex.Client, shows []
 
 // liveMovieSuggestions: for each movie that belongs to a TMDB collection,
 // suggest the released parts missing from the library.
-func (s *Server) liveMovieSuggestions(ctx context.Context, movies []plex.Show) []plexSuggestion {
+func (s *Server) liveMovieSuggestions(ctx context.Context, movies []plex.Show, libOf map[string]string) []plexSuggestion {
 	have := map[string]bool{}
 	for _, mv := range movies {
 		have[normTitle(mv.Title)] = true
@@ -562,7 +568,7 @@ func (s *Server) liveMovieSuggestions(ctx context.Context, movies []plex.Show) [
 				continue
 			}
 			out = append(out, plexSuggestion{ShowTitle: mv.Title, Year: mv.Year, LeafCount: 1,
-				Sequel: p, ChainNeed: len(parts), Source: "tmdb:movie"})
+				Library: libOf[mv.RatingKey], Sequel: p, ChainNeed: len(parts), Source: "tmdb:movie"})
 		}
 	}
 	return out
