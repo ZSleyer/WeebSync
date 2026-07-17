@@ -215,6 +215,7 @@ function AnilistSection() {
       titleOverride: s.media.title.romaji,
       pattern: '',
       replacement: '',
+      subfolder: false,
     }
   }
   const syncOnce = async (s: Sug, serverId: number, path: string) => {
@@ -439,6 +440,7 @@ function PlexSection() {
       titleOverride: s.showTitle,
       pattern: '',
       replacement: '',
+      subfolder: false,
     }
   }
 
@@ -651,6 +653,7 @@ function TmdbSection() {
       titleOverride: s.media.title.romaji,
       pattern: '',
       replacement: '',
+      subfolder: false,
     }
   }
   const syncOnce = async (s: Sug, serverId: number, path: string) => {
