@@ -88,6 +88,7 @@ export interface Watch {
   titleOverride: string
   pattern: string
   replacement: string
+  subfolder: boolean
   intervalMin: number
   lastCheck: string
   lastResult: string // error text of the last check, '' on success

@@ -212,6 +212,7 @@ export default function Browser() {
             titleOverride: '',
             pattern: '',
             replacement: '',
+            subfolder: false,
           }}
           onSave={async (f) => {
             await api.post('/api/watches', { serverId: active, ...f })

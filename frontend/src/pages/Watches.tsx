@@ -86,7 +86,7 @@ export default function Watches() {
               )}
               <div className="min-w-0 flex-1">
                 <h3 className="truncate text-sm font-medium text-t-primary">
-                  {w.media?.title.romaji ?? w.remotePath.split('/').pop()}
+                  {w.media?.title.romaji ?? (w.titleOverride || w.remotePath.split('/').pop())}
                 </h3>
                 <p className="truncate font-mono text-[11px] text-t-muted" title={w.remotePath}>
                   {w.serverName}:{w.remotePath} → downloads/{w.localPath}
@@ -165,6 +165,7 @@ export default function Watches() {
             titleOverride: edit.titleOverride,
             pattern: edit.pattern,
             replacement: edit.replacement,
+            subfolder: edit.subfolder,
           }}
           onSave={async (f) => {
             await api.put(`/api/watches/${edit.id}`, f)
