@@ -14,6 +14,7 @@ export interface WatchFields {
   pattern: string
   replacement: string
   subfolder: boolean
+  mediaId: number
 }
 
 // WatchDialog collects the paths and rename rule of a watch (create from
@@ -162,6 +163,19 @@ export default function WatchDialog({
               <input type="checkbox" checked={f.subfolder} onChange={(e) => setF({ ...f, subfolder: e.target.checked })} />
               {t('watch.subfolder')}
             </label>
+            <div>
+              <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="watch-mediaid">
+                {t('watch.mediaId')}
+              </label>
+              <input
+                id="watch-mediaid"
+                type="number"
+                className="t-input font-mono"
+                value={f.mediaId || ''}
+                placeholder="z.B. 21 (One Piece)"
+                onChange={(e) => setF({ ...f, mediaId: Number(e.target.value) || 0 })}
+              />
+            </div>
           </section>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>

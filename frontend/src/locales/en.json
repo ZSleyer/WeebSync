@@ -169,6 +169,7 @@
     "sortLast": "Last sync",
     "sortName": "Name",
     "sortSeason": "Season",
+    "mediaId": "AniList ID (for metadata / cover, optional)",
     "add": "Watch",
     "addTitle": "Watch: {{name}}",
     "editTitle": "Edit auto-sync",
