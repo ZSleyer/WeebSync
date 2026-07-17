@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     && mkdir -p /data/downloads
 
 # ── runtime ──
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 COPY --from=build /weebsync /weebsync
 # pre-owned data dir so the nonroot user can write the volume
 COPY --from=build --chown=nonroot:nonroot /data /data
