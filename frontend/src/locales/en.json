@@ -111,6 +111,7 @@
     "versions_other": "{{count}} versions",
     "detailsFor": "Details for {{name}}",
     "trailer": "Trailer",
+    "description": "Description",
     "status": {
       "FINISHED": "finished",
       "RELEASING": "airing",
