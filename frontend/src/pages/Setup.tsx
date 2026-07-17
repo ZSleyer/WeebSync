@@ -13,7 +13,7 @@ import { EnvBadge } from './settings/useSettingsForm'
 type Step = 'choose' | 'account' | 'oidc' | 'oidc-first' | 'oidc-ready' | 'done'
 
 export default function Setup() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const [step, setStep] = useState<Step>('choose')
   const [email, setEmail] = useState('')
@@ -72,7 +72,8 @@ export default function Setup() {
   const createAccount = (e: FormEvent) => {
     e.preventDefault()
     run(async () => {
-      await api.post('/api/auth/register', { email, password })
+      // locale rides along so server-delivered texts match the ui language
+      await api.post('/api/auth/register', { email, password, locale: i18n.language })
       setStep('oidc')
     })
   }

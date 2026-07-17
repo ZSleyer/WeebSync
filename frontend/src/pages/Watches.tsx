@@ -94,7 +94,9 @@ export default function Watches() {
                 <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-t-muted">
                   <span>
                     {t('watch.lastCheck')}: {ago(w.lastCheck)}
-                    {w.lastResult && ` (${w.lastResult})`}
+                    {w.lastResult
+                      ? ` (${w.lastResult})`
+                      : w.lastQueued >= 0 && ` (${t('watch.lastQueued', { count: w.lastQueued })})`}
                   </span>
                   {w.waiting && w.nextAiringAt ? (
                     <span className="t-label t-label--ok">

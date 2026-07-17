@@ -14,7 +14,7 @@ interface AuthConfig {
 }
 
 export default function Login() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const { data: cfg } = useQuery<AuthConfig>({
     queryKey: ['authConfig'],
@@ -53,7 +53,8 @@ export default function Login() {
     setError('')
     setNotice('')
     try {
-      const res = await api.post<User & { needsVerification?: boolean }>(`/api/auth/${mode}`, { email, password })
+      // locale rides along on register so the verify email is localized
+      const res = await api.post<User & { needsVerification?: boolean }>(`/api/auth/${mode}`, { email, password, locale: i18n.language })
       if (res.needsVerification) {
         // account created but must confirm email before logging in
         setNotice(t('login.verifySent'))

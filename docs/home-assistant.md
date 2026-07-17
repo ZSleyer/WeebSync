@@ -37,7 +37,7 @@ Authorization: Bearer <token>
     { "id": 11, "name": "Ep00.mkv", "status": "done", "finishedAt": "2026-07-16 10:00:00" }
   ],
   "watches": [
-    { "id": 3, "name": "ShowX", "lastCheck": "2026-07-16 09:30:00", "lastResult": "3 neu" }
+    { "id": 3, "name": "ShowX", "lastCheck": "2026-07-16 09:30:00", "lastResult": "3 new" }
   ],
   "disk": { "path": "/downloads", "totalBytes": 0, "freeBytes": 0, "usedBytes": 0 }
 }

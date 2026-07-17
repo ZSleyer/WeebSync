@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"path"
 	"syscall"
@@ -102,7 +103,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 
-	rows, err = s.DB.Query(`SELECT id, title_override, remote_path, last_check, last_result FROM watches ORDER BY id`)
+	rows, err = s.DB.Query(`SELECT id, title_override, remote_path, last_check, last_result, last_queued, last_uploading FROM watches ORDER BY id`)
 	if err != nil {
 		dbErr(w)
 		return
@@ -110,8 +111,17 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var wch statusWatch
 		var title, remote string
-		if rows.Scan(&wch.ID, &title, &remote, &wch.LastCheck, &wch.LastResult) != nil {
+		var queued, uploading int
+		if rows.Scan(&wch.ID, &title, &remote, &wch.LastCheck, &wch.LastResult, &queued, &uploading) != nil {
 			continue
+		}
+		// external consumers (Home Assistant) have no i18n: compose an
+		// English summary; errors keep the raw last_result text
+		if wch.LastResult == "" && queued >= 0 {
+			wch.LastResult = fmt.Sprintf("%d new", queued)
+			if uploading > 0 {
+				wch.LastResult += fmt.Sprintf(", %d uploading", uploading)
+			}
 		}
 		wch.Name = title
 		if wch.Name == "" {

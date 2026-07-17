@@ -15,6 +15,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // email notification categories. userCategories are choosable by anyone;
@@ -70,10 +71,10 @@ func emailLines(lines []string) string {
 // emailHTML wraps pre-rendered content in the WeebSync mail layout (inline
 // styles only — email clients ignore stylesheets). manage is the
 // notification-settings URL for the footer ("" hides the link).
-func emailHTML(title, content, extra, manage string) string {
-	footer := `WeebSync · automatische Benachrichtigung`
+func emailHTML(locale, title, content, extra, manage string) string {
+	footer := html.EscapeString(tr(locale, "email.footer"))
 	if manage != "" {
-		footer += ` · <a href="` + html.EscapeString(manage) + `" style="color:#a685f0;text-decoration:none">Benachrichtigungen verwalten</a>`
+		footer += ` · <a href="` + html.EscapeString(manage) + `" style="color:#a685f0;text-decoration:none">` + html.EscapeString(tr(locale, "email.manage")) + `</a>`
 	}
 	return `<div style="background:#0d1117;padding:24px 12px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
   <div style="max-width:560px;margin:0 auto;background:#161b22;border:1px solid #30363d">
@@ -92,7 +93,7 @@ func emailHTML(title, content, extra, manage string) string {
 // sendVerifyEmail delivers the account-verification link. Fire-and-forget:
 // failures are logged, the account still exists and can be re-verified once
 // SMTP works (admin can also verify via the users panel).
-func (s *Server) sendVerifyEmail(to, token, origin string) {
+func (s *Server) sendVerifyEmail(to, token, origin, locale string) {
 	if s.Mail == nil {
 		return
 	}
@@ -102,14 +103,12 @@ func (s *Server) sendVerifyEmail(to, token, origin string) {
 		origin = base
 	}
 	link := origin + "/api/auth/verify?token=" + token
-	text := "Willkommen bei WeebSync!\r\n\r\n" +
-		"Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren:\r\n" +
-		link + "\r\n\r\nWenn du dich nicht registriert hast, ignoriere diese Nachricht."
-	button := `<p style="margin:18px 0"><a href="` + html.EscapeString(link) + `" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">E-Mail bestätigen</a></p>` +
-		`<p style="margin:6px 0;color:#6e7681;font-size:12px">Wenn du dich nicht registriert hast, ignoriere diese Nachricht.</p>`
-	htmlBody := emailHTML("Willkommen bei WeebSync!",
-		emailLines([]string{"Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren."}), button, "")
-	if err := s.Mail.Send(to, "WeebSync – E-Mail bestätigen", text, htmlBody); err != nil {
+	welcome, intro, ignore := tr(locale, "email.verifyWelcome"), tr(locale, "email.verifyIntro"), tr(locale, "email.verifyIgnore")
+	text := welcome + "\r\n\r\n" + intro + "\r\n" + link + "\r\n\r\n" + ignore
+	button := `<p style="margin:18px 0"><a href="` + html.EscapeString(link) + `" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">` + html.EscapeString(tr(locale, "email.verifyButton")) + `</a></p>` +
+		`<p style="margin:6px 0;color:#6e7681;font-size:12px">` + html.EscapeString(ignore) + `</p>`
+	htmlBody := emailHTML(locale, welcome, emailLines([]string{intro}), button, "")
+	if err := s.Mail.Send(to, "WeebSync – "+tr(locale, "email.verifySubject"), text, htmlBody); err != nil {
 		slog.Warn("verify email", "to", to, "err", err)
 	}
 }
@@ -192,31 +191,32 @@ func (s *Server) EmailNotifyDownload(userID int64, category string, serverID int
 		if len(items) == 0 {
 			return
 		}
+		locale := s.userLocale(userID)
 		var subject, intro string
 		switch {
 		case category == "download_done" && len(items) == 1:
-			subject, intro = "Download fertig", "Der folgende Download ist fertig:"
+			subject, intro = tr(locale, "email.downloadDoneOne"), tr(locale, "email.downloadDoneIntroOne")
 		case category == "download_done":
-			subject, intro = fmt.Sprintf("%d Downloads fertig", len(items)), "Die folgenden Downloads sind fertig:"
+			subject, intro = tr(locale, "email.downloadDoneMany", len(items)), tr(locale, "email.downloadDoneIntroMany")
 		case len(items) == 1:
-			subject, intro = "Download fehlgeschlagen", "Der folgende Download ist fehlgeschlagen:"
+			subject, intro = tr(locale, "email.downloadFailedOne"), tr(locale, "email.downloadFailedIntroOne")
 		default:
-			subject, intro = fmt.Sprintf("%d Downloads fehlgeschlagen", len(items)), "Die folgenden Downloads sind fehlgeschlagen:"
+			subject, intro = tr(locale, "email.downloadFailedMany", len(items)), tr(locale, "email.downloadFailedIntroMany")
 		}
-		text, content := s.renderDigest(intro, items)
+		text, content := s.renderDigest(locale, intro, items)
 		extra, manage := "", ""
 		if base := s.baseURL(); base != "" {
 			manage = base + "/settings/notifications"
-			extra = `<p style="margin:18px 0 4px"><a href="` + html.EscapeString(base) + `/" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">Dashboard öffnen</a></p>`
-			text += "\r\n\r\n" + base + "/\r\nBenachrichtigungen verwalten: " + manage
+			extra = `<p style="margin:18px 0 4px"><a href="` + html.EscapeString(base) + `/" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">` + html.EscapeString(tr(locale, "email.openDashboard")) + `</a></p>`
+			text += "\r\n\r\n" + base + "/\r\n" + tr(locale, "email.manage") + ": " + manage
 		}
-		s.EmailNotify(userID, category, subject, text, emailHTML(subject, content, extra, manage))
+		s.EmailNotify(userID, category, subject, text, emailHTML(locale, subject, content, extra, manage))
 	})
 }
 
 // renderDigest groups items by their remote series folder, resolves the
 // folder's catalog match for title and cover, and renders both mail bodies.
-func (s *Server) renderDigest(intro string, items []digestItem) (text, content string) {
+func (s *Server) renderDigest(locale, intro string, items []digestItem) (text, content string) {
 	type group struct {
 		title, cover, plexLink string
 		names                  []string
@@ -262,8 +262,8 @@ func (s *Server) renderDigest(intro string, items []digestItem) (text, content s
 		t.WriteString(strings.Join(g.names, "\r\n  "))
 		body := `<p style="margin:0 0 6px;color:#e6edf3;font-size:14px;font-weight:600">` + html.EscapeString(g.title) + `</p>` + emailLines(g.names)
 		if g.plexLink != "" {
-			body += `<p style="margin:4px 0 0"><a href="` + html.EscapeString(g.plexLink) + `" style="color:#a685f0;font-size:12px;text-decoration:none">In Plex öffnen ↗</a></p>`
-			t.WriteString("\r\n  In Plex: ")
+			body += `<p style="margin:4px 0 0"><a href="` + html.EscapeString(g.plexLink) + `" style="color:#a685f0;font-size:12px;text-decoration:none">` + html.EscapeString(tr(locale, "email.openPlex")) + `</a></p>`
+			t.WriteString("\r\n  Plex: ")
 			t.WriteString(g.plexLink)
 		}
 		if g.cover != "" {
@@ -281,30 +281,51 @@ func (s *Server) renderDigest(intro string, items []digestItem) (text, content s
 	return t.String(), c.String()
 }
 
-// EmailNotifyAdmins emails every admin who opted into an admin category.
-func (s *Server) EmailNotifyAdmins(category, subject, body string) {
+// EmailNotifyAdmins emails every admin who opted into an admin category,
+// localized per recipient; subject/body are catalog keys, args go to the body.
+func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ...any) {
 	if s.Mail == nil || !s.Mail.Configured() {
 		return
 	}
-	rows, err := s.DB.Query(`SELECT email, email_prefs FROM users
+	rows, err := s.DB.Query(`SELECT email, email_prefs, locale FROM users
 		WHERE is_admin = 1 AND email_verified = 1 AND email != ''`)
 	if err != nil {
 		return
 	}
-	var recipients []string
+	type recipient struct{ email, locale string }
+	var recipients []recipient
 	for rows.Next() {
-		var email, prefs string
-		if rows.Scan(&email, &prefs) == nil && slices.Contains(splitPrefs(prefs), category) {
-			recipients = append(recipients, email)
+		var email, prefs, locale string
+		if rows.Scan(&email, &prefs, &locale) == nil && slices.Contains(splitPrefs(prefs), category) {
+			recipients = append(recipients, recipient{email, locale})
 		}
 	}
 	rows.Close()
 	for _, to := range recipients {
-		go func(addr string) {
-			if err := s.Mail.Send(addr, "WeebSync – "+subject, body, emailHTML(subject, emailLines([]string{body}), "", s.baseURL()+"/settings/notifications")); err != nil {
-				slog.Warn("admin notify email", "to", addr, "err", err)
+		go func(rc recipient) {
+			if rc.locale != "de" {
+				rc.locale = "en"
+			}
+			subject, body := tr(rc.locale, subjectKey), tr(rc.locale, bodyKey, args...)
+			htmlBody := emailHTML(rc.locale, subject, emailLines([]string{body}), "", s.baseURL()+"/settings/notifications")
+			if err := s.Mail.Send(rc.email, "WeebSync – "+subject, body, htmlBody); err != nil {
+				slog.Warn("admin notify email", "to", rc.email, "err", err)
 			}
 		}(to)
+	}
+}
+
+// NotifyDownloadFinished pushes + emails a finished/failed download,
+// localized to the owner's stored locale. Wired as transfer.OnFinished.
+func (s *Server) NotifyDownloadFinished(d *transfer.Download) {
+	name := path.Base(d.RemotePath)
+	locale := s.userLocale(d.UserID)
+	if d.Status == "done" {
+		s.Push.Notify(d.UserID, tr(locale, "push.downloadDone"), name)
+		s.EmailNotifyDownload(d.UserID, "download_done", d.ServerID, d.RemotePath, "")
+	} else {
+		s.Push.Notify(d.UserID, tr(locale, "push.downloadFailed"), name+": "+d.Error)
+		s.EmailNotifyDownload(d.UserID, "download_failed", d.ServerID, d.RemotePath, d.Error)
 	}
 }
 

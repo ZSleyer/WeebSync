@@ -27,6 +27,17 @@ document.documentElement.lang = initial
 i18n.on('languageChanged', (lng) => {
   document.documentElement.lang = lng
   localStorage.setItem('weebsync.locale', lng)
+  syncLocale(lng)
 })
+
+// tell the backend, so server-delivered texts (email, web push) match the ui
+// language; fire-and-forget — fails silently when logged out
+export function syncLocale(lng: string) {
+  fetch('/api/auth/locale', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locale: lng }),
+  }).catch(() => {})
+}
 
 export default i18n
