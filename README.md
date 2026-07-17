@@ -52,3 +52,9 @@ cd frontend && yarn build
 ```
 
 Stack: Go (stdlib `net/http`, `modernc.org/sqlite`, `pkg/sftp`, `jlaffaye/ftp`, `anitogo`) · React + TypeScript + Vite + Tailwind v4 + TanStack Query.
+
+Home Assistant add-on: [ZSleyer/WeebSync-Addon](https://github.com/ZSleyer/WeebSync-Addon).
+
+## License
+
+[AGPL-3.0](LICENSE).
