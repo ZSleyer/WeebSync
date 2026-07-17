@@ -159,6 +159,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/anilist/suggestions", authed(http.HandlerFunc(s.handleAnilistSuggestions)))
 	mux.Handle("GET /api/tmdb/search", authed(http.HandlerFunc(s.handleTmdbSearch)))
 	mux.Handle("GET /api/tmdb/media", authed(http.HandlerFunc(s.handleTmdbMedia)))
+	mux.Handle("GET /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbConnect)))
+	mux.Handle("GET /api/tmdb/callback", authed(http.HandlerFunc(s.handleTmdbCallback)))
+	mux.Handle("DELETE /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbDisconnect)))
+	mux.Handle("GET /api/tmdb/me", authed(http.HandlerFunc(s.handleTmdbMe)))
+	mux.Handle("GET /api/tmdb/suggestions", authed(http.HandlerFunc(s.handleTmdbSuggestions)))
 
 	// rename
 	mux.Handle("POST /api/rename/preview", authed(http.HandlerFunc(s.handleRenamePreview)))
