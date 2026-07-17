@@ -295,13 +295,40 @@ type anilistSuggestion struct {
 	Candidates []plexCandidate `json:"candidates"`
 }
 
+// anilistTrending lists trending anime present on the user's servers
+// (rendered without watchlist status). Best effort: empty on API errors.
+func (s *Server) anilistTrending(ctx context.Context, userID int64) []anilistSuggestion {
+	out := []anilistSuggestion{}
+	list, err := s.Anilist.Trending(ctx)
+	if err != nil {
+		return out
+	}
+	for _, m := range list {
+		cands := s.remoteCandidates(userID, m)
+		if len(cands) == 0 {
+			continue
+		}
+		out = append(out, anilistSuggestion{Media: m, Candidates: cands})
+	}
+	medias := make([]anilist.Media, 0, len(out))
+	for _, sug := range out {
+		medias = append(medias, sug.Media)
+	}
+	folders := s.plexFolderNames(medias)
+	for i := range out {
+		out[i].PlexFolder = folders[out[i].Media.ID]
+	}
+	return out
+}
+
 // handleAnilistSuggestions lists watchlist titles (watching/planning) that
-// exist on the user's servers, via the remote index.
+// exist on the user's servers, via the remote index, plus trending titles.
 func (s *Server) handleAnilistSuggestions(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	alID, token, err := s.anilistAccount(u.ID)
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"connected": false, "building": false, "suggestions": []anilistSuggestion{}})
+		writeJSON(w, http.StatusOK, map[string]any{"connected": false, "building": false,
+			"suggestions": []anilistSuggestion{}, "trending": s.anilistTrending(r.Context(), u.ID)})
 		return
 	}
 	// serve the cached list instantly; refresh in the background when stale
@@ -336,5 +363,6 @@ func (s *Server) handleAnilistSuggestions(w http.ResponseWriter, r *http.Request
 	for i := range suggestions {
 		suggestions[i].PlexFolder = folders[suggestions[i].Media.ID]
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"connected": true, "building": building, "suggestions": suggestions})
+	writeJSON(w, http.StatusOK, map[string]any{"connected": true, "building": building,
+		"suggestions": suggestions, "trending": s.anilistTrending(r.Context(), u.ID)})
 }
