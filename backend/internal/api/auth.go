@@ -163,21 +163,23 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	if in.OidcIssuer == "" {
+	// an env-provided issuer arrives empty from the wizard's locked field
+	if in.OidcIssuer == "" && !envLocked("oidc_issuer") {
 		writeErr(w, http.StatusBadRequest, "issuer required")
 		return
 	}
 	if b := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/"); b != "" {
-		db.SetSetting(s.DB, "base_url", b)
+		setSetting(s.DB, "base_url", b)
 	}
-	db.SetSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
-	db.SetSetting(s.DB, "oidc_issuer", in.OidcIssuer)
-	db.SetSetting(s.DB, "oidc_client_id", in.OidcClientID)
-	db.SetSetting(s.DB, "oidc_client_secret", in.OidcClientSecret)
-	db.SetSetting(s.DB, "oidc_redirect_url", in.OidcRedirectURL)
-	db.SetSetting(s.DB, "oidc_claim", in.OidcClaim)
-	db.SetSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
-	db.SetSetting(s.DB, "oidc_user_values", in.OidcUserValues)
+	// setSetting skips env-locked keys: env-provided OIDC config wins
+	setSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
+	setSetting(s.DB, "oidc_issuer", in.OidcIssuer)
+	setSetting(s.DB, "oidc_client_id", in.OidcClientID)
+	setSetting(s.DB, "oidc_client_secret", in.OidcClientSecret)
+	setSetting(s.DB, "oidc_redirect_url", in.OidcRedirectURL)
+	setSetting(s.DB, "oidc_claim", in.OidcClaim)
+	setSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
+	setSetting(s.DB, "oidc_user_values", in.OidcUserValues)
 	out := map[string]any{}
 	if err := s.OIDC.Reload(r.Context()); err != nil {
 		out["oidcError"] = err.Error()
@@ -261,11 +263,20 @@ func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	var users int
 	s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users)
+	// oidcEnvLocked: which OIDC fields the setup wizard must lock (this
+	// endpoint is unauthenticated, the wizard has no /api/settings yet)
+	oidcLocked := []string{}
+	for _, f := range envLockedFields() {
+		if strings.HasPrefix(f, "oidc") || f == "baseUrl" {
+			oidcLocked = append(oidcLocked, f)
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"oidc":             s.OIDC.Enabled(),
 		"oidcName":         db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
 		"registrationOpen": !auth.RegistrationDisabled(s.DB),
 		"authMode":         mode,
 		"setupNeeded":      users == 0,
+		"oidcEnvLocked":    oidcLocked,
 	})
 }

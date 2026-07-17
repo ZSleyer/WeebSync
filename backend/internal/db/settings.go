@@ -12,13 +12,13 @@ func Setting(d *sql.DB, key string) string {
 	return v
 }
 
-// SettingOrEnv reads a settings key, falling back to an env var — env acts
-// as bootstrap/deploy default, the DB value (set via frontend) wins.
+// SettingOrEnv reads a settings key with an env override — a set env var
+// wins over the DB value (the UI shows such fields as locked).
 func SettingOrEnv(d *sql.DB, key, envVar string) string {
-	if v := Setting(d, key); v != "" {
+	if v := os.Getenv(envVar); v != "" {
 		return v
 	}
-	return os.Getenv(envVar)
+	return Setting(d, key)
 }
 
 func SetSetting(d *sql.DB, key, value string) error {

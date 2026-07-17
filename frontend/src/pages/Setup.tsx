@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../api'
+import { EnvBadge } from './settings/useSettingsForm'
 
 // First-run wizard, shown while the instance has no users yet (authConfig.setupNeeded).
 // Two paths: a local password account (registered first, so it becomes admin; OIDC
@@ -33,6 +34,13 @@ export default function Setup() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const headingRef = useRef<HTMLHeadingElement>(null)
+  // OIDC fields forced by env vars (names only — values stay server-side,
+  // this endpoint is unauthenticated); same cache key as the login page
+  const { data: authCfg } = useQuery<{ oidcEnvLocked?: string[] }>({
+    queryKey: ['authConfig'],
+    queryFn: () => api.get('/api/auth/config'),
+  })
+  const envLocked = (k: string) => authCfg?.oidcEnvLocked?.includes(k) ?? false
 
   useEffect(() => {
     document.title = `${t('setup.title')} — WeebSync`
@@ -135,12 +143,14 @@ export default function Setup() {
     <div className="mb-3">
       <label className="t-label mb-1 block w-fit" htmlFor={`setup-${key}`}>
         {label}
+        <EnvBadge show={envLocked(key)} />
       </label>
       <input
         id={`setup-${key}`}
         className="t-input"
         type={type}
-        required={required}
+        required={required && !envLocked(key)}
+        disabled={envLocked(key)}
         aria-describedby={hint ? `setup-${key}-hint` : undefined}
         value={oidc[key]}
         onChange={(e) => setOidc({ ...oidc, [key]: e.target.value })}
@@ -158,17 +168,19 @@ export default function Setup() {
       <div className="mb-3">
         <label className="t-label mb-1 block w-fit" htmlFor="setup-oidcIssuer">
           {t('settings.oidcIssuer')}
+          <EnvBadge show={envLocked('oidcIssuer')} />
         </label>
         <div className="flex gap-2">
           <input
             id="setup-oidcIssuer"
             className="t-input"
             type="text"
-            required={required}
+            required={required && !envLocked('oidcIssuer')}
+            disabled={envLocked('oidcIssuer')}
             value={oidc.oidcIssuer}
             onChange={(e) => setOidc({ ...oidc, oidcIssuer: e.target.value })}
           />
-          <button type="button" className="t-btn shrink-0" disabled={busy || !oidc.oidcIssuer} onClick={discover}>
+          <button type="button" className="t-btn shrink-0" disabled={busy || !oidc.oidcIssuer || envLocked('oidcIssuer')} onClick={discover}>
             {t('settings.oidcDiscover')}
           </button>
         </div>

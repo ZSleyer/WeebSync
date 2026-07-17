@@ -297,6 +297,13 @@ body {
   border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
 }
 .t-input::placeholder { color: var(--text-faint); }
+/* env-locked and other read-only fields: visibly muted, value stays legible */
+.t-input:disabled, .t-select:disabled {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+  border-style: dashed;
+  cursor: not-allowed;
+}
 
 /* Native select with hand-drawn chevron */
 .t-select-wrap { position: relative; display: block; }

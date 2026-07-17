@@ -37,6 +37,60 @@ func validateTrustedNetworks(csv string) error {
 	return nil
 }
 
+// envSettings maps settings keys to their env override and JSON field name.
+// A set env var wins over the DB value; the UI locks the field.
+var envSettings = []struct{ key, env, field string }{
+	{"base_url", "WEEBSYNC_BASE_URL", "baseUrl"},
+	{"anilist_client_id", "ANILIST_CLIENT_ID", "anilistClientId"},
+	{"anilist_client_secret", "ANILIST_CLIENT_SECRET", "anilistClientSecret"},
+	{"tmdb_api_key", "TMDB_API_KEY", "tmdbApiKey"},
+	{"plex_url", "PLEX_URL", "plexUrl"},
+	{"plex_token", "PLEX_TOKEN", "plexToken"},
+	{"oidc_provider_name", "OIDC_PROVIDER_NAME", "oidcProviderName"},
+	{"oidc_issuer", "OIDC_ISSUER", "oidcIssuer"},
+	{"oidc_client_id", "OIDC_CLIENT_ID", "oidcClientId"},
+	{"oidc_client_secret", "OIDC_CLIENT_SECRET", "oidcClientSecret"},
+	{"oidc_redirect_url", "OIDC_REDIRECT_URL", "oidcRedirectUrl"},
+	{"oidc_claim", "OIDC_CLAIM", "oidcClaim"},
+	{"oidc_admin_values", "OIDC_ADMIN_VALUES", "oidcAdminValues"},
+	{"oidc_user_values", "OIDC_USER_VALUES", "oidcUserValues"},
+	{"smtp_host", "SMTP_HOST", "smtpHost"},
+	{"smtp_port", "SMTP_PORT", "smtpPort"},
+	{"smtp_security", "SMTP_SECURITY", "smtpSecurity"},
+	{"smtp_username", "SMTP_USERNAME", "smtpUsername"},
+	{"smtp_from", "SMTP_FROM", "smtpFrom"},
+	{"smtp_password", "SMTP_PASSWORD", "smtpPassword"},
+}
+
+// envLockedFields returns the JSON field names whose env override is set.
+func envLockedFields() []string {
+	out := []string{}
+	for _, e := range envSettings {
+		if os.Getenv(e.env) != "" {
+			out = append(out, e.field)
+		}
+	}
+	return out
+}
+
+// envLocked reports whether a settings key is overridden by its env var.
+func envLocked(key string) bool {
+	for _, e := range envSettings {
+		if e.key == key {
+			return os.Getenv(e.env) != ""
+		}
+	}
+	return false
+}
+
+// setSetting writes a settings key unless it is env-locked — a DB write
+// would be shadowed by the env value and silently resurface after unset.
+func setSetting(d *sql.DB, key, value string) {
+	if !envLocked(key) {
+		db.SetSetting(d, key, value)
+	}
+}
+
 // Secrets are write-only: GET reports only whether they are set, PUT with
 // an empty string keeps the stored value, "-" clears it.
 type settingsPayload struct {
@@ -77,6 +131,8 @@ type settingsPayload struct {
 	SmtpPasswordSet      bool   `json:"smtpPasswordSet"`
 	SmtpPassword         string `json:"smtpPassword,omitempty"` // write-only
 	ApiTokenSet          bool   `json:"apiTokenSet"`            // read-only, managed via /api/settings/token
+	// json field names whose value comes from an env var; the UI locks them
+	EnvLocked []string `json:"envLocked"`
 }
 
 func (s *Server) settingsState() settingsPayload {
@@ -118,6 +174,7 @@ func (s *Server) settingsState() settingsPayload {
 		SmtpSecurity:         smtpSecurity(s.DB),
 		SmtpPasswordSet:      db.Setting(s.DB, "smtp_password") != "" || os.Getenv("SMTP_PASSWORD") != "",
 		ApiTokenSet:          db.Setting(s.DB, "api_token_hash") != "",
+		EnvLocked:            envLockedFields(),
 	}
 }
 
@@ -170,51 +227,51 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	db.SetSetting(s.DB, "base_url", baseURL)
-	db.SetSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
-	db.SetSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
-	db.SetSetting(s.DB, "watch_interval_min", strconv.FormatInt(in.WatchIntervalMin, 10))
+	setSetting(s.DB, "base_url", baseURL)
+	setSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
+	setSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
+	setSetting(s.DB, "watch_interval_min", strconv.FormatInt(in.WatchIntervalMin, 10))
 	if err := validateTrustedNetworks(in.TrustedNetworks); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	db.SetSetting(s.DB, "registration_disabled", strconv.FormatBool(in.RegistrationDisabled))
-	db.SetSetting(s.DB, "trusted_networks", strings.TrimSpace(in.TrustedNetworks))
-	db.SetSetting(s.DB, "auth_mode", in.AuthMode)
-	db.SetSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
-	db.SetSetting(s.DB, "oidc_issuer", strings.TrimSpace(in.OidcIssuer))
-	db.SetSetting(s.DB, "oidc_client_id", strings.TrimSpace(in.OidcClientID))
-	db.SetSetting(s.DB, "oidc_redirect_url", strings.TrimSpace(in.OidcRedirectURL))
-	db.SetSetting(s.DB, "oidc_claim", in.OidcClaim)
-	db.SetSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
-	db.SetSetting(s.DB, "oidc_user_values", in.OidcUserValues)
-	db.SetSetting(s.DB, "plex_url", strings.TrimSpace(in.PlexURL))
-	db.SetSetting(s.DB, "plex_sections", in.PlexSections)
-	db.SetSetting(s.DB, "plex_section_sources", in.PlexSectionSources)
-	db.SetSetting(s.DB, "anilist_client_id", strings.TrimSpace(in.AnilistClientID))
-	db.SetSetting(s.DB, "anilist_redirect_url", strings.TrimSpace(in.AnilistRedirectURL))
+	setSetting(s.DB, "registration_disabled", strconv.FormatBool(in.RegistrationDisabled))
+	setSetting(s.DB, "trusted_networks", strings.TrimSpace(in.TrustedNetworks))
+	setSetting(s.DB, "auth_mode", in.AuthMode)
+	setSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
+	setSetting(s.DB, "oidc_issuer", strings.TrimSpace(in.OidcIssuer))
+	setSetting(s.DB, "oidc_client_id", strings.TrimSpace(in.OidcClientID))
+	setSetting(s.DB, "oidc_redirect_url", strings.TrimSpace(in.OidcRedirectURL))
+	setSetting(s.DB, "oidc_claim", in.OidcClaim)
+	setSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
+	setSetting(s.DB, "oidc_user_values", in.OidcUserValues)
+	setSetting(s.DB, "plex_url", strings.TrimSpace(in.PlexURL))
+	setSetting(s.DB, "plex_sections", in.PlexSections)
+	setSetting(s.DB, "plex_section_sources", in.PlexSectionSources)
+	setSetting(s.DB, "anilist_client_id", strings.TrimSpace(in.AnilistClientID))
+	setSetting(s.DB, "anilist_redirect_url", strings.TrimSpace(in.AnilistRedirectURL))
 	// secrets are write-only: "" keeps the stored value, "-" clears it.
 	// Trimmed: IDs/secrets/keys are pasted and stray whitespace breaks
 	// authentication in ways that are invisible in the UI.
 	if v := strings.TrimSpace(in.AnilistClientSecret); v == "-" {
-		db.SetSetting(s.DB, "anilist_client_secret", "")
+		setSetting(s.DB, "anilist_client_secret", "")
 	} else if v != "" {
-		db.SetSetting(s.DB, "anilist_client_secret", v)
+		setSetting(s.DB, "anilist_client_secret", v)
 	}
 	if v := strings.TrimSpace(in.TmdbApiKey); v == "-" {
-		db.SetSetting(s.DB, "tmdb_api_key", "")
+		setSetting(s.DB, "tmdb_api_key", "")
 	} else if v != "" {
-		db.SetSetting(s.DB, "tmdb_api_key", v)
+		setSetting(s.DB, "tmdb_api_key", v)
 	}
 	if v := strings.TrimSpace(in.PlexToken); v == "-" {
-		db.SetSetting(s.DB, "plex_token", "")
+		setSetting(s.DB, "plex_token", "")
 	} else if v != "" {
-		db.SetSetting(s.DB, "plex_token", v)
+		setSetting(s.DB, "plex_token", v)
 	}
 	if v := strings.TrimSpace(in.OidcClientSecret); v == "-" {
-		db.SetSetting(s.DB, "oidc_client_secret", "")
+		setSetting(s.DB, "oidc_client_secret", "")
 	} else if v != "" {
-		db.SetSetting(s.DB, "oidc_client_secret", v)
+		setSetting(s.DB, "oidc_client_secret", v)
 	}
 
 	// SMTP
@@ -232,14 +289,14 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	db.SetSetting(s.DB, "smtp_host", strings.TrimSpace(in.SmtpHost))
-	db.SetSetting(s.DB, "smtp_port", strconv.FormatInt(in.SmtpPort, 10))
-	db.SetSetting(s.DB, "smtp_username", in.SmtpUsername)
-	db.SetSetting(s.DB, "smtp_from", strings.TrimSpace(in.SmtpFrom))
-	db.SetSetting(s.DB, "smtp_security", in.SmtpSecurity)
+	setSetting(s.DB, "smtp_host", strings.TrimSpace(in.SmtpHost))
+	setSetting(s.DB, "smtp_port", strconv.FormatInt(in.SmtpPort, 10))
+	setSetting(s.DB, "smtp_username", in.SmtpUsername)
+	setSetting(s.DB, "smtp_from", strings.TrimSpace(in.SmtpFrom))
+	setSetting(s.DB, "smtp_security", in.SmtpSecurity)
 	// password is write-only and stored encrypted: "" keeps, "-" clears
 	if in.SmtpPassword == "-" {
-		db.SetSetting(s.DB, "smtp_password", "")
+		setSetting(s.DB, "smtp_password", "")
 	} else if in.SmtpPassword != "" {
 		enc, err := secret.Encrypt(in.SmtpPassword)
 		if err != nil {
@@ -247,7 +304,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// settings are TEXT: base64 so the raw AES bytes survive storage
-		db.SetSetting(s.DB, "smtp_password", base64.StdEncoding.EncodeToString(enc))
+		setSetting(s.DB, "smtp_password", base64.StdEncoding.EncodeToString(enc))
 	}
 
 	s.Transfers.SettingsChanged()

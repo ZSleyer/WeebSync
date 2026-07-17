@@ -435,7 +435,8 @@
     "tmdbConnect": "TMDB-Konto verbinden",
     "tmdbConnectedAs": "TMDB: verbunden als {{name}}",
     "tmdbDisconnect": "Trennen",
-    "tmdbConnectHint": "Benötigt den TMDB-API-Key oben."
+    "tmdbConnectHint": "Benötigt den TMDB-API-Key oben.",
+    "envLockedHint": "Über Umgebungsvariable gesetzt – hier nicht änderbar"
   },
   "status": {
     "queued": "wartend",
