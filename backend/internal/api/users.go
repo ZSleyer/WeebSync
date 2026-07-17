@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 	"net/mail"
-	"strconv"
 	"strings"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -20,7 +19,7 @@ type userInfo struct {
 func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT id, email, is_admin, created_at FROM users ORDER BY id`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	defer rows.Close()
@@ -28,7 +27,7 @@ func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var u userInfo
 		if err := rows.Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt); err != nil {
-			writeErr(w, http.StatusInternalServerError, "db error")
+			dbErr(w)
 			return
 		}
 		users = append(users, u)
@@ -71,11 +70,7 @@ func (s *Server) userExists(id int64) bool {
 }
 
 func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid id")
-		return
-	}
+	id := pathID(r)
 	// when OIDC group mapping is configured, the IdP is the sole role
 	// source — local role changes would be overwritten on next login
 	if db.SettingOrEnv(s.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES") != "" {
@@ -94,7 +89,7 @@ func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 		AND NOT (? = 0 AND is_admin = 1 AND (SELECT COUNT(*) FROM users WHERE is_admin = 1) <= 1)`,
 		body.IsAdmin, id, body.IsAdmin)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -109,11 +104,7 @@ func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUserDelete(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid id")
-		return
-	}
+	id := pathID(r)
 	if me := auth.UserFrom(r.Context()); me != nil && me.ID == id {
 		writeErr(w, http.StatusConflict, "cannot delete yourself")
 		return
@@ -122,7 +113,7 @@ func (s *Server) handleUserDelete(w http.ResponseWriter, r *http.Request) {
 	res, err := s.DB.Exec(`DELETE FROM users WHERE id = ?
 		AND NOT (is_admin = 1 AND (SELECT COUNT(*) FROM users WHERE is_admin = 1) <= 1)`, id)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

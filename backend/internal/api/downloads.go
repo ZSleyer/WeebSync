@@ -16,7 +16,7 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, rate_limit, created_at
 		FROM downloads WHERE user_id = ? ORDER BY id DESC LIMIT 500`, u.ID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	defer rows.Close()
@@ -25,7 +25,7 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 		var d transfer.Download
 		if err := rows.Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size,
 			&d.Transferred, &d.Status, &d.Error, &d.RateLimit, &d.CreatedAt); err != nil {
-			writeErr(w, http.StatusInternalServerError, "db error")
+			dbErr(w)
 			return
 		}
 		list = append(list, d)
@@ -125,7 +125,7 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 	if in.Action == "delete" {
 		res, err := s.DB.Exec(`DELETE FROM downloads WHERE `+q, args...)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "db error")
+			dbErr(w)
 			return
 		}
 		n, _ := res.RowsAffected()
@@ -134,7 +134,7 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.DB.Query(`SELECT id FROM downloads WHERE `+q, args...)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	var ids []int64
@@ -169,7 +169,7 @@ func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := db.SetSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.RateLimit, 10)); err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	s.Transfers.SettingsChanged()
@@ -179,7 +179,7 @@ func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u := auth.UserFrom(r.Context())
-		id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		id := pathID(r)
 		if err := fn(u.ID, id); err != nil {
 			status := http.StatusInternalServerError
 			if err == transfer.ErrNotFound {
@@ -194,7 +194,7 @@ func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFun
 
 func (s *Server) handleDownloadRateLimit(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	var in struct {
 		RateLimit int64 `json:"rateLimit"`
 	}
@@ -210,11 +210,11 @@ func (s *Server) handleDownloadRateLimit(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) handleDownloadDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	res, err := s.DB.Exec(`DELETE FROM downloads WHERE id = ? AND user_id = ?
 		AND status IN ('done','error','canceled')`, id, u.ID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

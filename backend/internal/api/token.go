@@ -51,7 +51,7 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 	token := hex.EncodeToString(raw)
 	sum := sha256.Sum256([]byte(token))
 	if err := db.SetSetting(s.DB, "api_token_hash", hex.EncodeToString(sum[:])); err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"token": token})
@@ -59,7 +59,7 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTokenDelete(w http.ResponseWriter, r *http.Request) {
 	if err := db.SetSetting(s.DB, "api_token_hash", ""); err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
