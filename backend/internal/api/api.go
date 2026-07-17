@@ -74,6 +74,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/oidc/login", s.OIDC.LoginHandler)
 	mux.HandleFunc("GET /api/auth/oidc/callback", s.OIDC.CallbackHandler)
 	mux.HandleFunc("GET /api/auth/verify", s.handleVerifyEmail)
+	mux.Handle("PUT /api/auth/locale", authed(http.HandlerFunc(s.handleLocalePut)))
 	mux.Handle("GET /api/auth/email-prefs", authed(http.HandlerFunc(s.handleEmailPrefsGet)))
 	mux.Handle("PUT /api/auth/email-prefs", authed(http.HandlerFunc(s.handleEmailPrefsPut)))
 

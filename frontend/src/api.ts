@@ -90,7 +90,8 @@ export interface Watch {
   replacement: string
   intervalMin: number
   lastCheck: string
-  lastResult: string
+  lastResult: string // error text of the last check, '' on success
+  lastQueued: number // files queued at the last check, -1 = none yet
   lastUploading: number
   createdAt: string
   media?: Media

@@ -188,7 +188,9 @@
     "complete": "Komplett, Sync kann entfernt werden",
     "confirmDelete": "Auto-Sync für \"{{name}}\" entfernen? Heruntergeladene Dateien bleiben erhalten.",
     "empty": "Im <1>Browser</1> einen Ordner auswählen und \"Beobachten\" klicken.",
-    "seen": "{{count}} gesehen"
+    "seen": "{{count}} gesehen",
+    "lastQueued_one": "{{count}} neu",
+    "lastQueued_other": "{{count}} neu"
   },
   "rename": {
     "title": "UMBENENNEN",
