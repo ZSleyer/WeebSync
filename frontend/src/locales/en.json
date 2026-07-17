@@ -164,6 +164,11 @@
   "watch": {
     "title": "AUTO-SYNC",
     "sub": "watch folders permanently",
+    "sortBy": "Sort",
+    "sortNext": "Next sync",
+    "sortLast": "Last sync",
+    "sortName": "Name",
+    "sortSeason": "Season",
     "add": "Watch",
     "addTitle": "Watch: {{name}}",
     "editTitle": "Edit auto-sync",

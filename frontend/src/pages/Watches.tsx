@@ -54,11 +54,42 @@ export default function Watches() {
     return t('watch.nextIn', { count: Math.max(0, min) })
   }
 
+  const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
+  const nextTs = (w: Watch) =>
+    w.nextAiringAt ? w.nextAiringAt * 1000 : w.lastCheck ? Date.parse(w.lastCheck.replace(' ', 'T') + 'Z') + w.intervalMin * 60_000 : 0
+  const nameOf = (w: Watch) => (w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop() || '').toLowerCase()
+  const seasonOf = (w: Watch) => Number(w.template.match(/S(\d+)E/i)?.[1] ?? 0)
+  const sorted = [...watches].sort((a, b) => {
+    switch (sort) {
+      case 'last':
+        return (Date.parse(b.lastCheck.replace(' ', 'T') + 'Z') || 0) - (Date.parse(a.lastCheck.replace(' ', 'T') + 'Z') || 0)
+      case 'name':
+        return nameOf(a).localeCompare(nameOf(b))
+      case 'season':
+        return seasonOf(a) - seasonOf(b) || nameOf(a).localeCompare(nameOf(b))
+      default:
+        return nextTs(a) - nextTs(b)
+    }
+  })
+
   return (
     <div className="max-w-4xl">
-      <header className="mb-6">
-        <h2 className="font-display text-xl font-semibold tracking-wider">{t('watch.title')}</h2>
-        <span className="t-label mt-1">{t('watch.sub')}</span>
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-display text-xl font-semibold tracking-wider">{t('watch.title')}</h2>
+          <span className="t-label mt-1">{t('watch.sub')}</span>
+        </div>
+        {watches.length > 1 && (
+          <label className="flex items-center gap-2 text-xs text-t-muted">
+            {t('watch.sortBy')}
+            <select className="t-select w-auto" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
+              <option value="next">{t('watch.sortNext')}</option>
+              <option value="last">{t('watch.sortLast')}</option>
+              <option value="name">{t('watch.sortName')}</option>
+              <option value="season">{t('watch.sortSeason')}</option>
+            </select>
+          </label>
+        )}
       </header>
 
       {error && (
@@ -77,7 +108,7 @@ export default function Watches() {
         </div>
       ) : (
         <ul className="grid grid-cols-1 gap-3">
-          {watches.map((w) => (
+          {sorted.map((w) => (
             <li key={w.id} className="t-panel flex flex-wrap items-center gap-4 p-3">
               {w.media?.coverImage?.large ? (
                 <img src={w.media.coverImage.large} alt="" className="h-20 w-14 shrink-0 object-cover" />
@@ -86,7 +117,7 @@ export default function Watches() {
               )}
               <div className="min-w-0 flex-1">
                 <h3 className="truncate text-sm font-medium text-t-primary">
-                  {w.media?.title.romaji ?? (w.titleOverride || w.remotePath.split('/').pop())}
+                  {w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop()}
                 </h3>
                 <p className="truncate font-mono text-[11px] text-t-muted" title={w.remotePath}>
                   {w.serverName}:{w.remotePath} → downloads/{w.localPath}
