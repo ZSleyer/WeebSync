@@ -1,24 +1,62 @@
-// Package secret encrypts server credentials at rest (AES-GCM, key derived
-// from the WEEBSYNC_SECRET env var).
+// Package secret encrypts server credentials at rest (AES-GCM). Key source:
+// WEEBSYNC_SECRET env var if set, otherwise an auto-generated key file in the
+// data dir (created on first start).
 package secret
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
-func key() ([]byte, error) {
-	s := os.Getenv("WEEBSYNC_SECRET")
-	if s == "" {
-		return nil, errors.New("WEEBSYNC_SECRET must be set (any long random string)")
+var keyBytes []byte
+
+// Init loads the encryption key. Precedence: WEEBSYNC_SECRET env var, then
+// <dataDir>/secret.key; if neither exists a random key is generated and
+// written to the file (0600). Must be called once at startup.
+func Init(dataDir string) error {
+	if s := os.Getenv("WEEBSYNC_SECRET"); s != "" {
+		k := sha256.Sum256([]byte(s))
+		keyBytes = k[:]
+		return nil
 	}
-	k := sha256.Sum256([]byte(s))
-	return k[:], nil
+	path := filepath.Join(dataDir, "secret.key")
+	b, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		b = bytes.TrimSpace(b)
+		if len(b) == 0 {
+			return fmt.Errorf("%s is empty — delete it to regenerate (existing credentials become unreadable) or set WEEBSYNC_SECRET", path)
+		}
+	case errors.Is(err, os.ErrNotExist):
+		raw := make([]byte, 32)
+		if _, err := rand.Read(raw); err != nil {
+			return err
+		}
+		b = []byte(hex.EncodeToString(raw))
+		if err := os.WriteFile(path, b, 0o600); err != nil {
+			return fmt.Errorf("write key file: %w", err)
+		}
+	default:
+		return fmt.Errorf("read key file: %w", err)
+	}
+	k := sha256.Sum256(b)
+	keyBytes = k[:]
+	return nil
+}
+
+func key() ([]byte, error) {
+	if keyBytes == nil {
+		return nil, errors.New("secret.Init not called")
+	}
+	return keyBytes, nil
 }
 
 func gcm() (cipher.AEAD, error) {

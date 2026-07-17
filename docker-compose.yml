@@ -5,8 +5,9 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # REQUIRED: encrypts server credentials at rest — any long random string
-      WEEBSYNC_SECRET: ${WEEBSYNC_SECRET:?set WEEBSYNC_SECRET in .env}
+      # optional: key for credential encryption at rest. If unset, a key is
+      # auto-generated at /data/secret.key on first start.
+      # WEEBSYNC_SECRET: ${WEEBSYNC_SECRET}
       # optional: AniList API token (higher rate limit)
       # ANILIST_TOKEN: ""
       # optional: OIDC login (Authentik/Keycloak/…)
