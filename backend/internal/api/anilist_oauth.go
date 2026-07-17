@@ -279,6 +279,14 @@ func (s *Server) anilistProgress(userID int64) map[int]int {
 	return out
 }
 
+// buildAnilistSuggestions refreshes the cached watchlist of one linked
+// account in the background (the suggestion list is derived from it).
+func (s *Server) buildAnilistSuggestions(alID int, token string) {
+	s.runJob(fmt.Sprintf("alist:%d", alID), func(ctx context.Context) {
+		s.Anilist.UserList(ctx, token, alID)
+	})
+}
+
 type anilistSuggestion struct {
 	Status     string          `json:"status"` // CURRENT | PLANNING
 	Progress   int             `json:"progress"`
@@ -306,9 +314,7 @@ func (s *Server) handleAnilistSuggestions(w http.ResponseWriter, r *http.Request
 		if r.URL.Query().Get("force") == "1" {
 			s.Anilist.InvalidateUserList(alID)
 		}
-		s.runJob(fmt.Sprintf("alist:%d", alID), func(ctx context.Context) {
-			s.Anilist.UserList(ctx, token, alID)
-		})
+		s.buildAnilistSuggestions(alID, token)
 	}
 	suggestions := []anilistSuggestion{}
 	for _, e := range list {

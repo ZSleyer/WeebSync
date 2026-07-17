@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/db"
 	"golang.org/x/time/rate"
 )
 
 const endpoint = "https://graphql.anilist.co"
-const cacheTTL = 24 * time.Hour
 
 type Media struct {
 	ID    int `json:"id"`
@@ -76,6 +76,15 @@ func New(d *sql.DB) *Client {
 	}
 }
 
+// cacheTTL is the response-cache lifetime: the ttl_anilist_h setting in
+// hours, default 24 (read per call so changes take effect immediately).
+func (c *Client) cacheTTL() time.Duration {
+	if h, _ := strconv.Atoi(db.Setting(c.DB, "ttl_anilist_h")); h > 0 {
+		return time.Duration(h) * time.Hour
+	}
+	return 24 * time.Hour
+}
+
 // token is resolved per request so linked accounts take effect immediately.
 func (c *Client) token() string {
 	if c.TokenSource != nil {
@@ -92,7 +101,7 @@ func (c *Client) cached(key string) (string, bool) {
 		return "", false
 	}
 	t, err := time.Parse("2006-01-02 15:04:05", fetched)
-	if err != nil || time.Since(t) > cacheTTL {
+	if err != nil || time.Since(t) > c.cacheTTL() {
 		return "", false
 	}
 	return payload, true
@@ -271,7 +280,7 @@ func (c *Client) CachedMedia(id int) (m *Media, fresh bool) {
 		return nil, false
 	}
 	t, err := time.Parse("2006-01-02 15:04:05", fetched)
-	return &out, err == nil && time.Since(t) <= cacheTTL
+	return &out, err == nil && time.Since(t) <= c.cacheTTL()
 }
 
 // CacheMedia stores m in the response cache, used when a search already

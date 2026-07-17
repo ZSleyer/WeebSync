@@ -13,6 +13,7 @@ const ADMIN = [
   { to: 'integrations', key: 'settings.nav.integrations' },
   { to: 'email', key: 'settings.nav.email' },
   { to: 'users', key: 'settings.nav.users' },
+  { to: 'jobs', key: 'settings.nav.jobs' },
 ]
 
 export function AdminRoute({ children }: { children: ReactNode }) {

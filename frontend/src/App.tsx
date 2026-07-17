@@ -20,6 +20,7 @@ import Security from './pages/settings/Security'
 import Integrations from './pages/settings/Integrations'
 import Smtp from './pages/settings/Smtp'
 import Users from './pages/settings/Users'
+import Jobs from './pages/settings/Jobs'
 
 const NAV = [
   { to: '/', key: 'nav.dashboard', code: '01' },
@@ -169,6 +170,7 @@ function Shell({ email }: { email: string }) {
               <Route path="integrations" element={<AdminRoute><Integrations /></AdminRoute>} />
               <Route path="email" element={<AdminRoute><Smtp /></AdminRoute>} />
               <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
+              <Route path="jobs" element={<AdminRoute><Jobs /></AdminRoute>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
