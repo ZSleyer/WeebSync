@@ -13,6 +13,7 @@ export interface WatchFields {
   titleOverride: string
   pattern: string
   replacement: string
+  subfolder: boolean
 }
 
 // WatchDialog collects the paths and rename rule of a watch (create from
@@ -157,6 +158,10 @@ export default function WatchDialog({
             <span className="t-label t-label--accent">{t('watch.sectionPaths')}</span>
             {pathRow('remote')}
             {pathRow('local')}
+            <label className="flex items-center gap-2 text-sm text-t-secondary">
+              <input type="checkbox" checked={f.subfolder} onChange={(e) => setF({ ...f, subfolder: e.target.checked })} />
+              {t('watch.subfolder')}
+            </label>
           </section>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>

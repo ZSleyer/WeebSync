@@ -34,6 +34,7 @@ type Watch struct {
 	TitleOverride string `json:"titleOverride"`
 	Pattern       string `json:"pattern"`
 	Replacement   string `json:"replacement"`
+	Subfolder     bool   `json:"subfolder"`   // write into local_path/<remote name> instead of local_path directly
 	IntervalMin   int    `json:"intervalMin"` // global setting, echoed for the UI
 	LastCheck     string `json:"lastCheck"`
 	LastResult    string `json:"lastResult"`    // error text of the last check, "" on success
@@ -80,7 +81,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 			return
 		case <-tick.C:
 			interval := time.Duration(s.watchInterval()) * time.Minute
-			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, last_check FROM watches`)
+			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, last_check FROM watches`)
 			if err != nil {
 				continue
 			}
@@ -88,11 +89,12 @@ func (s *Server) WatchLoop(ctx context.Context) {
 				id                               int64
 				serverID                         int64
 				remotePath, localPath, lastCheck string
+				subfolder                        bool
 			}
 			var cands []cand
 			for rows.Next() {
 				var c cand
-				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.lastCheck)
+				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.lastCheck)
 				cands = append(cands, c)
 			}
 			rows.Close()
@@ -103,7 +105,11 @@ func (s *Server) WatchLoop(ctx context.Context) {
 					intervalDue = !t.Add(interval).After(now.UTC())
 				}
 				media := s.watchMedia(c.serverID, c.remotePath)
-				have := s.countVideos(path.Join(c.localPath, path.Base(c.remotePath)))
+				local := c.localPath
+				if c.subfolder {
+					local = path.Join(c.localPath, path.Base(c.remotePath))
+				}
+				have := s.countVideos(local)
 				if smartDue(intervalDue, media, have, now) {
 					s.runWatch(c.id)
 				}
@@ -148,15 +154,15 @@ func (s *Server) watchMedia(serverID int64, remotePath string) *anilist.Media {
 // enqueues missing/changed files through the normal transfer queue.
 func (s *Server) runWatch(id int64) {
 	var w Watch
-	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement
+	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder
 		FROM watches WHERE id = ?`, id).
-		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement)
+		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder)
 	if err != nil {
 		return
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
-	ids, uploading, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), true, false)
+	ids, uploading, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), true, !w.Subfolder)
 	// structured result: the frontend localizes the counts; last_result only
 	// carries the error text of a failed check
 	result, queued := "", len(ids)
@@ -193,7 +199,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -206,14 +212,18 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var it Watch
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
-			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement,
+			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder,
 			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.CreatedAt); err != nil {
 			dbErr(w)
 			return
 		}
 		it.IntervalMin = interval
 		it.Media = s.watchMedia(it.ServerID, it.RemotePath)
-		it.LocalFiles = s.countVideos(path.Join(it.LocalPath, path.Base(it.RemotePath)))
+		local := it.LocalPath
+		if it.Subfolder {
+			local = path.Join(it.LocalPath, path.Base(it.RemotePath))
+		}
+		it.LocalFiles = s.countVideos(local)
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
@@ -274,9 +284,9 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement)
+	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
@@ -298,6 +308,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		TitleOverride string `json:"titleOverride"`
 		Pattern       string `json:"pattern"`
 		Replacement   string `json:"replacement"`
+		Subfolder     bool   `json:"subfolder"`
 	}
 	if !readJSON(w, r, &in) {
 		return
@@ -323,8 +334,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
-	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?
-		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, id, u.ID)
+	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?
+		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, id, u.ID)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return

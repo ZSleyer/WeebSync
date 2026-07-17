@@ -171,6 +171,7 @@
     "localPath": "Lokales Ziel",
     "browse": "Durchsuchen",
     "sectionPaths": "Quelle & Ziel",
+    "subfolder": "In Unterordner speichern (benannt nach dem Remote-Ordner)",
     "sectionRename": "Umbenennen",
     "renameToggle": "Dateien umbenennen",
     "waitingFor": "wartet auf Folge {{n}}",
