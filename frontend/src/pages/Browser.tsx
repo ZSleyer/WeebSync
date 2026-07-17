@@ -588,7 +588,7 @@ function DetailDialog({
   }, [])
   const m = group.media!
   const source = group.items[0].source
-  const [playTrailer, setPlayTrailer] = useState(false)
+  const [allReviews, setAllReviews] = useState(false)
   // reviews load lazily with the modal, never with the catalog grid
   const { data: rev } = useQuery<{ reviews: Review[] }>({
     queryKey: ['reviews', source ?? 'anilist', m.id],
@@ -655,32 +655,15 @@ function DetailDialog({
         {(m.trailer?.site === 'youtube' || m.trailer?.site === 'dailymotion') && (
           <section className="mt-4 border-t border-border-subtle pt-4">
             <h4 className="t-label mb-2">{t('browser.trailer')}</h4>
-            {m.trailer?.site === 'youtube' &&
-              (playTrailer ? (
-                <iframe
-                  className="aspect-video w-full"
-                  title={t('browser.trailer')}
-                  src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}?autoplay=1`}
-                  allow="autoplay; encrypted-media; fullscreen"
-                  allowFullScreen
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="relative block w-full max-w-md"
-                  aria-label={t('browser.playTrailer')}
-                  onClick={() => setPlayTrailer(true)}
-                >
-                  <img
-                    src={m.trailer.thumbnail || `https://i.ytimg.com/vi/${m.trailer.id}/hqdefault.jpg`}
-                    alt=""
-                    className="aspect-video w-full object-cover"
-                  />
-                  <span aria-hidden className="absolute inset-0 flex items-center justify-center">
-                    <span className="t-btn t-btn--primary">▶ {t('browser.trailer')}</span>
-                  </span>
-                </button>
-              ))}
+            {m.trailer?.site === 'youtube' && (
+              <iframe
+                className="aspect-video w-full"
+                title={t('browser.trailer')}
+                src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}`}
+                allow="encrypted-media; fullscreen"
+                allowFullScreen
+              />
+            )}
             {m.trailer?.site === 'dailymotion' && (
               <a
                 className="t-btn t-btn--sm inline-flex items-center gap-2"
@@ -695,14 +678,15 @@ function DetailDialog({
             )}
           </section>
         )}
-        {rev && rev.reviews.length > 0 && (
+        {rev && (
           <section className="mt-4 border-t border-border-subtle pt-4">
             <h4 className="t-label mb-2">
               {t('browser.reviews')} ({rev.reviews.length})
             </h4>
+            {rev.reviews.length === 0 && <p className="text-sm text-t-muted">{t('browser.noReviews')}</p>}
             {/* chat-bubble layout: avatar beside a bordered bubble per review */}
             <ul className="mt-3 grid gap-3">
-              {rev.reviews.map((r, i) => (
+              {(allReviews ? rev.reviews : rev.reviews.slice(0, 5)).map((r, i) => (
                 <li key={i} className="flex items-start gap-3">
                   {r.user.avatar?.medium ? (
                     <img src={r.user.avatar.medium} alt="" className="h-9 w-9 shrink-0 object-cover" />
@@ -721,6 +705,11 @@ function DetailDialog({
                 </li>
               ))}
             </ul>
+            {!allReviews && rev.reviews.length > 5 && (
+              <button type="button" className="t-btn t-btn--sm mt-3" onClick={() => setAllReviews(true)}>
+                {t('browser.moreReviews', { count: rev.reviews.length - 5 })}
+              </button>
+            )}
           </section>
         )}
 

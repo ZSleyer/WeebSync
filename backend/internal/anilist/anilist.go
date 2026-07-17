@@ -383,9 +383,9 @@ type Review struct {
 }
 
 // Reviews returns the top-rated community reviews of a media (detail view).
-// Cache key bumped to reviews2 when the avatar field was added.
+// Cache key bumped to reviews3 when the page size grew to 15.
 func (c *Client) Reviews(ctx context.Context, id int) ([]Review, error) {
-	key := fmt.Sprintf("reviews2:%d", id)
+	key := fmt.Sprintf("reviews3:%d", id)
 	if payload, ok := c.cached(key); ok {
 		var list []Review
 		if json.Unmarshal([]byte(payload), &list) == nil {
@@ -399,7 +399,7 @@ func (c *Client) Reviews(ctx context.Context, id int) ([]Review, error) {
 			} `json:"Page"`
 		} `json:"data"`
 	}
-	gql := `query ($id: Int) { Page(perPage: 5) { reviews(mediaId: $id, sort: RATING_DESC) { summary score rating user { name avatar { medium } } } } }`
+	gql := `query ($id: Int) { Page(perPage: 15) { reviews(mediaId: $id, sort: RATING_DESC) { summary score rating user { name avatar { medium } } } } }`
 	if err := c.query(ctx, gql, map[string]any{"id": id}, &resp); err != nil {
 		return nil, err
 	}

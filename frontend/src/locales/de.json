@@ -155,8 +155,9 @@
     "syncCanceled": "{{count}} Download(s) abgebrochen.",
     "createFolder": "Neuen Ordner erstellen",
     "flatSync": "Dateien direkt ins Ziel schreiben (kein Unterordner) — z. B. für Titel/Season 01/-Strukturen",
-    "playTrailer": "Trailer abspielen",
     "reviews": "Community-Reviews",
+    "noReviews": "Noch keine Reviews vorhanden.",
+    "moreReviews": "{{count}} weitere anzeigen",
     "details": "Details"
   },
   "watch": {
