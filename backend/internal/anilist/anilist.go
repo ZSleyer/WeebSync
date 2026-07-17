@@ -368,6 +368,75 @@ func (c *Client) Search(ctx context.Context, q string) ([]Media, error) {
 	return resp.Data.Page.Media, nil
 }
 
+// Review is one community review of a media; Score is the reviewer's 0-100
+// rating, Rating the review's upvote count.
+type Review struct {
+	Summary string `json:"summary"`
+	Score   int    `json:"score"`
+	Rating  int    `json:"rating"`
+	User    struct {
+		Name   string `json:"name"`
+		Avatar struct {
+			Medium string `json:"medium"`
+		} `json:"avatar"`
+	} `json:"user"`
+}
+
+// Reviews returns the top-rated community reviews of a media (detail view).
+// Cache key bumped to reviews2 when the avatar field was added.
+func (c *Client) Reviews(ctx context.Context, id int) ([]Review, error) {
+	key := fmt.Sprintf("reviews2:%d", id)
+	if payload, ok := c.cached(key); ok {
+		var list []Review
+		if json.Unmarshal([]byte(payload), &list) == nil {
+			return list, nil
+		}
+	}
+	var resp struct {
+		Data struct {
+			Page struct {
+				Reviews []Review `json:"reviews"`
+			} `json:"Page"`
+		} `json:"data"`
+	}
+	gql := `query ($id: Int) { Page(perPage: 5) { reviews(mediaId: $id, sort: RATING_DESC) { summary score rating user { name avatar { medium } } } } }`
+	if err := c.query(ctx, gql, map[string]any{"id": id}, &resp); err != nil {
+		return nil, err
+	}
+	list := resp.Data.Page.Reviews
+	if list == nil {
+		list = []Review{}
+	}
+	payload, _ := json.Marshal(list)
+	c.store(key, string(payload))
+	return list, nil
+}
+
+// Trending returns the currently trending anime (suggestions page).
+func (c *Client) Trending(ctx context.Context) ([]Media, error) {
+	const key = "trending:anime"
+	if payload, ok := c.cached(key); ok {
+		var list []Media
+		if json.Unmarshal([]byte(payload), &list) == nil {
+			return list, nil
+		}
+	}
+	var resp struct {
+		Data struct {
+			Page struct {
+				Media []Media `json:"media"`
+			} `json:"Page"`
+		} `json:"data"`
+	}
+	gql := fmt.Sprintf(`query { Page(perPage: 30) { media(sort: TRENDING_DESC, type: ANIME) { %s } } }`, mediaFields)
+	if err := c.query(ctx, gql, nil, &resp); err != nil {
+		return nil, err
+	}
+	payload, _ := json.Marshal(resp.Data.Page.Media)
+	c.store(key, string(payload))
+	return resp.Data.Page.Media, nil
+}
+
 func (c *Client) Media(ctx context.Context, id int) (*Media, error) {
 	key := fmt.Sprintf("media:%d", id)
 	if payload, ok := c.cached(key); ok {

@@ -342,6 +342,84 @@ func (c *Client) Media(ctx context.Context, kind string, id int) (*anilist.Media
 	return &m, nil
 }
 
+// Reviews returns community reviews of a series or movie, mapped into the
+// AniList review shape. No language filter — German reviews barely exist, the
+// default returns mostly-English ones.
+func (c *Client) Reviews(ctx context.Context, kind string, id int) ([]anilist.Review, error) {
+	cacheKey := fmt.Sprintf("tmdb:reviews2:%s:%d", kind, id)
+	if payload, ok := c.cached(cacheKey); ok {
+		var list []anilist.Review
+		if json.Unmarshal([]byte(payload), &list) == nil {
+			return list, nil
+		}
+	}
+	var resp struct {
+		Results []struct {
+			Author        string `json:"author"`
+			Content       string `json:"content"`
+			AuthorDetails struct {
+				Rating     float64 `json:"rating"`
+				AvatarPath string  `json:"avatar_path"`
+			} `json:"author_details"`
+		} `json:"results"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/%s/%d/reviews", kind, id), nil, &resp); err != nil {
+		return nil, err
+	}
+	list := make([]anilist.Review, 0, len(resp.Results))
+	for i, r := range resp.Results {
+		if i == 5 {
+			break
+		}
+		var rev anilist.Review
+		rev.User.Name = r.Author
+		if p := r.AuthorDetails.AvatarPath; p != "" {
+			rev.User.Avatar.Medium = c.Images + "/w185" + p
+		}
+		rev.Score = int(r.AuthorDetails.Rating * 10)
+		rev.Summary = truncate(r.Content, 600)
+		list = append(list, rev)
+	}
+	payload, _ := json.Marshal(list)
+	c.store(cacheKey, string(payload))
+	return list, nil
+}
+
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
+}
+
+// Trending lists this week's trending series (kind "tv") or movies.
+func (c *Client) Trending(ctx context.Context, kind string) ([]anilist.Media, error) {
+	cacheKey := "tmdb:trending:" + kind
+	if payload, ok := c.cached(cacheKey); ok {
+		var list []anilist.Media
+		if json.Unmarshal([]byte(payload), &list) == nil {
+			return list, nil
+		}
+	}
+	var resp struct {
+		Results []rawResult `json:"results"`
+	}
+	if err := c.get(ctx, "/trending/"+kind+"/week", url.Values{"language": {"de-DE"}}, &resp); err != nil {
+		return nil, err
+	}
+	list := make([]anilist.Media, 0, len(resp.Results))
+	for i, r := range resp.Results {
+		if i == 20 {
+			break
+		}
+		list = append(list, c.toMedia(kind, r))
+	}
+	payload, _ := json.Marshal(list)
+	c.store(cacheKey, string(payload))
+	return list, nil
+}
+
 // MovieCollection returns the id of the collection a movie belongs to
 // (0 = standalone). Cached alongside the movie details.
 func (c *Client) MovieCollection(ctx context.Context, movieID int) (int, error) {
