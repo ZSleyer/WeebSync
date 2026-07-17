@@ -92,14 +92,20 @@ export function useSettingsForm() {
   return { form, set, save, saved, locked }
 }
 
-// Badge next to a field label whose value is forced by an env var. Rendered
-// inside the <label>, so screen readers announce the hint with the field.
+// Lock icon next to a field label whose value is forced by an env var.
+// Hover shows "ENV" + hint; the sr-only text carries it for screen readers.
 export function EnvBadge({ show }: { show: boolean }) {
   const { t } = useTranslation()
   if (!show) return null
   return (
-    <span className="t-label ml-2" title={t('settings.envLockedHint')}>
-      ENV<span className="sr-only"> — {t('settings.envLockedHint')}</span>
+    <span
+      className="ml-1.5 inline-block align-[-1px] text-t-muted"
+      title={`ENV — ${t('settings.envLockedHint')}`}
+    >
+      <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2a5 5 0 0 0-5 5v3H5v12h14V10h-2V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z" />
+      </svg>
+      <span className="sr-only">ENV — {t('settings.envLockedHint')}</span>
     </span>
   )
 }
