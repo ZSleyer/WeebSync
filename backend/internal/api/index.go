@@ -179,7 +179,7 @@ func (s *Server) crawlServer(ctx context.Context, userID, serverID int64, root s
 // GET /api/servers/{id}/search?q=... — multiple words AND-match the name.
 func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	var owned int
 	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned)
 	if owned == 0 {

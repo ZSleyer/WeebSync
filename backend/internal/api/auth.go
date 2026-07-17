@@ -107,7 +107,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var verified int
 	err := s.DB.QueryRow(`SELECT id, password_hash, email_verified FROM users WHERE email = ?`, c.Email).Scan(&id, &hash, &verified)
 	if err != nil && err != sql.ErrNoRows {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	if err == sql.ErrNoRows || hash == "" || !auth.VerifyPassword(c.Password, hash) {
@@ -142,7 +142,7 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 	var users int
 	// fail closed: a db error must not reopen the unauthenticated setup path
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	if users > 0 {
@@ -196,7 +196,7 @@ func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 	var users int
 	// fail closed: a db error must not reopen the unauthenticated probe
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	if u := auth.UserFrom(r.Context()); users > 0 && (u == nil || !u.IsAdmin) {

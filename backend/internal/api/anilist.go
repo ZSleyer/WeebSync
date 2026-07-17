@@ -257,7 +257,7 @@ func GuessAltTitle(name string) string {
 // background jobs and flagged pending so the client polls until done.
 func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	serverID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	serverID := pathID(r)
 	client, rootPath, err := s.DialServer(u.ID, serverID)
 	if err != nil {
 		status := http.StatusBadGateway
@@ -336,7 +336,7 @@ func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, fo
 // (manual=1) are always left alone.
 func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	serverID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	serverID := pathID(r)
 	var in struct {
 		Path string `json:"path"`
 		All  bool   `json:"all"`
@@ -374,7 +374,7 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		AND folder LIKE ? || '/%' AND folder NOT LIKE ? || '/%/%'`,
 		serverID, sourceForScope(scope), in.Path, in.Path)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	var folders []string
@@ -396,7 +396,7 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 // handleCatalogMatch sets or clears a manual folder→media match.
 func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	serverID, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	serverID := pathID(r)
 	var in struct {
 		Folder  string `json:"folder"`
 		MediaID int    `json:"mediaId"` // 0 = unmatch

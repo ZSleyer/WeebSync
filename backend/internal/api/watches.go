@@ -200,7 +200,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	defer rows.Close()
@@ -211,7 +211,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
 			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement,
 			&it.LastCheck, &it.LastResult, &it.LastUploading, &it.CreatedAt); err != nil {
-			writeErr(w, http.StatusInternalServerError, "db error")
+			dbErr(w)
 			return
 		}
 		it.IntervalMin = interval
@@ -291,7 +291,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	var in struct {
 		RemotePath    string `json:"remotePath"`
 		LocalPath     string `json:"localPath"`
@@ -340,10 +340,10 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	res, err := s.DB.Exec(`DELETE FROM watches WHERE id = ? AND user_id = ?`, id, u.ID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "db error")
+		dbErr(w)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -356,7 +356,7 @@ func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {
 // handleWatchCheck triggers a manual check; last_check is stamped inside
 // runWatch, so the 30min countdown restarts from now.
 func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id := pathID(r)
 	// machine token (admin-scoped) may trigger any watch; sessions only their own
 	q, args := `SELECT COUNT(*) FROM watches WHERE id = ?`, []any{id}
 	if !isMachine(r.Context()) {
