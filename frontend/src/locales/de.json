@@ -164,6 +164,11 @@
   "watch": {
     "title": "AUTO-SYNC",
     "sub": "ordner dauerhaft überwachen",
+    "sortBy": "Sortieren",
+    "sortNext": "Nächster Sync",
+    "sortLast": "Letzter Sync",
+    "sortName": "Name",
+    "sortSeason": "Season",
     "add": "Beobachten",
     "addTitle": "Beobachten: {{name}}",
     "editTitle": "Auto-Sync bearbeiten",
