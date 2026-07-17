@@ -1,0 +1,11 @@
+.git
+data
+docs
+graphify-out
+tools
+frontend/node_modules
+frontend/dist
+**/*.md
+AGENTS.md
+CLAUDE.md
+.env

@@ -58,11 +58,13 @@ type Manager struct {
 
 	global *rate.Limiter
 
-	mu      sync.Mutex
-	active  map[int64]*running
-	subs    map[chan string]struct{}
-	wake    chan struct{}
-	maxConc int
+	mu       sync.Mutex
+	active   map[int64]*running
+	subs     map[chan string]struct{}
+	wake     chan struct{}
+	maxConc  int
+	stopping bool
+	wg       sync.WaitGroup
 }
 
 func NewManager(db *sql.DB, dial Dialer, downloadRoot string) *Manager {
@@ -139,8 +141,9 @@ func (m *Manager) loop() {
 func (m *Manager) startPending() {
 	m.mu.Lock()
 	free := m.maxConc - len(m.active)
+	stopping := m.stopping
 	m.mu.Unlock()
-	if free <= 0 {
+	if stopping || free <= 0 {
 		return
 	}
 	rows, err := m.DB.Query(`SELECT id FROM downloads WHERE status = 'queued' ORDER BY id LIMIT ?`, free)
@@ -181,10 +184,13 @@ func (m *Manager) startDownload(id int64) {
 	m.mu.Unlock()
 
 	m.setStatus(id, "running", "")
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
 		err := m.runDownload(ctx, d, r)
 		m.mu.Lock()
 		paused := r.paused
+		stopping := m.stopping
 		delete(m.active, id)
 		m.mu.Unlock()
 		switch {
@@ -192,6 +198,9 @@ func (m *Manager) startDownload(id int64) {
 			m.setStatus(id, "done", "")
 		case paused:
 			m.setStatus(id, "paused", "")
+		case stopping && ctx.Err() != nil:
+			// graceful shutdown: back to the queue, resumes from .part on restart
+			m.setStatus(id, "queued", "")
 		case ctx.Err() != nil:
 			m.setStatus(id, "canceled", "")
 		default:
@@ -414,6 +423,23 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 	}
 	m.Wake()
 	return ids, uploading, nil
+}
+
+// Shutdown cancels all active downloads, requeues them (resume picks up the
+// .part files after restart) and waits for the workers until ctx expires.
+func (m *Manager) Shutdown(ctx context.Context) {
+	m.mu.Lock()
+	m.stopping = true
+	for _, r := range m.active {
+		r.cancel()
+	}
+	m.mu.Unlock()
+	done := make(chan struct{})
+	go func() { m.wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 }
 
 func (m *Manager) Pause(userID, id int64) error {
