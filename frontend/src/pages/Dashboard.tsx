@@ -17,6 +17,7 @@ export default function Dashboard() {
     refetchInterval: 5000,
   })
   const [query, setQuery] = useState('')
+  const [showAllHistory, setShowAllHistory] = useState(false)
   const [statusFilter, setStatusFilter] = useState<Set<Download['status']>>(new Set())
   const filtering = query.trim() !== '' || statusFilter.size > 0
   const matches = (d: Download) =>
@@ -25,7 +26,7 @@ export default function Dashboard() {
 
   const active = downloads.filter((d) => (d.status === 'running' || d.status === 'queued' || d.status === 'paused') && matches(d))
   const finished = downloads.filter((d) => d.status !== 'running' && d.status !== 'queued' && d.status !== 'paused' && matches(d))
-  const finishedShown = finished.slice(0, filtering ? finished.length : 20)
+  const finishedShown = finished.slice(0, filtering || showAllHistory ? finished.length : 20)
   const totalSpeed = downloads.reduce((s, d) => s + (d.status === 'running' ? (d.bytesPerSec ?? 0) : 0), 0)
   const anyActive = downloads.some((d) => d.status === 'running' || d.status === 'queued')
   const anyPaused = downloads.some((d) => d.status === 'paused')
@@ -35,6 +36,9 @@ export default function Dashboard() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const lastClick = useRef<number | null>(null)
   const visibleIds = [...active, ...finishedShown].map((d) => d.id)
+  // select-all spans every matching download (not just the rendered slice) so
+  // bulk actions reach the full history, not only the first page
+  const allMatchingIds = [...active, ...finished].map((d) => d.id)
   const selectRow = (id: number, shift: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev)
@@ -52,7 +56,7 @@ export default function Dashboard() {
     })
     lastClick.current = id
   }
-  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id))
+  const allMatchingSelected = allMatchingIds.length > 0 && allMatchingIds.every((id) => selected.has(id))
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setSelected(new Set())
@@ -141,8 +145,8 @@ export default function Dashboard() {
             className="mr-1"
             title={t('dash.selectAll')}
             aria-label={t('dash.selectAll')}
-            checked={allVisibleSelected}
-            onChange={() => setSelected(allVisibleSelected ? new Set() : new Set(visibleIds))}
+            checked={allMatchingSelected}
+            onChange={() => setSelected(allMatchingSelected ? new Set() : new Set(allMatchingIds))}
           />
           {STATUSES.map((st) => (
             <button
@@ -253,6 +257,11 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          {finished.length > finishedShown.length && (
+            <button className="t-btn t-btn--sm mt-3" onClick={() => setShowAllHistory(true)}>
+              {t('dash.showAllHistory', { count: finished.length })}
+            </button>
+          )}
         </section>
       )}
     </div>
