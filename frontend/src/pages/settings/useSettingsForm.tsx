@@ -74,7 +74,7 @@ export function useSettingsForm() {
       qc.setQueryData(['settings'], fresh)
       // dependent queries gate UI on the saved config (AniList connect button,
       // Plex sections, SMTP availability, suggestion pages) — refetch them all
-      for (const key of ['anilist-me', 'plex-sections', 'email-prefs', 'anilist-suggestions', 'plex-suggestions'])
+      for (const key of ['anilist-me', 'plex-sections', 'email-prefs', 'anilist-suggestions', 'plex-suggestions', 'tmdb-me', 'tmdb-suggestions'])
         qc.invalidateQueries({ queryKey: [key] })
       setForm({ ...fresh, ...BLANK_SECRETS })
       setSaved(true)

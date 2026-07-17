@@ -220,6 +220,67 @@ body {
 .t-btn--danger:hover { border-color: var(--accent-red); background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
 .t-btn--sm { padding: 4px 10px; font-size: 11px; min-height: 24px; min-width: 24px; } /* WCAG 2.5.8 target size */
 
+/* Tabs: segmented bar in the Tempest style — display font, accent
+   underline marks the active tab. On phones the bar scrolls horizontally
+   instead of wrapping into ragged rows. */
+.t-tabs {
+  display: flex;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.t-tabs::-webkit-scrollbar { display: none; }
+.t-tab {
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  cursor: pointer;
+  min-height: 40px; /* WCAG 2.5.8 + comfortable touch target */
+  transition: color 150ms, background-color 150ms, border-color 150ms;
+}
+.t-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.t-tab[aria-selected="true"] {
+  color: var(--accent-blue);
+  background: var(--bg-card);
+  border-bottom-color: var(--accent-blue);
+}
+/* chevron scroll hint over the fading edge of an overflowing tab bar */
+.t-tabs-more {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  border: 0;
+  cursor: pointer;
+  color: var(--accent-blue);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+}
+.t-tabs-more--r {
+  right: 1px;
+  justify-content: flex-end;
+  padding-right: 12px;
+  background: linear-gradient(to right, transparent, var(--bg-secondary) 70%);
+}
+.t-tabs-more--l {
+  left: 1px;
+  justify-content: flex-start;
+  padding-left: 12px;
+  background: linear-gradient(to left, transparent, var(--bg-secondary) 70%);
+}
+
 /* Inputs */
 .t-input {
   font: inherit;

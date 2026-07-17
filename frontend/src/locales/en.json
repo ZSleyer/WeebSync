@@ -431,7 +431,11 @@
     "plexSource": "Metadata source for {{name}}",
     "instance": "Instance",
     "baseUrl": "Instance URL",
-    "baseUrlHint": "Public address of this WeebSync instance — used for links in emails (verification, dashboard). Empty = derived from the OIDC redirect URL."
+    "baseUrlHint": "Public address of this WeebSync instance — used for links in emails (verification, dashboard). Empty = derived from the OIDC redirect URL.",
+    "tmdbConnect": "Link TMDB account",
+    "tmdbConnectedAs": "TMDB: linked as {{name}}",
+    "tmdbDisconnect": "Disconnect",
+    "tmdbConnectHint": "Requires the TMDB API key above."
   },
   "status": {
     "queued": "queued",
@@ -492,7 +496,7 @@
   },
   "suggestions": {
     "title": "SUGGESTIONS",
-    "sub": "anilist watchlist · plex sequels",
+    "sub": "anilist & tmdb watchlists · plex sequels · trending",
     "anilist": "AniList: your watchlist on the server",
     "plex": "Plex: missing sequels",
     "notConnected": "No AniList account linked. Connect under <1>Settings</1>.",
@@ -502,6 +506,16 @@
     "seen": "{{seen}} / {{total}} watched",
     "plusOne": "+1 watched",
     "plusOneHint": "Bump the AniList progress by one episode.",
-    "plexFolder": "Plex folder"
+    "plexFolder": "Plex folder",
+    "anilistWatchlist": "Watchlist on your servers",
+    "anilistTrending": "Trending on your servers",
+    "tmdbWatchlist": "TMDB watchlist on your servers",
+    "tmdbTrending": "TMDB trending on your servers",
+    "tmdbNotConfigured": "No TMDB API key configured. Add one under <1>Settings</1>.",
+    "tmdbNotConnected": "No TMDB account linked. Connect under <1>Settings</1>.",
+    "tmdbEmpty": "No watchlist title found in the index.",
+    "trendingEmpty": "No trending title found in the index.",
+    "otherLibrary": "Other",
+    "plexLibraries": "Plex libraries"
   }
 }

@@ -60,6 +60,9 @@ export default function Integrations() {
           />
           <span className="mt-1 block">{t('settings.tmdbApiKeyHint')}</span>
         </label>
+        <div className="mt-3">
+          <TmdbAccount />
+        </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4">
           <span className="t-label">{t('settings.plex')}</span>
@@ -185,6 +188,59 @@ function PlexSections({
       </ul>
       <p className="mt-1.5">{t('settings.plexSectionsHint')}</p>
     </fieldset>
+  )
+}
+
+// Linked TMDB account of the current user (v3 request-token flow). The
+// watchlist suggestions need it; trending works with the API key alone.
+function TmdbAccount() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [error, setError] = useState('')
+  const { data } = useQuery<{ configured: boolean; connected: boolean; username?: string }>({
+    queryKey: ['tmdb-me'],
+    queryFn: () => api.get('/api/tmdb/me'),
+  })
+  if (!data) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+      {data.connected ? (
+        <>
+          <span className="t-label t-label--ok">{t('settings.tmdbConnectedAs', { name: data.username })}</span>
+          <button
+            className="t-btn t-btn--sm"
+            onClick={async () => {
+              try {
+                await api.del('/api/tmdb/connect')
+                setError('')
+                qc.invalidateQueries({ queryKey: ['tmdb-me'] })
+                qc.invalidateQueries({ queryKey: ['tmdb-suggestions'] })
+              } catch (err) {
+                setError(err instanceof Error ? err.message : t('app.error'))
+              }
+            }}
+          >
+            {t('settings.tmdbDisconnect')}
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            className="t-btn t-btn--sm"
+            disabled={!data.configured}
+            onClick={() => (window.location.href = '/api/tmdb/connect')}
+          >
+            {t('settings.tmdbConnect')}
+          </button>
+          {!data.configured && <span>{t('settings.tmdbConnectHint')}</span>}
+        </>
+      )}
+      {error && (
+        <span className="text-err" role="alert">
+          {error}
+        </span>
+      )}
+    </div>
   )
 }
 
