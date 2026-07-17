@@ -1,24 +1,23 @@
-# Home-Assistant-Integration
+# Home Assistant integration
 
-WeebSync bietet eine tokengeschützte REST-Status-API, die Home Assistant per
-`rest`-Sensor pollen kann, plus einen Trigger-Endpoint zum manuellen Anstoßen
-von Watches.
+WeebSync offers a token-protected REST status API that Home Assistant can poll
+via `rest` sensors, plus a trigger endpoint to kick off watches manually.
 
-## Token erzeugen
+## Generate a token
 
-Einstellungen → Sicherheit → **API-Token** → *Generieren*. Der Token wird nur
-einmal angezeigt. In Home Assistant als Secret ablegen (`secrets.yaml`):
+Settings → Security → **API token** → *Generate*. The token is shown only
+once. Store it as a secret in Home Assistant (`secrets.yaml`):
 
 ```yaml
 weebsync_token: "Bearer <token>"
 ```
 
-Der Token erlaubt genau zwei Endpoints:
+The token permits exactly two endpoints:
 
-- `GET /api/status` — aggregierter Status (Downloads, Watches, Disk)
-- `POST /api/watches/{id}/check` — Watch sofort prüfen/syncen
+- `GET /api/status` — aggregated status (downloads, watches, disk)
+- `POST /api/watches/{id}/check` — check/sync a watch immediately
 
-## Status-Endpoint
+## Status endpoint
 
 ```
 GET /api/status
@@ -44,7 +43,7 @@ Authorization: Bearer <token>
 }
 ```
 
-## Sensoren (configuration.yaml)
+## Sensors (configuration.yaml)
 
 ```yaml
 rest:
@@ -67,7 +66,7 @@ rest:
         unit_of_measurement: GB
 ```
 
-## Watch aus Home Assistant triggern
+## Triggering a watch from Home Assistant
 
 ```yaml
 rest_command:
@@ -78,7 +77,7 @@ rest_command:
       Authorization: !secret weebsync_token
 ```
 
-Aufruf z. B. in einer Automation:
+Invoked e.g. from an automation:
 
 ```yaml
 action:
@@ -87,13 +86,13 @@ action:
       watch_id: 3
 ```
 
-Die Watch-IDs stehen im `watches`-Array der Status-Antwort.
+The watch IDs are listed in the `watches` array of the status response.
 
-## Events (Download fertig/fehlgeschlagen)
+## Events (download finished/failed)
 
-Es gibt keinen Webhook — Events entstehen durch Polling: der Sensor
-`WeebSync last finished` wechselt seinen Zustand, sobald ein Download
-abgeschlossen ist. Darauf lässt sich eine Automation bauen:
+There is no webhook — events emerge through polling: the
+`WeebSync last finished` sensor changes state as soon as a download
+completes. An automation can build on that:
 
 ```yaml
 automation:
@@ -112,4 +111,4 @@ automation:
             ({{ state_attr('sensor.weebsync_last_finished', 'status') }})
 ```
 
-Bei `scan_interval: 60` kommen Events mit bis zu einer Minute Verzögerung.
+With `scan_interval: 60`, events arrive with up to a minute of delay.
