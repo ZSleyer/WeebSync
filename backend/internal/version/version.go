@@ -3,8 +3,8 @@
 package version
 
 var (
-	Version = "dev" // semver tag on release, "dev-<sha>" on main builds
-	Channel = "dev" // "stable" | "dev"
+	Version = "dev" // semver tag on release, "nightly" on CI builds, "dev" locally
+	Channel = "dev" // "stable" (release) | "nightly" (CI) | "dev" (local); dev enables the OpenAPI docs
 	Commit  = ""    // full git sha the image was built from
 	Repo    = ""    // "owner/name" for the update check; empty disables it
 )
