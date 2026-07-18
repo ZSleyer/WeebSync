@@ -468,7 +468,7 @@
       "crawlNow": "Jetzt crawlen",
       "flushIndex": "Index leeren",
       "confirmFlushIndex": "Index für \"{{name}}\" leeren? Der Crawler baut ihn schrittweise neu auf.",
-      "indexHint": "Nach dem Leeren wird der Index schrittweise neu aufgebaut - der Crawler läuft alle {{min}} min.",
+      "indexHint": "Nach dem Leeren wird der Index schrittweise neu aufgebaut, im oben je Server eingestellten Intervall.",
       "oldestListing": "älteste Auflistung",
       "matched": "{{n}} gematcht",
       "unmatched": "{{n}} ohne Match",
