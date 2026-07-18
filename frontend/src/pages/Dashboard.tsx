@@ -288,8 +288,10 @@ function SyncSummary() {
   const behind = watches.reduce((s, w) => s + (w.behind ?? 0), 0)
   const title = (w: Watch) => w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop()
   const airFmt = (ts: number) => new Date(ts * 1000).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-  // "interesting" = actionable: behind, waiting for an airing, or dub/sub-gated
-  const interesting = watches.filter((w) => (w.behind ?? 0) > 0 || w.waiting || (w.langWaiting ?? 0) > 0)
+  // "interesting" = actionable: behind, waiting for an airing, dub/sub-gated, or a gap
+  const interesting = watches.filter(
+    (w) => (w.behind ?? 0) > 0 || w.waiting || (w.langWaiting ?? 0) > 0 || (w.missing?.length ?? 0) > 0,
+  )
 
   return (
     <section className="mb-4" aria-label={t('dash.syncSummary')}>
@@ -317,6 +319,11 @@ function SyncSummary() {
                 </span>
                 {(w.behind ?? 0) > 0 && (
                   <span className="t-label t-label--warn shrink-0">{t('watch.behind', { count: w.behind })}</span>
+                )}
+                {(w.missing?.length ?? 0) > 0 && (
+                  <span className="t-label t-label--err shrink-0" title={w.missing!.join(', ')}>
+                    {t('watch.missing', { count: w.missing!.length, eps: w.missing!.slice(0, 5).join(', ') })}
+                  </span>
                 )}
                 {(w.langWaiting ?? 0) > 0 && (
                   <span className="t-label t-label--warn shrink-0">

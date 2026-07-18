@@ -536,8 +536,26 @@ func (m *Manager) get(id int64) (*Download, error) {
 	return &d, nil
 }
 
+// execRetry runs a write that must not be silently lost. modernc SQLite
+// serializes writers, so a concurrent worker/crawler/watch write can transiently
+// return "database is locked"; a dropped terminal status update would strand a
+// row as running (re-downloaded on the next restart). Retry a few times, then log.
+func (m *Manager) execRetry(what, query string, args ...any) {
+	var err error
+	for attempt := 0; attempt < 4; attempt++ {
+		if _, err = m.DB.Exec(query, args...); err == nil {
+			return
+		}
+		if e := strings.ToLower(err.Error()); !strings.Contains(e, "locked") && !strings.Contains(e, "busy") {
+			break // a non-contention error won't clear by retrying
+		}
+		time.Sleep(time.Duration(attempt+1) * 25 * time.Millisecond)
+	}
+	slog.Warn("db write failed", "op", what, "err", err)
+}
+
 func (m *Manager) setStatus(id int64, status, errMsg string) {
-	m.DB.Exec(`UPDATE downloads SET status = ?, error = ?, updated_at = datetime('now') WHERE id = ?`, status, errMsg, id)
+	m.execRetry("setStatus", `UPDATE downloads SET status = ?, error = ?, updated_at = datetime('now') WHERE id = ?`, status, errMsg, id)
 	if d, err := m.get(id); err == nil {
 		m.publish(d)
 		if m.OnFinished != nil && (status == "done" || status == "error") {

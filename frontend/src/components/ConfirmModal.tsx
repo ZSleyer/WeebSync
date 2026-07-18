@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface ConfirmOptions {
@@ -23,6 +23,7 @@ export default function ConfirmModal({
   onCancel,
 }: ConfirmOptions & { onConfirm: () => void; onCancel: () => void }) {
   const { t } = useTranslation()
+  const titleId = useId()
   const ref = useRef<HTMLDialogElement>(null)
   const confirmed = useRef(false)
   const backdropDown = useRef(false) // pointerdown started on the backdrop, not a drag out of a button
@@ -37,7 +38,7 @@ export default function ConfirmModal({
     <dialog
       ref={ref}
       className="w-full max-w-md p-0"
-      aria-labelledby="confirm-title"
+      aria-labelledby={titleId}
       onClose={() => (confirmed.current ? onConfirm() : onCancel())}
       onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
       onClick={(e) => e.target === ref.current && backdropDown.current && close(false)}
@@ -55,7 +56,7 @@ export default function ConfirmModal({
               />
             </svg>
           )}
-          <h3 id="confirm-title" className="font-display font-semibold tracking-wider">
+          <h3 id={titleId} className="font-display font-semibold tracking-wider">
             {title ?? t('common.confirmTitle')}
           </h3>
         </header>
