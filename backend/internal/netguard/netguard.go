@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -17,9 +18,42 @@ import (
 // IsLinkLocalUnicast; this one sits in the ULA range and needs an explicit check.
 var awsMetadataV6 = net.ParseIP("fd00:ec2::254")
 
-// blocked reports whether a resolved IP must never be dialed.
+// blocked reports whether a resolved IP must never be dialed. Loopback and
+// private LAN stay allowed on purpose - a self-hosted setup legitimately points
+// at SFTP/Plex/OIDC on the same host or LAN. Unspecified (0.0.0.0 / ::) is never
+// a real target and on Linux 0.0.0.0 dials localhost, so it is refused.
 func blocked(ip net.IP) bool {
-	return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.Equal(awsMetadataV6)
+	return ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.Equal(awsMetadataV6)
+}
+
+// SafeDial resolves host, rejects blocked IPs, and dials the exact verified IP
+// (no second resolve, so no DNS-rebinding TOCTOU). For raw-TCP callers such as
+// the SSH transport that cannot use the HTTP Client above.
+func SafeDial(ctx context.Context, network, host string, port int, timeout time.Duration) (net.Conn, error) {
+	var ips []net.IP
+	if ip := net.ParseIP(host); ip != nil {
+		ips = []net.IP{ip}
+	} else {
+		resolved, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+		if err != nil {
+			return nil, fmt.Errorf("resolve %s: %w", host, err)
+		}
+		ips = resolved
+	}
+	d := &net.Dialer{Timeout: timeout}
+	var lastErr error = fmt.Errorf("no dialable address for %s", host)
+	for _, ip := range ips {
+		if blocked(ip) {
+			lastErr = fmt.Errorf("host %s resolves to blocked address %s", host, ip)
+			continue
+		}
+		conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip.String(), strconv.Itoa(port)))
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
 }
 
 // Allowed resolves host (an IP or hostname) and rejects it if any resolved

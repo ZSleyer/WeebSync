@@ -142,7 +142,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
-	if err == sql.ErrNoRows || hash == "" || !auth.VerifyPassword(c.Password, hash) {
+	if err == sql.ErrNoRows || hash == "" {
+		auth.DummyVerify(c.Password) // equalize timing so unknown emails aren't distinguishable
+		writeErr(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	if !auth.VerifyPassword(c.Password, hash) {
 		writeErr(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
