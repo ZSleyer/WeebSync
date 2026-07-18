@@ -6,6 +6,7 @@ import './index.css'
 import './locales'
 import { router } from './App'
 import { ConfirmProvider } from './components/confirm'
+import { PromptProvider } from './components/prompt'
 import { registerServiceWorker } from './push'
 
 registerServiceWorker()
@@ -33,7 +34,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ConfirmProvider>
-        <RouterProvider router={router} />
+        <PromptProvider>
+          <RouterProvider router={router} />
+        </PromptProvider>
       </ConfirmProvider>
     </QueryClientProvider>
   </StrictMode>,
