@@ -335,7 +335,10 @@ func looksUploading(size int64, siblings []int64) bool {
 // flat writes a directory's files directly into localRel instead of
 // creating a subfolder named after the remote directory (for building
 // layouts like Title/Season 01/ from arbitrary remote names).
-func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, sizeGuard, flat bool) (ids []int64, uploading int, err error) {
+// langFilter, when non-nil, receives each file's full remote path and must
+// return true for the file to be enqueued; false skips it. This lets watches
+// sync only files whose name/folder carries a wanted dub/sub language tag.
+func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat bool) (ids []int64, uploading int, err error) {
 	if nameFn == nil {
 		nameFn = func(s string) string { return s }
 	}
@@ -396,6 +399,10 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 	}
 
 	for _, j := range jobs {
+		// language filter: skip files whose name/folder lacks the wanted dub/sub tag
+		if langFilter != nil && !langFilter(j.remote) {
+			continue
+		}
 		local := filepath.Join(m.DownloadRoot, filepath.Clean("/"+j.localRel))
 		// sync: skip files that already exist with the right size
 		if fi, err := os.Stat(local); err == nil && fi.Size() == j.size {
