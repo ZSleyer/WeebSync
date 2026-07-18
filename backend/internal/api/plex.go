@@ -36,6 +36,16 @@ func (s *Server) plexClient() *plex.Client {
 }
 
 // handlePlexSections lists the show sections for the settings checkboxes.
+//
+//	@Summary		Plex sections
+//	@Description	List the Plex show and movie library sections for the settings checkboxes.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Success		200	{array}		plex.Section
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		502	{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/plex/sections [get]
 func (s *Server) handlePlexSections(w http.ResponseWriter, r *http.Request) {
 	c := s.plexClient()
 	if c == nil {
@@ -74,13 +84,29 @@ type plexCandidate struct {
 	Path       string `json:"path"`
 }
 
+// plexSuggestionsResponse is the cached Plex suggestion list plus its build state.
+type plexSuggestionsResponse struct {
+	Configured  bool             `json:"configured"`
+	Building    bool             `json:"building"` // a background rebuild is in progress
+	Suggestions []plexSuggestion `json:"suggestions"`
+}
+
 // handlePlexSuggestions serves the cached suggestion list and triggers a
 // background rebuild when stale (or ?force=1). Remote candidates are
 // resolved per requesting user at read time.
+//
+//	@Summary		Plex suggestions
+//	@Description	Missing-sequel suggestions derived from the user's Plex libraries, with remote folder candidates.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Param			force	query		string	false	"Set to 1 to force a rebuild"
+//	@Success		200		{object}	plexSuggestionsResponse
+//	@Security		CookieAuth
+//	@Router			/api/plex/suggestions [get]
 func (s *Server) handlePlexSuggestions(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	if s.plexClient() == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"configured": false, "building": false, "suggestions": []plexSuggestion{}})
+		writeJSON(w, http.StatusOK, plexSuggestionsResponse{Configured: false, Building: false, Suggestions: []plexSuggestion{}})
 		return
 	}
 	force := r.URL.Query().Get("force") == "1"
@@ -103,7 +129,7 @@ func (s *Server) handlePlexSuggestions(w http.ResponseWriter, r *http.Request) {
 	for i := range suggestions {
 		suggestions[i].Candidates = s.remoteCandidates(u.ID, suggestions[i].Sequel)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"configured": true, "building": building, "suggestions": suggestions})
+	writeJSON(w, http.StatusOK, plexSuggestionsResponse{Configured: true, Building: building, Suggestions: suggestions})
 }
 
 // remoteCandidates searches the requesting user's remote index for folders

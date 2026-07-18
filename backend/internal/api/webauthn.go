@@ -162,6 +162,24 @@ func (s *Server) hasSecurityKey(userID int64) bool {
 
 // ── registration ────────────────────────────────────────────────────────────
 
+// WebAuthnBeginResponse carries a ceremony id and the browser-facing publicKey
+// options for a registration or assertion ceremony.
+type WebAuthnBeginResponse struct {
+	SessionID string `json:"sessionId"`
+	PublicKey any    `json:"publicKey"`
+}
+
+// handleWebAuthnRegisterBegin starts a passkey/security-key registration.
+// @Summary  Begin passkey/security-key registration
+// @Description Starts a WebAuthn registration ceremony. Send X-WA-Type: key for a cross-platform second-factor security key; otherwise a resident passkey is requested. Returns the ceremony id and credential creation options.
+// @Tags     TwoFactor
+// @Produce  json
+// @Param    X-WA-Type header string false "\"key\" for a second-factor security key; otherwise a passwordless passkey"
+// @Success  200 {object} WebAuthnBeginResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/webauthn/register/begin [post]
 func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	wa, err := s.webauthnFor(r)
@@ -188,9 +206,25 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"sessionId": waPut(session), "publicKey": creation.Response})
+	writeJSON(w, http.StatusOK, WebAuthnBeginResponse{SessionID: waPut(session), PublicKey: creation.Response})
 }
 
+// handleWebAuthnRegisterFinish stores a freshly registered credential.
+// @Summary  Finish passkey/security-key registration
+// @Description Completes a WebAuthn registration ceremony and stores the new credential. The ceremony id and metadata travel in headers; the request body is the credential attestation.
+// @Tags     TwoFactor
+// @Produce  json
+// @Param    X-WA-Session header string true "ceremony id from register/begin"
+// @Param    X-WA-Type header string false "\"key\" for a second-factor security key; otherwise passwordless"
+// @Param    X-WA-Name header string false "display name for the credential"
+// @Param    body body object true "WebAuthn attestation"
+// @Success  200 {object} OkResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/webauthn/register/finish [post]
 func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	// ceremony id + metadata travel in headers, not the query string, so they
@@ -223,11 +257,20 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 		writeErr(w, http.StatusConflict, "credential already registered")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // ── passwordless login ──────────────────────────────────────────────────────
 
+// handleWebAuthnLoginBegin starts a discoverable passkey login.
+// @Summary  Begin passwordless passkey login
+// @Description Starts a discoverable WebAuthn login ceremony and returns the ceremony id and assertion options. Disabled while OIDC-only auth is active.
+// @Tags     TwoFactor
+// @Produce  json
+// @Success  200 {object} WebAuthnBeginResponse
+// @Failure  403 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Router   /api/auth/webauthn/login/begin [post]
 func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
 	if s.passwordAuthBlocked() {
 		writeErr(w, http.StatusForbidden, "password auth is disabled, use OIDC")
@@ -243,9 +286,22 @@ func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"sessionId": waPut(session), "publicKey": assertion.Response})
+	writeJSON(w, http.StatusOK, WebAuthnBeginResponse{SessionID: waPut(session), PublicKey: assertion.Response})
 }
 
+// handleWebAuthnLoginFinish completes a passwordless passkey login.
+// @Summary  Finish passwordless passkey login
+// @Description Completes a discoverable WebAuthn login ceremony and establishes a session. The ceremony id travels in the X-WA-Session header; the body is the assertion.
+// @Tags     TwoFactor
+// @Produce  json
+// @Param    X-WA-Session header string true "ceremony id from login/begin"
+// @Param    body body object true "WebAuthn assertion"
+// @Success  200 {object} LoginResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Router   /api/auth/webauthn/login/finish [post]
 func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
 	if s.passwordAuthBlocked() {
 		writeErr(w, http.StatusForbidden, "password auth is disabled, use OIDC")
@@ -280,11 +336,23 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": matched.id, "email": matched.email})
+	writeJSON(w, http.StatusOK, LoginResponse{ID: matched.id, Email: matched.email})
 }
 
 // ── second-factor assertion (security key after password) ───────────────────
 
+// handleWebAuthn2FABegin starts a security-key assertion as a second factor.
+// @Summary  Begin security-key second factor
+// @Description Starts a WebAuthn assertion for the enrolled security key after a correct password, keyed by the short-lived pending token.
+// @Tags     TwoFactor
+// @Accept   json
+// @Produce  json
+// @Param    body body object true "{\"token\":\"...\"}"
+// @Success  200 {object} WebAuthnBeginResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Router   /api/auth/webauthn/2fa/begin [post]
 func (s *Server) handleWebAuthn2FABegin(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Token string `json:"token"`
@@ -312,9 +380,22 @@ func (s *Server) handleWebAuthn2FABegin(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"sessionId": waPut(session), "publicKey": assertion.Response})
+	writeJSON(w, http.StatusOK, WebAuthnBeginResponse{SessionID: waPut(session), PublicKey: assertion.Response})
 }
 
+// handleWebAuthn2FAFinish completes the security-key second factor.
+// @Summary  Finish security-key second factor
+// @Description Completes the security-key assertion and establishes a session. The ceremony id and pending token travel in the X-WA-Session and X-WA-Token headers; the body is the assertion.
+// @Tags     TwoFactor
+// @Produce  json
+// @Param    X-WA-Session header string true "ceremony id from 2fa/begin"
+// @Param    X-WA-Token header string true "short-lived pending login token"
+// @Param    body body object true "WebAuthn assertion"
+// @Success  200 {object} LoginResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Router   /api/auth/webauthn/2fa/finish [post]
 func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("X-WA-Token")
 	session := waTake(r.Header.Get("X-WA-Session"))
@@ -347,11 +428,30 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": userID, "email": user.email})
+	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: user.email})
 }
 
 // ── management ──────────────────────────────────────────────────────────────
 
+// WebAuthnCredential is a registered passkey or security key.
+type WebAuthnCredential struct {
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	Passwordless bool   `json:"passwordless"`
+	CreatedAt    string `json:"createdAt"`
+	LastUsed     string `json:"lastUsed"`
+}
+
+// handleWebAuthnList lists the current user's registered credentials.
+// @Summary  List WebAuthn credentials
+// @Description Lists the current user's registered passkeys and security keys.
+// @Tags     TwoFactor
+// @Produce  json
+// @Success  200 {array} WebAuthnCredential
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/webauthn/credentials [get]
 func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	rows, err := s.DB.Query(`SELECT id, name, passwordless, created_at, COALESCE(last_used,'')
@@ -361,16 +461,9 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	type cred struct {
-		ID           int64  `json:"id"`
-		Name         string `json:"name"`
-		Passwordless bool   `json:"passwordless"`
-		CreatedAt    string `json:"createdAt"`
-		LastUsed     string `json:"lastUsed"`
-	}
-	list := []cred{}
+	list := []WebAuthnCredential{}
 	for rows.Next() {
-		var c cred
+		var c WebAuthnCredential
 		var pw int
 		rows.Scan(&c.ID, &c.Name, &pw, &c.CreatedAt, &c.LastUsed)
 		c.Passwordless = pw == 1
@@ -379,10 +472,20 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
+// handleWebAuthnDelete removes one of the current user's credentials.
+// @Summary  Delete a WebAuthn credential
+// @Description Removes one of the current user's registered passkeys or security keys.
+// @Tags     TwoFactor
+// @Produce  json
+// @Param    id path int true "Credential ID"
+// @Success  200 {object} OkResponse
+// @Failure  401 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/webauthn/credentials/{id} [delete]
 func (s *Server) handleWebAuthnDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	s.DB.Exec(`DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?`, pathID(r), u.ID)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // ── login-pending helpers (shared with TOTP) ────────────────────────────────

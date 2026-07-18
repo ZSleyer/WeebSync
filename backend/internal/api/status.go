@@ -39,19 +39,34 @@ type statusDisk struct {
 	UsedBytes  uint64 `json:"usedBytes"`
 }
 
+// StatusResponse is the aggregate machine-readable status payload: current
+// downloads, the last finished ones, watch check summaries and disk usage.
+type StatusResponse struct {
+	Downloads struct {
+		Active  int             `json:"active"`
+		Queued  int             `json:"queued"`
+		Running []statusRunning `json:"running"`
+	} `json:"downloads"`
+	LastFinished []statusFinished `json:"lastFinished"`
+	Watches      []statusWatch    `json:"watches"`
+	Disk         statusDisk       `json:"disk"`
+}
+
 // handleStatus is the aggregate machine-readable status (Home Assistant etc.):
 // polled state instead of SSE, so a dumb REST sensor can consume it.
+//
+// @Summary      Aggregate status
+// @Description  Machine-readable snapshot of downloads, recent finishes, watches and disk usage for polling consumers (Home Assistant etc.). Reachable with an admin session cookie or a machine API token.
+// @Tags         Status
+// @Produce      json
+// @Success      200  {object}  StatusResponse
+// @Failure      403  {object}  ErrorResponse  "admin session required (machine token is exempt)"
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Router       /api/status [get]
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	out := struct {
-		Downloads struct {
-			Active  int             `json:"active"`
-			Queued  int             `json:"queued"`
-			Running []statusRunning `json:"running"`
-		} `json:"downloads"`
-		LastFinished []statusFinished `json:"lastFinished"`
-		Watches      []statusWatch    `json:"watches"`
-		Disk         statusDisk       `json:"disk"`
-	}{}
+	out := StatusResponse{}
 	out.Downloads.Running = []statusRunning{}
 	out.LastFinished = []statusFinished{}
 	out.Watches = []statusWatch{}

@@ -16,6 +16,30 @@ type userInfo struct {
 	CreatedAt string `json:"createdAt"`
 }
 
+// userCreatedResponse is returned when a user is created.
+type userCreatedResponse struct {
+	ID    int64  `json:"id"`
+	Email string `json:"email"`
+}
+
+// userUpdatedResponse echoes a user's role after an update.
+type userUpdatedResponse struct {
+	ID      int64 `json:"id"`
+	IsAdmin bool  `json:"isAdmin"`
+}
+
+// handleUsersList lists all user accounts.
+//
+// @Summary      List users
+// @Description  Lists all user accounts (admin only).
+// @Tags         Users
+// @Produce      json
+// @Success      200  {array}   userInfo
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/users [get]
 func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT id, email, is_admin, created_at FROM users ORDER BY id`)
 	if err != nil {
@@ -35,6 +59,23 @@ func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, users)
 }
 
+// handleUserCreate mints a password-login user account.
+//
+// @Summary      Create user
+// @Description  Creates a password-login user account (admin only). Disabled in OIDC-only/-auto mode.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        request  body      credentials  true  "email and password"
+// @Success      201  {object}  userCreatedResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      409  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/users [post]
 func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 	// in an OIDC-only/-auto instance there is no password login: users onboard
 	// by signing in through the identity provider, so manual creation (which
@@ -67,7 +108,7 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := res.LastInsertId()
-	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "email": c.Email})
+	writeJSON(w, http.StatusCreated, userCreatedResponse{ID: id, Email: c.Email})
 }
 
 // userExists reports whether the given user id is present.
@@ -76,6 +117,25 @@ func (s *Server) userExists(id int64) bool {
 	return s.DB.QueryRow(`SELECT 1 FROM users WHERE id = ?`, id).Scan(&one) == nil
 }
 
+// handleUserUpdate changes a user's admin role.
+//
+// @Summary      Update user role
+// @Description  Sets a user's admin flag (admin only). Blocked when roles are managed by OIDC, and the last admin cannot be demoted.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int     true  "user id"
+// @Param        request  body      object  true  "isAdmin flag"
+// @Success      200  {object}  userUpdatedResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      409  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/users/{id} [put]
 func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	// when OIDC group mapping is configured, the IdP is the sole role
@@ -107,9 +167,24 @@ func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "user not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": id, "isAdmin": body.IsAdmin})
+	writeJSON(w, http.StatusOK, userUpdatedResponse{ID: id, IsAdmin: body.IsAdmin})
 }
 
+// handleUserDelete removes a user account.
+//
+// @Summary      Delete user
+// @Description  Deletes a user account (admin only). You cannot delete yourself or the last admin.
+// @Tags         Users
+// @Produce      json
+// @Param        id  path  int  true  "user id"
+// @Success      200  {object}  OkResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      409  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/users/{id} [delete]
 func (s *Server) handleUserDelete(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	if me := auth.UserFrom(r.Context()); me != nil && me.ID == id {
@@ -131,5 +206,5 @@ func (s *Server) handleUserDelete(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "user not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

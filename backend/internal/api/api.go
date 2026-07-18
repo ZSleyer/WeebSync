@@ -139,6 +139,12 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/version", authed(http.HandlerFunc(s.handleVersion)))
 	mux.Handle("POST /api/version/update-check", authed(adminOnly(http.HandlerFunc(s.handleUpdateCheckToggle))))
 
+	// interactive OpenAPI docs - dev builds only (never nightly/stable)
+	if devDocsEnabled() {
+		mux.Handle("GET /api/openapi.json", authed(http.HandlerFunc(s.handleOpenAPISpec)))
+		mux.Handle("GET /api/docs/", authed(swaggerUIHandler()))
+	}
+
 	// machine API token (Home Assistant etc.); raw token is shown once
 	mux.Handle("POST /api/settings/token", authed(adminOnly(http.HandlerFunc(s.handleTokenCreate))))
 	mux.Handle("DELETE /api/settings/token", authed(adminOnly(http.HandlerFunc(s.handleTokenDelete))))
@@ -217,8 +223,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
+// ErrorResponse is the uniform error body written by writeErr.
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
+// OkResponse is the uniform {"status":"ok"} acknowledgement.
+type OkResponse struct {
+	Status string `json:"status" example:"ok"`
+}
+
 func writeErr(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
+	writeJSON(w, status, ErrorResponse{Error: msg})
 }
 
 // dbErr writes the uniform response for internal database failures.

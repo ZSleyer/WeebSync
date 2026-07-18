@@ -17,6 +17,19 @@ type renamePair struct {
 
 // handleRenamePreview lists files in a local directory and returns the
 // dry-run mapping old → new. Nothing is renamed here.
+//
+// @Summary      Preview renames for a directory
+// @Description  Lists files in a local directory and returns the dry-run old→new mapping for the given rename options. Nothing is renamed.
+// @Tags         Rename
+// @Accept       json
+// @Produce      json
+// @Param        body  body  object  true  "Directory path (relative to the download root) and rename options"
+// @Success      200  {array}   renamePair
+// @Failure      400  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/rename/preview [post]
 func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Path string `json:"path"` // directory relative to download root
@@ -53,6 +66,18 @@ func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 
 // handleRenameNames dry-runs rename options against a plain list of names,
 // no filesystem involved (watch preview: the names come from a remote folder).
+//
+// @Summary      Preview renames for a name list
+// @Description  Dry-runs the rename options against a plain list of names (no filesystem access); used to preview a watch's rename rule. At most 100 names are processed.
+// @Tags         Rename
+// @Accept       json
+// @Produce      json
+// @Param        body  body  object  true  "Names to test plus rename options"
+// @Success      200  {array}   renamePair
+// @Failure      400  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/rename/names [post]
 func (s *Server) handleRenameNames(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Names []string `json:"names"`
@@ -78,6 +103,18 @@ func (s *Server) handleRenameNames(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRenameApply performs the given renames inside one directory.
+//
+// @Summary      Apply renames in a directory
+// @Description  Performs the given old→new renames inside one directory (jailed to the download root). Returns the per-file result; entries that failed carry an error.
+// @Tags         Rename
+// @Accept       json
+// @Produce      json
+// @Param        body  body  object  true  "Directory path and the list of old→new renames to apply"
+// @Success      200  {array}   renamePair
+// @Failure      400  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/rename/apply [post]
 func (s *Server) handleRenameApply(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Path    string       `json:"path"`

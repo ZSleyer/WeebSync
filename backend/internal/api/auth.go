@@ -38,6 +38,29 @@ func (s *Server) passwordAuthBlocked() bool {
 	return auth.AuthMode(s.DB) != "password" && s.OIDC.Enabled()
 }
 
+// RegisterResponse is returned by handleRegister: either the created account
+// (id + email) or a pending email verification (needsVerification + email).
+type RegisterResponse struct {
+	ID                int64  `json:"id,omitempty"`
+	Email             string `json:"email"`
+	NeedsVerification bool   `json:"needsVerification,omitempty"`
+}
+
+// handleRegister creates a local account. The first-ever account becomes the
+// admin; afterwards registration must be enabled.
+// @Summary  Register a local account
+// @Description Creates an email/password account. The first account becomes admin. When SMTP is configured, later accounts must verify their email before login. Disabled while OIDC-only auth is active.
+// @Tags     Auth
+// @Accept   json
+// @Produce  json
+// @Param    body body credentials true "Credentials"
+// @Success  200 {object} RegisterResponse "verification email sent"
+// @Success  201 {object} RegisterResponse "account created, session established"
+// @Failure  400 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Router   /api/auth/register [post]
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if s.passwordAuthBlocked() {
 		writeErr(w, http.StatusForbidden, "password auth is disabled, use OIDC")
@@ -95,18 +118,35 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	if needVerify {
 		go s.sendVerifyEmail(c.Email, token, requestOrigin(r), s.userLocale(id))
-		writeJSON(w, http.StatusOK, map[string]any{"needsVerification": true, "email": c.Email})
+		writeJSON(w, http.StatusOK, RegisterResponse{NeedsVerification: true, Email: c.Email})
 		return
 	}
 	if err := auth.CreateSession(s.DB, w, r, id); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "email": c.Email})
+	writeJSON(w, http.StatusCreated, RegisterResponse{ID: id, Email: c.Email})
+}
+
+// LocaleResponse echoes the stored UI locale.
+type LocaleResponse struct {
+	Locale string `json:"locale"`
 }
 
 // handleLocalePut stores the caller's ui language so server-delivered texts
 // (email, web push) match it. The frontend syncs it fire-and-forget.
+// @Summary  Set UI locale
+// @Description Stores the caller's UI language (de or en) for server-delivered emails and push notifications.
+// @Tags     Auth
+// @Accept   json
+// @Produce  json
+// @Param    body body object true "{\"locale\":\"de|en\"}"
+// @Success  200 {object} LocaleResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/locale [put]
 func (s *Server) handleLocalePut(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in struct {
@@ -124,9 +164,34 @@ func (s *Server) handleLocalePut(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"locale": l})
+	writeJSON(w, http.StatusOK, LocaleResponse{Locale: l})
 }
 
+// LoginResponse is returned on a successful login (id + email) or, when a
+// second factor is enrolled, as a twoFactorRequired challenge carrying a
+// short-lived token and the enabled methods.
+type LoginResponse struct {
+	ID                int64  `json:"id,omitempty"`
+	Email             string `json:"email,omitempty"`
+	TwoFactorRequired bool   `json:"twoFactorRequired,omitempty"`
+	Token             string `json:"token,omitempty"`
+	Totp              bool   `json:"totp,omitempty"`
+	Webauthn          bool   `json:"webauthn,omitempty"`
+}
+
+// handleLogin authenticates email + password.
+// @Summary  Log in with email and password
+// @Description Returns a session cookie on success, or a twoFactorRequired challenge (with a short-lived token) when TOTP or a security key is enrolled. Disabled while OIDC-only auth is active.
+// @Tags     Auth
+// @Accept   json
+// @Produce  json
+// @Param    body body credentials true "Credentials"
+// @Success  200 {object} LoginResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Router   /api/auth/login [post]
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if s.passwordAuthBlocked() {
 		writeErr(w, http.StatusForbidden, "password auth is disabled, use OIDC")
@@ -168,29 +233,69 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "login error")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"twoFactorRequired": true, "token": token, "totp": totpOn, "webauthn": keyOn})
+		writeJSON(w, http.StatusOK, LoginResponse{TwoFactorRequired: true, Token: token, Totp: totpOn, Webauthn: keyOn})
 		return
 	}
 	if err := auth.CreateSession(s.DB, w, r, id); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": id, "email": c.Email})
+	writeJSON(w, http.StatusOK, LoginResponse{ID: id, Email: c.Email})
 }
 
+// handleLogout ends the current session.
+// @Summary  Log out
+// @Description Destroys the current session and clears the session cookie.
+// @Tags     Auth
+// @Produce  json
+// @Success  200 {object} OkResponse
+// @Router   /api/auth/logout [post]
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	auth.DestroySession(s.DB, w, r)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
+// MeResponse describes the authenticated user (mirrors auth.User).
+type MeResponse struct {
+	ID      int64  `json:"id"`
+	Email   string `json:"email"`
+	IsAdmin bool   `json:"isAdmin"`
+}
+
+// handleMe returns the current user.
+// @Summary  Current user
+// @Description Returns the authenticated user's id, email and admin flag.
+// @Tags     Auth
+// @Produce  json
+// @Success  200 {object} MeResponse
+// @Failure  401 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/me [get]
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, auth.UserFrom(r.Context()))
+}
+
+// SetupOIDCResponse reports the result of applying a first-run OIDC config.
+type SetupOIDCResponse struct {
+	OidcError   string `json:"oidcError,omitempty"`
+	OidcEnabled bool   `json:"oidcEnabled"`
 }
 
 // handleSetupOIDC lets the first-run wizard store an OIDC config before any
 // account exists, so a pure-OIDC instance never needs a password account (the
 // first OIDC login becomes admin). Only reachable while there are zero users;
 // afterwards OIDC config requires an admin session via the settings API.
+// @Summary  First-run OIDC setup
+// @Description Stores an OIDC provider configuration during first-run setup, before any account exists. Only reachable while there are zero users; afterwards OIDC config requires an admin session.
+// @Tags     Auth
+// @Accept   json
+// @Produce  json
+// @Param    body body object true "OIDC provider configuration"
+// @Success  200 {object} SetupOIDCResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Router   /api/auth/setup/oidc [post]
 func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 	var users int
 	// fail closed: a db error must not reopen the unauthenticated setup path
@@ -233,11 +338,11 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 	setSetting(s.DB, "oidc_claim", in.OidcClaim)
 	setSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
 	setSetting(s.DB, "oidc_user_values", in.OidcUserValues)
-	out := map[string]any{}
+	out := SetupOIDCResponse{}
 	if err := s.OIDC.Reload(r.Context()); err != nil {
-		out["oidcError"] = err.Error()
+		out.OidcError = err.Error()
 	}
-	out["oidcEnabled"] = s.OIDC.Enabled()
+	out.OidcEnabled = s.OIDC.Enabled()
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -247,6 +352,23 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 // a user-supplied URL - no new exposure, a configured issuer is fetched on
 // Reload anyway - but gated like setup: open only while there are zero users,
 // admin session afterwards.
+// OIDCDiscoverResponse carries the discovered issuer URL.
+type OIDCDiscoverResponse struct {
+	Issuer string `json:"issuer"`
+}
+
+// @Summary  Probe a URL for an OIDC provider
+// @Description Probes a base URL (and common mount paths) for an OIDC discovery document and returns the issuer of the first hit. Open during first-run; requires an admin session afterwards.
+// @Tags     Auth
+// @Accept   json
+// @Produce  json
+// @Param    body body object true "{\"url\":\"https://idp.example.com\"}"
+// @Success  200 {object} OIDCDiscoverResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Router   /api/auth/oidc/discover [post]
 func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 	var users int
 	// fail closed: a db error must not reopen the unauthenticated probe
@@ -301,16 +423,32 @@ func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 		derr := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&doc)
 		resp.Body.Close()
 		if resp.StatusCode == http.StatusOK && derr == nil && doc.Issuer != "" {
-			writeJSON(w, http.StatusOK, map[string]string{"issuer": doc.Issuer})
+			writeJSON(w, http.StatusOK, OIDCDiscoverResponse{Issuer: doc.Issuer})
 			return
 		}
 	}
 	writeErr(w, http.StatusNotFound, "no oidc provider found at this url")
 }
 
+// AuthConfigResponse describes the login page's auth configuration.
+type AuthConfigResponse struct {
+	Oidc             bool     `json:"oidc"`
+	OidcName         string   `json:"oidcName"`
+	RegistrationOpen bool     `json:"registrationOpen"`
+	AuthMode         string   `json:"authMode"`
+	SetupNeeded      bool     `json:"setupNeeded"`
+	OidcEnvLocked    []string `json:"oidcEnvLocked"`
+}
+
 // handleAuthConfig tells the login page whether OIDC is available, whether
 // registration is open, which auth mode is active (password | oidc-only |
 // oidc-auto) and whether first-run setup is still pending (no users yet).
+// @Summary  Auth configuration
+// @Description Reports whether OIDC is available, whether registration is open, the active auth mode and whether first-run setup is still pending. Consumed by the login page.
+// @Tags     Auth
+// @Produce  json
+// @Success  200 {object} AuthConfigResponse
+// @Router   /api/auth/config [get]
 func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 	mode := auth.AuthMode(s.DB)
 	if !s.OIDC.Enabled() {
@@ -326,12 +464,12 @@ func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 			oidcLocked = append(oidcLocked, f)
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"oidc":             s.OIDC.Enabled(),
-		"oidcName":         db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
-		"registrationOpen": !auth.RegistrationDisabled(s.DB),
-		"authMode":         mode,
-		"setupNeeded":      users == 0,
-		"oidcEnvLocked":    oidcLocked,
+	writeJSON(w, http.StatusOK, AuthConfigResponse{
+		Oidc:             s.OIDC.Enabled(),
+		OidcName:         db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
+		RegistrationOpen: !auth.RegistrationDisabled(s.DB),
+		AuthMode:         mode,
+		SetupNeeded:      users == 0,
+		OidcEnvLocked:    oidcLocked,
 	})
 }
