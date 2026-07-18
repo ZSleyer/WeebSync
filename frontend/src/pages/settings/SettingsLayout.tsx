@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks'
 const PERSONAL = [
   { to: 'look', key: 'settings.nav.look' },
   { to: 'notifications', key: 'settings.nav.notifications' },
+  { to: 'about', key: 'settings.nav.about' },
 ]
 const ADMIN = [
   { to: 'transfers', key: 'settings.nav.transfers' },

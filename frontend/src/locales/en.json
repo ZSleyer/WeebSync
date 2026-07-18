@@ -8,6 +8,17 @@
     "unsavedTitle": "Unsaved changes",
     "unsavedMsg": "You have unsaved changes. Discard them and continue?"
   },
+  "about": {
+    "dev": "Dev version",
+    "stable": "Stable",
+    "updateDev": "A newer dev build is available.",
+    "updateStable": "Version {{version}} is available.",
+    "updateLink": "Details",
+    "license": "License",
+    "source": "Source",
+    "copyright": "Copyright",
+    "updateCheckToggle": "Automatically check for updates (GitHub)"
+  },
   "app": {
     "tagline": "weeb your sync",
     "loading": "loading",
@@ -383,7 +394,8 @@
       "integrations": "Integrations",
       "email": "Email / SMTP",
       "users": "Users",
-      "jobs": "Jobs & Cache"
+      "jobs": "Jobs & Cache",
+      "about": "About"
     },
     "jobs": {
       "activity": "activity",

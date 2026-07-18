@@ -9,6 +9,8 @@ RUN yarn build
 # ── backend build ── (native toolchain, cross-compiled to $TARGETARCH)
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 ARG TARGETOS TARGETARCH
+# build metadata surfaced on the About page (see internal/version)
+ARG VERSION=dev CHANNEL=dev COMMIT= REPO=
 WORKDIR /src
 COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -16,7 +18,11 @@ COPY backend/ ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /weebsync . \
+    go build -trimpath -ldflags="-s -w \
+      -X github.com/ch4d1/weebsync/internal/version.Version=$VERSION \
+      -X github.com/ch4d1/weebsync/internal/version.Channel=$CHANNEL \
+      -X github.com/ch4d1/weebsync/internal/version.Commit=$COMMIT \
+      -X github.com/ch4d1/weebsync/internal/version.Repo=$REPO" -o /weebsync . \
     && mkdir -p /data/downloads
 
 # ── runtime ──
