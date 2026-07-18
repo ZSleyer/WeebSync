@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,6 +33,18 @@ func env(key, fallback string) string {
 	return fallback
 }
 
+// @title WeebSync API
+// @version 1.0
+// @description Self-hosted S/FTP anime and media sync: servers, catalog, downloads, watches, suggestions and auth. The interactive docs are served only by local dev builds.
+// @BasePath /
+//
+// @securityDefinitions.apikey CookieAuth
+// @in cookie
+// @name weebsync_session
+//
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	addr := env("WEEBSYNC_ADDR", ":8080")
 
@@ -180,6 +193,12 @@ func harden(next http.Handler) http.Handler {
 func spaHandler(dir string) http.Handler {
 	fs := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// unknown API routes must not fall back to the SPA index (that would
+		// answer 200 HTML for a missing endpoint); 404 them instead.
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			http.NotFound(w, r)
+			return
+		}
 		path := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
 		if info, err := os.Stat(path); err != nil || info.IsDir() {
 			http.ServeFile(w, r, filepath.Join(dir, "index.html"))

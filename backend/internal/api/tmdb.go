@@ -27,10 +27,27 @@ func (s *Server) scopeFor(serverID int64, p string) string {
 	return kind
 }
 
+// scopeResponse reports the effective metadata scope of a catalog path.
+type scopeResponse struct {
+	Scope     string `json:"scope"`     // "" | anime | tv | movie
+	Inherited bool   `json:"inherited"` // scope comes from an ancestor mark
+}
+
 // handleCatalogScopeGet reports the effective scope of a path (own or inherited)
 // without listing the folder or triggering matching - cheap enough for the
 // browser to probe on navigation and auto-open catalog folders in catalog view.
 // GET /api/servers/{id}/catalog/scope?path=...
+//
+//	@Summary		Get catalog scope
+//	@Description	Report the effective metadata scope (own or inherited) of a catalog path.
+//	@Tags			Catalog
+//	@Produce		json
+//	@Param			id		path		int		true	"Server id"
+//	@Param			path	query		string	false	"Directory (defaults to the server root)"
+//	@Success		200		{object}	scopeResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/servers/{id}/catalog/scope [get]
 func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
@@ -47,7 +64,7 @@ func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
 	scope := s.scopeFor(serverID, dir)
 	var ownKind string
 	s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, dir).Scan(&ownKind)
-	writeJSON(w, http.StatusOK, map[string]any{"scope": scope, "inherited": scope != "" && ownKind == ""})
+	writeJSON(w, http.StatusOK, scopeResponse{Scope: scope, Inherited: scope != "" && ownKind == ""})
 }
 
 // sourceForScope maps a scope kind to the catalog_matches source tag.
@@ -59,15 +76,32 @@ func sourceForScope(kind string) string {
 	return "tmdb:" + kind
 }
 
+// scopeRequest is the body of handleCatalogScope.
+type scopeRequest struct {
+	Path string `json:"path"`
+	Kind string `json:"kind"` // "" | anime | tv | movie
+}
+
 // handleCatalogScope sets or clears a folder mark.
 // PUT /api/servers/{id}/catalog/scope {path, kind: ”|'tv'|'movie'}
+//
+//	@Summary		Set catalog scope
+//	@Description	Set or clear the metadata-source mark on a folder (empty kind clears it).
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int				true	"Server id"
+//	@Param			body	body		scopeRequest	true	"Path and scope kind"
+//	@Success		200		{object}	OkResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		415		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/servers/{id}/catalog/scope [put]
 func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
-	var in struct {
-		Path string `json:"path"`
-		Kind string `json:"kind"`
-	}
+	var in scopeRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -101,11 +135,23 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		s.DB.Exec(`INSERT OR REPLACE INTO catalog_scopes (server_id, path, kind) VALUES (?, ?, ?)`,
 			serverID, in.Path, in.Kind)
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // handleTmdbSearch backs the match dialog for tmdb-scoped folders.
 // GET /api/tmdb/search?kind=tv|movie&q=
+//
+//	@Summary		Search TMDB
+//	@Description	Search TMDB TV or movies by title for the match dialog.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Param			kind	query		string	true	"tv | movie"
+//	@Param			q		query		string	true	"Search query"
+//	@Success		200		{array}		anilist.Media
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		502		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/tmdb/search [get]
 func (s *Server) handleTmdbSearch(w http.ResponseWriter, r *http.Request) {
 	kind := r.URL.Query().Get("kind")
 	if kind != "tv" && kind != "movie" {
@@ -127,6 +173,18 @@ func (s *Server) handleTmdbSearch(w http.ResponseWriter, r *http.Request) {
 
 // handleTmdbMedia resolves one TMDB id (match dialog: pasted id or link).
 // GET /api/tmdb/media?kind=tv|movie&id=123
+//
+//	@Summary		TMDB media
+//	@Description	Resolve a single TMDB TV or movie entry by id.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Param			kind	query		string	true	"tv | movie"
+//	@Param			id		query		int		true	"TMDB id"
+//	@Success		200		{object}	anilist.Media
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		502		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/tmdb/media [get]
 func (s *Server) handleTmdbMedia(w http.ResponseWriter, r *http.Request) {
 	kind := r.URL.Query().Get("kind")
 	id, _ := strconv.Atoi(r.URL.Query().Get("id"))

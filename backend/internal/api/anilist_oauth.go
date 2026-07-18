@@ -66,6 +66,14 @@ func (s *Server) anilistAccount(userID int64) (anilistUserID int, token string, 
 }
 
 // handleAnilistConnect starts the OAuth flow.
+//
+//	@Summary		Connect AniList
+//	@Description	Start the AniList OAuth authorization-code flow (redirects to AniList).
+//	@Tags			Suggestions
+//	@Success		302	{string}	string	"redirect"
+//	@Failure		400	{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/anilist/connect [get]
 func (s *Server) handleAnilistConnect(w http.ResponseWriter, r *http.Request) {
 	clientID, clientSecret, redirect := s.anilistClientConfig()
 	if clientID == "" || clientSecret == "" {
@@ -101,6 +109,18 @@ func requestOrigin(r *http.Request) string {
 
 // handleAnilistCallback finishes the flow: state check, code exchange,
 // viewer lookup, encrypted token storage.
+//
+//	@Summary		AniList OAuth callback
+//	@Description	Finish the AniList OAuth flow (state check, code exchange, token storage); redirects to /settings.
+//	@Tags			Suggestions
+//	@Param			state	query		string	true	"OAuth state (must match the cookie)"
+//	@Param			code	query		string	true	"OAuth authorization code"
+//	@Success		302		{string}	string	"redirect"
+//	@Failure		400		{string}	string	"invalid state or missing code"
+//	@Failure		500		{string}	string	"internal error"
+//	@Failure		502		{string}	string	"AniList error"
+//	@Security		CookieAuth
+//	@Router			/api/anilist/callback [get]
 func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	stateCookie, err := r.Cookie("weebsync_anilist_state")
@@ -169,15 +189,38 @@ func jwtExpiry(token string) string {
 	return time.Unix(claims.Exp, 0).UTC().Format(sqliteTime)
 }
 
+// anilistTokenRequest is the body of handleAnilistToken.
+type anilistTokenRequest struct {
+	Token string `json:"token"`
+}
+
+// anilistTokenResponse acknowledges a linked account with its display name.
+type anilistTokenResponse struct {
+	Status string `json:"status" example:"ok"`
+	Name   string `json:"name"`
+}
+
 // handleAnilistToken links an account from a manually pasted access token
 // (AniList pin flow: redirect URL https://anilist.co/api/v2/oauth/pin shows
 // the token to copy). Needs no client secret and no matching redirect URL,
 // so it works for any deployment origin.
+//
+//	@Summary		Link AniList by token
+//	@Description	Link an AniList account from a manually pasted pin-flow access token.
+//	@Tags			Suggestions
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		anilistTokenRequest	true	"AniList access token"
+//	@Success		200		{object}	anilistTokenResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		415		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Failure		502		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/anilist/token [post]
 func (s *Server) handleAnilistToken(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	var in struct {
-		Token string `json:"token"`
-	}
+	var in anilistTokenRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -201,16 +244,44 @@ func (s *Server) handleAnilistToken(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "failed to store linked account")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "name": name})
+	writeJSON(w, http.StatusOK, anilistTokenResponse{Status: "ok", Name: name})
 }
 
+// handleAnilistDisconnect unlinks the user's AniList account.
+//
+//	@Summary		Disconnect AniList
+//	@Description	Unlink the requesting user's AniList account.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Success		200	{object}	OkResponse
+//	@Security		CookieAuth
+//	@Router			/api/anilist/connect [delete]
 func (s *Server) handleAnilistDisconnect(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	s.DB.Exec(`DELETE FROM anilist_accounts WHERE user_id = ?`, u.ID)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// anilistMeResponse describes the linked-account status for the settings UI.
+// name/avatar/expiresAt are present only when an account is connected.
+type anilistMeResponse struct {
+	Configured bool   `json:"configured"` // redirect flow available (id + secret set)
+	ClientID   string `json:"clientId"`   // pin-flow client id
+	Connected  bool   `json:"connected"`
+	Name       string `json:"name,omitempty"`
+	Avatar     string `json:"avatar,omitempty"`
+	ExpiresAt  string `json:"expiresAt,omitempty"`
 }
 
 // handleAnilistMe reports the linked account for the settings UI.
+//
+//	@Summary		AniList account status
+//	@Description	Report the linked AniList account and configuration state for the settings UI.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Success		200	{object}	anilistMeResponse
+//	@Security		CookieAuth
+//	@Router			/api/anilist/me [get]
 func (s *Server) handleAnilistMe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	clientID, clientSecret, _ := s.anilistClientConfig()
@@ -237,13 +308,29 @@ func (s *Server) handleAnilistMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// anilistProgressRequest is the body of handleAnilistProgress.
+type anilistProgressRequest struct {
+	MediaID  int `json:"mediaId"`
+	Progress int `json:"progress"`
+}
+
 // handleAnilistProgress sets the watched-episode count on the user's list.
+//
+//	@Summary		Set AniList progress
+//	@Description	Set the watched-episode count of a title on the linked AniList list.
+//	@Tags			Suggestions
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		anilistProgressRequest	true	"Media id and watched-episode count"
+//	@Success		200		{object}	OkResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		415		{object}	ErrorResponse
+//	@Failure		502		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/anilist/progress [post]
 func (s *Server) handleAnilistProgress(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	var in struct {
-		MediaID  int `json:"mediaId"`
-		Progress int `json:"progress"`
-	}
+	var in anilistProgressRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -261,7 +348,7 @@ func (s *Server) handleAnilistProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Anilist.InvalidateUserList(alID)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // anilistProgress returns mediaID → watched episodes from the cached list.
@@ -319,14 +406,31 @@ func (s *Server) anilistTrending(ctx context.Context, userID int64) []anilistSug
 	return out
 }
 
+// anilistSuggestionsResponse is the watchlist + trending suggestion payload.
+type anilistSuggestionsResponse struct {
+	Connected   bool                `json:"connected"`
+	Building    bool                `json:"building"` // the watchlist cache is being (re)built
+	Suggestions []anilistSuggestion `json:"suggestions"`
+	Trending    []anilistSuggestion `json:"trending"`
+}
+
 // handleAnilistSuggestions lists watchlist titles (watching/planning) that
 // exist on the user's servers, via the remote index, plus trending titles.
+//
+//	@Summary		AniList suggestions
+//	@Description	Watchlist titles (watching/planning) present on the user's servers, plus the AniList trending chart.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Param			force	query		string	false	"Set to 1 to force a watchlist refresh"
+//	@Success		200		{object}	anilistSuggestionsResponse
+//	@Security		CookieAuth
+//	@Router			/api/anilist/suggestions [get]
 func (s *Server) handleAnilistSuggestions(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	alID, token, err := s.anilistAccount(u.ID)
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"connected": false, "building": false,
-			"suggestions": []anilistSuggestion{}, "trending": s.anilistTrending(r.Context(), u.ID)})
+		writeJSON(w, http.StatusOK, anilistSuggestionsResponse{Connected: false, Building: false,
+			Suggestions: []anilistSuggestion{}, Trending: s.anilistTrending(r.Context(), u.ID)})
 		return
 	}
 	// serve the cached list instantly; refresh in the background when stale
@@ -361,6 +465,6 @@ func (s *Server) handleAnilistSuggestions(w http.ResponseWriter, r *http.Request
 	for i := range suggestions {
 		suggestions[i].PlexFolder = folders[suggestions[i].Media.ID]
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"connected": true, "building": building,
-		"suggestions": suggestions, "trending": s.anilistTrending(r.Context(), u.ID)})
+	writeJSON(w, http.StatusOK, anilistSuggestionsResponse{Connected: true, Building: building,
+		Suggestions: suggestions, Trending: s.anilistTrending(r.Context(), u.ID)})
 }

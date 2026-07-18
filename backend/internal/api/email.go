@@ -115,6 +115,14 @@ func (s *Server) sendVerifyEmail(to, token, origin, locale string) {
 
 // handleVerifyEmail consumes a verification token and marks the account
 // verified, then redirects to the login page. Public (the link is the secret).
+//
+// @Summary      Verify email address
+// @Description  Consumes an email-verification token and redirects to the login page. Public: the token embedded in the link is the secret.
+// @Tags         Email
+// @Param        token  query     string  true  "Verification token"
+// @Success      303    {string}  string  "Redirect to the login page"
+// @Failure      500    {object}  ErrorResponse
+// @Router       /api/auth/verify [get]
 func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
@@ -329,8 +337,24 @@ func (s *Server) NotifyDownloadFinished(d *transfer.Download) {
 	}
 }
 
+// EmailPrefsResponse reports the caller's enabled email categories, the
+// categories available to them, and whether SMTP delivery is configured.
+type EmailPrefsResponse struct {
+	Enabled       []string `json:"enabled"`
+	Available     []string `json:"available"`
+	SmtpAvailable bool     `json:"smtpAvailable"`
+}
+
 // handleEmailPrefsGet reports the caller's chosen categories plus which ones
 // are available to them (admin categories only for admins).
+//
+// @Summary      Get email notification preferences
+// @Description  Reports the caller's chosen categories, which categories are available to them (admin categories only for admins) and whether SMTP delivery is configured.
+// @Tags         Email
+// @Produce      json
+// @Success      200  {object}  EmailPrefsResponse
+// @Security     CookieAuth
+// @Router       /api/auth/email-prefs [get]
 func (s *Server) handleEmailPrefsGet(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var prefs string
@@ -339,20 +363,43 @@ func (s *Server) handleEmailPrefsGet(w http.ResponseWriter, r *http.Request) {
 	if u.IsAdmin {
 		available = append(available, adminCategories...)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled":       splitPrefs(prefs),
-		"available":     available,
-		"smtpAvailable": s.Mail != nil && s.Mail.Configured(),
+	writeJSON(w, http.StatusOK, EmailPrefsResponse{
+		Enabled:       splitPrefs(prefs),
+		Available:     available,
+		SmtpAvailable: s.Mail != nil && s.Mail.Configured(),
 	})
+}
+
+// EmailPrefsUpdateRequest is the body of PUT /api/auth/email-prefs: the
+// categories the caller wants enabled.
+type EmailPrefsUpdateRequest struct {
+	Enabled []string `json:"enabled"`
+}
+
+// EmailPrefsUpdateResponse echoes the categories actually stored after
+// dropping any the caller isn't allowed to subscribe to.
+type EmailPrefsUpdateResponse struct {
+	Enabled []string `json:"enabled"`
 }
 
 // handleEmailPrefsPut stores the caller's chosen categories, dropping any that
 // aren't valid for them (a non-admin can't subscribe to admin categories).
+//
+// @Summary      Update email notification preferences
+// @Description  Stores the caller's chosen categories, dropping any not valid for them (a non-admin cannot subscribe to admin categories).
+// @Tags         Email
+// @Accept       json
+// @Produce      json
+// @Param        prefs  body      EmailPrefsUpdateRequest  true  "Categories to enable"
+// @Success      200    {object}  EmailPrefsUpdateResponse
+// @Failure      400    {object}  ErrorResponse
+// @Failure      415    {object}  ErrorResponse
+// @Failure      500    {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/auth/email-prefs [put]
 func (s *Server) handleEmailPrefsPut(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	var in struct {
-		Enabled []string `json:"enabled"`
-	}
+	var in EmailPrefsUpdateRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -370,5 +417,5 @@ func (s *Server) handleEmailPrefsPut(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string][]string{"enabled": clean})
+	writeJSON(w, http.StatusOK, EmailPrefsUpdateResponse{Enabled: clean})
 }

@@ -31,6 +31,15 @@ func (s *Server) tmdbAccount(userID int64) (accountID int, session string, err e
 
 // handleTmdbConnect starts the linking flow: request token → TMDB approval
 // page → callback below.
+//
+//	@Summary		Connect TMDB
+//	@Description	Start the TMDB v3 request-token linking flow (redirects to the TMDB approval page).
+//	@Tags			Suggestions
+//	@Success		302	{string}	string	"redirect"
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		502	{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/tmdb/connect [get]
 func (s *Server) handleTmdbConnect(w http.ResponseWriter, r *http.Request) {
 	if !s.Tmdb.Enabled() {
 		writeErr(w, http.StatusBadRequest, "TMDB not configured")
@@ -53,6 +62,19 @@ func (s *Server) handleTmdbConnect(w http.ResponseWriter, r *http.Request) {
 
 // handleTmdbCallback finishes the flow: token check, session creation,
 // account lookup, encrypted session storage.
+//
+//	@Summary		TMDB link callback
+//	@Description	Finish TMDB linking (token check, session creation, account storage); redirects to /settings.
+//	@Tags			Suggestions
+//	@Param			request_token	query		string	true	"Approved request token (must match the cookie)"
+//	@Param			approved		query		string	false	"true/false from the approval page"
+//	@Param			denied			query		string	false	"true when the user denied access"
+//	@Success		302				{string}	string	"redirect"
+//	@Failure		400				{string}	string	"invalid request token"
+//	@Failure		500				{string}	string	"internal error"
+//	@Failure		502				{string}	string	"TMDB error"
+//	@Security		CookieAuth
+//	@Router			/api/tmdb/callback [get]
 func (s *Server) handleTmdbCallback(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	rtCookie, err := r.Cookie("weebsync_tmdb_rt")
@@ -91,13 +113,38 @@ func (s *Server) handleTmdbCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/settings", http.StatusFound)
 }
 
+// handleTmdbDisconnect unlinks the user's TMDB account.
+//
+//	@Summary		Disconnect TMDB
+//	@Description	Unlink the requesting user's TMDB account.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Success		200	{object}	OkResponse
+//	@Security		CookieAuth
+//	@Router			/api/tmdb/connect [delete]
 func (s *Server) handleTmdbDisconnect(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	s.DB.Exec(`DELETE FROM tmdb_accounts WHERE user_id = ?`, u.ID)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// tmdbMeResponse describes the linked-TMDB-account status for the settings UI.
+// username is present only when an account is connected.
+type tmdbMeResponse struct {
+	Configured bool   `json:"configured"` // TMDB API key is set
+	Connected  bool   `json:"connected"`
+	Username   string `json:"username,omitempty"`
 }
 
 // handleTmdbMe reports the linked account for the settings UI.
+//
+//	@Summary		TMDB account status
+//	@Description	Report the linked TMDB account and configuration state for the settings UI.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Success		200	{object}	tmdbMeResponse
+//	@Security		CookieAuth
+//	@Router			/api/tmdb/me [get]
 func (s *Server) handleTmdbMe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	out := map[string]any{"configured": s.Tmdb.Enabled(), "connected": false}
@@ -139,16 +186,33 @@ func (s *Server) tmdbSuggestList(userID int64, kind string, medias []anilist.Med
 	return out
 }
 
+// tmdbSuggestionsResponse is the TMDB watchlist + trending suggestion payload.
+type tmdbSuggestionsResponse struct {
+	Configured bool             `json:"configured"` // TMDB API key is set
+	Connected  bool             `json:"connected"`  // a TMDB account is linked
+	Watchlist  []tmdbSuggestion `json:"watchlist"`
+	Trending   []tmdbSuggestion `json:"trending"`
+}
+
 // handleTmdbSuggestions lists TMDB watchlist and trending titles that exist
 // on the user's servers. Watchlist needs a linked account; trending only the
 // API key. ?force=1 bypasses the watchlist cache.
+//
+//	@Summary		TMDB suggestions
+//	@Description	TMDB watchlist and trending titles present on the user's servers (watchlist needs a linked account).
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Param			force	query		string	false	"Set to 1 to bypass the watchlist cache"
+//	@Success		200		{object}	tmdbSuggestionsResponse
+//	@Security		CookieAuth
+//	@Router			/api/tmdb/suggestions [get]
 func (s *Server) handleTmdbSuggestions(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	out := map[string]any{
-		"configured": s.Tmdb.Enabled(),
-		"connected":  false,
-		"watchlist":  []tmdbSuggestion{},
-		"trending":   []tmdbSuggestion{},
+	out := tmdbSuggestionsResponse{
+		Configured: s.Tmdb.Enabled(),
+		Connected:  false,
+		Watchlist:  []tmdbSuggestion{},
+		Trending:   []tmdbSuggestion{},
 	}
 	if !s.Tmdb.Enabled() {
 		writeJSON(w, http.StatusOK, out)
@@ -163,7 +227,7 @@ func (s *Server) handleTmdbSuggestions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if accountID, session, err := s.tmdbAccount(u.ID); err == nil {
-		out["connected"] = true
+		out.Connected = true
 		for _, kind := range []string{"tv", "movie"} {
 			key := fmt.Sprintf("tmdb:watchlist:%d:%s", accountID, kind)
 			var medias []anilist.Media
@@ -176,7 +240,7 @@ func (s *Server) handleTmdbSuggestions(w http.ResponseWriter, r *http.Request) {
 			watchlist = append(watchlist, s.tmdbSuggestList(u.ID, kind, medias, false)...)
 		}
 	}
-	out["watchlist"] = watchlist
-	out["trending"] = trending
+	out.Watchlist = watchlist
+	out.Trending = trending
 	writeJSON(w, http.StatusOK, out)
 }

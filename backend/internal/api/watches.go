@@ -74,6 +74,16 @@ type Airing struct {
 	EpisodeAbs int   `json:"episodeAbs,omitempty"`
 }
 
+// WatchCreateResponse carries the id of a newly created watch.
+type WatchCreateResponse struct {
+	ID int64 `json:"id"`
+}
+
+// WatchCheckResponse acknowledges a queued manual watch check.
+type WatchCheckResponse struct {
+	Status string `json:"status" example:"checking"`
+}
+
 // watchCategory buckets a watch for the calendar's Animeserie/Animefilm/Serie/Film
 // split, from the metadata provider plus the AniList format.
 func watchCategory(source string, m *anilist.Media) string {
@@ -267,6 +277,17 @@ func watchLangFilter(w Watch) func(string) bool {
 	}
 }
 
+// handleWatchesList returns the caller's watches enriched with metadata,
+// local file counts, airing schedule and completeness state.
+//
+// @Summary      List watches
+// @Description  Returns the authenticated user's watches, each enriched with linked media metadata, local episode counts, airing schedule, missing-episode gaps and completeness state.
+// @Tags         Watches
+// @Produce      json
+// @Success      200  {array}   Watch
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/watches [get]
 func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
@@ -434,6 +455,21 @@ func missingEpisodes(nums map[int]bool) []int {
 	return missing
 }
 
+// handleWatchCreate registers a new watch and triggers a first sync.
+//
+// @Summary      Create watch
+// @Description  Registers a new persistent watch on a remote folder, optionally linking media metadata, and kicks off a first sync immediately.
+// @Tags         Watches
+// @Accept       json
+// @Produce      json
+// @Param        body  body  Watch  true  "Watch definition (serverId and remotePath required)"
+// @Success      201  {object}  WatchCreateResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      409  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/watches [post]
 func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in Watch
@@ -471,9 +507,25 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	id, _ := res.LastInsertId()
 	s.linkMedia(in.ServerID, in.RemotePath, in.MediaID, in.MediaSource)
 	go s.runWatch(id) // first sync right away
-	writeJSON(w, http.StatusCreated, map[string]int64{"id": id})
+	writeJSON(w, http.StatusCreated, WatchCreateResponse{ID: id})
 }
 
+// handleWatchUpdate edits an existing watch; a path change re-checks the folder.
+//
+// @Summary      Update watch
+// @Description  Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check.
+// @Tags         Watches
+// @Accept       json
+// @Produce      json
+// @Param        id    path  int     true  "Watch ID"
+// @Param        body  body  object  true  "Watch fields to update (remotePath required)"
+// @Success      200  {object}  OkResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      409  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/watches/{id} [put]
 func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
@@ -528,7 +580,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
 		go s.runWatch(id) // paths changed: check the new folder right away
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // linkMedia records a manual folder→media match so the overview shows real
@@ -549,6 +601,18 @@ func (s *Server) linkMedia(serverID int64, folder string, mediaID int, source st
 		serverID, folder, mediaID, source)
 }
 
+// handleWatchDelete removes one of the caller's watches.
+//
+// @Summary      Delete watch
+// @Description  Deletes one of the authenticated user's watches.
+// @Tags         Watches
+// @Produce      json
+// @Param        id  path  int  true  "Watch ID"
+// @Success      200  {object}  OkResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/watches/{id} [delete]
 func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
@@ -561,11 +625,22 @@ func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // handleWatchCheck triggers a manual check; last_check is stamped inside
 // runWatch, so the 30min countdown restarts from now.
+//
+// @Summary      Trigger watch check
+// @Description  Queues an immediate check of one watch and resets its countdown. Reachable with a session cookie (own watches only) or a machine API token (any watch).
+// @Tags         Watches
+// @Produce      json
+// @Param        id  path  int  true  "Watch ID"
+// @Success      202  {object}  WatchCheckResponse
+// @Failure      404  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Security     BearerAuth
+// @Router       /api/watches/{id}/check [post]
 func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	// machine token (admin-scoped) may trigger any watch; sessions only their own
@@ -581,5 +656,5 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go s.runWatch(id)
-	writeJSON(w, http.StatusAccepted, map[string]string{"status": "checking"})
+	writeJSON(w, http.StatusAccepted, WatchCheckResponse{Status: "checking"})
 }

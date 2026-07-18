@@ -180,6 +180,17 @@ type adminWatchInfo struct {
 }
 
 // handleAdminJobs reports the state of all background machinery.
+//
+// @Summary      Background jobs status
+// @Description  Reports the state of all background machinery: running jobs, match queue, cache stats, effective TTLs, Plex/AniList/index/watch info and per-server match stats (admin only).
+// @Tags         Admin
+// @Produce      json
+// @Success      200  {object}  adminJobsResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/jobs [get]
 func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	out := adminJobsResponse{
 		Running: []string{},
@@ -258,8 +269,35 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// jobStartedResponse acknowledges a fire-and-forget background job.
+type jobStartedResponse struct {
+	Status string `json:"status" example:"started"`
+}
+
+// jobQueuedResponse reports how many folders a rematch job re-queued.
+type jobQueuedResponse struct {
+	Queued int `json:"queued"`
+}
+
 // handleAdminJobRun triggers one background job by name.
 // POST /api/admin/jobs/{name}/run {serverId?, all?}
+//
+// @Summary      Run background job
+// @Description  Triggers one background job by name (admin only): plex-suggestions, anilist-suggestions, index-crawl or rematch. Crawl/rematch require serverId; rematch returns a queued count, the others a started status.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        name     path      string  true  "job name"
+// @Param        request  body      object  false  "serverId and all flag"
+// @Success      200  {object}  jobStartedResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/jobs/{name}/run [post]
 func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		ServerID int64 `json:"serverId"`
@@ -271,7 +309,7 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 	switch r.PathValue("name") {
 	case "plex-suggestions":
 		s.runJob("plex:suggest", func(ctx context.Context) { s.buildPlexSuggestions(ctx) })
-		writeJSON(w, http.StatusOK, map[string]string{"status": "started"})
+		writeJSON(w, http.StatusOK, jobStartedResponse{Status: "started"})
 
 	case "anilist-suggestions":
 		// force-refresh every linked account's watchlist cache
@@ -300,7 +338,7 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 			s.Anilist.InvalidateUserList(a.alID)
 			s.buildAnilistSuggestions(a.alID, a.token)
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "started"})
+		writeJSON(w, http.StatusOK, jobStartedResponse{Status: "started"})
 
 	case "index-crawl":
 		if in.ServerID == 0 {
@@ -319,7 +357,7 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 		s.runJob(fmt.Sprintf("crawl:%d", in.ServerID), func(ctx context.Context) {
 			s.crawlServer(ctx, userID, in.ServerID, root, s.crawlBatchFor(in.ServerID))
 		})
-		writeJSON(w, http.StatusOK, map[string]string{"status": "started"})
+		writeJSON(w, http.StatusOK, jobStartedResponse{Status: "started"})
 
 	case "rematch":
 		// server-wide variant of handleCatalogRematch: re-queue automatic
@@ -359,15 +397,33 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 			s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
 				in.ServerID, m.folder)
 		}
-		writeJSON(w, http.StatusOK, map[string]int{"queued": len(matches)})
+		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: len(matches)})
 
 	default:
 		writeErr(w, http.StatusNotFound, "unknown job")
 	}
 }
 
+// deletedResponse reports how many rows a delete affected.
+type deletedResponse struct {
+	Deleted int64 `json:"deleted"`
+}
+
 // handleAdminCacheFlush deletes all cache rows of one scope.
 // DELETE /api/admin/cache/{scope}
+//
+// @Summary      Flush cache scope
+// @Description  Deletes every cache row of one scope (admin only).
+// @Tags         Admin
+// @Produce      json
+// @Param        scope  path  string  true  "cache scope"
+// @Success      200  {object}  deletedResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/cache/{scope} [delete]
 func (s *Server) handleAdminCacheFlush(w http.ResponseWriter, r *http.Request) {
 	sc, ok := cacheScopeFor(r.PathValue("scope"))
 	if !ok {
@@ -380,7 +436,7 @@ func (s *Server) handleAdminCacheFlush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n, _ := res.RowsAffected()
-	writeJSON(w, http.StatusOK, map[string]int64{"deleted": n})
+	writeJSON(w, http.StatusOK, deletedResponse{Deleted: n})
 }
 
 type adminCacheEntry struct {
@@ -390,8 +446,30 @@ type adminCacheEntry struct {
 	Bytes     int    `json:"bytes"`
 }
 
+// adminCacheEntriesResponse is one page of cache rows plus the total count.
+type adminCacheEntriesResponse struct {
+	Total   int               `json:"total"`
+	Entries []adminCacheEntry `json:"entries"`
+}
+
 // handleAdminCacheEntries pages through the cache rows of one scope.
 // GET /api/admin/cache/{scope}/entries?q=&offset=&limit=
+//
+// @Summary      List cache entries
+// @Description  Pages through the cache rows of one scope, optionally filtered by key substring (admin only).
+// @Tags         Admin
+// @Produce      json
+// @Param        scope   path      string  true   "cache scope"
+// @Param        q       query     string  false  "key substring filter"
+// @Param        offset  query     int     false  "row offset"
+// @Param        limit   query     int     false  "page size (default 50, max 200)"
+// @Success      200  {object}  adminCacheEntriesResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/cache/{scope}/entries [get]
 func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request) {
 	sc, ok := cacheScopeFor(r.PathValue("scope"))
 	if !ok {
@@ -425,12 +503,27 @@ func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request)
 		rows.Scan(&e.Key, &e.FetchedAt, &e.Bytes, &e.Stale)
 		entries = append(entries, e)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"total": total, "entries": entries})
+	writeJSON(w, http.StatusOK, adminCacheEntriesResponse{Total: total, Entries: entries})
 }
 
 // handleAdminCacheEntryDelete deletes exactly one cache row. The key must
 // carry the scope's prefix so a scoped delete cannot remove foreign keys.
 // DELETE /api/admin/cache/{scope}/entries?key=<full key>
+//
+// @Summary      Delete cache entry
+// @Description  Deletes exactly one cache row (admin only). The key must carry the scope's prefix.
+// @Tags         Admin
+// @Produce      json
+// @Param        scope  path      string  true  "cache scope"
+// @Param        key    query     string  true  "full cache key (must match the scope prefix)"
+// @Success      200  {object}  deletedResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/cache/{scope}/entries [delete]
 func (s *Server) handleAdminCacheEntryDelete(w http.ResponseWriter, r *http.Request) {
 	sc, ok := cacheScopeFor(r.PathValue("scope"))
 	if !ok {
@@ -448,7 +541,7 @@ func (s *Server) handleAdminCacheEntryDelete(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	n, _ := res.RowsAffected()
-	writeJSON(w, http.StatusOK, map[string]int64{"deleted": n})
+	writeJSON(w, http.StatusOK, deletedResponse{Deleted: n})
 }
 
 type adminMatchEntry struct {
@@ -457,6 +550,12 @@ type adminMatchEntry struct {
 	Manual  bool   `json:"manual"`
 	Source  string `json:"source"`
 	Title   string `json:"title"` // from the media cache, "" when unresolved
+}
+
+// adminMatchesResponse is one page of catalog match rows plus the total count.
+type adminMatchesResponse struct {
+	Total   int               `json:"total"`
+	Entries []adminMatchEntry `json:"entries"`
 }
 
 // cachedTitle resolves a match row's display title from the media cache
@@ -490,6 +589,23 @@ func (s *Server) cachedTitle(source string, mediaID int) string {
 
 // handleAdminMatches pages through one server's catalog match rows.
 // GET /api/admin/matches?serverId=&filter=all|matched|unmatched|manual&q=&offset=&limit=
+//
+// @Summary      List catalog matches
+// @Description  Pages through one server's catalog match rows, optionally filtered and searched (admin only).
+// @Tags         Admin
+// @Produce      json
+// @Param        serverId  query     int     true   "server id"
+// @Param        filter    query     string  false  "all | matched | unmatched | manual"
+// @Param        q         query     string  false  "folder substring filter"
+// @Param        offset    query     int     false  "row offset"
+// @Param        limit     query     int     false  "page size (default 50, max 200)"
+// @Success      200  {object}  adminMatchesResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/matches [get]
 func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 	serverID, _ := strconv.ParseInt(r.URL.Query().Get("serverId"), 10, 64)
 	if serverID == 0 {
@@ -537,11 +653,25 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 	for i := range entries {
 		entries[i].Title = s.cachedTitle(entries[i].Source, entries[i].MediaID)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"total": total, "entries": entries})
+	writeJSON(w, http.StatusOK, adminMatchesResponse{Total: total, Entries: entries})
 }
 
 // handleAdminTTL sets the cache TTL overrides in hours (0 = default).
 // PUT /api/admin/ttl {"anilistH":24,"tmdbH":24,"plexH":6}
+//
+// @Summary      Set cache TTL overrides
+// @Description  Sets the cache TTL overrides in hours, 0..720 (0 = default), admin only.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        request  body      adminTTLInfo  true  "TTL overrides in hours"
+// @Success      200  {object}  OkResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/ttl [put]
 func (s *Server) handleAdminTTL(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		AnilistH int `json:"anilistH"`
@@ -560,12 +690,27 @@ func (s *Server) handleAdminTTL(w http.ResponseWriter, r *http.Request) {
 	db.SetSetting(s.DB, "ttl_anilist_h", strconv.Itoa(in.AnilistH))
 	db.SetSetting(s.DB, "ttl_tmdb_h", strconv.Itoa(in.TmdbH))
 	db.SetSetting(s.DB, "ttl_plex_h", strconv.Itoa(in.PlexH))
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // handleAdminIndexConfig sets one server's crawler interval/budget
 // (0 = default).
 // PUT /api/admin/index/{id}/config {"intervalMin":5,"batch":20}
+//
+// @Summary      Set index crawler config
+// @Description  Sets one server's crawler interval and per-crawl budget, 0 = default (admin only).
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int     true  "server id"
+// @Param        request  body      object  true  "intervalMin and batch"
+// @Success      200  {object}  OkResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/index/{id}/config [put]
 func (s *Server) handleAdminIndexConfig(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	var in struct {
@@ -582,13 +727,27 @@ func (s *Server) handleAdminIndexConfig(w http.ResponseWriter, r *http.Request) 
 	}
 	db.SetSetting(s.DB, fmt.Sprintf("crawl_interval_min:%d", id), strconv.Itoa(in.IntervalMin))
 	db.SetSetting(s.DB, fmt.Sprintf("crawl_batch:%d", id), strconv.Itoa(in.Batch))
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // handleAdminMatchDelete removes one catalog match row, manual or not
 // (explicit single-row admin action). The folder re-appears as pending on
 // the next catalog poll and gets matched automatically again.
 // DELETE /api/admin/matches?serverId=&folder=<full path>
+//
+// @Summary      Delete catalog match
+// @Description  Removes one catalog match row, manual or automatic (admin only). The folder re-appears as pending and is rematched automatically.
+// @Tags         Admin
+// @Produce      json
+// @Param        serverId  query     int     true  "server id"
+// @Param        folder    query     string  true  "full folder path"
+// @Success      200  {object}  deletedResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/matches [delete]
 func (s *Server) handleAdminMatchDelete(w http.ResponseWriter, r *http.Request) {
 	serverID, _ := strconv.ParseInt(r.URL.Query().Get("serverId"), 10, 64)
 	folder := r.URL.Query().Get("folder")
@@ -602,12 +761,24 @@ func (s *Server) handleAdminMatchDelete(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	n, _ := res.RowsAffected()
-	writeJSON(w, http.StatusOK, map[string]int64{"deleted": n})
+	writeJSON(w, http.StatusOK, deletedResponse{Deleted: n})
 }
 
 // handleAdminIndexFlush drops the remote index of one server; the crawler
 // rebuilds it from the root. Catalog matches are never touched.
 // DELETE /api/admin/index/{id}
+//
+// @Summary      Flush server index
+// @Description  Drops one server's remote index (admin only); the crawler rebuilds it from the root. Catalog matches are untouched.
+// @Tags         Admin
+// @Produce      json
+// @Param        id  path  int  true  "server id"
+// @Success      200  {object}  deletedResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/index/{id} [delete]
 func (s *Server) handleAdminIndexFlush(w http.ResponseWriter, r *http.Request) {
 	res, err := s.DB.Exec(`DELETE FROM remote_index WHERE server_id = ?`, pathID(r))
 	if err != nil {
@@ -615,5 +786,5 @@ func (s *Server) handleAdminIndexFlush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n, _ := res.RowsAffected()
-	writeJSON(w, http.StatusOK, map[string]int64{"deleted": n})
+	writeJSON(w, http.StatusOK, deletedResponse{Deleted: n})
 }

@@ -24,6 +24,15 @@ type versionInfo struct {
 
 // handleVersion returns build metadata and, if enabled, a cached best-effort
 // check against GitHub for whether a newer main-image exists.
+//
+// @Summary      Build and update info
+// @Description  Returns build metadata and, when the update check is enabled, a cached best-effort comparison against the upstream repo.
+// @Tags         Version
+// @Produce      json
+// @Success      200  {object}  versionInfo
+// @Failure      401  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/version [get]
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	info := versionInfo{
 		Version:     version.Version,
@@ -104,7 +113,26 @@ func fetchJSON(c *http.Client, url string, v any) error {
 	return json.NewDecoder(resp.Body).Decode(v)
 }
 
+// updateCheckResponse echoes the update-check toggle state.
+type updateCheckResponse struct {
+	UpdateCheck bool `json:"updateCheck"`
+}
+
 // handleUpdateCheckToggle enables/disables the upstream update check (admin).
+//
+// @Summary      Toggle upstream update check
+// @Description  Enables or disables the upstream update check (admin only).
+// @Tags         Version
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object  true  "enabled flag"
+// @Success      200  {object}  updateCheckResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/version/update-check [post]
 func (s *Server) handleUpdateCheckToggle(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Enabled bool `json:"enabled"`
@@ -113,5 +141,5 @@ func (s *Server) handleUpdateCheckToggle(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	db.SetSetting(s.DB, "update_check", map[bool]string{true: "1", false: "0"}[in.Enabled])
-	writeJSON(w, http.StatusOK, map[string]bool{"updateCheck": in.Enabled})
+	writeJSON(w, http.StatusOK, updateCheckResponse{UpdateCheck: in.Enabled})
 }

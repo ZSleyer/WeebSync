@@ -209,8 +209,26 @@ func (s *Server) crawlServer(ctx context.Context, userID, serverID int64, root s
 	}
 }
 
+// ServerSearchResponse is the remote-index search result: matched entries plus
+// the total number of indexed entries for the server.
+type ServerSearchResponse struct {
+	Results []remote.Entry `json:"results"`
+	Indexed int            `json:"indexed"`
+}
+
 // handleServerSearch searches the remote index of one server.
 // GET /api/servers/{id}/search?q=... - multiple words AND-match the name.
+//
+// @Summary      Search remote index
+// @Description  Full-text search across a server's remote index; multiple whitespace-separated words AND-match the file/folder name.
+// @Tags         Browse
+// @Produce      json
+// @Param        id  path   int     true   "Server ID"
+// @Param        q   query  string  false  "Search query; space-separated words AND-match the name"
+// @Success      200  {object}  ServerSearchResponse
+// @Failure      404  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/servers/{id}/search [get]
 func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
@@ -221,10 +239,7 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	words := strings.Fields(r.URL.Query().Get("q"))
-	out := struct {
-		Results []remote.Entry `json:"results"`
-		Indexed int            `json:"indexed"`
-	}{Results: []remote.Entry{}}
+	out := ServerSearchResponse{Results: []remote.Entry{}}
 	s.DB.QueryRow(`SELECT COUNT(*) FROM remote_index WHERE server_id = ?`, id).Scan(&out.Indexed)
 	if len(words) > 0 {
 		q := `SELECT path, name, is_dir, size, mod_time FROM remote_index WHERE server_id = ?`
@@ -256,6 +271,16 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 // tags on file/folder names. Populates the per-watch language filter dropdown.
 // GET /api/servers/{id}/languages
 // ponytail: Full-Scan on-demand; cachen nur falls messbar langsam
+//
+// @Summary      List remote language tags
+// @Description  Distinct dub/sub language codes (e.g. Ger, Eng, Jap) extracted from the server's remote index; populates the per-watch language filter.
+// @Tags         Browse
+// @Produce      json
+// @Param        id  path  int  true  "Server ID"
+// @Success      200  {object}  ServerLanguagesResponse
+// @Failure      404  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/servers/{id}/languages [get]
 func (s *Server) handleServerLanguages(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
@@ -281,11 +306,15 @@ func (s *Server) handleServerLanguages(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	out := struct {
-		Dub []string `json:"dub"`
-		Sub []string `json:"sub"`
-	}{Dub: keysSorted(dubSet), Sub: keysSorted(subSet)}
+	out := ServerLanguagesResponse{Dub: keysSorted(dubSet), Sub: keysSorted(subSet)}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// ServerLanguagesResponse lists the distinct dub and sub language codes found
+// in a server's remote index.
+type ServerLanguagesResponse struct {
+	Dub []string `json:"dub"`
+	Sub []string `json:"sub"`
 }
 
 // canonCode normalizes a language code's casing (GEr/ger -> Ger) so the

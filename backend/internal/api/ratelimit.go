@@ -121,6 +121,17 @@ func (s *Server) ipTrusted(ipStr string) bool {
 	return false
 }
 
+// handleRateLimitList lists the tracked IPs and their current throttle state.
+//
+// @Summary      List rate-limited IPs
+// @Description  Lists the per-IP auth rate-limiter state, whether each IP is currently blocked (admin only).
+// @Tags         Auth
+// @Produce      json
+// @Success      200  {array}   ipStatus
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/auth/ratelimit [get]
 func (s *Server) handleRateLimitList(w http.ResponseWriter, r *http.Request) {
 	if s.authLimiter == nil {
 		writeJSON(w, http.StatusOK, []ipStatus{})
@@ -129,6 +140,21 @@ func (s *Server) handleRateLimitList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.authLimiter.status())
 }
 
+// handleRateLimitReset clears the throttle for one IP or all tracked IPs.
+//
+// @Summary      Reset rate limiter
+// @Description  Unblocks one IP (by ip) or every tracked IP (all=true), admin only.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object  true  "ip to reset, or all=true"
+// @Success      200  {object}  OkResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/auth/ratelimit/reset [post]
 func (s *Server) handleRateLimitReset(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		IP  string `json:"ip"`
@@ -144,7 +170,7 @@ func (s *Server) handleRateLimitReset(w http.ResponseWriter, r *http.Request) {
 			s.authLimiter.reset(in.IP)
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // limit wraps a handler, rejecting callers over the per-IP budget with 429.
