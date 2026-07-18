@@ -11,7 +11,8 @@
   "about": {
     "dev": "Dev version",
     "stable": "Stable",
-    "updateDev": "A newer dev build is available.",
+    "channel": { "dev": "Dev", "nightly": "Nightly", "stable": "Stable" },
+    "updateDev": "A newer build is available.",
     "updateStable": "Version {{version}} is available.",
     "updateLink": "Details",
     "license": "License",
