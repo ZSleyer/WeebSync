@@ -235,7 +235,7 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 			admin = &isAdmin
 		}
 	}
-	userID, err := findOrCreateOIDCUser(m.DB, email, admin)
+	userID, err := findOrCreateOIDCUser(m.DB, email, admin, len(o.userValues) > 0)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -294,8 +294,12 @@ func claimMatches(claims map[string]any, name string, values []string) bool {
 
 // findOrCreateOIDCUser links the user by verified email. admin (nil = no
 // mapping configured / claim absent) syncs is_admin from the identity
-// provider on every login; the last remaining admin is never demoted.
-func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool) (int64, error) {
+// provider on every login; the last remaining admin is never demoted. gated
+// reports whether an access allowlist (oidc_user_values) restricts who may log
+// in: without one, a new identity is only auto-provisioned as the first account
+// (bootstrap) - otherwise an OIDC-configured instance with no allowlist would
+// let any IdP identity in, which contradicts closed-by-default registration.
+func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool, gated bool) (int64, error) {
 	var id int64
 	err := d.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&id)
 	if err == nil {
@@ -314,9 +318,17 @@ func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool) (int64, error) {
 	if err != sql.ErrNoRows {
 		return 0, err
 	}
-	// OIDC provisioning is governed by the IdP being configured plus the claim
-	// allowlist (oidc_user_values, enforced in CallbackHandler) - not by the
-	// password-registration switch. Onboarding via OIDC is by design.
+	// new identity: provision only when access is actually gated by an allowlist,
+	// or when this is the very first account (an install must never be adminless).
+	if !gated {
+		var users int
+		if err := d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
+			return 0, err
+		}
+		if users > 0 {
+			return 0, fmt.Errorf("oidc provisioning requires an allowed-group allowlist")
+		}
+	}
 	// first user always becomes admin (an install must never be adminless)
 	res, err := d.Exec(`INSERT INTO users (email, is_admin) VALUES (?, (SELECT COUNT(*) = 0 FROM users) OR ?)`,
 		email, admin != nil && *admin)

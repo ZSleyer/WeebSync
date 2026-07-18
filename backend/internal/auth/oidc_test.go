@@ -47,7 +47,7 @@ func TestOIDCAdminSync(t *testing.T) {
 	}
 
 	// first user becomes admin even when the claim says no
-	id1, err := findOrCreateOIDCUser(d, "first@example.com", &no)
+	id1, err := findOrCreateOIDCUser(d, "first@example.com", &no, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,24 +55,33 @@ func TestOIDCAdminSync(t *testing.T) {
 		t.Error("first user must be admin")
 	}
 	// claim promotes a new user
-	id2, _ := findOrCreateOIDCUser(d, "second@example.com", &yes)
+	id2, _ := findOrCreateOIDCUser(d, "second@example.com", &yes, true)
 	if !isAdmin(id2) {
 		t.Error("claim should promote new user")
 	}
 	// claim demotes an existing admin (another admin remains)
-	findOrCreateOIDCUser(d, "second@example.com", &no)
+	findOrCreateOIDCUser(d, "second@example.com", &no, true)
 	if isAdmin(id2) {
 		t.Error("claim should demote existing user")
 	}
 	// last admin is never demoted
-	findOrCreateOIDCUser(d, "first@example.com", &no)
+	findOrCreateOIDCUser(d, "first@example.com", &no, true)
 	if !isAdmin(id1) {
 		t.Error("last admin must not be demoted")
 	}
 	// nil = claim absent: no change
-	findOrCreateOIDCUser(d, "second@example.com", nil)
+	findOrCreateOIDCUser(d, "second@example.com", nil, true)
 	if isAdmin(id2) {
 		t.Error("nil admin must not change is_admin")
+	}
+
+	// ungated (no allowlist) + not the first account: new identities are refused
+	if _, err := findOrCreateOIDCUser(d, "stranger@example.com", nil, false); err == nil {
+		t.Error("ungated provisioning of a new identity must be refused")
+	}
+	// but an existing account still logs in even ungated
+	if _, err := findOrCreateOIDCUser(d, "first@example.com", nil, false); err != nil {
+		t.Errorf("existing user must log in even ungated: %v", err)
 	}
 }
 
