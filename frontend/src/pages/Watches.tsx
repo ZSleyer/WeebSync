@@ -7,6 +7,10 @@ import WatchDialog from '../components/WatchDialog'
 import { useConfirm } from '../components/confirm'
 import { SkeletonCards } from '../components/Loading'
 
+type CalCategory = 'anime-series' | 'anime-movie' | 'series' | 'movie'
+const CAL_CATEGORIES: readonly CalCategory[] = ['anime-series', 'anime-movie', 'series', 'movie']
+type CalEvent = { at: number; episode: number; episodeAbs?: number; watch: Watch }
+
 // Watches: persistent auto-sync overview. Each watch re-checks its remote
 // folder on an interval; the list polls so check results appear live.
 export default function Watches() {
@@ -66,30 +70,48 @@ export default function Watches() {
       minute: '2-digit',
       ...(tz ? { timeZone: tz } : {}),
     })
-  const countdown = (ts: number) => {
+  // withSec = tick down to the second (for airings happening today)
+  const countdown = (ts: number, withSec = false) => {
     const ms = ts * 1000 - Date.now()
     if (ms <= 0) return t('watch.airingNow')
     const d = Math.floor(ms / 86_400_000)
     const h = Math.floor((ms % 86_400_000) / 3_600_000)
     const m = Math.floor((ms % 3_600_000) / 60_000)
+    const s = Math.floor((ms % 60_000) / 1_000)
     if (d > 0) return t('watch.inDaysH', { d, h })
-    if (h > 0) return t('watch.inHoursM', { h, m })
-    return t('watch.inMinutes', { m })
+    if (h > 0) return withSec ? t('watch.inHoursMS', { h, m, s }) : t('watch.inHoursM', { h, m })
+    if (m > 0) return withSec ? t('watch.inMinutesS', { m, s }) : t('watch.inMinutes', { m })
+    return withSec ? t('watch.inSeconds', { s }) : t('watch.inMinutes', { m })
   }
-  // calendar: upcoming episodes grouped by local day
+  const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
+  // calendar: flatten every scheduled future release the provider knows into
+  // per-day events - not just each watch's single next airing, so it reaches as
+  // far ahead as AniList's airingSchedule / TMDB's season episodes are dated.
   const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
-  const upcoming = [...watches]
-    .filter((w) => w.nextAiringAt && w.nextAiringAt * 1000 > Date.now())
-    .sort((a, b) => a.nextAiringAt! - b.nextAiringAt!)
-  const calGroups: { day: string; items: Watch[] }[] = []
-  for (const w of upcoming) {
-    const day = calDayKey(w.nextAiringAt!)
+  const [view, setView] = useState<'list' | 'calendar'>('list')
+  const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
+  // 1s tick so today's countdowns/clocks stay live (calendar view only)
+  const [, setTick] = useState(0)
+  const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
+  useEffect(() => {
+    if (view !== 'calendar' || !hasToday) return
+    const id = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [view, hasToday])
+  const calEvents: CalEvent[] = watches
+    .flatMap((w) => (w.airings ?? []).map((a) => ({ at: a.at, episode: a.episode, episodeAbs: a.episodeAbs, watch: w })))
+    .filter((e) => e.at * 1000 > Date.now())
+    .sort((a, b) => a.at - b.at)
+  const calCats = CAL_CATEGORIES.filter((c) => calEvents.some((e) => e.watch.category === c))
+  const calShown = calCat === 'all' ? calEvents : calEvents.filter((e) => e.watch.category === calCat)
+  const calGroups: { day: string; items: CalEvent[] }[] = []
+  for (const e of calShown) {
+    const day = calDayKey(e.at)
     const g = calGroups.find((x) => x.day === day)
-    if (g) g.items.push(w)
-    else calGroups.push({ day, items: [w] })
+    if (g) g.items.push(e)
+    else calGroups.push({ day, items: [e] })
   }
 
-  const [view, setView] = useState<'list' | 'calendar'>('list')
   const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
   const [sortOpen, setSortOpen] = useState(false)
   const sortRef = useRef<HTMLDivElement>(null)
@@ -146,6 +168,29 @@ export default function Watches() {
           <span className="t-label mt-1">{t('watch.sub')}</span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {view === 'calendar' && calCats.length > 1 && (
+            <div role="group" aria-label={t('watch.calFilter')} className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`t-btn t-btn--sm ${calCat === 'all' ? 't-btn--primary' : ''}`}
+                aria-pressed={calCat === 'all'}
+                onClick={() => setCalCat('all')}
+              >
+                {t('watch.calAll')}
+              </button>
+              {calCats.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`t-btn t-btn--sm ${calCat === c ? 't-btn--primary' : ''}`}
+                  aria-pressed={calCat === c}
+                  onClick={() => setCalCat(c)}
+                >
+                  {t(`watch.cat.${c}`)}
+                </button>
+              ))}
+            </div>
+          )}
           <div role="group" aria-label={t('watch.view')} className="flex">
             <button
               className={`t-btn t-btn--sm ${view === 'list' ? 't-btn--primary' : ''}`}
@@ -218,43 +263,43 @@ export default function Watches() {
           </Trans>
         </div>
       ) : view === 'calendar' ? (
-        calGroups.length === 0 ? (
-          <div className="t-panel p-8 text-center text-t-muted">{t('watch.calEmpty')}</div>
-        ) : (
-          <div className="flex flex-col gap-5">
-            {calGroups.map((g) => (
+        <div className="flex flex-col gap-5">
+          {calGroups.length === 0 ? (
+            <div className="t-panel p-8 text-center text-t-muted">{t('watch.calEmpty')}</div>
+          ) : (
+            calGroups.map((g) => (
               <section key={g.day} className="min-w-0">
                 <h3 className="t-label t-label--accent mb-2">{g.day}</h3>
                 <ul className="flex flex-col gap-2">
-                  {g.items.map((w) => (
-                    <li key={w.id} className="t-panel flex items-center gap-3 p-2">
-                      {w.media?.coverImage?.large ? (
-                        <img src={w.media.coverImage.large} alt="" className="h-14 w-10 shrink-0 object-cover" />
+                  {g.items.map((e) => (
+                    <li key={`${e.watch.id}-${e.episode}-${e.at}`} className="t-panel flex items-center gap-3 p-2">
+                      {e.watch.media?.coverImage?.large ? (
+                        <img src={e.watch.media.coverImage.large} alt="" className="h-14 w-10 shrink-0 object-cover" />
                       ) : (
                         <div className="t-hatch h-14 w-10 shrink-0" />
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-t-primary">
-                          {w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop()}
+                          {e.watch.titleOverride || e.watch.media?.title.romaji || e.watch.remotePath.split('/').pop()}
                         </p>
                         <p className="text-[11px] text-t-muted">
-                          {t('watch.nextEp', { n: w.nextEpisode })}
-                          {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''}
+                          {t('watch.nextEp', { n: e.episode })}
+                          {e.episodeAbs && e.episodeAbs !== e.episode ? ` (${e.episodeAbs})` : ''}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="font-mono text-sm text-t-secondary" title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt!, 'Asia/Tokyo')} JST`}>
-                          {new Date(w.nextAiringAt! * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <p className="font-mono text-sm text-t-secondary" title={e.watch.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(e.at, 'Asia/Tokyo')} JST`}>
+                          {new Date(e.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...(isToday(e.at) ? { second: '2-digit' } : {}) })}
                         </p>
-                        <p className="text-[11px] text-accent">{countdown(w.nextAiringAt!)}</p>
+                        <p className="text-[11px] text-accent">{countdown(e.at, isToday(e.at))}</p>
                       </div>
                     </li>
                   ))}
                 </ul>
               </section>
-            ))}
-          </div>
-        )
+            ))
+          )}
+        </div>
       ) : (
         <div className="grid gap-6">
           {grouped.map(({ g, items }) => (

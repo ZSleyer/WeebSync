@@ -21,6 +21,13 @@ import (
 
 const endpoint = "https://graphql.anilist.co"
 
+// AiringSlot is one scheduled episode release (absolute episode numbering,
+// unix seconds). Shared by AniList (airingSchedule) and TMDB (season episodes).
+type AiringSlot struct {
+	AiringAt int64 `json:"airingAt"`
+	Episode  int   `json:"episode"`
+}
+
 type Media struct {
 	ID    int `json:"id"`
 	Title struct {
@@ -42,18 +49,43 @@ type Media struct {
 		AiringAt int64 `json:"airingAt"` // unix seconds
 		Episode  int   `json:"episode"`
 	} `json:"nextAiringEpisode"`
-	Episodes     int      `json:"episodes"`
-	SeasonYear   int      `json:"seasonYear"`
-	Format       string   `json:"format"`
-	Status       string   `json:"status"` // FINISHED | RELEASING | NOT_YET_RELEASED | CANCELLED | HIATUS
-	AverageScore int      `json:"averageScore"`
-	Genres       []string `json:"genres"`
-	Description  string   `json:"description"`
+	// AiringSchedule is every not-yet-aired episode AniList has dated ahead
+	// (usually the whole current cour), for the multi-week calendar view.
+	AiringSchedule *struct {
+		Nodes []AiringSlot `json:"nodes"`
+	} `json:"airingSchedule,omitempty"`
+	// Schedule is the flattened future release list (absolute episode numbers),
+	// filled from AiringSchedule.Nodes here and from season episodes by TMDB.
+	Schedule     []AiringSlot `json:"schedule,omitempty"`
+	Episodes     int          `json:"episodes"`
+	SeasonYear   int          `json:"seasonYear"`
+	Format       string       `json:"format"`
+	Status       string       `json:"status"` // FINISHED | RELEASING | NOT_YET_RELEASED | CANCELLED | HIATUS
+	AverageScore int          `json:"averageScore"`
+	Genres       []string     `json:"genres"`
+	Description  string       `json:"description"`
+}
+
+// FutureAirings returns every scheduled not-yet-aired episode (absolute
+// numbering), newest data source first: TMDB's Schedule, AniList's
+// airingSchedule, else the single nextAiringEpisode. Empty for finished titles.
+func (m *Media) FutureAirings() []AiringSlot {
+	if len(m.Schedule) > 0 {
+		return m.Schedule
+	}
+	if m.AiringSchedule != nil && len(m.AiringSchedule.Nodes) > 0 {
+		return m.AiringSchedule.Nodes
+	}
+	if m.NextAiring != nil {
+		return []AiringSlot{{AiringAt: m.NextAiring.AiringAt, Episode: m.NextAiring.Episode}}
+	}
+	return nil
 }
 
 const mediaFields = `id title { romaji english } coverImage { large } bannerImage
 	trailer { id site thumbnail }
 	nextAiringEpisode { airingAt episode }
+	airingSchedule(notYetAired: true, perPage: 25) { nodes { airingAt episode } }
 	episodes seasonYear format status averageScore genres description(asHtml: false)`
 
 type Client struct {

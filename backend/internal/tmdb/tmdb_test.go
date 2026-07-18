@@ -31,6 +31,12 @@ func testServer(t *testing.T) *httptest.Server {
 			"next_episode_to_air":{"air_date":"2030-05-01","season_number":2,"episode_number":3},
 			"videos":{"results":[{"key":"yt123","site":"YouTube","type":"Trailer"}]}}`))
 	})
+	mux.HandleFunc("/tv/42/season/2", func(w http.ResponseWriter, r *http.Request) {
+		// one past (skipped) and one future episode; absolute = 12 (S1) + ep
+		w.Write([]byte(`{"episodes":[
+			{"air_date":"2020-01-05","episode_number":1,"season_number":2},
+			{"air_date":"2030-05-01","episode_number":3,"season_number":2}]}`))
+	})
 	mux.HandleFunc("/movie/7", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"id":7,"title":"Beispielfilm","release_date":"2019-06-01",
 			"belongs_to_collection":{"id":99}}`))
@@ -110,6 +116,10 @@ func TestClient(t *testing.T) {
 	}
 	if m.Trailer == nil || m.Trailer.ID != "yt123" || m.Trailer.Site != "youtube" {
 		t.Errorf("trailer: %+v", m.Trailer)
+	}
+	// schedule: past episode skipped, future S2E3 → absolute 12+3 = 15
+	if len(m.Schedule) != 1 || m.Schedule[0].Episode != 15 {
+		t.Errorf("schedule: %+v", m.Schedule)
 	}
 	// cached: second call works even with the server gone
 	srv.Close()
