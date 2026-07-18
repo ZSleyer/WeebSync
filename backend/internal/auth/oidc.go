@@ -314,9 +314,9 @@ func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool) (int64, error) {
 	if err != sql.ErrNoRows {
 		return 0, err
 	}
-	if RegistrationDisabled(d) {
-		return 0, fmt.Errorf("registration is disabled")
-	}
+	// OIDC provisioning is governed by the IdP being configured plus the claim
+	// allowlist (oidc_user_values, enforced in CallbackHandler) - not by the
+	// password-registration switch. Onboarding via OIDC is by design.
 	// first user always becomes admin (an install must never be adminless)
 	res, err := d.Exec(`INSERT INTO users (email, is_admin) VALUES (?, (SELECT COUNT(*) = 0 FROM users) OR ?)`,
 		email, admin != nil && *admin)
@@ -326,6 +326,9 @@ func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool) (int64, error) {
 	return res.LastInsertId()
 }
 
+// RegistrationDisabled reports whether open self-registration is off. It is
+// closed by default (unset): an admin (or the first-run wizard) must explicitly
+// set "false" to open it. The very first account is exempt - see handleRegister.
 func RegistrationDisabled(d *sql.DB) bool {
-	return db.Setting(d, "registration_disabled") == "true"
+	return db.Setting(d, "registration_disabled") != "false"
 }

@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/ch4d1/weebsync/internal/db"
 )
 
 func TestTr(t *testing.T) {
@@ -47,6 +49,7 @@ func TestLocalePut(t *testing.T) {
 
 func TestRegisterStoresLocale(t *testing.T) {
 	mux, s, _, _, _, _ := setupUsersTest(t)
+	db.SetSetting(s.DB, "registration_disabled", "false") // open self-registration for this test
 
 	rec := doReq(mux, "POST", "/api/auth/register", `{"email":"neu@example.com","password":"longpassword12","locale":"de"}`, nil)
 	if rec.Code != http.StatusCreated {
