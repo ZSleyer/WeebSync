@@ -121,20 +121,24 @@ func TestSmartDue(t *testing.T) {
 		media       *anilist.Media
 		have        int
 		offset      int
+		fromEpisode int
 		want        bool
 	}{
-		{"interval not reached", false, nil, 0, 0, false},
-		{"no match: plain interval", true, nil, 0, 0, true},
-		{"no schedule: plain interval", true, &anilist.Media{Status: "FINISHED"}, 12, 0, true},
-		{"all aired synced, before release: wait", true, airing(5, now.Add(2*time.Hour)), 4, 0, false},
-		{"all aired synced, release time reached: check", true, airing(5, now.Add(-10*time.Minute)), 4, 0, true},
-		{"episode missing: keep checking", true, airing(5, now.Add(2*time.Hour)), 3, 0, true},
+		{"interval not reached", false, nil, 0, 0, 0, false},
+		{"no match: plain interval", true, nil, 0, 0, 0, true},
+		{"no schedule: plain interval", true, &anilist.Media{Status: "FINISHED"}, 12, 0, 0, true},
+		{"all aired synced, before release: wait", true, airing(5, now.Add(2*time.Hour)), 4, 0, 0, false},
+		{"all aired synced, release time reached: check", true, airing(5, now.Add(-10*time.Minute)), 4, 0, 0, true},
+		{"episode missing: keep checking", true, airing(5, now.Add(2*time.Hour)), 3, 0, 0, true},
 		// offset maps absolute→local S23: next abs 1157 = local E02, so E01 (abs 1156) has aired
-		{"offset caught up: wait", true, airing(1157, now.Add(2*time.Hour)), 1, -1155, false},
-		{"offset missing: check", true, airing(1157, now.Add(2*time.Hour)), 0, -1155, true},
+		{"offset caught up: wait", true, airing(1157, now.Add(2*time.Hour)), 1, -1155, 0, false},
+		{"offset missing: check", true, airing(1157, now.Add(2*time.Hour)), 0, -1155, 0, true},
+		// Conan-style: from_episode 31, offset -1147, next abs 1186 → 8 aired in part
+		{"from_episode caught up: wait", true, airing(1186, now.Add(2*time.Hour)), 8, -1147, 31, false},
+		{"from_episode missing: check", true, airing(1186, now.Add(2*time.Hour)), 7, -1147, 31, true},
 	}
 	for _, c := range cases {
-		if got := smartDue(c.intervalDue, c.media, c.have, c.offset, now); got != c.want {
+		if got := smartDue(c.intervalDue, c.media, c.have, c.offset, c.fromEpisode, now); got != c.want {
 			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
 		}
 	}

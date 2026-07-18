@@ -329,8 +329,10 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		}
 		got, err := s.Anilist.RelationsBatch(ctx, ids)
 		if err != nil {
+			// deadline/rate hit mid-resolution: keep the sequels found so far
+			// and build suggestions with them; the next poll fills the rest
 			slog.Warn("plex relations", "err", err)
-			return
+			break
 		}
 		for id, r := range got {
 			rels[id] = r
