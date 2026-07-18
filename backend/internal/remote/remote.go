@@ -40,6 +40,10 @@ type Config struct {
 	// connect, learned key is written back via the OnHostKey callback.
 	HostKey   string
 	OnHostKey func(key string) // called when a new host key is learned
+	// MaxConns caps concurrent connections to this server (default applied by
+	// the caller). For SFTP the pool multiplexes channels over up to this many
+	// connections; for FTP/FTPS it caps concurrent connections directly.
+	MaxConns int
 }
 
 func Dial(cfg Config) (Client, error) {

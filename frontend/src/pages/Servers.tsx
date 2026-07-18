@@ -163,6 +163,7 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
       username: fd.get('username'),
       password: fd.get('password'),
       rootPath: fd.get('rootPath'),
+      maxConnections: Number(fd.get('maxConnections')) || 3,
     }
     setError('')
     try {
@@ -232,6 +233,18 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
           <label className="col-span-2 text-xs text-t-muted">
             {t('servers.rootPath')}
             <input name="rootPath" className="t-input mt-1 font-mono" defaultValue={editing?.rootPath ?? '/'} />
+          </label>
+          <label className="col-span-2 text-xs text-t-muted">
+            {t('servers.maxConnections')}
+            <input
+              name="maxConnections"
+              type="number"
+              min={1}
+              max={10}
+              className="t-input mt-1 w-24"
+              defaultValue={editing?.maxConnections ?? 3}
+            />
+            <span className="mt-1 block text-[11px] text-t-muted">{t('servers.maxConnectionsHint')}</span>
           </label>
         </div>
         {error && (

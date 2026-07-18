@@ -21,6 +21,7 @@ export interface ServerInfo {
   port: number
   username: string
   rootPath: string
+  maxConnections: number
 }
 
 export interface Entry {

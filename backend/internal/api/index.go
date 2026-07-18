@@ -13,6 +13,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/remote"
+	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/rename"
 )
 
@@ -176,7 +177,8 @@ func (s *Server) crawlServer(ctx context.Context, userID, serverID int64, root s
 	if len(dirs) == 0 {
 		return
 	}
-	client, _, err := s.DialServer(userID, serverID)
+	// low priority: the crawler yields connection capacity to downloads
+	client, _, err := s.dialServer(ctx, userID, serverID, pool.PriLow)
 	if err != nil {
 		slog.Debug("index crawl dial", "server", serverID, "err", err)
 		return
