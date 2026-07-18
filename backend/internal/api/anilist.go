@@ -16,6 +16,18 @@ import (
 	"github.com/ch4d1/weebsync/internal/remote"
 )
 
+// handleAnilistSearch searches AniList by title for the match dialog.
+//
+//	@Summary		Search AniList
+//	@Description	Search AniList media by title.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Param			q	query		string	true	"Search query"
+//	@Success		200	{array}		anilist.Media
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		502	{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/anilist/search [get]
 func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if q == "" {
@@ -30,6 +42,17 @@ func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
+// handleAnilistMedia resolves one AniList media id.
+//
+//	@Summary		AniList media
+//	@Description	Fetch a single AniList media entry by id.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Param			id	path		int	true	"AniList media id"
+//	@Success		200	{object}	anilist.Media
+//	@Failure		502	{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/anilist/media/{id} [get]
 func (s *Server) handleAnilistMedia(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(r.PathValue("id"))
 	m, err := s.Anilist.Media(r.Context(), id)
@@ -365,9 +388,28 @@ var (
 	GuessAltTitle = match.GuessAltTitle
 )
 
+// catalogResponse is the enriched folder listing returned by handleCatalog.
+type catalogResponse struct {
+	Scope     string        `json:"scope"`     // "" | anime | tv | movie
+	Inherited bool          `json:"inherited"` // scope comes from an ancestor mark
+	Items     []catalogItem `json:"items"`
+}
+
 // handleCatalog lists remote folders enriched with AniList metadata. The
 // structure is returned immediately; unmatched folders are resolved by
 // background jobs and flagged pending so the client polls until done.
+//
+//	@Summary		Server catalog
+//	@Description	List a server's remote folders enriched with AniList/TMDB metadata; unmatched folders are flagged pending.
+//	@Tags			Catalog
+//	@Produce		json
+//	@Param			id		path		int		true	"Server id"
+//	@Param			path	query		string	false	"Directory to list (defaults to the server root)"
+//	@Success		200		{object}	catalogResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		502		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/servers/{id}/catalog [get]
 func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
@@ -427,10 +469,10 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 	var ownKind string
 	s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, dir).Scan(&ownKind)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"scope":     scope,
-		"inherited": scope != "" && ownKind == "",
-		"items":     items,
+	writeJSON(w, http.StatusOK, catalogResponse{
+		Scope:     scope,
+		Inherited: scope != "" && ownKind == "",
+		Items:     items,
 	})
 }
 
@@ -443,17 +485,40 @@ func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, fo
 	s.queueTmdbMatch(serverID, folder, name, scope, force)
 }
 
+// rematchRequest is the body of handleCatalogRematch.
+type rematchRequest struct {
+	Path string `json:"path"`
+	All  bool   `json:"all"`
+}
+
+// rematchResponse reports how many folders were re-queued.
+type rematchResponse struct {
+	Queued int `json:"queued"`
+}
+
 // handleCatalogRematch re-queues automatic matches directly under the given
 // path with a forced (cache-bypassing) search: by default only "no match"
 // folders, with all=true every automatic match. Manual matches/unmatches
 // (manual=1) are always left alone.
+//
+//	@Summary		Re-match catalog folders
+//	@Description	Re-queue automatic folder matches under a path with a cache-bypassing search.
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int				true	"Server id"
+//	@Param			body	body		rematchRequest	true	"Path and whether to re-match all folders"
+//	@Success		200		{object}	rematchResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		415		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/servers/{id}/catalog/rematch [post]
 func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
-	var in struct {
-		Path string `json:"path"`
-		All  bool   `json:"all"`
-	}
+	var in rematchRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -474,7 +539,7 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	scope := s.scopeFor(serverID, in.Path)
 	if scope == "" {
 		// no metadata source chosen: nothing to re-match
-		writeJSON(w, http.StatusOK, map[string]int{"queued": 0})
+		writeJSON(w, http.StatusOK, rematchResponse{Queued: 0})
 		return
 	}
 	// direct children only: no second slash after the prefix
@@ -503,17 +568,34 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		// forced search runs (poll picks the fresh result up)
 		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`, serverID, f)
 	}
-	writeJSON(w, http.StatusOK, map[string]int{"queued": len(folders)})
+	writeJSON(w, http.StatusOK, rematchResponse{Queued: len(folders)})
+}
+
+// catalogMatchRequest is the body of handleCatalogMatch.
+type catalogMatchRequest struct {
+	Folder  string `json:"folder"`
+	MediaID int    `json:"mediaId"` // 0 = unmatch
 }
 
 // handleCatalogMatch sets or clears a manual folder→media match.
+//
+//	@Summary		Set catalog match
+//	@Description	Set or clear a manual folder→media match (mediaId 0 = unmatch).
+//	@Tags			Catalog
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int					true	"Server id"
+//	@Param			body	body		catalogMatchRequest	true	"Folder and media id"
+//	@Success		200		{object}	OkResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		415		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/servers/{id}/catalog/match [put]
 func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
-	var in struct {
-		Folder  string `json:"folder"`
-		MediaID int    `json:"mediaId"` // 0 = unmatch
-	}
+	var in catalogMatchRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -530,5 +612,5 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	}
 	s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, 1, ?)`,
 		serverID, in.Folder, in.MediaID, sourceForScope(s.scopeFor(serverID, in.Folder)))
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

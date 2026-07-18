@@ -11,6 +11,15 @@ import (
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
+// @Summary  List downloads
+// @Description Lists the authenticated user's downloads (most recent first, up to 500).
+// @Tags     Downloads
+// @Produce  json
+// @Success  200 {array} transfer.Download
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads [get]
 func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, rate_limit, created_at
@@ -33,15 +42,36 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
+// DownloadCreateRequest is the body of handleDownloadCreate.
+type DownloadCreateRequest struct {
+	ServerID   int64  `json:"serverId"`
+	RemotePath string `json:"remotePath"`
+	LocalPath  string `json:"localPath"` // relative to download root
+	Flat       bool   `json:"flat"`      // no subfolder: files straight into localPath
+}
+
+// DownloadCreateResponse is returned by handleDownloadCreate.
+type DownloadCreateResponse struct {
+	Queued int     `json:"queued"`
+	IDs    []int64 `json:"ids"`
+}
+
 // handleDownloadCreate queues a file, or syncs a directory (all missing files).
+// @Summary  Queue download
+// @Description Queues a single file, or syncs a directory (all missing files), from a remote server.
+// @Tags     Downloads
+// @Accept   json
+// @Produce  json
+// @Param    body body DownloadCreateRequest true "Download request"
+// @Success  201 {object} DownloadCreateResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  502 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads [post]
 func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	var in struct {
-		ServerID   int64  `json:"serverId"`
-		RemotePath string `json:"remotePath"`
-		LocalPath  string `json:"localPath"` // relative to download root
-		Flat       bool   `json:"flat"`      // no subfolder: files straight into localPath
-	}
+	var in DownloadCreateRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -58,16 +88,35 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"queued": len(ids), "ids": ids})
+	writeJSON(w, http.StatusCreated, DownloadCreateResponse{Queued: len(ids), IDs: ids})
+}
+
+// DownloadsCancelRequest is the body of handleDownloadsCancel.
+type DownloadsCancelRequest struct {
+	IDs []int64 `json:"ids"`
+}
+
+// CancelResponse reports how many downloads were canceled.
+type CancelResponse struct {
+	Canceled int `json:"canceled"`
 }
 
 // handleDownloadsCancel cancels a batch of downloads (undo for an
 // accidental sync click); done/errored entries are skipped silently.
+// @Summary  Cancel downloads
+// @Description Cancels a batch of downloads by id; done, errored, or canceled entries are skipped silently.
+// @Tags     Downloads
+// @Accept   json
+// @Produce  json
+// @Param    body body DownloadsCancelRequest true "Download ids to cancel"
+// @Success  200 {object} CancelResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/cancel [post]
 func (s *Server) handleDownloadsCancel(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	var in struct {
-		IDs []int64 `json:"ids"`
-	}
+	var in DownloadsCancelRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -77,17 +126,37 @@ func (s *Server) handleDownloadsCancel(w http.ResponseWriter, r *http.Request) {
 			canceled++
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]int{"canceled": canceled})
+	writeJSON(w, http.StatusOK, CancelResponse{Canceled: canceled})
+}
+
+// DownloadsBulkRequest is the body of handleDownloadsBulk.
+type DownloadsBulkRequest struct {
+	Action string  `json:"action"`
+	IDs    []int64 `json:"ids"` // empty = every matching download
+}
+
+// BulkResponse reports how many downloads a bulk action affected.
+type BulkResponse struct {
+	Affected int64 `json:"affected"`
 }
 
 // handleDownloadsBulk applies pause/resume/cancel/delete to the caller's
 // matching downloads - all of them, or only the given ids (multi-select).
+// @Summary  Bulk download action
+// @Description Applies pause, resume, cancel, or delete to the caller's matching downloads (all, or only the given ids).
+// @Tags     Downloads
+// @Accept   json
+// @Produce  json
+// @Param    body body DownloadsBulkRequest true "Bulk action and optional ids"
+// @Success  200 {object} BulkResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/bulk [post]
 func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	var in struct {
-		Action string  `json:"action"`
-		IDs    []int64 `json:"ids"` // empty = every matching download
-	}
+	var in DownloadsBulkRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -129,7 +198,7 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		n, _ := res.RowsAffected()
-		writeJSON(w, http.StatusOK, map[string]int64{"affected": n})
+		writeJSON(w, http.StatusOK, BulkResponse{Affected: n})
 		return
 	}
 	rows, err := s.DB.Query(`SELECT id FROM downloads WHERE `+q, args...)
@@ -151,16 +220,37 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 			affected++
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]int{"affected": affected})
+	writeJSON(w, http.StatusOK, BulkResponse{Affected: int64(affected)})
+}
+
+// RateLimitRequest is the body of handleGlobalRateLimit and handleDownloadRateLimit.
+type RateLimitRequest struct {
+	RateLimit int64 `json:"rateLimit"`
+}
+
+// RateLimitResponse echoes the global rate limit set by handleGlobalRateLimit.
+type RateLimitResponse struct {
+	RateLimit int64 `json:"rateLimit"`
 }
 
 // handleGlobalRateLimit sets the global transfer limit (bytes/s, 0 =
 // unlimited) without going through the full settings payload - the
 // dashboard's quick control. Admin only.
+// @Summary  Set global rate limit
+// @Description Sets the global transfer rate limit in bytes/s (0 = unlimited). Admin only.
+// @Tags     Downloads
+// @Accept   json
+// @Produce  json
+// @Param    body body RateLimitRequest true "Global rate limit in bytes/s"
+// @Success  200 {object} RateLimitResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse "admin only"
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/ratelimit [put]
 func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		RateLimit int64 `json:"rateLimit"`
-	}
+	var in RateLimitRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -173,9 +263,46 @@ func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Transfers.SettingsChanged()
-	writeJSON(w, http.StatusOK, map[string]int64{"rateLimit": in.RateLimit})
+	writeJSON(w, http.StatusOK, RateLimitResponse{RateLimit: in.RateLimit})
 }
 
+// downloadAction wraps a single-download state transition (pause/resume/cancel)
+// keyed by the {id} path segment.
+// @Summary  Pause download
+// @Description Pauses a queued or running download owned by the caller.
+// @Tags     Downloads
+// @Produce  json
+// @Param    id path int true "Download ID"
+// @Success  200 {object} OkResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/{id}/pause [post]
+//
+// @Summary  Resume download
+// @Description Resumes a paused download owned by the caller.
+// @Tags     Downloads
+// @Produce  json
+// @Param    id path int true "Download ID"
+// @Success  200 {object} OkResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/{id}/resume [post]
+//
+// @Summary  Cancel download
+// @Description Cancels a download owned by the caller.
+// @Tags     Downloads
+// @Produce  json
+// @Param    id path int true "Download ID"
+// @Success  200 {object} OkResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/{id}/cancel [post]
 func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u := auth.UserFrom(r.Context())
@@ -188,16 +315,27 @@ func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFun
 			writeErr(w, status, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 	}
 }
 
+// @Summary  Set download rate limit
+// @Description Sets the transfer rate limit in bytes/s (0 = unlimited) for a single download owned by the caller.
+// @Tags     Downloads
+// @Accept   json
+// @Produce  json
+// @Param    id   path int              true "Download ID"
+// @Param    body body RateLimitRequest true "Per-download rate limit in bytes/s"
+// @Success  200 {object} OkResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/{id}/ratelimit [put]
 func (s *Server) handleDownloadRateLimit(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
-	var in struct {
-		RateLimit int64 `json:"rateLimit"`
-	}
+	var in RateLimitRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -205,9 +343,20 @@ func (s *Server) handleDownloadRateLimit(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusNotFound, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
+// @Summary  Delete download
+// @Description Deletes a finished, errored, or canceled download owned by the caller.
+// @Tags     Downloads
+// @Produce  json
+// @Param    id path int true "Download ID"
+// @Success  200 {object} OkResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse "not found or still active"
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/{id} [delete]
 func (s *Server) handleDownloadDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
@@ -221,10 +370,18 @@ func (s *Server) handleDownloadDelete(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "not found or still active")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // handleEvents streams download progress as SSE.
+// @Summary  Stream download events
+// @Description Streams download progress for the authenticated user as Server-Sent Events.
+// @Tags     Downloads
+// @Produce  text/event-stream
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/events [get]
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {

@@ -8,8 +8,20 @@ import (
 	"github.com/ch4d1/weebsync/internal/netguard"
 )
 
+// PushKeyResponse carries the server's VAPID public key for web push.
+type PushKeyResponse struct {
+	Key string `json:"key"`
+}
+
+// @Summary      Web push public key
+// @Description  Returns the VAPID public key browsers use to subscribe to push notifications.
+// @Tags         Push
+// @Produce      json
+// @Success      200  {object}  PushKeyResponse
+// @Security     CookieAuth
+// @Router       /api/push/key [get]
 func (s *Server) handlePushKey(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"key": s.Push.PublicKey()})
+	writeJSON(w, http.StatusOK, PushKeyResponse{Key: s.Push.PublicKey()})
 }
 
 type pushSubInput struct {
@@ -20,6 +32,18 @@ type pushSubInput struct {
 	} `json:"keys"`
 }
 
+// @Summary      Subscribe to web push
+// @Description  Registers a browser push subscription (endpoint + keys) for the authenticated user. The endpoint is validated against SSRF-prone targets before being stored.
+// @Tags         Push
+// @Accept       json
+// @Produce      json
+// @Param        subscription  body      pushSubInput  true  "Push subscription"
+// @Success      201  {object}  OkResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/push/subscribe [post]
 func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in pushSubInput
@@ -43,9 +67,20 @@ func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusCreated, OkResponse{Status: "ok"})
 }
 
+// @Summary      Unsubscribe from web push
+// @Description  Removes a browser push subscription for the authenticated user.
+// @Tags         Push
+// @Accept       json
+// @Produce      json
+// @Param        subscription  body      pushSubInput  true  "Push subscription"
+// @Success      200  {object}  OkResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/push/subscribe [delete]
 func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in pushSubInput
@@ -53,5 +88,5 @@ func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Push.Unsubscribe(u.ID, in.Endpoint)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

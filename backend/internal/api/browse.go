@@ -25,6 +25,17 @@ func (s *Server) safeLocal(rel string) (string, error) {
 	return abs, nil
 }
 
+// @Summary  Browse local directory
+// @Description Lists entries in a directory under the download root.
+// @Tags     Browse
+// @Produce  json
+// @Param    path query string false "Path relative to the download root"
+// @Success  200 {array} remote.Entry
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/browse/local [get]
 func (s *Server) handleBrowseLocal(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
 	abs, err := s.safeLocal(rel)
@@ -56,10 +67,25 @@ func (s *Server) handleBrowseLocal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
+// MkdirLocalRequest is the body of handleMkdirLocal.
+type MkdirLocalRequest struct {
+	Path string `json:"path"`
+}
+
+// @Summary  Create local directory
+// @Description Creates a directory (and parents) under the download root.
+// @Tags     Browse
+// @Accept   json
+// @Produce  json
+// @Param    body body MkdirLocalRequest true "Directory path relative to the download root"
+// @Success  201 {object} OkResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/browse/local/mkdir [post]
 func (s *Server) handleMkdirLocal(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Path string `json:"path"`
-	}
+	var in MkdirLocalRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -72,9 +98,21 @@ func (s *Server) handleMkdirLocal(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "mkdir failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusCreated, OkResponse{Status: "ok"})
 }
 
+// @Summary  Browse remote directory
+// @Description Lists entries in a directory on the given remote server. Defaults to the server root when no path is given.
+// @Tags     Browse
+// @Produce  json
+// @Param    id   path  int    true  "Server ID"
+// @Param    path query string false "Remote directory path"
+// @Success  200 {array} remote.Entry
+// @Failure  401 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Failure  502 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/servers/{id}/browse [get]
 func (s *Server) handleBrowseRemote(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)

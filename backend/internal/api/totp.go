@@ -40,14 +40,45 @@ func hashToken(t string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// TwoFactorStatusResponse reports whether a second factor is enabled.
+type TwoFactorStatusResponse struct {
+	Enabled bool `json:"enabled"`
+}
+
 // handleTotpStatus reports whether the current user has TOTP enabled.
+// @Summary  TOTP status
+// @Description Reports whether the current user has TOTP enabled.
+// @Tags     TwoFactor
+// @Produce  json
+// @Success  200 {object} TwoFactorStatusResponse
+// @Failure  401 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/totp [get]
 func (s *Server) handleTotpStatus(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	writeJSON(w, http.StatusOK, map[string]bool{"enabled": s.totpEnabled(u.ID)})
+	writeJSON(w, http.StatusOK, TwoFactorStatusResponse{Enabled: s.totpEnabled(u.ID)})
+}
+
+// TotpSetupResponse carries the enrollment material: base32 secret, otpauth URL
+// and (best-effort) a data-URI QR image.
+type TotpSetupResponse struct {
+	Secret     string `json:"secret"`
+	OtpauthUrl string `json:"otpauthUrl"`
+	Qr         string `json:"qr,omitempty"`
 }
 
 // handleTotpSetup starts enrollment: generate a secret (stored unconfirmed) and
 // return the otpauth URL + base32 secret for the authenticator app.
+// @Summary  Begin TOTP enrollment
+// @Description Generates a new TOTP secret (stored unconfirmed) and returns the otpauth URL, base32 secret and a data-URI QR image for the authenticator app.
+// @Tags     TwoFactor
+// @Produce  json
+// @Success  200 {object} TotpSetupResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/totp/setup [post]
 func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	if s.totpEnabled(u.ID) {
@@ -71,20 +102,37 @@ func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
-	resp := map[string]string{"secret": key.Secret(), "otpauthUrl": key.URL()}
+	resp := TotpSetupResponse{Secret: key.Secret(), OtpauthUrl: key.URL()}
 	// render the QR server-side (via boombuler/barcode that pquerna already
 	// pulls in) so the frontend needs no QR dependency
 	if img, ierr := key.Image(220, 220); ierr == nil {
 		var buf bytes.Buffer
 		if png.Encode(&buf, img) == nil {
-			resp["qr"] = "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+			resp.Qr = "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// RecoveryCodesResponse carries freshly generated one-time recovery codes.
+type RecoveryCodesResponse struct {
+	RecoveryCodes []string `json:"recoveryCodes"`
+}
+
 // handleTotpConfirm verifies the first code, activates TOTP, and returns 10
 // one-time recovery codes (shown once).
+// @Summary  Confirm TOTP enrollment
+// @Description Verifies the first TOTP code, activates TOTP and returns 10 one-time recovery codes (shown once).
+// @Tags     TwoFactor
+// @Accept   json
+// @Produce  json
+// @Param    body body object true "{\"code\":\"123456\"}"
+// @Success  200 {object} RecoveryCodesResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/totp/confirm [post]
 func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in struct {
@@ -108,10 +156,21 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "could not generate recovery codes")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"recoveryCodes": codes})
+	writeJSON(w, http.StatusOK, RecoveryCodesResponse{RecoveryCodes: codes})
 }
 
 // handleTotpDisable turns off TOTP after a password re-check.
+// @Summary  Disable TOTP
+// @Description Turns off TOTP (and clears recovery codes) after a password re-check.
+// @Tags     TwoFactor
+// @Accept   json
+// @Produce  json
+// @Param    body body object true "{\"password\":\"...\"}"
+// @Success  200 {object} OkResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/auth/totp [delete]
 func (s *Server) handleTotpDisable(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in struct {
@@ -128,10 +187,22 @@ func (s *Server) handleTotpDisable(w http.ResponseWriter, r *http.Request) {
 	}
 	s.DB.Exec(`DELETE FROM user_totp WHERE user_id = ?`, u.ID)
 	s.DB.Exec(`DELETE FROM user_recovery_codes WHERE user_id = ?`, u.ID)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // handleLoginTotp completes a password login by verifying the second factor.
+// @Summary  Complete login with TOTP
+// @Description Completes a password login by verifying the TOTP code (or a recovery code) against the short-lived pending token.
+// @Tags     TwoFactor
+// @Accept   json
+// @Produce  json
+// @Param    body body object true "{\"token\":\"...\",\"code\":\"123456\"}"
+// @Success  200 {object} LoginResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Router   /api/auth/login/totp [post]
 func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	if s.passwordAuthBlocked() {
 		writeErr(w, http.StatusForbidden, "password auth is disabled, use OIDC")
@@ -168,7 +239,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	}
 	var email string
 	s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email)
-	writeJSON(w, http.StatusOK, map[string]any{"id": userID, "email": email})
+	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: email})
 }
 
 // totpSecret decrypts the user's stored TOTP secret.

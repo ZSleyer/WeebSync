@@ -185,10 +185,37 @@ func smtpSecurity(d *sql.DB) string {
 	return "starttls"
 }
 
+// handleSettingsGet returns the current instance settings.
+//
+// @Summary      Get settings
+// @Description  Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.
+// @Tags         Settings
+// @Produce      json
+// @Success      200  {object}  settingsPayload
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/settings [get]
 func (s *Server) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.settingsState())
 }
 
+// handleSettingsPut updates the instance settings.
+//
+// @Summary      Update settings
+// @Description  Updates the instance settings (admin only). Write-only secrets: an empty string keeps the stored value, "-" clears it. Env-locked keys are ignored. Returns the effective settings, including any OIDC reload error.
+// @Tags         Settings
+// @Accept       json
+// @Produce      json
+// @Param        request  body      settingsPayload  true  "settings"
+// @Success      200  {object}  settingsPayload
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/settings [put]
 func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	var in settingsPayload
 	if !readJSON(w, r, &in) {

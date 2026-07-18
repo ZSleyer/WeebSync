@@ -26,6 +26,11 @@ jobs:
         run: go vet ./...
       - name: test
         run: go test -race ./...
+      - name: openapi spec in sync
+        run: |
+          ./gen-docs.sh
+          git diff --exit-code docs/ \
+            || { echo "OpenAPI spec out of date - run backend/gen-docs.sh and commit docs/"; exit 1; }
 
   frontend:
     runs-on: ubuntu-latest
