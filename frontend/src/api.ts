@@ -113,6 +113,14 @@ export interface Watch {
   seenEpisodes?: number
   nextAiringAt?: number
   waiting: boolean
+  airings?: Airing[]
+  category?: 'anime-series' | 'anime-movie' | 'series' | 'movie'
+}
+
+export interface Airing {
+  at: number // unix seconds
+  episode: number // local numbering (offset applied)
+  episodeAbs?: number // original absolute number when it differs
 }
 
 export interface PlexSuggestions {

@@ -213,6 +213,45 @@ func absoluteEpisode(r rawResult) int {
 	return r.NumEpisodes + 1
 }
 
+// tvSchedule fetches the ongoing season's episodes and returns every future
+// release (absolute numbering), so the calendar sees more than the single
+// next_episode_to_air. One extra call, only for RELEASING TV with a scheduled
+// episode; cached with the media. Empty when nothing is dated ahead.
+func (c *Client) tvSchedule(ctx context.Context, id int, r rawResult) []anilist.AiringSlot {
+	if r.NextEpisode == nil {
+		return nil
+	}
+	n := r.NextEpisode.SeasonNumber
+	var s struct {
+		Episodes []struct {
+			AirDate       string `json:"air_date"`
+			EpisodeNumber int    `json:"episode_number"`
+		} `json:"episodes"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/tv/%d/season/%d", id, n), url.Values{"language": {"de-DE"}}, &s); err != nil {
+		return nil
+	}
+	prior := 0 // episodes in regular seasons before this one, for absolute numbering
+	for _, ss := range r.Seasons {
+		if ss.SeasonNumber > 0 && ss.SeasonNumber < n {
+			prior += ss.EpisodeCount
+		}
+	}
+	now := time.Now()
+	var out []anilist.AiringSlot
+	for _, e := range s.Episodes {
+		if e.AirDate == "" {
+			continue
+		}
+		t, err := time.Parse("2006-01-02", e.AirDate)
+		if err != nil || !t.After(now) {
+			continue
+		}
+		out = append(out, anilist.AiringSlot{AiringAt: t.Unix(), Episode: prior + e.EpisodeNumber})
+	}
+	return out
+}
+
 // statusMap translates TMDB status strings into the AniList vocabulary the
 // frontend already knows.
 func statusMap(s string) string {
@@ -359,6 +398,9 @@ func (c *Client) Media(ctx context.Context, kind string, id int) (*anilist.Media
 		return nil, err
 	}
 	m := c.toMedia(kind, r)
+	if kind == "tv" {
+		m.Schedule = c.tvSchedule(ctx, id, r)
+	}
 	payload, _ := json.Marshal(m)
 	c.store(cacheKey, string(payload))
 	if kind == "movie" {
