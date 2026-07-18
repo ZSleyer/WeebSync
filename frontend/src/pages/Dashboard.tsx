@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { api, fmtBytes, fmtSpeed, type Download } from '../api'
+import { api, fmtBytes, fmtSpeed, type Download, type Watch } from '../api'
 import { useConfirm } from '../components/confirm'
 import { useAuth } from '../hooks'
 
@@ -203,6 +203,8 @@ export default function Dashboard() {
         </div>
       )}
 
+      <SyncSummary />
+
       <section aria-label={t('dash.activeSection')}>
         {active.length === 0 &&
           (filtering ? (
@@ -267,6 +269,75 @@ export default function Dashboard() {
         </section>
       )}
     </div>
+  )
+}
+
+// Compact auto-sync overview on the dashboard: status counters + only the
+// watches that need attention (behind, waiting, or blocked on a dub/sub).
+function SyncSummary() {
+  const { t } = useTranslation()
+  const { data: watches = [] } = useQuery<Watch[]>({
+    queryKey: ['watches'],
+    queryFn: () => api.get('/api/watches'),
+    refetchInterval: 30_000,
+  })
+  if (watches.length === 0) return null
+
+  const waiting = watches.filter((w) => w.waiting).length
+  const complete = watches.filter((w) => w.complete).length
+  const behind = watches.reduce((s, w) => s + (w.behind ?? 0), 0)
+  const title = (w: Watch) => w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop()
+  const airFmt = (ts: number) => new Date(ts * 1000).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  // "interesting" = actionable: behind, waiting for an airing, or dub/sub-gated
+  const interesting = watches.filter((w) => (w.behind ?? 0) > 0 || w.waiting || (w.langWaiting ?? 0) > 0)
+
+  return (
+    <section className="mb-4" aria-label={t('dash.syncSummary')}>
+      <div className="t-panel p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span className="t-label t-label--accent">{t('dash.syncSummary')}</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-t-muted">
+            <span>{t('dash.syncWatched', { count: watches.length })}</span>
+            {waiting > 0 && <span>{t('dash.syncWaiting', { count: waiting })}</span>}
+            {complete > 0 && <span>{t('dash.syncComplete', { count: complete })}</span>}
+            {behind > 0 && <span className="text-warn">{t('dash.syncBehind', { count: behind })}</span>}
+            <Link to="/watches" className="text-accent hover:underline">
+              {t('dash.syncAll')} →
+            </Link>
+          </div>
+        </div>
+        {interesting.length === 0 ? (
+          <p className="text-xs text-t-muted">{t('dash.syncAllGood')}</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-border-subtle/50">
+            {interesting.slice(0, 8).map((w) => (
+              <li key={w.id} className="flex items-center gap-2 py-1.5 text-sm">
+                <span className="min-w-0 flex-1 truncate text-t-secondary" title={w.remotePath}>
+                  {title(w)}
+                </span>
+                {(w.behind ?? 0) > 0 && (
+                  <span className="t-label t-label--warn shrink-0">{t('watch.behind', { count: w.behind })}</span>
+                )}
+                {(w.langWaiting ?? 0) > 0 && (
+                  <span className="t-label t-label--warn shrink-0">
+                    {t('watch.langWaiting', {
+                      count: w.langWaiting,
+                      lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
+                    })}
+                  </span>
+                )}
+                {w.waiting && w.nextAiringAt ? (
+                  <span className="shrink-0 font-mono text-[11px] text-t-muted">{airFmt(w.nextAiringAt)}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+        {interesting.length > 8 && (
+          <p className="mt-2 text-[11px] text-t-muted">{t('dash.syncMore', { count: interesting.length - 8 })}</p>
+        )}
+      </div>
+    </section>
   )
 }
 
