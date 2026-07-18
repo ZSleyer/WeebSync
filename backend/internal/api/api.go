@@ -116,6 +116,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/settings", authed(adminOnly(http.HandlerFunc(s.handleSettingsGet))))
 	mux.Handle("PUT /api/settings", authed(adminOnly(http.HandlerFunc(s.handleSettingsPut))))
 
+	// build/version info + upstream update check (about page)
+	mux.Handle("GET /api/version", authed(http.HandlerFunc(s.handleVersion)))
+	mux.Handle("POST /api/version/update-check", authed(adminOnly(http.HandlerFunc(s.handleUpdateCheckToggle))))
+
 	// machine API token (Home Assistant etc.); raw token is shown once
 	mux.Handle("POST /api/settings/token", authed(adminOnly(http.HandlerFunc(s.handleTokenCreate))))
 	mux.Handle("DELETE /api/settings/token", authed(adminOnly(http.HandlerFunc(s.handleTokenDelete))))

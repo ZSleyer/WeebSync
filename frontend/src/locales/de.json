@@ -8,6 +8,17 @@
     "unsavedTitle": "Ungespeicherte Änderungen",
     "unsavedMsg": "Es gibt ungespeicherte Änderungen. Verwerfen und fortfahren?"
   },
+  "about": {
+    "dev": "Dev-Version",
+    "stable": "Stable",
+    "updateDev": "Neuer Dev-Build verfügbar.",
+    "updateStable": "Neue Version {{version}} verfügbar.",
+    "updateLink": "Details",
+    "license": "Lizenz",
+    "source": "Quellcode",
+    "copyright": "Copyright",
+    "updateCheckToggle": "Automatisch auf Updates prüfen (GitHub)"
+  },
   "app": {
     "tagline": "weeb your sync",
     "loading": "lädt",
@@ -383,7 +394,8 @@
       "integrations": "Integrationen",
       "email": "E-Mail / SMTP",
       "users": "Benutzer",
-      "jobs": "Jobs & Cache"
+      "jobs": "Jobs & Cache",
+      "about": "Über"
     },
     "jobs": {
       "activity": "aktivität",
