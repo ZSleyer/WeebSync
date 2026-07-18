@@ -468,7 +468,7 @@
       "crawlNow": "Crawl now",
       "flushIndex": "Flush index",
       "confirmFlushIndex": "Flush the index for \"{{name}}\"? The crawler rebuilds it gradually.",
-      "indexHint": "After a flush the index rebuilds gradually - the crawler runs every {{min}} min.",
+      "indexHint": "After a flush the index rebuilds gradually, at the per-server interval set above.",
       "oldestListing": "oldest listing",
       "matched": "{{n}} matched",
       "unmatched": "{{n}} unmatched",

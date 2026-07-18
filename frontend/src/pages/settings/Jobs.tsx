@@ -472,7 +472,7 @@ export default function Jobs() {
           </ul>
         )}
         <p className="mt-2 text-xs text-t-muted">
-          {t('settings.jobs.indexHint', { min: Math.max(1, Math.round(data.index.tickSec / 60)) })}
+          {t('settings.jobs.indexHint')}
         </p>
       </section>
 
