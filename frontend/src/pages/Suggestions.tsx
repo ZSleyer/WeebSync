@@ -373,11 +373,13 @@ function AnilistSection() {
               <ul className="grid grid-cols-1 gap-3">{data.suggestions.map(card)}</ul>
             )}
           </Group>
-          {(data?.trending?.length ?? 0) > 0 && (
-            <Group title={t('suggestions.trendingTitle')} subtitle={t('suggestions.trendingSubAnilist')} count={data!.trending.length}>
+          <Group title={t('suggestions.trendingTitle')} subtitle={t('suggestions.trendingSubAnilist')} count={data?.trending?.length}>
+            {(data?.trending?.length ?? 0) === 0 ? (
+              <div className="p-3 text-center text-sm text-t-muted">{t('suggestions.trendingEmpty')}</div>
+            ) : (
               <ul className="grid grid-cols-1 gap-3">{data!.trending.map(card)}</ul>
-            </Group>
-          )}
+            )}
+          </Group>
         </div>
       )}
       {lastIds.length > 0 && (
