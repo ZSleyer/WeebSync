@@ -157,7 +157,7 @@ function Shell({ email }: { email: string }) {
       end={n.to === '/'}
       className={({ isActive }) =>
         mobile
-          ? `flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[10px] leading-tight ${
+          ? `flex min-h-[60px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[13px] leading-tight ${
               isActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
             }`
           : `group flex items-center gap-3 border-l-2 px-4 py-2.5 font-display text-sm transition-colors ${
@@ -167,7 +167,7 @@ function Shell({ email }: { email: string }) {
             }`
       }
     >
-      <span className={`font-mono ${mobile ? 'text-[9px]' : 'text-[10px]'} text-t-muted`}>{n.code}</span>
+      <span className="font-mono text-[10px] text-t-muted">{n.code}</span>
       {mobile ? (
         <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
       ) : (
@@ -229,7 +229,7 @@ function Shell({ email }: { email: string }) {
                 key={n.to}
                 to={n.to}
                 className={({ isActive }) =>
-                  `flex min-h-12 items-center gap-3 px-5 font-display text-sm ${
+                  `flex min-h-14 items-center gap-3 px-5 font-display text-sm ${
                     isActive ? 'text-accent' : 'text-t-secondary'
                   }`
                 }
@@ -243,14 +243,14 @@ function Shell({ email }: { email: string }) {
         <div className="flex">
           {NAV_PRIMARY.map((n) => navLink(n, true))}
           <button
-            className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[10px] leading-tight ${
+            className={`flex min-h-[60px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[13px] leading-tight ${
               moreOpen || moreActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
             }`}
             aria-expanded={moreOpen}
             aria-controls="nav-more"
             onClick={() => setMoreOpen((o) => !o)}
           >
-            <span className="font-mono text-[9px] text-t-muted">⋯</span>
+            <span className="font-mono text-[10px] text-t-muted">⋯</span>
             <span className="max-w-full truncate whitespace-nowrap">{t('nav.more')}</span>
           </button>
         </div>
