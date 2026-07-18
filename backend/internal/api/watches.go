@@ -115,7 +115,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 					local = path.Join(c.localPath, path.Base(c.remotePath))
 				}
 				have := s.countVideos(local, c.fromEpisode)
-				if smartDue(intervalDue, media, have, watchOffset(c.template), now) {
+				if smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, now) {
 					s.runWatch(c.id)
 				}
 			}
@@ -140,16 +140,23 @@ func watchOffset(template string) int {
 // smartDue decides whether a watch should check now. Without an AniList
 // airing schedule the plain interval rule applies. With one, a watch that
 // already holds every aired episode stays idle until the next episode's
-// release time. offset aligns AniList's absolute episode numbering with the
-// local season-relative one (from the rename template).
-func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset int, now time.Time) bool {
+// release time. offset maps AniList's absolute episode numbers to the local
+// season-relative ones (rename template); fromEpisode is the part's first
+// local episode when it shares a season folder. haveEps is the count of the
+// part's local files, compared against how many of its episodes have aired.
+func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset, fromEpisode int, now time.Time) bool {
 	if !intervalDue {
 		return false
 	}
 	if media == nil || media.NextAiring == nil {
 		return true
 	}
-	if haveEps >= media.NextAiring.Episode-1+offset && now.Unix() < media.NextAiring.AiringAt {
+	start := fromEpisode
+	if start < 1 {
+		start = 1
+	}
+	airedInPart := media.NextAiring.Episode + offset - start // aired episodes belonging to this part
+	if haveEps >= airedInPart && now.Unix() < media.NextAiring.AiringAt {
 		return false // all aired episodes synced, wait for the release slot
 	}
 	return true
@@ -248,8 +255,10 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
 		offset := watchOffset(it.Template)
+		// LocalFiles is already scoped to this part (from_episode), so it
+		// compares directly against the linked entry's episode count.
 		it.Complete = it.Media != nil && it.Media.Status == "FINISHED" && it.Media.Episodes > 0 &&
-			it.LocalFiles >= it.Media.Episodes+offset && it.Active == 0
+			it.LocalFiles >= it.Media.Episodes && it.Active == 0
 		if it.Media != nil {
 			it.MediaID = it.Media.ID
 			it.SeenEpisodes = progress[it.Media.ID]
@@ -260,7 +269,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 				it.NextEpisodeAbs = it.Media.NextAiring.Episode // show absolute in parens
 			}
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
-			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, time.Now())
+			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, time.Now())
 		}
 		list = append(list, it)
 	}
