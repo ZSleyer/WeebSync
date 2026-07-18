@@ -90,6 +90,7 @@ export interface Watch {
   replacement: string
   subfolder: boolean
   mediaId: number
+  mediaSource: string
   fromEpisode: number
   wantDub: string
   wantSub: string

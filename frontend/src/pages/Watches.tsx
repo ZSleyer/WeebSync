@@ -243,7 +243,7 @@ export default function Watches() {
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="font-mono text-sm text-t-secondary" title={`${airFmt(w.nextAiringAt!, 'Asia/Tokyo')} JST`}>
+                        <p className="font-mono text-sm text-t-secondary" title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt!, 'Asia/Tokyo')} JST`}>
                           {new Date(w.nextAiringAt! * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                         <p className="text-[11px] text-accent">{countdown(w.nextAiringAt!)}</p>
@@ -287,7 +287,7 @@ export default function Watches() {
                       : w.lastQueued >= 0 && ` (${t('watch.lastQueued', { count: w.lastQueued })})`}
                   </span>
                   {w.nextAiringAt ? (
-                    <span className={`t-label ${w.behind ? 't-label--warn' : 't-label--ok'}`} title={`${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}>
+                    <span className={`t-label ${w.behind ? 't-label--warn' : 't-label--ok'}`} title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}>
                       {t('watch.nextEp', { n: w.nextEpisode })}
                       {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''} ·{' '}
                       {airFmt(w.nextAiringAt)}
@@ -364,6 +364,7 @@ export default function Watches() {
             replacement: edit.replacement,
             subfolder: edit.subfolder,
             mediaId: edit.mediaId,
+            mediaSource: edit.mediaSource || 'anilist',
             fromEpisode: edit.fromEpisode,
             wantDub: edit.wantDub ?? '',
             wantSub: edit.wantSub ?? '',

@@ -215,6 +215,7 @@ export default function Browser() {
             replacement: '',
             subfolder: false,
             mediaId: 0,
+            mediaSource: 'anilist',
             fromEpisode: 0,
             wantDub: '',
             wantSub: '',

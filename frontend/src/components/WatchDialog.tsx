@@ -16,6 +16,7 @@ export interface WatchFields {
   replacement: string
   subfolder: boolean
   mediaId: number
+  mediaSource: string
   fromEpisode: number
   wantDub: string
   wantSub: string
@@ -198,18 +199,32 @@ export default function WatchDialog({
               <input type="checkbox" checked={f.subfolder} onChange={(e) => setF({ ...f, subfolder: e.target.checked })} />
               {t('watch.subfolder')}
             </label>
-            <div>
-              <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="watch-mediaid">
-                {t('watch.mediaId')}
+            <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr]">
+              <label className="text-xs text-t-muted">
+                {t('watch.mediaSource')}
+                <span className="t-select-wrap mt-1 block">
+                  <select
+                    className="t-select"
+                    value={f.mediaSource || 'anilist'}
+                    onChange={(e) => setF({ ...f, mediaSource: e.target.value })}
+                  >
+                    <option value="anilist">AniList (Anime)</option>
+                    <option value="tmdb:tv">TMDB Serie</option>
+                    <option value="tmdb:movie">TMDB Film</option>
+                  </select>
+                </span>
               </label>
-              <input
-                id="watch-mediaid"
-                type="number"
-                className="t-input font-mono"
-                value={f.mediaId || ''}
-                placeholder="z.B. 21 (One Piece)"
-                onChange={(e) => setF({ ...f, mediaId: Number(e.target.value) || 0 })}
-              />
+              <label className="text-xs text-t-muted" htmlFor="watch-mediaid">
+                {t('watch.mediaId')}
+                <input
+                  id="watch-mediaid"
+                  type="number"
+                  className="t-input mt-1 font-mono"
+                  value={f.mediaId || ''}
+                  placeholder={f.mediaSource?.startsWith('tmdb') ? 'z.B. 1399 (Game of Thrones)' : 'z.B. 21 (One Piece)'}
+                  onChange={(e) => setF({ ...f, mediaId: Number(e.target.value) || 0 })}
+                />
+              </label>
             </div>
             <div>
               <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="watch-fromep">

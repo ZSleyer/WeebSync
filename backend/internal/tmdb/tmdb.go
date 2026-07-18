@@ -171,8 +171,13 @@ type rawResult struct {
 	Status      string  `json:"status"`
 	NumEpisodes int     `json:"number_of_episodes"`
 	VoteAverage float64 `json:"vote_average"`
+	Seasons     []struct {
+		SeasonNumber int `json:"season_number"`
+		EpisodeCount int `json:"episode_count"`
+	} `json:"seasons"`
 	NextEpisode *struct {
 		AirDate       string `json:"air_date"`
+		SeasonNumber  int    `json:"season_number"`
 		EpisodeNumber int    `json:"episode_number"`
 	} `json:"next_episode_to_air"`
 	Collection *struct {
@@ -185,6 +190,26 @@ type rawResult struct {
 			Type string `json:"type"`
 		} `json:"results"`
 	} `json:"videos"`
+}
+
+// absoluteEpisode turns TMDB's per-season next_episode_to_air into an absolute
+// episode number (episodes in all prior regular seasons + its episode_number),
+// so the watch's Behind math (NextAiring.Episode - 1 vs local files) is exact.
+// Falls back to NumEpisodes+1 when season data is missing.
+func absoluteEpisode(r rawResult) int {
+	if r.NextEpisode == nil {
+		return r.NumEpisodes + 1
+	}
+	prior := 0
+	for _, s := range r.Seasons {
+		if s.SeasonNumber > 0 && s.SeasonNumber < r.NextEpisode.SeasonNumber {
+			prior += s.EpisodeCount
+		}
+	}
+	if abs := prior + r.NextEpisode.EpisodeNumber; abs > 0 {
+		return abs
+	}
+	return r.NumEpisodes + 1
 }
 
 // statusMap translates TMDB status strings into the AniList vocabulary the
@@ -239,9 +264,12 @@ func (c *Client) toMedia(kind string, r rawResult) anilist.Media {
 				Episode  int   `json:"episode"`
 			}{
 				AiringAt: t.Unix(), // release day 00:00 UTC, TMDB has no airtime
-				// ponytail: episode_number is per-season; the watch logic
-				// compares against total local files, so total+1 fits better
-				Episode: r.NumEpisodes + 1,
+				// absolute episode number: episodes in prior seasons + the
+				// per-season episode_number. seasons[] ships in the /tv/{id}
+				// details, so this is exact with no extra call.
+				// ponytail: seasons[] suffices; no per-episode /season/{n} fetch
+				// (TMDB has no per-episode airtimes anyway).
+				Episode: absoluteEpisode(r),
 			}
 		}
 	}
