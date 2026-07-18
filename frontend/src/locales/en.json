@@ -325,6 +325,7 @@
     "adminOnly": "Only admins can change settings.",
     "users": "users",
     "usersCreate": "Create",
+    "usersOidcOnly": "Manual creation is disabled in OIDC mode — users onboard via the identity provider.",
     "usersAdmin": "admin",
     "usersYou": "you",
     "usersMakeAdmin": "Make admin",
