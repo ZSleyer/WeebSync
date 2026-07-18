@@ -8,6 +8,7 @@ require (
 	github.com/jlaffaye/ftp v0.2.1
 	github.com/nssteinbrenner/anitogo v1.0.0
 	github.com/pkg/sftp v1.13.11
+	github.com/pquerna/otp v1.5.0
 	golang.org/x/crypto v0.54.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/text v0.40.0
@@ -16,6 +17,7 @@ require (
 )
 
 require (
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
