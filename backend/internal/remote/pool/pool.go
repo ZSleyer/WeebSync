@@ -8,12 +8,17 @@ package pool
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 
 	"github.com/ch4d1/weebsync/internal/remote"
 	"golang.org/x/crypto/ssh"
 )
+
+// errEvicted is returned when a connection is evicted (server reconfigured or
+// deleted) while its lease was still being dialed; the caller should retry.
+var errEvicted = errors.New("connection pool: server reconfigured during dial")
 
 // Prio orders lease requests: high (downloads, browser, catalog, watch checks)
 // wins contested capacity; low (index crawler) waits so it never starves them.
@@ -110,7 +115,9 @@ func (sp *serverPool) closeAll() {
 	for _, c := range sp.conns {
 		if !c.closed {
 			c.closed = true
-			c.ssh.Close()
+			if c.ssh != nil { // nil while a connection is mid-dial
+				c.ssh.Close()
+			}
 		}
 	}
 	sp.conns = nil
@@ -175,31 +182,48 @@ func (sp *serverPool) leaseSFTP(ctx context.Context, cfg remote.Config, prio Pri
 				}
 				return sp.wrap(ch, c), nil
 			}
-			// no room on an existing connection: dial a new one (reserve a slot)
-			c := &sshConn{open: 1}
-			sp.conns = append(sp.conns, c)
-			sp.mu.Unlock()
-			conn, err := remote.DialSSH(cfg)
-			if err != nil {
-				sp.mu.Lock()
-				sp.dropLocked(c)
-				sp.wake()
+			// no room on an existing connection: dial a new one, but only if
+			// there is room for another connection under the cap. Guarding on
+			// len here (not just the freeSFTP estimate) stops concurrent leases
+			// from each dialing past maxConns while an earlier dial is in flight
+			// (a mid-dial conn has ssh==nil, so connWithRoom skips it).
+			if len(sp.conns) < sp.maxConns {
+				c := &sshConn{open: 1}
+				sp.conns = append(sp.conns, c)
 				sp.mu.Unlock()
-				return nil, err
-			}
-			ch, err := remote.SFTPChannel(conn)
-			if err != nil {
-				conn.Close()
+				conn, err := remote.DialSSH(cfg)
+				if err != nil {
+					sp.mu.Lock()
+					sp.dropLocked(c)
+					sp.wake()
+					sp.mu.Unlock()
+					return nil, err
+				}
+				ch, err := remote.SFTPChannel(conn)
+				if err != nil {
+					conn.Close()
+					sp.mu.Lock()
+					sp.dropLocked(c)
+					sp.wake()
+					sp.mu.Unlock()
+					return nil, err
+				}
 				sp.mu.Lock()
-				sp.dropLocked(c)
-				sp.wake()
+				if c.closed {
+					// evicted mid-dial (server reconfigured/deleted): don't hand
+					// out a lease on a slot that is no longer in the pool, or the
+					// connection would leak. Surface a retryable error.
+					sp.mu.Unlock()
+					ch.Close()
+					conn.Close()
+					return nil, errEvicted
+				}
+				c.ssh = conn
+				sp.wake() // the new connection has spare channels: wake waiters
 				sp.mu.Unlock()
-				return nil, err
+				return sp.wrap(ch, c), nil
 			}
-			sp.mu.Lock()
-			c.ssh = conn
-			sp.mu.Unlock()
-			return sp.wrap(ch, c), nil
+			// at the connection cap with all channels busy: fall through to wait
 		}
 		ready := sp.ready
 		if prio == PriHigh {

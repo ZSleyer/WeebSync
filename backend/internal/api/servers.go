@@ -119,6 +119,7 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid server config")
 		return
 	}
+	var res sql.Result
 	if in.Password != "" {
 		enc, err := secret.Encrypt(in.Password)
 		if err != nil {
@@ -126,18 +127,25 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// credentials changed: reset the learned host key too
-		_, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, max_connections=?, host_key=''
+		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, max_connections=?, host_key=''
 			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, id, u.ID)
 		if err != nil {
 			dbErr(w)
 			return
 		}
 	} else {
-		if _, err := s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?, max_connections=?
-			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, in.MaxConnections, id, u.ID); err != nil {
+		var err error
+		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?, max_connections=?
+			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, in.MaxConnections, id, u.ID)
+		if err != nil {
 			dbErr(w)
 			return
 		}
+	}
+	// no row updated = not this user's server: don't leak the id or evict its pool
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeErr(w, http.StatusNotFound, "server not found")
+		return
 	}
 	// creds/host/limit may have changed: drop any pooled connections
 	s.Conns.Evict(id)
@@ -147,8 +155,13 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
-	if _, err := s.DB.Exec(`DELETE FROM servers WHERE id = ? AND user_id = ?`, id, u.ID); err != nil {
+	res, err := s.DB.Exec(`DELETE FROM servers WHERE id = ? AND user_id = ?`, id, u.ID)
+	if err != nil {
 		dbErr(w)
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeErr(w, http.StatusNotFound, "server not found")
 		return
 	}
 	s.Conns.Evict(id)
