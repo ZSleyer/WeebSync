@@ -11,7 +11,15 @@ const ConfirmCtx = createContext<ConfirmFn>(() => Promise.resolve(false))
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ opts: ConfirmOptions; resolve: (ok: boolean) => void } | null>(null)
   const confirm = useCallback<ConfirmFn>(
-    (opts) => new Promise((resolve) => setState({ opts, resolve })),
+    (opts) =>
+      new Promise((resolve) =>
+        // a second confirm() while one is open replaces it; resolve the
+        // superseded promise as cancelled so its awaiter never hangs
+        setState((prev) => {
+          prev?.resolve(false)
+          return { opts, resolve }
+        }),
+      ),
     [],
   )
   const settle = (ok: boolean) => {

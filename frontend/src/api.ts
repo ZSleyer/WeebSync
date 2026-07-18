@@ -95,6 +95,7 @@ export interface Watch {
   wantDub: string
   wantSub: string
   langWaiting: number
+  missing?: number[]
   intervalMin: number
   lastCheck: string
   lastResult: string // error text of the last check, '' on success

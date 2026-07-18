@@ -228,6 +228,8 @@
     "inMinutes": "in {{m}} min",
     "behind": "{{count}} noch nicht verfügbar",
     "langWaiting": "{{count}} wartet auf {{lang}}",
+    "missing_one": "Folge {{eps}} fehlt",
+    "missing_other": "{{count}} Lücken: {{eps}}",
     "uploading": "Upload läuft",
     "template": "Rename-Template (leer = Originalnamen behalten)",
     "templateHint": "Neue Dateien werden beim Download direkt umbenannt. Variablen: {title} {season:02} {episode:02} {year} {group} {resolution} {dub} {sub}",

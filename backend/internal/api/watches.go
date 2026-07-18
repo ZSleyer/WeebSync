@@ -60,6 +60,7 @@ type Watch struct {
 	NextAiringAt   int64          `json:"nextAiringAt,omitempty"`   // unix seconds of its release
 	Waiting        bool           `json:"waiting"`                  // smart sync: idle until NextAiringAt
 	Behind         int            `json:"behind,omitempty"`         // episodes aired per AniList but not yet available locally (the source release can lag the original broadcast)
+	Missing        []int          `json:"missing,omitempty"`        // gaps below the newest local episode (e.g. have 1,2,3,5 → 4 is missing), independent of airing state
 }
 
 // videoExt: files counted as episodes for the completeness check.
@@ -269,6 +270,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			local = path.Join(it.LocalPath, path.Base(it.RemotePath))
 		}
 		it.LocalFiles = s.countVideos(local, it.FromEpisode)
+		it.Missing = missingEpisodes(s.localEpisodeNums(local, it.FromEpisode))
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
@@ -336,6 +338,58 @@ func (s *Server) countVideos(rel string, minEp int) int {
 		return nil
 	})
 	return n
+}
+
+// localEpisodeNums returns the set of SxxEyy episode numbers present locally
+// (only files >= minEp when minEp > 0). Used for gap detection — files without a
+// parseable episode number are ignored.
+func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
+	abs, err := s.safeLocal(rel)
+	if err != nil {
+		return nil
+	}
+	nums := map[int]bool{}
+	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
+			return nil
+		}
+		m := epNumRe.FindStringSubmatch(d.Name())
+		if m == nil {
+			return nil
+		}
+		ep, _ := strconv.Atoi(m[1])
+		if ep >= minEp {
+			nums[ep] = true
+		}
+		return nil
+	})
+	return nums
+}
+
+// missingEpisodes returns the gaps WITHIN the contiguous span of local episodes,
+// i.e. between the lowest and highest number present (e.g. {1,2,3,5} → [4]).
+// Only holes inside what you already have count — episodes before the first or
+// after the last are a partial start / a Behind tail, not gaps.
+func missingEpisodes(nums map[int]bool) []int {
+	if len(nums) < 2 {
+		return nil
+	}
+	lo, hi := 1<<31, 0
+	for e := range nums {
+		if e < lo {
+			lo = e
+		}
+		if e > hi {
+			hi = e
+		}
+	}
+	var missing []int
+	for e := lo + 1; e < hi; e++ {
+		if !nums[e] {
+			missing = append(missing, e)
+		}
+	}
+	return missing
 }
 
 func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
