@@ -569,6 +569,8 @@
     "password": "Passwort",
     "unchanged": "(unverändert)",
     "rootPath": "Root-Pfad",
+    "maxConnections": "Max. Verbindungen",
+    "maxConnectionsHint": "Obergrenze gleichzeitiger Verbindungen zum Server. SFTP bündelt mehrere Kanäle über eine Verbindung; der Index wartet, wenn Downloads sie brauchen.",
     "cancel": "Abbrechen",
     "save": "Speichern",
     "dialogEdit": "Server bearbeiten",

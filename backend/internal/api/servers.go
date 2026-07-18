@@ -1,33 +1,38 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/remote"
+	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 type serverInfo struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	Protocol string `json:"protocol"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	RootPath string `json:"rootPath"`
+	ID             int64  `json:"id"`
+	Name           string `json:"name"`
+	Protocol       string `json:"protocol"`
+	Host           string `json:"host"`
+	Port           int    `json:"port"`
+	Username       string `json:"username"`
+	RootPath       string `json:"rootPath"`
+	MaxConnections int    `json:"maxConnections"`
 }
 
 type serverInput struct {
-	Name     string `json:"name"`
-	Protocol string `json:"protocol"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"` // empty on update = keep existing
-	RootPath string `json:"rootPath"`
+	Name           string `json:"name"`
+	Protocol       string `json:"protocol"`
+	Host           string `json:"host"`
+	Port           int    `json:"port"`
+	Username       string `json:"username"`
+	Password       string `json:"password"` // empty on update = keep existing
+	RootPath       string `json:"rootPath"`
+	MaxConnections int    `json:"maxConnections"`
 }
 
 func (in *serverInput) valid() bool {
@@ -46,12 +51,18 @@ func (in *serverInput) valid() bool {
 	if in.RootPath == "" {
 		in.RootPath = "/"
 	}
+	if in.MaxConnections < 1 {
+		in.MaxConnections = 3
+	}
+	if in.MaxConnections > 10 {
+		in.MaxConnections = 10
+	}
 	return in.Name != "" && in.Host != "" && in.Username != "" && in.Port > 0 && in.Port < 65536
 }
 
 func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path
+	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path, max_connections
 		FROM servers WHERE user_id = ? ORDER BY name`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -61,7 +72,7 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	list := []serverInfo{}
 	for rows.Next() {
 		var si serverInfo
-		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath); err != nil {
+		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath, &si.MaxConnections); err != nil {
 			dbErr(w)
 			return
 		}
@@ -85,16 +96,16 @@ func (s *Server) handleServerCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath)
+	res, err := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path, max_connections)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections)
 	if err != nil {
 		dbErr(w)
 		return
 	}
 	id, _ := res.LastInsertId()
 	writeJSON(w, http.StatusCreated, serverInfo{ID: id, Name: in.Name, Protocol: in.Protocol,
-		Host: in.Host, Port: in.Port, Username: in.Username, RootPath: in.RootPath})
+		Host: in.Host, Port: in.Port, Username: in.Username, RootPath: in.RootPath, MaxConnections: in.MaxConnections})
 }
 
 func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
@@ -115,19 +126,21 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// credentials changed: reset the learned host key too
-		_, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, host_key=''
-			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, id, u.ID)
+		_, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, max_connections=?, host_key=''
+			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, id, u.ID)
 		if err != nil {
 			dbErr(w)
 			return
 		}
 	} else {
-		if _, err := s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?
-			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, id, u.ID); err != nil {
+		if _, err := s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?, max_connections=?
+			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, in.MaxConnections, id, u.ID); err != nil {
 			dbErr(w)
 			return
 		}
 	}
+	// creds/host/limit may have changed: drop any pooled connections
+	s.Conns.Evict(id)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -138,6 +151,7 @@ func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	s.Conns.Evict(id)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -188,14 +202,26 @@ func (s *Server) handleServerTrustHostKey(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// DialServer loads a user's server config and opens a connection.
+// DialServer leases a high-priority connection (downloads, browser, catalog,
+// watch checks) for a user's server. The Client's Close returns it to the pool.
+// A bounded wait keeps a request from hanging forever when the per-server
+// connection limit is saturated.
 func (s *Server) DialServer(userID, serverID int64) (remote.Client, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	return s.dialServer(ctx, userID, serverID, pool.PriHigh)
+}
+
+// dialServer loads the server config and leases a connection at the given
+// priority. Low priority (the index crawler) waits while downloads need the
+// capacity; the ctx cancels a wait when the caller is done.
+func (s *Server) dialServer(ctx context.Context, userID, serverID int64, prio pool.Prio) (remote.Client, string, error) {
 	var cfg remote.Config
 	var enc []byte
 	var rootPath string
-	err := s.DB.QueryRow(`SELECT protocol, host, port, username, secret_enc, root_path, host_key
+	err := s.DB.QueryRow(`SELECT protocol, host, port, username, secret_enc, root_path, host_key, max_connections
 		FROM servers WHERE id = ? AND user_id = ?`, serverID, userID).
-		Scan(&cfg.Protocol, &cfg.Host, &cfg.Port, &cfg.Username, &enc, &rootPath, &cfg.HostKey)
+		Scan(&cfg.Protocol, &cfg.Host, &cfg.Port, &cfg.Username, &enc, &rootPath, &cfg.HostKey, &cfg.MaxConns)
 	if err == sql.ErrNoRows {
 		return nil, "", errNotFound
 	}
@@ -209,7 +235,7 @@ func (s *Server) DialServer(userID, serverID int64) (remote.Client, string, erro
 	cfg.OnHostKey = func(key string) {
 		s.DB.Exec(`UPDATE servers SET host_key = ? WHERE id = ?`, key, serverID)
 	}
-	client, err := remote.Dial(cfg)
+	client, err := s.Conns.Lease(ctx, serverID, cfg, prio)
 	if err != nil {
 		return nil, "", err
 	}

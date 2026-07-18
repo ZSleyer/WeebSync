@@ -569,6 +569,8 @@
     "password": "Password",
     "unchanged": "(unchanged)",
     "rootPath": "Root path",
+    "maxConnections": "Max connections",
+    "maxConnectionsHint": "Ceiling on concurrent connections to the server. SFTP multiplexes several channels over one connection; the index waits when downloads need the capacity.",
     "cancel": "Cancel",
     "save": "Save",
     "dialogEdit": "Edit server",
