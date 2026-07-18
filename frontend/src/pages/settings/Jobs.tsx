@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { api, fmtBytes, type Media } from '../../api'
+import { useConfirm } from '../../components/confirm'
 import i18n from '../../locales'
 
 /* Uniformity rules for this page (user requirement: identical elements must
@@ -213,6 +214,7 @@ function NumEdit({
 
 export default function Jobs() {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const qc = useQueryClient()
   const [error, setError] = useState('')
   const [cacheModal, setCacheModal] = useState<CacheInfo | null>(null)
@@ -278,8 +280,9 @@ export default function Jobs() {
         <button
           className="t-btn t-btn--sm t-btn--danger"
           disabled={flush.isPending}
-          onClick={() => {
-            if (window.confirm(t('settings.jobs.confirmFlush', { scope: scopeLabel(c.scope) }))) flush.mutate(c.scope)
+          onClick={async () => {
+            if (await confirm({ message: t('settings.jobs.confirmFlush', { scope: scopeLabel(c.scope) }), destructive: true }))
+              flush.mutate(c.scope)
           }}
         >
           {t('settings.jobs.flush')}
@@ -456,8 +459,8 @@ export default function Jobs() {
                   <button
                     className="t-btn t-btn--sm t-btn--danger flex-1 md:flex-none"
                     disabled={flushIndex.isPending}
-                    onClick={() => {
-                      if (window.confirm(t('settings.jobs.confirmFlushIndex', { name: s.name })))
+                    onClick={async () => {
+                      if (await confirm({ message: t('settings.jobs.confirmFlushIndex', { name: s.name }), destructive: true }))
                         flushIndex.mutate(s.id)
                     }}
                   >
@@ -521,8 +524,8 @@ export default function Jobs() {
                   <button
                     className="t-btn t-btn--sm t-btn--danger md:col-start-3 md:row-start-2"
                     disabled={run.isPending}
-                    onClick={() => {
-                      if (window.confirm(t('settings.jobs.confirmRematchAll', { name: m.name })))
+                    onClick={async () => {
+                      if (await confirm({ message: t('settings.jobs.confirmRematchAll', { name: m.name }), destructive: true }))
                         run.mutate({ name: 'rematch', body: { serverId: m.serverId, all: true } })
                     }}
                   >
@@ -610,6 +613,7 @@ function Pager({ offset, total, onOffset }: { offset: number; total: number; onO
 
 function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () => void }) {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const qc = useQueryClient()
   const [q, setQ] = useState('')
   const [offset, setOffset] = useState(0)
@@ -666,8 +670,8 @@ function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () =
                 <button
                   className="t-btn t-btn--sm t-btn--danger"
                   disabled={del.isPending}
-                  onClick={() => {
-                    if (window.confirm(t('settings.jobs.confirmDeleteEntry', { key: truncMiddle(e.key, 80) })))
+                  onClick={async () => {
+                    if (await confirm({ message: t('settings.jobs.confirmDeleteEntry', { key: truncMiddle(e.key, 80) }), destructive: true }))
                       del.mutate(e.key)
                   }}
                 >
@@ -693,6 +697,7 @@ const MATCH_FILTERS: MatchFilter[] = ['all', 'matched', 'unmatched', 'manual']
 
 function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void }) {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const qc = useQueryClient()
   const [filter, setFilter] = useState<MatchFilter>('all')
   const [q, setQ] = useState('')
@@ -829,8 +834,8 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                   <button
                     className="t-btn t-btn--sm t-btn--danger"
                     disabled={del.isPending}
-                    onClick={() => {
-                      if (window.confirm(t('settings.jobs.confirmDeleteMatch', { name: basename(m.folder) })))
+                    onClick={async () => {
+                      if (await confirm({ message: t('settings.jobs.confirmDeleteMatch', { name: basename(m.folder) }), destructive: true }))
                         del.mutate(m.folder)
                     }}
                   >

@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type UserAccount } from '../../api'
+import { useConfirm } from '../../components/confirm'
 import { useAuth } from '../../hooks'
 import type { SettingsState } from './useSettingsForm'
 
 export default function Users() {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const qc = useQueryClient()
   const { data: user } = useAuth()
   const meId = user?.id ?? 0
@@ -80,8 +82,9 @@ export default function Users() {
             <button
               className="t-btn t-btn--sm t-btn--danger"
               disabled={u.id === meId || del.isPending}
-              onClick={() => {
-                if (confirm(t('settings.usersConfirmDelete', { email: u.email }))) del.mutate(u.id)
+              onClick={async () => {
+                if (await confirm({ message: t('settings.usersConfirmDelete', { email: u.email }), destructive: true }))
+                  del.mutate(u.id)
               }}
             >
               {t('servers.delete')}
