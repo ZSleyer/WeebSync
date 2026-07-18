@@ -90,6 +90,7 @@ export interface Watch {
   replacement: string
   subfolder: boolean
   mediaId: number
+  fromEpisode: number
   intervalMin: number
   lastCheck: string
   lastResult: string // error text of the last check, '' on success
@@ -101,6 +102,7 @@ export interface Watch {
   active: number
   complete: boolean
   nextEpisode?: number
+  nextEpisodeAbs?: number
   seenEpisodes?: number
   nextAiringAt?: number
   waiting: boolean

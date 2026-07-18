@@ -170,6 +170,7 @@
     "sortName": "Name",
     "sortSeason": "Season",
     "mediaId": "AniList-ID (für Metadaten / Cover, optional)",
+    "fromEpisode": "Ab Folge zählen (bei geteiltem Season-Ordner, optional)",
     "add": "Beobachten",
     "addTitle": "Beobachten: {{name}}",
     "editTitle": "Auto-Sync bearbeiten",

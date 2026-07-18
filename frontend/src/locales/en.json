@@ -170,6 +170,7 @@
     "sortName": "Name",
     "sortSeason": "Season",
     "mediaId": "AniList ID (for metadata / cover, optional)",
+    "fromEpisode": "Count from episode (for a shared season folder, optional)",
     "add": "Watch",
     "addTitle": "Watch: {{name}}",
     "editTitle": "Edit auto-sync",
