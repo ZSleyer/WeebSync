@@ -112,12 +112,21 @@
 [data-theme="light"] [data-accent="pink"]    { --accent-blue: #be185d; }
 [data-theme="light"] [data-accent="orange"]  { --accent-blue: #b03a0b; }
 
+/* Root font-size is the master scale: every rem-based Tailwind utility
+   (text, spacing, widths) grows from it. Desktop steps up from the 16px
+   UA default; touch devices step up once more since phones are read at
+   arm's length. Keeps the whole UI proportional instead of bumping every
+   element by hand. */
+html { font-size: 17px; }
+@media (pointer: coarse) { html { font-size: 18px; } }
+
 body {
   margin: 0;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   background-color: var(--bg-primary);
   color: var(--text-primary);
+  line-height: 1.5;
 }
 
 /* ── Tempest surface utilities ── */
@@ -167,7 +176,7 @@ body {
   gap: 4px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   border: 1px solid var(--border-subtle);
   border-radius: 0;
@@ -197,10 +206,15 @@ body {
 
 /* Buttons */
 .t-btn {
+  /* inline-flex centers the label vertically whenever min-height (touch
+     targets) exceeds the text height - a plain block leaves it top-aligned. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: 0.04em;
-  font-size: 13px;
+  font-size: 14px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-secondary);
   color: var(--text-primary);
@@ -233,10 +247,13 @@ body {
 .t-tabs::-webkit-scrollbar { display: none; }
 .t-tab {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: 0.04em;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-muted);
   padding: 8px 14px;
   border: 0;
@@ -369,9 +386,10 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
    taller controls give comfortable thumb targets without changing the
    desktop density. */
 @media (pointer: coarse) {
-  .t-input, .t-select { font-size: 16px; min-height: 40px; }
-  .t-btn { min-height: 40px; }
-  .t-btn--sm { min-height: 32px; padding: 4px 12px; }
+  .t-input, .t-select { font-size: 16px; min-height: 48px; }
+  .t-btn   { font-size: 16px; min-height: 48px; padding: 10px 16px; }
+  .t-btn--sm { font-size: 13px; min-height: 40px; padding: 6px 12px; }
+  .t-tab   { font-size: 16px; min-height: 48px; padding: 10px 16px; }
 }
 
 /* ── Form controls ── */
