@@ -53,10 +53,20 @@
     "verifyInvalid": "Bestätigungslink ungültig oder bereits verwendet.",
     "totpTitle": "Zwei-Faktor-Bestätigung",
     "totpHint": "Gib den 6-stelligen Code aus deiner Authenticator-App ein (oder einen Recovery-Code).",
-    "totpCode": "Code"
+    "totpCode": "Code",
+    "passkey": "Mit Passkey anmelden",
+    "useSecurityKey": "Security-Key verwenden",
+    "passkeyFailed": "Passkey-Anmeldung fehlgeschlagen."
   },
   "account": {
     "oidcOnly": "Diese Instanz nutzt ausschließlich OIDC — die Zwei-Faktor-Einstellungen laufen über deinen Identity-Provider.",
+    "passkeyTitle": "Passkeys & Security-Keys",
+    "passkeyHint": "Passkeys erlauben passwortloses Anmelden. Security-Keys (z. B. YubiKey) dienen als zweiter Faktor nach dem Passwort.",
+    "passkeyName": "Name für dieses Gerät:",
+    "passkeyKindPasskey": "Passkey",
+    "passkeyKindKey": "2. Faktor",
+    "passkeyAdd": "Passkey hinzufügen",
+    "keyAdd": "Security-Key hinzufügen",
     "totpTitle": "Zwei-Faktor-Authentifizierung (TOTP)",
     "totpHint": "Zusätzlicher Code aus einer Authenticator-App bei jedem Passwort-Login.",
     "totpEnable": "Aktivieren",
