@@ -25,8 +25,28 @@ export default function Browser() {
   const [watchOpen, setWatchOpen] = useState(false)
   const [flat, setFlat] = useState(false)
   const [query, setQuery] = useState('')
+  // preference: land in catalog view automatically for catalog-managed folders
+  const [catalogAuto, setCatalogAuto] = useState(() => localStorage.getItem('catalogAutoOpen') === '1')
+  useEffect(() => {
+    localStorage.setItem('catalogAutoOpen', catalogAuto ? '1' : '0')
+  }, [catalogAuto])
 
   const active = serverId || servers[0]?.id || 0
+
+  // cheap scope probe (no listing/matching) so we know whether the current
+  // folder is catalog-managed; drives the auto-open above without side effects
+  const { data: scopeInfo } = useQuery<{ scope: string; inherited: boolean }>({
+    queryKey: ['catalog-scope', active, remotePath],
+    queryFn: () => api.get(`/api/servers/${active}/catalog/scope${remotePath ? `?path=${encodeURIComponent('/' + remotePath)}` : ''}`),
+    enabled: catalogAuto && active > 0 && !query.trim(),
+    staleTime: 60_000,
+  })
+  // re-runs only on navigation / preference change, so a manual switch to
+  // classic on a catalog folder sticks until the user navigates elsewhere
+  useEffect(() => {
+    if (!catalogAuto || !scopeInfo) return
+    setView(scopeInfo.scope !== '' ? 'catalog' : 'classic')
+  }, [catalogAuto, scopeInfo, remotePath])
 
   const [lastIds, setLastIds] = useState<number[]>([])
   const enqueue = useMutation({
@@ -86,6 +106,10 @@ export default function Browser() {
               ))}
             </select>
           </span>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-t-muted" title={t('browser.autoCatalogHint')}>
+          <input type="checkbox" checked={catalogAuto} onChange={(e) => setCatalogAuto(e.target.checked)} />
+          {t('browser.autoCatalog')}
         </label>
         <div role="group" aria-label={t('browser.view')} className="flex">
           <button
@@ -325,6 +349,7 @@ function CatalogGrid({
   const qc = useQueryClient()
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   const [detail, setDetail] = useState<CatalogGroup | null>(null)
+  const [files, setFiles] = useState<Entry | null>(null)
   const [scopeError, setScopeError] = useState('')
   const pendingCount = items.filter((i) => i.pending).length
   const noMatchCount = items.filter((i) => !i.media && !i.pending).length
@@ -510,6 +535,14 @@ function CatalogGrid({
                     <>
                       <button
                         className="t-btn t-btn--sm flex-1"
+                        aria-label={`${t('browser.showFiles')}: ${it.entry.name}`}
+                        title={t('browser.showFiles')}
+                        onClick={() => setFiles(it.entry)}
+                      >
+                        🗎
+                      </button>
+                      <button
+                        className="t-btn t-btn--sm flex-1"
                         aria-label={`${t('plex.syncOnce')}: ${it.entry.name}`}
                         title={t('plex.syncOnce')}
                         onClick={() => onSync(it.entry)}
@@ -528,18 +561,28 @@ function CatalogGrid({
                   )}
                 </div>
               ) : (
-                !g.pending &&
-                !!it.source && (
-                  <button className="t-btn t-btn--sm mx-2 mb-2 mt-auto" onClick={() => setRematch(it)}>
-                    {t('browser.changeMatch')}
+                <div className="mx-2 mb-2 mt-auto flex gap-1.5">
+                  <button
+                    className="t-btn t-btn--sm flex-1"
+                    aria-label={`${t('browser.showFiles')}: ${it.entry.name}`}
+                    title={t('browser.showFiles')}
+                    onClick={() => setFiles(it.entry)}
+                  >
+                    🗎
                   </button>
-                )
+                  {!g.pending && !!it.source && (
+                    <button className="t-btn t-btn--sm flex-1" onClick={() => setRematch(it)}>
+                      {t('browser.changeMatch')}
+                    </button>
+                  )}
+                </div>
               )}
             </article>
           )
         })}
       </div>
       {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
+      {files && <FilesDialog serverId={serverId} entry={files} onClose={() => setFiles(null)} />}
       {detail && (
         <DetailDialog
           group={detail}
@@ -552,10 +595,51 @@ function CatalogGrid({
             setDetail(null)
             setRematch(it)
           }}
+          onFiles={setFiles}
           onClose={() => setDetail(null)}
         />
       )}
     </div>
+  )
+}
+
+// FilesDialog peeks at the actual files inside a catalog folder without leaving
+// the catalog view - reuses the classic file browser, navigable, read-only.
+function FilesDialog({ serverId, entry, onClose }: { serverId: number; entry: Entry; onClose: () => void }) {
+  const { t } = useTranslation()
+  const ref = useRef<HTMLDialogElement>(null)
+  const backdropDown = useRef(false)
+  const [path, setPath] = useState(entry.path.replace(/^\//, ''))
+  useEffect(() => {
+    ref.current?.showModal()
+  }, [])
+  return (
+    <dialog
+      ref={ref}
+      className="dialog-sheet w-full max-w-3xl"
+      aria-label={t('browser.filesFor', { name: entry.name })}
+      onClose={onClose}
+      onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
+      onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}
+    >
+      <div className="flex items-center gap-2 border-b border-border-subtle p-3">
+        <span className="t-label t-label--accent">{t('browser.files')}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted" title={entry.path}>
+          {entry.name}
+        </span>
+        <button type="button" className="t-btn t-btn--sm" aria-label={t('browser.close')} onClick={() => ref.current?.close()}>
+          ✕
+        </button>
+      </div>
+      <div className="flex max-h-[70vh] min-h-64 flex-col">
+        <FileBrowser
+          queryKey={['catalog-files', serverId]}
+          fetchPath={(p) => `/api/servers/${serverId}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`}
+          path={path}
+          onNavigate={setPath}
+        />
+      </div>
+    </dialog>
   )
 }
 
@@ -580,12 +664,14 @@ function DetailDialog({
   selected,
   onSelect,
   onRematch,
+  onFiles,
   onClose,
 }: {
   group: CatalogGroup
   selected?: string
   onSelect: (e: Entry) => void
   onRematch: (it: CatalogItem) => void
+  onFiles: (e: Entry) => void
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -735,6 +821,9 @@ function DetailDialog({
               </span>
               <button className="t-btn t-btn--sm t-btn--primary shrink-0" onClick={() => onSelect(it.entry)}>
                 {t('browser.select')}
+              </button>
+              <button className="t-btn t-btn--sm shrink-0" title={t('browser.showFiles')} onClick={() => onFiles(it.entry)}>
+                {t('browser.files')}
               </button>
               <button className="t-btn t-btn--sm shrink-0" onClick={() => onRematch(it)}>
                 {t('browser.changeMatch')}

@@ -27,6 +27,29 @@ func (s *Server) scopeFor(serverID int64, p string) string {
 	return kind
 }
 
+// handleCatalogScopeGet reports the effective scope of a path (own or inherited)
+// without listing the folder or triggering matching - cheap enough for the
+// browser to probe on navigation and auto-open catalog folders in catalog view.
+// GET /api/servers/{id}/catalog/scope?path=...
+func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	serverID := pathID(r)
+	var rootPath string
+	if err := s.DB.QueryRow(`SELECT root_path FROM servers WHERE id = ? AND user_id = ?`,
+		serverID, u.ID).Scan(&rootPath); err != nil {
+		writeErr(w, http.StatusNotFound, "server not found")
+		return
+	}
+	dir := r.URL.Query().Get("path")
+	if dir == "" {
+		dir = rootPath
+	}
+	scope := s.scopeFor(serverID, dir)
+	var ownKind string
+	s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, dir).Scan(&ownKind)
+	writeJSON(w, http.StatusOK, map[string]any{"scope": scope, "inherited": scope != "" && ownKind == ""})
+}
+
 // sourceForScope maps a scope kind to the catalog_matches source tag.
 // 'anime' is an explicit override mark below a TMDB-scoped folder.
 func sourceForScope(kind string) string {
