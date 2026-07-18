@@ -1,13 +1,15 @@
 import { useTranslation } from 'react-i18next'
 import { EnvBadge, SaveBar, useSettingsForm } from './useSettingsForm'
+import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
 export default function Transfers() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty } = useSettingsForm()
   if (!form) return null
 
   return (
     <>
+      <UnsavedGuard dirty={dirty} />
       <section className="t-panel mb-4 p-5" aria-label={t('settings.instance')}>
         <span className="t-label t-label--accent">{t('settings.instance')}</span>
         <label className="mt-3 block text-xs text-t-muted">

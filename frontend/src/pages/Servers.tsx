@@ -1,10 +1,12 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError, type ServerInfo } from '../api'
+import { useConfirm } from '../components/confirm'
 
 export default function Servers() {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const qc = useQueryClient()
   const { data: servers = [] } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
@@ -81,8 +83,9 @@ export default function Servers() {
               </button>
               <button
                 className="t-btn t-btn--sm t-btn--danger"
-                onClick={() => {
-                  if (confirm(t('servers.confirmDelete', { name: s.name }))) del.mutate(s.id)
+                onClick={async () => {
+                  if (await confirm({ message: t('servers.confirmDelete', { name: s.name }), destructive: true }))
+                    del.mutate(s.id)
                 }}
               >
                 {t('servers.delete')}
@@ -119,9 +122,35 @@ export default function Servers() {
 
 function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement | null>; editing: ServerInfo | null }) {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   const qc = useQueryClient()
   const [error, setError] = useState('')
+  // uncontrolled form: any input change marks it dirty for the close guard
+  const [dirty, setDirty] = useState(false)
+  const guardedClose = async () => {
+    if (
+      dirty &&
+      !(await confirm({
+        title: t('common.unsavedTitle'),
+        message: t('common.unsavedMsg'),
+        confirmLabel: t('common.discard'),
+        cancelLabel: t('common.keepEditing'),
+        destructive: true,
+      }))
+    )
+      return
+    ref.current?.close()
+    setDirty(false)
+  }
+  // reopening the dialog (same or different server) starts clean
+  useEffect(() => setDirty(false), [editing])
+  useEffect(() => {
+    if (!dirty) return
+    const h = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [dirty])
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -141,15 +170,16 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
       else await api.post('/api/servers', body)
       qc.invalidateQueries({ queryKey: ['servers'] })
       ref.current?.close()
+      setDirty(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
     }
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-md" onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()} aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}>
+    <dialog ref={ref} className="w-full max-w-md" onCancel={(e) => { e.preventDefault(); guardedClose() }} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && guardedClose()} aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}>
       {/* key remounts the form so defaultValues follow the edited server */}
-      <form key={editing?.id ?? 'new'} onSubmit={submit} className="p-6">
+      <form key={editing?.id ?? 'new'} onSubmit={submit} onChange={() => setDirty(true)} className="p-6">
         <h3 className="mb-4 font-display text-lg font-semibold tracking-wider">
           {editing ? t('servers.editTitle') : t('servers.newTitle')}
         </h3>
@@ -210,7 +240,7 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
           </p>
         )}
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" className="t-btn" onClick={() => ref.current?.close()}>
+          <button type="button" className="t-btn" onClick={guardedClose}>
             {t('servers.cancel')}
           </button>
           <button className="t-btn t-btn--primary t-cut">{t('servers.save')}</button>

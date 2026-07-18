@@ -4,6 +4,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { api, type Watch } from '../api'
 import WatchDialog from '../components/WatchDialog'
+import { useConfirm } from '../components/confirm'
 import { SkeletonCards } from '../components/Loading'
 
 // Watches: persistent auto-sync overview. Each watch re-checks its remote
@@ -11,6 +12,7 @@ import { SkeletonCards } from '../components/Loading'
 export default function Watches() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const confirm = useConfirm()
   const { data: watches = [], isLoading } = useQuery<Watch[]>({
     queryKey: ['watches'],
     queryFn: () => api.get('/api/watches'),
@@ -31,7 +33,7 @@ export default function Watches() {
     setTimeout(refresh, 1500)
   }
   const del = async (w: Watch) => {
-    if (!confirm(t('watch.confirmDelete', { name: w.remotePath }))) return
+    if (!(await confirm({ message: t('watch.confirmDelete', { name: w.remotePath }), destructive: true }))) return
     setError('')
     try {
       await api.del(`/api/watches/${w.id}`)

@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { api, fmtBytes, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
 import { FileBrowser, LocalPicker } from '../components/FileBrowser'
 import WatchDialog from '../components/WatchDialog'
+import { useConfirm } from '../components/confirm'
 import Loading from '../components/Loading'
 
 export default function Browser() {
@@ -311,6 +312,7 @@ function CatalogGrid({
   onWatch: (e: Entry) => void
 }) {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const { data, isLoading, error } = useQuery<CatalogResponse>({
     queryKey: ['catalog', serverId, path],
     queryFn: () => api.get(`/api/servers/${serverId}/catalog${path ? `?path=${encodeURIComponent('/' + path)}` : ''}`),
@@ -327,7 +329,7 @@ function CatalogGrid({
   const noMatchCount = items.filter((i) => !i.media && !i.pending).length
 
   const triggerRematch = async (all: boolean) => {
-    if (all && !confirm(t('browser.confirmRematchAll'))) return
+    if (all && !(await confirm({ message: t('browser.confirmRematchAll'), destructive: true }))) return
     setScopeError('')
     try {
       await api.post(`/api/servers/${serverId}/catalog/rematch`, { path: path ? '/' + path : '', all })

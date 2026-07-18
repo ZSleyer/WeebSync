@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, type Entry, type RenamePair } from '../api'
+import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
 import Loading from './Loading'
 
@@ -39,6 +40,7 @@ export default function WatchDialog({
   onClose: () => void
 }) {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const ref = useRef<HTMLDialogElement>(null)
   const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   const [f, setF] = useState(initial)
@@ -63,6 +65,30 @@ export default function WatchDialog({
   }, [serverId])
 
   const hasRule = (f.mode === 'template' && !!f.template) || (f.mode === 'regex' && !!f.pattern)
+
+  // unsaved-changes guard: confirm before closing via backdrop / Escape / cancel
+  const dirty =
+    JSON.stringify(f) !== JSON.stringify(initial) || renameOn !== !!(initial.template || initial.pattern)
+  const guardedClose = async () => {
+    if (
+      dirty &&
+      !(await confirm({
+        title: t('common.unsavedTitle'),
+        message: t('common.unsavedMsg'),
+        confirmLabel: t('common.discard'),
+        cancelLabel: t('common.keepEditing'),
+        destructive: true,
+      }))
+    )
+      return
+    ref.current?.close()
+  }
+  useEffect(() => {
+    if (!dirty) return
+    const h = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [dirty])
 
   // live preview, debounced against typing
   useEffect(() => {
@@ -157,7 +183,7 @@ export default function WatchDialog({
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-2xl p-0" aria-label={title} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
+    <dialog ref={ref} className="w-full max-w-2xl p-0" aria-label={title} onClose={onClose} onCancel={(e) => { e.preventDefault(); guardedClose() }} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && guardedClose()}>
       <form className="flex max-h-[85vh] flex-col" onSubmit={submit}>
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
@@ -377,7 +403,7 @@ export default function WatchDialog({
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          <button type="button" className="t-btn" onClick={() => ref.current?.close()}>
+          <button type="button" className="t-btn" onClick={guardedClose}>
             {t('servers.cancel')}
           </button>
           <button className="t-btn t-btn--primary t-cut" disabled={busy}>
