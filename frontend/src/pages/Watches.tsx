@@ -298,6 +298,11 @@ export default function Watches() {
                   {(w.behind ?? 0) > 0 && (
                     <span className="t-label t-label--warn">{t('watch.behind', { count: w.behind })}</span>
                   )}
+                  {(w.missing?.length ?? 0) > 0 && (
+                    <span className="t-label t-label--err" title={w.missing!.join(', ')}>
+                      {t('watch.missing', { count: w.missing!.length, eps: w.missing!.slice(0, 5).join(', ') })}
+                    </span>
+                  )}
                   {(w.langWaiting ?? 0) > 0 && (
                     <span className="t-label t-label--warn">
                       {t('watch.langWaiting', {
