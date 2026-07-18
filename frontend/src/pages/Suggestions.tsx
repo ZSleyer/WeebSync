@@ -218,6 +218,8 @@ function AnilistSection() {
       subfolder: false,
       mediaId: 0,
       fromEpisode: 0,
+      wantDub: '',
+      wantSub: '',
     }
   }
   const syncOnce = async (s: Sug, serverId: number, path: string) => {
@@ -445,6 +447,8 @@ function PlexSection() {
       subfolder: false,
       mediaId: 0,
       fromEpisode: 0,
+      wantDub: '',
+      wantSub: '',
     }
   }
 
@@ -660,6 +664,8 @@ function TmdbSection() {
       subfolder: false,
       mediaId: 0,
       fromEpisode: 0,
+      wantDub: '',
+      wantSub: '',
     }
   }
   const syncOnce = async (s: Sug, serverId: number, path: string) => {
