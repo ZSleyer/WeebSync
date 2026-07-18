@@ -62,6 +62,31 @@ type Watch struct {
 	Behind         int            `json:"behind,omitempty"`         // episodes aired per AniList but not yet available locally (the source release can lag the original broadcast)
 	Missing        []int          `json:"missing,omitempty"`        // gaps below the newest local episode (e.g. have 1,2,3,5 → 4 is missing), independent of airing state
 	Offset         int            `json:"offset,omitempty"`         // {episode-N} renumber offset: absolute episode = local - offset (for showing the original number)
+	Airings        []Airing       `json:"airings,omitempty"`        // every scheduled future release the provider knows (multi-week calendar)
+	Category       string         `json:"category,omitempty"`       // anime-series | anime-movie | series | movie (calendar filter)
+}
+
+// Airing is one upcoming episode slot for the calendar, in the watch's local
+// numbering (offset applied); EpisodeAbs carries the original number when it differs.
+type Airing struct {
+	At         int64 `json:"at"`
+	Episode    int   `json:"episode"`
+	EpisodeAbs int   `json:"episodeAbs,omitempty"`
+}
+
+// watchCategory buckets a watch for the calendar's Animeserie/Animefilm/Serie/Film
+// split, from the metadata provider plus the AniList format.
+func watchCategory(source string, m *anilist.Media) string {
+	switch {
+	case source == "tmdb:movie":
+		return "movie"
+	case source == "tmdb:tv":
+		return "series"
+	case m != nil && m.Format == "MOVIE":
+		return "anime-movie"
+	default:
+		return "anime-series" // anilist / unset
+	}
 }
 
 // videoExt: files counted as episodes for the completeness check.
@@ -304,6 +329,21 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			}
 			if aired := it.Media.NextAiring.Episode + offset - start; aired > it.LocalFiles {
 				it.Behind = aired - it.LocalFiles
+			}
+		}
+		if it.Media != nil {
+			it.Category = watchCategory(it.MediaSource, it.Media)
+			now := time.Now().Unix()
+			start := it.FromEpisode
+			for _, a := range it.Media.FutureAirings() {
+				if a.AiringAt <= now || a.Episode+offset < start {
+					continue // already aired, or belongs to an earlier part of a shared folder
+				}
+				air := Airing{At: a.AiringAt, Episode: a.Episode + offset}
+				if offset != 0 {
+					air.EpisodeAbs = a.Episode
+				}
+				it.Airings = append(it.Airings, air)
 			}
 		}
 		list = append(list, it)
