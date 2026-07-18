@@ -103,6 +103,7 @@ export interface Watch {
   complete: boolean
   nextEpisode?: number
   nextEpisodeAbs?: number
+  behind?: number
   seenEpisodes?: number
   nextAiringAt?: number
   waiting: boolean
