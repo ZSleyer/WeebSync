@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/netguard"
 )
 
 type Client struct {
@@ -19,7 +21,7 @@ type Client struct {
 
 func New(baseURL, token string) *Client {
 	return &Client{URL: strings.TrimRight(baseURL, "/"), Token: token,
-		HTTP: &http.Client{Timeout: 15 * time.Second}}
+		HTTP: netguard.Client(15 * time.Second)}
 }
 
 type Section struct {

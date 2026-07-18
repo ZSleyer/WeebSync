@@ -75,3 +75,22 @@ func TestOIDCAdminSync(t *testing.T) {
 		t.Error("nil admin must not change is_admin")
 	}
 }
+
+func TestEmailVerified(t *testing.T) {
+	cases := []struct {
+		claims map[string]any
+		want   bool
+	}{
+		{map[string]any{"email_verified": true}, true},
+		{map[string]any{"email_verified": "true"}, true},
+		{map[string]any{"email_verified": false}, false},
+		{map[string]any{"email_verified": "false"}, false},
+		{map[string]any{}, false}, // missing → fail closed
+		{map[string]any{"email_verified": 1}, false},
+	}
+	for _, c := range cases {
+		if got := emailVerified(c.claims); got != c.want {
+			t.Errorf("emailVerified(%v) = %v, want %v", c.claims, got, c.want)
+		}
+	}
+}

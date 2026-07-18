@@ -1,6 +1,11 @@
 package netguard
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+)
 
 func TestAllowed(t *testing.T) {
 	blocked := []string{
@@ -29,4 +34,37 @@ func TestAllowed(t *testing.T) {
 	if Allowed("") == nil {
 		t.Error("Allowed(\"\") = nil, want error")
 	}
+}
+
+func TestClientBlocksDirectDial(t *testing.T) {
+	// dialing a metadata address directly must fail in DialContext
+	c := Client(2 * time.Second)
+	_, err := c.Get("http://169.254.169.254/latest/meta-data/")
+	if err == nil {
+		t.Fatal("Client dialed a blocked metadata address, want error")
+	}
+}
+
+func TestClientBlocksRedirectToBlocked(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://169.254.169.254/latest/meta-data/", http.StatusFound)
+	}))
+	defer srv.Close()
+	c := Client(2 * time.Second)
+	if _, err := c.Get(srv.URL); err == nil {
+		t.Fatal("Client followed a redirect to a blocked address, want error")
+	}
+}
+
+func TestClientAllowsNormalHost(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	c := Client(2 * time.Second)
+	resp, err := c.Get(srv.URL) // 127.0.0.1 is loopback, not blocked
+	if err != nil {
+		t.Fatalf("Client refused a normal loopback host: %v", err)
+	}
+	resp.Body.Close()
 }

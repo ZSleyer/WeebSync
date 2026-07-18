@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/netguard"
 	"github.com/ch4d1/weebsync/internal/version"
 )
 
@@ -53,7 +54,7 @@ func (s *Server) fillUpdate(info *versionInfo) {
 		}
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := netguard.Client(5 * time.Second)
 	if info.Channel == "stable" {
 		var rel struct {
 			TagName string `json:"tag_name"`
