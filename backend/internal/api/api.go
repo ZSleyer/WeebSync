@@ -65,7 +65,13 @@ func (s *Server) Register(mux *http.ServeMux) {
 	}
 	mux.HandleFunc("POST /api/auth/register", s.authLimiter.limit(s.handleRegister))
 	mux.HandleFunc("POST /api/auth/login", s.authLimiter.limit(s.handleLogin))
+	mux.HandleFunc("POST /api/auth/login/totp", s.authLimiter.limit(s.handleLoginTotp))
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
+	// per-user TOTP enrollment (any authenticated user, not admin-only)
+	mux.Handle("GET /api/auth/totp", authed(http.HandlerFunc(s.handleTotpStatus)))
+	mux.Handle("POST /api/auth/totp/setup", authed(http.HandlerFunc(s.handleTotpSetup)))
+	mux.Handle("POST /api/auth/totp/confirm", authed(http.HandlerFunc(s.handleTotpConfirm)))
+	mux.Handle("DELETE /api/auth/totp", authed(http.HandlerFunc(s.handleTotpDisable)))
 	mux.Handle("GET /api/auth/me", authed(http.HandlerFunc(s.handleMe)))
 	mux.HandleFunc("GET /api/auth/config", s.handleAuthConfig)
 	mux.HandleFunc("POST /api/auth/setup/oidc", s.handleSetupOIDC)

@@ -50,7 +50,24 @@
     "tabs": "Login oder Registrierung",
     "verifySent": "Konto erstellt. Bitte bestätige deine E-Mail-Adresse über den Link, den wir dir geschickt haben.",
     "verifyOk": "E-Mail bestätigt. Du kannst dich jetzt anmelden.",
-    "verifyInvalid": "Bestätigungslink ungültig oder bereits verwendet."
+    "verifyInvalid": "Bestätigungslink ungültig oder bereits verwendet.",
+    "totpTitle": "Zwei-Faktor-Bestätigung",
+    "totpHint": "Gib den 6-stelligen Code aus deiner Authenticator-App ein (oder einen Recovery-Code).",
+    "totpCode": "Code"
+  },
+  "account": {
+    "oidcOnly": "Diese Instanz nutzt ausschließlich OIDC — die Zwei-Faktor-Einstellungen laufen über deinen Identity-Provider.",
+    "totpTitle": "Zwei-Faktor-Authentifizierung (TOTP)",
+    "totpHint": "Zusätzlicher Code aus einer Authenticator-App bei jedem Passwort-Login.",
+    "totpEnable": "Aktivieren",
+    "totpOn": "Aktiv",
+    "totpDisable": "Deaktivieren",
+    "totpManual": "Oder Schlüssel manuell eintragen:",
+    "totpEnterCode": "Code aus der App zur Bestätigung",
+    "totpConfirm": "Bestätigen & aktivieren",
+    "recoveryTitle": "Recovery-Codes — jetzt sicher speichern",
+    "recoveryHint": "Jeder Code funktioniert einmal, falls du keinen Zugriff auf die App hast. Sie werden nicht erneut angezeigt.",
+    "copy": "Kopieren"
   },
   "setup": {
     "title": "Ersteinrichtung",
@@ -391,6 +408,7 @@
     "groupAdmin": "Administration",
     "nav": {
       "look": "Darstellung",
+      "account": "Konto",
       "notifications": "Benachrichtigungen",
       "transfers": "Transfers",
       "security": "Sicherheit",

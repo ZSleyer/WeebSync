@@ -22,6 +22,7 @@ import Suggestions from './pages/Suggestions'
 import Rename from './pages/Rename'
 import SettingsLayout, { AdminRoute } from './pages/settings/SettingsLayout'
 import Look from './pages/settings/Look'
+import Account from './pages/settings/Account'
 import About from './pages/settings/About'
 import Notifications from './pages/settings/Notifications'
 import Transfers from './pages/settings/Transfers'
@@ -81,6 +82,7 @@ export const router = createBrowserRouter(
       <Route path="/settings" element={<SettingsLayout />}>
         <Route index element={<Navigate to="look" replace />} />
         <Route path="look" element={<Look />} />
+        <Route path="account" element={<Account />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="about" element={<About />} />
         <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} />
