@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/netguard"
 	"golang.org/x/time/rate"
 )
 
@@ -67,7 +68,7 @@ type Client struct {
 func New(d *sql.DB) *Client {
 	return &Client{
 		DB:   d,
-		HTTP: &http.Client{Timeout: 15 * time.Second},
+		HTTP: netguard.Client(15 * time.Second),
 		// AniList currently serves 30 req/min (X-RateLimit-Limit header);
 		// one request every 2s stays exactly within that. Batched searches
 		// put up to 10 lookups into a single request, so effective matching

@@ -262,7 +262,9 @@ func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	// guarded client: the lexical Allowed() above is not enough — a 302 to
+	// 169.254.169.254 or a DNS rebind would otherwise reach the metadata service
+	client := netguard.Client(5 * time.Second)
 	for _, cand := range []string{base, base + "/oidc"} {
 		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, cand+"/.well-known/openid-configuration", nil)
 		if err != nil {
