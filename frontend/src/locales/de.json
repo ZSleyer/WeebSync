@@ -183,6 +183,8 @@
     "sectionRename": "Umbenennen",
     "renameToggle": "Dateien umbenennen",
     "waitingFor": "wartet auf Folge {{n}}",
+    "nextEp": "Nächste: Folge {{n}}",
+    "behind": "{{count}} im Rückstand",
     "uploading": "Upload läuft",
     "template": "Rename-Template (leer = Originalnamen behalten)",
     "templateHint": "Neue Dateien werden beim Download direkt umbenannt. Variablen: {title} {season:02} {episode:02} {year} {group} {resolution} {dub} {sub}",

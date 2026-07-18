@@ -129,9 +129,9 @@ export default function Watches() {
                       ? ` (${w.lastResult})`
                       : w.lastQueued >= 0 && ` (${t('watch.lastQueued', { count: w.lastQueued })})`}
                   </span>
-                  {w.waiting && w.nextAiringAt ? (
-                    <span className="t-label t-label--ok">
-                      {t('watch.waitingFor', { n: w.nextEpisode })}
+                  {w.nextAiringAt ? (
+                    <span className={`t-label ${w.behind ? 't-label--warn' : 't-label--ok'}`}>
+                      {t('watch.nextEp', { n: w.nextEpisode })}
                       {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''} ·{' '}
                       {new Date(w.nextAiringAt * 1000).toLocaleString([], {
                         weekday: 'short',
@@ -143,6 +143,9 @@ export default function Watches() {
                     </span>
                   ) : (
                     w.lastCheck && <span>{next(w)}</span>
+                  )}
+                  {(w.behind ?? 0) > 0 && (
+                    <span className="t-label t-label--warn">{t('watch.behind', { count: w.behind })}</span>
                   )}
                   {w.lastUploading > 0 && (
                     <span className="t-label t-label--warn">{t('watch.uploading')}</span>
