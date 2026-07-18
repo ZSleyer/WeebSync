@@ -56,7 +56,12 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if auth.RegistrationDisabled(s.DB) {
+	// The very first account (first-run admin) may always register, so a
+	// closed-by-default registration never locks a fresh instance out;
+	// afterwards open registration must be explicitly enabled.
+	var existing int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&existing)
+	if existing > 0 && auth.RegistrationDisabled(s.DB) {
 		writeErr(w, http.StatusForbidden, "registration is disabled")
 		return
 	}
@@ -68,8 +73,6 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	// Email verification is required for local accounts only when SMTP is set
 	// up, and never for the very first account (the admin during first-run,
 	// before SMTP can exist) - requiring it there would lock the instance out.
-	var existing int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&existing)
 	needVerify := existing > 0 && s.Mail != nil && s.Mail.Configured()
 
 	verified, token := 1, ""
