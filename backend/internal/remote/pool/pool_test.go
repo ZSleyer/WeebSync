@@ -257,6 +257,40 @@ func TestPoolPriority(t *testing.T) {
 	lo.Close()
 }
 
+// TestPoolCapUnderConcurrency guards against concurrent leases each dialing past
+// maxConns while an earlier dial is still in flight (a mid-dial conn is skipped
+// by connWithRoom, so without a len<maxConns gate every racer opens its own).
+func TestPoolCapUnderConcurrency(t *testing.T) {
+	s := startTestSFTP(t, 1) // 1 channel per connection -> capacity == maxConns
+	servedDir = s.dir
+	p := New()
+	defer p.Close()
+	cfg := s.cfg()
+	cfg.MaxConns = 2
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 5; j++ {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				cl, err := p.Lease(ctx, 1, cfg, PriHigh)
+				cancel()
+				if err != nil {
+					continue
+				}
+				cl.List(s.dir)
+				cl.Close()
+			}
+		}()
+	}
+	wg.Wait()
+	if got := s.peak(); got > cfg.MaxConns {
+		t.Errorf("peak connections = %d, exceeded maxConns %d", got, cfg.MaxConns)
+	}
+}
+
 func TestReserve(t *testing.T) {
 	cases := []struct {
 		prio  Prio

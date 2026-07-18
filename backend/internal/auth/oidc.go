@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
@@ -77,6 +78,11 @@ func (m *Manager) Reload(ctx context.Context) error {
 	} else if err := netguard.Allowed(u.Hostname()); err != nil {
 		return fmt.Errorf("oidc issuer: %w", err)
 	}
+	// discovery (and the JWKS/token fetches below) must go through the guarded
+	// client: it re-checks every redirect hop and dials the verified IP, so a
+	// discovery doc that 302s to a metadata endpoint or a rebinding host is
+	// refused. Reachable unauthenticated during first-run setup.
+	ctx = oidc.ClientContext(ctx, netguard.Client(10*time.Second))
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return fmt.Errorf("oidc discovery: %w", err)
@@ -167,13 +173,15 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		Name: "weebsync_oidc_nonce", Value: "", Path: "/api/auth/oidc",
 		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
 	})
-	token, err := o.config.Exchange(r.Context(), r.URL.Query().Get("code"))
+	// token exchange + JWKS verification also go through the guarded client
+	octx := oidc.ClientContext(r.Context(), netguard.Client(10*time.Second))
+	token, err := o.config.Exchange(octx, r.URL.Query().Get("code"))
 	if err != nil {
 		http.Error(w, "token exchange failed", http.StatusBadGateway)
 		return
 	}
 	rawID, _ := token.Extra("id_token").(string)
-	idToken, err := o.verifier.Verify(r.Context(), rawID)
+	idToken, err := o.verifier.Verify(octx, rawID)
 	if err == nil && (nerr != nil || idToken.Nonce != nonceCookie.Value) {
 		// bind the ID token to this login: replay of a token minted for another
 		// flow (different nonce) is rejected
