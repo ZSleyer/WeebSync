@@ -296,6 +296,14 @@ export default function Watches() {
                   {(w.behind ?? 0) > 0 && (
                     <span className="t-label t-label--warn">{t('watch.behind', { count: w.behind })}</span>
                   )}
+                  {(w.langWaiting ?? 0) > 0 && (
+                    <span className="t-label t-label--warn">
+                      {t('watch.langWaiting', {
+                        count: w.langWaiting,
+                        lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
+                      })}
+                    </span>
+                  )}
                   {w.lastUploading > 0 && (
                     <span className="t-label t-label--warn">{t('watch.uploading')}</span>
                   )}
