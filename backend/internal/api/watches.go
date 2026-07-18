@@ -55,7 +55,7 @@ type Watch struct {
 	SeenEpisodes   int            `json:"seenEpisodes,omitempty"`   // watched episodes from the linked AniList list
 	NextAiringAt   int64          `json:"nextAiringAt,omitempty"`   // unix seconds of its release
 	Waiting        bool           `json:"waiting"`                  // smart sync: idle until NextAiringAt
-	Behind         int            `json:"behind,omitempty"`         // aired episodes of this part not yet local
+	Behind         int            `json:"behind,omitempty"`         // episodes aired per AniList but not yet available locally (the source release can lag the original broadcast)
 }
 
 // videoExt: files counted as episodes for the completeness check.
@@ -271,7 +271,8 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			}
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
 			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, time.Now())
-			// aired episodes of this part still missing locally
+			// aired per AniList but not yet local — the source release can lag
+			// the original broadcast; auto-sync keeps checking and grabs them
 			start := it.FromEpisode
 			if start < 1 {
 				start = 1
