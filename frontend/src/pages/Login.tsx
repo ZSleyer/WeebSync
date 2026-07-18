@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type User } from '../api'
+import { loginPasskey, assertSecurityKey } from '../webauthn'
 import Loading from '../components/Loading'
 import Setup from './Setup'
 
@@ -26,7 +27,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const [twoFA, setTwoFA] = useState<string | null>(null) // pending-login token
+  const [twoFA, setTwoFA] = useState<{ token: string; totp: boolean; webauthn: boolean } | null>(null)
   const [code, setCode] = useState('')
 
   // email verification redirect lands here with ?verify=ok|invalid
@@ -56,10 +57,9 @@ export default function Login() {
     setNotice('')
     try {
       // locale rides along on register so the verify email is localized
-      const res = await api.post<User & { needsVerification?: boolean; twoFactorRequired?: boolean; token?: string }>(
-        `/api/auth/${mode}`,
-        { email, password, locale: i18n.language },
-      )
+      const res = await api.post<
+        User & { needsVerification?: boolean; twoFactorRequired?: boolean; token?: string; totp?: boolean; webauthn?: boolean }
+      >(`/api/auth/${mode}`, { email, password, locale: i18n.language })
       if (res.needsVerification) {
         // account created but must confirm email before logging in
         setNotice(t('login.verifySent'))
@@ -69,7 +69,7 @@ export default function Login() {
       }
       if (res.twoFactorRequired && res.token) {
         // password ok — ask for the second factor, don't create a session yet
-        setTwoFA(res.token)
+        setTwoFA({ token: res.token, totp: !!res.totp, webauthn: !!res.webauthn })
         setPassword('')
         return
       }
@@ -89,11 +89,41 @@ export default function Login() {
     setBusy(true)
     setError('')
     try {
-      await api.post('/api/auth/login/totp', { token: twoFA, code: code.trim() })
+      await api.post('/api/auth/login/totp', { token: twoFA?.token, code: code.trim() })
       qc.clear()
       await qc.invalidateQueries({ queryKey: ['me'] })
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const afterAuth = async () => {
+    qc.clear()
+    await qc.invalidateQueries({ queryKey: ['me'] })
+  }
+  const passkeyLogin = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await loginPasskey()
+      await afterAuth()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('login.passkeyFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const securityKey2FA = async () => {
+    if (!twoFA) return
+    setBusy(true)
+    setError('')
+    try {
+      await assertSecurityKey(twoFA.token)
+      await afterAuth()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('login.passkeyFailed'))
     } finally {
       setBusy(false)
     }
@@ -137,27 +167,38 @@ export default function Login() {
           <form className="t-panel animate-fadeIn p-6" onSubmit={submitTotp}>
             <h2 className="mb-1 font-display font-semibold tracking-wider">{t('login.totpTitle')}</h2>
             <p className="mb-4 text-xs text-t-muted">{t('login.totpHint')}</p>
-            <label className="t-label mb-1 block w-fit" htmlFor="totp-code">
-              {t('login.totpCode')}
-            </label>
-            <input
-              id="totp-code"
-              className="t-input mb-4 font-mono tracking-[0.3em]"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              autoFocus
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-            />
+            {twoFA.webauthn && (
+              <button type="button" className="t-btn mb-4 block w-full" disabled={busy} onClick={securityKey2FA}>
+                {t('login.useSecurityKey')}
+              </button>
+            )}
+            {twoFA.totp && (
+              <>
+                <label className="t-label mb-1 block w-fit" htmlFor="totp-code">
+                  {t('login.totpCode')}
+                </label>
+                <input
+                  id="totp-code"
+                  className="t-input mb-4 font-mono tracking-[0.3em]"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+              </>
+            )}
             {error && (
               <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
                 {error}
               </p>
             )}
-            <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
-              {t('login.submitLogin')}
-            </button>
+            {twoFA.totp && (
+              <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
+                {t('login.submitLogin')}
+              </button>
+            )}
             <button
               type="button"
               className="t-btn mt-3 block w-full text-center"
@@ -230,6 +271,11 @@ export default function Login() {
             <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
               {mode === 'login' ? t('login.submitLogin') : t('login.submitRegister')}
             </button>
+            {mode === 'login' && (
+              <button type="button" className="t-btn mt-3 block w-full text-center" disabled={busy} onClick={passkeyLogin}>
+                {t('login.passkey')}
+              </button>
+            )}
             {cfg.oidc && (
               <a className="t-btn mt-3 block w-full text-center" href="/api/auth/oidc/login">
                 {oidcLabel}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../api'
+import { registerCredential } from '../../webauthn'
 
 interface AuthConfig {
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
@@ -15,9 +16,88 @@ export default function Account() {
       {cfg && cfg.authMode !== 'password' ? (
         <div className="t-panel p-5 text-sm text-t-muted">{t('account.oidcOnly')}</div>
       ) : (
-        <TotpSection />
+        <div className="space-y-4">
+          <PasskeySection />
+          <TotpSection />
+        </div>
       )}
     </section>
+  )
+}
+
+interface Passkey {
+  id: number
+  name: string
+  passwordless: boolean
+  createdAt: string
+  lastUsed: string
+}
+
+function PasskeySection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const { data: creds } = useQuery<Passkey[]>({
+    queryKey: ['webauthn'],
+    queryFn: () => api.get('/api/auth/webauthn/credentials'),
+  })
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const add = (kind: 'passkey' | 'key') => async () => {
+    const name = window.prompt(t('account.passkeyName'), kind === 'passkey' ? 'Passkey' : 'Security Key')
+    if (name === null) return
+    setBusy(true)
+    setError('')
+    try {
+      await registerCredential(kind, name || (kind === 'passkey' ? 'Passkey' : 'Security Key'))
+      qc.invalidateQueries({ queryKey: ['webauthn'] })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('app.error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const remove = (id: number) => async () => {
+    setBusy(true)
+    try {
+      await api.del(`/api/auth/webauthn/credentials/${id}`)
+      qc.invalidateQueries({ queryKey: ['webauthn'] })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="t-panel p-5" aria-label={t('account.passkeyTitle')}>
+      <span className="t-label t-label--accent">{t('account.passkeyTitle')}</span>
+      <p className="mt-2 text-xs text-t-muted">{t('account.passkeyHint')}</p>
+      {creds && creds.length > 0 && (
+        <ul className="mt-3 divide-y divide-border-subtle/50">
+          {creds.map((c) => (
+            <li key={c.id} className="flex items-center gap-2 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate text-t-secondary">{c.name}</span>
+              <span className="t-label">{c.passwordless ? t('account.passkeyKindPasskey') : t('account.passkeyKindKey')}</span>
+              <button className="t-btn t-btn--sm t-btn--danger" disabled={busy} onClick={remove(c.id)}>
+                {t('servers.delete')}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button className="t-btn t-btn--sm t-btn--primary t-cut" disabled={busy} onClick={add('passkey')}>
+          {t('account.passkeyAdd')}
+        </button>
+        <button className="t-btn t-btn--sm" disabled={busy} onClick={add('key')}>
+          {t('account.keyAdd')}
+        </button>
+      </div>
+      {error && (
+        <p className="mt-3 text-sm text-err" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }
 
