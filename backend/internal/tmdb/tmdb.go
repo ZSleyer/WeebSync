@@ -19,6 +19,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/netguard"
 	"golang.org/x/time/rate"
 )
 
@@ -39,7 +40,7 @@ func New(d *sql.DB) *Client {
 		DB:      d,
 		BaseURL: base,
 		Images:  "https://image.tmdb.org/t/p",
-		HTTP:    &http.Client{Timeout: 15 * time.Second},
+		HTTP:    netguard.Client(15 * time.Second),
 		limiter: rate.NewLimiter(rate.Every(250*time.Millisecond), 2),
 	}
 }

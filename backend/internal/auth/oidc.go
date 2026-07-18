@@ -174,6 +174,13 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no email claim", http.StatusBadGateway)
 		return
 	}
+	// fail closed on an unverified email: findOrCreateOIDCUser links by email to
+	// a pre-existing (possibly admin) account, so an IdP that lets users assert
+	// an arbitrary unverified address must not be trusted for account linking.
+	if !emailVerified(claims) {
+		http.Error(w, "email not verified by the identity provider", http.StatusForbidden)
+		return
+	}
 	var admin *bool
 	if o.claim != "" {
 		_, present := claims[o.claim]
@@ -215,6 +222,19 @@ func splitCSV(s string) []string {
 
 // claimMatches reports whether claims[name] equals or contains any of values.
 // Handles string, bool and string-array claims (e.g. "groups": ["admin"]).
+// emailVerified reports whether the ID token asserts a verified email. Accepts
+// the spec's bool true and the string "true" some providers send. A missing
+// claim is treated as unverified (fail closed).
+func emailVerified(claims map[string]any) bool {
+	switch v := claims["email_verified"].(type) {
+	case bool:
+		return v
+	case string:
+		return v == "true"
+	}
+	return false
+}
+
 func claimMatches(claims map[string]any, name string, values []string) bool {
 	match := func(s string) bool {
 		return slices.Contains(values, s)
