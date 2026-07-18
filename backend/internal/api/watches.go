@@ -45,6 +45,7 @@ type Watch struct {
 	LastResult    string `json:"lastResult"`    // error text of the last check, "" on success
 	LastQueued    int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
 	LastUploading int    `json:"lastUploading"` // files still uploading remotely at the last check
+	LangWaiting   int    `json:"langWaiting"`   // videos on the remote skipped by the dub/sub filter, target not yet local
 	CreatedAt     string `json:"createdAt"`
 
 	// enriched for the overview
@@ -192,15 +193,15 @@ func (s *Server) runWatch(id int64) {
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
-	ids, uploading, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), watchLangFilter(w), true, !w.Subfolder)
+	ids, uploading, filtered, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), watchLangFilter(w), true, !w.Subfolder)
 	// structured result: the frontend localizes the counts; last_result only
 	// carries the error text of a failed check
 	result, queued := "", len(ids)
 	if err != nil {
-		result, queued, uploading = err.Error(), -1, 0
+		result, queued, uploading, filtered = err.Error(), -1, 0, 0
 		slog.Warn("watch check", "id", id, "err", err)
 	}
-	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ? WHERE id = ?`, result, queued, uploading, id)
+	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ? WHERE id = ?`, result, queued, uploading, filtered, id)
 }
 
 // watchNameFn maps remote file names to local ones via the watch's rename
@@ -242,7 +243,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.want_dub, w.want_sub, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.want_dub, w.want_sub, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -256,7 +257,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		var it Watch
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
 			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.WantDub, &it.WantSub,
-			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.CreatedAt); err != nil {
+			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &it.CreatedAt); err != nil {
 			dbErr(w)
 			return
 		}
