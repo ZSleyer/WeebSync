@@ -37,7 +37,11 @@ func splitPrefs(csv string) []string {
 
 func randToken() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	// crypto/rand.Read never returns an error on a healthy system (it panics at
+	// init otherwise); fail fast rather than ever hand out a low-entropy token.
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand unavailable: " + err.Error())
+	}
 	return hex.EncodeToString(b)
 }
 
