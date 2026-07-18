@@ -325,6 +325,7 @@
     "adminOnly": "Nur Admins können Einstellungen ändern.",
     "users": "benutzer",
     "usersCreate": "Anlegen",
+    "usersOidcOnly": "Manuelles Anlegen ist im OIDC-Modus deaktiviert — Nutzer melden sich \u00fcber den Identity-Provider an.",
     "usersAdmin": "admin",
     "usersYou": "du",
     "usersMakeAdmin": "Zum Admin machen",

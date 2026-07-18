@@ -92,6 +92,9 @@ export default function Users() {
           </li>
         ))}
       </ul>
+      {settings && settings.authMode !== 'password' ? (
+        <p className="mt-4 text-xs text-t-muted">{t('settings.usersOidcOnly')}</p>
+      ) : (
       <form
         className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
         onSubmit={(e) => {
@@ -126,6 +129,7 @@ export default function Users() {
           {t('settings.usersCreate')}
         </button>
       </form>
+      )}
       {error && (
         <p className="mt-2 text-xs text-err" role="alert">
           {error}
