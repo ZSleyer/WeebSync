@@ -3,7 +3,10 @@ services:
     build: .
     # image: ghcr.io/ch4d1/weebsync:latest
     ports:
-      - "8080:8080"
+      # session auth runs over plain HTTP — bind to loopback and put a
+      # TLS-terminating reverse proxy in front. Use "8080:8080" only on a
+      # trusted host you fully control.
+      - "127.0.0.1:8080:8080"
     environment:
       # optional: key for credential encryption at rest. If unset, a key is
       # auto-generated at /data/secret.key on first start.

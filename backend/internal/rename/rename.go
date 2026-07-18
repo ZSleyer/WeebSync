@@ -75,19 +75,30 @@ func Codes(tag string) []string {
 }
 
 // LangMatch reports whether name satisfies the wanted dub/sub languages.
-// An empty want is no constraint; a non-empty want requires the matching
-// tag to be present and to contain that code (case-insensitive). A name
-// with no tag for a wanted dimension never matches.
-// ponytail: substring-match; exakte Code-Tokenisierung nur falls false positives auftreten
+// An empty want is no constraint; a non-empty want requires the matching tag to
+// carry that exact language code (case-insensitive). A name with no tag for a
+// wanted dimension never matches. Exact-code (not substring) so e.g. "En" does
+// not spuriously match "Eng".
 func LangMatch(name, wantDub, wantSub string) bool {
 	dub, sub := LangTags(name)
-	if wantDub != "" && !strings.Contains(strings.ToLower(dub), strings.ToLower(wantDub)) {
+	if wantDub != "" && !hasCode(dub, wantDub) {
 		return false
 	}
-	if wantSub != "" && !strings.Contains(strings.ToLower(sub), strings.ToLower(wantSub)) {
+	if wantSub != "" && !hasCode(sub, wantSub) {
 		return false
 	}
 	return true
+}
+
+// hasCode reports whether a composed tag ("GerJapDub") contains the exact
+// language code ("Ger"), case-insensitively.
+func hasCode(tag, want string) bool {
+	for _, c := range Codes(tag) {
+		if strings.EqualFold(c, want) {
+			return true
+		}
+	}
+	return false
 }
 
 // cleanGroup strips language/resolution/tech tokens from anitogo's

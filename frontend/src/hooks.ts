@@ -85,6 +85,10 @@ export function useEvents(enabled: boolean) {
         return next
       })
     }
+    // on stream error re-check auth: a 401 (expired session) otherwise makes
+    // EventSource reconnect-loop forever. If the session is gone, ['me'] flips
+    // to null → the app unmounts this (enabled=false) and the stream closes.
+    es.onerror = () => qc.invalidateQueries({ queryKey: ['me'] })
     return () => es.close()
   }, [enabled, qc])
 }

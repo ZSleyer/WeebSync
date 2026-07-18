@@ -55,6 +55,13 @@ Stack: Go (stdlib `net/http`, `modernc.org/sqlite`, `pkg/sftp`, `jlaffaye/ftp`, 
 
 Home Assistant add-on: [ZSleyer/WeebSync-Addon](https://github.com/ZSleyer/WeebSync-Addon).
 
+### Update check
+
+The About page shows whether a newer image exists. It queries the public GitHub
+API (latest release for a stable build, the tip of `main` for a dev build),
+unauthenticated, cached ~6 h, sending no instance data beyond the request itself.
+An admin can turn it off under **Settings → About**.
+
 ## License
 
 [AGPL-3.0](LICENSE).
