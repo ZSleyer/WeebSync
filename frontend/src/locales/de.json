@@ -187,6 +187,7 @@
     "view": "Ansicht",
     "viewList": "Liste",
     "viewCalendar": "Kalender",
+    "group": { "syncing": "Wird geladen", "idle": "Überwacht", "waiting": "Wartet", "complete": "Komplett" },
     "calEmpty": "Keine anstehenden Folgen mit Airing-Termin.",
     "airingNow": "jetzt",
     "inDaysH": "in {{d}} T {{h}} h",
