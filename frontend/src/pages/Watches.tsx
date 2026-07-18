@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -89,6 +89,30 @@ export default function Watches() {
 
   const [view, setView] = useState<'list' | 'calendar'>('list')
   const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
+  const [sortOpen, setSortOpen] = useState(false)
+  const sortRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!sortOpen) return
+    const onDoc = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent) {
+        if (e.key === 'Escape') setSortOpen(false)
+      } else if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setSortOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onDoc)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onDoc)
+    }
+  }, [sortOpen])
+  const SORT_OPTS = [
+    { v: 'next', k: 'watch.sortNext' },
+    { v: 'last', k: 'watch.sortLast' },
+    { v: 'name', k: 'watch.sortName' },
+    { v: 'season', k: 'watch.sortSeason' },
+  ] as const
   const nextTs = (w: Watch) =>
     w.nextAiringAt ? w.nextAiringAt * 1000 : w.lastCheck ? Date.parse(w.lastCheck.replace(' ', 'T') + 'Z') + w.intervalMin * 60_000 : 0
   const nameOf = (w: Watch) => (w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop() || '').toLowerCase()
@@ -105,6 +129,12 @@ export default function Watches() {
         return nextTs(a) - nextTs(b)
     }
   })
+  // group by status: actively downloading on top, waiting in the middle,
+  // finished at the bottom (each keeps the chosen sort order within it)
+  const groupOf = (w: Watch): 'syncing' | 'waiting' | 'idle' | 'complete' =>
+    w.active > 0 ? 'syncing' : w.complete ? 'complete' : w.waiting ? 'waiting' : 'idle'
+  const GROUP_ORDER = ['syncing', 'idle', 'waiting', 'complete'] as const
+  const grouped = GROUP_ORDER.map((g) => ({ g, items: sorted.filter((w) => groupOf(w) === g) })).filter((x) => x.items.length > 0)
 
   return (
     <div className="max-w-4xl">
@@ -131,15 +161,42 @@ export default function Watches() {
             </button>
           </div>
           {view === 'list' && watches.length > 1 && (
-            <label className="flex items-center gap-2 text-xs text-t-muted">
-              {t('watch.sortBy')}
-              <select className="t-select w-auto" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
-                <option value="next">{t('watch.sortNext')}</option>
-                <option value="last">{t('watch.sortLast')}</option>
-                <option value="name">{t('watch.sortName')}</option>
-                <option value="season">{t('watch.sortSeason')}</option>
-              </select>
-            </label>
+            <div className="relative" ref={sortRef}>
+              <button
+                type="button"
+                className="t-btn t-btn--sm"
+                aria-haspopup="listbox"
+                aria-expanded={sortOpen}
+                aria-label={t('watch.sortBy')}
+                title={t('watch.sortBy')}
+                onClick={() => setSortOpen((o) => !o)}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3" />
+                </svg>
+              </button>
+              {sortOpen && (
+                <ul className="absolute right-0 z-20 mt-1 min-w-44 border border-border-subtle bg-bg-card py-1 shadow-lg" role="listbox" aria-label={t('watch.sortBy')}>
+                  {SORT_OPTS.map((o) => (
+                    <li key={o.v}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={sort === o.v}
+                        className={`flex w-full items-center justify-between gap-4 px-3 py-2 text-left text-sm hover:bg-bg-secondary ${sort === o.v ? 'text-accent' : 'text-t-secondary'}`}
+                        onClick={() => {
+                          setSort(o.v)
+                          setSortOpen(false)
+                        }}
+                      >
+                        {t(o.k)}
+                        {sort === o.v && <span aria-hidden>✓</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -197,9 +254,17 @@ export default function Watches() {
           </div>
         )
       ) : (
-        <ul className="grid grid-cols-1 gap-3">
-          {sorted.map((w) => (
-            <li key={w.id} className="t-panel flex flex-wrap items-center gap-4 p-3">
+        <div className="grid gap-6">
+          {grouped.map(({ g, items }) => (
+            <section key={g}>
+              <div className="mb-3 flex items-center gap-2">
+                <span className="t-label t-label--accent">{t(`watch.group.${g}`)}</span>
+                <span className="h-px flex-1 bg-border-subtle" />
+                <span className="font-mono text-[11px] text-t-muted">{items.length}</span>
+              </div>
+              <ul className="grid grid-cols-1 gap-3">
+                {items.map((w) => (
+                  <li key={w.id} className="t-panel flex flex-wrap items-center gap-4 p-3">
               {w.media?.coverImage?.large ? (
                 <img src={w.media.coverImage.large} alt="" className="h-20 w-14 shrink-0 object-cover" />
               ) : (
@@ -266,9 +331,12 @@ export default function Watches() {
                   {t('servers.delete')}
                 </button>
               </div>
-            </li>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
 
       {edit && (
