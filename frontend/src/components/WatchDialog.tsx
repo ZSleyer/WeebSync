@@ -15,6 +15,7 @@ export interface WatchFields {
   replacement: string
   subfolder: boolean
   mediaId: number
+  fromEpisode: number
 }
 
 // WatchDialog collects the paths and rename rule of a watch (create from
@@ -174,6 +175,19 @@ export default function WatchDialog({
                 value={f.mediaId || ''}
                 placeholder="z.B. 21 (One Piece)"
                 onChange={(e) => setF({ ...f, mediaId: Number(e.target.value) || 0 })}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="watch-fromep">
+                {t('watch.fromEpisode')}
+              </label>
+              <input
+                id="watch-fromep"
+                type="number"
+                className="t-input font-mono"
+                value={f.fromEpisode || ''}
+                placeholder="z.B. 26 (Dr. Stone S4 Part 3)"
+                onChange={(e) => setF({ ...f, fromEpisode: Number(e.target.value) || 0 })}
               />
             </div>
           </section>

@@ -37,6 +37,7 @@ type Watch struct {
 	Replacement   string `json:"replacement"`
 	Subfolder     bool   `json:"subfolder"`   // write into local_path/<remote name> instead of local_path directly
 	MediaID       int    `json:"mediaId"`     // linked AniList/TMDB id → metadata (cover, episodes, airing); 0 = auto/none
+	FromEpisode   int    `json:"fromEpisode"` // count only local episodes >= this (shared season folder); 0 = all
 	IntervalMin   int    `json:"intervalMin"` // global setting, echoed for the UI
 	LastCheck     string `json:"lastCheck"`
 	LastResult    string `json:"lastResult"`    // error text of the last check, "" on success
@@ -45,14 +46,15 @@ type Watch struct {
 	CreatedAt     string `json:"createdAt"`
 
 	// enriched for the overview
-	Media        *anilist.Media `json:"media,omitempty"`
-	LocalFiles   int            `json:"localFiles"`
-	Active       int            `json:"active"`                 // queued/running downloads for this watch
-	Complete     bool           `json:"complete"`               // finished title, all episodes synced
-	NextEpisode  int            `json:"nextEpisode,omitempty"`  // upcoming episode number (AniList)
-	SeenEpisodes int            `json:"seenEpisodes,omitempty"` // watched episodes from the linked AniList list
-	NextAiringAt int64          `json:"nextAiringAt,omitempty"` // unix seconds of its release
-	Waiting      bool           `json:"waiting"`                // smart sync: idle until NextAiringAt
+	Media          *anilist.Media `json:"media,omitempty"`
+	LocalFiles     int            `json:"localFiles"`
+	Active         int            `json:"active"`                   // queued/running downloads for this watch
+	Complete       bool           `json:"complete"`                 // finished title, all episodes synced
+	NextEpisode    int            `json:"nextEpisode,omitempty"`    // upcoming episode number (offset-adjusted, local numbering)
+	NextEpisodeAbs int            `json:"nextEpisodeAbs,omitempty"` // absolute AniList number, shown in parens when it differs
+	SeenEpisodes   int            `json:"seenEpisodes,omitempty"`   // watched episodes from the linked AniList list
+	NextAiringAt   int64          `json:"nextAiringAt,omitempty"`   // unix seconds of its release
+	Waiting        bool           `json:"waiting"`                  // smart sync: idle until NextAiringAt
 }
 
 // videoExt: files counted as episodes for the completeness check.
@@ -83,7 +85,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 			return
 		case <-tick.C:
 			interval := time.Duration(s.watchInterval()) * time.Minute
-			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, last_check FROM watches`)
+			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, from_episode, last_check FROM watches`)
 			if err != nil {
 				continue
 			}
@@ -92,11 +94,12 @@ func (s *Server) WatchLoop(ctx context.Context) {
 				serverID                                   int64
 				remotePath, localPath, template, lastCheck string
 				subfolder                                  bool
+				fromEpisode                                int
 			}
 			var cands []cand
 			for rows.Next() {
 				var c cand
-				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.lastCheck)
+				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.fromEpisode, &c.lastCheck)
 				cands = append(cands, c)
 			}
 			rows.Close()
@@ -111,7 +114,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 				if c.subfolder {
 					local = path.Join(c.localPath, path.Base(c.remotePath))
 				}
-				have := s.countVideos(local)
+				have := s.countVideos(local, c.fromEpisode)
 				if smartDue(intervalDue, media, have, watchOffset(c.template), now) {
 					s.runWatch(c.id)
 				}
@@ -216,7 +219,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -229,7 +232,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var it Watch
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
-			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder,
+			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode,
 			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.CreatedAt); err != nil {
 			dbErr(w)
 			return
@@ -240,7 +243,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		if it.Subfolder {
 			local = path.Join(it.LocalPath, path.Base(it.RemotePath))
 		}
-		it.LocalFiles = s.countVideos(local)
+		it.LocalFiles = s.countVideos(local, it.FromEpisode)
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
@@ -253,6 +256,9 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		}
 		if it.Media != nil && it.Media.NextAiring != nil {
 			it.NextEpisode = it.Media.NextAiring.Episode + offset
+			if offset != 0 {
+				it.NextEpisodeAbs = it.Media.NextAiring.Episode // show absolute in parens
+			}
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
 			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, time.Now())
 		}
@@ -261,16 +267,32 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
-func (s *Server) countVideos(rel string) int {
+var epNumRe = regexp.MustCompile(`(?i)S\d+E(\d+)`)
+
+// countVideos counts local video files. When minEp > 0, only files whose
+// SxxEyy episode number is >= minEp count — for watches that share a season
+// folder with earlier parts (e.g. Dr. Stone S4 Part 3 starts at E26, Conan
+// S33 at E31), so only this part's episodes are tallied.
+func (s *Server) countVideos(rel string, minEp int) int {
 	abs, err := s.safeLocal(rel)
 	if err != nil {
 		return 0
 	}
 	n := 0
 	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
-			n++
+		if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
+			return nil
 		}
+		if minEp > 0 {
+			m := epNumRe.FindStringSubmatch(d.Name())
+			if m == nil {
+				return nil
+			}
+			if ep, _ := strconv.Atoi(m[1]); ep < minEp {
+				return nil
+			}
+		}
+		n++
 		return nil
 	})
 	return n
@@ -303,9 +325,9 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder)
+	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
@@ -330,6 +352,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		Replacement   string `json:"replacement"`
 		Subfolder     bool   `json:"subfolder"`
 		MediaID       int    `json:"mediaId"`
+		FromEpisode   int    `json:"fromEpisode"`
 	}
 	if !readJSON(w, r, &in) {
 		return
@@ -356,8 +379,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
-	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?
-		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, id, u.ID)
+	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?
+		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, id, u.ID)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
