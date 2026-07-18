@@ -38,8 +38,8 @@ export default function About() {
             WEEB<span className="text-accent">SYNC</span>
           </h2>
           {data && (
-            <span className={`t-label ${dev ? 't-label--warn' : 't-label--ok'}`}>
-              {dev ? t('about.dev') : t('about.stable')}
+            <span className={`t-label ${data.channel === 'stable' ? 't-label--ok' : data.channel === 'nightly' ? 't-label--accent' : 't-label--warn'}`}>
+              {t(`about.channel.${data.channel}`, data.channel)}
             </span>
           )}
           <span className="font-mono text-xs text-t-muted">
