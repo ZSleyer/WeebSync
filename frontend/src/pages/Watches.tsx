@@ -324,13 +324,13 @@ export default function Watches() {
                 <p className="truncate font-mono text-[11px] text-t-muted" title={w.remotePath}>
                   {w.serverName}:{w.remotePath} → downloads/{w.localPath}
                 </p>
-                <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-t-muted">
-                  <span>
-                    {t('watch.lastCheck')}: {ago(w.lastCheck)}
-                    {w.lastResult
-                      ? ` (${w.lastResult})`
-                      : w.lastQueued >= 0 && ` (${t('watch.lastQueued', { count: w.lastQueued })})`}
-                  </span>
+                <p className="mt-1 text-[11px] text-t-muted">
+                  {t('watch.lastCheck')}: {ago(w.lastCheck)}
+                  {w.lastResult
+                    ? ` (${w.lastResult})`
+                    : w.lastQueued >= 0 && ` (${t('watch.lastQueued', { count: w.lastQueued })})`}
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-t-muted">
                   {w.nextAiringAt ? (
                     <span className={`t-label ${w.behind ? 't-label--warn' : 't-label--ok'}`} title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}>
                       {t('watch.nextEp', { n: w.nextEpisode })}
@@ -364,7 +364,7 @@ export default function Watches() {
                   )}
                   {(w.template || w.pattern) && <span className="t-label">{t('watch.renamed')}</span>}
                   {w.active > 0 && <span className="t-label t-label--accent">{t('watch.active', { count: w.active })}</span>}
-                </p>
+                </div>
               </div>
               <div className="text-right text-xs">
                 {w.media && w.media.episodes > 0 ? (
