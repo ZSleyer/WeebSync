@@ -27,7 +27,8 @@ func testServer(t *testing.T) *httptest.Server {
 			"first_air_date":"2020-01-05","poster_path":"/p.jpg","backdrop_path":"/b.jpg",
 			"overview":"Eine Serie.","status":"Returning Series","number_of_episodes":20,
 			"vote_average":7.5,"genres":[{"name":"Drama"}],
-			"next_episode_to_air":{"air_date":"2030-05-01","episode_number":3},
+			"seasons":[{"season_number":0,"episode_count":2},{"season_number":1,"episode_count":12},{"season_number":2,"episode_count":8}],
+			"next_episode_to_air":{"air_date":"2030-05-01","season_number":2,"episode_number":3},
 			"videos":{"results":[{"key":"yt123","site":"YouTube","type":"Trailer"}]}}`))
 	})
 	mux.HandleFunc("/movie/7", func(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +104,8 @@ func TestClient(t *testing.T) {
 	if m.Status != "RELEASING" || m.Episodes != 20 || m.AverageScore != 75 {
 		t.Errorf("detail: status=%s eps=%d score=%d", m.Status, m.Episodes, m.AverageScore)
 	}
-	if m.NextAiring == nil || m.NextAiring.Episode != 21 {
+	// S2E3 with season 1 = 12 episodes (season 0 specials excluded) → 12+3 = 15
+	if m.NextAiring == nil || m.NextAiring.Episode != 15 {
 		t.Errorf("nextAiring: %+v", m.NextAiring)
 	}
 	if m.Trailer == nil || m.Trailer.ID != "yt123" || m.Trailer.Site != "youtube" {
@@ -128,5 +130,38 @@ func TestStatusMap(t *testing.T) {
 		if got := statusMap(in); got != want {
 			t.Errorf("%s: got %s", in, got)
 		}
+	}
+}
+
+func TestAbsoluteEpisode(t *testing.T) {
+	mk := func(season, ep int, counts ...int) rawResult {
+		var r rawResult
+		r.NumEpisodes = 0
+		for i, c := range counts {
+			r.Seasons = append(r.Seasons, struct {
+				SeasonNumber int `json:"season_number"`
+				EpisodeCount int `json:"episode_count"`
+			}{SeasonNumber: i + 1, EpisodeCount: c})
+			r.NumEpisodes += c
+		}
+		r.NextEpisode = &struct {
+			AirDate       string `json:"air_date"`
+			SeasonNumber  int    `json:"season_number"`
+			EpisodeNumber int    `json:"episode_number"`
+		}{AirDate: "2026-01-01", SeasonNumber: season, EpisodeNumber: ep}
+		return r
+	}
+	// S3E2 with prior seasons of 10 and 12 episodes → 10+12+2 = 24
+	if got := absoluteEpisode(mk(3, 2, 10, 12, 8)); got != 24 {
+		t.Errorf("multi-season: got %d, want 24", got)
+	}
+	// S1E5, no prior seasons → 5
+	if got := absoluteEpisode(mk(1, 5, 10)); got != 5 {
+		t.Errorf("first season: got %d, want 5", got)
+	}
+	// no next episode → NumEpisodes+1 fallback
+	r := rawResult{NumEpisodes: 30}
+	if got := absoluteEpisode(r); got != 31 {
+		t.Errorf("fallback: got %d, want 31", got)
 	}
 }

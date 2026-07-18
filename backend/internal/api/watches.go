@@ -37,6 +37,7 @@ type Watch struct {
 	Replacement   string `json:"replacement"`
 	Subfolder     bool   `json:"subfolder"`   // write into local_path/<remote name> instead of local_path directly
 	MediaID       int    `json:"mediaId"`     // linked AniList/TMDB id → metadata (cover, episodes, airing); 0 = auto/none
+	MediaSource   string `json:"mediaSource"` // metadata provider for a manual link: "anilist" | "tmdb:tv" | "tmdb:movie"
 	FromEpisode   int    `json:"fromEpisode"` // count only local episodes >= this (shared season folder); 0 = all
 	WantDub       string `json:"wantDub"`     // sync only files tagged with this dub language code (e.g. "Ger"); "" = any
 	WantSub       string `json:"wantSub"`     // sync only files tagged with this sub language code; "" = any
@@ -279,6 +280,10 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		if it.Media != nil {
 			it.MediaID = it.Media.ID
 			it.SeenEpisodes = progress[it.Media.ID]
+			// surface the match source so the edit dialog prefills the right
+			// provider and the UI can drop anime-only cosmetics (JST) for TMDB
+			s.DB.QueryRow(`SELECT source FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
+				it.ServerID, it.RemotePath).Scan(&it.MediaSource)
 		}
 		if it.Media != nil && it.Media.NextAiring != nil {
 			it.NextEpisode = it.Media.NextAiring.Episode + offset
@@ -368,7 +373,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := res.LastInsertId()
-	s.linkMedia(in.ServerID, in.RemotePath, in.MediaID)
+	s.linkMedia(in.ServerID, in.RemotePath, in.MediaID, in.MediaSource)
 	go s.runWatch(id) // first sync right away
 	writeJSON(w, http.StatusCreated, map[string]int64{"id": id})
 }
@@ -387,6 +392,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		Replacement   string `json:"replacement"`
 		Subfolder     bool   `json:"subfolder"`
 		MediaID       int    `json:"mediaId"`
+		MediaSource   string `json:"mediaSource"`
 		FromEpisode   int    `json:"fromEpisode"`
 		WantDub       string `json:"wantDub"`
 		WantSub       string `json:"wantSub"`
@@ -422,7 +428,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
 	}
-	s.linkMedia(serverID, in.RemotePath, in.MediaID)
+	s.linkMedia(serverID, in.RemotePath, in.MediaID, in.MediaSource)
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
 		go s.runWatch(id) // paths changed: check the new folder right away
 	}
@@ -432,14 +438,19 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 // linkMedia records a manual folder→media match so the overview shows real
 // metadata (cover, episodes, airing) for a watch whose folder the catalog
 // couldn't auto-match (e.g. an arc subfolder). id 0 leaves any match as-is.
-func (s *Server) linkMedia(serverID int64, folder string, mediaID int) {
+// source is the metadata provider: "anilist" (anime) or "tmdb:tv"/"tmdb:movie"
+// (live action); anything else falls back to anilist.
+func (s *Server) linkMedia(serverID int64, folder string, mediaID int, source string) {
 	if mediaID <= 0 {
 		return
 	}
+	if source != "tmdb:tv" && source != "tmdb:movie" {
+		source = "anilist"
+	}
 	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)
-		VALUES (?, ?, ?, 1, 'anilist')
-		ON CONFLICT(server_id, folder) DO UPDATE SET media_id = excluded.media_id, manual = 1, source = 'anilist'`,
-		serverID, folder, mediaID)
+		VALUES (?, ?, ?, 1, ?)
+		ON CONFLICT(server_id, folder) DO UPDATE SET media_id = excluded.media_id, manual = 1, source = excluded.source`,
+		serverID, folder, mediaID, source)
 }
 
 func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {
