@@ -38,6 +38,8 @@ type Watch struct {
 	Subfolder     bool   `json:"subfolder"`   // write into local_path/<remote name> instead of local_path directly
 	MediaID       int    `json:"mediaId"`     // linked AniList/TMDB id → metadata (cover, episodes, airing); 0 = auto/none
 	FromEpisode   int    `json:"fromEpisode"` // count only local episodes >= this (shared season folder); 0 = all
+	WantDub       string `json:"wantDub"`     // sync only files tagged with this dub language code (e.g. "Ger"); "" = any
+	WantSub       string `json:"wantSub"`     // sync only files tagged with this sub language code; "" = any
 	IntervalMin   int    `json:"intervalMin"` // global setting, echoed for the UI
 	LastCheck     string `json:"lastCheck"`
 	LastResult    string `json:"lastResult"`    // error text of the last check, "" on success
@@ -182,15 +184,15 @@ func (s *Server) watchMedia(serverID int64, remotePath string) *anilist.Media {
 // enqueues missing/changed files through the normal transfer queue.
 func (s *Server) runWatch(id int64) {
 	var w Watch
-	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder
+	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, want_dub, want_sub
 		FROM watches WHERE id = ?`, id).
-		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder)
+		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder, &w.WantDub, &w.WantSub)
 	if err != nil {
 		return
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
-	ids, uploading, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), true, !w.Subfolder)
+	ids, uploading, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), watchLangFilter(w), true, !w.Subfolder)
 	// structured result: the frontend localizes the counts; last_result only
 	// carries the error text of a failed check
 	result, queued := "", len(ids)
@@ -223,11 +225,24 @@ func watchNameFn(w Watch) func(string) string {
 	}
 }
 
+// watchLangFilter returns a predicate that keeps only remote files whose
+// name/folder carries the wanted dub/sub language tag, or nil when the watch
+// has no language preference. The full remote path is matched so a
+// folder-level tag ("Show [GerDub]/ep01.mkv") applies to every file inside.
+func watchLangFilter(w Watch) func(string) bool {
+	if w.WantDub == "" && w.WantSub == "" {
+		return nil
+	}
+	return func(remotePath string) bool {
+		return rename.LangMatch(remotePath, w.WantDub, w.WantSub)
+	}
+}
+
 func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.want_dub, w.want_sub, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -240,7 +255,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var it Watch
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
-			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode,
+			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.WantDub, &it.WantSub,
 			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.CreatedAt); err != nil {
 			dbErr(w)
 			return
@@ -344,9 +359,9 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode)
+	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode, want_dub, want_sub)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.WantDub, in.WantSub)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
@@ -372,6 +387,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		Subfolder     bool   `json:"subfolder"`
 		MediaID       int    `json:"mediaId"`
 		FromEpisode   int    `json:"fromEpisode"`
+		WantDub       string `json:"wantDub"`
+		WantSub       string `json:"wantSub"`
 	}
 	if !readJSON(w, r, &in) {
 		return
@@ -398,8 +415,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
-	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?
-		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, id, u.ID)
+	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, want_dub = ?, want_sub = ?
+		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.WantDub, in.WantSub, id, u.ID)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return

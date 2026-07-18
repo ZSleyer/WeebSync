@@ -66,7 +66,7 @@ func TestLangTags(t *testing.T) {
 		{"[FakeSubs] Some Show - 05 [1080p].mkv", "", ""},
 	}
 	for _, c := range cases {
-		dub, sub := langTags(c.name)
+		dub, sub := LangTags(c.name)
 		if dub != c.dub || sub != c.sub {
 			t.Errorf("%q: got dub=%q sub=%q, want %q %q", c.name, dub, sub, c.dub, c.sub)
 		}
@@ -111,5 +111,33 @@ func TestTemplateLangAndQuality(t *testing.T) {
 func TestSanitize(t *testing.T) {
 	if s := sanitize("a/b\\c:d*e?f\"g<h>i|j"); s != "abcdefghij" {
 		t.Errorf("got %q", s)
+	}
+}
+
+func TestLangMatch(t *testing.T) {
+	cases := []struct {
+		name, wantDub, wantSub string
+		ok                     bool
+	}{
+		{"Show [GerDub].mkv", "Ger", "", true},
+		{"Show [GerSub].mkv", "Ger", "", false},   // sub-only, wanted dub
+		{"Show E01.mkv", "Ger", "", false},        // untagged, filter active
+		{"Show [GerEngSub].mkv", "", "Eng", true}, // composed sub tag
+		{"Show [JapDub][GerSub].mkv", "Jap", "Ger", true},
+		{"Show [JapDub][GerSub].mkv", "Ger", "Ger", false}, // wrong dub
+		{"anything.mkv", "", "", true},                     // no filter
+		{"Release [gerdub].mkv", "Ger", "", true},          // case-insensitive
+	}
+	for _, c := range cases {
+		if got := LangMatch(c.name, c.wantDub, c.wantSub); got != c.ok {
+			t.Errorf("LangMatch(%q, %q, %q) = %v, want %v", c.name, c.wantDub, c.wantSub, got, c.ok)
+		}
+	}
+}
+
+func TestCodes(t *testing.T) {
+	got := Codes("GerJapDub")
+	if len(got) != 2 || got[0] != "Ger" || got[1] != "Jap" {
+		t.Errorf("Codes(GerJapDub) = %v", got)
 	}
 }

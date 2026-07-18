@@ -215,6 +215,8 @@ export default function Browser() {
             subfolder: false,
             mediaId: 0,
             fromEpisode: 0,
+            wantDub: '',
+            wantSub: '',
           }}
           onSave={async (f) => {
             await api.post('/api/watches', { serverId: active, ...f })

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/remote"
+	"github.com/ch4d1/weebsync/internal/rename"
 )
 
 // The remote index powers file search in the browser. It is fed passively
@@ -243,4 +245,59 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// handleServerLanguages returns the distinct dub/sub language codes present in
+// a server's remote index (e.g. Ger, Eng, Jap), extracted from the language
+// tags on file/folder names. Populates the per-watch language filter dropdown.
+// GET /api/servers/{id}/languages
+// ponytail: Full-Scan on-demand; cachen nur falls messbar langsam
+func (s *Server) handleServerLanguages(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	id := pathID(r)
+	var owned int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned)
+	if owned == 0 {
+		writeErr(w, http.StatusNotFound, "server not found")
+		return
+	}
+	dubSet, subSet := map[string]bool{}, map[string]bool{}
+	rows, err := s.DB.Query(`SELECT name FROM remote_index WHERE server_id = ?`, id)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var name string
+			rows.Scan(&name)
+			dub, sub := rename.LangTags(name)
+			for _, c := range rename.Codes(dub) {
+				dubSet[canonCode(c)] = true
+			}
+			for _, c := range rename.Codes(sub) {
+				subSet[canonCode(c)] = true
+			}
+		}
+	}
+	out := struct {
+		Dub []string `json:"dub"`
+		Sub []string `json:"sub"`
+	}{Dub: keysSorted(dubSet), Sub: keysSorted(subSet)}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// canonCode normalizes a language code's casing (GEr/ger -> Ger) so the
+// dropdown lists each language once; matching stays case-insensitive.
+func canonCode(c string) string {
+	if c == "" {
+		return c
+	}
+	return strings.ToUpper(c[:1]) + strings.ToLower(c[1:])
+}
+
+func keysSorted(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

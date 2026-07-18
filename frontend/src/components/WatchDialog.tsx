@@ -16,6 +16,8 @@ export interface WatchFields {
   subfolder: boolean
   mediaId: number
   fromEpisode: number
+  wantDub: string
+  wantSub: string
 }
 
 // WatchDialog collects the paths and rename rule of a watch (create from
@@ -50,9 +52,15 @@ export default function WatchDialog({
   const [previewBusy, setPreviewBusy] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // language codes present in this server's index, for the dub/sub filter
+  const [langs, setLangs] = useState<{ dub: string[]; sub: string[] }>({ dub: [], sub: [] })
   useEffect(() => {
     ref.current?.showModal()
-  }, [])
+    api
+      .get<{ dub: string[]; sub: string[] }>(`/api/servers/${serverId}/languages`)
+      .then(setLangs)
+      .catch(() => {}) // filter is optional; a saved value still shows via its own option below
+  }, [serverId])
 
   const hasRule = (f.mode === 'template' && !!f.template) || (f.mode === 'regex' && !!f.pattern)
 
@@ -190,6 +198,33 @@ export default function WatchDialog({
                 onChange={(e) => setF({ ...f, fromEpisode: Number(e.target.value) || 0 })}
               />
             </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(['wantDub', 'wantSub'] as const).map((key) => {
+                const opts = key === 'wantDub' ? langs.dub : langs.sub
+                // include the saved value even if the index no longer lists it
+                const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
+                return (
+                  <label key={key} className="text-xs text-t-muted">
+                    {t(key === 'wantDub' ? 'watch.wantDub' : 'watch.wantSub')}
+                    <span className="t-select-wrap mt-1 block">
+                      <select
+                        className="t-select"
+                        value={f[key]}
+                        onChange={(e) => setF({ ...f, [key]: e.target.value })}
+                      >
+                        <option value="">{t('watch.langAny')}</option>
+                        {all.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+            <p className="text-xs text-t-muted">{t('watch.langHint')}</p>
           </section>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>

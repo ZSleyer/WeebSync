@@ -36,15 +36,19 @@ var placeholderRe = regexp.MustCompile(`\{(\w+)([+-]\d+)?(?::(\d+))?\}`)
 // (GerDub, JapDub, GerEngSub, GerJapDub, ...), plus resolution and
 // common tech terms. Anything matching these is metadata, not a group.
 var (
-	langRe  = regexp.MustCompile(`(?i)^(?:Ger|Eng|Jap|Chi|Kor|Fre|Spa|Ita|Por|Rus|Tur|Ara|Hin|De|En|Ja)+(Dub|Sub)$`)
+	langRe = regexp.MustCompile(`(?i)^(?:Ger|Eng|Jap|Chi|Kor|Fre|Spa|Ita|Por|Rus|Tur|Ara|Hin|De|En|Ja)+(Dub|Sub)$`)
+	// codeRe pulls the individual language prefixes out of a composed tag
+	// ("GerJapDub" -> Ger, Jap). Longest alternatives first so "Ger" wins
+	// over "En"-style short codes when both could match a substring.
+	codeRe  = regexp.MustCompile(`(?i)Ger|Eng|Jap|Chi|Kor|Fre|Spa|Ita|Por|Rus|Tur|Ara|Hin|De|En|Ja`)
 	resRe   = regexp.MustCompile(`(?i)^(?:\d{3,4}p|[48]k)$`)
 	techRe  = regexp.MustCompile(`(?i)^(?:aac|e?ac3|dts|flac|opus|mp3|x\.?26[45]|h\.?26[45]|hevc|av1|avc|web-?(?:dl|rip)?|bd(?:rip)?|blu-?ray|dvd(?:rip)?|hdtv|vhs|hdr(?:10)?|10bit|8bit|remux|uncensored)$`)
 	tokenRe = regexp.MustCompile(`[\[\(]([^\]\)]*)[\]\)]`)
 )
 
-// langTags scans all bracket/paren token groups of a name and returns the
+// LangTags scans all bracket/paren token groups of a name and returns the
 // first ...Dub and ...Sub language tag (e.g. "GerJapDub", "GerEngSub").
-func langTags(name string) (dub, sub string) {
+func LangTags(name string) (dub, sub string) {
 	for _, g := range tokenRe.FindAllStringSubmatch(name, -1) {
 		for _, tok := range strings.Split(g[1], ",") {
 			tok = strings.TrimSpace(tok)
@@ -61,6 +65,29 @@ func langTags(name string) (dub, sub string) {
 		}
 	}
 	return dub, sub
+}
+
+// Codes splits a composed language tag ("GerJapDub") into its individual
+// prefix codes ("Ger", "Jap"), preserving each tag's original casing.
+// Used to enumerate the languages actually present in a server's index.
+func Codes(tag string) []string {
+	return codeRe.FindAllString(tag, -1)
+}
+
+// LangMatch reports whether name satisfies the wanted dub/sub languages.
+// An empty want is no constraint; a non-empty want requires the matching
+// tag to be present and to contain that code (case-insensitive). A name
+// with no tag for a wanted dimension never matches.
+// ponytail: substring-match; exakte Code-Tokenisierung nur falls false positives auftreten
+func LangMatch(name, wantDub, wantSub string) bool {
+	dub, sub := LangTags(name)
+	if wantDub != "" && !strings.Contains(strings.ToLower(dub), strings.ToLower(wantDub)) {
+		return false
+	}
+	if wantSub != "" && !strings.Contains(strings.ToLower(sub), strings.ToLower(wantSub)) {
+		return false
+	}
+	return true
 }
 
 // cleanGroup strips language/resolution/tech tokens from anitogo's
@@ -98,7 +125,7 @@ func New(name string, o Options) (string, error) {
 
 func templateName(name string, o Options) (string, error) {
 	parsed := anitogo.Parse(name, anitogo.DefaultOptions)
-	dub, sub := langTags(name)
+	dub, sub := LangTags(name)
 	vars := map[string]string{
 		"title":      parsed.AnimeTitle,
 		"season":     first(parsed.AnimeSeason),

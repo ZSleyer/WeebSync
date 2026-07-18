@@ -355,6 +355,8 @@ export default function Watches() {
             subfolder: edit.subfolder,
             mediaId: edit.mediaId,
             fromEpisode: edit.fromEpisode,
+            wantDub: edit.wantDub ?? '',
+            wantSub: edit.wantSub ?? '',
           }}
           onSave={async (f) => {
             await api.put(`/api/watches/${edit.id}`, f)

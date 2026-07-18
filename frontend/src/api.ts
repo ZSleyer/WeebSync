@@ -91,6 +91,8 @@ export interface Watch {
   subfolder: boolean
   mediaId: number
   fromEpisode: number
+  wantDub: string
+  wantSub: string
   intervalMin: number
   lastCheck: string
   lastResult: string // error text of the last check, '' on success
