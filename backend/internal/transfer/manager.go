@@ -338,13 +338,16 @@ func looksUploading(size int64, siblings []int64) bool {
 // langFilter, when non-nil, receives each file's full remote path and must
 // return true for the file to be enqueued; false skips it. This lets watches
 // sync only files whose name/folder carries a wanted dub/sub language tag.
-func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat bool) (ids []int64, uploading int, err error) {
+// filtered counts video files present on the remote but skipped by langFilter
+// whose local target does not yet exist — i.e. episodes waiting to appear in
+// the wanted dub/sub language.
+func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat bool) (ids []int64, uploading, filtered int, err error) {
 	if nameFn == nil {
 		nameFn = func(s string) string { return s }
 	}
 	client, _, err := m.Dial(userID, serverID)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 	defer client.Close()
 
@@ -362,7 +365,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 	if isFile {
 		size, serr := client.Size(remotePath)
 		if serr != nil {
-			return nil, 0, fmt.Errorf("path is neither listable nor a file: %w", serr)
+			return nil, 0, 0, fmt.Errorf("path is neither listable nor a file: %w", serr)
 		}
 		jobs = append(jobs, job{remotePath, path.Join(localRel, nameFn(path.Base(remotePath))), "", size})
 	} else {
@@ -394,16 +397,23 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 			base = localRel
 		}
 		if err := walk(remotePath, base, 0); err != nil {
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 	}
 
 	for _, j := range jobs {
-		// language filter: skip files whose name/folder lacks the wanted dub/sub tag
+		local := filepath.Join(m.DownloadRoot, filepath.Clean("/"+j.localRel))
+		// language filter: skip files whose name/folder lacks the wanted dub/sub
+		// tag; count a video as "waiting" when its target is not yet local (so a
+		// version we already have in the right language doesn't inflate the count)
 		if langFilter != nil && !langFilter(j.remote) {
+			if VideoExt[strings.ToLower(path.Ext(j.remote))] {
+				if _, serr := os.Stat(local); serr != nil {
+					filtered++
+				}
+			}
 			continue
 		}
-		local := filepath.Join(m.DownloadRoot, filepath.Clean("/"+j.localRel))
 		// sync: skip files that already exist with the right size
 		if fi, err := os.Stat(local); err == nil && fi.Size() == j.size {
 			continue
@@ -429,7 +439,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		}
 	}
 	m.Wake()
-	return ids, uploading, nil
+	return ids, uploading, filtered, nil
 }
 
 // Shutdown cancels all active downloads, requeues them (resume picks up the

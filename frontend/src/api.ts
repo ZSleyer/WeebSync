@@ -93,6 +93,7 @@ export interface Watch {
   fromEpisode: number
   wantDub: string
   wantSub: string
+  langWaiting: number
   intervalMin: number
   lastCheck: string
   lastResult: string // error text of the last check, '' on success
