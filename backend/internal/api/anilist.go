@@ -69,7 +69,7 @@ func (s *Server) runJob(key string, fn func(ctx context.Context)) {
 		}()
 		// bounded wait in the rate-limiter queue; drops are retried by the
 		// next catalog poll
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		fn(ctx)
 	}()
