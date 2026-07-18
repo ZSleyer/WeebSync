@@ -53,7 +53,41 @@ export default function Watches() {
     const min = Math.round((Date.parse(w.lastCheck.replace(' ', 'T') + 'Z') + w.intervalMin * 60_000 - Date.now()) / 60_000)
     return t('watch.nextIn', { count: Math.max(0, min) })
   }
+  // AniList airingAt is an absolute unix time; render in the viewer's zone
+  // (or a named zone like Asia/Tokyo for the JST hover)
+  const airFmt = (ts: number, tz?: string) =>
+    new Date(ts * 1000).toLocaleString([], {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      ...(tz ? { timeZone: tz } : {}),
+    })
+  const countdown = (ts: number) => {
+    const ms = ts * 1000 - Date.now()
+    if (ms <= 0) return t('watch.airingNow')
+    const d = Math.floor(ms / 86_400_000)
+    const h = Math.floor((ms % 86_400_000) / 3_600_000)
+    const m = Math.floor((ms % 3_600_000) / 60_000)
+    if (d > 0) return t('watch.inDaysH', { d, h })
+    if (h > 0) return t('watch.inHoursM', { h, m })
+    return t('watch.inMinutes', { m })
+  }
+  // calendar: upcoming episodes grouped by local day
+  const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
+  const upcoming = [...watches]
+    .filter((w) => w.nextAiringAt && w.nextAiringAt * 1000 > Date.now())
+    .sort((a, b) => a.nextAiringAt! - b.nextAiringAt!)
+  const calGroups: { day: string; items: Watch[] }[] = []
+  for (const w of upcoming) {
+    const day = calDayKey(w.nextAiringAt!)
+    const g = calGroups.find((x) => x.day === day)
+    if (g) g.items.push(w)
+    else calGroups.push({ day, items: [w] })
+  }
 
+  const [view, setView] = useState<'list' | 'calendar'>('list')
   const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
   const nextTs = (w: Watch) =>
     w.nextAiringAt ? w.nextAiringAt * 1000 : w.lastCheck ? Date.parse(w.lastCheck.replace(' ', 'T') + 'Z') + w.intervalMin * 60_000 : 0
@@ -79,17 +113,35 @@ export default function Watches() {
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('watch.title')}</h2>
           <span className="t-label mt-1">{t('watch.sub')}</span>
         </div>
-        {watches.length > 1 && (
-          <label className="flex items-center gap-2 text-xs text-t-muted">
-            {t('watch.sortBy')}
-            <select className="t-select w-auto" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
-              <option value="next">{t('watch.sortNext')}</option>
-              <option value="last">{t('watch.sortLast')}</option>
-              <option value="name">{t('watch.sortName')}</option>
-              <option value="season">{t('watch.sortSeason')}</option>
-            </select>
-          </label>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <div role="group" aria-label={t('watch.view')} className="flex">
+            <button
+              className={`t-btn t-btn--sm ${view === 'list' ? 't-btn--primary' : ''}`}
+              aria-pressed={view === 'list'}
+              onClick={() => setView('list')}
+            >
+              {t('watch.viewList')}
+            </button>
+            <button
+              className={`t-btn t-btn--sm ${view === 'calendar' ? 't-btn--primary' : ''}`}
+              aria-pressed={view === 'calendar'}
+              onClick={() => setView('calendar')}
+            >
+              {t('watch.viewCalendar')}
+            </button>
+          </div>
+          {view === 'list' && watches.length > 1 && (
+            <label className="flex items-center gap-2 text-xs text-t-muted">
+              {t('watch.sortBy')}
+              <select className="t-select w-auto" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
+                <option value="next">{t('watch.sortNext')}</option>
+                <option value="last">{t('watch.sortLast')}</option>
+                <option value="name">{t('watch.sortName')}</option>
+                <option value="season">{t('watch.sortSeason')}</option>
+              </select>
+            </label>
+          )}
+        </div>
       </header>
 
       {error && (
@@ -106,6 +158,44 @@ export default function Watches() {
             Im <Link to="/browser" className="text-accent underline">Browser</Link> einen Ordner auswählen und „Beobachten" klicken.
           </Trans>
         </div>
+      ) : view === 'calendar' ? (
+        calGroups.length === 0 ? (
+          <div className="t-panel p-8 text-center text-t-muted">{t('watch.calEmpty')}</div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {calGroups.map((g) => (
+              <section key={g.day} className="min-w-0">
+                <h3 className="t-label t-label--accent mb-2">{g.day}</h3>
+                <ul className="flex flex-col gap-2">
+                  {g.items.map((w) => (
+                    <li key={w.id} className="t-panel flex items-center gap-3 p-2">
+                      {w.media?.coverImage?.large ? (
+                        <img src={w.media.coverImage.large} alt="" className="h-14 w-10 shrink-0 object-cover" />
+                      ) : (
+                        <div className="t-hatch h-14 w-10 shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-t-primary">
+                          {w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop()}
+                        </p>
+                        <p className="text-[11px] text-t-muted">
+                          {t('watch.nextEp', { n: w.nextEpisode })}
+                          {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="font-mono text-sm text-t-secondary" title={`${airFmt(w.nextAiringAt!, 'Asia/Tokyo')} JST`}>
+                          {new Date(w.nextAiringAt! * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <p className="text-[11px] text-accent">{countdown(w.nextAiringAt!)}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )
       ) : (
         <ul className="grid grid-cols-1 gap-3">
           {sorted.map((w) => (
@@ -130,16 +220,10 @@ export default function Watches() {
                       : w.lastQueued >= 0 && ` (${t('watch.lastQueued', { count: w.lastQueued })})`}
                   </span>
                   {w.nextAiringAt ? (
-                    <span className={`t-label ${w.behind ? 't-label--warn' : 't-label--ok'}`}>
+                    <span className={`t-label ${w.behind ? 't-label--warn' : 't-label--ok'}`} title={`${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}>
                       {t('watch.nextEp', { n: w.nextEpisode })}
                       {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''} ·{' '}
-                      {new Date(w.nextAiringAt * 1000).toLocaleString([], {
-                        weekday: 'short',
-                        day: '2-digit',
-                        month: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {airFmt(w.nextAiringAt)}
                     </span>
                   ) : (
                     w.lastCheck && <span>{next(w)}</span>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -36,6 +36,12 @@ const NAV = [
 const NAV_PRIMARY = NAV.slice(0, 4)
 const NAV_MORE = NAV.slice(4)
 
+// position of a path in the nav order, for direction-aware route transitions
+const navIndex = (path: string) => {
+  const i = NAV.findIndex((n) => n.to === path || (n.to !== '/' && path.startsWith(n.to + '/')))
+  return i < 0 ? 0 : i
+}
+
 export default function App() {
   const { data: user, isLoading } = useAuth()
   useEvents(!!user)
@@ -72,6 +78,16 @@ function Shell({ email }: { email: string }) {
   const moreActive = NAV_MORE.some((n) => location.pathname === n.to || location.pathname.startsWith(n.to + '/'))
   // navigating (via sheet or otherwise) closes the sheet; Escape too
   useEffect(() => setMoreOpen(false), [location.pathname])
+
+  // route transition follows nav order: a lower-numbered tab enters from the
+  // right (moving right→left), a higher one from the left (left→right)
+  const curNav = navIndex(location.pathname)
+  const prevNav = useRef(curNav)
+  const transitionClass =
+    curNav < prevNav.current ? 'anim-slide-from-right' : curNav > prevNav.current ? 'anim-slide-from-left' : 'anim-t-reveal'
+  useEffect(() => {
+    prevNav.current = curNav
+  }, [curNav])
   useEffect(() => {
     if (!moreOpen) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMoreOpen(false)
@@ -151,8 +167,8 @@ function Shell({ email }: { email: string }) {
         </button>
       </header>
 
-      <main className="min-w-0 flex-1 p-4 pb-20 lg:p-6 lg:pb-6" key={location.pathname}>
-        <div className="anim-t-reveal">
+      <main className="min-w-0 flex-1 overflow-x-clip p-4 pb-20 lg:p-6 lg:pb-6" key={location.pathname}>
+        <div className={transitionClass}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/browser" element={<Browser />} />

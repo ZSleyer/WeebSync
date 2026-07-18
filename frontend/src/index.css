@@ -433,6 +433,13 @@ dialog:not([open])::backdrop { opacity: 0; }
 }
 .anim-t-reveal { animation: t-reveal 240ms cubic-bezier(0.7, 0, 0.2, 1) both; }
 
+/* directional route slide: matches nav order — moving to a lower-numbered
+   tab enters from the right, a higher-numbered one from the left */
+@keyframes t-slide-from-right { from { transform: translateX(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes t-slide-from-left  { from { transform: translateX(-28px); opacity: 0; } to { transform: none; opacity: 1; } }
+.anim-slide-from-right { animation: t-slide-from-right 240ms cubic-bezier(0.7, 0, 0.2, 1) both; }
+.anim-slide-from-left  { animation: t-slide-from-left 240ms cubic-bezier(0.7, 0, 0.2, 1) both; }
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
 
