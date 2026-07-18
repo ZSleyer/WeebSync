@@ -53,10 +53,20 @@
     "verifyInvalid": "Confirmation link invalid or already used.",
     "totpTitle": "Two-factor verification",
     "totpHint": "Enter the 6-digit code from your authenticator app (or a recovery code).",
-    "totpCode": "Code"
+    "totpCode": "Code",
+    "passkey": "Sign in with a passkey",
+    "useSecurityKey": "Use security key",
+    "passkeyFailed": "Passkey sign-in failed."
   },
   "account": {
     "oidcOnly": "This instance is OIDC-only — two-factor settings are handled by your identity provider.",
+    "passkeyTitle": "Passkeys & security keys",
+    "passkeyHint": "Passkeys allow passwordless sign-in. Security keys (e.g. YubiKey) act as a second factor after your password.",
+    "passkeyName": "Name for this device:",
+    "passkeyKindPasskey": "Passkey",
+    "passkeyKindKey": "2nd factor",
+    "passkeyAdd": "Add passkey",
+    "keyAdd": "Add security key",
     "totpTitle": "Two-factor authentication (TOTP)",
     "totpHint": "An extra code from an authenticator app on every password login.",
     "totpEnable": "Enable",

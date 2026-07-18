@@ -150,15 +150,17 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "email not verified — check your inbox")
 		return
 	}
-	// second factor: if TOTP is enrolled, hand back a short-lived pending token
-	// instead of a session; the client completes at /api/auth/login/totp.
-	if s.totpEnabled(id) {
+	// second factor: if TOTP or a security key is enrolled, hand back a
+	// short-lived pending token instead of a session; the client completes at
+	// /api/auth/login/totp or /api/auth/webauthn/2fa/*.
+	totpOn, keyOn := s.totpEnabled(id), s.hasSecurityKey(id)
+	if totpOn || keyOn {
 		token, err := s.newLoginPending(id)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "login error")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"twoFactorRequired": true, "token": token})
+		writeJSON(w, http.StatusOK, map[string]any{"twoFactorRequired": true, "token": token, "totp": totpOn, "webauthn": keyOn})
 		return
 	}
 	if err := auth.CreateSession(s.DB, w, r, id); err != nil {
