@@ -26,6 +26,8 @@ export default function Login() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [twoFA, setTwoFA] = useState<string | null>(null) // pending-login token
+  const [code, setCode] = useState('')
 
   // email verification redirect lands here with ?verify=ok|invalid
   useEffect(() => {
@@ -54,7 +56,10 @@ export default function Login() {
     setNotice('')
     try {
       // locale rides along on register so the verify email is localized
-      const res = await api.post<User & { needsVerification?: boolean }>(`/api/auth/${mode}`, { email, password, locale: i18n.language })
+      const res = await api.post<User & { needsVerification?: boolean; twoFactorRequired?: boolean; token?: string }>(
+        `/api/auth/${mode}`,
+        { email, password, locale: i18n.language },
+      )
       if (res.needsVerification) {
         // account created but must confirm email before logging in
         setNotice(t('login.verifySent'))
@@ -62,8 +67,29 @@ export default function Login() {
         setPassword('')
         return
       }
+      if (res.twoFactorRequired && res.token) {
+        // password ok — ask for the second factor, don't create a session yet
+        setTwoFA(res.token)
+        setPassword('')
+        return
+      }
       // clear leftovers from a previous session (e.g. expired session of
       // another user) before the new identity loads
+      qc.clear()
+      await qc.invalidateQueries({ queryKey: ['me'] })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('app.error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const submitTotp = async (e: FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await api.post('/api/auth/login/totp', { token: twoFA, code: code.trim() })
       qc.clear()
       await qc.invalidateQueries({ queryKey: ['me'] })
     } catch (err) {
@@ -107,6 +133,43 @@ export default function Login() {
               {oidcLabel}
             </a>
           </div>
+        ) : twoFA ? (
+          <form className="t-panel animate-fadeIn p-6" onSubmit={submitTotp}>
+            <h2 className="mb-1 font-display font-semibold tracking-wider">{t('login.totpTitle')}</h2>
+            <p className="mb-4 text-xs text-t-muted">{t('login.totpHint')}</p>
+            <label className="t-label mb-1 block w-fit" htmlFor="totp-code">
+              {t('login.totpCode')}
+            </label>
+            <input
+              id="totp-code"
+              className="t-input mb-4 font-mono tracking-[0.3em]"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+            {error && (
+              <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+                {error}
+              </p>
+            )}
+            <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
+              {t('login.submitLogin')}
+            </button>
+            <button
+              type="button"
+              className="t-btn mt-3 block w-full text-center"
+              onClick={() => {
+                setTwoFA(null)
+                setCode('')
+                setError('')
+              }}
+            >
+              {t('servers.cancel')}
+            </button>
+          </form>
         ) : (
           <form className="t-panel animate-fadeIn p-6" onSubmit={submit}>
             <div className="mb-4 flex gap-1" role="group" aria-label={t('login.tabs')}>

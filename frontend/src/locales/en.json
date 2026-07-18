@@ -50,7 +50,24 @@
     "tabs": "Login or registration",
     "verifySent": "Account created. Please confirm your email address via the link we sent you.",
     "verifyOk": "Email confirmed. You can log in now.",
-    "verifyInvalid": "Confirmation link invalid or already used."
+    "verifyInvalid": "Confirmation link invalid or already used.",
+    "totpTitle": "Two-factor verification",
+    "totpHint": "Enter the 6-digit code from your authenticator app (or a recovery code).",
+    "totpCode": "Code"
+  },
+  "account": {
+    "oidcOnly": "This instance is OIDC-only — two-factor settings are handled by your identity provider.",
+    "totpTitle": "Two-factor authentication (TOTP)",
+    "totpHint": "An extra code from an authenticator app on every password login.",
+    "totpEnable": "Enable",
+    "totpOn": "Active",
+    "totpDisable": "Disable",
+    "totpManual": "Or enter the key manually:",
+    "totpEnterCode": "Code from the app to confirm",
+    "totpConfirm": "Confirm & enable",
+    "recoveryTitle": "Recovery codes — save them now",
+    "recoveryHint": "Each code works once if you lose access to the app. They won't be shown again.",
+    "copy": "Copy"
   },
   "setup": {
     "title": "First-run setup",
@@ -391,6 +408,7 @@
     "groupAdmin": "Administration",
     "nav": {
       "look": "Appearance",
+      "account": "Account",
       "notifications": "Notifications",
       "transfers": "Transfers",
       "security": "Security",

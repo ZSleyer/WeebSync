@@ -204,7 +204,7 @@ export const api = {
   get: <T>(url: string) => request<T>('GET', url),
   post: <T>(url: string, body?: unknown) => request<T>('POST', url, body),
   put: <T>(url: string, body?: unknown) => request<T>('PUT', url, body),
-  del: <T>(url: string) => request<T>('DELETE', url),
+  del: <T>(url: string, body?: unknown) => request<T>('DELETE', url, body),
 }
 
 export function fmtBytes(n: number): string {
