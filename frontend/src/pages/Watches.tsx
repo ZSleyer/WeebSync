@@ -131,7 +131,8 @@ export default function Watches() {
                   </span>
                   {w.waiting && w.nextAiringAt ? (
                     <span className="t-label t-label--ok">
-                      {t('watch.waitingFor', { n: w.nextEpisode })} ·{' '}
+                      {t('watch.waitingFor', { n: w.nextEpisode })}
+                      {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''} ·{' '}
                       {new Date(w.nextAiringAt * 1000).toLocaleString([], {
                         weekday: 'short',
                         day: '2-digit',
@@ -198,6 +199,7 @@ export default function Watches() {
             replacement: edit.replacement,
             subfolder: edit.subfolder,
             mediaId: edit.mediaId,
+            fromEpisode: edit.fromEpisode,
           }}
           onSave={async (f) => {
             await api.put(`/api/watches/${edit.id}`, f)
