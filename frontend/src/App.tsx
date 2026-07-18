@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -116,14 +116,19 @@ function Shell({ email }: { email: string }) {
   useEffect(() => setMoreOpen(false), [location.pathname])
 
   // route transition follows nav order: a lower-numbered tab enters from the
-  // right (moving right→left), a higher one from the left (left→right)
+  // right (moving right→left), a higher one from the left (left→right).
+  // Keyed on pathname so it's computed once per navigation — a plain re-render
+  // (e.g. opening the mobile "more" sheet) must not re-flip the class and
+  // replay the animation.
   const curNav = navIndex(location.pathname)
   const prevNav = useRef(curNav)
-  const transitionClass =
-    curNav < prevNav.current ? 'anim-slide-from-right' : curNav > prevNav.current ? 'anim-slide-from-left' : 'anim-t-reveal'
-  useEffect(() => {
+  const transitionClass = useMemo(() => {
+    const cls =
+      curNav < prevNav.current ? 'anim-slide-from-right' : curNav > prevNav.current ? 'anim-slide-from-left' : 'anim-t-reveal'
     prevNav.current = curNav
-  }, [curNav])
+    return cls
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname])
   useEffect(() => {
     if (!moreOpen) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMoreOpen(false)
