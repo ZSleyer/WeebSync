@@ -19,6 +19,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/mailer"
 	"github.com/ch4d1/weebsync/internal/push"
+	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/secret"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 	"github.com/ch4d1/weebsync/internal/transfer"
@@ -78,6 +79,7 @@ func main() {
 		Tmdb:         tmdb.New(database),
 		Push:         pushSvc,
 		Mail:         mailer.New(database),
+		Conns:        pool.New(),
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
 	srv.Transfers.OnFinished = srv.NotifyDownloadFinished
@@ -127,6 +129,7 @@ func main() {
 		httpSrv.Close()
 	}
 	srv.Transfers.Shutdown(shutCtx) // requeue active downloads, wait for workers
+	srv.Conns.Close()               // tear down pooled SSH/FTP connections
 	slog.Info("shutdown complete")
 }
 

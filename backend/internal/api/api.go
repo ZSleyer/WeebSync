@@ -14,6 +14,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/mailer"
 	"github.com/ch4d1/weebsync/internal/push"
+	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -28,6 +29,9 @@ type Server struct {
 	Tmdb         *tmdb.Client
 	Push         *push.Service
 	Mail         *mailer.Service
+	// Conns pools and caps SSH/FTP connections per server (multiplexes SFTP
+	// channels; downloads take priority over the index crawler).
+	Conns *pool.Pool
 
 	// background AniList matching (see queueMatch in anilist.go):
 	// dedup of in-flight jobs plus a queue drained in batches by one worker

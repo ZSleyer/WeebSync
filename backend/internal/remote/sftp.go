@@ -8,16 +8,52 @@ import (
 	"path"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/netguard"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
 
 type sftpClient struct {
+	// ssh is nil for a pooled channel (SFTPChannel): Close then shuts only
+	// the sftp channel, leaving the shared connection open for reuse.
 	ssh  *ssh.Client
 	sftp *sftp.Client
 }
 
+// DialSSH opens the SSH transport (TCP + handshake + auth, TOFU host key)
+// without an SFTP subsystem, so the connection pool can multiplex several
+// SFTP channels over one connection.
+func DialSSH(cfg Config) (*ssh.Client, error) {
+	return dialSSH(cfg)
+}
+
+// SFTPChannel opens one more SFTP channel over an existing SSH connection.
+// The returned Client's Close shuts only this channel, not the connection.
+func SFTPChannel(conn *ssh.Client) (Client, error) {
+	sc, err := sftp.NewClient(conn)
+	if err != nil {
+		return nil, err
+	}
+	return &sftpClient{sftp: sc}, nil
+}
+
 func dialSFTP(cfg Config) (Client, error) {
+	conn, err := dialSSH(cfg)
+	if err != nil {
+		return nil, err
+	}
+	sc, err := sftp.NewClient(conn)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return &sftpClient{ssh: conn, sftp: sc}, nil
+}
+
+func dialSSH(cfg Config) (*ssh.Client, error) {
+	if err := netguard.Allowed(cfg.Host); err != nil {
+		return nil, err
+	}
 	// Trust-on-first-use: accept and persist the key on first connect,
 	// require an exact match afterwards.
 	// mismatch flags the failure outside the callback because the ssh
@@ -49,12 +85,7 @@ func dialSFTP(cfg Config) (Client, error) {
 		}
 		return nil, err
 	}
-	sc, err := sftp.NewClient(conn)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return &sftpClient{ssh: conn, sftp: sc}, nil
+	return conn, nil
 }
 
 func (c *sftpClient) List(dir string) ([]Entry, error) {
@@ -98,6 +129,9 @@ func (c *sftpClient) Size(p string) (int64, error) {
 }
 
 func (c *sftpClient) Close() error {
-	c.sftp.Close()
-	return c.ssh.Close()
+	err := c.sftp.Close()
+	if c.ssh != nil { // nil for a pooled channel: keep the connection open
+		c.ssh.Close()
+	}
+	return err
 }
