@@ -228,8 +228,10 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 		q := `SELECT path, name, is_dir, size, mod_time FROM remote_index WHERE server_id = ?`
 		args := []any{id}
 		for _, wd := range words {
-			q += ` AND name LIKE '%' || ? || '%' COLLATE NOCASE`
-			args = append(args, wd)
+			// ESCAPE so a literal % or _ in the query is matched literally,
+			// not treated as a LIKE wildcard (behavioural, not a security fix).
+			q += ` AND name LIKE '%' || ? || '%' ESCAPE '\' COLLATE NOCASE`
+			args = append(args, escapeLike(wd))
 		}
 		q += ` ORDER BY is_dir DESC, name COLLATE NOCASE LIMIT 50`
 		rows, err := s.DB.Query(q, args...)

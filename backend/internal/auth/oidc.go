@@ -124,14 +124,23 @@ func (m *Manager) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "oidc not configured", http.StatusNotFound)
 		return
 	}
-	raw := make([]byte, 16)
-	rand.Read(raw)
-	state := hex.EncodeToString(raw)
+	state := randHex()
+	nonce := randHex()
 	http.SetCookie(w, &http.Cookie{
 		Name: "weebsync_oidc_state", Value: state, Path: "/api/auth/oidc",
 		MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
 	})
-	http.Redirect(w, r, o.config.AuthCodeURL(state), http.StatusFound)
+	http.SetCookie(w, &http.Cookie{
+		Name: "weebsync_oidc_nonce", Value: nonce, Path: "/api/auth/oidc",
+		MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
+	})
+	http.Redirect(w, r, o.config.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
+}
+
+func randHex() string {
+	raw := make([]byte, 16)
+	rand.Read(raw)
+	return hex.EncodeToString(raw)
 }
 
 // CallbackHandler exchanges the code, verifies the ID token, links or creates
@@ -147,10 +156,15 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
-	// state is single-use: invalidate the cookie so the callback URL
-	// cannot be replayed within the cookie's lifetime
+	nonceCookie, nerr := r.Cookie("weebsync_oidc_nonce")
+	// state + nonce are single-use: invalidate both so the callback URL
+	// cannot be replayed within the cookies' lifetime
 	http.SetCookie(w, &http.Cookie{
 		Name: "weebsync_oidc_state", Value: "", Path: "/api/auth/oidc",
+		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name: "weebsync_oidc_nonce", Value: "", Path: "/api/auth/oidc",
 		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
 	})
 	token, err := o.config.Exchange(r.Context(), r.URL.Query().Get("code"))
@@ -160,6 +174,12 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	rawID, _ := token.Extra("id_token").(string)
 	idToken, err := o.verifier.Verify(r.Context(), rawID)
+	if err == nil && (nerr != nil || idToken.Nonce != nonceCookie.Value) {
+		// bind the ID token to this login: replay of a token minted for another
+		// flow (different nonce) is rejected
+		http.Error(w, "invalid nonce", http.StatusBadRequest)
+		return
+	}
 	if err != nil {
 		http.Error(w, "id token verification failed", http.StatusBadGateway)
 		return
