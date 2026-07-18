@@ -324,7 +324,7 @@ function AnilistAccount() {
             </button>
             {!data.configured && <span>{t('settings.anilistNotConfigured')}</span>}
           </div>
-          {/* pin flow: token pasted by the user — no secret, no redirect URL */}
+          {/* pin flow: token pasted by the user - no secret, no redirect URL */}
           <label className="text-xs text-t-muted">
             {t('settings.anilistPinLabel')}
             <span className="mt-1 flex gap-2">

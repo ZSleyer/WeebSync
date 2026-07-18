@@ -27,7 +27,7 @@ type Options struct {
 }
 
 // {name}, {name:0W} (zero-pad width W), {name+N}/{name-N} (numeric offset),
-// and both combined as {name-N:0W} — e.g. {episode-1155:02} turns an absolute
+// and both combined as {name-N:0W} - e.g. {episode-1155:02} turns an absolute
 // One Piece "E1156" into a season-relative "01".
 var placeholderRe = regexp.MustCompile(`\{(\w+)([+-]\d+)?(?::(\d+))?\}`)
 

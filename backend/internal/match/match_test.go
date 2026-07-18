@@ -71,7 +71,7 @@ var (
 		media(106625, "Haikyuu!! TO THE TOP", "HAIKYU!! TO THE TOP", "TV", 2020),
 	}
 	// live AniList results (the dev cache has only empty lists for these
-	// queries — that is the bug the normalize fallback fixes)
+	// queries - that is the bug the normalize fallback fixes)
 	yamiShibai = []anilist.Media{
 		media(19383, "Yami Shibai", "Theatre of Darkness: Yamishibai", "TV_SHORT", 2013),
 		media(109603, "Yami Shibai 7", "Theatre of Darkness: Yamishibai 7", "TV_SHORT", 2019),

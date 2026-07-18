@@ -1,5 +1,5 @@
 // WeebSync service worker: makes the app installable and shows push
-// notifications. No offline caching — the app is useless without its API.
+// notifications. No offline caching - the app is useless without its API.
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
 

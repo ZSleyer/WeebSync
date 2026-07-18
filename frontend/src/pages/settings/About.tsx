@@ -85,7 +85,7 @@ export default function About() {
                 {data?.repo} ↗
               </a>
             ) : (
-              <span className="text-t-muted">—</span>
+              <span className="text-t-muted">-</span>
             )}
           </dd>
           <dt className="text-t-muted">{t('about.copyright')}</dt>

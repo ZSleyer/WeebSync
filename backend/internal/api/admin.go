@@ -18,10 +18,10 @@ import (
 // Admin job/cache introspection and triggers: one status endpoint for the
 // background machinery (match queue, caches, crawler, watches) plus manual
 // job runs and cache flushes. All routes are admin-only and cross-user by
-// design — caches and the remote index are shared infrastructure.
+// design - caches and the remote index are shared infrastructure.
 
 // cacheScopes maps the public scope names to their key prefix in the shared
-// anilist_cache KV table and the TTL the owning client applies on reads —
+// anilist_cache KV table and the TTL the owning client applies on reads -
 // the default, made configurable by the given settings key ("" = fixed).
 // "tmdb:coll" covers both tmdb:coll-of:<movie> and tmdb:collection:<id>.
 type cacheScope struct {
@@ -323,7 +323,7 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 
 	case "rematch":
 		// server-wide variant of handleCatalogRematch: re-queue automatic
-		// matches with a forced search — by default only "no match" rows,
+		// matches with a forced search - by default only "no match" rows,
 		// with all=true every automatic match. Manual rows are left alone.
 		if in.ServerID == 0 {
 			writeErr(w, http.StatusBadRequest, "serverId required")
@@ -460,7 +460,7 @@ type adminMatchEntry struct {
 }
 
 // cachedTitle resolves a match row's display title from the media cache
-// (stale entries included — this is display only). "" when nothing cached.
+// (stale entries included - this is display only). "" when nothing cached.
 func (s *Server) cachedTitle(source string, mediaID int) string {
 	if mediaID == 0 {
 		return ""

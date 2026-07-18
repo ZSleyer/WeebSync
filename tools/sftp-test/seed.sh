@@ -3,7 +3,7 @@
 # Files are created sparse (truncate) so they cost zero disk. Sizes are capped
 # at SFTP_TEST_MAX_SIZE bytes (default 4 MiB) so sync tests download in
 # seconds instead of pulling GB-sized dummies; set it to 0 for real sizes.
-# index.json and data/ are gitignored — never commit them.
+# index.json and data/ are gitignored - never commit them.
 set -euo pipefail
 cd "$(dirname "$0")"
 

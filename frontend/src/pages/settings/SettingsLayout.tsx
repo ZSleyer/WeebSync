@@ -37,7 +37,7 @@ export default function SettingsLayout() {
 
   const current = groups.flatMap((g) => g.items).find((i) => location.pathname === `/settings/${i.to}`)
   useEffect(() => {
-    if (current) document.title = `${t(current.key)} — ${t('settings.title')} — WeebSync`
+    if (current) document.title = `${t(current.key)} - ${t('settings.title')} - WeebSync`
   }, [current, t])
 
   return (
@@ -48,7 +48,7 @@ export default function SettingsLayout() {
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        {/* phone: wrapping chip tabs — every section visible at once, one tap */}
+        {/* phone: wrapping chip tabs - every section visible at once, one tap */}
         <nav aria-label={t('settings.navLabel')} className="flex flex-col gap-3 lg:hidden">
           {groups.map((g) => (
             <div key={g.label}>

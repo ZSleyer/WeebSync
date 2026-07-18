@@ -48,7 +48,7 @@ export default function Login() {
   }, [cfg, noRedirect])
 
   useEffect(() => {
-    document.title = `${t('login.login')} — WeebSync`
+    document.title = `${t('login.login')} - WeebSync`
   }, [t])
 
   const submit = async (e: FormEvent) => {
@@ -69,7 +69,7 @@ export default function Login() {
         return
       }
       if (res.twoFactorRequired && res.token) {
-        // password ok — ask for the second factor, don't create a session yet
+        // password ok - ask for the second factor, don't create a session yet
         setTwoFA({ token: res.token, totp: !!res.totp, webauthn: !!res.webauthn })
         setPassword('')
         return

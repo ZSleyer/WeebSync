@@ -38,7 +38,7 @@ export default function Suggestions() {
 }
 
 // proper tab navigation (ARIA tabs pattern): underline bar, roving tabindex,
-// arrow-key switching — shared by the source tabs and the Plex library tabs
+// arrow-key switching - shared by the source tabs and the Plex library tabs
 function TabBar<T extends string>({
   tabs,
   active,
@@ -91,7 +91,7 @@ function TabBar<T extends string>({
           </button>
         ))}
       </div>
-      {/* decorative scroll hints — swipe and arrow keys do the real work */}
+      {/* decorative scroll hints - swipe and arrow keys do the real work */}
       {more.left && (
         <button
           aria-hidden
@@ -219,7 +219,7 @@ function AnilistSection() {
 
   type Sug = AnilistSuggestions['suggestions'][number]
   // local target: reuse the Plex folder name when the title exists there,
-  // otherwise empty — the sync then creates the remote folder name, and the
+  // otherwise empty - the sync then creates the remote folder name, and the
   // watch dialog lets the user pick a target
   const prefill = (s: Sug, path: string): WatchFields => {
     const season = guessSeason(s.media.title.romaji)
@@ -453,7 +453,7 @@ function PlexSection() {
   // prefill recommendations from the Plex data
   const prefill = (s: PlexSuggestions['suggestions'][number], path: string): WatchFields => {
     const season = guessSeason(s.sequel.title.romaji)
-    // movies get no SxxEyy episode template — empty template = no rename
+    // movies get no SxxEyy episode template - empty template = no rename
     const template =
       s.source === 'tmdb:movie'
         ? ''
@@ -671,7 +671,7 @@ function TmdbSection() {
   type Sug = TmdbSuggestions['watchlist'][number]
   const prefill = (s: Sug, path: string): WatchFields => {
     const season = guessSeason(s.media.title.romaji)
-    // movies get no SxxEyy episode template — empty template = no rename
+    // movies get no SxxEyy episode template - empty template = no rename
     const template =
       s.source === 'tmdb:movie'
         ? ''

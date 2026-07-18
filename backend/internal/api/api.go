@@ -58,7 +58,7 @@ func adminOnly(next http.Handler) http.Handler {
 func (s *Server) Register(mux *http.ServeMux) {
 	authed := auth.Middleware(s.DB, true)
 
-	// auth — login/register are rate-limited per IP against brute-force;
+	// auth - login/register are rate-limited per IP against brute-force;
 	// admin-configured trusted networks bypass the limit
 	if s.authLimiter == nil {
 		s.authLimiter = newIPLimiter(5, 5, s.ipTrusted)

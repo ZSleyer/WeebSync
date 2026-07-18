@@ -5,7 +5,7 @@ type PromptFn = (opts: PromptOptions) => Promise<string | null>
 
 const PromptCtx = createContext<PromptFn>(() => Promise.resolve(null))
 
-// App-wide prompt(): `const name = await prompt({ title, defaultValue })` — the
+// App-wide prompt(): `const name = await prompt({ title, defaultValue })` - the
 // custom-modal replacement for window.prompt(). One at a time.
 export function PromptProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ opts: PromptOptions; resolve: (v: string | null) => void } | null>(null)

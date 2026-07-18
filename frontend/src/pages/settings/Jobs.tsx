@@ -9,18 +9,18 @@ import i18n from '../../locales'
 /* Uniformity rules for this page (user requirement: identical elements must
    always align vertically across rows/panels):
    - every row is a two-cell grid `ROW_GRID`: name cell left, one right-anchored
-     cell (justify-self-end) that owns the row's right edge — no ad-hoc margins.
+     cell (justify-self-end) that owns the row's right edge - no ad-hoc margins.
      Below md both cells span the full width and stack; the right cell stays
      right-anchored, so stats/buttons keep identical x positions across rows.
      The label track has a hard 10rem minimum and side-by-side layout only
-     starts at md — a label must never render narrower than readable; when
+     starts at md - a label must never render narrower than readable; when
      space runs out the row stacks instead.
    - all numbers render font-mono tabular-nums; stat columns have fixed widths.
    - count badges (matched/unmatched) share a fixed min-width so the pair
      columnizes across rows, and match t-btn--sm height (24px, 32px on touch)
      so badge rows and button rows read as one system.
    - every NumEdit input is w-20 h-6 (t-btn--sm height) with the unit folded
-     into the label ("TTL (h)") — nothing ever renders to the right of an
+     into the label ("TTL (h)") - nothing ever renders to the right of an
      input, keeping edges flush. */
 const ROW_GRID =
   'grid grid-cols-[minmax(10rem,1fr)_auto] items-center gap-x-4 gap-y-1 border-b border-border-subtle text-sm'
@@ -31,7 +31,7 @@ const NUMEDIT_GRID = 'grid grid-cols-[auto_5rem] items-center gap-x-2 gap-y-1'
 const COUNT_BADGE =
   't-label min-h-6 min-w-28 shrink-0 justify-center px-2.5 tabular-nums [@media(pointer:coarse)]:min-h-8'
 
-// Pinned contract with the admin endpoints (Workstream A) — keep in sync.
+// Pinned contract with the admin endpoints (Workstream A) - keep in sync.
 interface CacheInfo {
   scope: string
   count: number
@@ -109,11 +109,11 @@ const PAGE = 50
 const TTL_DEFAULTS: TtlConfig = { anilistH: 24, tmdbH: 24, plexH: 6 }
 const INDEX_DEFAULTS = { intervalMin: 5, batch: 20 }
 
-// SQLite stores UTC without a timezone marker — tack on Z for local display.
+// SQLite stores UTC without a timezone marker - tack on Z for local display.
 // Dates and numbers follow the app language, not the browser locale, so the
 // page stays consistent when UI language and OS locale differ.
 function fmtTs(s: string): string {
-  if (!s) return '—'
+  if (!s) return '-'
   const d = new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`)
   return Number.isNaN(d.getTime()) ? s : d.toLocaleString(i18n.language)
 }
@@ -140,7 +140,7 @@ function basename(p: string): string {
 }
 
 // Release-style folder names carry bracket/paren tags ("Title S1 [JapDub,CR]")
-// that make metadata searches miss — strip them for the search prefill.
+// that make metadata searches miss - strip them for the search prefill.
 function cleanTitle(name: string): string {
   const cleaned = name
     .replace(/\[.*?\]/g, '')
@@ -398,7 +398,7 @@ export default function Jobs() {
         ) : (
           <ul className="mt-2">
             {/* one delimited block per server: name/stats line, config/actions
-                line — same grid geometry as every other row on the page */}
+                line - same grid geometry as every other row on the page */}
             {data.index.servers.map((s) => (
               <li key={s.id} className={`${ROW_GRID} gap-y-2 py-3`}>
                 <span className={CELL_LEFT}>
@@ -446,7 +446,7 @@ export default function Jobs() {
                   />
                 </span>
                 {/* buttons top-align with the first input row (self-start) and
-                    share its 24px control height — anchored to the input grid,
+                    share its 24px control height - anchored to the input grid,
                     not floating vertically centered beside it */}
                 <span className={`${CELL_RIGHT} md:self-start`}>
                   <button
@@ -822,7 +822,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                       {m.title}
                     </span>
                   ) : (
-                    <span className="t-label t-label--warn shrink-0">—</span>
+                    <span className="t-label t-label--warn shrink-0">-</span>
                   )}
                   <button
                     className={`t-btn t-btn--sm ${correcting?.folder === m.folder ? 't-btn--primary' : ''}`}

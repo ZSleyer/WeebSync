@@ -62,7 +62,7 @@ func (s *Service) load() (config, error) {
 	// the envelope sender must be a real address: a bare name gets
 	// SRS-rewritten by relays into garbage and lands in spam
 	if _, err := mail.ParseAddress(c.from); err != nil {
-		return c, fmt.Errorf("smtp from %q is not a valid email address — set a real sender in the email settings", c.from)
+		return c, fmt.Errorf("smtp from %q is not a valid email address - set a real sender in the email settings", c.from)
 	}
 	// env override wins (matches SettingOrEnv semantics); the DB value is
 	// stored base64(AES-GCM) like other secrets

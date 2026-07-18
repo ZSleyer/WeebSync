@@ -6,7 +6,7 @@ type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>
 const ConfirmCtx = createContext<ConfirmFn>(() => Promise.resolve(false))
 
 // App-wide confirm(): mount <ConfirmProvider> once, then `const ok = await
-// confirm({ message, destructive })` anywhere — replaces window.confirm() with
+// confirm({ message, destructive })` anywhere - replaces window.confirm() with
 // the custom modal. One modal instance at a time (confirms don't stack).
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ opts: ConfirmOptions; resolve: (ok: boolean) => void } | null>(null)
