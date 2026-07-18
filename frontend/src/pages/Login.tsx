@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type User } from '../api'
-import { loginPasskey, assertSecurityKey } from '../webauthn'
+import { loginPasskey, assertSecurityKey, supportsPasskeyAutofill, conditionalPasskeyLogin } from '../webauthn'
 import Loading from '../components/Loading'
 import Setup from './Setup'
 
@@ -29,6 +29,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
   const [twoFA, setTwoFA] = useState<{ token: string; totp: boolean; webauthn: boolean } | null>(null)
   const [code, setCode] = useState('')
+  const [autofill, setAutofill] = useState(false) // browser supports passkey autofill
 
   // email verification redirect lands here with ?verify=ok|invalid
   useEffect(() => {
@@ -103,6 +104,26 @@ export default function Login() {
     qc.clear()
     await qc.invalidateQueries({ queryKey: ['me'] })
   }
+  // arm passkey autofill (conditional UI) once, when password login is available:
+  // the browser surfaces passkeys in the email field, no explicit button needed
+  useEffect(() => {
+    if (cfg?.authMode !== 'password') return
+    let active = true
+    supportsPasskeyAutofill().then((ok) => {
+      if (!active) return
+      setAutofill(ok)
+      if (ok)
+        conditionalPasskeyLogin()
+          .then(() => {
+            if (active) afterAuth()
+          })
+          .catch(() => {})
+    })
+    return () => {
+      active = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg?.authMode])
   const passkeyLogin = async () => {
     setBusy(true)
     setError('')
@@ -213,16 +234,17 @@ export default function Login() {
           </form>
         ) : (
           <form className="t-panel animate-fadeIn p-6" onSubmit={submit}>
-            <div className="mb-4 flex gap-1" role="group" aria-label={t('login.tabs')}>
-              <button
-                type="button"
-                aria-pressed={mode === 'login'}
-                className={`t-btn t-btn--sm flex-1 ${mode === 'login' ? 't-btn--primary t-cut' : ''}`}
-                onClick={() => setMode('login')}
-              >
-                {t('login.login')}
-              </button>
-              {cfg.registrationOpen && (
+            {/* tab bar only when there's a real choice (registration open) */}
+            {cfg.registrationOpen && (
+              <div className="mb-4 flex gap-1" role="group" aria-label={t('login.tabs')}>
+                <button
+                  type="button"
+                  aria-pressed={mode === 'login'}
+                  className={`t-btn t-btn--sm flex-1 ${mode === 'login' ? 't-btn--primary t-cut' : ''}`}
+                  onClick={() => setMode('login')}
+                >
+                  {t('login.login')}
+                </button>
                 <button
                   type="button"
                   aria-pressed={mode === 'register'}
@@ -231,8 +253,8 @@ export default function Login() {
                 >
                   {t('login.register')}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
             <label className="t-label mb-1 block w-fit" htmlFor="email">
               {t('login.email')}
             </label>
@@ -240,7 +262,8 @@ export default function Login() {
               id="email"
               className="t-input mb-4"
               type="email"
-              autoComplete="email"
+              // "webauthn" arms passkey autofill on this field (conditional UI)
+              autoComplete="username webauthn"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -271,7 +294,7 @@ export default function Login() {
             <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
               {mode === 'login' ? t('login.submitLogin') : t('login.submitRegister')}
             </button>
-            {mode === 'login' && (
+            {mode === 'login' && !autofill && (
               <button type="button" className="t-btn mt-3 block w-full text-center" disabled={busy} onClick={passkeyLogin}>
                 {t('login.passkey')}
               </button>
