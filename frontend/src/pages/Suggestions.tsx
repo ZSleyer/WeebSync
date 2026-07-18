@@ -187,6 +187,23 @@ function CandidateRow({
   )
 }
 
+// A hard-separated block: server-available suggestions vs API discovery each
+// get their own bordered container with a header + one-line descriptor.
+function Group({ title, subtitle, count, children }: { title: string; subtitle: string; count?: number; children: React.ReactNode }) {
+  return (
+    <div className="border border-border-subtle bg-bg-secondary/20">
+      <div className="flex items-baseline justify-between gap-3 border-b border-border-subtle px-4 py-2.5">
+        <div>
+          <h3 className="font-display text-sm font-semibold tracking-wider text-t-primary">{title}</h3>
+          <p className="mt-0.5 text-[11px] text-t-muted">{subtitle}</p>
+        </div>
+        {count != null && count > 0 && <span className="t-label shrink-0">{count}</span>}
+      </div>
+      <div className="p-3">{children}</div>
+    </div>
+  )
+}
+
 // AniList watchlist titles available on the user's servers.
 function AnilistSection() {
   const { t } = useTranslation()
@@ -260,6 +277,9 @@ function AnilistSection() {
           )}
           {s.media.status && <span>{t(`browser.status.${s.media.status}`, s.media.status)}</span>}
           {s.media.averageScore > 0 && <span className="t-label t-label--accent">★ {s.media.averageScore}</span>}
+          <a className="t-label hover:text-accent" href={`https://anilist.co/anime/${s.media.id}`} target="_blank" rel="noreferrer">
+            AniList ↗
+          </a>
           {s.status && (
             <button
               className="t-btn t-btn--sm"
@@ -283,18 +303,22 @@ function AnilistSection() {
             {t('suggestions.plexFolder')}: {s.plexFolder}
           </p>
         )}
-        <ul className="mt-2 grid grid-cols-1 gap-1">
-          {s.candidates.map((c) => (
-            <CandidateRow
-              key={c.path}
-              serverId={c.serverId}
-              serverName={c.serverName}
-              path={c.path}
-              onWatch={() => setWatch({ serverId: c.serverId, name: s.media.title.romaji, initial: prefill(s, c.path) })}
-              onSync={() => syncOnce(s, c.serverId, c.path)}
-            />
-          ))}
-        </ul>
+        {s.candidates.length === 0 ? (
+          <p className="mt-2 text-[11px] text-t-faint">{t('suggestions.notOnServer')}</p>
+        ) : (
+          <ul className="mt-2 grid grid-cols-1 gap-1">
+            {s.candidates.map((c) => (
+              <CandidateRow
+                key={c.path}
+                serverId={c.serverId}
+                serverName={c.serverName}
+                path={c.path}
+                onWatch={() => setWatch({ serverId: c.serverId, name: s.media.title.romaji, initial: prefill(s, c.path) })}
+                onSync={() => syncOnce(s, c.serverId, c.path)}
+              />
+            ))}
+          </ul>
+        )}
       </div>
     </li>
   )
@@ -333,30 +357,28 @@ function AnilistSection() {
       {isLoading ? (
         <SkeletonCards />
       ) : (
-        <>
-          <h3 className="t-label mb-2">{t('suggestions.anilistWatchlist')}</h3>
-          {!data?.connected ? (
-            <div className="t-panel p-6 text-center text-sm text-t-muted">
-              <Trans i18nKey="suggestions.notConnected">
-                Kein AniList-Konto verbunden. Unter <Link to="/settings" className="text-accent underline">Einstellungen</Link> verbinden.
-              </Trans>
-            </div>
-          ) : data.suggestions.length === 0 ? (
-            <div className="t-panel p-6 text-center text-sm text-t-muted">
-              {data.building ? t('plex.buildingLong') : t('suggestions.anilistEmpty')}
-            </div>
-          ) : (
-            <ul className="grid grid-cols-1 gap-3">{data.suggestions.map(card)}</ul>
-          )}
+        <div className="space-y-4">
+          <Group title={t('suggestions.onServer')} subtitle={t('suggestions.onServerSub')} count={data?.suggestions.length}>
+            {!data?.connected ? (
+              <div className="p-3 text-center text-sm text-t-muted">
+                <Trans i18nKey="suggestions.notConnected">
+                  Kein AniList-Konto verbunden. Unter <Link to="/settings" className="text-accent underline">Einstellungen</Link> verbinden.
+                </Trans>
+              </div>
+            ) : data.suggestions.length === 0 ? (
+              <div className="p-3 text-center text-sm text-t-muted">
+                {data.building ? t('plex.buildingLong') : t('suggestions.anilistEmpty')}
+              </div>
+            ) : (
+              <ul className="grid grid-cols-1 gap-3">{data.suggestions.map(card)}</ul>
+            )}
+          </Group>
           {(data?.trending?.length ?? 0) > 0 && (
-            <>
-              <h3 className="t-label mt-6 mb-2 border-t border-border-subtle pt-4">
-                {t('suggestions.anilistTrending')}
-              </h3>
+            <Group title={t('suggestions.trendingTitle')} subtitle={t('suggestions.trendingSubAnilist')} count={data!.trending.length}>
               <ul className="grid grid-cols-1 gap-3">{data!.trending.map(card)}</ul>
-            </>
+            </Group>
           )}
-        </>
+        </div>
       )}
       {lastIds.length > 0 && (
         <p className="mt-3 flex items-center justify-center gap-2 text-xs text-t-secondary" role="status">
@@ -714,18 +736,22 @@ function TmdbSection() {
             {t('suggestions.plexFolder')}: {s.plexFolder}
           </p>
         )}
-        <ul className="mt-2 grid grid-cols-1 gap-1">
-          {s.candidates.map((c) => (
-            <CandidateRow
-              key={c.path}
-              serverId={c.serverId}
-              serverName={c.serverName}
-              path={c.path}
-              onWatch={() => setWatch({ serverId: c.serverId, name: s.media.title.romaji, initial: prefill(s, c.path) })}
-              onSync={() => syncOnce(s, c.serverId, c.path)}
-            />
-          ))}
-        </ul>
+        {s.candidates.length === 0 ? (
+          <p className="mt-2 text-[11px] text-t-faint">{t('suggestions.notOnServer')}</p>
+        ) : (
+          <ul className="mt-2 grid grid-cols-1 gap-1">
+            {s.candidates.map((c) => (
+              <CandidateRow
+                key={c.path}
+                serverId={c.serverId}
+                serverName={c.serverName}
+                path={c.path}
+                onWatch={() => setWatch({ serverId: c.serverId, name: s.media.title.romaji, initial: prefill(s, c.path) })}
+                onSync={() => syncOnce(s, c.serverId, c.path)}
+              />
+            ))}
+          </ul>
+        )}
       </div>
     </li>
   )
@@ -760,26 +786,28 @@ function TmdbSection() {
           </Trans>
         </div>
       ) : (
-        <>
-          <h3 className="t-label mb-2">{t('suggestions.tmdbWatchlist')}</h3>
-          {!data.connected ? (
-            <div className="t-panel p-6 text-center text-sm text-t-muted">
-              <Trans i18nKey="suggestions.tmdbNotConnected">
-                Kein TMDB-Konto verbunden. Unter <Link to="/settings" className="text-accent underline">Einstellungen</Link> verbinden.
-              </Trans>
-            </div>
-          ) : data.watchlist.length === 0 ? (
-            <div className="t-panel p-6 text-center text-sm text-t-muted">{t('suggestions.tmdbEmpty')}</div>
-          ) : (
-            <ul className="grid grid-cols-1 gap-3">{data.watchlist.map(card)}</ul>
-          )}
-          <h3 className="t-label mt-6 mb-2 border-t border-border-subtle pt-4">{t('suggestions.tmdbTrending')}</h3>
-          {data.trending.length === 0 ? (
-            <div className="t-panel p-6 text-center text-sm text-t-muted">{t('suggestions.trendingEmpty')}</div>
-          ) : (
-            <ul className="grid grid-cols-1 gap-3">{data.trending.map(card)}</ul>
-          )}
-        </>
+        <div className="space-y-4">
+          <Group title={t('suggestions.onServer')} subtitle={t('suggestions.onServerSubTmdb')} count={data.watchlist.length}>
+            {!data.connected ? (
+              <div className="p-3 text-center text-sm text-t-muted">
+                <Trans i18nKey="suggestions.tmdbNotConnected">
+                  Kein TMDB-Konto verbunden. Unter <Link to="/settings" className="text-accent underline">Einstellungen</Link> verbinden.
+                </Trans>
+              </div>
+            ) : data.watchlist.length === 0 ? (
+              <div className="p-3 text-center text-sm text-t-muted">{t('suggestions.tmdbEmpty')}</div>
+            ) : (
+              <ul className="grid grid-cols-1 gap-3">{data.watchlist.map(card)}</ul>
+            )}
+          </Group>
+          <Group title={t('suggestions.trendingTitle')} subtitle={t('suggestions.trendingSubTmdb')} count={data.trending.length}>
+            {data.trending.length === 0 ? (
+              <div className="p-3 text-center text-sm text-t-muted">{t('suggestions.trendingEmpty')}</div>
+            ) : (
+              <ul className="grid grid-cols-1 gap-3">{data.trending.map(card)}</ul>
+            )}
+          </Group>
+        </div>
       )}
       {notice && (
         <p className="mt-3 flex items-center justify-center gap-2 text-xs text-t-secondary" role="status">

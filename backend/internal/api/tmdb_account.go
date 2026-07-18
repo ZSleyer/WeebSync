@@ -116,12 +116,14 @@ type tmdbSuggestion struct {
 	Candidates []plexCandidate `json:"candidates"`
 }
 
-// tmdbSuggestList filters medias to those present in the user's remote index.
-func (s *Server) tmdbSuggestList(userID int64, kind string, medias []anilist.Media) []tmdbSuggestion {
+// tmdbSuggestList maps medias to suggestions, attaching any server candidates.
+// When discovery is false (watchlist) it keeps only titles present on a server;
+// when true (trending) it keeps all, so trending is pure API discovery.
+func (s *Server) tmdbSuggestList(userID int64, kind string, medias []anilist.Media, discovery bool) []tmdbSuggestion {
 	out := []tmdbSuggestion{}
 	for _, m := range medias {
 		cands := s.remoteCandidates(userID, m)
-		if len(cands) == 0 {
+		if len(cands) == 0 && !discovery {
 			continue
 		}
 		out = append(out, tmdbSuggestion{Media: m, Source: "tmdb:" + kind, Candidates: cands})
@@ -157,7 +159,7 @@ func (s *Server) handleTmdbSuggestions(w http.ResponseWriter, r *http.Request) {
 	trending := []tmdbSuggestion{}
 	for _, kind := range []string{"tv", "movie"} {
 		if list, err := s.Tmdb.Trending(r.Context(), kind); err == nil {
-			trending = append(trending, s.tmdbSuggestList(u.ID, kind, list)...)
+			trending = append(trending, s.tmdbSuggestList(u.ID, kind, list, true)...)
 		}
 	}
 	if accountID, session, err := s.tmdbAccount(u.ID); err == nil {
@@ -171,7 +173,7 @@ func (s *Server) handleTmdbSuggestions(w http.ResponseWriter, r *http.Request) {
 				payload, _ := json.Marshal(medias)
 				s.cacheSet(key, string(payload))
 			}
-			watchlist = append(watchlist, s.tmdbSuggestList(u.ID, kind, medias)...)
+			watchlist = append(watchlist, s.tmdbSuggestList(u.ID, kind, medias, false)...)
 		}
 	}
 	out["watchlist"] = watchlist

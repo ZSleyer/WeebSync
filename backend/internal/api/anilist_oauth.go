@@ -295,8 +295,10 @@ type anilistSuggestion struct {
 	Candidates []plexCandidate `json:"candidates"`
 }
 
-// anilistTrending lists trending anime present on the user's servers
-// (rendered without watchlist status). Best effort: empty on API errors.
+// anilistTrending lists the full AniList trending chart as pure discovery,
+// independent of the servers. Titles that DO exist on a server still carry
+// their candidates (so the sync buttons appear); the rest are browse-only.
+// Best effort: empty on API errors.
 func (s *Server) anilistTrending(ctx context.Context, userID int64) []anilistSuggestion {
 	out := []anilistSuggestion{}
 	list, err := s.Anilist.Trending(ctx)
@@ -304,11 +306,7 @@ func (s *Server) anilistTrending(ctx context.Context, userID int64) []anilistSug
 		return out
 	}
 	for _, m := range list {
-		cands := s.remoteCandidates(userID, m)
-		if len(cands) == 0 {
-			continue
-		}
-		out = append(out, anilistSuggestion{Media: m, Candidates: cands})
+		out = append(out, anilistSuggestion{Media: m, Candidates: s.remoteCandidates(userID, m)})
 	}
 	medias := make([]anilist.Media, 0, len(out))
 	for _, sug := range out {
