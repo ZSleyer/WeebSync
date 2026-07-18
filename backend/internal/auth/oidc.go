@@ -130,8 +130,16 @@ func (m *Manager) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "oidc not configured", http.StatusNotFound)
 		return
 	}
-	state := randHex()
-	nonce := randHex()
+	state, err := randHex()
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	nonce, err := randHex()
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name: "weebsync_oidc_state", Value: state, Path: "/api/auth/oidc",
 		MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
@@ -143,10 +151,12 @@ func (m *Manager) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, o.config.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
 }
 
-func randHex() string {
+func randHex() (string, error) {
 	raw := make([]byte, 16)
-	rand.Read(raw)
-	return hex.EncodeToString(raw)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw), nil
 }
 
 // CallbackHandler exchanges the code, verifies the ID token, links or creates

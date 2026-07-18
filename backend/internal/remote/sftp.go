@@ -1,11 +1,13 @@
 package remote
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/netguard"
@@ -51,9 +53,6 @@ func dialSFTP(cfg Config) (Client, error) {
 }
 
 func dialSSH(cfg Config) (*ssh.Client, error) {
-	if err := netguard.Allowed(cfg.Host); err != nil {
-		return nil, err
-	}
 	// Trust-on-first-use: accept and persist the key on first connect,
 	// require an exact match afterwards.
 	// mismatch flags the failure outside the callback because the ssh
@@ -73,19 +72,28 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 		}
 		return nil
 	}
-	conn, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", cfg.Host, cfg.Port), &ssh.ClientConfig{
+	// Resolve once and dial the verified IP through netguard, then run the SSH
+	// handshake over that connection - a plain ssh.Dial re-resolves the host and
+	// would reopen the DNS-rebinding TOCTOU that netguard.Allowed alone leaves.
+	netConn, err := netguard.SafeDial(context.Background(), "tcp", cfg.Host, cfg.Port, 15*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
+	sc, chans, reqs, err := ssh.NewClientConn(netConn, addr, &ssh.ClientConfig{
 		User:            cfg.Username,
 		Auth:            []ssh.AuthMethod{ssh.Password(cfg.Password)},
 		HostKeyCallback: hostKeyCB,
 		Timeout:         15 * time.Second,
 	})
 	if err != nil {
+		netConn.Close()
 		if mismatch {
 			return nil, fmt.Errorf("%w for %s:%d", ErrHostKeyMismatch, cfg.Host, cfg.Port)
 		}
 		return nil, err
 	}
-	return conn, nil
+	return ssh.NewClient(sc, chans, reqs), nil
 }
 
 func (c *sftpClient) List(dir string) ([]Entry, error) {

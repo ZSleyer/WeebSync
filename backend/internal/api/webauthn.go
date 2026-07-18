@@ -38,7 +38,9 @@ func (s *Server) loadWAUser(userID int64) (*waUser, error) {
 	}
 	if len(handle) == 0 {
 		handle = make([]byte, 32)
-		rand.Read(handle)
+		if _, err := rand.Read(handle); err != nil {
+			return nil, err
+		}
 		s.DB.Exec(`UPDATE users SET webauthn_handle = ? WHERE id = ?`, handle, userID)
 	}
 	u.handle = handle
@@ -172,7 +174,7 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 		dbErr(w)
 		return
 	}
-	passwordless := r.URL.Query().Get("type") != "key"
+	passwordless := r.Header.Get("X-WA-Type") != "key"
 	sel := protocol.AuthenticatorSelection{UserVerification: protocol.VerificationPreferred}
 	if passwordless {
 		sel.ResidentKey = protocol.ResidentKeyRequirementRequired
@@ -191,7 +193,9 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	session := waTake(r.URL.Query().Get("s"))
+	// ceremony id + metadata travel in headers, not the query string, so they
+	// don't leak into access/proxy logs or a Referer (the body is the credential)
+	session := waTake(r.Header.Get("X-WA-Session"))
 	if session == nil {
 		writeErr(w, http.StatusBadRequest, "expired registration session")
 		return
@@ -211,11 +215,11 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	name := r.URL.Query().Get("name")
+	name := r.Header.Get("X-WA-Name")
 	if name == "" {
 		name = "Passkey"
 	}
-	if err := s.storeCredential(u.ID, cred, name, r.URL.Query().Get("type") != "key"); err != nil {
+	if err := s.storeCredential(u.ID, cred, name, r.Header.Get("X-WA-Type") != "key"); err != nil {
 		writeErr(w, http.StatusConflict, "credential already registered")
 		return
 	}
@@ -247,7 +251,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		writeErr(w, http.StatusForbidden, "password auth is disabled, use OIDC")
 		return
 	}
-	session := waTake(r.URL.Query().Get("s"))
+	session := waTake(r.Header.Get("X-WA-Session"))
 	if session == nil {
 		writeErr(w, http.StatusBadRequest, "expired login session")
 		return
@@ -312,8 +316,8 @@ func (s *Server) handleWebAuthn2FABegin(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	session := waTake(r.URL.Query().Get("s"))
+	token := r.Header.Get("X-WA-Token")
+	session := waTake(r.Header.Get("X-WA-Session"))
 	if session == nil {
 		writeErr(w, http.StatusBadRequest, "expired login session")
 		return

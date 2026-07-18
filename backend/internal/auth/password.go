@@ -7,9 +7,25 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/argon2"
 )
+
+var (
+	dummyOnce sync.Once
+	dummyHash string
+)
+
+// DummyVerify burns the same argon2 work as a real VerifyPassword so the login
+// path costs the same time whether or not the account exists - closing the
+// timing side channel that would otherwise reveal which emails are registered.
+func DummyVerify(password string) {
+	dummyOnce.Do(func() { dummyHash, _ = HashPassword("weebsync-nonexistent-account") })
+	if dummyHash != "" {
+		_ = VerifyPassword(password, dummyHash)
+	}
+}
 
 // argon2id parameters per OWASP recommendation (m=64MiB, t=3, p=4).
 const (
