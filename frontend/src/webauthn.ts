@@ -1,5 +1,17 @@
-import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
+import { startRegistration, startAuthentication, browserSupportsWebAuthnAutofill } from '@simplewebauthn/browser'
 import { api } from './api'
+
+export const supportsPasskeyAutofill = () => browserSupportsWebAuthnAutofill()
+
+// conditionalPasskeyLogin arms the browser's passkey autofill: it resolves only
+// when the user actually picks a passkey from the input's autofill dropdown, so
+// no explicit button is needed. Aborts silently if the user ignores it.
+export async function conditionalPasskeyLogin(): Promise<void> {
+  const begin = await api.post<Begin>('/api/auth/webauthn/login/begin')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const asse = await startAuthentication({ optionsJSON: begin.publicKey as any, useBrowserAutofill: true })
+  await api.post(`/api/auth/webauthn/login/finish?s=${encodeURIComponent(begin.sessionId)}`, asse)
+}
 
 type Begin = { sessionId: string; publicKey: unknown }
 
