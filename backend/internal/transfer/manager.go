@@ -225,6 +225,17 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	m.DB.Exec(`UPDATE downloads SET size = ? WHERE id = ?`, size, d.ID)
 	d.Size = size
 
+	// self-heal a stale queue: a watch check runs minutes before its downloads
+	// drain, and one that ran while the target disk was unmounted queues every
+	// episode as "missing". By download time the disk is usually back and the
+	// file is already present at full size - don't refetch over a good file.
+	// A genuine new episode or a re-release (E15v2, different size) still fails
+	// this check and downloads normally.
+	if alreadyComplete(d.LocalPath, size) {
+		m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, size, d.ID)
+		return nil
+	}
+
 	part := d.LocalPath + ".part"
 	if err := os.MkdirAll(filepath.Dir(part), 0o755); err != nil {
 		return err
@@ -311,6 +322,15 @@ var ErrNotFound = fmt.Errorf("download not found")
 // VideoExt lists file extensions treated as episodes (upload guard,
 // completeness checks).
 var VideoExt = map[string]bool{".mkv": true, ".mp4": true, ".avi": true, ".ts": true, ".m2ts": true, ".webm": true, ".mov": true}
+
+// alreadyComplete reports whether the final file is already present at the
+// exact remote size, so a queued download can be skipped instead of refetched
+// over a good file (stale queue from a check that ran while the disk was
+// unmounted). A re-release with a different size fails this and downloads.
+func alreadyComplete(localPath string, size int64) bool {
+	fi, err := os.Stat(localPath)
+	return err == nil && fi.Size() == size
+}
 
 // looksUploading reports whether a video file is probably still being
 // uploaded: far smaller than its siblings in the same directory.
