@@ -104,7 +104,7 @@ function RouteTitle() {
     const item = NAV.find(
       (n) => n.to === location.pathname || (n.to !== '/' && location.pathname.startsWith(n.to + '/')),
     )
-    document.title = item ? `${t(item.key)} — WeebSync` : 'WeebSync'
+    document.title = item ? `${t(item.key)} - WeebSync` : 'WeebSync'
   }, [location.pathname, t])
   return null
 }
@@ -119,7 +119,7 @@ function Shell({ email }: { email: string }) {
 
   // route transition follows nav order: a lower-numbered tab enters from the
   // right (moving right→left), a higher one from the left (left→right).
-  // Keyed on pathname so it's computed once per navigation — a plain re-render
+  // Keyed on pathname so it's computed once per navigation - a plain re-render
   // (e.g. opening the mobile "more" sheet) must not re-flip the class and
   // replay the animation.
   const curNav = navIndex(location.pathname)
@@ -142,10 +142,10 @@ function Shell({ email }: { email: string }) {
     try {
       await api.post('/api/auth/logout')
     } catch {
-      /* drop to the login screen either way — the user wants out */
+      /* drop to the login screen either way - the user wants out */
     }
     // full reload to the root: guarantees the app re-gates on a fresh /api/auth/me
-    // (which is now 401) and wipes every cached query of the previous user —
+    // (which is now 401) and wipes every cached query of the previous user -
     // a plain cache reset raced the data-router re-render and left stale content.
     window.location.href = '/'
   }

@@ -12,7 +12,7 @@ import (
 
 // ErrHostKeyMismatch marks a failed SSH handshake caused by a host key that
 // differs from the learned TOFU key. Callers can offer a key reset.
-var ErrHostKeyMismatch = errors.New("ssh host key mismatch — server changed or MITM")
+var ErrHostKeyMismatch = errors.New("ssh host key mismatch - server changed or MITM")
 
 type Entry struct {
 	Name    string    `json:"name"`

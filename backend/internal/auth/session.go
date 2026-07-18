@@ -17,9 +17,9 @@ const sessionTTL = 30 * 24 * time.Hour
 
 // Deployment posture from env, read once at startup:
 //
-//	WEEBSYNC_TRUSTED_PROXY — trust X-Forwarded-* (set only behind a proxy that
+//	WEEBSYNC_TRUSTED_PROXY - trust X-Forwarded-* (set only behind a proxy that
 //	  overwrites these headers, else a direct client can spoof them).
-//	WEEBSYNC_FORCE_HTTPS — always set Secure on cookies (recommended when a
+//	WEEBSYNC_FORCE_HTTPS - always set Secure on cookies (recommended when a
 //	  reverse proxy terminates TLS, so the app never sees r.TLS).
 var (
 	trustProxy = envBool("WEEBSYNC_TRUSTED_PROXY")

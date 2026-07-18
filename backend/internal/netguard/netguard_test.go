@@ -10,7 +10,7 @@ import (
 func TestAllowed(t *testing.T) {
 	blocked := []string{
 		"169.254.169.254",        // AWS/GCP IPv4 metadata
-		"::ffff:169.254.169.254", // IPv4-mapped IPv6 — must not bypass
+		"::ffff:169.254.169.254", // IPv4-mapped IPv6 - must not bypass
 		"fd00:ec2::254",          // AWS IPv6 metadata
 		"fe80::1",                // IPv6 link-local
 	}

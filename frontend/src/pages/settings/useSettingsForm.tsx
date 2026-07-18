@@ -54,7 +54,7 @@ const BLANK_SECRETS = {
 }
 
 // Shared admin form: each settings sub-page seeds from GET /api/settings and
-// saves the full state — safe per-page because PUT validates the complete
+// saves the full state - safe per-page because PUT validates the complete
 // payload and untouched secrets stay "" (no-op).
 export function useSettingsForm() {
   const qc = useQueryClient()
@@ -74,7 +74,7 @@ export function useSettingsForm() {
     onSuccess: (fresh) => {
       qc.setQueryData(['settings'], fresh)
       // dependent queries gate UI on the saved config (AniList connect button,
-      // Plex sections, SMTP availability, suggestion pages) — refetch them all
+      // Plex sections, SMTP availability, suggestion pages) - refetch them all
       for (const key of ['anilist-me', 'plex-sections', 'email-prefs', 'anilist-suggestions', 'plex-suggestions', 'tmdb-me', 'tmdb-suggestions'])
         qc.invalidateQueries({ queryKey: [key] })
       setForm({ ...fresh, ...BLANK_SECRETS })
@@ -105,12 +105,12 @@ export function EnvBadge({ show }: { show: boolean }) {
   return (
     <span
       className="ml-1.5 inline-block align-[-1px] text-t-muted"
-      title={`ENV — ${t('settings.envLockedHint')}`}
+      title={`ENV - ${t('settings.envLockedHint')}`}
     >
       <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12 2a5 5 0 0 0-5 5v3H5v12h14V10h-2V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z" />
       </svg>
-      <span className="sr-only">ENV — {t('settings.envLockedHint')}</span>
+      <span className="sr-only">ENV - {t('settings.envLockedHint')}</span>
     </span>
   )
 }

@@ -298,7 +298,7 @@ type Relation struct {
 }
 
 // RelationsBatch resolves the relation edges of several media with one
-// aliased GraphQL request, cached per id ("rel2:<id>" — key bumped when the
+// aliased GraphQL request, cached per id ("rel2:<id>" - key bumped when the
 // node field set grew by cover/year/score).
 func (c *Client) RelationsBatch(ctx context.Context, ids []int) (map[int][]Relation, error) {
 	out := make(map[int][]Relation, len(ids))

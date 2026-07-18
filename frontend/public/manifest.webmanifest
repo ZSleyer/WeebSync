@@ -1,7 +1,7 @@
 {
   "name": "WeebSync",
   "short_name": "WeebSync",
-  "description": "S/FTP anime sync — private use",
+  "description": "S/FTP anime sync - private use",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d1117",

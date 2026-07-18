@@ -208,7 +208,7 @@ func (s *Server) crawlServer(ctx context.Context, userID, serverID int64, root s
 }
 
 // handleServerSearch searches the remote index of one server.
-// GET /api/servers/{id}/search?q=... — multiple words AND-match the name.
+// GET /api/servers/{id}/search?q=... - multiple words AND-match the name.
 func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)

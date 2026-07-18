@@ -14,7 +14,7 @@ import (
 )
 
 // ipLimiter is a per-IP token-bucket rate limiter for auth endpoints, guarding
-// against password brute-force. In-memory only — fine for a single instance;
+// against password brute-force. In-memory only - fine for a single instance;
 // a multi-replica deploy would need a shared store.
 type ipLimiter struct {
 	mu    sync.Mutex

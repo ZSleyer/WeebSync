@@ -8,7 +8,7 @@
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "tailwindcss";
 
-/* ═══ WeebSync — Tempest design language (from Encounty) ═══
+/* ═══ WeebSync - Tempest design language (from Encounty) ═══
    Hard corners everywhere: radius 0, softness comes from corner cuts
    (.t-cut) and L-brackets (.t-panel), never from rounding. Only toggles
    and true indicator dots are round. */
@@ -220,7 +220,7 @@ body {
 .t-btn--danger:hover { border-color: var(--accent-red); background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
 .t-btn--sm { padding: 4px 10px; font-size: 11px; min-height: 24px; min-width: 24px; } /* WCAG 2.5.8 target size */
 
-/* Tabs: segmented bar in the Tempest style — display font, accent
+/* Tabs: segmented bar in the Tempest style - display font, accent
    underline marks the active tab. On phones the bar scrolls horizontally
    instead of wrapping into ragged rows. */
 .t-tabs {
@@ -339,7 +339,7 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
 /* Accent surfaces carry dark text (WCAG 1.4.3) */
 .bg-accent { color: var(--bg-primary) !important; }
 
-/* Visible keyboard focus everywhere — but only once keyboard navigation
+/* Visible keyboard focus everywhere - but only once keyboard navigation
    started (html.kbd, set in main.tsx), so programmatic focus never paints
    a ring for pure mouse users. The bare rule suppresses the UA default. */
 :focus-visible {
@@ -388,7 +388,7 @@ dialog {
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   padding: 0;
-  /* Preflight resets margin:0 — restore UA centering for :modal.
+  /* Preflight resets margin:0 - restore UA centering for :modal.
      width (not max-width) so per-dialog max-w-* utilities still cap it. */
   margin: auto;
   width: calc(100vw - 2rem);
@@ -433,7 +433,7 @@ dialog:not([open])::backdrop { opacity: 0; }
 }
 .anim-t-reveal { animation: t-reveal 240ms cubic-bezier(0.7, 0, 0.2, 1) both; }
 
-/* directional route slide: matches nav order — moving to a lower-numbered
+/* directional route slide: matches nav order - moving to a lower-numbered
    tab enters from the right, a higher-numbered one from the left */
 @keyframes t-slide-from-right { from { transform: translateX(28px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes t-slide-from-left  { from { transform: translateX(-28px); opacity: 0; } to { transform: none; opacity: 1; } }

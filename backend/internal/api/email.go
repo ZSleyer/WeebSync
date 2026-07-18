@@ -69,7 +69,7 @@ func emailLines(lines []string) string {
 }
 
 // emailHTML wraps pre-rendered content in the WeebSync mail layout (inline
-// styles only — email clients ignore stylesheets). manage is the
+// styles only - email clients ignore stylesheets). manage is the
 // notification-settings URL for the footer ("" hides the link).
 func emailHTML(locale, title, content, extra, manage string) string {
 	footer := html.EscapeString(tr(locale, "email.footer"))
@@ -155,7 +155,7 @@ func (s *Server) EmailNotify(userID int64, category, subject, body, htmlBody str
 }
 
 // digestDelay: how long finished downloads are collected before one summary
-// mail goes out — a folder sync must not fire one mail per episode.
+// mail goes out - a folder sync must not fire one mail per episode.
 const digestDelay = 2 * time.Minute
 
 // digestItem is one finished/failed download waiting for the digest flush.

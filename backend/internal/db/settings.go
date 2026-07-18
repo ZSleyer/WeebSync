@@ -12,7 +12,7 @@ func Setting(d *sql.DB, key string) string {
 	return v
 }
 
-// SettingOrEnv reads a settings key with an env override — a set env var
+// SettingOrEnv reads a settings key with an env override - a set env var
 // wins over the DB value (the UI shows such fields as locked).
 func SettingOrEnv(d *sql.DB, key, envVar string) string {
 	if v := os.Getenv(envVar); v != "" {

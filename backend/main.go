@@ -1,4 +1,4 @@
-// WeebSync — sync/download anime (private legal copies) from S/FTP servers.
+// WeebSync - sync/download anime (private legal copies) from S/FTP servers.
 package main
 
 import (

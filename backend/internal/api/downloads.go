@@ -81,7 +81,7 @@ func (s *Server) handleDownloadsCancel(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDownloadsBulk applies pause/resume/cancel/delete to the caller's
-// matching downloads — all of them, or only the given ids (multi-select).
+// matching downloads - all of them, or only the given ids (multi-select).
 func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in struct {
@@ -155,7 +155,7 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGlobalRateLimit sets the global transfer limit (bytes/s, 0 =
-// unlimited) without going through the full settings payload — the
+// unlimited) without going through the full settings payload - the
 // dashboard's quick control. Admin only.
 func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
 	var in struct {

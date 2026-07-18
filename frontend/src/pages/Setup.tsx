@@ -6,10 +6,10 @@ import { EnvBadge } from './settings/useSettingsForm'
 
 // First-run wizard, shown while the instance has no users yet (authConfig.setupNeeded).
 // Two paths: a local password account (registered first, so it becomes admin; OIDC
-// optional afterwards via the settings API) — or pure OIDC, where the config is
+// optional afterwards via the settings API) - or pure OIDC, where the config is
 // stored through the unauthenticated setup endpoint and the first OIDC login
 // becomes admin. The account path must NOT invalidate ['me'] before the final
-// step — that would swap in the app shell mid-wizard.
+// step - that would swap in the app shell mid-wizard.
 type Step = 'choose' | 'account' | 'oidc' | 'oidc-first' | 'oidc-ready' | 'done'
 
 export default function Setup() {
@@ -34,7 +34,7 @@ export default function Setup() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const headingRef = useRef<HTMLHeadingElement>(null)
-  // OIDC fields forced by env vars (names only — values stay server-side,
+  // OIDC fields forced by env vars (names only - values stay server-side,
   // this endpoint is unauthenticated); same cache key as the login page
   const { data: authCfg } = useQuery<{ oidcEnvLocked?: string[] }>({
     queryKey: ['authConfig'],
@@ -43,9 +43,9 @@ export default function Setup() {
   const envLocked = (k: string) => authCfg?.oidcEnvLocked?.includes(k) ?? false
 
   useEffect(() => {
-    document.title = `${t('setup.title')} — WeebSync`
+    document.title = `${t('setup.title')} - WeebSync`
   }, [t])
-  // move focus to the step heading on step CHANGES only — focusing on the
+  // move focus to the step heading on step CHANGES only - focusing on the
   // initial render would greet the user with a bare focus ring
   const mounted = useRef(false)
   useEffect(() => {

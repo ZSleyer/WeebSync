@@ -93,7 +93,7 @@ function PushSection() {
         setState('')
       }
     } catch {
-      // subscribe/unsubscribe failed (API or PushManager) — reflect reality
+      // subscribe/unsubscribe failed (API or PushManager) - reflect reality
       setEnabled(!!(await pushSubscription().catch(() => null)))
     }
   }

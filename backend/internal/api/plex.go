@@ -297,7 +297,7 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 			}
 			sh := shows[start+i]
 			pick := list[0]
-			// a movie title often also matches its parent TV series —
+			// a movie title often also matches its parent TV series -
 			// prefer the first MOVIE-format result for movie libraries
 			if isMovie[sh.RatingKey] {
 				for _, m := range list {
@@ -506,7 +506,7 @@ func (s *Server) plexFolderNames(medias []anilist.Media) map[int]string {
 }
 
 // liveTVSuggestions: a non-anime show is "incomplete" when TMDB knows more
-// episodes than Plex has — TMDB models seasons inside one entry, so there is
+// episodes than Plex has - TMDB models seasons inside one entry, so there is
 // no sequel chain to walk.
 func (s *Server) liveTVSuggestions(ctx context.Context, c *plex.Client, shows []plex.Show, libOf map[string]string) []plexSuggestion {
 	var out []plexSuggestion
@@ -565,7 +565,7 @@ func (s *Server) liveMovieSuggestions(ctx context.Context, movies []plex.Show, l
 			continue
 		}
 		for _, p := range parts {
-			// Plex titles may be localized or original — accept either
+			// Plex titles may be localized or original - accept either
 			if have[normTitle(p.Title.Romaji)] || have[normTitle(p.Title.English)] {
 				continue
 			}
