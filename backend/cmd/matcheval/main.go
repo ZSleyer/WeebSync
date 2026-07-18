@@ -1,7 +1,7 @@
 // Command matcheval replays the catalog matcher against the cached AniList
 // responses of a dev database: for every stored automatic match it computes
 // what internal/match would pick today and reports the diff as TSV. Offline
-// by default — search results and relations come from the anilist_cache
+// by default - search results and relations come from the anilist_cache
 // table only (any age); -live fetches cache misses from the API.
 //
 // Usage:

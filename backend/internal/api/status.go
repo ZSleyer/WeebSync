@@ -85,7 +85,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	rows.Close()
 
 	// updated_at is stamped exactly when a download reaches done/error, so it
-	// doubles as finishedAt — HA detects "new finish" by watching the newest entry
+	// doubles as finishedAt - HA detects "new finish" by watching the newest entry
 	rows, err = s.DB.Query(`SELECT id, remote_path, status, error, updated_at FROM downloads
 		WHERE status IN ('done','error') ORDER BY updated_at DESC, id DESC LIMIT 10`)
 	if err != nil {
@@ -131,7 +131,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 
-	// best effort — a failed statfs must not break the endpoint
+	// best effort - a failed statfs must not break the endpoint
 	out.Disk.Path = s.DownloadRoot
 	var st syscall.Statfs_t
 	if syscall.Statfs(s.DownloadRoot, &st) == nil {

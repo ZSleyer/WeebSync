@@ -18,7 +18,7 @@ import (
 // account's watchlist.
 
 // post mirrors get for the two authentication endpoints (JSON body, same
-// v3-key/v4-bearer logic, no retry — these are interactive one-shots).
+// v3-key/v4-bearer logic, no retry - these are interactive one-shots).
 func (c *Client) post(ctx context.Context, path string, body, out any) error {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return err
@@ -105,7 +105,7 @@ func (c *Client) Account(ctx context.Context, sessionID string) (int, string, er
 }
 
 // Watchlist returns the account's watchlist for kind "tv" or "movie",
-// paginated (capped at 5 pages = 100 titles). Not cached here — the
+// paginated (capped at 5 pages = 100 titles). Not cached here - the
 // suggestions handler caches the filtered result.
 func (c *Client) Watchlist(ctx context.Context, sessionID string, accountID int, kind string) ([]anilist.Media, error) {
 	segment := kind

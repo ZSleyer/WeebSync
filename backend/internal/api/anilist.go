@@ -256,7 +256,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 // fixSequelPicks resolves folders that name season N but whose pick carries
 // no season marker, using relation edges (batched 10/request, cached):
 //   - a pick with a PREQUEL edge already is a sequel entry ("Ni no Shou",
-//     "Ultra Romantic") — keep it, walking onward would overshoot;
+//     "Ultra Romantic") - keep it, walking onward would overshoot;
 //   - a true base entry is upgraded to the N-th SEQUEL-chain entry when the
 //     chain is long enough (3 relation waves, so up to season 4).
 //

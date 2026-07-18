@@ -1,4 +1,4 @@
-// i18next init — translations bundled synchronously so the UI renders
+// i18next init - translations bundled synchronously so the UI renders
 // translated on first paint (same pattern as Encounty).
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
@@ -31,7 +31,7 @@ i18n.on('languageChanged', (lng) => {
 })
 
 // tell the backend, so server-delivered texts (email, web push) match the ui
-// language; fire-and-forget — fails silently when logged out
+// language; fire-and-forget - fails silently when logged out
 export function syncLocale(lng: string) {
   fetch('/api/auth/locale', {
     method: 'PUT',

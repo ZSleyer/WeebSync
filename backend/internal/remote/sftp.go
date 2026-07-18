@@ -33,7 +33,7 @@ func dialSFTP(cfg Config) (Client, error) {
 		}
 		if got != cfg.HostKey {
 			mismatch = true
-			return fmt.Errorf("ssh host key mismatch for %s — server changed or MITM", hostname)
+			return fmt.Errorf("ssh host key mismatch for %s - server changed or MITM", hostname)
 		}
 		return nil
 	}

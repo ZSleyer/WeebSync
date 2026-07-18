@@ -168,7 +168,7 @@ func (m *Manager) startDownload(id int64) {
 		return
 	}
 	// re-check: the user may have paused/canceled between the queue query
-	// and now — starting anyway would resurrect the download
+	// and now - starting anyway would resurrect the download
 	if d.Status != "queued" {
 		return
 	}
@@ -339,7 +339,7 @@ func looksUploading(size int64, siblings []int64) bool {
 // return true for the file to be enqueued; false skips it. This lets watches
 // sync only files whose name/folder carries a wanted dub/sub language tag.
 // filtered counts video files present on the remote but skipped by langFilter
-// whose local target does not yet exist — i.e. episodes waiting to appear in
+// whose local target does not yet exist - i.e. episodes waiting to appear in
 // the wanted dub/sub language.
 func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat bool) (ids []int64, uploading, filtered int, err error) {
 	if nameFn == nil {

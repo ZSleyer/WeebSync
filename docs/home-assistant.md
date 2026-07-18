@@ -14,8 +14,8 @@ weebsync_token: "Bearer <token>"
 
 The token permits exactly two endpoints:
 
-- `GET /api/status` — aggregated status (downloads, watches, disk)
-- `POST /api/watches/{id}/check` — check/sync a watch immediately
+- `GET /api/status` - aggregated status (downloads, watches, disk)
+- `POST /api/watches/{id}/check` - check/sync a watch immediately
 
 ## Status endpoint
 
@@ -90,7 +90,7 @@ The watch IDs are listed in the `watches` array of the status response.
 
 ## Events (download finished/failed)
 
-There is no webhook — events emerge through polling: the
+There is no webhook - events emerge through polling: the
 `WeebSync last finished` sensor changes state as soon as a download
 completes. An automation can build on that:
 

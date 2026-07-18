@@ -1,6 +1,6 @@
 // Package netguard blocks outbound connections to addresses that are never a
 // legitimate target for a user-supplied host: cloud-metadata and link-local.
-// Private LAN and public internet ranges stay allowed — reaching local and
+// Private LAN and public internet ranges stay allowed - reaching local and
 // remote SFTP/FTP servers (and a LAN OIDC provider) is the core feature.
 package netguard
 
@@ -50,7 +50,7 @@ func Allowed(host string) error {
 // Client returns an http.Client that enforces the guard at connection time, not
 // just as a pre-flight lexical check. Its DialContext resolves the host and
 // dials the exact allowed IP it verified (closing the DNS-rebinding TOCTOU), and
-// every redirect hop is re-checked — so a target that 302s to 169.254.169.254 or
+// every redirect hop is re-checked - so a target that 302s to 169.254.169.254 or
 // rebinds to a blocked address is refused mid-flight. Use it for every outbound
 // fetch to a host that is (even indirectly) user-influenced.
 func Client(timeout time.Duration) *http.Client {
@@ -78,7 +78,7 @@ func Client(timeout time.Duration) *http.Client {
 					lastErr = fmt.Errorf("host %s resolves to blocked address %s", host, ip)
 					continue
 				}
-				// dial the exact IP we just checked — no second resolve, no TOCTOU
+				// dial the exact IP we just checked - no second resolve, no TOCTOU
 				conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 				if err == nil {
 					return conn, nil

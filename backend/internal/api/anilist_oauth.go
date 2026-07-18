@@ -150,7 +150,7 @@ func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/settings", http.StatusFound)
 }
 
-// jwtExpiry extracts the exp claim of a JWT (unverified — display only).
+// jwtExpiry extracts the exp claim of a JWT (unverified - display only).
 func jwtExpiry(token string) string {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -215,7 +215,7 @@ func (s *Server) handleAnilistMe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	clientID, clientSecret, _ := s.anilistClientConfig()
 	// pin flow needs only a client id; fall back to the public WeebSync app
-	// (client IDs are not secret — the registered redirect is AniList's own
+	// (client IDs are not secret - the registered redirect is AniList's own
 	// pin page, so one app serves every self-hosted instance)
 	pinID := clientID
 	if pinID == "" {

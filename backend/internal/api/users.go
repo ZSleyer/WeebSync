@@ -79,7 +79,7 @@ func (s *Server) userExists(id int64) bool {
 func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	// when OIDC group mapping is configured, the IdP is the sole role
-	// source — local role changes would be overwritten on next login
+	// source - local role changes would be overwritten on next login
 	if db.SettingOrEnv(s.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES") != "" {
 		writeErr(w, http.StatusConflict, "roles managed by OIDC")
 		return

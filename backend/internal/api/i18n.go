@@ -2,7 +2,7 @@ package api
 
 import "fmt"
 
-// Minimal catalog for server-delivered texts (email, web push) — these cannot
+// Minimal catalog for server-delivered texts (email, web push) - these cannot
 // be localized by the frontend, so the backend translates using the user's
 // stored locale. API responses rendered by the frontend stay English and are
 // localized there via i18next.

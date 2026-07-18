@@ -16,7 +16,7 @@ export default function Users() {
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
   })
-  // when OIDC group mapping is set, the IdP owns roles — the backend
+  // when OIDC group mapping is set, the IdP owns roles - the backend
   // rejects local role changes with 409, so don't offer the toggle
   const rolesManagedByOidc = !!settings?.oidcAdminValues.trim()
   const { data: users } = useQuery<UserAccount[]>({

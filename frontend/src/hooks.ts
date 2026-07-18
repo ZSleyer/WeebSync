@@ -56,7 +56,7 @@ export function usePersistedQuery<T>(
     try {
       localStorage.setItem(storageKey, JSON.stringify(q.data))
     } catch {
-      /* storage full/blocked — cache is best effort */
+      /* storage full/blocked - cache is best effort */
     }
   }, [q.data, storageKey])
   return q

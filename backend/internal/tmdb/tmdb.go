@@ -372,7 +372,7 @@ func (c *Client) Media(ctx context.Context, kind string, id int) (*anilist.Media
 }
 
 // Reviews returns community reviews of a series or movie, mapped into the
-// AniList review shape. No language filter — German reviews barely exist, the
+// AniList review shape. No language filter - German reviews barely exist, the
 // default returns mostly-English ones.
 func (c *Client) Reviews(ctx context.Context, kind string, id int) ([]anilist.Review, error) {
 	cacheKey := fmt.Sprintf("tmdb:reviews3:%s:%d", kind, id)
@@ -470,7 +470,7 @@ func (c *Client) MovieCollection(ctx context.Context, movieID int) (int, error) 
 }
 
 // Collection lists the released movies of a TMDB collection, oldest first.
-// Unreleased parts (empty or future release date) are skipped — they can't
+// Unreleased parts (empty or future release date) are skipped - they can't
 // be downloaded yet.
 func (c *Client) Collection(ctx context.Context, id int) ([]anilist.Media, error) {
 	cacheKey := fmt.Sprintf("tmdb:collection:%d", id)

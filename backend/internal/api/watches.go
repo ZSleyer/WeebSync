@@ -296,7 +296,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			}
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
 			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, time.Now())
-			// aired per AniList but not yet local — the source release can lag
+			// aired per AniList but not yet local - the source release can lag
 			// the original broadcast; auto-sync keeps checking and grabs them
 			start := it.FromEpisode
 			if start < 1 {
@@ -314,7 +314,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 var epNumRe = regexp.MustCompile(`(?i)S\d+E(\d+)`)
 
 // countVideos counts local video files. When minEp > 0, only files whose
-// SxxEyy episode number is >= minEp count — for watches that share a season
+// SxxEyy episode number is >= minEp count - for watches that share a season
 // folder with earlier parts (e.g. Dr. Stone S4 Part 3 starts at E26, Conan
 // S33 at E31), so only this part's episodes are tallied.
 func (s *Server) countVideos(rel string, minEp int) int {
@@ -343,7 +343,7 @@ func (s *Server) countVideos(rel string, minEp int) int {
 }
 
 // localEpisodeNums returns the set of SxxEyy episode numbers present locally
-// (only files >= minEp when minEp > 0). Used for gap detection — files without a
+// (only files >= minEp when minEp > 0). Used for gap detection - files without a
 // parseable episode number are ignored.
 func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
 	abs, err := s.safeLocal(rel)
@@ -370,7 +370,7 @@ func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
 
 // missingEpisodes returns the gaps WITHIN the contiguous span of local episodes,
 // i.e. between the lowest and highest number present (e.g. {1,2,3,5} → [4]).
-// Only holes inside what you already have count — episodes before the first or
+// Only holes inside what you already have count - episodes before the first or
 // after the last are a partial start / a Behind tail, not gaps.
 func missingEpisodes(nums map[int]bool) []int {
 	if len(nums) < 2 {

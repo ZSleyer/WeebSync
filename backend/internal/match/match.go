@@ -100,7 +100,7 @@ func seasonMarker(s string) int {
 
 // ParseName extracts matching hints from a raw folder name plus the already
 // guessed titles. Bare trailing digits are deliberately NOT read as a season
-// ("Yami Shibai 10" is a title — exact-title scoring handles those).
+// ("Yami Shibai 10" is a title - exact-title scoring handles those).
 func ParseName(name, title, alt string) Info {
 	info := Info{Title: title, Alt: alt}
 	full := bracketRe.ReplaceAllString(name, " ")
@@ -221,12 +221,12 @@ func StripMarkers(s string) string {
 }
 
 // vowelFold collapses Hepburn long-vowel spelling variants ("Haikyuu" vs
-// "Haikyu", "Gakkou" vs "Gakko"). Comparison-only — see foldKey.
+// "Haikyu", "Gakkou" vs "Gakko"). Comparison-only - see foldKey.
 var vowelFold = strings.NewReplacer("aa", "a", "ee", "e", "oo", "o", "ou", "o", "uu", "u")
 
 // foldKey reduces a string to its comparison form: Normalize plus long-vowel
 // folding, with punctuation dropped so "Haikyuu!!" and "Haikyu" compare
-// equal. Not a search query — Normalize is the query-safe form.
+// equal. Not a search query - Normalize is the query-safe form.
 func foldKey(s string) string {
 	s = vowelFold.Replace(Normalize(s))
 	var b strings.Builder
@@ -288,7 +288,7 @@ var ovaFormats = map[string]bool{"OVA": true, "SPECIAL": true, "ONA": true}
 
 // Pick returns the index of the best-scoring candidate for info. confident
 // is false when the folder explicitly names a sequel season or a movie and
-// no candidate plausibly is one — better unmatched than the wrong base entry.
+// no candidate plausibly is one - better unmatched than the wrong base entry.
 // Ties keep the lowest index (today's first-hit behavior).
 func Pick(info Info, list []anilist.Media) (int, bool) {
 	if len(list) == 0 {

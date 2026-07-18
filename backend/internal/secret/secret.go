@@ -33,7 +33,7 @@ func Init(dataDir string) error {
 	case err == nil:
 		b = bytes.TrimSpace(b)
 		if len(b) == 0 {
-			return fmt.Errorf("%s is empty — delete it to regenerate (existing credentials become unreadable) or set WEEBSYNC_SECRET", path)
+			return fmt.Errorf("%s is empty - delete it to regenerate (existing credentials become unreadable) or set WEEBSYNC_SECRET", path)
 		}
 	case errors.Is(err, os.ErrNotExist):
 		raw := make([]byte, 32)

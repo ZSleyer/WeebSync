@@ -11,7 +11,7 @@ import (
 func TestDownloadsBulk(t *testing.T) {
 	mux, s, adminC, userC, adminID, userID := setupUsersTest(t)
 	// max_concurrent 0: the manager loop must not start queued downloads
-	// (its Dial is nil in tests) — we only exercise status transitions
+	// (its Dial is nil in tests) - we only exercise status transitions
 	db.SetSetting(s.DB, "max_concurrent", "0")
 	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
 

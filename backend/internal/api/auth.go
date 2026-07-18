@@ -31,7 +31,7 @@ func validLocale(l string) string {
 }
 
 // passwordAuthBlocked: in oidc-only/auto mode the password endpoints are
-// disabled — but only while OIDC actually works, so a broken provider can
+// disabled - but only while OIDC actually works, so a broken provider can
 // never lock everyone out. Existing local users migrate automatically: the
 // OIDC callback links accounts by email address.
 func (s *Server) passwordAuthBlocked() bool {
@@ -67,7 +67,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	// Email verification is required for local accounts only when SMTP is set
 	// up, and never for the very first account (the admin during first-run,
-	// before SMTP can exist) — requiring it there would lock the instance out.
+	// before SMTP can exist) - requiring it there would lock the instance out.
 	var existing int
 	s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&existing)
 	needVerify := existing > 0 && s.Mail != nil && s.Mail.Configured()
@@ -85,7 +85,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _ := res.LastInsertId()
 
-	// notify admins who subscribed (skip the very first account — it IS the admin)
+	// notify admins who subscribed (skip the very first account - it IS the admin)
 	if existing > 0 {
 		s.EmailNotifyAdmins("admin_new_user", "email.newUserSubject", "email.newUserBody", c.Email)
 	}
@@ -147,7 +147,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if verified == 0 {
-		writeErr(w, http.StatusForbidden, "email not verified — check your inbox")
+		writeErr(w, http.StatusForbidden, "email not verified - check your inbox")
 		return
 	}
 	// second factor: if TOTP or a security key is enrolled, hand back a
@@ -236,8 +236,8 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 // handleOIDCDiscover probes a base URL for an OIDC provider so the user only
 // enters the domain: the URL itself plus common mount paths are tried for a
 // discovery document, the issuer from the first hit wins. Server-side fetch of
-// a user-supplied URL — no new exposure, a configured issuer is fetched on
-// Reload anyway — but gated like setup: open only while there are zero users,
+// a user-supplied URL - no new exposure, a configured issuer is fetched on
+// Reload anyway - but gated like setup: open only while there are zero users,
 // admin session afterwards.
 func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 	var users int
@@ -275,7 +275,7 @@ func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// guarded client: the lexical Allowed() above is not enough — a 302 to
+	// guarded client: the lexical Allowed() above is not enough - a 302 to
 	// 169.254.169.254 or a DNS rebind would otherwise reach the metadata service
 	client := netguard.Client(5 * time.Second)
 	for _, cand := range []string{base, base + "/oidc"} {
