@@ -89,7 +89,12 @@ export function useSettingsForm() {
   // field value comes from an env var: input is disabled, EnvBadge shown
   const locked = (k: keyof SettingsState) => form?.envLocked?.includes(k) ?? false
 
-  return { form, set, save, saved, locked }
+  // unsaved changes: form differs from the saved cache. Write-only secrets are
+  // always "" in the form (BLANK_SECRETS) but absent from `data`, so seed the
+  // baseline the same way before comparing.
+  const dirty = !!form && !!data && JSON.stringify(form) !== JSON.stringify({ ...data, ...BLANK_SECRETS, oidcClaim: data.oidcClaim || 'groups' })
+
+  return { form, set, save, saved, locked, dirty }
 }
 
 // Lock icon next to a field label whose value is forced by an env var.

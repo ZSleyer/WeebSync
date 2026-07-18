@@ -3,14 +3,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../api'
 import { EnvBadge, SaveBar, useSettingsForm } from './useSettingsForm'
+import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
 export default function Integrations() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty } = useSettingsForm()
   if (!form) return null
 
   return (
     <>
+      <UnsavedGuard dirty={dirty} />
       <section className="t-panel mb-4 p-5" aria-label={t('settings.integrations')}>
         <span className="t-label t-label--accent">{t('settings.integrations')}</span>
         <div className="mt-3 grid grid-cols-1 gap-4">

@@ -3,12 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { api, fmtBytes, fmtSpeed, type Download } from '../api'
+import { useConfirm } from '../components/confirm'
 import { useAuth } from '../hooks'
 
 const STATUSES: Download['status'][] = ['running', 'queued', 'paused', 'done', 'error', 'canceled']
 
 export default function Dashboard() {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const qc = useQueryClient()
   const { data: user } = useAuth()
   const { data: downloads = [] } = useQuery<Download[]>({
@@ -119,8 +121,8 @@ export default function Dashboard() {
             <button
               className="t-btn t-btn--sm t-btn--danger"
               disabled={bulk.isPending}
-              onClick={() => {
-                if (confirm(t('dash.cancelAllConfirm'))) bulk.mutate({ a: 'cancel' })
+              onClick={async () => {
+                if (await confirm({ message: t('dash.cancelAllConfirm'), destructive: true })) bulk.mutate({ a: 'cancel' })
               }}
             >
               {t('dash.cancelAll')}

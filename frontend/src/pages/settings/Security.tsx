@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../api'
+import { useConfirm } from '../../components/confirm'
+import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 
 export default function Security() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty } = useSettingsForm()
 
   const [discovered, setDiscovered] = useState('')
   const discover = async () => {
@@ -25,6 +27,7 @@ export default function Security() {
 
   return (
     <>
+      <UnsavedGuard dirty={dirty} />
       <section className="t-panel mb-4 p-5" aria-label={t('settings.auth')}>
         <span className="t-label t-label--accent">{t('settings.auth')}</span>
         <div className="mt-3 grid grid-cols-1 gap-4">
@@ -206,6 +209,7 @@ export default function Security() {
 // badge follows the invalidations from generate/revoke.
 function ApiTokenSection() {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const qc = useQueryClient()
   const { data: settings } = useQuery<SettingsState>({
     queryKey: ['settings'],
@@ -253,8 +257,8 @@ function ApiTokenSection() {
           <button
             className="t-btn t-btn--sm t-btn--danger"
             disabled={revoke.isPending}
-            onClick={() => {
-              if (confirm(t('settings.apiTokenConfirmRevoke'))) revoke.mutate()
+            onClick={async () => {
+              if (await confirm({ message: t('settings.apiTokenConfirmRevoke'), destructive: true })) revoke.mutate()
             }}
           >
             {t('settings.apiTokenRevoke')}

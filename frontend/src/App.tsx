@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  NavLink,
+  Navigate,
+  Outlet,
+  Route,
+  useLocation,
+} from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from './api'
@@ -42,7 +50,9 @@ const navIndex = (path: string) => {
   return i < 0 ? 0 : i
 }
 
-export default function App() {
+// Root layout element of the data router. A data router (createBrowserRouter)
+// is required so form pages can useBlocker() to guard unsaved changes.
+function RootLayout() {
   const { data: user, isLoading } = useAuth()
   useEvents(!!user)
 
@@ -56,6 +66,32 @@ export default function App() {
   if (!user) return <Login />
   return <Shell email={user.email} />
 }
+
+export const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route element={<RootLayout />}>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/browser" element={<Browser />} />
+      <Route path="/watches" element={<Watches />} />
+      <Route path="/suggestions" element={<Suggestions />} />
+      <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
+      <Route path="/servers" element={<Servers />} />
+      <Route path="/rename" element={<Rename />} />
+      <Route path="/settings" element={<SettingsLayout />}>
+        <Route index element={<Navigate to="look" replace />} />
+        <Route path="look" element={<Look />} />
+        <Route path="notifications" element={<Notifications />} />
+        <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} />
+        <Route path="security" element={<AdminRoute><Security /></AdminRoute>} />
+        <Route path="integrations" element={<AdminRoute><Integrations /></AdminRoute>} />
+        <Route path="email" element={<AdminRoute><Smtp /></AdminRoute>} />
+        <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
+        <Route path="jobs" element={<AdminRoute><Jobs /></AdminRoute>} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Route>,
+  ),
+)
 
 // document.title per route (WCAG 2.4.2)
 function RouteTitle() {
@@ -169,27 +205,7 @@ function Shell({ email }: { email: string }) {
 
       <main className="min-w-0 flex-1 overflow-x-clip p-4 pb-20 lg:p-6 lg:pb-6" key={location.pathname}>
         <div className={transitionClass}>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/browser" element={<Browser />} />
-            <Route path="/watches" element={<Watches />} />
-            <Route path="/suggestions" element={<Suggestions />} />
-            <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
-            <Route path="/servers" element={<Servers />} />
-            <Route path="/rename" element={<Rename />} />
-            <Route path="/settings" element={<SettingsLayout />}>
-              <Route index element={<Navigate to="look" replace />} />
-              <Route path="look" element={<Look />} />
-              <Route path="notifications" element={<Notifications />} />
-              <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} />
-              <Route path="security" element={<AdminRoute><Security /></AdminRoute>} />
-              <Route path="integrations" element={<AdminRoute><Integrations /></AdminRoute>} />
-              <Route path="email" element={<AdminRoute><Smtp /></AdminRoute>} />
-              <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
-              <Route path="jobs" element={<AdminRoute><Jobs /></AdminRoute>} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Outlet />
         </div>
       </main>
 

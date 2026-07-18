@@ -1,6 +1,15 @@
 {
+  "common": {
+    "confirm": "Bestätigen",
+    "cancel": "Abbrechen",
+    "confirmTitle": "Bestätigen",
+    "discard": "Verwerfen",
+    "keepEditing": "Weiter bearbeiten",
+    "unsavedTitle": "Ungespeicherte Änderungen",
+    "unsavedMsg": "Es gibt ungespeicherte Änderungen. Verwerfen und fortfahren?"
+  },
   "app": {
-    "tagline": "s/ftp anime sync",
+    "tagline": "weeb your sync",
     "loading": "lädt",
     "logout": "Abmelden",
     "error": "Fehler"
@@ -17,7 +26,7 @@
     "more": "Mehr"
   },
   "login": {
-    "tagline": "s/ftp anime sync · privatgebrauch",
+    "tagline": "weeb your sync",
     "login": "Login",
     "register": "Registrieren",
     "email": "Email",
