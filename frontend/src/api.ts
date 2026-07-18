@@ -191,10 +191,12 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+  const h: Record<string, string> = { ...(headers ?? {}) }
+  if (body !== undefined) h['Content-Type'] = 'application/json'
   const res = await fetch(url, {
     method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    headers: Object.keys(h).length ? h : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
@@ -212,7 +214,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 
 export const api = {
   get: <T>(url: string) => request<T>('GET', url),
-  post: <T>(url: string, body?: unknown) => request<T>('POST', url, body),
+  post: <T>(url: string, body?: unknown, headers?: Record<string, string>) => request<T>('POST', url, body, headers),
   put: <T>(url: string, body?: unknown) => request<T>('PUT', url, body),
   del: <T>(url: string, body?: unknown) => request<T>('DELETE', url, body),
 }

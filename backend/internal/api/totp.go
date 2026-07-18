@@ -103,7 +103,11 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.DB.Exec(`UPDATE user_totp SET confirmed_at = datetime('now') WHERE user_id = ?`, u.ID)
-	codes := s.regenRecoveryCodes(u.ID)
+	codes, err := s.regenRecoveryCodes(u.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "could not generate recovery codes")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"recoveryCodes": codes})
 }
 
@@ -182,15 +186,18 @@ func (s *Server) totpSecret(userID int64) (string, bool) {
 
 // regenRecoveryCodes replaces the user's recovery codes with 10 fresh ones and
 // returns the plaintext (only chance to see them).
-func (s *Server) regenRecoveryCodes(userID int64) []string {
+func (s *Server) regenRecoveryCodes(userID int64) ([]string, error) {
 	s.DB.Exec(`DELETE FROM user_recovery_codes WHERE user_id = ?`, userID)
 	codes := make([]string, 0, 10)
 	for i := 0; i < 10; i++ {
-		c := recoveryCode()
+		c, err := recoveryCode()
+		if err != nil {
+			return nil, err
+		}
 		codes = append(codes, c)
 		s.DB.Exec(`INSERT INTO user_recovery_codes (user_id, code_hash) VALUES (?, ?)`, userID, hashToken(c))
 	}
-	return codes
+	return codes, nil
 }
 
 // useRecoveryCode redeems an unused recovery code (constant-time compare against
@@ -217,10 +224,12 @@ func (s *Server) useRecoveryCode(userID int64, code string) bool {
 }
 
 // recoveryCode returns a random "xxxxx-xxxxx" code (crockford-ish base32).
-func recoveryCode() string {
+func recoveryCode() (string, error) {
 	const alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
 	b := make([]byte, 10)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
 	out := make([]byte, 0, 11)
 	for i, v := range b {
 		if i == 5 {
@@ -228,5 +237,5 @@ func recoveryCode() string {
 		}
 		out = append(out, alphabet[int(v)%len(alphabet)])
 	}
-	return string(out)
+	return string(out), nil
 }

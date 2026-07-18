@@ -9,6 +9,9 @@ package pool
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net"
 	"strings"
 	"sync"
 
@@ -177,7 +180,9 @@ func (sp *serverPool) leaseSFTP(ctx context.Context, cfg remote.Config, prio Pri
 				sp.mu.Unlock()
 				ch, err := remote.SFTPChannel(c.ssh)
 				if err != nil {
-					sp.onChannelErr(c, err)
+					if rerr := sp.onChannelErr(c, err); rerr != nil {
+						return nil, rerr
+					}
 					continue
 				}
 				return sp.wrap(ch, c), nil
@@ -240,23 +245,56 @@ func (sp *serverPool) leaseSFTP(ctx context.Context, cfg remote.Config, prio Pri
 	}
 }
 
-// onChannelErr handles a failed SFTPChannel on an existing connection: a
-// session-limit rejection lowers the learned channel cap (the server is
-// stricter than configured); any other error means the connection is dead.
-func (sp *serverPool) onChannelErr(c *sshConn, err error) {
+// onChannelErr handles a failed SFTPChannel on an existing (shared) connection.
+// It returns nil when the lease should retry (a slot was learned/freed), or an
+// error to surface to the caller. It only tears the connection down on a session
+// limit that leaves zero working channels or on a positive dead-transport signal
+// - never on an ambiguous channel error, which would kill the sibling channels
+// multiplexed on that connection.
+func (sp *serverPool) onChannelErr(c *sshConn, err error) error {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	c.open-- // roll back the reservation
-	if isSessionLimit(err) {
+	switch {
+	case isSessionLimit(err):
 		if working := c.open; working >= 1 && working < sp.chanCap {
 			sp.chanCap = working // learn the server's real limit, server-wide
 		} else if c.open == 0 {
 			sp.dropLocked(c) // can't even open one channel here: drop it
 		}
-	} else {
-		sp.dropLocked(c) // dead connection
+		sp.wake()
+		return nil // retry on another connection / a fresh dial
+	case isDeadConn(err):
+		sp.dropLocked(c) // transport is gone: drop it, retry dials fresh
+		sp.wake()
+		return nil
+	default:
+		// ambiguous: don't nuke the shared connection or spin - surface it.
+		sp.wake()
+		return fmt.Errorf("sftp channel open failed: %w", err)
 	}
-	sp.wake()
+}
+
+// isDeadConn reports whether err positively indicates the SSH transport is gone
+// (as opposed to a per-channel or session-limit rejection).
+func isDeadConn(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	var ne net.Error
+	if errors.As(err, &ne) {
+		return true
+	}
+	s := strings.ToLower(err.Error())
+	for _, m := range []string{"connection reset", "broken pipe", "connection closed", "use of closed", "connection refused", "unexpected eof"} {
+		if strings.Contains(s, m) {
+			return true
+		}
+	}
+	return false
 }
 
 // ── FTP/FTPS: cap concurrent connections (no multiplexing) ──────────────────
