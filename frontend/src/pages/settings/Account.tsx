@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../api'
+import { usePrompt } from '../../components/prompt'
 import { registerCredential } from '../../webauthn'
 
 interface AuthConfig {
@@ -36,6 +37,7 @@ interface Passkey {
 function PasskeySection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const prompt = usePrompt()
   const { data: creds } = useQuery<Passkey[]>({
     queryKey: ['webauthn'],
     queryFn: () => api.get('/api/auth/webauthn/credentials'),
@@ -44,12 +46,13 @@ function PasskeySection() {
   const [busy, setBusy] = useState(false)
 
   const add = (kind: 'passkey' | 'key') => async () => {
-    const name = window.prompt(t('account.passkeyName'), kind === 'passkey' ? 'Passkey' : 'Security Key')
+    const fallback = kind === 'passkey' ? 'Passkey' : 'Security Key'
+    const name = await prompt({ title: t('account.passkeyName'), defaultValue: fallback })
     if (name === null) return
     setBusy(true)
     setError('')
     try {
-      await registerCredential(kind, name || (kind === 'passkey' ? 'Passkey' : 'Security Key'))
+      await registerCredential(kind, name || fallback)
       qc.invalidateQueries({ queryKey: ['webauthn'] })
     } catch (e) {
       setError(e instanceof Error ? e.message : t('app.error'))

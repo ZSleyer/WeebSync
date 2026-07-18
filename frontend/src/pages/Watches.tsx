@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { api, type Watch } from '../api'
+import { api, fmtMissing, type Watch } from '../api'
 import WatchDialog from '../components/WatchDialog'
 import { useConfirm } from '../components/confirm'
 import { SkeletonCards } from '../components/Loading'
@@ -300,7 +300,7 @@ export default function Watches() {
                   )}
                   {(w.missing?.length ?? 0) > 0 && (
                     <span className="t-label t-label--err" title={w.missing!.join(', ')}>
-                      {t('watch.missing', { count: w.missing!.length, eps: w.missing!.slice(0, 5).join(', ') })}
+                      {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
                     </span>
                   )}
                   {(w.langWaiting ?? 0) > 0 && (

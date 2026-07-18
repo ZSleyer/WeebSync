@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { api, fmtBytes, fmtSpeed, type Download, type Watch } from '../api'
+import { api, fmtBytes, fmtMissing, fmtSpeed, type Download, type Watch } from '../api'
 import { useConfirm } from '../components/confirm'
 import { useAuth } from '../hooks'
 
@@ -322,7 +322,7 @@ function SyncSummary() {
                 )}
                 {(w.missing?.length ?? 0) > 0 && (
                   <span className="t-label t-label--err shrink-0" title={w.missing!.join(', ')}>
-                    {t('watch.missing', { count: w.missing!.length, eps: w.missing!.slice(0, 5).join(', ') })}
+                    {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
                   </span>
                 )}
                 {(w.langWaiting ?? 0) > 0 && (

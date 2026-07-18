@@ -61,6 +61,7 @@ type Watch struct {
 	Waiting        bool           `json:"waiting"`                  // smart sync: idle until NextAiringAt
 	Behind         int            `json:"behind,omitempty"`         // episodes aired per AniList but not yet available locally (the source release can lag the original broadcast)
 	Missing        []int          `json:"missing,omitempty"`        // gaps below the newest local episode (e.g. have 1,2,3,5 → 4 is missing), independent of airing state
+	Offset         int            `json:"offset,omitempty"`         // {episode-N} renumber offset: absolute episode = local - offset (for showing the original number)
 }
 
 // videoExt: files counted as episodes for the completeness check.
@@ -275,6 +276,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
 		offset := watchOffset(it.Template)
+		it.Offset = offset
 		// LocalFiles is already scoped to this part (from_episode), so it
 		// compares directly against the linked entry's episode count.
 		it.Complete = it.Media != nil && it.Media.Status == "FINISHED" && it.Media.Episodes > 0 &&

@@ -96,6 +96,7 @@ export interface Watch {
   wantSub: string
   langWaiting: number
   missing?: number[]
+  offset?: number
   intervalMin: number
   lastCheck: string
   lastResult: string // error text of the last check, '' on success
@@ -205,6 +206,15 @@ export const api = {
   post: <T>(url: string, body?: unknown) => request<T>('POST', url, body),
   put: <T>(url: string, body?: unknown) => request<T>('PUT', url, body),
   del: <T>(url: string, body?: unknown) => request<T>('DELETE', url, body),
+}
+
+// fmtMissing renders missing episode numbers, appending the original absolute
+// number in parens when a renumber offset is active (e.g. "59 (1206)").
+export function fmtMissing(missing: number[], offset?: number): string {
+  return missing
+    .slice(0, 5)
+    .map((m) => (offset ? `${m} (${m - offset})` : `${m}`))
+    .join(', ')
 }
 
 export function fmtBytes(n: number): string {

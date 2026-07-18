@@ -8,7 +8,6 @@ import {
   Route,
   useLocation,
 } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from './api'
 import { useAuth, useEvents } from './hooks'
@@ -112,7 +111,6 @@ function RouteTitle() {
 
 function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
-  const qc = useQueryClient()
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreActive = NAV_MORE.some((n) => location.pathname === n.to || location.pathname.startsWith(n.to + '/'))
@@ -146,10 +144,10 @@ function Shell({ email }: { email: string }) {
     } catch {
       /* drop to the login screen either way — the user wants out */
     }
-    // wipe the whole cache: the next login may be a different user and must
-    // not see the previous user's downloads/servers/settings
-    qc.clear()
-    qc.setQueryData(['me'], null)
+    // full reload to the root: guarantees the app re-gates on a fresh /api/auth/me
+    // (which is now 401) and wipes every cached query of the previous user —
+    // a plain cache reset raced the data-router re-render and left stale content.
+    window.location.href = '/'
   }
 
   const navLink = (n: (typeof NAV)[number], mobile: boolean) => (
