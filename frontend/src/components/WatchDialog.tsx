@@ -240,7 +240,6 @@ export default function WatchDialog({
   const [browsePath, setBrowsePath] = useState(() =>
     initial.remotePath.split('/').filter(Boolean).slice(0, -1).join('/'),
   )
-  // local picker always starts at the download root
   const [localBrowse, setLocalBrowse] = useState('')
   const [pairs, setPairs] = useState<RenamePair[] | null>(null)
   const [previewBusy, setPreviewBusy] = useState(false)
