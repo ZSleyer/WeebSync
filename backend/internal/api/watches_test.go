@@ -145,7 +145,8 @@ func TestSmartDue(t *testing.T) {
 }
 
 func TestWatchNameFn(t *testing.T) {
-	fn := watchNameFn(Watch{Mode: "template", Template: "{title} - S{season:02}E{episode:02}", TitleOverride: "My Show"})
+	var srv Server // aired mapping off → resolver/DB never touched
+	fn := srv.watchNameFn(Watch{Mode: "template", Template: "{title} - S{season:02}E{episode:02}", TitleOverride: "My Show"})
 	got := fn("[Grp] Some Show - 05 [1080p].mkv")
 	if got != "My Show - S01E05.mkv" {
 		t.Errorf("rename: got %q", got)
@@ -154,7 +155,7 @@ func TestWatchNameFn(t *testing.T) {
 	if got := fn("readme.txt"); got != "readme.txt" {
 		t.Errorf("fallback: got %q", got)
 	}
-	if watchNameFn(Watch{}) != nil {
+	if srv.watchNameFn(Watch{}) != nil {
 		t.Error("empty template must return nil (identity)")
 	}
 }
