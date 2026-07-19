@@ -143,12 +143,17 @@ func (c *Client) Search(ctx context.Context, query string) ([]SearchResult, erro
 	return resp.Data, nil
 }
 
-// Episode carries just the numbers needed for the aired-order mapping.
+// Episode carries the numbers needed for the aired-order mapping. The airs*
+// fields place a special (seasonNumber 0) relative to the regular run, so a
+// recap released between two episodes can be filed under season 0.
 type Episode struct {
-	AbsoluteNumber int    `json:"absoluteNumber"`
-	SeasonNumber   int    `json:"seasonNumber"`
-	Number         int    `json:"number"`
-	Aired          string `json:"aired"`
+	AbsoluteNumber    int    `json:"absoluteNumber"`
+	SeasonNumber      int    `json:"seasonNumber"`
+	Number            int    `json:"number"`
+	Aired             string `json:"aired"`
+	AirsAfterSeason   int    `json:"airsAfterSeason"`
+	AirsBeforeSeason  int    `json:"airsBeforeSeason"`
+	AirsBeforeEpisode int    `json:"airsBeforeEpisode"`
 }
 
 // Episodes returns every episode of a series in the given season type
@@ -186,6 +191,46 @@ func AbsoluteMap(eps []Episode) map[int][2]int {
 		if e.AbsoluteNumber > 0 {
 			m[e.AbsoluteNumber] = [2]int{e.SeasonNumber, e.Number}
 		}
+	}
+	return m
+}
+
+// SeasonTokenMap maps an episode token to its (season, episode) in aired order.
+// Regular episodes use their absolute number as the token ("1165"). Specials
+// (season 0) are placed by their airs* fields onto the ".5" release convention:
+// a recap that airs after absolute A gets the token "A.5" (a second one at the
+// same slot "A.6", and so on), resolving to (0, its season-0 number). This lets
+// a fractional file name land in the specials folder as S00Exx.
+func SeasonTokenMap(eps []Episode) map[string][2]int {
+	m := make(map[string][2]int, len(eps))
+	absOf := make(map[[2]int]int) // (season, number) -> absolute number
+	lastEp := make(map[int]int)   // season -> highest episode number
+	for _, e := range eps {
+		if e.SeasonNumber > 0 && e.AbsoluteNumber > 0 {
+			m[strconv.Itoa(e.AbsoluteNumber)] = [2]int{e.SeasonNumber, e.Number}
+			absOf[[2]int{e.SeasonNumber, e.Number}] = e.AbsoluteNumber
+			if e.Number > lastEp[e.SeasonNumber] {
+				lastEp[e.SeasonNumber] = e.Number
+			}
+		}
+	}
+	slot := make(map[int]int) // base absolute -> specials already placed there
+	for _, e := range eps {
+		if e.SeasonNumber != 0 {
+			continue
+		}
+		var base int
+		switch {
+		case e.AirsBeforeSeason > 0 && e.AirsBeforeEpisode > 1:
+			base = absOf[[2]int{e.AirsBeforeSeason, e.AirsBeforeEpisode - 1}]
+		case e.AirsAfterSeason > 0:
+			base = absOf[[2]int{e.AirsAfterSeason, lastEp[e.AirsAfterSeason]}]
+		}
+		if base == 0 {
+			continue // can't place it relative to a regular episode
+		}
+		m[fmt.Sprintf("%d.%d", base, 5+slot[base])] = [2]int{0, e.Number}
+		slot[base]++
 	}
 	return m
 }
