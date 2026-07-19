@@ -24,6 +24,13 @@ type Options struct {
 	// regex mode
 	Pattern     string `json:"pattern"`
 	Replacement string `json:"replacement"` // Go syntax: $1, ${name}
+
+	// aired-order override (template mode): when set, these win over the
+	// season/episode parsed from the name. Used to place a file into its real
+	// broadcast season (e.g. absolute 1187 → S34E01) instead of a fixed season
+	// or a flat arithmetic offset. nil = no override.
+	SeasonOverride  *int `json:"-"`
+	EpisodeOverride *int `json:"-"`
 }
 
 // {name}, {name:0W} (zero-pad width W), {name+N}/{name-N} (numeric offset),
@@ -164,6 +171,19 @@ func templateName(name string, o Options) (string, error) {
 	if o.TitleOverride != "" {
 		vars["title"] = o.TitleOverride
 	}
+	// aired-order override replaces both season and episode, so a
+	// {season}/{episode:02} template lands the file in its real broadcast
+	// season. Only meaningful together, so require both to be set.
+	if o.SeasonOverride != nil && o.EpisodeOverride != nil {
+		vars["season"] = strconv.Itoa(*o.SeasonOverride)
+		vars["episode"] = strconv.Itoa(*o.EpisodeOverride)
+	}
+	// clean each substituted value so a title like "Fate/stay night" never
+	// introduces a "/" - only the template literals may carry folder
+	// separators (e.g. an aired-order "Season {season:02}/..." template).
+	for k, v := range vars {
+		vars[k] = sanitizeSegment(v)
+	}
 
 	missing := ""
 	out := placeholderRe.ReplaceAllStringFunc(o.Template, func(m string) string {
@@ -210,13 +230,30 @@ func first(s []string) string {
 	return ""
 }
 
-// sanitize strips path separators and other characters invalid in filenames.
+// sanitize cleans a name that may carry a "/"-separated folder structure
+// (e.g. "Season 34/Title - S34E01.mkv" from an aired-order template). Each
+// segment is cleaned individually so the "/" separators survive while every
+// other invalid character - including a stray "\" or "." traversal - is
+// stripped per segment. Empty segments are dropped, so a leading/duplicate "/"
+// can't escape the target directory.
 func sanitize(name string) string {
+	var kept []string
+	for _, seg := range strings.Split(name, "/") {
+		seg = strings.Trim(sanitizeSegment(seg), " .")
+		if seg != "" {
+			kept = append(kept, seg)
+		}
+	}
+	return strings.Join(kept, "/")
+}
+
+// sanitizeSegment strips characters invalid in a single path component.
+func sanitizeSegment(seg string) string {
 	return strings.Map(func(r rune) rune {
 		switch r {
 		case '/', '\\', ':', '*', '?', '"', '<', '>', '|':
 			return -1
 		}
 		return r
-	}, name)
+	}, seg)
 }

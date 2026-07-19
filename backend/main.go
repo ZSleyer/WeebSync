@@ -23,6 +23,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/secret"
 	"github.com/ch4d1/weebsync/internal/tmdb"
+	"github.com/ch4d1/weebsync/internal/tvdb"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
@@ -90,6 +91,7 @@ func main() {
 		DownloadRoot: downloadRoot,
 		Anilist:      anilist.New(database),
 		Tmdb:         tmdb.New(database),
+		Tvdb:         tvdb.New(database),
 		Push:         pushSvc,
 		Mail:         mailer.New(database),
 		Conns:        pool.New(),

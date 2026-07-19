@@ -213,6 +213,61 @@ func absoluteEpisode(r rawResult) int {
 	return r.NumEpisodes + 1
 }
 
+// SeriesTitle returns a tv series' name in the requested language (BCP-47 or a
+// bare code, e.g. "de-DE"/"de"), for localized renames. Falls back to the
+// original name TMDB returns when the localized name is empty. Cached per
+// (id, lang).
+func (c *Client) SeriesTitle(ctx context.Context, id int, lang string) (string, error) {
+	key := fmt.Sprintf("tmdb:title:tv:%d:%s", id, lang)
+	if v, ok := c.cached(key); ok {
+		return v, nil
+	}
+	var r struct {
+		Name         string `json:"name"`
+		OriginalName string `json:"original_name"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/tv/%d", id), url.Values{"language": {lang}}, &r); err != nil {
+		return "", err
+	}
+	name := r.Name
+	if name == "" {
+		name = r.OriginalName
+	}
+	if name != "" {
+		c.store(key, name)
+	}
+	return name, nil
+}
+
+// SeasonMap builds absolute-episode → [season, episode] for a tv series by
+// walking its regular seasons' episode counts in aired order. It is the
+// tertiary aired-mapping source (after TVDB and Plex): TMDB has no native
+// absolute number, so this assumes each season's episodes are contiguous in
+// absolute order and skips season 0 (specials) so they don't shift numbering.
+func (c *Client) SeasonMap(ctx context.Context, id int) (map[int][2]int, error) {
+	var r rawResult
+	if err := c.get(ctx, fmt.Sprintf("/tv/%d", id), url.Values{"language": {"de-DE"}}, &r); err != nil {
+		return nil, err
+	}
+	type sc struct{ num, count int }
+	var ss []sc
+	for _, s := range r.Seasons {
+		if s.SeasonNumber > 0 && s.EpisodeCount > 0 {
+			ss = append(ss, sc{s.SeasonNumber, s.EpisodeCount})
+		}
+	}
+	sort.Slice(ss, func(i, j int) bool { return ss[i].num < ss[j].num })
+	m := make(map[int][2]int)
+	abs := 0
+	for _, s := range ss {
+		for e := 1; e <= s.count; e++ {
+			abs++
+			m[abs] = [2]int{s.num, e}
+		}
+	}
+	return m, nil
+}
+
 // tvSchedule fetches the ongoing season's episodes and returns every future
 // release (absolute numbering), so the calendar sees more than the single
 // next_episode_to_air. One extra call, only for RELEASING TV with a scheduled
@@ -284,6 +339,7 @@ func (c *Client) toMedia(kind string, r rawResult) anilist.Media {
 		m.SeasonYear, _ = strconv.Atoi(d[:4])
 	}
 	m.Format = map[string]string{"tv": "TV", "movie": "MOVIE"}[kind]
+	m.SiteURL = fmt.Sprintf("https://www.themoviedb.org/%s/%d", kind, r.ID)
 	m.Status = statusMap(r.Status)
 	m.Episodes = r.NumEpisodes
 	if kind == "movie" {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,8 +27,27 @@ func New(baseURL, token string) *Client {
 
 type Section struct {
 	Key   string `json:"key"`
-	Type  string `json:"type"` // movie | show | artist
+	Type  string `json:"type"`  // movie | show | artist
 	Title string `json:"title"`
+	Agent string `json:"agent"` // e.g. tv.plex.agents.series | tv.plex.agents.movie
+	// filesystem roots of the library, for mapping a local path to its library
+	Locations []string `json:"-"`
+}
+
+// rawSection decodes the nested Location array the section listing carries.
+type rawSection struct {
+	Section
+	Location []struct {
+		Path string `json:"path"`
+	} `json:"Location"`
+}
+
+func (r rawSection) toSection() Section {
+	s := r.Section
+	for _, l := range r.Location {
+		s.Locations = append(s.Locations, l.Path)
+	}
+	return s
 }
 
 type Show struct {
@@ -38,6 +58,11 @@ type Show struct {
 	LeafCount     int    `json:"leafCount"`  // episodes present
 	ChildCount    int    `json:"childCount"` // seasons present
 	Locations     []string
+	// authoritative series ids from the show's Guid array, 0 when absent. These
+	// heal the aired-order lookup: even when the episodes are locally arranged
+	// (a mis-synced library), the matched show still carries the real ids.
+	TVDBID int
+	TMDBID int
 }
 
 // get fetches path and decodes the MediaContainer payload. The token goes
@@ -63,13 +88,37 @@ func (c *Client) get(path string, out any) error {
 func (c *Client) Sections() ([]Section, error) {
 	var resp struct {
 		MediaContainer struct {
-			Directory []Section `json:"Directory"`
+			Directory []rawSection `json:"Directory"`
 		} `json:"MediaContainer"`
 	}
 	if err := c.get("/library/sections", &resp); err != nil {
 		return nil, err
 	}
-	return resp.MediaContainer.Directory, nil
+	out := make([]Section, 0, len(resp.MediaContainer.Directory))
+	for _, d := range resp.MediaContainer.Directory {
+		out = append(out, d.toSection())
+	}
+	return out, nil
+}
+
+// LibraryForPath returns the section whose filesystem root is the longest
+// prefix of p, so a synced folder can be mapped to its Plex library (and thus
+// its metadata agent). Returns false when nothing matches.
+func (c *Client) LibraryForPath(p string) (Section, bool) {
+	secs, err := c.Sections()
+	if err != nil {
+		return Section{}, false
+	}
+	var best Section
+	bestLen := -1
+	for _, s := range secs {
+		for _, root := range s.Locations {
+			if (p == root || strings.HasPrefix(p, root+"/")) && len(root) > bestLen {
+				best, bestLen = s, len(root)
+			}
+		}
+	}
+	return best, bestLen >= 0
 }
 
 type rawShow struct {
@@ -77,6 +126,30 @@ type rawShow struct {
 	Location []struct {
 		Path string `json:"path"`
 	} `json:"Location"`
+	Guid plexGuids `json:"Guid"`
+}
+
+// plexGuids accepts both shapes Plex uses for the show guid: the modern array
+// ([{"id":"tvdb://295"},...] from /library/metadata/{key}) and the legacy
+// single string ("com.plexapp.agents.thetvdb://295?lang=en" in the bulk
+// section listing). Unknown shapes are ignored, never failing the decode.
+type plexGuids []string
+
+func (g *plexGuids) UnmarshalJSON(b []byte) error {
+	var arr []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(b, &arr); err == nil {
+		for _, a := range arr {
+			*g = append(*g, a.ID)
+		}
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		*g = append(*g, s)
+	}
+	return nil
 }
 
 func (r rawShow) toShow() Show {
@@ -84,7 +157,37 @@ func (r rawShow) toShow() Show {
 	for _, l := range r.Location {
 		s.Locations = append(s.Locations, l.Path)
 	}
+	for _, g := range r.Guid {
+		if n := idFromGuid(g, "tvdb"); n > 0 {
+			s.TVDBID = n
+		}
+		if n := idFromGuid(g, "tmdb"); n > 0 {
+			s.TMDBID = n
+		}
+	}
 	return s
+}
+
+// idFromGuid pulls the numeric series id for a provider out of a Plex guid
+// string in any of its forms ("tvdb://72454", "themoviedb://30983",
+// "com.plexapp.agents.thetvdb://72454?lang=en"), or 0 when it isn't that
+// provider's guid. Matching "tmdb" also catches "themoviedb".
+func idFromGuid(guid, provider string) int {
+	i := strings.Index(strings.ToLower(guid), provider)
+	if i < 0 {
+		return 0
+	}
+	rest := guid[i+len(provider):]
+	start := strings.IndexFunc(rest, func(r rune) bool { return r >= '0' && r <= '9' })
+	if start < 0 {
+		return 0
+	}
+	rest = rest[start:]
+	if end := strings.IndexFunc(rest, func(r rune) bool { return r < '0' || r > '9' }); end >= 0 {
+		rest = rest[:end]
+	}
+	n, _ := strconv.Atoi(rest)
+	return n
 }
 
 // Shows lists every show of a section (title, year, episode/season counts).
@@ -135,4 +238,62 @@ func (c *Client) ShowDetail(ratingKey string) (*Show, error) {
 	}
 	s := resp.MediaContainer.Metadata[0].toShow()
 	return &s, nil
+}
+
+// Ordering is the metadata provider + episode order Plex has configured for a
+// show. Empty fields mean "not set / library default".
+type Ordering struct {
+	Provider string // tvdb | tmdb | ""
+	Order    string // official | dvd | absolute | aired | ""
+	Language string // e.g. de-DE, ja-JP; "" = library default
+}
+
+// showOrderingMap turns Plex's showOrdering enum into a provider + episode
+// order. "aired" is Plex's alias for TheTVDB aired.
+func showOrderingMap(v string) (provider, order string) {
+	switch v {
+	case "tmdbAiring":
+		return "tmdb", "aired"
+	case "tvdbAiring", "aired":
+		return "tvdb", "official"
+	case "tvdbDvd":
+		return "tvdb", "dvd"
+	case "tvdbAbsolute":
+		return "tvdb", "absolute"
+	}
+	return "", ""
+}
+
+// ShowPreferences reads a show's per-title advanced settings: the episode
+// ordering (showOrdering) and the metadata language override. These drive how
+// downloaded files are renamed so they match exactly what Plex expects.
+func (c *Client) ShowPreferences(ratingKey string) (Ordering, error) {
+	var resp struct {
+		MediaContainer struct {
+			Metadata []struct {
+				Preferences struct {
+					Setting []struct {
+						ID    string `json:"id"`
+						Value string `json:"value"`
+					} `json:"Setting"`
+				} `json:"Preferences"`
+			} `json:"Metadata"`
+		} `json:"MediaContainer"`
+	}
+	if err := c.get("/library/metadata/"+url.PathEscape(ratingKey)+"?includePreferences=1", &resp); err != nil {
+		return Ordering{}, err
+	}
+	if len(resp.MediaContainer.Metadata) == 0 {
+		return Ordering{}, fmt.Errorf("plex: show %s not found", ratingKey)
+	}
+	var o Ordering
+	for _, s := range resp.MediaContainer.Metadata[0].Preferences.Setting {
+		switch s.ID {
+		case "showOrdering":
+			o.Provider, o.Order = showOrderingMap(s.Value)
+		case "languageOverride":
+			o.Language = s.Value
+		}
+	}
+	return o, nil
 }
