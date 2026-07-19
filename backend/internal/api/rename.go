@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/rename"
 )
 
@@ -79,8 +80,17 @@ func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 // @Security     CookieAuth
 // @Router       /api/rename/names [post]
 func (s *Server) handleRenameNames(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
 	var in struct {
-		Names []string `json:"names"`
+		Names           []string `json:"names"`
+		ServerID        int64    `json:"serverId"`
+		RemotePath      string   `json:"remotePath"`
+		LocalPath       string   `json:"localPath"`
+		AiredMapping    bool     `json:"airedMapping"`
+		RenameProvider  string   `json:"renameProvider"`
+		RenameOrdering  string   `json:"renameOrdering"`
+		RenameTitleLang string   `json:"renameTitleLang"`
+		RenameSeriesID  int      `json:"renameSeriesId"`
 		rename.Options
 	}
 	if !readJSON(w, r, &in) {
@@ -89,13 +99,27 @@ func (s *Server) handleRenameNames(w http.ResponseWriter, r *http.Request) {
 	if len(in.Names) > 100 {
 		in.Names = in.Names[:100]
 	}
+	// build the same name function the sync uses, so the preview reflects the
+	// aired-order mapping and the localized provider title exactly
+	fn := s.watchNameFn(Watch{
+		UserID: u.ID, ServerID: in.ServerID, RemotePath: in.RemotePath, LocalPath: in.LocalPath,
+		Mode: in.Mode, Template: in.Template, Separator: in.Separator, TitleOverride: in.TitleOverride,
+		Pattern: in.Pattern, Replacement: in.Replacement,
+		AiredMapping: in.AiredMapping, RenameProvider: in.RenameProvider, RenameOrdering: in.RenameOrdering,
+		RenameTitleLang: in.RenameTitleLang, RenameSeriesID: in.RenameSeriesID,
+	})
 	pairs := []renamePair{}
 	for _, name := range in.Names {
 		p := renamePair{Old: name}
-		if newName, err := rename.New(name, in.Options); err != nil {
+		if fn == nil {
+			p.New = name
+		} else if nn := fn(name); nn != name {
+			p.New = nn
+		} else if _, err := rename.New(name, in.Options); err != nil {
+			// unchanged: surface why the base template couldn't apply
 			p.New, p.Err = name, err.Error()
 		} else {
-			p.New = newName
+			p.New = nn
 		}
 		pairs = append(pairs, p)
 	}

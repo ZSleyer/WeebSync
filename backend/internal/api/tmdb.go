@@ -68,12 +68,16 @@ func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
 }
 
 // sourceForScope maps a scope kind to the catalog_matches source tag.
-// 'anime' is an explicit override mark below a TMDB-scoped folder.
+// 'anime' is an explicit override mark below a TMDB/TVDB-scoped folder.
 func sourceForScope(kind string) string {
-	if kind == "" || kind == "anime" {
+	switch kind {
+	case "", "anime":
 		return "anilist"
+	case "tvdb":
+		return "tvdb"
+	default:
+		return "tmdb:" + kind // tv | movie
 	}
-	return "tmdb:" + kind
 }
 
 // scopeRequest is the body of handleCatalogScope.
@@ -106,13 +110,17 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch in.Kind {
-	case "", "anime", "tv", "movie":
+	case "", "anime", "tv", "movie", "tvdb":
 	default:
 		writeErr(w, http.StatusBadRequest, "invalid kind")
 		return
 	}
 	if (in.Kind == "tv" || in.Kind == "movie") && !s.Tmdb.Enabled() {
 		writeErr(w, http.StatusBadRequest, "TMDB API key required")
+		return
+	}
+	if in.Kind == "tvdb" && !s.Tvdb.Enabled() {
+		writeErr(w, http.StatusBadRequest, "TVDB API key required")
 		return
 	}
 	// ownership check doubles as root path lookup (empty path = root)
@@ -280,6 +288,15 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 		}
 		if !fresh && m.Status != "FINISHED" && m.Status != "CANCELLED" {
 			s.queueTmdbFetch(kind, id)
+		}
+	case source == "tvdb":
+		m, fresh = s.Tvdb.CachedMedia(id)
+		if m == nil {
+			s.queueTvdbFetch(id)
+			return nil, true
+		}
+		if !fresh && m.Status != "FINISHED" && m.Status != "CANCELLED" {
+			s.queueTvdbFetch(id)
 		}
 	}
 	return m, false

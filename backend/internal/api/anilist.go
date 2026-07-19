@@ -14,6 +14,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/remote"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // handleAnilistSearch searches AniList by title for the match dialog.
@@ -69,6 +70,44 @@ type catalogItem struct {
 	Source string         `json:"source,omitempty"` // anilist | tmdb:tv | tmdb:movie
 	// Pending: metadata is being resolved in the background, poll again
 	Pending bool `json:"pending,omitempty"`
+	// Kind: heuristic movie/series classification, so films mixed into a series
+	// library are told apart. "" when nothing is conclusive.
+	Kind string `json:"kind,omitempty"` // movie | series
+}
+
+// folderKind classifies a catalog folder as a film or a series. The primary
+// signal is the number of video files directly in the folder (from the remote
+// index, when it has been crawled): exactly one video and no subfolders reads
+// as a movie, several videos or any season subfolder as a series. The folder
+// name ("... Movie ...") is the fallback when the folder isn't indexed yet.
+// Empty when nothing is conclusive.
+// ponytail: a folder full of separate movie files reads as "series"; refine
+// only if movie-collection folders turn out to matter.
+func (s *Server) folderKind(serverID int64, folder, name string) string {
+	var vids, subdirs int
+	rows, err := s.DB.Query(`SELECT name, is_dir FROM remote_index WHERE server_id = ? AND parent = ?`, serverID, folder)
+	if err == nil {
+		for rows.Next() {
+			var n string
+			var dir int
+			rows.Scan(&n, &dir)
+			if dir != 0 {
+				subdirs++
+			} else if transfer.VideoExt[strings.ToLower(path.Ext(n))] {
+				vids++
+			}
+		}
+		rows.Close()
+	}
+	switch {
+	case vids == 1 && subdirs == 0:
+		return "movie"
+	case vids >= 2 || subdirs >= 1:
+		return "series"
+	case match.ParseName(name, "", "").Movie:
+		return "movie" // not indexed yet → trust the name
+	}
+	return ""
 }
 
 // runJob runs fn in the background at most once per key at a time; duplicate
@@ -434,36 +473,43 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	scope := s.scopeFor(serverID, dir)
-	source := sourceForScope(scope)
 	items := []catalogItem{}
 	for _, e := range entries {
 		if !e.IsDir {
 			continue
 		}
 		item := catalogItem{Entry: e}
+		item.Kind = s.folderKind(serverID, e.Path, e.Name)
 		if scope == "" {
 			// no metadata source chosen for this path yet: show the plain
 			// structure and wait for the user to pick one (persisted mark)
 			items = append(items, item)
 			continue
 		}
-		item.Source = source
+		// route an obvious film in a TMDB-series library to the movie source,
+		// so a movie mixed into a tv scope matches against films, not shows
+		itemScope := scope
+		if item.Kind == "movie" && scope == "tv" {
+			itemScope = "movie"
+		}
+		itemSource := sourceForScope(itemScope)
+		item.Source = itemSource
 		var mediaID, manual int
 		var rowSource string
 		err := s.DB.QueryRow(`SELECT media_id, manual, source FROM catalog_matches
 			WHERE server_id = ? AND folder = ?`, serverID, e.Path).Scan(&mediaID, &manual, &rowSource)
 		switch {
-		case err != nil || rowSource != source:
+		case err != nil || rowSource != itemSource:
 			// never looked up, or the folder's scope changed since the match
 			// was stored: match in the background, show the folder now
 			item.Pending = true
-			s.queueScopedMatch(serverID, e.Path, e.Name, scope, false)
+			s.queueScopedMatch(serverID, e.Path, e.Name, itemScope, false)
 		case mediaID == 0 && manual == 0:
 			// searched before, nothing found: display "no match" but retry
 			// quietly (search cache makes this cheap); manual unmatch is final
-			s.queueScopedMatch(serverID, e.Path, e.Name, scope, false)
+			s.queueScopedMatch(serverID, e.Path, e.Name, itemScope, false)
 		case mediaID != 0:
-			item.Media, item.Pending = s.sourceMedia(source, mediaID)
+			item.Media, item.Pending = s.sourceMedia(itemSource, mediaID)
 		}
 		items = append(items, item)
 	}
@@ -480,6 +526,10 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, force bool) {
 	if scope == "" || scope == "anime" {
 		s.queueMatch(serverID, folder, name, force)
+		return
+	}
+	if scope == "tvdb" {
+		s.queueTvdbMatch(serverID, folder, name, force)
 		return
 	}
 	s.queueTmdbMatch(serverID, folder, name, scope, force)
