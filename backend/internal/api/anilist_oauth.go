@@ -132,7 +132,7 @@ func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 	// cannot be replayed within the cookie's lifetime
 	http.SetCookie(w, &http.Cookie{
 		Name: "weebsync_anilist_state", Value: "", Path: "/api/anilist",
-		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
 	})
 	code := r.URL.Query().Get("code")
 	if code == "" {

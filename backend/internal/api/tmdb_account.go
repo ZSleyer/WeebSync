@@ -84,7 +84,7 @@ func (s *Server) handleTmdbCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name: "weebsync_tmdb_rt", Value: "", Path: "/api/tmdb",
-		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
 	})
 	if r.URL.Query().Get("denied") == "true" || r.URL.Query().Get("approved") == "false" {
 		http.Redirect(w, r, "/settings", http.StatusFound)
