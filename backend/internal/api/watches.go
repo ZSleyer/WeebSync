@@ -27,21 +27,21 @@ import (
 // on an interval and new/changed files are downloaded automatically,
 // optionally renamed via template.
 type Watch struct {
-	ID            int64  `json:"id"`
-	UserID        int64  `json:"userId"`
-	ServerID      int64  `json:"serverId"`
-	ServerName    string `json:"serverName"`
-	RemotePath    string `json:"remotePath"`
-	LocalPath     string `json:"localPath"`
-	Mode          string `json:"mode"` // "template" | "regex"
-	Template      string `json:"template"`
-	Separator     string `json:"separator"`
-	TitleOverride string `json:"titleOverride"`
-	Pattern       string `json:"pattern"`
-	Replacement   string `json:"replacement"`
-	Subfolder     bool   `json:"subfolder"`   // write into local_path/<remote name> instead of local_path directly
-	MediaID       int    `json:"mediaId"`     // linked AniList/TMDB id → metadata (cover, episodes, airing); 0 = auto/none
-	MediaSource   string `json:"mediaSource"` // metadata provider for a manual link: "anilist" | "tmdb:tv" | "tmdb:movie"
+	ID              int64  `json:"id"`
+	UserID          int64  `json:"userId"`
+	ServerID        int64  `json:"serverId"`
+	ServerName      string `json:"serverName"`
+	RemotePath      string `json:"remotePath"`
+	LocalPath       string `json:"localPath"`
+	Mode            string `json:"mode"` // "template" | "regex"
+	Template        string `json:"template"`
+	Separator       string `json:"separator"`
+	TitleOverride   string `json:"titleOverride"`
+	Pattern         string `json:"pattern"`
+	Replacement     string `json:"replacement"`
+	Subfolder       bool   `json:"subfolder"`       // write into local_path/<remote name> instead of local_path directly
+	MediaID         int    `json:"mediaId"`         // linked AniList/TMDB id → metadata (cover, episodes, airing); 0 = auto/none
+	MediaSource     string `json:"mediaSource"`     // metadata provider for a manual link: "anilist" | "tmdb:tv" | "tmdb:movie"
 	FromEpisode     int    `json:"fromEpisode"`     // count only local episodes >= this (shared season folder); 0 = all
 	AiredMapping    bool   `json:"airedMapping"`    // resolve absolute episode numbers to aired-order S/E via TVDB/TMDB (endless series)
 	RenameProvider  string `json:"renameProvider"`  // tvdb | tmdb | "" (auto from Plex/default)
@@ -49,14 +49,14 @@ type Watch struct {
 	RenameTitleLang string `json:"renameTitleLang"` // BCP-47 for the localized rename title; "" = Plex/system language
 	RenameSeriesID  int    `json:"renameSeriesId"`  // explicit provider series id for rename; 0 = auto
 	WantDub         string `json:"wantDub"`         // sync only files tagged with this dub language code (e.g. "Ger"); "" = any
-	WantSub       string `json:"wantSub"`     // sync only files tagged with this sub language code; "" = any
-	IntervalMin   int    `json:"intervalMin"` // global setting, echoed for the UI
-	LastCheck     string `json:"lastCheck"`
-	LastResult    string `json:"lastResult"`    // error text of the last check, "" on success
-	LastQueued    int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
-	LastUploading int    `json:"lastUploading"` // files still uploading remotely at the last check
-	LangWaiting   int    `json:"langWaiting"`   // videos on the remote skipped by the dub/sub filter, target not yet local
-	CreatedAt     string `json:"createdAt"`
+	WantSub         string `json:"wantSub"`         // sync only files tagged with this sub language code; "" = any
+	IntervalMin     int    `json:"intervalMin"`     // global setting, echoed for the UI
+	LastCheck       string `json:"lastCheck"`
+	LastResult      string `json:"lastResult"`    // error text of the last check, "" on success
+	LastQueued      int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
+	LastUploading   int    `json:"lastUploading"` // files still uploading remotely at the last check
+	LangWaiting     int    `json:"langWaiting"`   // videos on the remote skipped by the dub/sub filter, target not yet local
+	CreatedAt       string `json:"createdAt"`
 
 	// enriched for the overview
 	Media          *anilist.Media `json:"media,omitempty"`
@@ -288,8 +288,8 @@ func (s *Server) watchNameFn(w Watch) func(string) string {
 	return func(name string) string {
 		opts := o
 		if useAired && resolver != nil {
-			if abs := parseAbsoluteEp(name); abs > 0 {
-				if season, ep, ok := resolver.Resolve(context.Background(), series, abs); ok {
+			if tok := parseEpisodeToken(name); tok != "" {
+				if season, ep, ok := resolver.Resolve(context.Background(), series, tok); ok {
 					opts.SeasonOverride = &season
 					opts.EpisodeOverride = &ep
 				}
@@ -652,14 +652,15 @@ func (s *Server) handleRenameProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// parseAbsoluteEp pulls the (absolute) episode number from a file name, or 0.
-func parseAbsoluteEp(name string) int {
+// parseEpisodeToken pulls the episode number token from a file name, or "".
+// It keeps the raw value so a fractional special ("1165.5") stays intact for
+// the aired-order lookup; regular episodes are the plain number ("1187").
+func parseEpisodeToken(name string) string {
 	p := anitogo.Parse(name, anitogo.DefaultOptions)
 	if len(p.EpisodeNumber) == 0 {
-		return 0
+		return ""
 	}
-	n, _ := strconv.Atoi(p.EpisodeNumber[0])
-	return n
+	return p.EpisodeNumber[0]
 }
 
 // watchLangFilter returns a predicate that keeps only remote files whose
@@ -928,14 +929,14 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
 	var in struct {
-		RemotePath    string `json:"remotePath"`
-		LocalPath     string `json:"localPath"`
-		Mode          string `json:"mode"`
-		Template      string `json:"template"`
-		Separator     string `json:"separator"`
-		TitleOverride string `json:"titleOverride"`
-		Pattern       string `json:"pattern"`
-		Replacement   string `json:"replacement"`
+		RemotePath      string `json:"remotePath"`
+		LocalPath       string `json:"localPath"`
+		Mode            string `json:"mode"`
+		Template        string `json:"template"`
+		Separator       string `json:"separator"`
+		TitleOverride   string `json:"titleOverride"`
+		Pattern         string `json:"pattern"`
+		Replacement     string `json:"replacement"`
 		Subfolder       bool   `json:"subfolder"`
 		MediaID         int    `json:"mediaId"`
 		MediaSource     string `json:"mediaSource"`

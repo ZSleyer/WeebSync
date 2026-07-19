@@ -66,3 +66,19 @@ func TestEpisodesAndMap(t *testing.T) {
 		t.Fatalf("search: %v %v", res, err)
 	}
 }
+
+func TestSeasonTokenMap(t *testing.T) {
+	eps := []Episode{
+		{AbsoluteNumber: 1165, SeasonNumber: 21, Number: 36},
+		{AbsoluteNumber: 1166, SeasonNumber: 21, Number: 37},
+		// a recap airing between 1165 and 1166 (before season 21 episode 37)
+		{SeasonNumber: 0, Number: 31, AirsBeforeSeason: 21, AirsBeforeEpisode: 37},
+	}
+	m := SeasonTokenMap(eps)
+	if m["1165"] != [2]int{21, 36} {
+		t.Errorf("regular 1165 -> %v, want {21 36}", m["1165"])
+	}
+	if m["1165.5"] != [2]int{0, 31} {
+		t.Errorf("special 1165.5 -> %v, want {0 31}", m["1165.5"])
+	}
+}
