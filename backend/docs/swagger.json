@@ -85,6 +85,10 @@
                     "seasonYear": {
                         "type": "integer"
                     },
+                    "siteUrl": {
+                        "description": "provider page for cross-checking",
+                        "type": "string"
+                    },
                     "status": {
                         "description": "FINISHED | RELEASING | NOT_YET_RELEASED | CANCELLED | HIATUS",
                         "type": "string"
@@ -566,6 +570,10 @@
                         "description": "queued/running downloads for this watch",
                         "type": "integer"
                     },
+                    "airedMapping": {
+                        "description": "resolve absolute episode numbers to aired-order S/E via TVDB/TMDB (endless series)",
+                        "type": "boolean"
+                    },
                     "airings": {
                         "description": "every scheduled future release the provider knows (multi-week calendar)",
                         "items": {
@@ -668,6 +676,22 @@
                         "type": "string"
                     },
                     "remotePath": {
+                        "type": "string"
+                    },
+                    "renameOrdering": {
+                        "description": "official | dvd | absolute | aired | \"\" (auto)",
+                        "type": "string"
+                    },
+                    "renameProvider": {
+                        "description": "tvdb | tmdb | \"\" (auto from Plex/default)",
+                        "type": "string"
+                    },
+                    "renameSeriesId": {
+                        "description": "explicit provider series id for rename; 0 = auto",
+                        "type": "integer"
+                    },
+                    "renameTitleLang": {
+                        "description": "BCP-47 for the localized rename title; \"\" = Plex/system language",
                         "type": "string"
                     },
                     "replacement": {
@@ -1133,6 +1157,10 @@
                     "entry": {
                         "$ref": "#/components/schemas/remote.Entry"
                     },
+                    "kind": {
+                        "description": "Kind: heuristic movie/series classification, so films mixed into a series\nlibrary are told apart. \"\" when nothing is conclusive.",
+                        "type": "string"
+                    },
                     "media": {
                         "$ref": "#/components/schemas/anilist.Media"
                     },
@@ -1352,6 +1380,70 @@
                 },
                 "type": "object"
             },
+            "api.renameProfileResponse": {
+                "properties": {
+                    "ambiguous": {
+                        "description": "no confident match - the user should pick",
+                        "type": "boolean"
+                    },
+                    "candidates": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.seriesCandidate"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "detected": {
+                        "description": "Plex has a per-show ordering",
+                        "type": "boolean"
+                    },
+                    "language": {
+                        "description": "BCP-47 | \"\"",
+                        "type": "string"
+                    },
+                    "ordering": {
+                        "description": "official | dvd | absolute | aired | \"\"",
+                        "type": "string"
+                    },
+                    "provider": {
+                        "description": "ordering provider from Plex: tvdb | tmdb | \"\"",
+                        "type": "string"
+                    },
+                    "seriesCover": {
+                        "description": "poster url",
+                        "type": "string"
+                    },
+                    "seriesId": {
+                        "description": "resolved provider series id, 0 when none",
+                        "type": "integer"
+                    },
+                    "seriesOriginal": {
+                        "description": "native title, shown in parens",
+                        "type": "string"
+                    },
+                    "seriesOverview": {
+                        "description": "short description",
+                        "type": "string"
+                    },
+                    "seriesProvider": {
+                        "description": "provider used to resolve the series id",
+                        "type": "string"
+                    },
+                    "seriesTitle": {
+                        "description": "localized title of the resolved series",
+                        "type": "string"
+                    },
+                    "seriesUrl": {
+                        "description": "provider page for cross-checking",
+                        "type": "string"
+                    },
+                    "showTitle": {
+                        "description": "the matched Plex show's title",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.reviewsResponse": {
                 "properties": {
                     "reviews": {
@@ -1385,6 +1477,20 @@
                     "scope": {
                         "description": "\"\" | anime | tv | movie",
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.seriesCandidate": {
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "year": {
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -1582,6 +1688,13 @@
                     "trustedNetworks": {
                         "description": "csv of CIDRs/IPs that bypass the login rate limit",
                         "type": "string"
+                    },
+                    "tvdbApiKey": {
+                        "description": "write-only, resolves aired-order season boundaries",
+                        "type": "string"
+                    },
+                    "tvdbApiKeySet": {
+                        "type": "boolean"
                     },
                     "watchIntervalMin": {
                         "description": "global auto-sync check interval",
@@ -1825,6 +1938,10 @@
             },
             "plex.Section": {
                 "properties": {
+                    "agent": {
+                        "description": "e.g. tv.plex.agents.series | tv.plex.agents.movie",
+                        "type": "string"
+                    },
                     "key": {
                         "type": "string"
                     },
@@ -7259,6 +7376,78 @@
                 ]
             }
         },
+        "/api/servers/{id}/rename-profile": {
+            "get": {
+                "description": "Report the provider, episode ordering, language and resolved series (or candidates when ambiguous) for the folder's show.",
+                "parameters": [
+                    {
+                        "description": "Server id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Remote folder",
+                        "in": "query",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Local target path (library detection)",
+                        "in": "query",
+                        "name": "local",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Override rename provider (tvdb | tmdb)",
+                        "in": "query",
+                        "name": "provider",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.renameProfileResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Detected rename profile",
+                "tags": [
+                    "Watches"
+                ]
+            }
+        },
         "/api/servers/{id}/search": {
             "get": {
                 "description": "Full-text search across a server's remote index; multiple whitespace-separated words AND-match the file/folder name.",
@@ -8102,6 +8291,123 @@
                     }
                 ],
                 "summary": "TMDB suggestions",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/tvdb/media": {
+            "get": {
+                "description": "Resolve a single TheTVDB series entry by id.",
+                "parameters": [
+                    {
+                        "description": "TVDB id",
+                        "in": "query",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/anilist.Media"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "TVDB media",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/tvdb/search": {
+            "get": {
+                "description": "Search TheTVDB series by title for the match dialog.",
+                "parameters": [
+                    {
+                        "description": "Search query",
+                        "in": "query",
+                        "name": "q",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/anilist.Media"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Search TVDB",
                 "tags": [
                     "Suggestions"
                 ]
