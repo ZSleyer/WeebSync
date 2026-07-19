@@ -85,11 +85,13 @@ type Resolver struct {
 	TMDB *tmdb.Client
 }
 
-// Resolve returns the (season, episode) for an absolute episode number, or
-// ok=false when no mapping is known - the caller then falls back to its normal
-// naming. The per-series map is (re)built at most once per TTL.
-func (r *Resolver) Resolve(ctx context.Context, s Series, absolute int) (season, episode int, ok bool) {
-	if absolute <= 0 {
+// Resolve returns the (season, episode) for an episode token, or ok=false when
+// no mapping is known - the caller then falls back to its normal naming. The
+// token is the parsed episode number: "1187" for a regular episode, or a
+// fractional "1165.5" for a special/recap, which resolves to a season-0 entry.
+// The per-series map is (re)built at most once per TTL.
+func (r *Resolver) Resolve(ctx context.Context, s Series, token string) (season, episode int, ok bool) {
+	if token == "" {
 		return 0, 0, false
 	}
 	provider, ordering := r.effective(s)
@@ -97,8 +99,8 @@ func (r *Resolver) Resolve(ctx context.Context, s Series, absolute int) (season,
 	if !r.fresh(s, want) {
 		r.rebuild(ctx, s, provider, ordering, want)
 	}
-	err := r.DB.QueryRow(`SELECT season, episode FROM season_maps WHERE server_id=? AND folder=? AND absolute=?`,
-		s.ServerID, s.Folder, absolute).Scan(&season, &episode)
+	err := r.DB.QueryRow(`SELECT season, episode FROM season_maps WHERE server_id=? AND folder=? AND token=?`,
+		s.ServerID, s.Folder, token).Scan(&season, &episode)
 	if err != nil {
 		return 0, 0, false
 	}
@@ -147,9 +149,9 @@ func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, wa
 	}
 	defer tx.Rollback()
 	tx.Exec(`DELETE FROM season_maps WHERE server_id=? AND folder=?`, s.ServerID, s.Folder)
-	for abs, se := range m {
-		if _, err := tx.Exec(`INSERT INTO season_maps (server_id, folder, absolute, season, episode) VALUES (?,?,?,?,?)`,
-			s.ServerID, s.Folder, abs, se[0], se[1]); err != nil {
+	for token, se := range m {
+		if _, err := tx.Exec(`INSERT INTO season_maps (server_id, folder, token, season, episode) VALUES (?,?,?,?,?)`,
+			s.ServerID, s.Folder, token, se[0], se[1]); err != nil {
 			return
 		}
 	}
@@ -165,7 +167,7 @@ func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, wa
 // reproduce the error. Plex is only used to heal the series id from the matched
 // show's guid. A nil error with an empty map means "no mapping" (back off); a
 // non-nil error is transient (don't cache).
-func (r *Resolver) buildMap(ctx context.Context, s Series, provider, ordering string) (map[int][2]int, error) {
+func (r *Resolver) buildMap(ctx context.Context, s Series, provider, ordering string) (map[string][2]int, error) {
 	tvdbID, tmdbID := s.TVDBID, s.TMDBTVID
 	if r.Plex != nil && ((provider == "tvdb" && tvdbID == 0) || (provider == "tmdb" && tmdbID == 0)) {
 		pt, pm := r.plexIDs(s.Title)
@@ -194,12 +196,21 @@ func (r *Resolver) buildMap(ctx context.Context, s Series, provider, ordering st
 		if err != nil {
 			return nil, err
 		}
-		return tvdb.AbsoluteMap(eps), nil
+		return tvdb.SeasonTokenMap(eps), nil // regular tokens + ".5" specials
 	case "tmdb":
 		if r.TMDB == nil || !r.TMDB.Enabled() || tmdbID == 0 {
 			return nil, nil
 		}
-		return r.TMDB.SeasonMap(ctx, tmdbID)
+		// TMDB has no special ordering: absolute-number tokens only
+		abs, err := r.TMDB.SeasonMap(ctx, tmdbID)
+		if err != nil {
+			return nil, err
+		}
+		m := make(map[string][2]int, len(abs))
+		for n, se := range abs {
+			m[strconv.Itoa(n)] = se
+		}
+		return m, nil
 	}
 	return nil, nil
 }
