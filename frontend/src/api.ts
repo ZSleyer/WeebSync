@@ -61,6 +61,7 @@ export interface Media {
   averageScore: number
   genres: string[]
   description: string
+  siteUrl?: string
 }
 
 export interface CatalogItem {
@@ -68,6 +69,7 @@ export interface CatalogItem {
   media?: Media
   source?: string // anilist | tmdb:tv | tmdb:movie
   pending?: boolean // metadata still resolving in the background
+  kind?: string // 'movie' | 'series' heuristic classification, '' = unknown
 }
 
 export interface CatalogResponse {
@@ -93,6 +95,11 @@ export interface Watch {
   mediaId: number
   mediaSource: string
   fromEpisode: number
+  airedMapping: boolean
+  renameProvider: string
+  renameOrdering: string
+  renameTitleLang: string
+  renameSeriesId: number
   wantDub: string
   wantSub: string
   langWaiting: number
