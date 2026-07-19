@@ -29,11 +29,11 @@ type Server struct {
 	// (arbitrary media mounts); empty falls back to [DownloadRoot].
 	LocalRoots []string
 	Transfers  *transfer.Manager
-	Anilist      *anilist.Client
-	Tmdb         *tmdb.Client
-	Tvdb         *tvdb.Client // aired-order season mapping for endless series
-	Push         *push.Service
-	Mail         *mailer.Service
+	Anilist    *anilist.Client
+	Tmdb       *tmdb.Client
+	Tvdb       *tvdb.Client // aired-order season mapping for endless series
+	Push       *push.Service
+	Mail       *mailer.Service
 	// Conns pools and caps SSH/FTP connections per server (multiplexes SFTP
 	// channels; downloads take priority over the index crawler).
 	Conns *pool.Pool

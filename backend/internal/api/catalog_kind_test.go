@@ -36,8 +36,8 @@ func TestFolderKind(t *testing.T) {
 		{"/Movie27", "Gyakuten Saiban", "movie"}, // neutral name → count path (1 video)
 		{"/Conan", "Detektiv Conan", "series"},
 		{"/Show", "Some Show", "series"},
-		{"/NotIndexed", "Some Movie", "movie"},  // name fallback
-		{"/NotIndexed2", "Some Show", ""},       // nothing conclusive
+		{"/NotIndexed", "Some Movie", "movie"}, // name fallback
+		{"/NotIndexed2", "Some Show", ""},      // nothing conclusive
 	}
 	for _, c := range cases {
 		if got := s.folderKind(1, c.folder, c.name); got != c.want {

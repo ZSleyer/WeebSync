@@ -23,8 +23,8 @@ import (
 	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/secret"
 	"github.com/ch4d1/weebsync/internal/tmdb"
-	"github.com/ch4d1/weebsync/internal/tvdb"
 	"github.com/ch4d1/weebsync/internal/transfer"
+	"github.com/ch4d1/weebsync/internal/tvdb"
 )
 
 func env(key, fallback string) string {
