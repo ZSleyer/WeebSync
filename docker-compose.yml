@@ -1,7 +1,7 @@
 services:
   weebsync:
     build: .
-    # image: ghcr.io/ch4d1/weebsync:latest
+    # image: ghcr.io/zsleyer/weebsync:nightly   # or a :vX.Y.Z release
     ports:
       # session auth runs over plain HTTP - bind to loopback and put a
       # TLS-terminating reverse proxy in front. Use "8080:8080" only on a
@@ -18,6 +18,12 @@ services:
       # OIDC_CLIENT_ID: weebsync
       # OIDC_CLIENT_SECRET: "…"
       # OIDC_REDIRECT_URL: https://weebsync.example.com/api/auth/oidc/callback
+      # optional: allowlist of local roots (":"-separated). Mount your media
+      # wherever and list the mounts; only these are browsable/writable.
+      # WEEBSYNC_DOWNLOADS: /media:/data/downloads
     volumes:
-      - ./data:/data # sqlite db + downloads (downloads under /data/downloads)
+      - ./data:/data # sqlite db + default downloads (under /data/downloads)
+      # mount media libraries as sync targets, then add them to
+      # WEEBSYNC_DOWNLOADS above:
+      # - /srv/media:/media
     restart: unless-stopped

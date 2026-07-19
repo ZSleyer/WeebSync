@@ -23,7 +23,16 @@ docker compose up -d
 # → http://localhost:8080 - first registered user becomes admin
 ```
 
-Latest dev image: `ghcr.io/zsleyer/weebsync:dev` (published on every green `main` build; `:dev-<sha>` pins a specific commit).
+### Image tags
+
+| Tag | When | Use |
+|---|---|---|
+| `ghcr.io/zsleyer/weebsync:nightly` | daily (03:00 UTC) from green `main` | latest features, moves once a day |
+| `:nightly-<sha>` | with each nightly | pin a specific nightly build |
+| `:vX.Y.Z`, `:X.Y` | on a `v*` release tag | stable releases (recommended for prod) |
+
+The nightly image builds once a day instead of on every push, so an
+auto-updater (e.g. the HA add-on tracking `:nightly`) updates at most daily.
 
 ## Configuration (env)
 
@@ -34,7 +43,7 @@ All optional. Env values **override** UI settings and lock the field.
 | `WEEBSYNC_SECRET` | auto-generated | AES-GCM key for server passwords. Else `$WEEBSYNC_DATA/secret.key` (0600) on first start. **Back it up** - lost key = unreadable credentials |
 | `WEEBSYNC_ADDR` | `:8080` | Listen address |
 | `WEEBSYNC_DATA` | `/data` | SQLite DB + downloads |
-| `WEEBSYNC_DOWNLOADS` | `$WEEBSYNC_DATA/downloads` | Download root (all local ops confined here) |
+| `WEEBSYNC_DOWNLOADS` | `$WEEBSYNC_DATA/downloads` | `:`-separated allowlist of local roots. The first is the default download dir; a sync target may live under any listed root. Mount your media wherever and list the mounts, e.g. `WEEBSYNC_DOWNLOADS=/media:/config` - only those paths are browsable/writable (no need to expose the whole container) |
 | `WEEBSYNC_TRUSTED_PROXY` | `false` | Trust `X-Forwarded-*` only behind a proxy that overwrites them |
 | `WEEBSYNC_FORCE_HTTPS` | `false` | Force `Secure` on all cookies (recommended behind a TLS proxy) |
 | `ANILIST_TOKEN` / `OIDC_*` | - | Override their UI counterparts |
