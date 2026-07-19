@@ -23,9 +23,9 @@ func TestResolveLocal(t *testing.T) {
 		in    string
 		want  string
 	}{
-		{multi, "/media/anime/ep01.mkv", "/media/anime/ep01.mkv"}, // absolute under a root
-		{multi, "media/anime", "/media/anime"},                    // rootless -> cleaned absolute matches
-		{multi, "/config/x", "/config/x"},                         // second root
+		{multi, "/media/anime/ep01.mkv", "/media/anime/ep01.mkv"},                   // absolute under a root
+		{multi, "media/anime", "/media/anime"},                                      // rootless -> cleaned absolute matches
+		{multi, "/config/x", "/config/x"},                                           // second root
 		{[]string{"/data/downloads"}, "Show/ep.mkv", "/data/downloads/Show/ep.mkv"}, // legacy relative
 		{[]string{"/data/downloads"}, "/data/downloads/x", "/data/downloads/x"},     // absolute under single root
 	}

@@ -27,7 +27,7 @@ func New(baseURL, token string) *Client {
 
 type Section struct {
 	Key   string `json:"key"`
-	Type  string `json:"type"`  // movie | show | artist
+	Type  string `json:"type"` // movie | show | artist
 	Title string `json:"title"`
 	Agent string `json:"agent"` // e.g. tv.plex.agents.series | tv.plex.agents.movie
 	// filesystem roots of the library, for mapping a local path to its library
