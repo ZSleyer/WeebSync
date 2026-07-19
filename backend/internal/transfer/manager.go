@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -52,6 +53,9 @@ type Manager struct {
 	DB           *sql.DB
 	Dial         Dialer
 	DownloadRoot string
+	// Roots is the allowlist of local roots a target path may live under
+	// (arbitrary media mounts). Empty falls back to [DownloadRoot].
+	Roots []string
 	// OnFinished is called when a download reaches done/error (for push
 	// notifications); may be nil.
 	OnFinished func(d *Download)
@@ -65,6 +69,37 @@ type Manager struct {
 	maxConc  int
 	stopping bool
 	wg       sync.WaitGroup
+}
+
+// ResolveLocal maps a target path to an absolute path under one of the allowed
+// roots. An absolute path is accepted when it is under any root; anything else
+// is treated as legacy/relative and resolved under the first (primary) root.
+// This keeps arbitrary media mounts reachable without exposing the whole
+// filesystem, and stays backward-compatible with root-relative watch targets.
+func ResolveLocal(roots []string, p string) (string, error) {
+	if len(roots) == 0 {
+		return "", errors.New("no local roots configured")
+	}
+	clean := filepath.Clean("/" + strings.TrimPrefix(p, "/"))
+	for _, root := range roots {
+		r := filepath.Clean(root)
+		if clean == r || strings.HasPrefix(clean, r+string(filepath.Separator)) {
+			return clean, nil
+		}
+	}
+	primary := filepath.Clean(roots[0])
+	abs := filepath.Join(primary, clean)
+	if abs == primary || strings.HasPrefix(abs, primary+string(filepath.Separator)) {
+		return abs, nil
+	}
+	return "", errors.New("path outside allowed roots")
+}
+
+func (m *Manager) roots() []string {
+	if len(m.Roots) > 0 {
+		return m.Roots
+	}
+	return []string{m.DownloadRoot}
 }
 
 func NewManager(db *sql.DB, dial Dialer, downloadRoot string) *Manager {
@@ -435,7 +470,10 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 	}
 
 	for _, j := range jobs {
-		local := filepath.Join(m.DownloadRoot, filepath.Clean("/"+j.localRel))
+		local, lerr := ResolveLocal(m.roots(), j.localRel)
+		if lerr != nil {
+			continue // target outside the allowed roots: skip this file
+		}
 		// language filter: skip files whose name/folder lacks the wanted dub/sub
 		// tag; count a video as "waiting" when its target is not yet local (so a
 		// version we already have in the right language doesn't inflate the count)

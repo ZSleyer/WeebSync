@@ -23,9 +23,12 @@ import (
 type Server struct {
 	DB   *sql.DB
 	OIDC *auth.Manager
-	// DownloadRoot is the base directory all local file operations are jailed to.
+	// DownloadRoot is the primary local root (default download dir).
 	DownloadRoot string
-	Transfers    *transfer.Manager
+	// LocalRoots is the allowlist of local roots a target may live under
+	// (arbitrary media mounts); empty falls back to [DownloadRoot].
+	LocalRoots []string
+	Transfers  *transfer.Manager
 	Anilist      *anilist.Client
 	Tmdb         *tmdb.Client
 	Tvdb         *tvdb.Client // aired-order season mapping for endless series

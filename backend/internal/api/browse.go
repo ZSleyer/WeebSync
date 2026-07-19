@@ -11,18 +11,24 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/remote"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 var errNotFound = errors.New("not found")
 
-// safeLocal resolves rel against the download root and rejects escapes.
-func (s *Server) safeLocal(rel string) (string, error) {
-	abs := filepath.Join(s.DownloadRoot, filepath.Clean("/"+rel))
-	root := filepath.Clean(s.DownloadRoot)
-	if abs != root && !strings.HasPrefix(abs, root+string(filepath.Separator)) {
-		return "", errors.New("path escapes download root")
+// localRoots is the allowlist of local roots (arbitrary media mounts); empty
+// falls back to the single download root.
+func (s *Server) localRoots() []string {
+	if len(s.LocalRoots) > 0 {
+		return s.LocalRoots
 	}
-	return abs, nil
+	return []string{s.DownloadRoot}
+}
+
+// safeLocal resolves a target path to an absolute path under one of the allowed
+// roots (or, for a legacy/relative path, under the primary root).
+func (s *Server) safeLocal(rel string) (string, error) {
+	return transfer.ResolveLocal(s.localRoots(), rel)
 }
 
 // @Summary  Browse local directory
@@ -38,6 +44,22 @@ func (s *Server) safeLocal(rel string) (string, error) {
 // @Router   /api/browse/local [get]
 func (s *Server) handleBrowseLocal(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
+	roots := s.localRoots()
+	// virtual root: with several allowed roots (media mounts), the top level
+	// lists the roots themselves so the user can pick a mount
+	if rel == "" && len(roots) > 1 {
+		entries := make([]remote.Entry, 0, len(roots))
+		for _, root := range roots {
+			root = filepath.Clean(root)
+			entries = append(entries, remote.Entry{
+				Name:  strings.TrimPrefix(root, "/"),
+				Path:  root,
+				IsDir: true,
+			})
+		}
+		writeJSON(w, http.StatusOK, entries)
+		return
+	}
 	abs, err := s.safeLocal(rel)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
@@ -56,9 +78,16 @@ func (s *Server) handleBrowseLocal(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			size, mod = info.Size(), info.ModTime()
 		}
+		// single root: keep paths root-relative (legacy, breadcrumbs stay inside
+		// the root). Multi-root: absolute container paths so a chosen mount is
+		// unambiguous.
+		p := path.Join("/", rel, it.Name())
+		if len(roots) > 1 {
+			p = path.Join(abs, it.Name())
+		}
 		entries = append(entries, remote.Entry{
 			Name:    it.Name(),
-			Path:    path.Join("/", rel, it.Name()),
+			Path:    p,
 			Size:    size,
 			IsDir:   it.IsDir(),
 			ModTime: mod,

@@ -56,10 +56,14 @@ func main() {
 	}
 
 	dataDir := env("WEEBSYNC_DATA", "./data")
-	downloadRoot := env("WEEBSYNC_DOWNLOADS", filepath.Join(dataDir, "downloads"))
+	// WEEBSYNC_DOWNLOADS is a ":"-separated allowlist of local roots (arbitrary
+	// media mounts, e.g. "/media:/config"). The first is the primary download
+	// dir; a target path may live under any of them.
+	localRoots := filepath.SplitList(env("WEEBSYNC_DOWNLOADS", filepath.Join(dataDir, "downloads")))
+	downloadRoot := localRoots[0]
 	webDir := env("WEEBSYNC_WEB", "./web")
 
-	for _, dir := range []string{dataDir, downloadRoot} {
+	for _, dir := range append([]string{dataDir}, localRoots...) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			slog.Error("mkdir", "dir", dir, "err", err)
 			os.Exit(1)
@@ -89,6 +93,7 @@ func main() {
 		DB:           database,
 		OIDC:         auth.NewManager(context.Background(), database),
 		DownloadRoot: downloadRoot,
+		LocalRoots:   localRoots,
 		Anilist:      anilist.New(database),
 		Tmdb:         tmdb.New(database),
 		Tvdb:         tvdb.New(database),
@@ -97,6 +102,7 @@ func main() {
 		Conns:        pool.New(),
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
+	srv.Transfers.Roots = localRoots
 	srv.Transfers.OnFinished = srv.NotifyDownloadFinished
 	srv.Anilist.TokenSource = srv.AnilistToken // linked-account bearer for API calls
 
