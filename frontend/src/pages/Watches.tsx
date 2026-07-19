@@ -416,6 +416,11 @@ export default function Watches() {
             mediaId: edit.mediaId,
             mediaSource: edit.mediaSource || 'anilist',
             fromEpisode: edit.fromEpisode,
+            airedMapping: edit.airedMapping ?? false,
+            renameProvider: edit.renameProvider ?? '',
+            renameOrdering: edit.renameOrdering ?? '',
+            renameTitleLang: edit.renameTitleLang ?? '',
+            renameSeriesId: edit.renameSeriesId ?? 0,
             wantDub: edit.wantDub ?? '',
             wantSub: edit.wantSub ?? '',
           }}

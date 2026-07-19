@@ -747,6 +747,13 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
       if (mySeq === seq.current) setResults([])
     }
   }
+  // live search: results update as you type (debounced) while correcting a match
+  useEffect(() => {
+    if (!correcting) return
+    const id = setTimeout(() => void search(correcting), 300)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQ, correcting])
   // sets manual=1 server-side; mediaId 0 = manual unmatch ("Kein Match")
   const pick = async (entry: MatchEntry, mediaId: number) => {
     setPicking(true)
