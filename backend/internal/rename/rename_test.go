@@ -109,8 +109,48 @@ func TestTemplateLangAndQuality(t *testing.T) {
 }
 
 func TestSanitize(t *testing.T) {
-	if s := sanitize("a/b\\c:d*e?f\"g<h>i|j"); s != "abcdefghij" {
+	// "/" now survives as a folder separator; every other invalid char is
+	// stripped per segment, empty/traversal segments are dropped.
+	if s := sanitize("a/b\\c:d*e?f\"g<h>i|j"); s != "a/bcdefghij" {
 		t.Errorf("got %q", s)
+	}
+	if s := sanitize("Season 34/Detektiv Conan - S34E01.mkv"); s != "Season 34/Detektiv Conan - S34E01.mkv" {
+		t.Errorf("folder path mangled: %q", s)
+	}
+	if s := sanitize("../../etc/passwd"); s != "etc/passwd" {
+		t.Errorf("traversal not neutralized: %q", s)
+	}
+	if s := sanitize("a//b"); s != "a/b" {
+		t.Errorf("empty segment kept: %q", s)
+	}
+}
+
+func TestAiredOverride(t *testing.T) {
+	s, e := 34, 1
+	got, err := New("[Group] Detective Conan - 1187 [JapDub][GerEngSub].mkv", Options{
+		Mode:     "template",
+		Template: "Season {season:02}/Detektiv Conan - S{season:02}E{episode:02}",
+		// resolver already gives the season-relative aired episode, no offset
+		SeasonOverride: &s, EpisodeOverride: &e,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "Season 34/Detektiv Conan - S34E01.mkv" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestTitleSlashNoFolder(t *testing.T) {
+	// a title carrying "/" must not create a subfolder
+	got, err := New("Zero E01.mkv", Options{
+		Mode: "template", Template: "{title} - E{episode:02}", TitleOverride: "Fate/stay night",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "Fatestay night - E01.mkv" {
+		t.Errorf("got %q", got)
 	}
 }
 

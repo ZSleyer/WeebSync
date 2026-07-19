@@ -64,6 +64,7 @@ type Media struct {
 	AverageScore int          `json:"averageScore"`
 	Genres       []string     `json:"genres"`
 	Description  string       `json:"description"`
+	SiteURL      string       `json:"siteUrl,omitempty"` // provider page for cross-checking
 }
 
 // FutureAirings returns every scheduled not-yet-aired episode (absolute
