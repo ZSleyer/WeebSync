@@ -1,9 +1,24 @@
 package mailer
 
 import (
+	"net/mail"
 	"strings"
 	"testing"
 )
+
+// Send() gates to/from through mail.ParseAddress so CRLF cannot inject headers.
+// Guard the contract the fix relies on.
+func TestAddressRejectsHeaderInjection(t *testing.T) {
+	bad := []string{"a@b.com\r\nBcc: evil@x.com", "a@b.com\nSubject: x", "a@b.com, c@d.com"}
+	for _, addr := range bad {
+		if _, err := mail.ParseAddress(addr); err == nil {
+			t.Errorf("ParseAddress accepted injection payload %q", addr)
+		}
+	}
+	if _, err := mail.ParseAddress("to@example.com"); err != nil {
+		t.Errorf("ParseAddress rejected valid address: %v", err)
+	}
+}
 
 func TestBuildMessage(t *testing.T) {
 	msg := string(buildMessage("ws@example.com", "to@example.com", "WeebSync – Download fertig", "text body", "<b>html body</b>"))

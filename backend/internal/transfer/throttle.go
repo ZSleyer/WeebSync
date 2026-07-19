@@ -52,7 +52,7 @@ func newLimiter(bytesPerSec int64) *rate.Limiter {
 		return nil
 	}
 	// burst = 1s worth of data, min 32KiB so large reads still work
-	burst := int(bytesPerSec)
+	burst := clampInt(bytesPerSec)
 	if burst < 32*1024 {
 		burst = 32 * 1024
 	}

@@ -90,6 +90,13 @@ func (s *Service) Send(to, subject, text, html string) error {
 	if err != nil {
 		return err
 	}
+	// reject CRLF / multi-address so `to`/`from` cannot inject email headers
+	if _, err := mail.ParseAddress(to); err != nil {
+		return fmt.Errorf("invalid recipient: %w", err)
+	}
+	if _, err := mail.ParseAddress(c.from); err != nil {
+		return fmt.Errorf("invalid sender: %w", err)
+	}
 	addr := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 	msg := buildMessage(c.from, to, subject, text, html)
 
