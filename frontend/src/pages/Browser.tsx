@@ -190,7 +190,7 @@ export default function Browser() {
         <section className="t-panel flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('browser.localTarget')}>
           <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
             <span className="t-label">{t('browser.local')}</span>
-            <span className="truncate font-mono text-xs text-t-muted">downloads/{localPath}</span>
+            <span className="truncate font-mono text-xs text-t-muted">{localPath || '/'}</span>
           </div>
           <LocalPicker path={localPath} onNavigate={setLocalPath} />
           <div className="border-t border-border-subtle p-3">
