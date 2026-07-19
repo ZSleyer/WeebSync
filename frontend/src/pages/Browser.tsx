@@ -241,6 +241,11 @@ export default function Browser() {
             mediaId: 0,
             mediaSource: 'anilist',
             fromEpisode: 0,
+            airedMapping: false,
+            renameProvider: '',
+            renameOrdering: '',
+            renameTitleLang: '',
+            renameSeriesId: 0,
             wantDub: '',
             wantSub: '',
           }}
@@ -346,6 +351,14 @@ function CatalogGrid({
     refetchInterval: (q) => (q.state.data?.items.some((i) => i.pending) ? 2500 : false),
   })
   const items = useMemo(() => data?.items ?? [], [data])
+  // provider availability: the TVDB scope is only offered when a key is set
+  // (settings is admin-only; a 403 just leaves the option hidden)
+  const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean }>({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/api/settings'),
+    retry: false,
+    staleTime: 5 * 60_000,
+  })
   const qc = useQueryClient()
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   const [detail, setDetail] = useState<CatalogGroup | null>(null)
@@ -416,6 +429,7 @@ function CatalogGrid({
               <option value="anime">{t('browser.scopeAnime')}</option>
               <option value="tv">{t('browser.scopeTv')}</option>
               <option value="movie">{t('browser.scopeMovie')}</option>
+              {caps?.tvdbApiKeySet && <option value="tvdb">{t('browser.scopeTvdb')}</option>}
             </select>
           </span>
         </label>
@@ -512,13 +526,20 @@ function CatalogGrid({
                       {it.entry.name}
                     </p>
                   )}
-                  {g.media && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {g.media.seasonYear > 0 && <span className="t-label">{g.media.seasonYear}</span>}
-                      {g.media.episodes > 0 && <span className="t-label">{g.media.episodes} EP</span>}
-                      {g.media.averageScore > 0 && <span className="t-label t-label--accent">★ {g.media.averageScore}</span>}
-                    </div>
-                  )}
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {it.kind && (
+                      <span className={`t-label ${it.kind === 'movie' ? 't-label--accent' : ''}`}>
+                        {t(it.kind === 'movie' ? 'browser.kindMovie' : 'browser.kindSeries')}
+                      </span>
+                    )}
+                    {g.media && (
+                      <>
+                        {g.media.seasonYear > 0 && <span className="t-label">{g.media.seasonYear}</span>}
+                        {g.media.episodes > 0 && <span className="t-label">{g.media.episodes} EP</span>}
+                        {g.media.averageScore > 0 && <span className="t-label t-label--accent">★ {g.media.averageScore}</span>}
+                      </>
+                    )}
+                  </div>
                 </div>
               </button>
               {g.media ? (
@@ -861,11 +882,13 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
   // search accepts a title, a bare ID or an anilist.co/themoviedb.org link;
   // the metadata source follows the folder's scope
   const tmdbKind = item.source?.startsWith('tmdb:') ? item.source.slice(5) : ''
+  const isTvdb = item.source === 'tvdb'
   const seq = useRef(0) // drop out-of-order responses
   const search = async () => {
     const mySeq = ++seq.current
     const idm =
       q.match(/themoviedb\.org\/(?:tv|movie)\/(\d+)/) ??
+      q.match(/thetvdb\.com\/series\/(\d+)/) ??
       q.match(/anilist\.co\/anime\/(\d+)/) ??
       q.match(/^\s*(\d+)\s*$/)
     try {
@@ -873,14 +896,20 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
       if (idm) {
         next = [
           await api.get<Media>(
-            tmdbKind ? `/api/tmdb/media?kind=${tmdbKind}&id=${idm[1]}` : `/api/anilist/media/${idm[1]}`,
+            isTvdb
+              ? `/api/tvdb/media?id=${idm[1]}`
+              : tmdbKind
+                ? `/api/tmdb/media?kind=${tmdbKind}&id=${idm[1]}`
+                : `/api/anilist/media/${idm[1]}`,
           ),
         ]
       } else {
         next = await api.get<Media[]>(
-          tmdbKind
-            ? `/api/tmdb/search?kind=${tmdbKind}&q=${encodeURIComponent(q)}`
-            : `/api/anilist/search?q=${encodeURIComponent(q)}`,
+          isTvdb
+            ? `/api/tvdb/search?q=${encodeURIComponent(q)}`
+            : tmdbKind
+              ? `/api/tmdb/search?kind=${tmdbKind}&q=${encodeURIComponent(q)}`
+              : `/api/anilist/search?q=${encodeURIComponent(q)}`,
         )
       }
       if (mySeq !== seq.current) return // a newer request superseded this one
@@ -890,6 +919,12 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
       setResults([])
     }
   }
+  // live search: results update as you type (debounced)
+  useEffect(() => {
+    const id = setTimeout(() => void search(), 300)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q])
   const pick = async (mediaId: number) => {
     setPickError('')
     try {

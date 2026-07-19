@@ -71,6 +71,20 @@ export default function Integrations() {
         <div className="mt-3">
           <TmdbAccount />
         </div>
+        <label className="mt-3 block text-xs text-t-muted">
+          {t('settings.tvdbApiKey')}
+          <EnvBadge show={locked('tvdbApiKey')} />
+          <input
+            className="t-input mt-1 font-mono"
+            type="password"
+            autoComplete="off"
+            placeholder={form.tvdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
+            value={form.tvdbApiKey ?? ''}
+            disabled={locked('tvdbApiKey')}
+            onChange={(e) => set('tvdbApiKey', e.target.value)}
+          />
+          <span className="mt-1 block">{t('settings.tvdbApiKeyHint')}</span>
+        </label>
 
         <div className="mt-5 grid grid-cols-1 gap-4">
           <span className="t-label">{t('settings.plex')}</span>
