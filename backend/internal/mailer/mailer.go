@@ -90,13 +90,18 @@ func (s *Service) Send(to, subject, text, html string) error {
 	if err != nil {
 		return err
 	}
-	// reject CRLF / multi-address so `to`/`from` cannot inject email headers
-	if _, err := mail.ParseAddress(to); err != nil {
+	// Parse to/from and use only the bare addr-spec: rejects CRLF/multi-address
+	// and strips any display name, so neither can inject email headers. Using the
+	// parsed value (not the raw input) is what makes the header content safe.
+	toAddr, err := mail.ParseAddress(to)
+	if err != nil {
 		return fmt.Errorf("invalid recipient: %w", err)
 	}
-	if _, err := mail.ParseAddress(c.from); err != nil {
+	fromAddr, err := mail.ParseAddress(c.from)
+	if err != nil {
 		return fmt.Errorf("invalid sender: %w", err)
 	}
+	to, c.from = toAddr.Address, fromAddr.Address
 	addr := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 	msg := buildMessage(c.from, to, subject, text, html)
 
