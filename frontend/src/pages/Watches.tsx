@@ -322,7 +322,7 @@ export default function Watches() {
                   {w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop()}
                 </h3>
                 <p className="truncate font-mono text-[11px] text-t-muted" title={w.remotePath}>
-                  {w.serverName}:{w.remotePath} → downloads/{w.localPath}
+                  {w.serverName}:{w.remotePath} → {w.localPath}
                 </p>
                 <p className="mt-1 text-[11px] text-t-muted">
                   {t('watch.lastCheck')}: {ago(w.lastCheck)}
