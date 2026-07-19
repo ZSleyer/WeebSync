@@ -44,6 +44,7 @@ var envSettings = []struct{ key, env, field string }{
 	{"anilist_client_id", "ANILIST_CLIENT_ID", "anilistClientId"},
 	{"anilist_client_secret", "ANILIST_CLIENT_SECRET", "anilistClientSecret"},
 	{"tmdb_api_key", "TMDB_API_KEY", "tmdbApiKey"},
+	{"tvdb_api_key", "TVDB_API_KEY", "tvdbApiKey"},
 	{"plex_url", "PLEX_URL", "plexUrl"},
 	{"plex_token", "PLEX_TOKEN", "plexToken"},
 	{"oidc_provider_name", "OIDC_PROVIDER_NAME", "oidcProviderName"},
@@ -107,6 +108,8 @@ type settingsPayload struct {
 	AnilistRedirectURL   string `json:"anilistRedirectUrl"`
 	TmdbApiKeySet        bool   `json:"tmdbApiKeySet"`
 	TmdbApiKey           string `json:"tmdbApiKey,omitempty"` // write-only
+	TvdbApiKeySet        bool   `json:"tvdbApiKeySet"`
+	TvdbApiKey           string `json:"tvdbApiKey,omitempty"` // write-only, resolves aired-order season boundaries
 	PlexURL              string `json:"plexUrl"`
 	PlexTokenSet         bool   `json:"plexTokenSet"`
 	PlexToken            string `json:"plexToken,omitempty"` // write-only
@@ -154,6 +157,7 @@ func (s *Server) settingsState() settingsPayload {
 		AnilistSecretSet:     db.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET") != "",
 		AnilistRedirectURL:   db.Setting(s.DB, "anilist_redirect_url"),
 		TmdbApiKeySet:        db.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
+		TvdbApiKeySet:        db.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
 		PlexURL:              db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
 		PlexTokenSet:         db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
 		PlexSections:         db.Setting(s.DB, "plex_sections"),
@@ -289,6 +293,11 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		setSetting(s.DB, "tmdb_api_key", "")
 	} else if v != "" {
 		setSetting(s.DB, "tmdb_api_key", v)
+	}
+	if v := strings.TrimSpace(in.TvdbApiKey); v == "-" {
+		setSetting(s.DB, "tvdb_api_key", "")
+	} else if v != "" {
+		setSetting(s.DB, "tvdb_api_key", v)
 	}
 	if v := strings.TrimSpace(in.PlexToken); v == "-" {
 		setSetting(s.DB, "plex_token", "")

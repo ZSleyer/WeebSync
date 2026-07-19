@@ -12,11 +12,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/airmap"
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/match"
+	"github.com/ch4d1/weebsync/internal/plex"
 	"github.com/ch4d1/weebsync/internal/rename"
 	"github.com/ch4d1/weebsync/internal/transfer"
+	"github.com/nssteinbrenner/anitogo"
 )
 
 // Watch is a persistent remote-folder subscription: the folder is re-checked
@@ -38,8 +42,13 @@ type Watch struct {
 	Subfolder     bool   `json:"subfolder"`   // write into local_path/<remote name> instead of local_path directly
 	MediaID       int    `json:"mediaId"`     // linked AniList/TMDB id → metadata (cover, episodes, airing); 0 = auto/none
 	MediaSource   string `json:"mediaSource"` // metadata provider for a manual link: "anilist" | "tmdb:tv" | "tmdb:movie"
-	FromEpisode   int    `json:"fromEpisode"` // count only local episodes >= this (shared season folder); 0 = all
-	WantDub       string `json:"wantDub"`     // sync only files tagged with this dub language code (e.g. "Ger"); "" = any
+	FromEpisode     int    `json:"fromEpisode"`     // count only local episodes >= this (shared season folder); 0 = all
+	AiredMapping    bool   `json:"airedMapping"`    // resolve absolute episode numbers to aired-order S/E via TVDB/TMDB (endless series)
+	RenameProvider  string `json:"renameProvider"`  // tvdb | tmdb | "" (auto from Plex/default)
+	RenameOrdering  string `json:"renameOrdering"`  // official | dvd | absolute | aired | "" (auto)
+	RenameTitleLang string `json:"renameTitleLang"` // BCP-47 for the localized rename title; "" = Plex/system language
+	RenameSeriesID  int    `json:"renameSeriesId"`  // explicit provider series id for rename; 0 = auto
+	WantDub         string `json:"wantDub"`         // sync only files tagged with this dub language code (e.g. "Ger"); "" = any
 	WantSub       string `json:"wantSub"`     // sync only files tagged with this sub language code; "" = any
 	IntervalMin   int    `json:"intervalMin"` // global setting, echoed for the UI
 	LastCheck     string `json:"lastCheck"`
@@ -223,15 +232,15 @@ func (s *Server) watchMedia(serverID int64, remotePath string) *anilist.Media {
 // enqueues missing/changed files through the normal transfer queue.
 func (s *Server) runWatch(id int64) {
 	var w Watch
-	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, want_dub, want_sub
+	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub
 		FROM watches WHERE id = ?`, id).
-		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder, &w.WantDub, &w.WantSub)
+		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder, &w.AiredMapping, &w.RenameProvider, &w.RenameOrdering, &w.RenameTitleLang, &w.RenameSeriesID, &w.WantDub, &w.WantSub)
 	if err != nil {
 		return
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
-	ids, uploading, filtered, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, watchNameFn(w), watchLangFilter(w), true, !w.Subfolder)
+	ids, uploading, filtered, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, s.watchNameFn(w), watchLangFilter(w), true, !w.Subfolder)
 	// structured result: the frontend localizes the counts; last_result only
 	// carries the error text of a failed check
 	result, queued := "", len(ids)
@@ -242,9 +251,13 @@ func (s *Server) runWatch(id int64) {
 	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ? WHERE id = ?`, result, queued, uploading, filtered, id)
 }
 
-// watchNameFn maps remote file names to local ones via the watch's rename
-// rule (template or regex); unparseable names keep their original.
-func watchNameFn(w Watch) func(string) string {
+// watchNameFn maps remote file names to local ones via the watch's rename rule
+// (template or regex); unparseable names keep their original. Two independent
+// template features may kick in: a localized series title from the provider
+// (when a title language is set) replaces {title}, and aired mapping resolves
+// each file's absolute episode number to its real broadcast season/episode
+// (e.g. 1187 → S34E01) so the template can build a "Season NN/..." path.
+func (s *Server) watchNameFn(w Watch) func(string) string {
 	o := rename.Options{
 		Mode: w.Mode, Template: w.Template, Separator: w.Separator,
 		TitleOverride: w.TitleOverride, Pattern: w.Pattern, Replacement: w.Replacement,
@@ -255,13 +268,398 @@ func watchNameFn(w Watch) func(string) string {
 	if (o.Mode == "template" && o.Template == "") || (o.Mode == "regex" && o.Pattern == "") {
 		return nil // no rename configured
 	}
+	// the localized title and aired mapping are independent opt-ins, both only
+	// meaningful for the template mode
+	useTitle := w.RenameTitleLang != "" && o.Mode == "template"
+	useAired := w.AiredMapping && o.Mode == "template"
+	var resolver *airmap.Resolver
+	var series airmap.Series
+	if useTitle || useAired {
+		resolver = s.airResolver()
+		series = s.watchSeries(w)
+		if useTitle && o.TitleOverride == "" {
+			// localized series title from the provider, fetched once per check;
+			// an explicit TitleOverride in the watch still wins
+			if t := resolver.SeriesTitle(context.Background(), series); t != "" {
+				o.TitleOverride = t
+			}
+		}
+	}
 	return func(name string) string {
-		n, err := rename.New(name, o)
+		opts := o
+		if useAired && resolver != nil {
+			if abs := parseAbsoluteEp(name); abs > 0 {
+				if season, ep, ok := resolver.Resolve(context.Background(), series, abs); ok {
+					opts.SeasonOverride = &season
+					opts.EpisodeOverride = &ep
+				}
+			}
+		}
+		n, err := rename.New(name, opts)
 		if err != nil || n == "" {
 			return name
 		}
 		return n
 	}
+}
+
+// airResolver builds the aired-order resolver from the configured providers;
+// Plex is nil when not set up, TVDB/TMDB gate themselves on their keys.
+func (s *Server) airResolver() *airmap.Resolver {
+	return &airmap.Resolver{DB: s.DB, TVDB: s.Tvdb, Plex: s.plexClient(), TMDB: s.Tmdb}
+}
+
+// watchSeries builds the rename profile for a watch: the series title/ids plus
+// the provider, episode ordering and title language. Defaults are derived from
+// what Plex has configured for the matched show (showOrdering + languageOverride),
+// then the user's system language, then the global default; an explicit
+// per-watch override always wins. AniList links are ignored here - renaming is
+// TVDB/TMDB only.
+func (s *Server) watchSeries(w Watch) airmap.Series {
+	ser := airmap.Series{ServerID: w.ServerID, Folder: w.RemotePath, Title: GuessTitle(path.Base(w.RemotePath))}
+	if m := s.watchMedia(w.ServerID, w.RemotePath); m != nil {
+		if m.Title.Romaji != "" {
+			ser.Title = m.Title.Romaji
+		} else if m.Title.English != "" {
+			ser.Title = m.Title.English
+		}
+	}
+	var mediaID int
+	var source string
+	s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
+		w.ServerID, w.RemotePath).Scan(&mediaID, &source)
+	switch source {
+	case "tmdb:tv":
+		ser.TMDBTVID = mediaID
+	case "tvdb":
+		ser.TVDBID = mediaID
+	}
+
+	// Plex is the authority for what provider/order/language this show uses
+	lang := ""
+	if sh, ord, ok := s.plexShowFor(ser.Title, w.LocalPath); ok {
+		if sh.TVDBID != 0 {
+			ser.TVDBID = sh.TVDBID
+		}
+		if sh.TMDBID != 0 {
+			ser.TMDBTVID = sh.TMDBID
+		}
+		ser.Provider, ser.Ordering, lang = ord.Provider, ord.Order, ord.Language
+	}
+	if lang == "" {
+		lang = s.userLocale(w.UserID) // fall back to the user's system language
+	}
+	ser.TitleLang = lang
+
+	// explicit per-watch overrides win over the Plex-derived defaults
+	if w.RenameProvider != "" {
+		ser.Provider = w.RenameProvider
+	}
+	if w.RenameOrdering != "" {
+		ser.Ordering = w.RenameOrdering
+	}
+	// "auto" (and "") keep the Plex/system default language; a concrete tag wins
+	if w.RenameTitleLang != "" && w.RenameTitleLang != "auto" {
+		ser.TitleLang = w.RenameTitleLang
+	}
+	// an explicit series id (user picked it when the match was ambiguous) binds
+	// the resolver to exactly that series - no guessing via guid/search
+	if w.RenameSeriesID != 0 {
+		if s.renameProvider(ser.Provider) == "tmdb" {
+			ser.TMDBTVID = w.RenameSeriesID
+		} else {
+			ser.TVDBID = w.RenameSeriesID
+		}
+	}
+	return ser
+}
+
+// renameProvider resolves the effective rename provider: the explicit value, or
+// TVDB when keyed, else TMDB. Mirrors airmap's default so an explicit series id
+// is applied to the same provider the resolver will use.
+func (s *Server) renameProvider(explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if s.Tvdb != nil && s.Tvdb.Enabled() {
+		return "tvdb"
+	}
+	return "tmdb"
+}
+
+// plexShowFor locates the Plex show matching a title (optionally scoped to the
+// library owning localPath) and returns it with its ordering/language settings.
+// Runs once per watch check, so listing the show sections is affordable.
+func (s *Server) plexShowFor(title, localPath string) (*plex.Show, plex.Ordering, bool) {
+	c := s.plexClient()
+	if c == nil {
+		return nil, plex.Ordering{}, false
+	}
+	secs, err := c.Sections()
+	if err != nil {
+		return nil, plex.Ordering{}, false
+	}
+	// prefer the library that owns the local path, if it maps to one
+	wantKey := ""
+	if lib, ok := c.LibraryForPath(localPath); ok {
+		wantKey = lib.Key
+	}
+	// two match keys: the parsed remote title and the local target folder name.
+	// The local folder is usually named exactly as Plex knows the show (the
+	// sync target IS the Plex library folder), which matches across languages
+	// where the romaji remote title would not (e.g. "Meitantei Conan" folder vs
+	// Plex "Detektiv Conan").
+	want := match.Normalize(title)
+	wantLocal := ""
+	if localPath != "" {
+		wantLocal = match.Normalize(path.Base(localPath))
+	}
+	matches := func(name string) bool {
+		if name == "" {
+			return false
+		}
+		n := match.Normalize(name)
+		return n == want || (wantLocal != "" && n == wantLocal)
+	}
+	for _, sec := range secs {
+		if sec.Type != "show" || (wantKey != "" && sec.Key != wantKey) {
+			continue
+		}
+		shows, err := c.Shows(sec.Key)
+		if err != nil {
+			continue
+		}
+		for _, sh := range shows {
+			if !matches(sh.Title) && !matches(sh.OriginalTitle) {
+				continue
+			}
+			detail, err := c.ShowDetail(sh.RatingKey)
+			if err != nil {
+				return nil, plex.Ordering{}, false
+			}
+			ord, _ := c.ShowPreferences(sh.RatingKey)
+			return detail, ord, true
+		}
+	}
+	return nil, plex.Ordering{}, false
+}
+
+// seriesCandidate is one search hit offered when the automatic match is
+// ambiguous and the user must pick.
+type seriesCandidate struct {
+	ID    int    `json:"id"`
+	Title string `json:"title"`
+	Year  int    `json:"year"`
+}
+
+// renameProfileResponse reports the rename profile Plex has configured for a
+// folder's show plus the resolved series match, for prefilling the watch dialog.
+type renameProfileResponse struct {
+	Detected       bool              `json:"detected"`       // Plex has a per-show ordering
+	Provider       string            `json:"provider"`       // ordering provider from Plex: tvdb | tmdb | ""
+	Ordering       string            `json:"ordering"`       // official | dvd | absolute | aired | ""
+	Language       string            `json:"language"`       // BCP-47 | ""
+	ShowTitle      string            `json:"showTitle"`      // the matched Plex show's title
+	SeriesProvider string            `json:"seriesProvider"` // provider used to resolve the series id
+	SeriesID       int               `json:"seriesId"`       // resolved provider series id, 0 when none
+	SeriesTitle    string            `json:"seriesTitle"`    // localized title of the resolved series
+	SeriesOriginal string            `json:"seriesOriginal"` // native title, shown in parens
+	SeriesURL      string            `json:"seriesUrl"`      // provider page for cross-checking
+	SeriesCover    string            `json:"seriesCover"`    // poster url
+	SeriesOverview string            `json:"seriesOverview"` // short description
+	Ambiguous      bool              `json:"ambiguous"`      // no confident match - the user should pick
+	Candidates     []seriesCandidate `json:"candidates,omitempty"`
+}
+
+// providerMedia resolves one series' full card from the given provider.
+func (s *Server) providerMedia(ctx context.Context, provider string, id int) *anilist.Media {
+	switch provider {
+	case "tvdb":
+		if s.Tvdb != nil {
+			m, _ := s.Tvdb.Media(ctx, id)
+			return m
+		}
+	case "tmdb":
+		if s.Tmdb != nil {
+			m, _ := s.Tmdb.Media(ctx, "tv", id)
+			return m
+		}
+	}
+	return nil
+}
+
+// seriesHit is one provider search result plus every title it is known by, so
+// a query in any language can be matched (TVDB returns the primary name in the
+// native language; aliases/translations carry the rest).
+type seriesHit struct {
+	Media  anilist.Media
+	Titles []string
+}
+
+// confidentMatch picks the series id whose any known title exactly matches the
+// query (normalized). Returns confident=false when nothing is an exact match, so
+// the caller can ask the user instead of guessing.
+func confidentMatch(query string, hits []seriesHit) (id int, confident bool) {
+	want := match.Normalize(query)
+	if want == "" {
+		return 0, false
+	}
+	for _, h := range hits {
+		for _, ti := range h.Titles {
+			if ti != "" && match.Normalize(ti) == want {
+				return h.Media.ID, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// searchSeriesHits searches a provider for series, each with all its titles.
+func (s *Server) searchSeriesHits(ctx context.Context, provider, query string) []seriesHit {
+	switch provider {
+	case "tvdb":
+		if s.Tvdb != nil && s.Tvdb.Enabled() {
+			hits, _ := s.Tvdb.SearchHits(ctx, query, "")
+			out := make([]seriesHit, 0, len(hits))
+			for _, h := range hits {
+				out = append(out, seriesHit{Media: h.Media, Titles: h.Titles})
+			}
+			return out
+		}
+	case "tmdb":
+		if s.Tmdb != nil && s.Tmdb.Enabled() {
+			list, _ := s.Tmdb.Search(ctx, "tv", query, 0)
+			out := make([]seriesHit, 0, len(list))
+			for _, m := range list {
+				out = append(out, seriesHit{Media: m, Titles: []string{m.Title.Romaji, m.Title.English}})
+			}
+			return out
+		}
+	}
+	return nil
+}
+
+// providerTitle returns a series' localized title from the given provider.
+func (s *Server) providerTitle(ctx context.Context, provider string, id int, lang string) string {
+	switch provider {
+	case "tvdb":
+		if s.Tvdb != nil {
+			n, _ := s.Tvdb.SeriesTitle(ctx, id, lang)
+			return n
+		}
+	case "tmdb":
+		if s.Tmdb != nil {
+			n, _ := s.Tmdb.SeriesTitle(ctx, id, lang)
+			return n
+		}
+	}
+	return ""
+}
+
+// handleRenameProfile returns the Plex-detected rename profile plus the resolved
+// series match (or ambiguity + candidates) for a folder, so the watch dialog can
+// prefill it and prompt the user when the match isn't unique.
+//
+//	@Summary		Detected rename profile
+//	@Description	Report the provider, episode ordering, language and resolved series (or candidates when ambiguous) for the folder's show.
+//	@Tags			Watches
+//	@Produce		json
+//	@Param			id			path		int		true	"Server id"
+//	@Param			path		query		string	true	"Remote folder"
+//	@Param			local		query		string	false	"Local target path (library detection)"
+//	@Param			provider	query		string	false	"Override rename provider (tvdb | tmdb)"
+//	@Success		200			{object}	renameProfileResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/servers/{id}/rename-profile [get]
+func (s *Server) handleRenameProfile(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	serverID := pathID(r)
+	var owned int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned)
+	if owned == 0 {
+		writeErr(w, http.StatusNotFound, "server not found")
+		return
+	}
+	ctx := r.Context()
+	title := path.Base(r.URL.Query().Get("path"))
+	var resp renameProfileResponse
+
+	sh, ord, plexOK := s.plexShowFor(title, r.URL.Query().Get("local"))
+	if plexOK {
+		resp.Detected = true
+		resp.Provider, resp.Ordering, resp.Language, resp.ShowTitle = ord.Provider, ord.Order, ord.Language, sh.Title
+	}
+
+	// effective provider: explicit override → Plex → global default
+	prov := r.URL.Query().Get("provider")
+	if prov == "" {
+		prov = resp.Provider
+	}
+	if prov == "" {
+		prov = s.renameProvider("")
+	}
+	resp.SeriesProvider = prov
+
+	// series id: prefer the confident Plex guid id, else a confident search hit
+	if plexOK {
+		if prov == "tmdb" {
+			resp.SeriesID = sh.TMDBID
+		} else {
+			resp.SeriesID = sh.TVDBID
+		}
+	}
+	if resp.SeriesID == 0 {
+		hits := s.searchSeriesHits(ctx, prov, GuessTitle(title))
+		if id, confident := confidentMatch(GuessTitle(title), hits); confident {
+			resp.SeriesID = id
+		} else {
+			resp.Ambiguous = true
+			for i, h := range hits {
+				if i >= 6 {
+					break
+				}
+				resp.Candidates = append(resp.Candidates, seriesCandidate{ID: h.Media.ID, Title: h.Media.Title.Romaji, Year: h.Media.SeasonYear})
+			}
+		}
+	}
+
+	if resp.SeriesID != 0 {
+		lang := resp.Language
+		if lang == "" {
+			lang = s.userLocale(u.ID)
+		}
+		resp.SeriesTitle = s.providerTitle(ctx, prov, resp.SeriesID, lang)
+		if m := s.providerMedia(ctx, prov, resp.SeriesID); m != nil {
+			// native title: TVDB keeps it in Romaji, TMDB in English
+			resp.SeriesOriginal = m.Title.Romaji
+			if prov == "tmdb" && m.Title.English != "" {
+				resp.SeriesOriginal = m.Title.English
+			}
+			resp.SeriesURL, resp.SeriesCover, resp.SeriesOverview = m.SiteURL, m.CoverImage.Large, m.Description
+			if resp.SeriesTitle == "" {
+				resp.SeriesTitle = m.Title.Romaji
+			}
+			// localized overview (TMDB's Media is already localized to the user's
+			// language; TVDB's base record is not, so fetch the translation)
+			if prov == "tvdb" && s.Tvdb != nil {
+				if o := s.Tvdb.SeriesOverview(ctx, resp.SeriesID, lang); o != "" {
+					resp.SeriesOverview = o
+				}
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// parseAbsoluteEp pulls the (absolute) episode number from a file name, or 0.
+func parseAbsoluteEp(name string) int {
+	p := anitogo.Parse(name, anitogo.DefaultOptions)
+	if len(p.EpisodeNumber) == 0 {
+		return 0
+	}
+	n, _ := strconv.Atoi(p.EpisodeNumber[0])
+	return n
 }
 
 // watchLangFilter returns a predicate that keeps only remote files whose
@@ -292,7 +690,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.want_dub, w.want_sub, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -305,7 +703,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var it Watch
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
-			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.WantDub, &it.WantSub,
+			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub,
 			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &it.CreatedAt); err != nil {
 			dbErr(w)
 			return
@@ -497,9 +895,9 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode, want_dub, want_sub)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.WantDub, in.WantSub)
+	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
@@ -538,12 +936,17 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		TitleOverride string `json:"titleOverride"`
 		Pattern       string `json:"pattern"`
 		Replacement   string `json:"replacement"`
-		Subfolder     bool   `json:"subfolder"`
-		MediaID       int    `json:"mediaId"`
-		MediaSource   string `json:"mediaSource"`
-		FromEpisode   int    `json:"fromEpisode"`
-		WantDub       string `json:"wantDub"`
-		WantSub       string `json:"wantSub"`
+		Subfolder       bool   `json:"subfolder"`
+		MediaID         int    `json:"mediaId"`
+		MediaSource     string `json:"mediaSource"`
+		FromEpisode     int    `json:"fromEpisode"`
+		AiredMapping    bool   `json:"airedMapping"`
+		RenameProvider  string `json:"renameProvider"`
+		RenameOrdering  string `json:"renameOrdering"`
+		RenameTitleLang string `json:"renameTitleLang"`
+		RenameSeriesID  int    `json:"renameSeriesId"`
+		WantDub         string `json:"wantDub"`
+		WantSub         string `json:"wantSub"`
 	}
 	if !readJSON(w, r, &in) {
 		return
@@ -570,8 +973,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
-	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, want_dub = ?, want_sub = ?
-		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.WantDub, in.WantSub, id, u.ID)
+	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?
+		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, id, u.ID)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return

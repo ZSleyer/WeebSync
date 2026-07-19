@@ -17,6 +17,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 	"github.com/ch4d1/weebsync/internal/transfer"
+	"github.com/ch4d1/weebsync/internal/tvdb"
 )
 
 type Server struct {
@@ -27,6 +28,7 @@ type Server struct {
 	Transfers    *transfer.Manager
 	Anilist      *anilist.Client
 	Tmdb         *tmdb.Client
+	Tvdb         *tvdb.Client // aired-order season mapping for endless series
 	Push         *push.Service
 	Mail         *mailer.Service
 	// Conns pools and caps SSH/FTP connections per server (multiplexes SFTP
@@ -177,6 +179,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/plex/sections", authed(http.HandlerFunc(s.handlePlexSections)))
 	mux.Handle("GET /api/plex/suggestions", authed(http.HandlerFunc(s.handlePlexSuggestions)))
 
+	mux.Handle("GET /api/servers/{id}/rename-profile", authed(http.HandlerFunc(s.handleRenameProfile)))
 	mux.Handle("GET /api/servers/{id}/catalog", authed(http.HandlerFunc(s.handleCatalog)))
 	mux.Handle("PUT /api/servers/{id}/catalog/match", authed(http.HandlerFunc(s.handleCatalogMatch)))
 	mux.Handle("POST /api/servers/{id}/catalog/rematch", authed(http.HandlerFunc(s.handleCatalogRematch)))
@@ -191,6 +194,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/anilist/suggestions", authed(http.HandlerFunc(s.handleAnilistSuggestions)))
 	mux.Handle("GET /api/tmdb/search", authed(http.HandlerFunc(s.handleTmdbSearch)))
 	mux.Handle("GET /api/tmdb/media", authed(http.HandlerFunc(s.handleTmdbMedia)))
+	mux.Handle("GET /api/tvdb/search", authed(http.HandlerFunc(s.handleTvdbSearch)))
+	mux.Handle("GET /api/tvdb/media", authed(http.HandlerFunc(s.handleTvdbMedia)))
 	mux.Handle("GET /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbConnect)))
 	mux.Handle("GET /api/tmdb/callback", authed(http.HandlerFunc(s.handleTmdbCallback)))
 	mux.Handle("DELETE /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbDisconnect)))
