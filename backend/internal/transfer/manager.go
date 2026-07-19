@@ -95,18 +95,31 @@ func (m *Manager) setting(key string, def int64) int64 {
 	return n
 }
 
+// clampInt narrows an int64 setting to a non-negative int without wrapping on
+// 32-bit builds. ponytail: MaxInt32 ceiling is far above any real concurrency/rate value.
+func clampInt(v int64) int {
+	const maxInt32 = 1<<31 - 1
+	if v < 0 {
+		return 0
+	}
+	if v > maxInt32 {
+		return maxInt32
+	}
+	return int(v)
+}
+
 func (m *Manager) reloadSettings() {
 	conc := m.setting("max_concurrent", 3)
 	limit := m.setting("global_rate_limit", 0)
 	m.mu.Lock()
-	m.maxConc = int(conc)
+	m.maxConc = clampInt(conc)
 	if limit <= 0 {
 		m.global = nil
 	} else if m.global == nil {
 		m.global = newLimiter(limit)
 	} else {
 		m.global.SetLimit(rate.Limit(limit))
-		m.global.SetBurst(max(int(limit), 32*1024))
+		m.global.SetBurst(max(clampInt(limit), 32*1024))
 	}
 	m.mu.Unlock()
 }

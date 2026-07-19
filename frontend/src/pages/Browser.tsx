@@ -741,8 +741,11 @@ function DetailDialog({
           <section className="mt-4 border-t border-border-subtle pt-4">
             <h4 className="t-label mb-2">{t('browser.description')}</h4>
             <p className="text-sm whitespace-pre-line text-t-secondary">
-              {/* AniList descriptions still carry some inline HTML */}
-              {m.description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')}
+              {/* AniList descriptions still carry some inline HTML; strip via
+                  the browser's own parser (rendered as a text node, never HTML) */}
+              {new DOMParser()
+                .parseFromString(m.description.replace(/<br\s*\/?>/gi, '\n'), 'text/html')
+                .body.textContent}
             </p>
           </section>
         )}
