@@ -294,10 +294,17 @@ func (s *Server) handleRenameLocal(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "cannot rename a root")
 		return
 	}
-	// abs is already inside a root and name carries no separator, so staying in
-	// the same directory keeps the result inside that root too - resolving the
-	// target through safeLocal again would re-anchor it at the root
-	dst := filepath.Join(filepath.Dir(abs), name)
+	// abs is already inside a root, so staying in the same directory keeps the
+	// result inside that root too - resolving the target through safeLocal again
+	// would re-anchor it at the root. Base() plus the containment check below is
+	// redundant with the name check above, but it is the shape static analysis
+	// recognises as a path-traversal barrier.
+	dir := filepath.Dir(abs)
+	dst := filepath.Join(dir, filepath.Base(name))
+	if !strings.HasPrefix(dst, dir+string(os.PathSeparator)) {
+		writeErr(w, http.StatusBadRequest, "invalid name")
+		return
+	}
 	if _, err := os.Lstat(dst); err == nil {
 		writeErr(w, http.StatusConflict, "target exists")
 		return
