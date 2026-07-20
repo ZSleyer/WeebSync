@@ -15,31 +15,30 @@ import (
 )
 
 // Folder scopes: a folder marked 'tv' or 'movie' switches catalog matching
-// for everything below it from AniList (anime, the default) to TMDB.
+// for the folders directly inside it from AniList (anime, the default) to TMDB.
 
-// scopeFor returns the effective scope kind (”, 'tv', 'movie') for a path:
-// the mark of the deepest marked ancestor (or the path itself).
+// scopeFor returns the scope kind (”, 'tv', 'movie') marked on a path. Marks
+// do not reach into subfolders: a catalog view describes the folder it was
+// chosen for, and a level deeper is usually a different kind of listing
+// (seasons, versions) that should not be matched as titles again.
 func (s *Server) scopeFor(serverID int64, p string) string {
 	var kind string
-	s.DB.QueryRow(`SELECT kind FROM catalog_scopes
-		WHERE server_id = ? AND (path = ? OR ? LIKE path || '/%')
-		ORDER BY length(path) DESC LIMIT 1`, serverID, p, p).Scan(&kind)
+	s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, p).Scan(&kind)
 	return kind
 }
 
-// scopeResponse reports the effective metadata scope of a catalog path.
+// scopeResponse reports the metadata scope of a catalog path.
 type scopeResponse struct {
-	Scope     string `json:"scope"`     // "" | anime | tv | movie
-	Inherited bool   `json:"inherited"` // scope comes from an ancestor mark
+	Scope string `json:"scope"` // "" | anime | tv | movie
 }
 
-// handleCatalogScopeGet reports the effective scope of a path (own or inherited)
-// without listing the folder or triggering matching - cheap enough for the
-// browser to probe on navigation and auto-open catalog folders in catalog view.
+// handleCatalogScopeGet reports the scope of a path without listing the folder
+// or triggering matching - cheap enough for the browser to probe on navigation
+// and auto-open catalog folders in catalog view.
 // GET /api/servers/{id}/catalog/scope?path=...
 //
 //	@Summary		Get catalog scope
-//	@Description	Report the effective metadata scope (own or inherited) of a catalog path.
+//	@Description	Report the metadata scope marked on a catalog path.
 //	@Tags			Catalog
 //	@Produce		json
 //	@Param			id		path		int		true	"Server id"
@@ -63,10 +62,7 @@ func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
 	if dir == "" {
 		dir = rootPath
 	}
-	scope := s.scopeFor(serverID, dir)
-	var ownKind string
-	s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, dir).Scan(&ownKind)
-	writeJSON(w, http.StatusOK, scopeResponse{Scope: scope, Inherited: scope != "" && ownKind == ""})
+	writeJSON(w, http.StatusOK, scopeResponse{Scope: s.scopeFor(serverID, dir)})
 }
 
 // sourceForScope maps a scope kind to the catalog_matches source tag.

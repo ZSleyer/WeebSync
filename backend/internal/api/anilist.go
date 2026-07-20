@@ -468,9 +468,8 @@ var (
 
 // catalogResponse is the enriched folder listing returned by handleCatalog.
 type catalogResponse struct {
-	Scope     string        `json:"scope"`     // "" | anime | tv | movie
-	Inherited bool          `json:"inherited"` // scope comes from an ancestor mark
-	Items     []catalogItem `json:"items"`
+	Scope string        `json:"scope"` // "" | anime | tv | movie
+	Items []catalogItem `json:"items"`
 }
 
 // handleCatalog lists remote folders enriched with AniList metadata. The
@@ -580,13 +579,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, item)
 	}
-	var ownKind string
-	s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, dir).Scan(&ownKind)
-	writeJSON(w, http.StatusOK, catalogResponse{
-		Scope:     scope,
-		Inherited: scope != "" && ownKind == "",
-		Items:     items,
-	})
+	writeJSON(w, http.StatusOK, catalogResponse{Scope: scope, Items: items})
 }
 
 // reuseMatch looks for a folder with the same base name that another source
