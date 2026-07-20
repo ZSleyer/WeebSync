@@ -118,6 +118,10 @@ func (s *Service) Notify(userID int64, n Notification) {
 			VAPIDPublicKey:  s.public,
 			VAPIDPrivateKey: s.private,
 			TTL:             3600,
+			// the library pads every record to 4096 bytes by default, which
+			// Mozilla's endpoints reject with 413 ("intended for a constrained
+			// device") - our notifications are a few hundred bytes at most
+			RecordSize: 2048,
 		})
 		if err != nil {
 			slog.Warn("push send", "err", err)
