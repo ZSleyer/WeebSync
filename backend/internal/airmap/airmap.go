@@ -136,7 +136,8 @@ func (r *Resolver) fresh(s Series, want string) bool {
 func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, want string) {
 	m, err := r.buildMap(ctx, s, provider, ordering)
 	if err != nil {
-		slog.Warn("airmap rebuild", "folder", s.Folder, "err", err)
+		// quote the user-controlled folder: escapes CR/LF so it can't forge log lines
+		slog.Warn("airmap rebuild", "folder", strconv.Quote(s.Folder), "err", err)
 		return
 	}
 	source := want
