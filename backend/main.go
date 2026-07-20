@@ -184,10 +184,13 @@ func harden(next http.Handler) http.Handler {
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
 		// self for scripts/styles; external cover/banner images (AniList, TMDB)
-		// need https+data; SSE/fetch stay same-origin.
+		// need https+data; SSE/fetch stay same-origin. frame-src names the one
+		// origin the detail dialog embeds (the trailer player) - without it the
+		// iframe falls back to default-src and is blocked.
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; img-src 'self' https: data:; "+
 				"style-src 'self' 'unsafe-inline'; connect-src 'self'; "+
+				"frame-src https://www.youtube-nocookie.com; "+
 				"frame-ancestors 'none'; base-uri 'self'")
 		if auth.IsHTTPS(r) {
 			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
