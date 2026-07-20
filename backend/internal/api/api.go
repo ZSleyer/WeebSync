@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -48,9 +49,11 @@ type Server struct {
 	// per-IP brute-force limiter on the auth endpoints; admin-inspectable
 	authLimiter *ipLimiter
 
-	// pending download-notification digests: "userID|category" → items
-	digestMu sync.Mutex
-	digest   map[string][]digestItem
+	// pending download-notification digests: "userID|category" → items, plus
+	// the flush timer each key is waiting on (restarted on every new item)
+	digestMu    sync.Mutex
+	digest      map[string][]digestItem
+	digestTimer map[string]*time.Timer
 
 	// per-folder disk stats for the local catalog, short-lived so a page of
 	// cards costs one walk per folder and not one per poll

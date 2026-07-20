@@ -167,9 +167,12 @@ func (s *Server) EmailNotify(userID int64, category, subject, body, htmlBody str
 	}()
 }
 
-// digestDelay: how long finished downloads are collected before one summary
-// mail goes out - a folder sync must not fire one mail per episode.
-const digestDelay = 2 * time.Minute
+// digestQuiet: how long nothing new may arrive before the collected downloads
+// go out as one summary. The timer restarts with every finished download, and
+// the flush additionally waits for the queue to run dry - a sync should report
+// once when it is done, not in instalments while it is still working.
+// A var so tests do not have to wait a minute.
+var digestQuiet = 1 * time.Minute
 
 // digestItem is one finished/failed download waiting for the digest flush.
 type digestItem struct {
@@ -179,55 +182,82 @@ type digestItem struct {
 }
 
 // NotifyDownload buffers a finished/failed download and flushes one combined
-// notification per user+category after digestDelay - as a mail grouped by
-// series (via the catalog match of the file's folder) with cover images, and
-// as a single push. Both senders share this one collector: a folder sync must
-// not fire one mail (or one push) per episode.
+// notification per user+category - as a mail grouped by series (via the
+// catalog match of the file's folder) with cover images, and as a single push.
+// Both senders share this one collector: a folder sync must not fire one mail
+// (or one push) per episode.
 func (s *Server) NotifyDownload(userID int64, category string, serverID int64, remotePath, note string) {
 	key := fmt.Sprintf("%d|%s", userID, category)
 	s.digestMu.Lock()
 	if s.digest == nil {
 		s.digest = map[string][]digestItem{}
+		s.digestTimer = map[string]*time.Timer{}
 	}
-	first := len(s.digest[key]) == 0
 	s.digest[key] = append(s.digest[key], digestItem{serverID, remotePath, note})
-	s.digestMu.Unlock()
-	if !first {
-		return // a flush timer is already running for this key
+	// every new item pushes the flush back, so a running sync keeps the
+	// notification held until it goes quiet
+	if t := s.digestTimer[key]; t != nil {
+		t.Stop()
 	}
-	time.AfterFunc(digestDelay, func() {
-		s.digestMu.Lock()
-		items := s.digest[key]
-		delete(s.digest, key)
+	s.digestTimer[key] = time.AfterFunc(digestQuiet, func() { s.flushDigest(key, userID, category) })
+	s.digestMu.Unlock()
+}
+
+// flushDigest sends what the collector holds for one user+category, but only
+// once the download queue has run dry; while anything is still queued or
+// running it waits another round instead.
+func (s *Server) flushDigest(key string, userID int64, category string) {
+	s.digestMu.Lock()
+	items := s.digest[key]
+	switch {
+	case len(items) == 0:
+		// a timer that fired just before it was stopped
 		s.digestMu.Unlock()
-		if len(items) == 0 {
-			return
-		}
-		locale := s.userLocale(userID)
-		s.pushDigest(userID, category, locale, items)
-		if s.Mail == nil || !s.Mail.Configured() {
-			return
-		}
-		var subject, intro string
-		switch {
-		case category == "download_done" && len(items) == 1:
-			subject, intro = tr(locale, "email.downloadDoneOne"), tr(locale, "email.downloadDoneIntroOne")
-		case category == "download_done":
-			subject, intro = tr(locale, "email.downloadDoneMany", len(items)), tr(locale, "email.downloadDoneIntroMany")
-		case len(items) == 1:
-			subject, intro = tr(locale, "email.downloadFailedOne"), tr(locale, "email.downloadFailedIntroOne")
-		default:
-			subject, intro = tr(locale, "email.downloadFailedMany", len(items)), tr(locale, "email.downloadFailedIntroMany")
-		}
-		text, content := s.renderDigest(locale, intro, items)
-		extra, manage := "", ""
-		if base := s.baseURL(); base != "" {
-			manage = base + "/settings/notifications"
-			extra = `<p style="margin:18px 0 4px"><a href="` + html.EscapeString(base) + `/" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">` + html.EscapeString(tr(locale, "email.openDashboard")) + `</a></p>`
-			text += "\r\n\r\n" + base + "/\r\n" + tr(locale, "email.manage") + ": " + manage
-		}
-		s.EmailNotify(userID, category, subject, text, emailHTML(locale, subject, content, extra, manage))
-	})
+		return
+	case s.downloadsPending():
+		s.digestTimer[key] = time.AfterFunc(digestQuiet, func() { s.flushDigest(key, userID, category) })
+		s.digestMu.Unlock()
+		return
+	}
+	delete(s.digest, key)
+	delete(s.digestTimer, key)
+	s.digestMu.Unlock()
+
+	locale := s.userLocale(userID)
+	s.pushDigest(userID, category, locale, items)
+	if s.Mail == nil || !s.Mail.Configured() {
+		return
+	}
+	var subject, intro string
+	switch {
+	case category == "download_done" && len(items) == 1:
+		subject, intro = tr(locale, "email.downloadDoneOne"), tr(locale, "email.downloadDoneIntroOne")
+	case category == "download_done":
+		subject, intro = tr(locale, "email.downloadDoneMany", len(items)), tr(locale, "email.downloadDoneIntroMany")
+	case len(items) == 1:
+		subject, intro = tr(locale, "email.downloadFailedOne"), tr(locale, "email.downloadFailedIntroOne")
+	default:
+		subject, intro = tr(locale, "email.downloadFailedMany", len(items)), tr(locale, "email.downloadFailedIntroMany")
+	}
+	text, content := s.renderDigest(locale, intro, items)
+	extra, manage := "", ""
+	if base := s.baseURL(); base != "" {
+		manage = base + "/settings/notifications"
+		extra = `<p style="margin:18px 0 4px"><a href="` + html.EscapeString(base) + `/" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">` + html.EscapeString(tr(locale, "email.openDashboard")) + `</a></p>`
+		text += "\r\n\r\n" + base + "/\r\n" + tr(locale, "email.manage") + ": " + manage
+	}
+	s.EmailNotify(userID, category, subject, text, emailHTML(locale, subject, content, extra, manage))
+}
+
+// downloadsPending reports whether the queue still has work. Paused entries do
+// not count - someone paused them on purpose, and waiting for them would hold
+// the notification back forever.
+func (s *Server) downloadsPending() bool {
+	var n int
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE status IN ('queued','running')`).Scan(&n); err != nil {
+		return false // cannot tell: rather notify than stay silent
+	}
+	return n > 0
 }
 
 // pushDigest sends one push for a flushed digest: the title carries the
