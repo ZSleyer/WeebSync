@@ -8,7 +8,7 @@ import WatchDialog from '../components/WatchDialog'
 import { useConfirm } from '../components/confirm'
 import Loading from '../components/Loading'
 
-export default function Browser() {
+export default function Remote() {
   const { t } = useTranslation()
   const { data: servers = [] } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
@@ -63,7 +63,7 @@ export default function Browser() {
         flat: flat && !!(entry ?? selection)?.isDir,
       }),
     onSuccess: (r) => {
-      setNotice(t('browser.queued', { count: r.queued }))
+      setNotice(t('remote.queued', { count: r.queued }))
       setLastIds(r.ids ?? [])
     },
     onError: (e) => {
@@ -75,7 +75,7 @@ export default function Browser() {
   const cancelLast = async () => {
     try {
       const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
-      setNotice(t('browser.syncCanceled', { count: out.canceled }))
+      setNotice(t('remote.syncCanceled', { count: out.canceled }))
       setLastIds([])
     } catch (err) {
       setNotice(err instanceof Error ? err.message : t('app.error'))
@@ -85,7 +85,7 @@ export default function Browser() {
   if (servers.length === 0) {
     return (
       <div className="t-panel p-8 text-center text-t-muted">
-        <Trans i18nKey="browser.noServers">
+        <Trans i18nKey="remote.noServers">
           Erst unter <Link to="/servers" className="text-accent underline">Server</Link> eine Quelle anlegen.
         </Trans>
       </div>
@@ -96,11 +96,11 @@ export default function Browser() {
     <div className="flex min-h-[calc(100vh-8rem)] flex-col lg:h-[calc(100vh-3rem)]">
       <header className="mb-4 flex flex-wrap items-center gap-3">
         <div className="mr-auto">
-          <h2 className="font-display text-xl font-semibold tracking-wider">{t('browser.title')}</h2>
-          <span className="t-label mt-1">{t('browser.sub')}</span>
+          <h2 className="font-display text-xl font-semibold tracking-wider">{t('remote.title')}</h2>
+          <span className="t-label mt-1">{t('remote.sub')}</span>
         </div>
         <label className="flex items-center gap-2 text-xs text-t-muted">
-          {t('browser.source')}
+          {t('remote.source')}
           <span className="t-select-wrap w-48">
             <select className="t-select" value={active} onChange={(e) => setServerId(Number(e.target.value))}>
               {servers.map((s) => (
@@ -111,40 +111,40 @@ export default function Browser() {
             </select>
           </span>
         </label>
-        <label className="flex items-center gap-2 text-xs text-t-muted" title={t('browser.autoCatalogHint')}>
+        <label className="flex items-center gap-2 text-xs text-t-muted" title={t('remote.autoCatalogHint')}>
           <input type="checkbox" checked={catalogAuto} onChange={(e) => setCatalogAuto(e.target.checked)} />
-          {t('browser.autoCatalog')}
+          {t('remote.autoCatalog')}
         </label>
-        <div role="group" aria-label={t('browser.view')} className="flex">
+        <div role="group" aria-label={t('remote.view')} className="flex">
           <button
             className={`t-btn t-btn--sm ${view === 'classic' ? 't-btn--primary' : ''}`}
             aria-pressed={view === 'classic'}
             onClick={() => setView('classic')}
           >
-            {t('browser.classic')}
+            {t('remote.classic')}
           </button>
           <button
             className={`t-btn t-btn--sm ${view === 'catalog' ? 't-btn--primary' : ''}`}
             aria-pressed={view === 'catalog'}
             onClick={() => setView('catalog')}
           >
-            {t('browser.catalog')}
+            {t('remote.catalog')}
           </button>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <section className="t-panel flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('browser.remote')}>
+        <section className="t-panel flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('remote.remote')}>
           <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            <span className="t-label t-label--accent">{t('browser.remote')}</span>
+            <span className="t-label t-label--accent">{t('remote.remote')}</span>
             <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">
-              {selection ? selection.path : t('browser.noSelection')}
+              {selection ? selection.path : t('remote.noSelection')}
             </span>
             <input
               className="t-input w-40 py-1 text-xs sm:w-56"
               type="search"
-              placeholder={t('browser.search')}
-              aria-label={t('browser.search')}
+              placeholder={t('remote.search')}
+              aria-label={t('remote.search')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -203,7 +203,7 @@ export default function Browser() {
       {(selection || notice) && (
         <div
           role="region"
-          aria-label={t('browser.selectionBar')}
+          aria-label={t('remote.selectionBar')}
           className="t-panel fixed inset-x-4 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 flex flex-wrap items-center gap-2 p-3 lg:static lg:z-auto lg:mt-4 lg:inset-auto"
         >
           {selection && (
@@ -219,7 +219,7 @@ export default function Browser() {
               {notice}
               {lastIds.length > 0 && (
                 <button className="t-btn t-btn--sm t-btn--danger" onClick={cancelLast}>
-                  {t('browser.undoSync')}
+                  {t('remote.undoSync')}
                 </button>
               )}
             </span>
@@ -230,7 +230,7 @@ export default function Browser() {
                 {t('watch.add')}
               </button>
               <button className="t-btn t-btn--primary t-btn--sm t-cut" onClick={() => setSyncOpen(true)}>
-                {t('browser.syncOpen')}
+                {t('remote.syncOpen')}
               </button>
             </>
           )}
@@ -320,8 +320,8 @@ function SearchResults({
       {isLoading && <Loading className="p-4" />}
       {data && data.results.length === 0 && (
         <p className="p-4 text-sm text-t-muted">
-          {t('browser.noResults')}
-          {data.indexed < 100 && <span className="mt-1 block text-xs">{t('browser.indexBuilding')}</span>}
+          {t('remote.noResults')}
+          {data.indexed < 100 && <span className="mt-1 block text-xs">{t('remote.indexBuilding')}</span>}
         </p>
       )}
       <ul>
@@ -347,7 +347,7 @@ function SearchResults({
         ))}
       </ul>
       {data && (
-        <p className="px-3 py-2 text-[10px] text-t-faint">{t('browser.indexCount', { count: data.indexed })}</p>
+        <p className="px-3 py-2 text-[10px] text-t-faint">{t('remote.indexCount', { count: data.indexed })}</p>
       )}
     </div>
   )
@@ -407,7 +407,7 @@ export function CatalogGrid({
   const noMatchCount = items.filter((i) => !i.media && !i.pending).length
 
   const triggerRematch = async (all: boolean) => {
-    if (all && !(await confirm({ message: t('browser.confirmRematchAll'), destructive: true }))) return
+    if (all && !(await confirm({ message: t('remote.confirmRematchAll'), destructive: true }))) return
     setScopeError('')
     try {
       await api.post(`/api/servers/${serverId}/catalog/rematch`, { path: path ? '/' + path : '', all })
@@ -456,7 +456,7 @@ export function CatalogGrid({
       <div className="flex min-h-0 flex-1 flex-col">
         {crumbs}
         <p className="p-6 text-sm text-t-muted" role="status">
-          {t('browser.catalogLoading')}
+          {t('remote.catalogLoading')}
         </p>
       </div>
     )
@@ -474,23 +474,23 @@ export function CatalogGrid({
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-xs text-t-muted">
-          {t('browser.scope')}
+          {t('remote.scope')}
           <span className="t-select-wrap w-44">
             <select className="t-select" value={data?.scope ?? ''} onChange={(e) => setScope(e.target.value)}>
               <option value="" disabled>
-                {t('browser.scopeNone')}
+                {t('remote.scopeNone')}
               </option>
-              <option value="anime">{t('browser.scopeAnime')}</option>
-              <option value="tv">{t('browser.scopeTv')}</option>
-              <option value="movie">{t('browser.scopeMovie')}</option>
-              {caps?.tvdbApiKeySet && <option value="tvdb">{t('browser.scopeTvdb')}</option>}
+              <option value="anime">{t('remote.scopeAnime')}</option>
+              <option value="tv">{t('remote.scopeTv')}</option>
+              <option value="movie">{t('remote.scopeMovie')}</option>
+              {caps?.tvdbApiKeySet && <option value="tvdb">{t('remote.scopeTvdb')}</option>}
             </select>
           </span>
         </label>
-        {data?.inherited && <span className="t-label" title={t('browser.scopeInheritedHint')}>{t('browser.scopeInherited')}</span>}
+        {data?.inherited && <span className="t-label" title={t('remote.scopeInheritedHint')}>{t('remote.scopeInherited')}</span>}
         {data && data.scope !== '' && !data.inherited && (
-          <button className="t-btn t-btn--sm" title={t('browser.scopeClearHint')} onClick={() => setScope('')}>
-            {t('browser.scopeClear')}
+          <button className="t-btn t-btn--sm" title={t('remote.scopeClearHint')} onClick={() => setScope('')}>
+            {t('remote.scopeClear')}
           </button>
         )}
         {scopeError && (
@@ -500,28 +500,28 @@ export function CatalogGrid({
         )}
         {data?.scope === '' ? (
           <p className="text-xs text-t-muted" role="status">
-            {t('browser.scopePick')}
+            {t('remote.scopePick')}
           </p>
         ) : pendingCount > 0 ? (
           <p className="text-xs text-t-muted" role="status">
-            {t('browser.matchingCount', { count: pendingCount })}
+            {t('remote.matchingCount', { count: pendingCount })}
           </p>
         ) : (
           items.length > 0 && (
             <>
               {noMatchCount > 0 && (
                 <button className="t-btn t-btn--sm" onClick={() => triggerRematch(false)}>
-                  {t('browser.retryUnmatched', { count: noMatchCount })}
+                  {t('remote.retryUnmatched', { count: noMatchCount })}
                 </button>
               )}
               <button className="t-btn t-btn--sm" onClick={() => triggerRematch(true)}>
-                {t('browser.rematchAll')}
+                {t('remote.rematchAll')}
               </button>
             </>
           )
         )}
       </div>
-      {items.length === 0 && <p className="p-6 text-sm text-t-muted">{t('browser.noFolders')}</p>}
+      {items.length === 0 && <p className="p-6 text-sm text-t-muted">{t('remote.noFolders')}</p>}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
         {groups.map((g) => {
           const it = g.items[0]
@@ -537,8 +537,8 @@ export function CatalogGrid({
               {g.media && !multi && !!it.source && (
                 <button
                   className="t-btn t-btn--sm absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  aria-label={t('browser.changeMatch')}
-                  title={t('browser.changeMatch')}
+                  aria-label={t('remote.changeMatch')}
+                  title={t('remote.changeMatch')}
                   onClick={() => setRematch(it)}
                 >
                   ✎
@@ -549,8 +549,8 @@ export function CatalogGrid({
                 onClick={() => (g.media ? setDetail(g) : onSelect(it.entry))}
                 aria-label={
                   g.media
-                    ? t('browser.detailsFor', { name: g.media.title.romaji })
-                    : t('browser.selectItem', { name: it.entry.name })
+                    ? t('remote.detailsFor', { name: g.media.title.romaji })
+                    : t('remote.selectItem', { name: it.entry.name })
                 }
               >
                 {g.media?.coverImage?.large ? (
@@ -562,11 +562,11 @@ export function CatalogGrid({
                   />
                 ) : g.pending ? (
                   <div className="t-hatch grid aspect-2/3 w-full animate-pulse place-items-center text-t-muted">
-                    {t('browser.matching')}
+                    {t('remote.matching')}
                   </div>
                 ) : (
                   <div className="t-hatch grid aspect-2/3 w-full place-items-center text-t-muted">
-                    {it.source ? t('browser.noMatch') : ''}
+                    {it.source ? t('remote.noMatch') : ''}
                   </div>
                 )}
                 <div className="p-2">
@@ -574,7 +574,7 @@ export function CatalogGrid({
                     {g.media?.title.romaji ?? it.entry.name}
                   </h4>
                   {multi ? (
-                    <p className="font-mono text-[10px] text-accent">{t('browser.versions', { count: g.items.length })}</p>
+                    <p className="font-mono text-[10px] text-accent">{t('remote.versions', { count: g.items.length })}</p>
                   ) : (
                     <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
                       {it.entry.name}
@@ -583,7 +583,7 @@ export function CatalogGrid({
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {it.kind && (
                       <span className={`t-label ${it.kind === 'movie' ? 't-label--accent' : ''}`}>
-                        {t(it.kind === 'movie' ? 'browser.kindMovie' : 'browser.kindSeries')}
+                        {t(it.kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
                       </span>
                     )}
                     {g.media && (
@@ -621,8 +621,8 @@ export function CatalogGrid({
                 <div className="mx-2 mb-2 mt-auto flex gap-1.5">
                   <button
                     className="t-btn t-btn--sm flex-1"
-                    aria-label={t('browser.detailsFor', { name: g.media.title.romaji })}
-                    title={t('browser.details')}
+                    aria-label={t('remote.detailsFor', { name: g.media.title.romaji })}
+                    title={t('remote.details')}
                     onClick={() => setDetail(g)}
                   >
                     ℹ
@@ -631,8 +631,8 @@ export function CatalogGrid({
                     <>
                       <button
                         className="t-btn t-btn--sm flex-1"
-                        aria-label={`${t('browser.showFiles')}: ${it.entry.name}`}
-                        title={t('browser.showFiles')}
+                        aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
+                        title={t('remote.showFiles')}
                         onClick={() => setFiles(it.entry)}
                       >
                         🗎
@@ -665,15 +665,15 @@ export function CatalogGrid({
                 <div className="mx-2 mb-2 mt-auto flex gap-1.5">
                   <button
                     className="t-btn t-btn--sm flex-1"
-                    aria-label={`${t('browser.showFiles')}: ${it.entry.name}`}
-                    title={t('browser.showFiles')}
+                    aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
+                    title={t('remote.showFiles')}
                     onClick={() => setFiles(it.entry)}
                   >
                     🗎
                   </button>
                   {!g.pending && !!it.source && (
                     <button className="t-btn t-btn--sm flex-1" onClick={() => setRematch(it)}>
-                      {t('browser.changeMatch')}
+                      {t('remote.changeMatch')}
                     </button>
                   )}
                   {cardActions?.(it.entry)}
@@ -732,17 +732,17 @@ function FilesDialog({
     <dialog
       ref={ref}
       className="dialog-sheet w-full max-w-3xl"
-      aria-label={t('browser.filesFor', { name: entry.name })}
+      aria-label={t('remote.filesFor', { name: entry.name })}
       onClose={onClose}
       onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
       onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}
     >
       <div className="flex items-center gap-2 border-b border-border-subtle p-3">
-        <span className="t-label t-label--accent">{t('browser.files')}</span>
+        <span className="t-label t-label--accent">{t('remote.files')}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted" title={entry.path}>
           {entry.name}
         </span>
-        <button type="button" className="t-btn t-btn--sm" aria-label={t('browser.close')} onClick={() => ref.current?.close()}>
+        <button type="button" className="t-btn t-btn--sm" aria-label={t('remote.close')} onClick={() => ref.current?.close()}>
           ✕
         </button>
       </div>
@@ -804,14 +804,14 @@ function SyncDialog({
     <dialog
       ref={ref}
       className="dialog-sheet w-full max-w-lg p-0"
-      aria-label={t('browser.syncTitle', { name: entry.name })}
+      aria-label={t('remote.syncTitle', { name: entry.name })}
       onClose={() => (confirmed.current ? onConfirm() : onClose())}
       onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
       onClick={(e) => e.target === ref.current && backdropDown.current && close(false)}
     >
       <div className="flex max-h-[85vh] flex-col">
         <header className="border-b border-border-subtle px-5 py-4">
-          <h3 className="font-display font-semibold tracking-wider">{t('browser.syncTitle', { name: entry.name })}</h3>
+          <h3 className="font-display font-semibold tracking-wider">{t('remote.syncTitle', { name: entry.name })}</h3>
           <span className="mt-1 block truncate font-mono text-xs text-t-muted" title={entry.path}>
             {entry.path}
           </span>
@@ -820,7 +820,7 @@ function SyncDialog({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div>
             <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="sync-target">
-              {t('browser.localTarget')}
+              {t('remote.localTarget')}
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -848,12 +848,12 @@ function SyncDialog({
           {entry.isDir && (
             <label className="flex items-center gap-2 text-sm text-t-secondary">
               <input type="checkbox" checked={flat} onChange={(e) => onFlat(e.target.checked)} />
-              {t('browser.flatSync')}
+              {t('remote.flatSync')}
             </label>
           )}
 
           <p className="text-xs text-t-muted">
-            {t('browser.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
+            {t('remote.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
           </p>
         </div>
 
@@ -862,7 +862,7 @@ function SyncDialog({
             {t('common.cancel')}
           </button>
           <button type="button" className="t-btn t-btn--primary t-cut" disabled={pending} onClick={() => close(true)}>
-            {entry.isDir ? t('browser.syncFolder') : t('browser.downloadFile')}
+            {entry.isDir ? t('remote.syncFolder') : t('remote.downloadFile')}
           </button>
         </footer>
       </div>
@@ -918,10 +918,10 @@ function DetailDialog({
   })
 
   return (
-    <dialog ref={ref} className="dialog-sheet w-full max-w-4xl lg:max-w-6xl" aria-label={t('browser.detailsFor', { name: m.title.romaji })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
+    <dialog ref={ref} className="dialog-sheet w-full max-w-4xl lg:max-w-6xl" aria-label={t('remote.detailsFor', { name: m.title.romaji })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
       {/* close button stays reachable while the dialog scrolls */}
       <div className="sticky top-2 z-10 h-0 text-right">
-        <button type="button" className="t-btn t-btn--sm mr-2" aria-label={t('browser.close')} onClick={() => ref.current?.close()}>
+        <button type="button" className="t-btn t-btn--sm mr-2" aria-label={t('remote.close')} onClick={() => ref.current?.close()}>
           ✕
         </button>
       </div>
@@ -938,7 +938,7 @@ function DetailDialog({
               {m.seasonYear > 0 && <span className="t-label">{m.seasonYear}</span>}
               {m.format && <span className="t-label">{m.format}</span>}
               {m.episodes > 0 && <span className="t-label">{m.episodes} EP</span>}
-              {m.status && <span className="t-label">{t(`browser.status.${m.status}`, m.status)}</span>}
+              {m.status && <span className="t-label">{t(`remote.status.${m.status}`, m.status)}</span>}
               {m.averageScore > 0 && <span className="t-label t-label--accent">★ {m.averageScore}</span>}
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
@@ -966,7 +966,7 @@ function DetailDialog({
         </div>
         {m.description && (
           <section className="mt-4 border-t border-border-subtle pt-4">
-            <h4 className="t-label mb-2">{t('browser.description')}</h4>
+            <h4 className="t-label mb-2">{t('remote.description')}</h4>
             <p className="text-sm whitespace-pre-line text-t-secondary">
               {/* AniList descriptions still carry some inline HTML; strip via
                   the browser's own parser (rendered as a text node, never HTML) */}
@@ -978,11 +978,11 @@ function DetailDialog({
         )}
         {(m.trailer?.site === 'youtube' || m.trailer?.site === 'dailymotion') && (
           <section className="mt-4 border-t border-border-subtle pt-4">
-            <h4 className="t-label mb-2">{t('browser.trailer')}</h4>
+            <h4 className="t-label mb-2">{t('remote.trailer')}</h4>
             {m.trailer?.site === 'youtube' && (
               <iframe
                 className="aspect-video w-full"
-                title={t('browser.trailer')}
+                title={t('remote.trailer')}
                 src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}`}
                 allow="encrypted-media; fullscreen"
                 allowFullScreen
@@ -995,7 +995,7 @@ function DetailDialog({
                 target="_blank"
                 rel="noreferrer"
               >
-                ▶ {t('browser.trailer')}
+                ▶ {t('remote.trailer')}
                 {m.trailer.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
                 <span aria-hidden>↗</span>
               </a>
@@ -1005,9 +1005,9 @@ function DetailDialog({
         {rev && (
           <section className="mt-4 border-t border-border-subtle pt-4">
             <h4 className="t-label mb-2">
-              {t('browser.reviews')} ({rev.reviews.length})
+              {t('remote.reviews')} ({rev.reviews.length})
             </h4>
-            {rev.reviews.length === 0 && <p className="text-sm text-t-muted">{t('browser.noReviews')}</p>}
+            {rev.reviews.length === 0 && <p className="text-sm text-t-muted">{t('remote.noReviews')}</p>}
             {/* chat-bubble layout: avatar beside a bordered bubble per review */}
             <ul className="mt-3 grid gap-3">
               {(allReviews ? rev.reviews : rev.reviews.slice(0, 5)).map((r, i) => (
@@ -1031,14 +1031,14 @@ function DetailDialog({
             </ul>
             {!allReviews && rev.reviews.length > 5 && (
               <button type="button" className="t-btn t-btn--sm mt-3" onClick={() => setAllReviews(true)}>
-                {t('browser.moreReviews', { count: rev.reviews.length - 5 })}
+                {t('remote.moreReviews', { count: rev.reviews.length - 5 })}
               </button>
             )}
           </section>
         )}
 
         <h4 className="t-label mt-4 mb-1 border-t border-border-subtle pt-4">
-          {t('browser.versions', { count: group.items.length })}
+          {t('remote.versions', { count: group.items.length })}
         </h4>
         <ul>
           {group.items.map((it) => (
@@ -1050,20 +1050,20 @@ function DetailDialog({
                 {it.entry.name}
               </span>
               <button className="t-btn t-btn--sm t-btn--primary shrink-0" onClick={() => onSelect(it.entry)}>
-                {t('browser.select')}
+                {t('remote.select')}
               </button>
-              <button className="t-btn t-btn--sm shrink-0" title={t('browser.showFiles')} onClick={() => onFiles(it.entry)}>
-                {t('browser.files')}
+              <button className="t-btn t-btn--sm shrink-0" title={t('remote.showFiles')} onClick={() => onFiles(it.entry)}>
+                {t('remote.files')}
               </button>
               <button className="t-btn t-btn--sm shrink-0" onClick={() => onRematch(it)}>
-                {t('browser.changeMatch')}
+                {t('remote.changeMatch')}
               </button>
             </li>
           ))}
         </ul>
         <div className="mt-4 flex justify-end">
           <button className="t-btn" onClick={() => ref.current?.close()}>
-            {t('browser.close')}
+            {t('remote.close')}
           </button>
         </div>
       </div>
@@ -1144,28 +1144,28 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-lg" aria-label={t('browser.matchFor', { name: item.entry.name })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
+    <dialog ref={ref} className="w-full max-w-lg" aria-label={t('remote.matchFor', { name: item.entry.name })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
       <div className="p-5">
         <h3 className="mb-1 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
         {item.media && (
           <p className="mb-2 text-xs text-t-muted">
-            {t('browser.currentMatch', { title: item.media.title.romaji, id: item.media.id })}
+            {t('remote.currentMatch', { title: item.media.title.romaji, id: item.media.id })}
           </p>
         )}
         <div className="mb-1 flex gap-2">
           <label className="sr-only" htmlFor="rematch-q">
-            {t('browser.search')}
+            {t('remote.search')}
           </label>
           <input
             id="rematch-q"
             className="t-input"
             value={q}
-            placeholder={t('browser.searchHint')}
+            placeholder={t('remote.searchHint')}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && search()}
           />
           <button className="t-btn shrink-0" onClick={search}>
-            {t('browser.search')}
+            {t('remote.search')}
           </button>
         </div>
         <ul className="max-h-72 overflow-y-auto">
@@ -1193,10 +1193,10 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
         )}
         <div className="mt-4 flex justify-between">
           <button className="t-btn t-btn--danger t-btn--sm" onClick={() => pick(0)}>
-            {t('browser.removeMatch')}
+            {t('remote.removeMatch')}
           </button>
           <button className="t-btn" onClick={() => ref.current?.close()}>
-            {t('browser.close')}
+            {t('remote.close')}
           </button>
         </div>
       </div>
