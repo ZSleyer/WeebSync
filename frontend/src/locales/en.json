@@ -28,7 +28,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "browser": "Browser",
+    "remote": "Remote",
     "watches": "Auto-sync",
     "servers": "Servers",
     "rename": "Rename",
@@ -110,7 +110,7 @@
     "queue": "queue",
     "speed": "speed",
     "speedChart": "Total speed, last 60 seconds",
-    "empty": "No active downloads. Head to the <1>Browser</1> to sync.",
+    "empty": "No active downloads. Head to <1>Remote</1> to sync.",
     "history": "history",
     "activeSection": "Active downloads",
     "syncSummary": "Auto-sync",
@@ -161,8 +161,8 @@
     "deleteConfirm": "Delete {{name}} permanently?",
     "deleteDirConfirm": "Delete the folder {{name}} and everything in it permanently?"
   },
-  "browser": {
-    "title": "BROWSER",
+  "remote": {
+    "title": "REMOTE",
     "sub": "browse · sync · download",
     "source": "Source",
     "view": "View",
@@ -331,7 +331,7 @@
     "files": "{{count}} files",
     "complete": "Complete, sync can be removed",
     "confirmDelete": "Remove auto-sync for \"{{name}}\"? Downloaded files are kept.",
-    "empty": "Select a folder in the <1>Browser</1> and click \"Watch\".",
+    "empty": "Select a folder in <1>Remote</1> and click \"Watch\".",
     "seen": "{{count}} watched",
     "lastQueued_one": "{{count}} new",
     "lastQueued_other": "{{count}} new"
@@ -428,6 +428,8 @@
     "pushHint": "Notifies on finished or failed downloads. On iOS available after \"Add to Home Screen\".",
     "pushDenied": "Notifications are blocked for this site in the browser. Allow them via the icon in the address bar (Firefox: shield/permissions; Chrome: lock → site settings → notifications), then try again. Note: push only works over https:// or localhost, and private windows always block it.",
     "pushUnsupported": "This browser does not support Web Push.",
+    "pushTest": "Send test",
+    "pushTestSent": "Sent - if nothing arrives, the service worker is stale.",
     "oidcMigrationHint": "Existing local accounts are linked automatically by email address on first OIDC login.",
     "plex": "Plex",
     "plexUrl": "Plex URL",

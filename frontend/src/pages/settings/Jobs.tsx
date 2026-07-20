@@ -581,7 +581,7 @@ function Modal({
         <footer className="flex items-center justify-between gap-2 border-t border-border-subtle px-5 py-3">
           <span>{footer}</span>
           <button className="t-btn" onClick={() => ref.current?.close()}>
-            {t('browser.close')}
+            {t('remote.close')}
           </button>
         </footer>
       </div>
@@ -643,12 +643,12 @@ function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () =
         {t('settings.jobs.ttl')} {fmtTtl(cache.ttlSec)}
       </p>
       <label className="sr-only" htmlFor="cache-entries-q">
-        {t('browser.search')}
+        {t('remote.search')}
       </label>
       <input
         id="cache-entries-q"
         className="t-input"
-        placeholder={t('browser.search')}
+        placeholder={t('remote.search')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
@@ -780,7 +780,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
       title={t('settings.jobs.matchesTitle', { name: stat.name })}
       onClose={onClose}
       footer={
-        <Link className="text-xs text-accent underline-offset-2 hover:underline" to="/browser">
+        <Link className="text-xs text-accent underline-offset-2 hover:underline" to="/remote">
           {t('settings.jobs.openBrowser')}
         </Link>
       }
@@ -801,12 +801,12 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
         ))}
       </div>
       <label className="sr-only" htmlFor="matches-q">
-        {t('browser.search')}
+        {t('remote.search')}
       </label>
       <input
         id="matches-q"
         className="t-input"
-        placeholder={t('browser.search')}
+        placeholder={t('remote.search')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
@@ -854,18 +854,18 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                 <div className="mt-2 border border-border-subtle bg-bg-secondary/40 p-2">
                   <div className="flex gap-2">
                     <label className="sr-only" htmlFor="correct-q">
-                      {t('browser.search')}
+                      {t('remote.search')}
                     </label>
                     <input
                       id="correct-q"
                       className="t-input"
                       value={searchQ}
-                      placeholder={t('browser.search')}
+                      placeholder={t('remote.search')}
                       onChange={(e) => setSearchQ(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && search(m)}
                     />
                     <button className="t-btn t-btn--sm shrink-0" onClick={() => search(m)}>
-                      {t('browser.search')}
+                      {t('remote.search')}
                     </button>
                   </div>
                   {results.length > 0 && (

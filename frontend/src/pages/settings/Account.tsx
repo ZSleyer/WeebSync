@@ -163,7 +163,7 @@ function TotpSection() {
             {t('account.copy')}
           </button>
           <button className="t-btn t-btn--sm mt-3 ml-2" onClick={() => setRecovery(null)}>
-            {t('browser.close')}
+            {t('remote.close')}
           </button>
         </div>
       )}

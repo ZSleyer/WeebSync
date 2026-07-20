@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type Entry } from '../api'
 import { FileBrowser } from '../components/FileBrowser'
-import { CatalogGrid } from './Browser'
+import { CatalogGrid } from './Remote'
 import { useConfirm } from '../components/confirm'
 import { usePrompt } from '../components/prompt'
 import { useAuth } from '../hooks'
@@ -95,27 +95,27 @@ export default function Local() {
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('local.title')}</h2>
           <span className="t-label mt-1">{t('local.sub')}</span>
         </div>
-        <div role="group" aria-label={t('browser.view')} className="flex">
+        <div role="group" aria-label={t('remote.view')} className="flex">
           <button
             className={`t-btn t-btn--sm ${view === 'classic' ? 't-btn--primary' : ''}`}
             aria-pressed={view === 'classic'}
             onClick={() => setView('classic')}
           >
-            {t('browser.classic')}
+            {t('remote.classic')}
           </button>
           <button
             className={`t-btn t-btn--sm ${view === 'catalog' ? 't-btn--primary' : ''}`}
             aria-pressed={view === 'catalog'}
             onClick={() => setView('catalog')}
           >
-            {t('browser.catalog')}
+            {t('remote.catalog')}
           </button>
         </div>
       </header>
 
       <section className="t-panel flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('local.title')}>
         <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-          <span className="t-label t-label--accent">{t('browser.local')}</span>
+          <span className="t-label t-label--accent">{t('remote.local')}</span>
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">{path || '/'}</span>
         </div>
         {error && (
@@ -141,7 +141,7 @@ export default function Local() {
           fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p)}`}
           path={path}
           onNavigate={setPath}
-          emptyHint={t('browser.emptyLocal')}
+          emptyHint={t('remote.emptyLocal')}
           actions={(e) => actions(e)}
         />
         )}

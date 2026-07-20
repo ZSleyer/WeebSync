@@ -10,7 +10,7 @@ export function PathCrumbs({ path, onNavigate }: { path: string; onNavigate: (pa
   const { t } = useTranslation()
   const crumbs = path.split('/').filter(Boolean)
   return (
-    <nav className="flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs" aria-label={t('browser.path')}>
+    <nav className="flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs" aria-label={t('remote.path')}>
       {/* min 24x24 target (WCAG 2.5.8) */}
       <button type="button" className="min-h-6 min-w-6 px-1.5 text-accent hover:underline" onClick={() => onNavigate('')}>
         /
@@ -84,21 +84,21 @@ export function FileBrowser({
         {isLoading && <Loading className="p-4" />}
         {error && <p className="wrap-break-word p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>}
         {!isLoading && !error && entries.length === 0 && (
-          <p className="p-4 text-sm text-t-muted">{emptyHint ?? t('browser.emptyDir')}</p>
+          <p className="p-4 text-sm text-t-muted">{emptyHint ?? t('remote.emptyDir')}</p>
         )}
         {leafDir && (
           <div className="flex items-stretch border-b border-border-subtle bg-bg-secondary/50">
             <span className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-sm text-t-muted">
               <span aria-hidden className="font-mono text-xs text-accent">▾</span>
-              <span className="truncate">{t('browser.thisFolder', { name: leafDir.name })}</span>
+              <span className="truncate">{t('remote.thisFolder', { name: leafDir.name })}</span>
             </span>
             <button
               type="button"
               className="t-btn t-btn--sm my-1 mr-2 shrink-0"
-              aria-label={t('browser.selectItem', { name: leafDir.name })}
+              aria-label={t('remote.selectItem', { name: leafDir.name })}
               onClick={() => onSelect!(leafDir)}
             >
-              {t('browser.select')}
+              {t('remote.select')}
             </button>
           </div>
         )}
@@ -133,10 +133,10 @@ export function FileBrowser({
                     <button
                       type="button"
                       className="t-btn t-btn--sm my-1 mr-2 shrink-0"
-                      aria-label={t('browser.selectItem', { name: e.name })}
+                      aria-label={t('remote.selectItem', { name: e.name })}
                       onClick={() => onSelect(e)}
                     >
-                      {t('browser.select')}
+                      {t('remote.select')}
                     </button>
                   )}
                   {actions?.(e)}
@@ -174,22 +174,22 @@ export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p
         fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p)}`}
         path={path}
         onNavigate={onNavigate}
-        emptyHint={t('browser.emptyLocal')}
+        emptyHint={t('remote.emptyLocal')}
       />
       <div className="flex gap-2 border-t border-border-subtle p-2">
         <label className="sr-only" htmlFor="mkdir-input">
-          {t('browser.newFolder')}
+          {t('remote.newFolder')}
         </label>
         <input
           id="mkdir-input"
           className="t-input py-1 text-xs"
-          placeholder={t('browser.newFolder')}
+          placeholder={t('remote.newFolder')}
           value={newDir}
           onChange={(e) => setNewDir(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && mkdir()}
         />
         <button type="button" className="t-btn t-btn--sm shrink-0" onClick={mkdir}>
-          {t('browser.createFolder')}
+          {t('remote.createFolder')}
         </button>
       </div>
       {mkdirError && (
