@@ -25,6 +25,10 @@ func TestMissingEpisodes(t *testing.T) {
 		{"single episode", set(5), nil},
 		{"offset span", set(31, 32, 34), []int{33}},
 		{"partial start not counted", set(5, 6, 7), nil}, // 1-4 absent = partial start, not a gap
+		// aired-mapping: season-encoded keys (season*1000+ep). Gaps stay per
+		// season - the cross-season range (S21E138 -> S22E01) is NOT a gap.
+		{"multi-season no cross gap", set(21135, 21136, 21138, 22001, 22002, 23001), []int{137}},
+		{"multi-season gap each", set(1001, 1003, 2005, 2007), []int{2, 6}},
 	}
 	for _, c := range cases {
 		got := missingEpisodes(c.nums)
