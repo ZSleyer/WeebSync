@@ -15,16 +15,24 @@ self.addEventListener('push', (event) => {
       body: data.body,
       icon: '/icon-192.png',
       badge: '/icon-192.png',
+      // same tag replaces the earlier notification instead of stacking a
+      // folder sync's worth of them; renotify still alerts on the replacement
+      tag: data.tag,
+      renotify: !!data.tag,
+      data: { url: data.url || '/' },
     }),
   )
 })
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+  const url = (event.notification.data && event.notification.data.url) || '/'
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) if ('focus' in c) return c.focus()
-      return self.clients.openWindow('/')
+      for (const c of list) {
+        if ('focus' in c) return 'navigate' in c ? c.navigate(url).then((n) => n.focus()) : c.focus()
+      }
+      return self.clients.openWindow(url)
     }),
   )
 })

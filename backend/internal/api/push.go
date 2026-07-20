@@ -6,6 +6,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/netguard"
+	"github.com/ch4d1/weebsync/internal/push"
 )
 
 // PushKeyResponse carries the server's VAPID public key for web push.
@@ -88,5 +89,24 @@ func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Push.Unsubscribe(u.ID, in.Endpoint)
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// @Summary      Send a test push
+// @Description  Sends a test notification to all of the caller's push subscriptions, so a subscription can be verified without waiting for a real download.
+// @Tags         Push
+// @Produce      json
+// @Success      200  {object}  OkResponse
+// @Security     CookieAuth
+// @Router       /api/push/test [post]
+func (s *Server) handlePushTest(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	locale := s.userLocale(u.ID)
+	s.Push.Notify(u.ID, push.Notification{
+		Title: tr(locale, "push.testTitle"),
+		Body:  tr(locale, "push.testBody"),
+		Tag:   "test",
+		URL:   "/settings/notifications",
+	})
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

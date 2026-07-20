@@ -15,6 +15,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/push"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
@@ -177,13 +178,12 @@ type digestItem struct {
 	note       string // error message for failed downloads
 }
 
-// EmailNotifyDownload buffers a finished/failed download and flushes one
-// combined notification per user+category after digestDelay, grouped by
-// series (via the catalog match of the file's folder) with cover images.
-func (s *Server) EmailNotifyDownload(userID int64, category string, serverID int64, remotePath, note string) {
-	if s.Mail == nil || !s.Mail.Configured() {
-		return
-	}
+// NotifyDownload buffers a finished/failed download and flushes one combined
+// notification per user+category after digestDelay - as a mail grouped by
+// series (via the catalog match of the file's folder) with cover images, and
+// as a single push. Both senders share this one collector: a folder sync must
+// not fire one mail (or one push) per episode.
+func (s *Server) NotifyDownload(userID int64, category string, serverID int64, remotePath, note string) {
 	key := fmt.Sprintf("%d|%s", userID, category)
 	s.digestMu.Lock()
 	if s.digest == nil {
@@ -204,6 +204,10 @@ func (s *Server) EmailNotifyDownload(userID int64, category string, serverID int
 			return
 		}
 		locale := s.userLocale(userID)
+		s.pushDigest(userID, category, locale, items)
+		if s.Mail == nil || !s.Mail.Configured() {
+			return
+		}
 		var subject, intro string
 		switch {
 		case category == "download_done" && len(items) == 1:
@@ -223,6 +227,43 @@ func (s *Server) EmailNotifyDownload(userID int64, category string, serverID int
 			text += "\r\n\r\n" + base + "/\r\n" + tr(locale, "email.manage") + ": " + manage
 		}
 		s.EmailNotify(userID, category, subject, text, emailHTML(locale, subject, content, extra, manage))
+	})
+}
+
+// pushDigest sends one push for a flushed digest: the title carries the
+// count, the body the file names (the first few - a push has no room for
+// twenty). Unlike the mail it is not grouped by series; a notification that
+// needs scrolling is no longer a notification.
+func (s *Server) pushDigest(userID int64, category, locale string, items []digestItem) {
+	if s.Push == nil || len(items) == 0 {
+		return
+	}
+	done := category == "download_done"
+	var title string
+	switch {
+	case done && len(items) == 1:
+		title = tr(locale, "push.downloadDone")
+	case done:
+		title = tr(locale, "push.downloadDoneMany", len(items))
+	case len(items) == 1:
+		title = tr(locale, "push.downloadFailed")
+	default:
+		title = tr(locale, "push.downloadFailedMany", len(items))
+	}
+	const maxNames = 3
+	names := make([]string, 0, maxNames)
+	for _, it := range items {
+		if len(names) == maxNames {
+			names = append(names, "…")
+			break
+		}
+		names = append(names, path.Base(it.remotePath))
+	}
+	s.Push.Notify(userID, push.Notification{
+		Title: title,
+		Body:  strings.Join(names, ", "),
+		Tag:   category, // finished and failed collapse separately
+		URL:   "/",
 	})
 }
 
@@ -330,14 +371,10 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 // NotifyDownloadFinished pushes + emails a finished/failed download,
 // localized to the owner's stored locale. Wired as transfer.OnFinished.
 func (s *Server) NotifyDownloadFinished(d *transfer.Download) {
-	name := path.Base(d.RemotePath)
-	locale := s.userLocale(d.UserID)
 	if d.Status == "done" {
-		s.Push.Notify(d.UserID, tr(locale, "push.downloadDone"), name)
-		s.EmailNotifyDownload(d.UserID, "download_done", d.ServerID, d.RemotePath, "")
+		s.NotifyDownload(d.UserID, "download_done", d.ServerID, d.RemotePath, "")
 	} else {
-		s.Push.Notify(d.UserID, tr(locale, "push.downloadFailed"), name+": "+d.Error)
-		s.EmailNotifyDownload(d.UserID, "download_failed", d.ServerID, d.RemotePath, d.Error)
+		s.NotifyDownload(d.UserID, "download_failed", d.ServerID, d.RemotePath, d.Error)
 	}
 }
 
