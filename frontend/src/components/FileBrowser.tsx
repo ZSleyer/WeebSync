@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, fmtBytes, type Entry } from '../api'
@@ -42,6 +42,7 @@ export function FileBrowser({
   selected,
   selectDirsOnly,
   emptyHint,
+  actions,
 }: {
   queryKey: unknown[]
   fetchPath: (path: string) => string
@@ -51,6 +52,8 @@ export function FileBrowser({
   selected?: string
   selectDirsOnly?: boolean
   emptyHint?: string
+  // extra per-row controls, e.g. rename/delete on the local files page
+  actions?: (e: Entry) => ReactNode
 }) {
   const { t } = useTranslation()
   const { data: entries = [], isLoading, error } = useQuery<Entry[]>({
@@ -136,6 +139,7 @@ export function FileBrowser({
                       {t('browser.select')}
                     </button>
                   )}
+                  {actions?.(e)}
                 </li>
               )
             })}

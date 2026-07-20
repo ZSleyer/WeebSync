@@ -35,7 +35,8 @@
     "settings": "Einstellungen",
     "main": "Hauptnavigation",
     "suggestions": "Vorschläge",
-    "more": "Mehr"
+    "more": "Mehr",
+    "local": "Lokal"
   },
   "login": {
     "tagline": "weeb your sync",
@@ -145,6 +146,20 @@
     "removeSelected": "Entfernen",
     "clearSelection": "Auswahl aufheben",
     "limitUnit": "Einheit des Limits"
+  },
+  "local": {
+    "videoCount_one": "{{count}} Video",
+    "videoCount_other": "{{count}} Videos",
+    "lastChange": "Zuletzt geändert",
+    "title": "Lokale Dateien",
+    "sub": "was auf der Platte liegt",
+    "rename": "Umbenennen",
+    "renameTitle": "{{name}} umbenennen",
+    "renameItem": "{{name}} umbenennen",
+    "delete": "Löschen",
+    "deleteItem": "{{name}} löschen",
+    "deleteConfirm": "{{name}} endgültig löschen?",
+    "deleteDirConfirm": "Ordner {{name}} mit dem gesamten Inhalt endgültig löschen?"
   },
   "browser": {
     "title": "BROWSER",

@@ -130,6 +130,122 @@ func (s *Server) handleMkdirLocal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, OkResponse{Status: "ok"})
 }
 
+// isLocalRoot reports whether abs is one of the allowed roots itself. Renaming
+// or deleting a root would wipe (or move out of) a whole media mount, and
+// ResolveLocal happily maps ".." back onto the root, so both writers check it.
+func (s *Server) isLocalRoot(abs string) bool {
+	for _, root := range s.localRoots() {
+		if abs == filepath.Clean(root) {
+			return true
+		}
+	}
+	return false
+}
+
+// RenameLocalRequest is the body of handleRenameLocal.
+type RenameLocalRequest struct {
+	Path string `json:"path"` // entry to rename, under an allowed root
+	Name string `json:"name"` // new base name, no path separators
+}
+
+// @Summary  Rename local entry
+// @Description Renames a file or directory under the download root. Admin only.
+// @Tags     Browse
+// @Accept   json
+// @Produce  json
+// @Param    body body RenameLocalRequest true "Entry path and new name"
+// @Success  200 {object} OkResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/browse/local/rename [post]
+func (s *Server) handleRenameLocal(w http.ResponseWriter, r *http.Request) {
+	var in RenameLocalRequest
+	if !readJSON(w, r, &in) {
+		return
+	}
+	name := strings.TrimSpace(in.Name)
+	// a plain base name only: anything with a separator (or a dot entry) could
+	// move the file out of its folder, even though safeLocal would still keep
+	// it inside a root
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		writeErr(w, http.StatusBadRequest, "invalid name")
+		return
+	}
+	abs, err := s.safeLocal(in.Path)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if s.isLocalRoot(abs) {
+		writeErr(w, http.StatusBadRequest, "cannot rename a root")
+		return
+	}
+	// abs is already inside a root and name carries no separator, so staying in
+	// the same directory keeps the result inside that root too - resolving the
+	// target through safeLocal again would re-anchor it at the root
+	dst := filepath.Join(filepath.Dir(abs), name)
+	if _, err := os.Lstat(dst); err == nil {
+		writeErr(w, http.StatusConflict, "target exists")
+		return
+	}
+	if err := os.Rename(abs, dst); err != nil {
+		writeErr(w, http.StatusInternalServerError, "rename failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// DeleteLocalRequest is the body of handleDeleteLocal.
+type DeleteLocalRequest struct {
+	Path      string `json:"path"`
+	Recursive bool   `json:"recursive"` // required to delete a non-empty directory
+}
+
+// @Summary  Delete local entry
+// @Description Deletes a file or directory under the download root. A non-empty directory needs recursive=true. Admin only.
+// @Tags     Browse
+// @Accept   json
+// @Produce  json
+// @Param    body body DeleteLocalRequest true "Entry path and recursive flag"
+// @Success  200 {object} OkResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/browse/local [delete]
+func (s *Server) handleDeleteLocal(w http.ResponseWriter, r *http.Request) {
+	var in DeleteLocalRequest
+	if !readJSON(w, r, &in) {
+		return
+	}
+	abs, err := s.safeLocal(in.Path)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if s.isLocalRoot(abs) {
+		writeErr(w, http.StatusBadRequest, "cannot delete a root")
+		return
+	}
+	if in.Recursive {
+		err = os.RemoveAll(abs)
+	} else {
+		// plain Remove fails on a non-empty directory, which is the point:
+		// wiping a folder full of episodes has to be asked for explicitly
+		err = os.Remove(abs)
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "delete failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
 // @Summary  Browse remote directory
 // @Description Lists entries in a directory on the given remote server. Defaults to the server root when no path is given.
 // @Tags     Browse
