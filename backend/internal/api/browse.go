@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"io/fs"
 	"net/http"
 	"os"
 	"path"
@@ -128,6 +129,115 @@ func (s *Server) handleMkdirLocal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, OkResponse{Status: "ok"})
+}
+
+// localServerID is the pseudo server id of the local filesystem. Real servers
+// start at 1, so 0 lets the catalog (scopes, matches, rematch jobs) treat the
+// download roots like just another source without a second set of tables.
+const localServerID int64 = 0
+
+// listLocal lists the directories of a local path for the catalog, using the
+// same root confinement as the plain local browser.
+func (s *Server) listLocal(rel string) ([]remote.Entry, error) {
+	roots := s.localRoots()
+	// virtual root: several mounts are listed as their own entries, mirroring
+	// handleBrowseLocal. The catalog passes "/" for the root, the picker ""
+	if (rel == "" || rel == "/") && len(roots) > 1 {
+		out := make([]remote.Entry, 0, len(roots))
+		for _, root := range roots {
+			root = filepath.Clean(root)
+			out = append(out, remote.Entry{Name: strings.TrimPrefix(root, "/"), Path: root, IsDir: true})
+		}
+		return out, nil
+	}
+	abs, err := s.safeLocal(rel)
+	if err != nil {
+		return nil, err
+	}
+	items, err := os.ReadDir(abs)
+	if err != nil {
+		return nil, errors.New("cannot read directory")
+	}
+	out := make([]remote.Entry, 0, len(items))
+	for _, it := range items {
+		p := path.Join("/", rel, it.Name())
+		if len(roots) > 1 {
+			p = path.Join(abs, it.Name())
+		}
+		out = append(out, remote.Entry{Name: it.Name(), Path: p, IsDir: it.IsDir()})
+	}
+	return out, nil
+}
+
+// LocalStat is what a local catalog folder holds on disk. The local catalog
+// answers "what do I have and is it complete", so the card carries the file
+// counts and the size instead of a sync button.
+type LocalStat struct {
+	Videos  int    `json:"videos"`  // video files, at any depth
+	Files   int    `json:"files"`   // all files, at any depth
+	Bytes   int64  `json:"bytes"`   // total size
+	ModTime string `json:"modTime"` // newest file, RFC3339, "" when empty
+}
+
+type statEntry struct {
+	stat LocalStat
+	at   time.Time
+}
+
+// statTTL keeps a folder's walk result around while the user pages through the
+// catalog; a poll every few seconds must not re-walk a media library.
+const statTTL = 60 * time.Second
+
+// statWalkLimit bounds a single folder walk. A season folder has dozens of
+// files, so anything past this is a mount someone pointed at by accident -
+// counting it fully would stall the request.
+const statWalkLimit = 20000
+
+// localStat sums up a folder's contents, cached for statTTL.
+func (s *Server) localStat(abs string) LocalStat {
+	s.statMu.Lock()
+	if e, ok := s.statCache[abs]; ok && time.Since(e.at) < statTTL {
+		s.statMu.Unlock()
+		return e.stat
+	}
+	s.statMu.Unlock()
+
+	var st LocalStat
+	var newest time.Time
+	seen := 0
+	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // unreadable entry: skip, a partial count still helps
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if seen++; seen > statWalkLimit {
+			return filepath.SkipAll
+		}
+		st.Files++
+		if transfer.VideoExt[strings.ToLower(path.Ext(d.Name()))] {
+			st.Videos++
+		}
+		if info, ierr := d.Info(); ierr == nil {
+			st.Bytes += info.Size()
+			if info.ModTime().After(newest) {
+				newest = info.ModTime()
+			}
+		}
+		return nil
+	})
+	if !newest.IsZero() {
+		st.ModTime = newest.Format(time.RFC3339)
+	}
+
+	s.statMu.Lock()
+	if s.statCache == nil {
+		s.statCache = map[string]statEntry{}
+	}
+	s.statCache[abs] = statEntry{st, time.Now()}
+	s.statMu.Unlock()
+	return st
 }
 
 // isLocalRoot reports whether abs is one of the allowed roots itself. Renaming

@@ -210,6 +210,10 @@ func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
 	}
+	// catalog rows carry no foreign key any more (source id 0 is the local
+	// filesystem, which has no server row), so clean them up here
+	s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ?`, id)
+	s.DB.Exec(`DELETE FROM catalog_scopes WHERE server_id = ?`, id)
 	s.Conns.Evict(id)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

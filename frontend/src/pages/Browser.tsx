@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -353,8 +353,9 @@ function SearchResults({
   )
 }
 
-// Catalog view: remote folders as an AniList-metadata poster grid.
-function CatalogGrid({
+// Catalog view: folders as an AniList-metadata poster grid. Used for remote
+// servers and, with serverId 0 and no sync/watch actions, for local files.
+export function CatalogGrid({
   serverId,
   path,
   onNavigate,
@@ -362,14 +363,22 @@ function CatalogGrid({
   selected,
   onSync,
   onWatch,
+  cardActions,
+  fileActions,
 }: {
   serverId: number
   path: string
   onNavigate: (path: string) => void
   onSelect: (e: Entry) => void
   selected?: string
-  onSync: (e: Entry) => void
-  onWatch: (e: Entry) => void
+  // omitted on the local page: there is nothing to download or watch there
+  onSync?: (e: Entry) => void
+  onWatch?: (e: Entry) => void
+  // local page: extra card buttons (rename/delete) and per-file controls
+  // inside the files dialog. Kept as render props so the admin logic lives
+  // with the page that owns the mutations.
+  cardActions?: (e: Entry) => ReactNode
+  fileActions?: (e: Entry) => ReactNode
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
@@ -585,6 +594,27 @@ function CatalogGrid({
                       </>
                     )}
                   </div>
+                  {/* local catalog: what is actually on disk, and how it
+                      compares to what the provider lists */}
+                  {it.local && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <span
+                        className={`t-label ${
+                          g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes
+                            ? 't-label--ok'
+                            : ''
+                        }`}
+                      >
+                        {t('local.videoCount', { count: it.local.videos })}
+                      </span>
+                      <span className="t-label">{fmtBytes(it.local.bytes)}</span>
+                      {it.local.modTime && (
+                        <span className="font-mono text-[10px] text-t-faint" title={t('local.lastChange')}>
+                          {new Date(it.local.modTime).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </button>
               {g.media ? (
@@ -607,22 +637,27 @@ function CatalogGrid({
                       >
                         🗎
                       </button>
-                      <button
-                        className="t-btn t-btn--sm flex-1"
-                        aria-label={`${t('plex.syncOnce')}: ${it.entry.name}`}
-                        title={t('plex.syncOnce')}
-                        onClick={() => onSync(it.entry)}
-                      >
-                        ⇣
-                      </button>
-                      <button
-                        className="t-btn t-btn--sm flex-1"
-                        aria-label={`${t('watch.add')}: ${it.entry.name}`}
-                        title={t('watch.add')}
-                        onClick={() => onWatch(it.entry)}
-                      >
-                        ◉
-                      </button>
+                      {onSync && (
+                        <button
+                          className="t-btn t-btn--sm flex-1"
+                          aria-label={`${t('plex.syncOnce')}: ${it.entry.name}`}
+                          title={t('plex.syncOnce')}
+                          onClick={() => onSync(it.entry)}
+                        >
+                          ⇣
+                        </button>
+                      )}
+                      {onWatch && (
+                        <button
+                          className="t-btn t-btn--sm flex-1"
+                          aria-label={`${t('watch.add')}: ${it.entry.name}`}
+                          title={t('watch.add')}
+                          onClick={() => onWatch(it.entry)}
+                        >
+                          ◉
+                        </button>
+                      )}
+                      {cardActions?.(it.entry)}
                     </>
                   )}
                 </div>
@@ -641,6 +676,7 @@ function CatalogGrid({
                       {t('browser.changeMatch')}
                     </button>
                   )}
+                  {cardActions?.(it.entry)}
                 </div>
               )}
             </article>
@@ -648,7 +684,9 @@ function CatalogGrid({
         })}
       </div>
       {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
-      {files && <FilesDialog serverId={serverId} entry={files} onClose={() => setFiles(null)} />}
+      {files && (
+        <FilesDialog serverId={serverId} entry={files} actions={fileActions} onClose={() => setFiles(null)} />
+      )}
       {detail && (
         <DetailDialog
           group={detail}
@@ -672,7 +710,17 @@ function CatalogGrid({
 
 // FilesDialog peeks at the actual files inside a catalog folder without leaving
 // the catalog view - reuses the classic file browser, navigable, read-only.
-function FilesDialog({ serverId, entry, onClose }: { serverId: number; entry: Entry; onClose: () => void }) {
+function FilesDialog({
+  serverId,
+  entry,
+  actions,
+  onClose,
+}: {
+  serverId: number
+  entry: Entry
+  actions?: (e: Entry) => ReactNode
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDialogElement>(null)
   const backdropDown = useRef(false)
@@ -700,10 +748,16 @@ function FilesDialog({ serverId, entry, onClose }: { serverId: number; entry: En
       </div>
       <div className="flex max-h-[70vh] min-h-64 flex-col">
         <FileBrowser
-          queryKey={['catalog-files', serverId]}
-          fetchPath={(p) => `/api/servers/${serverId}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`}
+          // source 0 is the local filesystem, which has its own browse endpoint
+          queryKey={serverId === 0 ? ['local'] : ['catalog-files', serverId]}
+          fetchPath={(p) =>
+            serverId === 0
+              ? `/api/browse/local?path=${encodeURIComponent(p)}`
+              : `/api/servers/${serverId}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`
+          }
           path={path}
           onNavigate={setPath}
+          actions={actions}
         />
       </div>
     </dialog>
