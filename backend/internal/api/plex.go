@@ -644,7 +644,13 @@ func (s *Server) tvdbTVSuggestions(ctx context.Context, c *plex.Client, shows []
 		if ctx.Err() != nil {
 			return out
 		}
-		id := sh.TVDBID // authoritative, straight from the Plex guid
+		// the bulk listing carries no guid array, so the authoritative id comes
+		// from the show detail; the title search is only the last resort
+		detail, derr := c.ShowDetail(sh.RatingKey)
+		id := sh.TVDBID
+		if id == 0 && derr == nil {
+			id = detail.TVDBID
+		}
 		if id == 0 {
 			hits, err := s.Tvdb.SearchMedia(ctx, sh.Title)
 			if err != nil || len(hits) == 0 {
@@ -666,7 +672,7 @@ func (s *Server) tvdbTVSuggestions(ctx context.Context, c *plex.Client, shows []
 		}
 		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: sh.LeafCount,
 			Library: libOf[sh.RatingKey], Sequel: *m, ChainNeed: aired, Source: "tvdb"}
-		if detail, err := c.ShowDetail(sh.RatingKey); err == nil && len(detail.Locations) > 0 {
+		if derr == nil && len(detail.Locations) > 0 {
 			sug.Folder = detail.Locations[0]
 		}
 		out = append(out, sug)
