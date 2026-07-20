@@ -1,48 +1,114 @@
-import { useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api, type Media, type RenamePair } from '../api'
+import { api, type RenamePair } from '../api'
 import { LocalPicker } from '../components/FileBrowser'
+import RenameOptions, { type RenameRule } from '../components/RenameOptions'
 
-const PRESETS = [
-  { key: 'rename.presetPlex', template: '{title} - S{season:02}E{episode:02}' },
-  { key: 'rename.presetCompact', template: '{title}.S{season:02}E{episode:02}' },
-  { key: 'rename.presetGroup', template: '[{group}] {title} - {episode:02}' },
-]
+const EMPTY_RULE: RenameRule = {
+  mode: 'template',
+  template: '{title} - S{season:02}E{episode:02}',
+  separator: '_',
+  titleOverride: '',
+  pattern: '',
+  replacement: '',
+  fromEpisode: 0,
+  airedMapping: false,
+  renameProvider: '',
+  renameOrdering: '',
+  renameTitleLang: '',
+  renameSeriesId: 0,
+}
 
 export default function Rename() {
   const { t } = useTranslation()
   const [path, setPath] = useState('')
-  const [mode, setMode] = useState<'template' | 'regex'>('template')
-  const [template, setTemplate] = useState(PRESETS[0].template)
-  const [separator, setSeparator] = useState('_')
-  const [titleOverride, setTitleOverride] = useState('')
-  const [pattern, setPattern] = useState('')
-  const [replacement, setReplacement] = useState('')
+  const [rule, setRule] = useState<RenameRule>(EMPTY_RULE)
   const [preview, setPreview] = useState<RenamePair[] | null>(null)
   const [applied, setApplied] = useState<RenamePair[] | null>(null)
+  // which previewed renames actually get applied; keyed by old name
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [previewBusy, setPreviewBusy] = useState(false)
+  const [previewErr, setPreviewErr] = useState('')
 
-  const body = { path, mode, template, separator, titleOverride, pattern, replacement }
-
-  const doPreview = useMutation({
-    mutationFn: () => api.post<RenamePair[]>('/api/rename/preview', body),
-    onSuccess: (r) => {
-      setPreview(r)
-      setApplied(null)
-    },
+  const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean; tmdbApiKeySet?: boolean }>({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/api/settings'),
+    retry: false,
+    staleTime: 5 * 60_000,
   })
+
+  const hasRule = (rule.mode === 'template' && !!rule.template) || (rule.mode === 'regex' && !!rule.pattern)
+  const renameable = (p: RenamePair) => !p.error && p.old !== p.new
+
+  // live preview, debounced against typing - same behaviour as the watch dialog
+  useEffect(() => {
+    if (!hasRule) {
+      setPreview(null)
+      return
+    }
+    let stale = false // an in-flight preview must not overwrite a newer one
+    const run = setTimeout(async () => {
+      setPreviewBusy(true)
+      setPreviewErr('')
+      try {
+        const next = await api.post<RenamePair[]>('/api/rename/preview', { path, ...rule })
+        if (stale) return
+        setPreview(next)
+        setApplied(null)
+        setPicked(new Set(next.filter(renameable).map((p) => p.old)))
+      } catch (e) {
+        if (!stale) {
+          setPreview(null)
+          setPreviewErr((e as Error).message)
+        }
+      } finally {
+        if (!stale) setPreviewBusy(false)
+      }
+    }, 500)
+    return () => {
+      stale = true
+      clearTimeout(run)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    path,
+    hasRule,
+    rule.mode,
+    rule.template,
+    rule.separator,
+    rule.titleOverride,
+    rule.pattern,
+    rule.replacement,
+    rule.fromEpisode,
+    rule.airedMapping,
+    rule.renameProvider,
+    rule.renameOrdering,
+    rule.renameTitleLang,
+    rule.renameSeriesId,
+  ])
 
   const doApply = useMutation({
     mutationFn: () =>
       api.post<RenamePair[]>('/api/rename/apply', {
         path,
-        renames: preview!.filter((p) => !p.error && p.old !== p.new),
+        renames: preview!.filter((p) => renameable(p) && picked.has(p.old)),
       }),
     onSuccess: (r) => {
       setApplied(r)
       setPreview(null)
     },
   })
+
+  const toggle = (old: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(old)) next.add(old)
+      return next
+    })
+
+  const rows = preview ?? applied
+  const selectable = preview?.filter(renameable) ?? []
 
   return (
     <div>
@@ -61,100 +127,55 @@ export default function Rename() {
           <LocalPicker path={path} onNavigate={setPath} />
         </section>
 
-        <section className="t-panel min-w-0 p-4" aria-label={t('rename.rules')}>
-          <div role="group" aria-label={t('rename.mode')} className="mb-4 flex">
-            <button
-              className={`t-btn t-btn--sm ${mode === 'template' ? 't-btn--primary' : ''}`}
-              aria-pressed={mode === 'template'}
-              onClick={() => setMode('template')}
-            >
-              {t('rename.template')}
-            </button>
-            <button
-              className={`t-btn t-btn--sm ${mode === 'regex' ? 't-btn--primary' : ''}`}
-              aria-pressed={mode === 'regex'}
-              onClick={() => setMode('regex')}
-            >
-              {t('rename.regex')}
-            </button>
-          </div>
+        <section className="t-panel min-w-0 space-y-3 p-4" aria-label={t('rename.rules')}>
+          <RenameOptions
+            rule={rule}
+            onChange={(patch) => setRule({ ...rule, ...patch })}
+            caps={caps}
+            idPrefix="rename"
+            seriesQuery={path.split('/').filter(Boolean).slice(-1)[0] || ''}
+            seasonFolder={{
+              name: path.split('/').filter(Boolean).pop() || '',
+              onUseParent: () => setPath(path.split('/').filter(Boolean).slice(0, -1).join('/')),
+            }}
+          />
 
-          {mode === 'template' ? (
-            <div className="grid grid-cols-1 gap-3">
-              <label className="text-xs text-t-muted">
-                {t('rename.templateLabel')}
-                <input className="t-input mt-1 font-mono" value={template} onChange={(e) => setTemplate(e.target.value)} />
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {PRESETS.map((p) => (
-                  <button key={p.key} className="t-btn t-btn--sm" onClick={() => setTemplate(p.template)}>
-                    {t(p.key)}
-                  </button>
-                ))}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-xs text-t-muted">
-                  {t('rename.separator')}
-                  <span className="t-select-wrap mt-1">
-                    <select className="t-select font-mono" value={separator} onChange={(e) => setSeparator(e.target.value)}>
-                      <option value=" ">{t('rename.sepSpace')}</option>
-                      <option value="_">{t('rename.sepUnderscore')}</option>
-                      <option value=".">{t('rename.sepDot')}</option>
-                      <option value="-">{t('rename.sepDash')}</option>
-                    </select>
-                  </span>
-                </label>
-                <TitleSearch value={titleOverride} onChange={setTitleOverride} />
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs text-t-muted">
-                {t('rename.pattern')}
-                <input
-                  className="t-input mt-1 font-mono"
-                  value={pattern}
-                  onChange={(e) => setPattern(e.target.value)}
-                  placeholder={'\\.S(\\d+)E(\\d+)\\.'}
-                />
-              </label>
-              <label className="text-xs text-t-muted">
-                {t('rename.replacement')}
-                <input
-                  className="t-input mt-1 font-mono"
-                  value={replacement}
-                  onChange={(e) => setReplacement(e.target.value)}
-                  placeholder=" - S${1}E${2}."
-                />
-              </label>
-            </div>
-          )}
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button className="t-btn" onClick={() => doPreview.mutate()} disabled={doPreview.isPending}>
-              {t('rename.preview')}
-            </button>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-4">
             <button
               className="t-btn t-btn--primary t-cut"
-              disabled={!preview || preview.every((p) => p.error || p.old === p.new) || doApply.isPending}
+              disabled={picked.size === 0 || doApply.isPending}
               onClick={() => doApply.mutate()}
             >
               {t('rename.apply')}
             </button>
+            {previewBusy && <span className="t-label">{t('app.loading')}</span>}
+            {!previewBusy && preview && (
+              <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>
+            )}
           </div>
-          {(doPreview.error || doApply.error) && (
-            <p className="mt-3 text-sm text-err" role="alert">
-              {((doPreview.error ?? doApply.error) as Error).message}
+          {(previewErr || doApply.error) && (
+            <p className="text-sm text-err" role="alert">
+              {previewErr || (doApply.error as Error).message}
             </p>
           )}
         </section>
       </div>
 
-      {(preview ?? applied) && (
+      {rows && (
         <section className="t-panel mt-4 overflow-x-auto" aria-label={t('rename.result')}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle text-left">
+                <th className="w-10 px-3 py-2">
+                  {preview && selectable.length > 0 && (
+                    <input
+                      type="checkbox"
+                      aria-label={t('dash.selectAll')}
+                      checked={picked.size === selectable.length}
+                      onChange={(e) => setPicked(new Set(e.target.checked ? selectable.map((p) => p.old) : []))}
+                    />
+                  )}
+                </th>
                 <th className="px-3 py-2">
                   <span className="t-label">{t('rename.old')}</span>
                 </th>
@@ -164,8 +185,18 @@ export default function Rename() {
               </tr>
             </thead>
             <tbody className="font-mono text-xs">
-              {(preview ?? applied)!.map((p, i) => (
+              {rows.map((p, i) => (
                 <tr key={i} className="border-b border-border-subtle/50">
+                  <td className="px-3 py-1.5">
+                    {preview && renameable(p) && (
+                      <input
+                        type="checkbox"
+                        aria-label={t('dash.select', { name: p.old })}
+                        checked={picked.has(p.old)}
+                        onChange={() => toggle(p.old)}
+                      />
+                    )}
+                  </td>
                   <td className="px-3 py-1.5 text-t-muted">{p.old}</td>
                   <td
                     className={`px-3 py-1.5 ${p.error ? 'text-err' : p.old === p.new ? 'text-t-muted' : applied ? 'text-ok' : 'text-accent'}`}
@@ -177,77 +208,6 @@ export default function Rename() {
             </tbody>
           </table>
         </section>
-      )}
-    </div>
-  )
-}
-
-// AniList search box that fills the title override. Fully keyboard
-// accessible: results are focusable buttons, the list closes only when
-// focus leaves the whole widget (WCAG 2.1.1).
-function TitleSearch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { t } = useTranslation()
-  const [results, setResults] = useState<Media[]>([])
-  const [open, setOpen] = useState(false)
-  const wrap = useRef<HTMLDivElement>(null)
-  const seq = useRef(0) // drop out-of-order responses while typing
-
-  const search = async (q: string) => {
-    onChange(q)
-    const mySeq = ++seq.current
-    if (q.length < 3) {
-      setResults([])
-      setOpen(false)
-      return
-    }
-    try {
-      const r = await api.get<Media[]>(`/api/anilist/search?q=${encodeURIComponent(q)}`)
-      if (mySeq !== seq.current) return // a newer request superseded this one
-      setResults(r)
-      setOpen(true)
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const pick = (m: Media) => {
-    onChange(m.title.romaji)
-    setOpen(false)
-  }
-
-  return (
-    <div
-      ref={wrap}
-      className="relative text-xs text-t-muted"
-      onBlur={(e) => {
-        if (!wrap.current?.contains(e.relatedTarget as Node)) setOpen(false)
-      }}
-      onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
-    >
-      <label>
-        {t('rename.titleOverride')}
-        <input
-          className="t-input mt-1"
-          value={value}
-          placeholder={t('rename.titlePlaceholder')}
-          aria-expanded={open}
-          onChange={(e) => search(e.target.value)}
-        />
-      </label>
-      {open && results.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-50 max-h-48 overflow-y-auto border border-border-subtle bg-bg-card shadow-lg">
-          {results.map((m) => (
-            <li key={m.id}>
-              <button
-                type="button"
-                className="block w-full truncate px-3 py-1.5 text-left text-sm text-t-secondary hover:bg-bg-hover"
-                onClick={() => pick(m)}
-              >
-                {m.title.romaji} <span className="text-t-muted">({m.seasonYear})</span>
-              </button>
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   )
