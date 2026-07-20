@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, fmtBytes, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
-import { FileBrowser, LocalPicker } from '../components/FileBrowser'
+import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
 import WatchDialog from '../components/WatchDialog'
 import { useConfirm } from '../components/confirm'
 import Loading from '../components/Loading'
@@ -23,6 +23,7 @@ export default function Browser() {
   const [selection, setSelection] = useState<Entry | null>(null)
   const [notice, setNotice] = useState('')
   const [watchOpen, setWatchOpen] = useState(false)
+  const [syncOpen, setSyncOpen] = useState(false)
   const [flat, setFlat] = useState(false)
   const [query, setQuery] = useState('')
   // preference: land in catalog view automatically for catalog-managed folders
@@ -38,14 +39,17 @@ export default function Browser() {
   const { data: scopeInfo } = useQuery<{ scope: string; inherited: boolean }>({
     queryKey: ['catalog-scope', active, remotePath],
     queryFn: () => api.get(`/api/servers/${active}/catalog/scope${remotePath ? `?path=${encodeURIComponent('/' + remotePath)}` : ''}`),
-    enabled: catalogAuto && active > 0 && !query.trim(),
+    enabled: active > 0 && !query.trim(),
     staleTime: 60_000,
   })
   // re-runs only on navigation / preference change, so a manual switch to
-  // classic on a catalog folder sticks until the user navigates elsewhere
+  // classic on a catalog folder sticks until the user navigates elsewhere.
+  // Without the auto preference we only fall back: navigating out of the
+  // catalog tree (no scope, so nothing to show) lands in the classic list.
   useEffect(() => {
-    if (!catalogAuto || !scopeInfo) return
-    setView(scopeInfo.scope !== '' ? 'catalog' : 'classic')
+    if (!scopeInfo) return
+    if (catalogAuto) setView(scopeInfo.scope !== '' ? 'catalog' : 'classic')
+    else if (scopeInfo.scope === '') setView('classic')
   }, [catalogAuto, scopeInfo, remotePath])
 
   const [lastIds, setLastIds] = useState<number[]>([])
@@ -129,7 +133,7 @@ export default function Browser() {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_minmax(16rem,0.6fr)]">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         <section className="t-panel flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('browser.remote')}>
           <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
             <span className="t-label t-label--accent">{t('browser.remote')}</span>
@@ -173,11 +177,15 @@ export default function Browser() {
             <CatalogGrid
               serverId={active}
               path={remotePath}
+              onNavigate={(p) => {
+                setRemotePath(p)
+                setSelection(null)
+              }}
               onSelect={setSelection}
               selected={selection?.path}
               onSync={(e) => {
                 setSelection(e)
-                enqueue.mutate(e)
+                setSyncOpen(true)
               }}
               onWatch={(e) => {
                 setSelection(e)
@@ -187,43 +195,63 @@ export default function Browser() {
           )}
         </section>
 
-        <section className="t-panel flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('browser.localTarget')}>
-          <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            <span className="t-label">{t('browser.local')}</span>
-            <span className="truncate font-mono text-xs text-t-muted">{localPath || '/'}</span>
-          </div>
-          <LocalPicker path={localPath} onNavigate={setLocalPath} />
-          <div className="border-t border-border-subtle p-3">
-            {selection?.isDir && (
-              <label className="mb-2 flex items-center gap-2 text-xs text-t-secondary">
-                <input type="checkbox" checked={flat} onChange={(e) => setFlat(e.target.checked)} />
-                {t('browser.flatSync')}
-              </label>
-            )}
-            <button
-              className="t-btn t-btn--primary t-cut w-full"
-              disabled={!selection || enqueue.isPending}
-              onClick={() => enqueue.mutate(undefined)}
-            >
-              {selection?.isDir ? t('browser.syncFolder') : t('browser.downloadFile')} → downloads/
-              {selection?.isDir && !flat ? [localPath, selection.name].filter(Boolean).join('/') : localPath || ''}
-            </button>
-            <button className="t-btn mt-2 w-full" disabled={!selection?.isDir} onClick={() => setWatchOpen(true)}>
-              {t('watch.add')}
-            </button>
-            {notice && (
-              <p className="mt-2 flex items-center justify-center gap-2 text-center text-xs text-t-secondary" role="status">
-                {notice}
-                {lastIds.length > 0 && (
-                  <button className="t-btn t-btn--sm t-btn--danger" onClick={cancelLast}>
-                    {t('browser.undoSync')}
-                  </button>
-                )}
-              </p>
-            )}
-          </div>
-        </section>
       </div>
+
+      {/* action bar: appears with a selection (or a pending notice) so the long
+          remote list keeps the full height. On phones it floats above the
+          bottom nav; from lg on it just sits at the end of the page. */}
+      {(selection || notice) && (
+        <div
+          role="region"
+          aria-label={t('browser.selectionBar')}
+          className="t-panel fixed inset-x-4 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 flex flex-wrap items-center gap-2 p-3 lg:static lg:z-auto lg:mt-4 lg:inset-auto"
+        >
+          {selection && (
+            <span className="min-w-0 flex-1 truncate text-sm text-t-secondary" title={selection.path}>
+              <span aria-hidden className="mr-1.5 font-mono text-xs text-accent">
+                {selection.isDir ? '▸' : '·'}
+              </span>
+              {selection.name}
+            </span>
+          )}
+          {notice && (
+            <span className="flex items-center gap-2 text-xs text-t-secondary" role="status">
+              {notice}
+              {lastIds.length > 0 && (
+                <button className="t-btn t-btn--sm t-btn--danger" onClick={cancelLast}>
+                  {t('browser.undoSync')}
+                </button>
+              )}
+            </span>
+          )}
+          {selection && (
+            <>
+              <button className="t-btn t-btn--sm" disabled={!selection.isDir} onClick={() => setWatchOpen(true)}>
+                {t('watch.add')}
+              </button>
+              <button className="t-btn t-btn--primary t-btn--sm t-cut" onClick={() => setSyncOpen(true)}>
+                {t('browser.syncOpen')}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {syncOpen && selection && (
+        <SyncDialog
+          entry={selection}
+          localPath={localPath}
+          onLocalPath={setLocalPath}
+          flat={flat}
+          onFlat={setFlat}
+          pending={enqueue.isPending}
+          onConfirm={() => {
+            setSyncOpen(false)
+            enqueue.mutate(undefined)
+          }}
+          onClose={() => setSyncOpen(false)}
+        />
+      )}
       {watchOpen && selection && (
         <WatchDialog
           title={t('watch.addTitle', { name: selection.name })}
@@ -329,6 +357,7 @@ function SearchResults({
 function CatalogGrid({
   serverId,
   path,
+  onNavigate,
   onSelect,
   selected,
   onSync,
@@ -336,6 +365,7 @@ function CatalogGrid({
 }: {
   serverId: number
   path: string
+  onNavigate: (path: string) => void
   onSelect: (e: Entry) => void
   selected?: string
   onSync: (e: Entry) => void
@@ -408,16 +438,31 @@ function CatalogGrid({
     return out
   }, [items])
 
+  // the breadcrumb is outside the loading/error branches on purpose: without
+  // it a slow or failing folder would be a dead end with no way back up
+  const crumbs = <PathCrumbs path={path} onNavigate={onNavigate} />
+
   if (isLoading)
     return (
-      <p className="p-6 text-sm text-t-muted" role="status">
-        {t('browser.catalogLoading')}
-      </p>
+      <div className="flex min-h-0 flex-1 flex-col">
+        {crumbs}
+        <p className="p-6 text-sm text-t-muted" role="status">
+          {t('browser.catalogLoading')}
+        </p>
+      </div>
     )
-  if (error) return <p className="p-6 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>
+  if (error)
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {crumbs}
+        <p className="p-6 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>
+      </div>
+    )
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4">
+    <div className="flex min-h-0 flex-1 flex-col">
+      {crumbs}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-xs text-t-muted">
           {t('browser.scope')}
@@ -620,6 +665,7 @@ function CatalogGrid({
           onClose={() => setDetail(null)}
         />
       )}
+      </div>
     </div>
   )
 }
@@ -659,6 +705,112 @@ function FilesDialog({ serverId, entry, onClose }: { serverId: number; entry: En
           path={path}
           onNavigate={setPath}
         />
+      </div>
+    </dialog>
+  )
+}
+
+// Sync dialog: picks the local target for the selected remote entry. Replaces
+// the old second column, which on phones ended up below a list of hundreds of
+// entries. Target and flat flag live in the parent, so the choice survives.
+function SyncDialog({
+  entry,
+  localPath,
+  onLocalPath,
+  flat,
+  onFlat,
+  pending,
+  onConfirm,
+  onClose,
+}: {
+  entry: Entry
+  localPath: string
+  onLocalPath: (p: string) => void
+  flat: boolean
+  onFlat: (v: boolean) => void
+  pending: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const ref = useRef<HTMLDialogElement>(null)
+  const backdropDown = useRef(false)
+  const confirmed = useRef(false)
+  const [browse, setBrowse] = useState(false)
+  useEffect(() => {
+    ref.current?.showModal()
+  }, [])
+  // decide in onClose so every exit path (button, Escape, backdrop) is the same
+  const close = (ok: boolean) => {
+    confirmed.current = ok
+    ref.current?.close()
+  }
+  const target = entry.isDir && !flat ? [localPath, entry.name].filter(Boolean).join('/') : localPath
+  return (
+    <dialog
+      ref={ref}
+      className="dialog-sheet w-full max-w-lg p-0"
+      aria-label={t('browser.syncTitle', { name: entry.name })}
+      onClose={() => (confirmed.current ? onConfirm() : onClose())}
+      onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
+      onClick={(e) => e.target === ref.current && backdropDown.current && close(false)}
+    >
+      <div className="flex max-h-[85vh] flex-col">
+        <header className="border-b border-border-subtle px-5 py-4">
+          <h3 className="font-display font-semibold tracking-wider">{t('browser.syncTitle', { name: entry.name })}</h3>
+          <span className="mt-1 block truncate font-mono text-xs text-t-muted" title={entry.path}>
+            {entry.path}
+          </span>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <div>
+            <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="sync-target">
+              {t('browser.localTarget')}
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="sync-target"
+                className="t-input font-mono"
+                value={localPath}
+                onChange={(e) => onLocalPath(e.target.value)}
+              />
+              <button
+                type="button"
+                className={`t-btn t-btn--sm shrink-0 ${browse ? 't-btn--primary' : ''}`}
+                aria-expanded={browse}
+                onClick={() => setBrowse((b) => !b)}
+              >
+                {t('watch.browse')}
+              </button>
+            </div>
+            {browse && (
+              <div className="mt-2 flex max-h-56 flex-col overflow-hidden border border-border-subtle bg-bg-secondary/40">
+                <LocalPicker path={localPath} onNavigate={onLocalPath} />
+              </div>
+            )}
+          </div>
+
+          {entry.isDir && (
+            <label className="flex items-center gap-2 text-sm text-t-secondary">
+              <input type="checkbox" checked={flat} onChange={(e) => onFlat(e.target.checked)} />
+              {t('browser.flatSync')}
+            </label>
+          )}
+
+          <p className="text-xs text-t-muted">
+            {t('browser.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
+          </p>
+        </div>
+
+        <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
+          <button type="button" className="t-btn" onClick={() => close(false)}>
+            {t('common.cancel')}
+          </button>
+          <button type="button" className="t-btn t-btn--primary t-cut" disabled={pending} onClick={() => close(true)}>
+            {entry.isDir ? t('browser.syncFolder') : t('browser.downloadFile')}
+          </button>
+        </footer>
       </div>
     </dialog>
   )
