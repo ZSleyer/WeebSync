@@ -52,7 +52,9 @@ func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
 	var rootPath string
-	if err := s.DB.QueryRow(`SELECT root_path FROM servers WHERE id = ? AND user_id = ?`,
+	if serverID == localServerID {
+		rootPath = "/" // local pseudo server: no row, root is the download root
+	} else if err := s.DB.QueryRow(`SELECT root_path FROM servers WHERE id = ? AND user_id = ?`,
 		serverID, u.ID).Scan(&rootPath); err != nil {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
@@ -123,15 +125,22 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "TVDB API key required")
 		return
 	}
-	// ownership check doubles as root path lookup (empty path = root)
-	var rootPath string
-	if err := s.DB.QueryRow(`SELECT root_path FROM servers WHERE id = ? AND user_id = ?`,
-		serverID, u.ID).Scan(&rootPath); err != nil {
-		writeErr(w, http.StatusNotFound, "server not found")
-		return
-	}
-	if in.Path == "" {
-		in.Path = rootPath
+	// ownership check doubles as root path lookup (empty path = root); the
+	// local pseudo server has no row and no owner, its root is just "/"
+	if serverID == localServerID {
+		if in.Path == "" {
+			in.Path = "/"
+		}
+	} else {
+		var rootPath string
+		if err := s.DB.QueryRow(`SELECT root_path FROM servers WHERE id = ? AND user_id = ?`,
+			serverID, u.ID).Scan(&rootPath); err != nil {
+			writeErr(w, http.StatusNotFound, "server not found")
+			return
+		}
+		if in.Path == "" {
+			in.Path = rootPath
+		}
 	}
 	if in.Path == "" || path.Clean(in.Path) != in.Path {
 		writeErr(w, http.StatusBadRequest, "invalid path")

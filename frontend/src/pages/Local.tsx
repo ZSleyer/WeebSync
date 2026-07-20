@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type Entry } from '../api'
 import { FileBrowser } from '../components/FileBrowser'
+import { CatalogGrid } from './Browser'
 import { useConfirm } from '../components/confirm'
 import { usePrompt } from '../components/prompt'
 import { useAuth } from '../hooks'
@@ -16,10 +17,15 @@ export default function Local() {
   const qc = useQueryClient()
   const confirm = useConfirm()
   const prompt = usePrompt()
+  const [view, setView] = useState<'classic' | 'catalog'>('classic')
   const [path, setPath] = useState('')
   const [error, setError] = useState('')
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ['local'] })
+  // both views read from their own cache: the plain listing and the catalog
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['local'] })
+    qc.invalidateQueries({ queryKey: ['catalog', 0] })
+  }
 
   const rename = async (e: Entry) => {
     const name = await prompt({
@@ -55,10 +61,12 @@ export default function Local() {
     }
   }
 
-  // rename/delete buttons per row. Admins only; everyone else just reads.
-  const actions = (e: Entry) =>
+  // rename/delete buttons, shared by the classic list rows, the catalog cards
+  // and the files dialog inside the catalog. Admins only; everyone else just
+  // reads.
+  const actions = (e: Entry, className = '') =>
     user?.isAdmin ? (
-      <span className="my-1 mr-2 flex shrink-0 gap-1.5">
+      <span className={`my-1 mr-2 flex shrink-0 gap-1.5 ${className}`}>
         <button
           type="button"
           className="t-btn t-btn--sm"
@@ -82,10 +90,26 @@ export default function Local() {
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col lg:h-[calc(100vh-3rem)]">
-      <header className="mb-4">
-        <div>
+      <header className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="mr-auto">
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('local.title')}</h2>
           <span className="t-label mt-1">{t('local.sub')}</span>
+        </div>
+        <div role="group" aria-label={t('browser.view')} className="flex">
+          <button
+            className={`t-btn t-btn--sm ${view === 'classic' ? 't-btn--primary' : ''}`}
+            aria-pressed={view === 'classic'}
+            onClick={() => setView('classic')}
+          >
+            {t('browser.classic')}
+          </button>
+          <button
+            className={`t-btn t-btn--sm ${view === 'catalog' ? 't-btn--primary' : ''}`}
+            aria-pressed={view === 'catalog'}
+            onClick={() => setView('catalog')}
+          >
+            {t('browser.catalog')}
+          </button>
         </div>
       </header>
 
@@ -99,6 +123,19 @@ export default function Local() {
             {error}
           </p>
         )}
+        {view === 'catalog' ? (
+          // same catalog as the remote browser, addressed as source id 0 -
+          // scopes, matches and the metadata cache are shared, so a folder
+          // already matched on a server is not looked up twice
+          <CatalogGrid
+            serverId={0}
+            path={path}
+            onNavigate={setPath}
+            onSelect={() => {}}
+            cardActions={(e) => actions(e, 'my-0 mr-0')}
+            fileActions={(e) => actions(e)}
+          />
+        ) : (
         <FileBrowser
           queryKey={['local']}
           fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p)}`}
@@ -107,6 +144,7 @@ export default function Local() {
           emptyHint={t('browser.emptyLocal')}
           actions={(e) => actions(e)}
         />
+        )}
       </section>
     </div>
   )
