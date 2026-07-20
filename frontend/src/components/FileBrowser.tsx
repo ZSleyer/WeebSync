@@ -4,6 +4,33 @@ import { useTranslation } from 'react-i18next'
 import { api, fmtBytes, type Entry } from '../api'
 import Loading from './Loading'
 
+// Path breadcrumb: root button plus one button per segment. Shared by the
+// classic file list and the catalog grid, so both navigate the same way.
+export function PathCrumbs({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
+  const { t } = useTranslation()
+  const crumbs = path.split('/').filter(Boolean)
+  return (
+    <nav className="flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs" aria-label={t('browser.path')}>
+      {/* min 24x24 target (WCAG 2.5.8) */}
+      <button type="button" className="min-h-6 min-w-6 px-1.5 text-accent hover:underline" onClick={() => onNavigate('')}>
+        /
+      </button>
+      {crumbs.map((c, i) => (
+        <span key={i} className="flex items-center">
+          <button
+            type="button"
+            className="min-h-6 max-w-40 truncate px-1.5 text-accent hover:underline"
+            onClick={() => onNavigate(crumbs.slice(0, i + 1).join('/'))}
+          >
+            {c}
+          </button>
+          {i < crumbs.length - 1 && <span className="text-t-faint">/</span>}
+        </span>
+      ))}
+    </nav>
+  )
+}
+
 // Breadcrumb + list view over a browse endpoint. Works for the local
 // picker (/api/browse/local) and the classic remote view.
 export function FileBrowser({
@@ -49,24 +76,7 @@ export function FileBrowser({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <nav className="flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs" aria-label={t('browser.path')}>
-        {/* min 24x24 target (WCAG 2.5.8) */}
-        <button type="button" className="min-h-6 min-w-6 px-1.5 text-accent hover:underline" onClick={() => onNavigate('')}>
-          /
-        </button>
-        {crumbs.map((c, i) => (
-          <span key={i} className="flex items-center">
-            <button
-              type="button"
-              className="min-h-6 max-w-40 truncate px-1.5 text-accent hover:underline"
-              onClick={() => onNavigate(crumbs.slice(0, i + 1).join('/'))}
-            >
-              {c}
-            </button>
-            {i < crumbs.length - 1 && <span className="text-t-faint">/</span>}
-          </span>
-        ))}
-      </nav>
+      <PathCrumbs path={path} onNavigate={onNavigate} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {isLoading && <Loading className="p-4" />}
         {error && <p className="wrap-break-word p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>}
