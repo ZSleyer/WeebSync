@@ -61,9 +61,8 @@ export default function Local() {
     }
   }
 
-  // rename/delete buttons, shared by the classic list rows, the catalog cards
-  // and the files dialog inside the catalog. Admins only; everyone else just
-  // reads.
+  // rename/delete buttons, shared by the classic list rows and the catalog
+  // cards. Admins only; everyone else just reads.
   const actions = (e: Entry, className = '') =>
     user?.isAdmin ? (
       <span className={`my-1 mr-2 flex shrink-0 gap-1.5 ${className}`}>
@@ -133,7 +132,10 @@ export default function Local() {
             onNavigate={setPath}
             onSelect={() => {}}
             cardActions={(e) => actions(e, 'my-0 mr-0')}
-            fileActions={(e) => actions(e)}
+            onOpenFiles={(p) => {
+              setPath(p.replace(/^\//, ''))
+              setView('classic')
+            }}
           />
         ) : (
         <FileBrowser
