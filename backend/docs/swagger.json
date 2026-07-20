@@ -6688,6 +6688,32 @@
                 ]
             }
         },
+        "/api/push/test": {
+            "post": {
+                "description": "Sends a test notification to all of the caller's push subscriptions, so a subscription can be verified without waiting for a real download.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Send a test push",
+                "tags": [
+                    "Push"
+                ]
+            }
+        },
         "/api/rename/apply": {
             "post": {
                 "description": "Performs the given old→new renames inside one directory (jailed to the download root). Returns the per-file result; entries that failed carry an error.",
