@@ -103,6 +103,17 @@ export default function Integrations() {
 // Plex library sections: pick which to use and choose the metadata source
 // per library (AniList for anime, TMDB for live action). A library without a
 // stored choice defaults to AniList when its title contains "anime".
+interface PlexSection {
+  key: string
+  type: string
+  title: string
+  provider?: string // catalog Plex uses for this library: tvdb | tmdb | ''
+  ordering?: string // raw showOrdering value, shown as a tooltip
+}
+
+// combined source: AniList metadata plus TVDB aired mapping
+const ANILIST_TVDB = 'anilist+tvdb'
+
 // TVDB is offered as a third source for show libraries only, and only with a
 // key configured: Plex carries no tvdb guid for movies and TVDB has no
 // collections, so there is nothing to suggest for a movie library.
@@ -120,7 +131,7 @@ function PlexSections({
   tvdb: boolean
 }) {
   const { t } = useTranslation()
-  const { data: sections = [], error } = useQuery<{ key: string; type: string; title: string }[]>({
+  const { data: sections = [], error } = useQuery<PlexSection[]>({
     queryKey: ['plex-sections'],
     queryFn: () => api.get('/api/plex/sections'),
     retry: false,
@@ -133,11 +144,19 @@ function PlexSections({
       .filter((kv) => kv.includes(':'))
       .map((kv) => [kv.slice(0, kv.indexOf(':')), kv.slice(kv.indexOf(':') + 1)] as [string, string]),
   )
-  const defaultSource = (title: string) => (title.toLowerCase().includes('anime') ? 'anilist' : 'tmdb')
-  const sourceOf = (s: { key: string; title: string }) => srcMap.get(s.key) ?? defaultSource(s.title)
+  // mirrors DefaultSectionSource in the backend: anime keeps AniList, the rest
+  // follows the catalog Plex itself uses. An anime library that Plex orders by
+  // TVDB starts with the combined source, so the aired mapping is prepared.
+  const defaultSource = (s: PlexSection) => {
+    const anime = s.title.toLowerCase().includes('anime')
+    if (anime) return s.provider === 'tvdb' && s.type === 'show' ? ANILIST_TVDB : 'anilist'
+    if (s.type === 'movie') return 'tmdb'
+    return s.provider || 'tmdb'
+  }
+  const sourceOf = (s: PlexSection) => srcMap.get(s.key) ?? defaultSource(s)
   const writeSources = (map: Map<string, string>) =>
     onSources([...map.entries()].map(([k, v]) => `${k}:${v}`).join(','))
-  const toggle = (s: { key: string; title: string }) => {
+  const toggle = (s: PlexSection) => {
     const next = new Set(selected)
     const nextSrc = new Map(srcMap)
     if (next.has(s.key)) {
@@ -146,7 +165,7 @@ function PlexSections({
     } else {
       next.add(s.key)
       // store the preselection explicitly so the backend never guesses
-      nextSrc.set(s.key, defaultSource(s.title))
+      nextSrc.set(s.key, defaultSource(s))
     }
     onChange([...next].join(','))
     writeSources(nextSrc)
@@ -168,23 +187,49 @@ function PlexSections({
               <span className="truncate">{s.title}</span>
             </label>
             <span className="t-label">{s.type === 'movie' ? t('settings.plexMovies') : t('settings.plexShows')}</span>
-            {selected.has(s.key) && (
-              <span className="t-select-wrap">
-                <select
-                  className="t-select py-1 text-xs"
-                  aria-label={t('settings.plexSource', { name: s.title })}
-                  value={sourceOf(s)}
-                  onChange={(e) => {
-                    const nextSrc = new Map(srcMap)
-                    nextSrc.set(s.key, e.target.value)
-                    writeSources(nextSrc)
-                  }}
-                >
-                  <option value="anilist">AniList</option>
-                  <option value="tmdb">TMDB</option>
-                  {tvdb && s.type === 'show' && <option value="tvdb">TVDB</option>}
-                </select>
+            {/* what Plex itself uses, so the preselection is traceable */}
+            {s.provider && (
+              <span className="t-label" title={s.ordering}>
+                {t('settings.plexUses', { name: s.provider.toUpperCase() })}
               </span>
+            )}
+            {selected.has(s.key) && (
+              <>
+                <span className="t-select-wrap">
+                  <select
+                    className="t-select py-1 text-xs"
+                    aria-label={t('settings.plexSource', { name: s.title })}
+                    value={sourceOf(s) === ANILIST_TVDB ? 'anilist' : sourceOf(s)}
+                    onChange={(e) => {
+                      const nextSrc = new Map(srcMap)
+                      // keep the aired-mapping choice when switching to AniList
+                      const keep = e.target.value === 'anilist' && sourceOf(s) === ANILIST_TVDB
+                      nextSrc.set(s.key, keep ? ANILIST_TVDB : e.target.value)
+                      writeSources(nextSrc)
+                    }}
+                  >
+                    <option value="anilist">AniList</option>
+                    <option value="tmdb">TMDB</option>
+                    {tvdb && s.type === 'show' && <option value="tvdb">TVDB</option>}
+                  </select>
+                </span>
+                {/* AniList for metadata, TVDB for the aired season mapping -
+                    the pairing endless series need */}
+                {tvdb && s.type === 'show' && sourceOf(s).startsWith('anilist') && (
+                  <label className="flex items-center gap-1.5 text-t-secondary">
+                    <input
+                      type="checkbox"
+                      checked={sourceOf(s) === ANILIST_TVDB}
+                      onChange={(e) => {
+                        const nextSrc = new Map(srcMap)
+                        nextSrc.set(s.key, e.target.checked ? ANILIST_TVDB : 'anilist')
+                        writeSources(nextSrc)
+                      }}
+                    />
+                    {t('settings.plexAiredMapping')}
+                  </label>
+                )}
+              </>
             )}
           </li>
         ))}

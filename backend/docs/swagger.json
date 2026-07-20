@@ -1346,6 +1346,10 @@
             },
             "api.plexSuggestion": {
                 "properties": {
+                    "airedMapping": {
+                        "description": "AiredMapping: the library pairs AniList metadata with TVDB's aired\nseason mapping, so a watch created from this suggestion starts with it",
+                        "type": "boolean"
+                    },
                     "candidates": {
                         "items": {
                             "$ref": "#/components/schemas/api.plexCandidate"
@@ -1377,6 +1381,10 @@
                     "source": {
                         "description": "\"\" = anilist, else tmdb:tv | tmdb:movie | tvdb",
                         "type": "string"
+                    },
+                    "tvdbId": {
+                        "description": "series id for the rename profile",
+                        "type": "integer"
                     },
                     "year": {
                         "type": "integer"
@@ -2040,6 +2048,14 @@
                         "type": "string"
                     },
                     "key": {
+                        "type": "string"
+                    },
+                    "ordering": {
+                        "description": "raw showOrdering value, for the UI hint",
+                        "type": "string"
+                    },
+                    "provider": {
+                        "description": "Provider is which catalog Plex itself uses for this library (\"tvdb\" |\n\"tmdb\" | \"\"), derived from its episode ordering. The modern Plex agent\nlooks the same for every library and every show carries tvdb, tmdb and\nimdb guids alike, so the ordering is the only thing that tells them\napart.",
                         "type": "string"
                     },
                     "title": {
