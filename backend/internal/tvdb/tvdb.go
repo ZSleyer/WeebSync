@@ -48,6 +48,13 @@ func (c *Client) key() string {
 // Enabled reports whether a TVDB key is configured.
 func (c *Client) Enabled() bool { return c.key() != "" }
 
+// Ping checks the configured key by logging in. force skips the token cache,
+// so the settings page can re-test after the key changed.
+func (c *Client) Ping(ctx context.Context, force bool) error {
+	_, err := c.authToken(ctx, force)
+	return err
+}
+
 // authToken returns a bearer token, logging in when the cached one is missing
 // or older than 24h. TVDB tokens live ~1 month; we refresh well within that.
 func (c *Client) authToken(ctx context.Context, force bool) (string, error) {
