@@ -5,8 +5,10 @@ package push
 import (
 	"database/sql"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/SherClockHolmes/webpush-go"
@@ -64,6 +66,21 @@ func (s *Service) Unsubscribe(userID int64, endpoint string) error {
 	return err
 }
 
+// endpointHost keeps the push service out of the log without the endpoint
+// itself - the path carries the subscription secret.
+func endpointHost(endpoint string) string {
+	if u, err := url.Parse(endpoint); err == nil {
+		return u.Hostname()
+	}
+	return "?"
+}
+
+// oneLine strips CR/LF so a push service's response body cannot forge log
+// lines.
+func oneLine(s string) string {
+	return strings.NewReplacer("\r", " ", "\n", " ").Replace(strings.TrimSpace(s))
+}
+
 // Notification is what the service worker renders. Tag lets the browser
 // replace an earlier notification of the same kind instead of stacking them,
 // URL is where a click lands (the app root when empty).
@@ -105,6 +122,16 @@ func (s *Service) Notify(userID int64, n Notification) {
 		if err != nil {
 			slog.Warn("push send", "err", err)
 			continue
+		}
+		// a rejected push is otherwise invisible: the browser simply stays
+		// quiet, and only the push service knows why (a bad VAPID subject and
+		// an oversized payload both answer 4xx, not an error)
+		if resp.StatusCode >= 300 {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			slog.Warn("push rejected", "status", resp.StatusCode,
+				"host", endpointHost(x.endpoint), "body", oneLine(string(body)))
+		} else {
+			slog.Debug("push sent", "status", resp.StatusCode, "host", endpointHost(x.endpoint))
 		}
 		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
 			s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ?`, x.endpoint)
