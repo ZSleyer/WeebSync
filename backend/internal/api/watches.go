@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -715,8 +716,14 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		if it.Subfolder {
 			local = path.Join(it.LocalPath, path.Base(it.RemotePath))
 		}
-		it.LocalFiles = s.countVideos(local, it.FromEpisode)
-		it.Missing = missingEpisodes(s.localEpisodeNums(local, it.FromEpisode))
+		// fromEpisode scopes a single shared-season folder to one part; an
+		// aired-mapping watch spans whole seasons, so that filter doesn't apply.
+		minEp := it.FromEpisode
+		if it.AiredMapping {
+			minEp = 0
+		}
+		it.LocalFiles = s.countVideos(local, minEp)
+		it.Missing = missingEpisodes(s.localEpisodeNums(local, minEp))
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
@@ -747,7 +754,10 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			if start < 1 {
 				start = 1
 			}
-			if aired := it.Media.NextAiring.Episode + offset - start; aired > it.LocalFiles {
+			// Behind counts aired-but-not-local against AniList's absolute
+			// numbering; meaningless for an aired-mapping watch, which tracks a
+			// rolling window of an endless series, not the full back catalogue.
+			if aired := it.Media.NextAiring.Episode + offset - start; aired > it.LocalFiles && !it.AiredMapping {
 				it.Behind = aired - it.LocalFiles
 			}
 		}
@@ -772,6 +782,12 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 }
 
 var epNumRe = regexp.MustCompile(`(?i)S\d+E(\d+)`)
+
+// epSeasonRe captures both season and episode, so gap detection can scope
+// episode numbers per season (an aired-mapping watch spans many seasons, each
+// restarting at E01 - a flat span would report every cross-season number as a
+// bogus gap).
+var epSeasonRe = regexp.MustCompile(`(?i)S(\d+)E(\d+)`)
 
 // countVideos counts local video files. When minEp > 0, only files whose
 // SxxEyy episode number is >= minEp count - for watches that share a season
@@ -815,13 +831,14 @@ func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
 		if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 			return nil
 		}
-		m := epNumRe.FindStringSubmatch(d.Name())
+		m := epSeasonRe.FindStringSubmatch(d.Name())
 		if m == nil {
 			return nil
 		}
-		ep, _ := strconv.Atoi(m[1])
+		se, _ := strconv.Atoi(m[1])
+		ep, _ := strconv.Atoi(m[2])
 		if ep >= minEp {
-			nums[ep] = true
+			nums[se*1000+ep] = true // season-encoded so gaps stay per-season
 		}
 		return nil
 	})
@@ -830,27 +847,40 @@ func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
 
 // missingEpisodes returns the gaps WITHIN the contiguous span of local episodes,
 // i.e. between the lowest and highest number present (e.g. {1,2,3,5} → [4]).
-// Only holes inside what you already have count - episodes before the first or
-// after the last are a partial start / a Behind tail, not gaps.
+// Only holes inside what you already have count - a partial start or a Behind
+// tail are not gaps. nums are season-encoded (season*1000+episode) and gaps are
+// computed within each season's own lo..hi span, so a multi-season (aired-
+// mapping) watch never reports the cross-season number range as missing.
 func missingEpisodes(nums map[int]bool) []int {
 	if len(nums) < 2 {
 		return nil
 	}
-	lo, hi := 1<<31, 0
-	for e := range nums {
-		if e < lo {
-			lo = e
+	bySeason := map[int]map[int]bool{}
+	for k := range nums {
+		se, ep := k/1000, k%1000
+		if bySeason[se] == nil {
+			bySeason[se] = map[int]bool{}
 		}
-		if e > hi {
-			hi = e
-		}
+		bySeason[se][ep] = true
 	}
 	var missing []int
-	for e := lo + 1; e < hi; e++ {
-		if !nums[e] {
-			missing = append(missing, e)
+	for _, eps := range bySeason {
+		lo, hi := 1<<31, 0
+		for e := range eps {
+			if e < lo {
+				lo = e
+			}
+			if e > hi {
+				hi = e
+			}
+		}
+		for e := lo + 1; e < hi; e++ {
+			if !eps[e] {
+				missing = append(missing, e)
+			}
 		}
 	}
+	sort.Ints(missing)
 	return missing
 }
 
