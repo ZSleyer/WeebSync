@@ -478,11 +478,13 @@ function PlexSection() {
       mediaId: 0,
       mediaSource: 'anilist',
       fromEpisode: 0,
-      airedMapping: false,
-      renameProvider: '',
-      renameOrdering: '',
+      // the library said AniList metadata + TVDB aired mapping, so start the
+      // watch that way instead of making the user redo it in the dialog
+      airedMapping: !!s.airedMapping,
+      renameProvider: s.airedMapping ? 'tvdb' : '',
+      renameOrdering: s.airedMapping ? 'official' : '',
       renameTitleLang: '',
-      renameSeriesId: 0,
+      renameSeriesId: s.airedMapping ? (s.tvdbId ?? 0) : 0,
       wantDub: '',
       wantSub: '',
     }

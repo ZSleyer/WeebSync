@@ -580,6 +580,8 @@
     "anilistPinHint": "Set the AniList app redirect URL to https://anilist.co/api/v2/oauth/pin, authorize, and paste the shown token here.",
     "plexShows": "Shows",
     "plexSource": "Metadata source for {{name}}",
+    "plexUses": "Plex: {{name}}",
+    "plexAiredMapping": "TVDB aired mapping",
     "instance": "Instance",
     "baseUrl": "Instance URL",
     "baseUrlHint": "Public address of this WeebSync instance - used for links in emails (verification, dashboard). Empty = derived from the OIDC redirect URL.",

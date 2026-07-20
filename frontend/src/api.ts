@@ -151,7 +151,9 @@ export interface PlexSuggestions {
     library: string // Plex library (section) title, for grouping
     sequel: Media
     chainNeed: number
-    source?: string // "" = anilist, else "tmdb:tv" | "tmdb:movie"
+    source?: string // "" = anilist, else "tmdb:tv" | "tmdb:movie" | "tvdb"
+    airedMapping?: boolean // library pairs AniList metadata with TVDB mapping
+    tvdbId?: number // series id for the rename profile
     candidates: { serverId: number; serverName: string; path: string }[]
   }[]
 }

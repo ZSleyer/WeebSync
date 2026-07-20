@@ -30,6 +30,13 @@ type Section struct {
 	Type  string `json:"type"` // movie | show | artist
 	Title string `json:"title"`
 	Agent string `json:"agent"` // e.g. tv.plex.agents.series | tv.plex.agents.movie
+	// Provider is which catalog Plex itself uses for this library ("tvdb" |
+	// "tmdb" | ""), derived from its episode ordering. The modern Plex agent
+	// looks the same for every library and every show carries tvdb, tmdb and
+	// imdb guids alike, so the ordering is the only thing that tells them
+	// apart.
+	Provider string `json:"provider"`
+	Ordering string `json:"ordering"` // raw showOrdering value, for the UI hint
 	// filesystem roots of the library, for mapping a local path to its library
 	Locations []string `json:"-"`
 }
@@ -96,9 +103,34 @@ func (c *Client) Sections() ([]Section, error) {
 	}
 	out := make([]Section, 0, len(resp.MediaContainer.Directory))
 	for _, d := range resp.MediaContainer.Directory {
-		out = append(out, d.toSection())
+		sec := d.toSection()
+		if sec.Type == "show" {
+			// one extra request per show library (there are a handful) to learn
+			// which catalog Plex uses here
+			if ord, err := c.SectionPreferences(sec.Key); err == nil {
+				sec.Ordering, sec.Provider = ord.Raw, ord.Provider
+			}
+		}
+		if sec.Provider == "" {
+			sec.Provider = agentProvider(sec.Agent)
+		}
+		out = append(out, sec)
 	}
 	return out, nil
+}
+
+// agentProvider recognises the legacy agents, which name their catalog
+// outright ("com.plexapp.agents.thetvdb", HAMA). The modern agents don't, so
+// those fall back to the episode ordering.
+func agentProvider(agent string) string {
+	a := strings.ToLower(agent)
+	switch {
+	case strings.Contains(a, "thetvdb"), strings.Contains(a, "hama"):
+		return "tvdb"
+	case strings.Contains(a, "themoviedb"):
+		return "tmdb"
+	}
+	return ""
 }
 
 // LibraryForPath returns the section whose filesystem root is the longest
@@ -261,6 +293,32 @@ type Ordering struct {
 	Provider string // tvdb | tmdb | ""
 	Order    string // official | dvd | absolute | aired | ""
 	Language string // e.g. de-DE, ja-JP; "" = library default
+	Raw      string // the untranslated showOrdering value, for display
+}
+
+// SectionPreferences reads a library's own episode ordering. Shows inherit it
+// unless they override it, so this is the library-wide answer to "which
+// catalog does Plex use here".
+func (c *Client) SectionPreferences(key string) (Ordering, error) {
+	var resp struct {
+		MediaContainer struct {
+			Setting []struct {
+				ID    string `json:"id"`
+				Value string `json:"value"`
+			} `json:"Setting"`
+		} `json:"MediaContainer"`
+	}
+	if err := c.get("/library/sections/"+url.PathEscape(key)+"/prefs", &resp); err != nil {
+		return Ordering{}, err
+	}
+	var o Ordering
+	for _, s := range resp.MediaContainer.Setting {
+		if s.ID == "showOrdering" {
+			o.Raw = s.Value
+			o.Provider, o.Order = showOrderingMap(s.Value)
+		}
+	}
+	return o, nil
 }
 
 // showOrderingMap turns Plex's showOrdering enum into a provider + episode
@@ -305,6 +363,7 @@ func (c *Client) ShowPreferences(ratingKey string) (Ordering, error) {
 	for _, s := range resp.MediaContainer.Metadata[0].Preferences.Setting {
 		switch s.ID {
 		case "showOrdering":
+			o.Raw = s.Value
 			o.Provider, o.Order = showOrderingMap(s.Value)
 		case "languageOverride":
 			o.Language = s.Value
