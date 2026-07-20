@@ -858,6 +858,9 @@ func missingEpisodes(nums map[int]bool) []int {
 	bySeason := map[int]map[int]bool{}
 	for k := range nums {
 		se, ep := k/1000, k%1000
+		if se == 0 {
+			continue // season 0 = specials; their numbering is inherently sparse
+		}
 		if bySeason[se] == nil {
 			bySeason[se] = map[int]bool{}
 		}
