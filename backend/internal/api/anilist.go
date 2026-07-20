@@ -73,6 +73,9 @@ type catalogItem struct {
 	// Kind: heuristic movie/series classification, so films mixed into a series
 	// library are told apart. "" when nothing is conclusive.
 	Kind string `json:"kind,omitempty"` // movie | series
+	// Local: what the folder holds on disk. Only set for the local catalog,
+	// where the question is "what do I have", not "what can I fetch".
+	Local *LocalStat `json:"local,omitempty"`
 }
 
 // folderKind classifies a catalog folder as a film or a series. The primary
@@ -452,24 +455,37 @@ type catalogResponse struct {
 func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
-	client, rootPath, err := s.DialServer(u.ID, serverID)
-	if err != nil {
-		status := http.StatusBadGateway
-		if err == errNotFound {
-			status = http.StatusNotFound
-		}
-		writeErr(w, status, err.Error())
-		return
-	}
-	defer client.Close()
 	dir := r.URL.Query().Get("path")
-	if dir == "" {
-		dir = rootPath
-	}
-	entries, err := client.List(dir)
-	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
-		return
+	var entries []remote.Entry
+	if serverID == localServerID {
+		// id 0 is the local filesystem: same scopes, matches and background
+		// jobs as a remote server, just a different listing source
+		var err error
+		if dir == "" {
+			dir = "/" // scopes key on a non-empty path
+		}
+		if entries, err = s.listLocal(dir); err != nil {
+			writeErr(w, http.StatusNotFound, err.Error())
+			return
+		}
+	} else {
+		client, rootPath, err := s.DialServer(u.ID, serverID)
+		if err != nil {
+			status := http.StatusBadGateway
+			if err == errNotFound {
+				status = http.StatusNotFound
+			}
+			writeErr(w, status, err.Error())
+			return
+		}
+		defer client.Close()
+		if dir == "" {
+			dir = rootPath
+		}
+		if entries, err = client.List(dir); err != nil {
+			writeErr(w, http.StatusBadGateway, err.Error())
+			return
+		}
 	}
 
 	scope := s.scopeFor(serverID, dir)
@@ -480,6 +496,19 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		}
 		item := catalogItem{Entry: e}
 		item.Kind = s.folderKind(serverID, e.Path, e.Name)
+		if serverID == localServerID {
+			if abs, aerr := s.safeLocal(e.Path); aerr == nil {
+				st := s.localStat(abs)
+				item.Local = &st
+				// no remote index locally: the file counts classify instead
+				if item.Kind == "" && st.Videos > 0 {
+					item.Kind = "series"
+					if st.Videos == 1 {
+						item.Kind = "movie"
+					}
+				}
+			}
+		}
 		if scope == "" {
 			// no metadata source chosen for this path yet: show the plain
 			// structure and wait for the user to pick one (persisted mark)
@@ -500,6 +529,16 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 			WHERE server_id = ? AND folder = ?`, serverID, e.Path).Scan(&mediaID, &manual, &rowSource)
 		switch {
 		case err != nil || rowSource != itemSource:
+			// an identically named folder elsewhere (another server, or the
+			// local copy of what was synced from one) already resolved to a
+			// media entry - adopt it instead of searching for the same name
+			// again
+			if id, ok := s.reuseMatch(serverID, e.Name, itemSource); ok {
+				s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source)
+					VALUES (?, ?, ?, 0, ?)`, serverID, e.Path, id, itemSource)
+				item.Media, item.Pending = s.sourceMedia(itemSource, id)
+				break
+			}
 			// never looked up, or the folder's scope changed since the match
 			// was stored: match in the background, show the folder now
 			item.Pending = true
@@ -520,6 +559,38 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		Inherited: scope != "" && ownKind == "",
 		Items:     items,
 	})
+}
+
+// reuseMatch looks for a folder with the same base name that another source
+// already matched against the same provider. Local folders are usually copies
+// of remote ones, so this saves the identical search - and searching the same
+// name would return the same media anyway.
+//
+// Adopted only when every existing match agrees: two sources disagreeing about
+// the same folder name means at least one is wrong, and a fresh search beats
+// spreading a bad match. Returns 0/false when nothing fits.
+func (s *Server) reuseMatch(serverID int64, name, source string) (int, bool) {
+	suffix := "/" + name
+	// suffix compare instead of LIKE: folder names contain % and _ often
+	// enough that escaping would be the fiddlier option
+	rows, err := s.DB.Query(`SELECT DISTINCT media_id FROM catalog_matches
+		WHERE source = ? AND media_id != 0 AND server_id != ?
+		  AND substr(folder, length(folder) - length(?) + 1) = ?
+		LIMIT 2`, source, serverID, suffix, suffix)
+	if err != nil {
+		return 0, false
+	}
+	defer rows.Close()
+	var ids []int
+	for rows.Next() {
+		var id int
+		rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	if len(ids) != 1 {
+		return 0, false
+	}
+	return ids[0], true
 }
 
 // queueScopedMatch dispatches folder matching to the scope's metadata source.
@@ -572,15 +643,22 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	// ownership check doubles as root path lookup (empty path = root)
-	var rootPath string
-	if err := s.DB.QueryRow(`SELECT root_path FROM servers WHERE id = ? AND user_id = ?`,
-		serverID, u.ID).Scan(&rootPath); err != nil {
-		writeErr(w, http.StatusNotFound, "server not found")
-		return
-	}
-	if in.Path == "" {
-		in.Path = rootPath
+	// ownership check doubles as root path lookup (empty path = root); the
+	// local pseudo server has neither, its root is "/"
+	if serverID == localServerID {
+		if in.Path == "" {
+			in.Path = "/"
+		}
+	} else {
+		var rootPath string
+		if err := s.DB.QueryRow(`SELECT root_path FROM servers WHERE id = ? AND user_id = ?`,
+			serverID, u.ID).Scan(&rootPath); err != nil {
+			writeErr(w, http.StatusNotFound, "server not found")
+			return
+		}
+		if in.Path == "" {
+			in.Path = rootPath
+		}
 	}
 	if in.Path == "" || path.Clean(in.Path) != in.Path {
 		writeErr(w, http.StatusBadRequest, "invalid path")

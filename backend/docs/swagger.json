@@ -209,6 +209,18 @@
                 },
                 "type": "object"
             },
+            "api.DeleteLocalRequest": {
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    },
+                    "recursive": {
+                        "description": "required to delete a non-empty directory",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
             "api.DownloadCreateRequest": {
                 "properties": {
                     "flat": {
@@ -337,6 +349,28 @@
                 },
                 "type": "object"
             },
+            "api.LocalStat": {
+                "description": "Local: what the folder holds on disk. Only set for the local catalog,\nwhere the question is \"what do I have\", not \"what can I fetch\".",
+                "properties": {
+                    "bytes": {
+                        "description": "total size",
+                        "type": "integer"
+                    },
+                    "files": {
+                        "description": "all files, at any depth",
+                        "type": "integer"
+                    },
+                    "modTime": {
+                        "description": "newest file, RFC3339, \"\" when empty",
+                        "type": "string"
+                    },
+                    "videos": {
+                        "description": "video files, at any depth",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "api.LocaleResponse": {
                 "properties": {
                     "locale": {
@@ -453,6 +487,19 @@
                     },
                     "needsVerification": {
                         "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "api.RenameLocalRequest": {
+                "properties": {
+                    "name": {
+                        "description": "new base name, no path separators",
+                        "type": "string"
+                    },
+                    "path": {
+                        "description": "entry to rename, under an allowed root",
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -1161,6 +1208,9 @@
                         "description": "Kind: heuristic movie/series classification, so films mixed into a series\nlibrary are told apart. \"\" when nothing is conclusive.",
                         "type": "string"
                     },
+                    "local": {
+                        "$ref": "#/components/schemas/api.LocalStat"
+                    },
                     "media": {
                         "$ref": "#/components/schemas/anilist.Media"
                     },
@@ -1269,6 +1319,31 @@
                 },
                 "type": "object"
             },
+            "api.plexMeResponse": {
+                "properties": {
+                    "configured": {
+                        "type": "boolean"
+                    },
+                    "connected": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    },
+                    "server": {
+                        "description": "friendly name of the server",
+                        "type": "string"
+                    },
+                    "username": {
+                        "description": "linked plex.tv account",
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.plexSuggestion": {
                 "properties": {
                     "candidates": {
@@ -1300,7 +1375,7 @@
                         "type": "string"
                     },
                     "source": {
-                        "description": "\"\" = anilist, else tmdb:tv | tmdb:movie",
+                        "description": "\"\" = anilist, else tmdb:tv | tmdb:movie | tvdb",
                         "type": "string"
                     },
                     "year": {
@@ -1792,6 +1867,14 @@
                     "connected": {
                         "type": "boolean"
                     },
+                    "error": {
+                        "description": "why the key was rejected",
+                        "type": "string"
+                    },
+                    "keyValid": {
+                        "description": "the key was accepted by TMDB",
+                        "type": "boolean"
+                    },
                     "username": {
                         "type": "string"
                     }
@@ -1850,6 +1933,20 @@
             "api.tokenResponse": {
                 "properties": {
                     "token": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.tvdbMeResponse": {
+                "properties": {
+                    "configured": {
+                        "type": "boolean"
+                    },
+                    "connected": {
+                        "type": "boolean"
+                    },
+                    "error": {
                         "type": "string"
                     }
                 },
@@ -4969,6 +5066,90 @@
             }
         },
         "/api/browse/local": {
+            "delete": {
+                "description": "Deletes a file or directory under the download root. A non-empty directory needs recursive=true. Admin only.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.DeleteLocalRequest",
+                                        "summary": "body",
+                                        "description": "Entry path and recursive flag"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Entry path and recursive flag",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Delete local entry",
+                "tags": [
+                    "Browse"
+                ]
+            },
             "get": {
                 "description": "Lists entries in a directory under the download root.",
                 "parameters": [
@@ -5108,6 +5289,102 @@
                     }
                 ],
                 "summary": "Create local directory",
+                "tags": [
+                    "Browse"
+                ]
+            }
+        },
+        "/api/browse/local/rename": {
+            "post": {
+                "description": "Renames a file or directory under the download root. Admin only.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.RenameLocalRequest",
+                                        "summary": "body",
+                                        "description": "Entry path and new name"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Entry path and new name",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Rename local entry",
                 "tags": [
                     "Browse"
                 ]
@@ -6113,6 +6390,32 @@
                     }
                 ],
                 "summary": "Media reviews",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/plex/me": {
+            "get": {
+                "description": "Report whether the configured Plex URL and token reach a server, including its name and the linked account.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.plexMeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Plex connection status",
                 "tags": [
                     "Suggestions"
                 ]
@@ -8291,6 +8594,42 @@
                     }
                 ],
                 "summary": "TMDB suggestions",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/tvdb/me": {
+            "get": {
+                "description": "Report whether the configured TheTVDB API key can log in.",
+                "parameters": [
+                    {
+                        "description": "Bypass the cached token and log in again",
+                        "in": "query",
+                        "name": "force",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.tvdbMeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "TVDB connection status",
                 "tags": [
                     "Suggestions"
                 ]

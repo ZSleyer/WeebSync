@@ -51,6 +51,11 @@ type Server struct {
 	// pending download-notification digests: "userID|category" → items
 	digestMu sync.Mutex
 	digest   map[string][]digestItem
+
+	// per-folder disk stats for the local catalog, short-lived so a page of
+	// cards costs one walk per folder and not one per poll
+	statMu    sync.Mutex
+	statCache map[string]statEntry
 }
 
 // adminOnly guards admin-only endpoints (settings mutations, user management).

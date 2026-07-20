@@ -70,6 +70,15 @@ export interface CatalogItem {
   source?: string // anilist | tmdb:tv | tmdb:movie
   pending?: boolean // metadata still resolving in the background
   kind?: string // 'movie' | 'series' heuristic classification, '' = unknown
+  local?: LocalStat // only in the local catalog: what the folder holds on disk
+}
+
+// LocalStat: contents of a local folder, counted at any depth.
+export interface LocalStat {
+  videos: number
+  files: number
+  bytes: number
+  modTime?: string
 }
 
 export interface CatalogResponse {
