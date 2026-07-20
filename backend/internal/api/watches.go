@@ -137,7 +137,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 			return
 		case <-tick.C:
 			interval := time.Duration(s.watchInterval()) * time.Minute
-			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, from_episode, last_check FROM watches`)
+			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, from_episode, aired_mapping, last_check FROM watches`)
 			if err != nil {
 				continue
 			}
@@ -147,11 +147,12 @@ func (s *Server) WatchLoop(ctx context.Context) {
 				remotePath, localPath, template, lastCheck string
 				subfolder                                  bool
 				fromEpisode                                int
+				aired                                      bool
 			}
 			var cands []cand
 			for rows.Next() {
 				var c cand
-				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.fromEpisode, &c.lastCheck)
+				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.fromEpisode, &c.aired, &c.lastCheck)
 				cands = append(cands, c)
 			}
 			rows.Close()
@@ -166,8 +167,12 @@ func (s *Server) WatchLoop(ctx context.Context) {
 				if c.subfolder {
 					local = path.Join(c.localPath, path.Base(c.remotePath))
 				}
-				have := s.countVideos(local, c.fromEpisode)
-				if smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, now) {
+				minEp := c.fromEpisode
+				if c.aired {
+					minEp = 0
+				}
+				have := s.countVideos(local, minEp)
+				if smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.aired, now) {
 					s.runWatch(c.id)
 				}
 			}
@@ -196,12 +201,20 @@ func watchOffset(template string) int {
 // season-relative ones (rename template); fromEpisode is the part's first
 // local episode when it shares a season folder. haveEps is the count of the
 // part's local files, compared against how many of its episodes have aired.
-func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset, fromEpisode int, now time.Time) bool {
+func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset, fromEpisode int, aired bool, now time.Time) bool {
 	if !intervalDue {
 		return false
 	}
 	if media == nil || media.NextAiring == nil {
 		return true
+	}
+	if aired {
+		// endless aired-mapping watch: the local file count spans many seasons
+		// and isn't comparable to AniList's absolute aired numbering, so the
+		// count check below would never register "caught up". Treat it as caught
+		// up (waiting) while the next episode is still unreleased - each sync
+		// grabs whatever the remote offers, and the release slot resumes checks.
+		return now.Unix() >= media.NextAiring.AiringAt
 	}
 	start := fromEpisode
 	if start < 1 {
@@ -747,7 +760,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 				it.NextEpisodeAbs = it.Media.NextAiring.Episode // show absolute in parens
 			}
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
-			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, time.Now())
+			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, it.AiredMapping, time.Now())
 			// aired per AniList but not yet local - the source release can lag
 			// the original broadcast; auto-sync keeps checking and grabs them
 			start := it.FromEpisode
