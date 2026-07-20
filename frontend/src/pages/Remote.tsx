@@ -22,8 +22,11 @@ export default function Remote() {
   const [localPath, setLocalPath] = useState('')
   const [selection, setSelection] = useState<Entry | null>(null)
   const [notice, setNotice] = useState('')
-  const [watchOpen, setWatchOpen] = useState(false)
-  const [syncOpen, setSyncOpen] = useState(false)
+  // the dialogs carry their own entry: a catalog card acts on itself without
+  // going through the selection, which would pop the action bar open as a
+  // second copy of the same two buttons
+  const [watchEntry, setWatchEntry] = useState<Entry | null>(null)
+  const [syncEntry, setSyncEntry] = useState<Entry | null>(null)
   const [flat, setFlat] = useState(false)
   const [query, setQuery] = useState('')
   // preference: land in catalog view automatically for catalog-managed folders
@@ -54,13 +57,12 @@ export default function Remote() {
 
   const [lastIds, setLastIds] = useState<number[]>([])
   const enqueue = useMutation({
-    // entry overrides the panel selection (catalog card sync button)
-    mutationFn: (entry?: Entry) =>
+    mutationFn: (entry: Entry) =>
       api.post<{ queued: number; ids: number[] }>('/api/downloads', {
         serverId: active,
-        remotePath: (entry ?? selection!).path,
+        remotePath: entry.path,
         localPath,
-        flat: flat && !!(entry ?? selection)?.isDir,
+        flat: flat && entry.isDir,
       }),
     onSuccess: (r) => {
       setNotice(t('remote.queued', { count: r.queued }))
@@ -183,14 +185,8 @@ export default function Remote() {
               }}
               onSelect={setSelection}
               selected={selection?.path}
-              onSync={(e) => {
-                setSelection(e)
-                setSyncOpen(true)
-              }}
-              onWatch={(e) => {
-                setSelection(e)
-                setWatchOpen(true)
-              }}
+              onSync={setSyncEntry}
+              onWatch={setWatchEntry}
               onOpenFiles={(p) => {
                 // ponytail: the auto-open preference re-opens the catalog if the
                 // target folder carries a mark of its own; marks no longer
@@ -233,10 +229,10 @@ export default function Remote() {
           )}
           {selection && (
             <>
-              <button className="t-btn t-btn--sm" disabled={!selection.isDir} onClick={() => setWatchOpen(true)}>
+              <button className="t-btn t-btn--sm" disabled={!selection.isDir} onClick={() => setWatchEntry(selection)}>
                 {t('watch.add')}
               </button>
-              <button className="t-btn t-btn--primary t-btn--sm t-cut" onClick={() => setSyncOpen(true)}>
+              <button className="t-btn t-btn--primary t-btn--sm t-cut" onClick={() => setSyncEntry(selection)}>
                 {t('remote.syncOpen')}
               </button>
             </>
@@ -244,27 +240,27 @@ export default function Remote() {
         </div>
       )}
 
-      {syncOpen && selection && (
+      {syncEntry && (
         <SyncDialog
-          entry={selection}
+          entry={syncEntry}
           localPath={localPath}
           onLocalPath={setLocalPath}
           flat={flat}
           onFlat={setFlat}
           pending={enqueue.isPending}
           onConfirm={() => {
-            setSyncOpen(false)
-            enqueue.mutate(undefined)
+            enqueue.mutate(syncEntry)
+            setSyncEntry(null)
           }}
-          onClose={() => setSyncOpen(false)}
+          onClose={() => setSyncEntry(null)}
         />
       )}
-      {watchOpen && selection && (
+      {watchEntry && (
         <WatchDialog
-          title={t('watch.addTitle', { name: selection.name })}
+          title={t('watch.addTitle', { name: watchEntry.name })}
           serverId={active}
           initial={{
-            remotePath: selection.path,
+            remotePath: watchEntry.path,
             localPath,
             mode: 'template',
             template: '',
@@ -288,7 +284,7 @@ export default function Remote() {
             await api.post('/api/watches', { serverId: active, ...f })
             setNotice(t('watch.created'))
           }}
-          onClose={() => setWatchOpen(false)}
+          onClose={() => setWatchEntry(null)}
         />
       )}
     </div>
