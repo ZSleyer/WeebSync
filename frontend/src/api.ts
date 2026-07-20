@@ -83,7 +83,6 @@ export interface LocalStat {
 
 export interface CatalogResponse {
   scope: string // '' = anime (AniList), 'tv' | 'movie' = TMDB
-  inherited: boolean // scope comes from a parent folder mark
   items: CatalogItem[]
 }
 

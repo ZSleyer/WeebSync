@@ -33,11 +33,13 @@ func TestScopeForAndHandler(t *testing.T) {
 	}
 	doReq(mux, "PUT", "/api/servers/1/catalog/scope", `{"path":"/x/Serien/Filmordner","kind":"movie"}`, cookie)
 
-	// inheritance: deepest mark wins, unrelated paths stay anime
+	// a mark applies to the folder it was set on and nowhere else: subfolders
+	// are listings of their own and stay unmarked until the user says otherwise
 	cases := map[string]string{
 		"/x/Serien":                     "tv",
-		"/x/Serien/Breaking Example":    "tv",
-		"/x/Serien/Filmordner/Ein Film": "movie",
+		"/x/Serien/Filmordner":          "movie",
+		"/x/Serien/Breaking Example":    "", // no inheritance downwards
+		"/x/Serien/Filmordner/Ein Film": "",
 		"/x/SerienNicht":                "", // no false prefix match
 		"/x/Anderes":                    "",
 	}
@@ -47,10 +49,23 @@ func TestScopeForAndHandler(t *testing.T) {
 		}
 	}
 
-	// clearing restores inheritance from above
+	// clearing removes the mark without falling back to the parent's
 	doReq(mux, "PUT", "/api/servers/1/catalog/scope", `{"path":"/x/Serien/Filmordner","kind":""}`, cookie)
-	if got := s.scopeFor(1, "/x/Serien/Filmordner/Ein Film"); got != "tv" {
-		t.Errorf("after clear: got %q, want tv", got)
+	if got := s.scopeFor(1, "/x/Serien/Filmordner"); got != "" {
+		t.Errorf("after clear: got %q, want empty", got)
+	}
+
+	// a film inside a tv library is matched against films - and the manual
+	// correction must store the same source tag the listing reads back, or the
+	// row is dropped as foreign on the next catalog load
+	if got := scopeForItem("tv", "movie"); got != "movie" {
+		t.Errorf("scopeForItem(tv, movie) = %q, want movie", got)
+	}
+	if got := sourceForScope(scopeForItem("tv", "series")); got != "tmdb:tv" {
+		t.Errorf("series in tv scope = %q, want tmdb:tv", got)
+	}
+	if got := sourceForScope(scopeForItem("anime", "movie")); got != "anilist" {
+		t.Errorf("movie in anime scope = %q, want anilist", got)
 	}
 
 	// foreign user cannot mark
