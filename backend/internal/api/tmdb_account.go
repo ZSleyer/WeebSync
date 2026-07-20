@@ -132,8 +132,10 @@ func (s *Server) handleTmdbDisconnect(w http.ResponseWriter, r *http.Request) {
 // username is present only when an account is connected.
 type tmdbMeResponse struct {
 	Configured bool   `json:"configured"` // TMDB API key is set
+	KeyValid   bool   `json:"keyValid"`   // the key was accepted by TMDB
 	Connected  bool   `json:"connected"`
 	Username   string `json:"username,omitempty"`
+	Error      string `json:"error,omitempty"` // why the key was rejected
 }
 
 // handleTmdbMe reports the linked account for the settings UI.
@@ -147,11 +149,20 @@ type tmdbMeResponse struct {
 //	@Router			/api/tmdb/me [get]
 func (s *Server) handleTmdbMe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	out := map[string]any{"configured": s.Tmdb.Enabled(), "connected": false}
+	out := tmdbMeResponse{Configured: s.Tmdb.Enabled()}
+	if out.Configured {
+		// the key works even without a linked account (trending, matching),
+		// so its state is worth showing on its own
+		if err := s.Tmdb.Ping(r.Context()); err != nil {
+			out.Error = err.Error()
+		} else {
+			out.KeyValid = true
+		}
+	}
 	var name string
 	if err := s.DB.QueryRow(`SELECT tmdb_username FROM tmdb_accounts WHERE user_id = ?`, u.ID).Scan(&name); err == nil {
-		out["connected"] = true
-		out["username"] = name
+		out.Connected = true
+		out.Username = name
 	}
 	writeJSON(w, http.StatusOK, out)
 }

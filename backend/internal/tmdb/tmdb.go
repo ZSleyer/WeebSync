@@ -55,6 +55,15 @@ func (c *Client) key() string {
 // Enabled reports whether a TMDB key is configured.
 func (c *Client) Enabled() bool { return c.key() != "" }
 
+// Ping validates the configured key against TMDB's authentication endpoint,
+// so the settings page can show whether the key actually works.
+func (c *Client) Ping(ctx context.Context) error {
+	var out struct {
+		Success bool `json:"success"`
+	}
+	return c.get(ctx, "/authentication", nil, &out)
+}
+
 // cacheTTL is the response-cache lifetime: the ttl_tmdb_h setting in hours,
 // default 24 (read per call so changes take effect immediately).
 func (c *Client) cacheTTL() time.Duration {

@@ -179,6 +179,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/anilist/search", authed(http.HandlerFunc(s.handleAnilistSearch)))
 	mux.Handle("GET /api/anilist/media/{id}", authed(http.HandlerFunc(s.handleAnilistMedia)))
 	mux.Handle("GET /api/media/reviews", authed(http.HandlerFunc(s.handleMediaReviews)))
+	mux.Handle("GET /api/plex/me", authed(http.HandlerFunc(s.handlePlexMe)))
 	mux.Handle("GET /api/plex/sections", authed(http.HandlerFunc(s.handlePlexSections)))
 	mux.Handle("GET /api/plex/suggestions", authed(http.HandlerFunc(s.handlePlexSuggestions)))
 
@@ -199,6 +200,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/tmdb/media", authed(http.HandlerFunc(s.handleTmdbMedia)))
 	mux.Handle("GET /api/tvdb/search", authed(http.HandlerFunc(s.handleTvdbSearch)))
 	mux.Handle("GET /api/tvdb/media", authed(http.HandlerFunc(s.handleTvdbMedia)))
+	mux.Handle("GET /api/tvdb/me", authed(http.HandlerFunc(s.handleTvdbMe)))
 	mux.Handle("GET /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbConnect)))
 	mux.Handle("GET /api/tmdb/callback", authed(http.HandlerFunc(s.handleTmdbCallback)))
 	mux.Handle("DELETE /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbDisconnect)))

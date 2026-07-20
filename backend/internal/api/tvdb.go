@@ -54,6 +54,39 @@ func (s *Server) queueTvdbFetch(id int) {
 	})
 }
 
+// tvdbMeResponse is the connection status shown on the settings page. TVDB's
+// v4 login returns a bare token, so there is no account name to report.
+type tvdbMeResponse struct {
+	Configured bool   `json:"configured"`
+	Connected  bool   `json:"connected"`
+	Error      string `json:"error,omitempty"`
+}
+
+// handleTvdbMe checks the configured API key by logging in. force=1 skips the
+// cached token, backing the "test connection" button. Always 200: a rejected
+// key is a status, not a request failure.
+//
+//	@Summary		TVDB connection status
+//	@Description	Report whether the configured TheTVDB API key can log in.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Param			force	query		bool	false	"Bypass the cached token and log in again"
+//	@Success		200		{object}	tvdbMeResponse
+//	@Security		CookieAuth
+//	@Router			/api/tvdb/me [get]
+func (s *Server) handleTvdbMe(w http.ResponseWriter, r *http.Request) {
+	if !s.Tvdb.Enabled() {
+		writeJSON(w, http.StatusOK, tvdbMeResponse{})
+		return
+	}
+	force := r.URL.Query().Get("force") != ""
+	if err := s.Tvdb.Ping(r.Context(), force); err != nil {
+		writeJSON(w, http.StatusOK, tvdbMeResponse{Configured: true, Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, tvdbMeResponse{Configured: true, Connected: true})
+}
+
 // handleTvdbSearch backs the match dialog for tvdb-scoped folders.
 // GET /api/tvdb/search?q=
 //

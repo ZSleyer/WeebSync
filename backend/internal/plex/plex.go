@@ -207,18 +207,33 @@ func (c *Client) Shows(sectionKey string) ([]Show, error) {
 	return shows, nil
 }
 
+// Identity is what the server root reports about itself: the machine id for
+// Plex Web deep links plus the display name, the linked plex.tv account and
+// the server version for the settings status line.
+type Identity struct {
+	MachineIdentifier string `json:"machineIdentifier"`
+	FriendlyName      string `json:"friendlyName"`
+	MyPlexUsername    string `json:"myPlexUsername"`
+	Version           string `json:"version"`
+}
+
+// Identity fetches the server root. A successful call doubles as the
+// connection check for the settings page: it needs a valid token.
+func (c *Client) Identity() (Identity, error) {
+	var resp struct {
+		MediaContainer Identity `json:"MediaContainer"`
+	}
+	if err := c.get("/", &resp); err != nil {
+		return Identity{}, err
+	}
+	return resp.MediaContainer, nil
+}
+
 // MachineID returns the server's machine identifier, needed for Plex Web
 // deep links.
 func (c *Client) MachineID() (string, error) {
-	var resp struct {
-		MediaContainer struct {
-			MachineIdentifier string `json:"machineIdentifier"`
-		} `json:"MediaContainer"`
-	}
-	if err := c.get("/", &resp); err != nil {
-		return "", err
-	}
-	return resp.MediaContainer.MachineIdentifier, nil
+	id, err := c.Identity()
+	return id.MachineIdentifier, err
 }
 
 // ShowDetail fetches one show's full metadata, including the storage
