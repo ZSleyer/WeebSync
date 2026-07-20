@@ -102,16 +102,47 @@ func (s *Server) handlePlexSections(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// sourceAnilistTvdb is the combined library source: AniList stays the metadata
+// provider (covers, sequel chains, episode counts), TVDB supplies the aired
+// season mapping endless series need. Per watch that pairing is already legal;
+// this is the library-level preselection for it.
+const sourceAnilistTvdb = "anilist+tvdb"
+
+// DefaultSectionSource is the preselected metadata source for a Plex library
+// that has no stored choice. Anime keeps AniList; everything else follows the
+// catalog Plex itself uses (from the library's episode ordering, falling back
+// to the agent name). An anime library ordered by TVDB gets the combined
+// source, so the aired mapping is prepared without losing AniList's chains.
+func DefaultSectionSource(sec plex.Section) string {
+	anime := strings.Contains(strings.ToLower(sec.Title), "anime")
+	switch {
+	// the aired mapping is a series concern, so films stay on plain AniList
+	case anime && sec.Provider == "tvdb" && sec.Type == "show":
+		return sourceAnilistTvdb
+	case anime:
+		return "anilist"
+	case sec.Type == "movie":
+		return "tmdb" // TVDB has no movies here, see tvdbTVSuggestions
+	case sec.Provider != "":
+		return sec.Provider
+	}
+	return "tmdb"
+}
+
 type plexSuggestion struct {
-	ShowTitle  string          `json:"showTitle"`
-	Year       int             `json:"year"`
-	LeafCount  int             `json:"leafCount"`
-	Folder     string          `json:"folder"`  // Plex storage folder of the show
-	Library    string          `json:"library"` // Plex library (section) title, for grouping
-	Sequel     anilist.Media   `json:"sequel"`
-	ChainNeed  int             `json:"chainNeed"`        // episodes through the sequel
-	Source     string          `json:"source,omitempty"` // "" = anilist, else tmdb:tv | tmdb:movie | tvdb
-	Candidates []plexCandidate `json:"candidates"`
+	ShowTitle string        `json:"showTitle"`
+	Year      int           `json:"year"`
+	LeafCount int           `json:"leafCount"`
+	Folder    string        `json:"folder"`  // Plex storage folder of the show
+	Library   string        `json:"library"` // Plex library (section) title, for grouping
+	Sequel    anilist.Media `json:"sequel"`
+	ChainNeed int           `json:"chainNeed"`        // episodes through the sequel
+	Source    string        `json:"source,omitempty"` // "" = anilist, else tmdb:tv | tmdb:movie | tvdb
+	// AiredMapping: the library pairs AniList metadata with TVDB's aired
+	// season mapping, so a watch created from this suggestion starts with it
+	AiredMapping bool            `json:"airedMapping,omitempty"`
+	TVDBID       int             `json:"tvdbId,omitempty"` // series id for the rename profile
+	Candidates   []plexCandidate `json:"candidates"`
 }
 
 type plexCandidate struct {
@@ -301,15 +332,15 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 	sourceOf := func(sec plex.Section) string {
 		v, ok := srcOf[sec.Key]
 		if !ok {
-			if strings.Contains(strings.ToLower(sec.Title), "anime") {
-				return "anilist"
-			}
-			return "tmdb"
+			v = DefaultSectionSource(sec)
 		}
 		// ponytail: TVDB is series-only here - Plex never carries a tvdb guid
 		// for movies and TVDB has no collections, so there is nothing to
 		// suggest. A movie library set to tvdb falls back to TMDB.
-		if v == "tvdb" && sec.Type == "movie" {
+		if (v == "tvdb" || v == sourceAnilistTvdb) && sec.Type == "movie" {
+			if v == sourceAnilistTvdb {
+				return "anilist"
+			}
 			return "tmdb"
 		}
 		return v
@@ -318,6 +349,8 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 	var shows []plex.Show        // anime → AniList matching
 	isMovie := map[string]bool{} // ratingKey → item lives in a movie library
 	libOf := map[string]string{} // ratingKey → library (section) title, for grouping
+	// ratingKey → the library wants TVDB aired mapping alongside AniList
+	airedLib := map[string]bool{}
 	var liveTV, liveMovies, tvdbShows []plex.Show
 	for _, sec := range sections {
 		if (sec.Type != "show" && sec.Type != "movie") || (len(wanted) > 0 && !wanted[sec.Key]) {
@@ -331,7 +364,13 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		for _, sh := range list {
 			libOf[sh.RatingKey] = sec.Title
 		}
-		switch src := sourceOf(sec); {
+		src := sourceOf(sec)
+		if src == sourceAnilistTvdb {
+			for _, sh := range list {
+				airedLib[sh.RatingKey] = true
+			}
+		}
+		switch {
 		case src == "tvdb":
 			tvdbShows = append(tvdbShows, list...)
 		case src == "tmdb" && sec.Type == "movie":
@@ -434,9 +473,17 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 			continue
 		}
 		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: leaf,
-			Library: libOf[sh.RatingKey], Sequel: *sequel, ChainNeed: cum}
-		if detail, err := c.ShowDetail(sh.RatingKey); err == nil && len(detail.Locations) > 0 {
-			sug.Folder = detail.Locations[0]
+			Library: libOf[sh.RatingKey], Sequel: *sequel, ChainNeed: cum,
+			AiredMapping: airedLib[sh.RatingKey]}
+		// the detail carries the guid array the bulk listing omits, so the
+		// series id for the rename profile comes from here
+		if detail, err := c.ShowDetail(sh.RatingKey); err == nil {
+			if len(detail.Locations) > 0 {
+				sug.Folder = detail.Locations[0]
+			}
+			if sug.AiredMapping {
+				sug.TVDBID = detail.TVDBID
+			}
 		}
 		suggestions = append(suggestions, sug)
 	}
@@ -671,7 +718,8 @@ func (s *Server) tvdbTVSuggestions(ctx context.Context, c *plex.Client, shows []
 			continue
 		}
 		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: sh.LeafCount,
-			Library: libOf[sh.RatingKey], Sequel: *m, ChainNeed: aired, Source: "tvdb"}
+			Library: libOf[sh.RatingKey], Sequel: *m, ChainNeed: aired, Source: "tvdb",
+			AiredMapping: true, TVDBID: id}
 		if derr == nil && len(detail.Locations) > 0 {
 			sug.Folder = detail.Locations[0]
 		}
