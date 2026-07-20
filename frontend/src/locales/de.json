@@ -171,7 +171,6 @@
     "autoCatalog": "Katalog-Ordner automatisch öffnen",
     "autoCatalogHint": "Ordner mit gepflegtem Katalog direkt in der Katalog-Ansicht öffnen. Pro Ordner jederzeit auf Klassisch umschaltbar.",
     "files": "Dateien",
-    "filesFor": "Dateien in {{name}}",
     "showFiles": "Dateien anzeigen",
     "remote": "remote",
     "local": "lokal",
