@@ -3,9 +3,14 @@ import { api } from './api'
 
 export function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      /* offline shell is not critical */
-    })
+    navigator.serviceWorker
+      .register('/sw.js')
+      // an installed worker is only re-checked every 24h by default; a stale
+      // one silently stops rendering push notifications, so ask on every start
+      .then((reg) => reg.update())
+      .catch(() => {
+        /* offline shell is not critical */
+      })
   }
 }
 

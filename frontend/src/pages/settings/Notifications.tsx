@@ -76,6 +76,7 @@ function PushSection() {
   const { t } = useTranslation()
   const [enabled, setEnabled] = useState(false)
   const [state, setState] = useState<'ok' | 'denied' | 'unsupported' | ''>('')
+  const [sent, setSent] = useState(false)
   useEffect(() => {
     pushSubscription().then((s) => setEnabled(!!s)).catch(() => {})
     if (!pushSupported()) setState('unsupported')
@@ -98,6 +99,12 @@ function PushSection() {
     }
   }
 
+  const sendTest = async () => {
+    setSent(false)
+    await api.post('/api/push/test', {})
+    setSent(true)
+  }
+
   return (
     <section className="t-panel mb-4 p-5" aria-label={t('settings.notifications')}>
       <span className="t-label t-label--accent">{t('settings.notifications')}</span>
@@ -111,6 +118,14 @@ function PushSection() {
         {t('settings.pushEnable')}
       </label>
       <p className="mt-2 text-xs text-t-muted">{t('settings.pushHint')}</p>
+      {enabled && (
+        <p className="mt-2 flex items-center gap-3">
+          <button type="button" className="t-btn t-btn--sm" onClick={sendTest}>
+            {t('settings.pushTest')}
+          </button>
+          {sent && <span className="text-xs text-t-muted">{t('settings.pushTestSent')}</span>}
+        </p>
+      )}
       {state === 'denied' && (
         <p className="mt-1 text-xs text-err" role="alert">
           {t('settings.pushDenied')}
