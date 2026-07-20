@@ -119,15 +119,17 @@ func (c *Client) Sections() ([]Section, error) {
 	return out, nil
 }
 
-// agentProvider recognises the legacy agents, which name their catalog
-// outright ("com.plexapp.agents.thetvdb", HAMA). The modern agents don't, so
-// those fall back to the episode ordering.
+// agentProvider recognises the agents that name their catalog outright: the
+// legacy ones ("com.plexapp.agents.thetvdb", HAMA) and the modern movie agent,
+// which always pulls from TMDB. Only the modern series agent stays ambiguous -
+// there the episode ordering decides, which is why show libraries ask Plex for
+// their preferences first.
 func agentProvider(agent string) string {
 	a := strings.ToLower(agent)
 	switch {
 	case strings.Contains(a, "thetvdb"), strings.Contains(a, "hama"):
 		return "tvdb"
-	case strings.Contains(a, "themoviedb"):
+	case strings.Contains(a, "themoviedb"), strings.Contains(a, "tv.plex.agents.movie"):
 		return "tmdb"
 	}
 	return ""

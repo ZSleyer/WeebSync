@@ -98,3 +98,19 @@ func TestShowOrderingMap(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentProvider(t *testing.T) {
+	cases := map[string]string{
+		"com.plexapp.agents.thetvdb":    "tvdb",
+		"com.plexapp.agents.hama":       "tvdb",
+		"com.plexapp.agents.themoviedb": "tmdb",
+		"tv.plex.agents.movie":          "tmdb",
+		"tv.plex.agents.series":         "", // ambiguous: the ordering decides
+		"":                              "",
+	}
+	for in, want := range cases {
+		if got := agentProvider(in); got != want {
+			t.Errorf("agentProvider(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
