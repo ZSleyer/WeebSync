@@ -223,7 +223,7 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out.Plex = adminPlexInfo{Configured: s.plexClient() != nil, TTLSec: int(s.plexSuggestTTL() / time.Second)}
-	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v2'`).Scan(&out.Plex.SuggestionsAt)
+	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&out.Plex.SuggestionsAt)
 
 	s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_accounts`).Scan(&out.Anilist.Accounts)
 

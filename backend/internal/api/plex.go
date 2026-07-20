@@ -14,6 +14,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/plex"
+	"github.com/ch4d1/weebsync/internal/tvdb"
 )
 
 // Plex integration: read the user's Plex show libraries, match shows against
@@ -33,6 +34,41 @@ func (s *Server) plexClient() *plex.Client {
 		return nil
 	}
 	return plex.New(u, t)
+}
+
+// plexMeResponse is the connection status shown on the settings page.
+type plexMeResponse struct {
+	Configured bool   `json:"configured"`
+	Connected  bool   `json:"connected"`
+	Username   string `json:"username,omitempty"` // linked plex.tv account
+	Server     string `json:"server,omitempty"`   // friendly name of the server
+	Version    string `json:"version,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
+// handlePlexMe reports whether the stored URL/token reach a Plex server, and
+// which one. Always 200: an unreachable server is a status, not a failure.
+//
+//	@Summary		Plex connection status
+//	@Description	Report whether the configured Plex URL and token reach a server, including its name and the linked account.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Success		200	{object}	plexMeResponse
+//	@Security		CookieAuth
+//	@Router			/api/plex/me [get]
+func (s *Server) handlePlexMe(w http.ResponseWriter, r *http.Request) {
+	c := s.plexClient()
+	if c == nil {
+		writeJSON(w, http.StatusOK, plexMeResponse{})
+		return
+	}
+	id, err := c.Identity()
+	if err != nil {
+		writeJSON(w, http.StatusOK, plexMeResponse{Configured: true, Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, plexMeResponse{Configured: true, Connected: true,
+		Username: id.MyPlexUsername, Server: id.FriendlyName, Version: id.Version})
 }
 
 // handlePlexSections lists the show sections for the settings checkboxes.
@@ -74,7 +110,7 @@ type plexSuggestion struct {
 	Library    string          `json:"library"` // Plex library (section) title, for grouping
 	Sequel     anilist.Media   `json:"sequel"`
 	ChainNeed  int             `json:"chainNeed"`        // episodes through the sequel
-	Source     string          `json:"source,omitempty"` // "" = anilist, else tmdb:tv | tmdb:movie
+	Source     string          `json:"source,omitempty"` // "" = anilist, else tmdb:tv | tmdb:movie | tvdb
 	Candidates []plexCandidate `json:"candidates"`
 }
 
@@ -111,7 +147,7 @@ func (s *Server) handlePlexSuggestions(w http.ResponseWriter, r *http.Request) {
 	}
 	force := r.URL.Query().Get("force") == "1"
 	var payload, fetched string
-	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v2'`).Scan(&payload, &fetched)
+	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&payload, &fetched)
 	fresh := false
 	if t, err := time.Parse(sqliteTime, fetched); err == nil {
 		fresh = time.Since(t) <= s.plexSuggestTTL()
@@ -262,17 +298,27 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 			srcOf[k] = v
 		}
 	}
-	isAnime := func(sec plex.Section) bool {
-		if v, ok := srcOf[sec.Key]; ok {
-			return v == "anilist"
+	sourceOf := func(sec plex.Section) string {
+		v, ok := srcOf[sec.Key]
+		if !ok {
+			if strings.Contains(strings.ToLower(sec.Title), "anime") {
+				return "anilist"
+			}
+			return "tmdb"
 		}
-		return strings.Contains(strings.ToLower(sec.Title), "anime")
+		// ponytail: TVDB is series-only here - Plex never carries a tvdb guid
+		// for movies and TVDB has no collections, so there is nothing to
+		// suggest. A movie library set to tvdb falls back to TMDB.
+		if v == "tvdb" && sec.Type == "movie" {
+			return "tmdb"
+		}
+		return v
 	}
 
 	var shows []plex.Show        // anime → AniList matching
 	isMovie := map[string]bool{} // ratingKey → item lives in a movie library
 	libOf := map[string]string{} // ratingKey → library (section) title, for grouping
-	var liveTV, liveMovies []plex.Show
+	var liveTV, liveMovies, tvdbShows []plex.Show
 	for _, sec := range sections {
 		if (sec.Type != "show" && sec.Type != "movie") || (len(wanted) > 0 && !wanted[sec.Key]) {
 			continue
@@ -285,10 +331,12 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		for _, sh := range list {
 			libOf[sh.RatingKey] = sec.Title
 		}
-		switch {
-		case !isAnime(sec) && sec.Type == "movie":
+		switch src := sourceOf(sec); {
+		case src == "tvdb":
+			tvdbShows = append(tvdbShows, list...)
+		case src == "tmdb" && sec.Type == "movie":
 			liveMovies = append(liveMovies, list...)
-		case !isAnime(sec):
+		case src == "tmdb":
 			liveTV = append(liveTV, list...)
 		case sec.Type == "movie":
 			for _, sh := range list {
@@ -399,9 +447,17 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 	} else if len(liveTV)+len(liveMovies) > 0 {
 		slog.Warn("plex live-action sections skipped: no TMDB key configured")
 	}
+	// libraries explicitly set to TVDB
+	if len(tvdbShows) > 0 {
+		if s.Tvdb.Enabled() {
+			suggestions = append(suggestions, s.tvdbTVSuggestions(ctx, c, tvdbShows, libOf)...)
+		} else {
+			slog.Warn("plex tvdb sections skipped: no TVDB key configured")
+		}
+	}
 
 	payload, _ := json.Marshal(suggestions)
-	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('plex:suggestions:v2', ?, datetime('now'))
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('plex:suggestions:v3', ?, datetime('now'))
 		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, string(payload))
 	slog.Info("plex suggestions built", "shows", len(shows), "matched", len(matched),
 		"liveTV", len(liveTV), "liveMovies", len(liveMovies), "suggestions", len(suggestions))
@@ -553,6 +609,63 @@ func (s *Server) liveTVSuggestions(ctx context.Context, c *plex.Client, shows []
 		}
 		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: sh.LeafCount,
 			Library: libOf[sh.RatingKey], Sequel: *m, ChainNeed: m.Episodes, Source: "tmdb:tv"}
+		if detail, err := c.ShowDetail(sh.RatingKey); err == nil && len(detail.Locations) > 0 {
+			sug.Folder = detail.Locations[0]
+		}
+		out = append(out, sug)
+	}
+	return out
+}
+
+// airedEpisodes counts a series' regular, already-aired episodes: season 0
+// (specials) and unaired entries don't belong in a completeness check.
+func airedEpisodes(eps []tvdb.Episode, now time.Time) int {
+	n := 0
+	for _, e := range eps {
+		if e.SeasonNumber <= 0 || e.Aired == "" {
+			continue
+		}
+		d, err := time.Parse("2006-01-02", e.Aired)
+		if err != nil || d.After(now) {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+// tvdbTVSuggestions: a show in a TVDB-sourced library is "incomplete" when
+// TVDB lists more aired episodes than Plex has. Like TMDB, TVDB models
+// seasons inside one entry, so there is no sequel chain to walk.
+func (s *Server) tvdbTVSuggestions(ctx context.Context, c *plex.Client, shows []plex.Show, libOf map[string]string) []plexSuggestion {
+	var out []plexSuggestion
+	now := time.Now()
+	for _, sh := range shows {
+		if ctx.Err() != nil {
+			return out
+		}
+		id := sh.TVDBID // authoritative, straight from the Plex guid
+		if id == 0 {
+			hits, err := s.Tvdb.SearchMedia(ctx, sh.Title)
+			if err != nil || len(hits) == 0 {
+				continue
+			}
+			id = hits[0].ID
+		}
+		eps, err := s.Tvdb.Episodes(ctx, id, "official")
+		if err != nil {
+			continue
+		}
+		aired := airedEpisodes(eps, now)
+		if aired <= sh.LeafCount {
+			continue
+		}
+		m, err := s.Tvdb.Media(ctx, id)
+		if err != nil {
+			continue
+		}
+		sug := plexSuggestion{ShowTitle: sh.Title, Year: sh.Year, LeafCount: sh.LeafCount,
+			Library: libOf[sh.RatingKey], Sequel: *m, ChainNeed: aired, Source: "tvdb"}
 		if detail, err := c.ShowDetail(sh.RatingKey); err == nil && len(detail.Locations) > 0 {
 			sug.Folder = detail.Locations[0]
 		}

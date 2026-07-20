@@ -586,6 +586,15 @@ function PlexSection() {
                     >
                       TMDB ↗
                     </a>
+                  ) : s.source === 'tvdb' ? (
+                    <a
+                      className="t-label hover:text-accent"
+                      href={s.sequel.siteUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      TVDB ↗
+                    </a>
                   ) : (
                     <a
                       className="t-label hover:text-accent"

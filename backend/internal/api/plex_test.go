@@ -2,8 +2,10 @@ package api
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/tvdb"
 )
 
 func media(id, eps int, format, status string) anilist.Media {
@@ -83,5 +85,20 @@ func TestSignificantWords(t *testing.T) {
 	}
 	if w := significantWords("", 3); len(w) != 0 {
 		t.Errorf("empty title: %v", w)
+	}
+}
+
+func TestAiredEpisodes(t *testing.T) {
+	now := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	eps := []tvdb.Episode{
+		{SeasonNumber: 1, Number: 1, Aired: "2026-01-05"}, // counted
+		{SeasonNumber: 1, Number: 2, Aired: "2026-07-20"}, // today, counted
+		{SeasonNumber: 0, Number: 1, Aired: "2026-01-06"}, // special, skipped
+		{SeasonNumber: 2, Number: 1, Aired: "2026-12-01"}, // unaired, skipped
+		{SeasonNumber: 2, Number: 2, Aired: ""},           // no date, skipped
+		{SeasonNumber: 2, Number: 3, Aired: "soon"},       // unparsable, skipped
+	}
+	if got := airedEpisodes(eps, now); got != 2 {
+		t.Fatalf("airedEpisodes = %d, want 2", got)
 	}
 }

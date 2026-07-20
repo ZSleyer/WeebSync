@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../api'
-import { EnvBadge, SaveBar, useSettingsForm } from './useSettingsForm'
+import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
 export default function Integrations() {
@@ -17,42 +17,8 @@ export default function Integrations() {
         <span className="t-label t-label--accent">{t('settings.integrations')}</span>
         <div className="mt-3 grid grid-cols-1 gap-4">
           <span className="t-label">AniList</span>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-xs text-t-muted">
-              {t('settings.anilistClientId')}
-              <EnvBadge show={locked('anilistClientId')} />
-              <input
-                className="t-input mt-1 font-mono"
-                value={form.anilistClientId}
-                disabled={locked('anilistClientId')}
-                onChange={(e) => set('anilistClientId', e.target.value)}
-              />
-            </label>
-            <label className="text-xs text-t-muted">
-              {t('settings.anilistClientSecret')}
-              <EnvBadge show={locked('anilistClientSecret')} />
-              <input
-                className="t-input mt-1 font-mono"
-                type="password"
-                autoComplete="off"
-                placeholder={form.anilistSecretSet ? t('settings.secretSet') : t('settings.secretUnset')}
-                value={form.anilistClientSecret ?? ''}
-                disabled={locked('anilistClientSecret')}
-                onChange={(e) => set('anilistClientSecret', e.target.value)}
-              />
-            </label>
-          </div>
-          <label className="text-xs text-t-muted">
-            {t('settings.anilistRedirectUrl')}
-            <input
-              className="t-input mt-1 font-mono"
-              placeholder={`${window.location.origin}/api/anilist/callback`}
-              value={form.anilistRedirectUrl}
-              onChange={(e) => set('anilistRedirectUrl', e.target.value)}
-            />
-            <span className="mt-1 block">{t('settings.anilistClientHint')}</span>
-          </label>
           <AnilistAccount />
+          <AnilistOwnApp form={form} set={set} locked={locked} />
         </div>
         <label className="mt-3 block text-xs text-t-muted">
           {t('settings.tmdbApiKey')}
@@ -85,6 +51,9 @@ export default function Integrations() {
           />
           <span className="mt-1 block">{t('settings.tvdbApiKeyHint')}</span>
         </label>
+        <div className="mt-3">
+          <TvdbAccount />
+        </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4">
           <span className="t-label">{t('settings.plex')}</span>
@@ -114,12 +83,14 @@ export default function Integrations() {
             />
             <span className="mt-1 block">{t('settings.plexTokenHint')}</span>
           </label>
+          <PlexAccount />
           {form.plexTokenSet && form.plexUrl && (
             <PlexSections
               value={form.plexSections}
               onChange={(v) => set('plexSections', v)}
               sources={form.plexSectionSources}
               onSources={(v) => set('plexSectionSources', v)}
+              tvdb={form.tvdbApiKeySet}
             />
           )}
         </div>
@@ -132,16 +103,21 @@ export default function Integrations() {
 // Plex library sections: pick which to use and choose the metadata source
 // per library (AniList for anime, TMDB for live action). A library without a
 // stored choice defaults to AniList when its title contains "anime".
+// TVDB is offered as a third source for show libraries only, and only with a
+// key configured: Plex carries no tvdb guid for movies and TVDB has no
+// collections, so there is nothing to suggest for a movie library.
 function PlexSections({
   value,
   onChange,
   sources,
   onSources,
+  tvdb,
 }: {
   value: string
   onChange: (v: string) => void
   sources: string
   onSources: (v: string) => void
+  tvdb: boolean
 }) {
   const { t } = useTranslation()
   const { data: sections = [], error } = useQuery<{ key: string; type: string; title: string }[]>({
@@ -206,6 +182,7 @@ function PlexSections({
                 >
                   <option value="anilist">AniList</option>
                   <option value="tmdb">TMDB</option>
+                  {tvdb && s.type === 'show' && <option value="tvdb">TVDB</option>}
                 </select>
               </span>
             )}
@@ -217,13 +194,183 @@ function PlexSections({
   )
 }
 
+// Own AniList app: only needed when the built-in client id doesn't fit (own
+// branding, own rate limit). Collapsed by default so the pin flow above stays
+// the obvious path; expanded when any of the three values is already set.
+function AnilistOwnApp({
+  form,
+  set,
+  locked,
+}: {
+  form: SettingsState
+  set: <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => void
+  locked: (k: keyof SettingsState) => boolean
+}) {
+  const { t } = useTranslation()
+  const { data } = useQuery<{ configured: boolean }>({
+    queryKey: ['anilist-me'],
+    queryFn: () => api.get('/api/anilist/me'),
+  })
+  const [open, setOpen] = useState(
+    !!form.anilistClientId || form.anilistSecretSet || !!form.anilistRedirectUrl,
+  )
+  return (
+    <div className="text-xs text-t-muted">
+      <button
+        type="button"
+        className="flex min-h-6 items-center gap-1.5 text-left"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span aria-hidden className="font-mono text-accent">
+          {open ? '▾' : '▸'}
+        </span>
+        <span>{t('settings.anilistOwnApp')}</span>
+      </button>
+      {open && (
+        <div className="mt-2 grid grid-cols-1 gap-3 border border-border-subtle bg-bg-secondary/40 p-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs text-t-muted">
+              {t('settings.anilistClientId')}
+              <EnvBadge show={locked('anilistClientId')} />
+              <input
+                className="t-input mt-1 font-mono"
+                value={form.anilistClientId}
+                disabled={locked('anilistClientId')}
+                onChange={(e) => set('anilistClientId', e.target.value)}
+              />
+            </label>
+            <label className="text-xs text-t-muted">
+              {t('settings.anilistClientSecret')}
+              <EnvBadge show={locked('anilistClientSecret')} />
+              <input
+                className="t-input mt-1 font-mono"
+                type="password"
+                autoComplete="off"
+                placeholder={form.anilistSecretSet ? t('settings.secretSet') : t('settings.secretUnset')}
+                value={form.anilistClientSecret ?? ''}
+                disabled={locked('anilistClientSecret')}
+                onChange={(e) => set('anilistClientSecret', e.target.value)}
+              />
+            </label>
+          </div>
+          <label className="text-xs text-t-muted">
+            {t('settings.anilistRedirectUrl')}
+            <input
+              className="t-input mt-1 font-mono"
+              placeholder={`${window.location.origin}/api/anilist/callback`}
+              value={form.anilistRedirectUrl}
+              onChange={(e) => set('anilistRedirectUrl', e.target.value)}
+            />
+            <span className="mt-1 block">{t('settings.anilistClientHint')}</span>
+          </label>
+          {/* OAuth redirect: belongs to the own-app path, needs a saved secret */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="t-btn t-btn--sm"
+              disabled={!data?.configured}
+              onClick={() => (window.location.href = '/api/anilist/connect')}
+            >
+              {t('settings.anilistConnect')}
+            </button>
+            {!data?.configured && <span>{t('settings.anilistNotConfigured')}</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Plex connection status: the stored URL/token are checked against the server
+// root, which also names the server and the linked plex.tv account. No connect
+// button - Plex is configured by pasting a token above.
+function PlexAccount() {
+  const { t } = useTranslation()
+  const { data } = useQuery<{
+    configured: boolean
+    connected: boolean
+    username?: string
+    server?: string
+    error?: string
+  }>({
+    queryKey: ['plex-me'],
+    queryFn: () => api.get('/api/plex/me'),
+  })
+  if (!data) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+      {data.connected ? (
+        <span className="t-label t-label--ok">
+          {data.username
+            ? t('settings.plexConnectedAs', { user: data.username, server: data.server })
+            : t('settings.plexConnectedTo', { server: data.server })}
+        </span>
+      ) : data.configured ? (
+        <span className="text-err" role="alert">
+          {data.error}
+        </span>
+      ) : (
+        <span>{t('settings.plexNotConfigured')}</span>
+      )}
+    </div>
+  )
+}
+
+// TVDB connection status. The v4 login returns a bare token, so there is no
+// account name to show - only whether the key is accepted.
+function TvdbAccount() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [testing, setTesting] = useState(false)
+  const { data } = useQuery<{ configured: boolean; connected: boolean; error?: string }>({
+    queryKey: ['tvdb-me'],
+    queryFn: () => api.get('/api/tvdb/me'),
+  })
+  // force=1 bypasses the backend's 24h token cache, so a changed key is
+  // actually re-tested. fetchQuery writes into the same cache entry.
+  const test = async () => {
+    setTesting(true)
+    try {
+      await qc.fetchQuery({ queryKey: ['tvdb-me'], queryFn: () => api.get('/api/tvdb/me?force=1'), staleTime: 0 })
+    } finally {
+      setTesting(false)
+    }
+  }
+  if (!data) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+      {data.connected ? (
+        <span className="t-label t-label--ok">{t('settings.tvdbConnected')}</span>
+      ) : data.configured ? (
+        <span className="text-err" role="alert">
+          {data.error}
+        </span>
+      ) : (
+        <span>{t('settings.tvdbNotConfigured')}</span>
+      )}
+      {data.configured && (
+        <button type="button" className="t-btn t-btn--sm" disabled={testing} onClick={test}>
+          {t('settings.tvdbTest')}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // Linked TMDB account of the current user (v3 request-token flow). The
 // watchlist suggestions need it; trending works with the API key alone.
 function TmdbAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [error, setError] = useState('')
-  const { data } = useQuery<{ configured: boolean; connected: boolean; username?: string }>({
+  const { data } = useQuery<{
+    configured: boolean
+    keyValid: boolean
+    connected: boolean
+    username?: string
+    error?: string
+  }>({
     queryKey: ['tmdb-me'],
     queryFn: () => api.get('/api/tmdb/me'),
   })
@@ -251,6 +398,14 @@ function TmdbAccount() {
         </>
       ) : (
         <>
+          {/* the key alone already drives matching and trending, so its state
+              is shown even without a linked account */}
+          {data.keyValid && <span className="t-label t-label--ok">{t('settings.tmdbConnected')}</span>}
+          {data.configured && !data.keyValid && (
+            <span className="text-err" role="alert">
+              {data.error}
+            </span>
+          )}
           <button
             className="t-btn t-btn--sm"
             disabled={!data.configured}
@@ -328,17 +483,9 @@ function AnilistAccount() {
         </>
       ) : (
         <div className="grid w-full grid-cols-1 gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              className="t-btn t-btn--sm"
-              disabled={!data.configured}
-              onClick={() => (window.location.href = '/api/anilist/connect')}
-            >
-              {t('settings.anilistConnect')}
-            </button>
-            {!data.configured && <span>{t('settings.anilistNotConfigured')}</span>}
-          </div>
-          {/* pin flow: token pasted by the user - no secret, no redirect URL */}
+          {/* pin flow: token pasted by the user - no secret, no redirect URL.
+              This is the default path; it works with the built-in client id,
+              so nothing has to be configured first. */}
           <label className="text-xs text-t-muted">
             {t('settings.anilistPinLabel')}
             <span className="mt-1 flex gap-2">
