@@ -32,8 +32,16 @@ type renamePair struct {
 // @Security     CookieAuth
 // @Router       /api/rename/preview [post]
 func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
 	var in struct {
 		Path string `json:"path"` // directory relative to download root
+		// same provider options a watch carries, so an already downloaded
+		// folder can be brought to the exact layout auto-sync would produce
+		AiredMapping    bool   `json:"airedMapping"`
+		RenameProvider  string `json:"renameProvider"`
+		RenameOrdering  string `json:"renameOrdering"`
+		RenameTitleLang string `json:"renameTitleLang"`
+		RenameSeriesID  int    `json:"renameSeriesId"`
 		rename.Options
 	}
 	if !readJSON(w, r, &in) {
@@ -49,16 +57,32 @@ func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "cannot read directory")
 		return
 	}
+	// the same name function the sync uses, so aired-order mapping and the
+	// localized provider title behave identically here
+	fn := s.watchNameFn(Watch{
+		UserID: u.ID, LocalPath: in.Path,
+		Mode: in.Mode, Template: in.Template, Separator: in.Separator, TitleOverride: in.TitleOverride,
+		Pattern: in.Pattern, Replacement: in.Replacement,
+		AiredMapping: in.AiredMapping, RenameProvider: in.RenameProvider, RenameOrdering: in.RenameOrdering,
+		RenameTitleLang: in.RenameTitleLang, RenameSeriesID: in.RenameSeriesID,
+	})
 	pairs := []renamePair{}
 	for _, it := range items {
 		if it.IsDir() {
 			continue
 		}
 		p := renamePair{Old: it.Name()}
-		if newName, err := rename.New(it.Name(), in.Options); err != nil {
-			p.New, p.Err = it.Name(), err.Error()
-		} else {
-			p.New = newName
+		switch {
+		case fn == nil:
+			p.New = it.Name()
+		default:
+			p.New = fn(it.Name())
+			if p.New == it.Name() {
+				// unchanged: surface why the base template couldn't apply
+				if _, err := rename.New(it.Name(), in.Options); err != nil {
+					p.Err = err.Error()
+				}
+			}
 		}
 		pairs = append(pairs, p)
 	}
@@ -154,9 +178,10 @@ func (s *Server) handleRenameApply(w http.ResponseWriter, r *http.Request) {
 	}
 	results := []renamePair{}
 	for _, p := range in.Renames {
-		// names must stay inside the directory
-		if p.Old == "" || p.New == "" || strings.ContainsAny(p.Old+p.New, "/\\") ||
-			p.Old == ".." || p.New == ".." {
+		// the source is always a plain file in this directory; the target may
+		// descend into a subfolder ("Season 01/...") because that is what the
+		// aired-order templates produce, but never leave the directory
+		if p.Old == "" || p.New == "" || strings.ContainsAny(p.Old, `/\`) || p.Old == ".." {
 			p.Err = "invalid name"
 			results = append(results, p)
 			continue
@@ -165,13 +190,27 @@ func (s *Server) handleRenameApply(w http.ResponseWriter, r *http.Request) {
 			results = append(results, p)
 			continue
 		}
-		dst := filepath.Join(abs, p.New)
+		// IsLocal rejects absolute paths and anything climbing out via "..";
+		// cleaning instead would silently re-anchor "../x" as "x", which is
+		// safe but not what the preview showed
+		rel := filepath.FromSlash(p.New)
+		dst := filepath.Join(abs, rel)
+		if !filepath.IsLocal(rel) || !strings.HasPrefix(dst, abs+string(os.PathSeparator)) {
+			p.Err = "invalid name"
+			results = append(results, p)
+			continue
+		}
 		if _, err := os.Stat(dst); err == nil {
 			p.Err = "target exists"
 			results = append(results, p)
 			continue
 		}
-		if err := os.Rename(filepath.Join(abs, p.Old), dst); err != nil {
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			p.Err = err.Error()
+			results = append(results, p)
+			continue
+		}
+		if err := os.Rename(filepath.Join(abs, filepath.Base(p.Old)), dst); err != nil {
 			p.Err = err.Error()
 		}
 		results = append(results, p)

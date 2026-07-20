@@ -330,7 +330,13 @@ func (s *Server) airResolver() *airmap.Resolver {
 // per-watch override always wins. AniList links are ignored here - renaming is
 // TVDB/TMDB only.
 func (s *Server) watchSeries(w Watch) airmap.Series {
-	ser := airmap.Series{ServerID: w.ServerID, Folder: w.RemotePath, Title: GuessTitle(path.Base(w.RemotePath))}
+	// the rename page works on a local folder and has no remote counterpart,
+	// so fall back to the local path for the title guess
+	folder := w.RemotePath
+	if folder == "" {
+		folder = path.Clean(filepath.ToSlash(w.LocalPath))
+	}
+	ser := airmap.Series{ServerID: w.ServerID, Folder: w.RemotePath, Title: GuessTitle(path.Base(folder))}
 	if m := s.watchMedia(w.ServerID, w.RemotePath); m != nil {
 		if m.Title.Romaji != "" {
 			ser.Title = m.Title.Romaji
