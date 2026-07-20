@@ -113,6 +113,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// browse
 	mux.Handle("GET /api/browse/local", authed(http.HandlerFunc(s.handleBrowseLocal)))
 	mux.Handle("POST /api/browse/local/mkdir", authed(http.HandlerFunc(s.handleMkdirLocal)))
+	// writing to the media roots is admin-only; listing stays open to everyone
+	mux.Handle("POST /api/browse/local/rename", authed(adminOnly(http.HandlerFunc(s.handleRenameLocal))))
+	mux.Handle("DELETE /api/browse/local", authed(adminOnly(http.HandlerFunc(s.handleDeleteLocal))))
 	mux.Handle("GET /api/servers/{id}/browse", authed(http.HandlerFunc(s.handleBrowseRemote)))
 	mux.Handle("GET /api/servers/{id}/search", authed(http.HandlerFunc(s.handleServerSearch)))
 	mux.Handle("GET /api/servers/{id}/languages", authed(http.HandlerFunc(s.handleServerLanguages)))

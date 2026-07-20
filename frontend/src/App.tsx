@@ -16,6 +16,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Servers from './pages/Servers'
 import Browser from './pages/Browser'
+import Local from './pages/Local'
 import Watches from './pages/Watches'
 import Suggestions from './pages/Suggestions'
 import Rename from './pages/Rename'
@@ -37,8 +38,9 @@ const NAV = [
   { to: '/watches', key: 'nav.watches', code: '03' },
   { to: '/suggestions', key: 'nav.suggestions', code: '04' },
   { to: '/servers', key: 'nav.servers', code: '05' },
-  { to: '/rename', key: 'nav.rename', code: '06' },
-  { to: '/settings', key: 'nav.settings', code: '07' },
+  { to: '/local', key: 'nav.local', code: '06' },
+  { to: '/rename', key: 'nav.rename', code: '07' },
+  { to: '/settings', key: 'nav.settings', code: '08' },
 ]
 // mobile bottom bar: only the daily-use targets get a tab, the rest moves
 // into a "more" sheet so touch targets stay wide enough
@@ -77,6 +79,7 @@ export const router = createBrowserRouter(
       <Route path="/suggestions" element={<Suggestions />} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
       <Route path="/servers" element={<Servers />} />
+      <Route path="/local" element={<Local />} />
       <Route path="/rename" element={<Rename />} />
       <Route path="/settings" element={<SettingsLayout />}>
         <Route index element={<Navigate to="look" replace />} />
