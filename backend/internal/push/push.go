@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/ch4d1/weebsync/internal/db"
@@ -35,6 +36,21 @@ func New(d *sql.DB) (*Service, error) {
 
 func (s *Service) PublicKey() string { return s.public }
 
+// subscriber is the VAPID "sub" claim: a way to reach whoever runs this
+// instance. Some push services (Apple's in particular) reject a token whose
+// address is not a real one, so prefer the configured SMTP sender.
+func (s *Service) subscriber() string {
+	for _, key := range []string{"push_subscriber", "smtp_from"} {
+		if v := strings.TrimSpace(db.Setting(s.DB, key)); v != "" {
+			if !strings.HasPrefix(v, "mailto:") && !strings.HasPrefix(v, "https:") {
+				v = "mailto:" + v
+			}
+			return v
+		}
+	}
+	return "mailto:weebsync@localhost"
+}
+
 func (s *Service) Subscribe(userID int64, endpoint, p256dh, auth string) error {
 	_, err := s.DB.Exec(`INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth)
 		VALUES (?, ?, ?, ?)
@@ -48,9 +64,19 @@ func (s *Service) Unsubscribe(userID int64, endpoint string) error {
 	return err
 }
 
+// Notification is what the service worker renders. Tag lets the browser
+// replace an earlier notification of the same kind instead of stacking them,
+// URL is where a click lands (the app root when empty).
+type Notification struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+	Tag   string `json:"tag,omitempty"`
+	URL   string `json:"url,omitempty"`
+}
+
 // Notify sends a notification to all of the user's subscriptions; dead
 // subscriptions (404/410) are pruned.
-func (s *Service) Notify(userID int64, title, body string) {
+func (s *Service) Notify(userID int64, n Notification) {
 	rows, err := s.DB.Query(`SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?`, userID)
 	if err != nil {
 		return
@@ -65,13 +91,13 @@ func (s *Service) Notify(userID int64, title, body string) {
 	}
 	rows.Close()
 
-	payload, _ := json.Marshal(map[string]string{"title": title, "body": body})
+	payload, _ := json.Marshal(n)
 	for _, x := range subs {
 		resp, err := webpush.SendNotification(payload, &webpush.Subscription{
 			Endpoint: x.endpoint,
 			Keys:     webpush.Keys{P256dh: x.p256dh, Auth: x.auth},
 		}, &webpush.Options{
-			Subscriber:      "mailto:weebsync@localhost",
+			Subscriber:      s.subscriber(),
 			VAPIDPublicKey:  s.public,
 			VAPIDPrivateKey: s.private,
 			TTL:             3600,

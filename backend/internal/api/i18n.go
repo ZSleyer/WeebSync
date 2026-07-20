@@ -91,6 +91,22 @@ var catalog = map[string]map[string]string{
 		"en": "Download failed",
 		"de": "Download fehlgeschlagen",
 	},
+	"push.downloadDoneMany": {
+		"en": "%d downloads finished",
+		"de": "%d Downloads fertig",
+	},
+	"push.downloadFailedMany": {
+		"en": "%d downloads failed",
+		"de": "%d Downloads fehlgeschlagen",
+	},
+	"push.testTitle": {
+		"en": "WeebSync test",
+		"de": "WeebSync-Test",
+	},
+	"push.testBody": {
+		"en": "Push notifications are working.",
+		"de": "Push-Benachrichtigungen funktionieren.",
+	},
 }
 
 // tr resolves a catalog key for a locale, falling back to English; extra args
