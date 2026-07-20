@@ -113,6 +113,42 @@ func (s *Server) folderKind(serverID int64, folder, name string) string {
 	return ""
 }
 
+// kindFromVideos classifies by the number of video files a folder holds - the
+// local catalog's fallback, where there is no remote index to read.
+func kindFromVideos(videos int) string {
+	switch {
+	case videos == 1:
+		return "movie"
+	case videos > 1:
+		return "series"
+	}
+	return ""
+}
+
+// itemKind classifies a single catalog folder the way handleCatalog does when
+// it lists the folder's parent, local file counts included.
+func (s *Server) itemKind(serverID int64, folder, name string) string {
+	kind := s.folderKind(serverID, folder, name)
+	if kind == "" && serverID == localServerID {
+		if abs, err := s.safeLocal(folder); err == nil {
+			kind = kindFromVideos(s.localStat(abs).Videos)
+		}
+	}
+	return kind
+}
+
+// scopeForItem narrows a folder's scope for one entry: an obvious film in a TMDB
+// series library is matched against films, not shows. Listing (handleCatalog)
+// and manual correction (handleCatalogMatch) must derive this identically, or
+// the stored match carries a foreign source tag and is dropped on the next
+// listing - which is how manual matches on films used to disappear.
+func scopeForItem(scope, kind string) string {
+	if scope == "tv" && kind == "movie" {
+		return "movie"
+	}
+	return scope
+}
+
 // runJob runs fn in the background at most once per key at a time; duplicate
 // keys are dropped while the first run is still in flight.
 func (s *Server) runJob(key string, fn func(ctx context.Context)) {
@@ -501,11 +537,8 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 				st := s.localStat(abs)
 				item.Local = &st
 				// no remote index locally: the file counts classify instead
-				if item.Kind == "" && st.Videos > 0 {
-					item.Kind = "series"
-					if st.Videos == 1 {
-						item.Kind = "movie"
-					}
+				if item.Kind == "" {
+					item.Kind = kindFromVideos(st.Videos)
 				}
 			}
 		}
@@ -515,12 +548,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 			items = append(items, item)
 			continue
 		}
-		// route an obvious film in a TMDB-series library to the movie source,
-		// so a movie mixed into a tv scope matches against films, not shows
-		itemScope := scope
-		if item.Kind == "movie" && scope == "tv" {
-			itemScope = "movie"
-		}
+		itemScope := scopeForItem(scope, item.Kind)
 		itemSource := sourceForScope(itemScope)
 		item.Source = itemSource
 		var mediaID, manual int
@@ -675,10 +703,11 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	if in.All {
 		cond = ""
 	}
+	// films inside a tv scope carry the movie source, so both tags qualify
 	rows, err := s.DB.Query(`SELECT folder FROM catalog_matches
-		WHERE server_id = ? AND manual = 0 AND source = ? `+cond+`
+		WHERE server_id = ? AND manual = 0 AND source IN (?, ?) `+cond+`
 		AND folder LIKE ? || '/%' AND folder NOT LIKE ? || '/%/%'`,
-		serverID, sourceForScope(scope), in.Path, in.Path)
+		serverID, sourceForScope(scope), sourceForScope(scopeForItem(scope, "movie")), in.Path, in.Path)
 	if err != nil {
 		dbErr(w)
 		return
@@ -691,7 +720,8 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 	for _, f := range folders {
-		s.queueScopedMatch(serverID, f, path.Base(f), scope, true)
+		name := path.Base(f)
+		s.queueScopedMatch(serverID, f, name, scopeForItem(scope, s.itemKind(serverID, f, name)), true)
 		// drop the row so the catalog shows these as pending while the
 		// forced search runs (poll picks the fresh result up)
 		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`, serverID, f)
@@ -738,7 +768,11 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
 	}
+	// the scope lives on the parent directory - the folder itself is the entry
+	// that was listed there, and its kind can narrow tv to movie
+	scope := s.scopeFor(serverID, path.Dir(in.Folder))
+	source := sourceForScope(scopeForItem(scope, s.itemKind(serverID, in.Folder, path.Base(in.Folder))))
 	s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, 1, ?)`,
-		serverID, in.Folder, in.MediaID, sourceForScope(s.scopeFor(serverID, in.Folder)))
+		serverID, in.Folder, in.MediaID, source)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
