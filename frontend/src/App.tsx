@@ -15,7 +15,7 @@ import Loading from './components/Loading'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Servers from './pages/Servers'
-import Browser from './pages/Browser'
+import Remote from './pages/Remote'
 import Local from './pages/Local'
 import Watches from './pages/Watches'
 import Suggestions from './pages/Suggestions'
@@ -34,11 +34,11 @@ import Jobs from './pages/settings/Jobs'
 
 const NAV = [
   { to: '/', key: 'nav.dashboard', code: '01' },
-  { to: '/browser', key: 'nav.browser', code: '02' },
-  { to: '/watches', key: 'nav.watches', code: '03' },
-  { to: '/suggestions', key: 'nav.suggestions', code: '04' },
-  { to: '/servers', key: 'nav.servers', code: '05' },
-  { to: '/local', key: 'nav.local', code: '06' },
+  { to: '/local', key: 'nav.local', code: '02' },
+  { to: '/remote', key: 'nav.remote', code: '03' },
+  { to: '/watches', key: 'nav.watches', code: '04' },
+  { to: '/suggestions', key: 'nav.suggestions', code: '05' },
+  { to: '/servers', key: 'nav.servers', code: '06' },
   { to: '/rename', key: 'nav.rename', code: '07' },
   { to: '/settings', key: 'nav.settings', code: '08' },
 ]
@@ -74,7 +74,9 @@ export const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<RootLayout />}>
       <Route path="/" element={<Dashboard />} />
-      <Route path="/browser" element={<Browser />} />
+      <Route path="/remote" element={<Remote />} />
+      {/* the page was called "browser" until it got a local counterpart */}
+      <Route path="/browser" element={<Navigate to="/remote" replace />} />
       <Route path="/watches" element={<Watches />} />
       <Route path="/suggestions" element={<Suggestions />} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />

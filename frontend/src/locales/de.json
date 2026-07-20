@@ -28,7 +28,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "browser": "Browser",
+    "remote": "Remote",
     "watches": "Auto-Sync",
     "servers": "Server",
     "rename": "Umbenennen",
@@ -110,7 +110,7 @@
     "queue": "queue",
     "speed": "speed",
     "speedChart": "Gesamtgeschwindigkeit, letzte 60 Sekunden",
-    "empty": "Keine aktiven Downloads. Ab in den <1>Browser</1> zum Syncen.",
+    "empty": "Keine aktiven Downloads. Zum Syncen in die <1>Remote</1>-Ansicht wechseln.",
     "history": "verlauf",
     "activeSection": "Aktive Downloads",
     "syncSummary": "Auto-Sync",
@@ -161,8 +161,8 @@
     "deleteConfirm": "{{name}} endgültig löschen?",
     "deleteDirConfirm": "Ordner {{name}} mit dem gesamten Inhalt endgültig löschen?"
   },
-  "browser": {
-    "title": "BROWSER",
+  "remote": {
+    "title": "REMOTE",
     "sub": "browse · sync · download",
     "source": "Quelle",
     "view": "Ansicht",
@@ -331,7 +331,7 @@
     "files": "{{count}} Dateien",
     "complete": "Komplett, Sync kann entfernt werden",
     "confirmDelete": "Auto-Sync für \"{{name}}\" entfernen? Heruntergeladene Dateien bleiben erhalten.",
-    "empty": "Im <1>Browser</1> einen Ordner auswählen und \"Beobachten\" klicken.",
+    "empty": "In der <1>Remote</1>-Ansicht einen Ordner auswählen und \"Beobachten\" klicken.",
     "seen": "{{count}} gesehen",
     "lastQueued_one": "{{count}} neu",
     "lastQueued_other": "{{count}} neu"
@@ -428,6 +428,8 @@
     "pushHint": "Meldung bei fertigen oder fehlgeschlagenen Downloads. Auf iOS erst nach \"Zum Home-Bildschirm hinzufügen\" verfügbar.",
     "pushDenied": "Benachrichtigungen sind für diese Seite im Browser blockiert. Über das Symbol in der Adressleiste erlauben (Firefox: Schild/Berechtigungen; Chrome: Schloss → Website-Einstellungen → Benachrichtigungen), dann erneut aktivieren. Hinweis: Push funktioniert nur über https:// oder localhost; private Fenster blockieren immer.",
     "pushUnsupported": "Dieser Browser unterstützt kein Web-Push.",
+    "pushTest": "Test senden",
+    "pushTestSent": "Gesendet - kommt nichts an, ist der Service Worker veraltet.",
     "oidcMigrationHint": "Bestehende lokale Konten werden beim ersten OIDC-Login automatisch über die Email-Adresse verknüpft.",
     "plex": "Plex",
     "plexUrl": "Plex-URL",

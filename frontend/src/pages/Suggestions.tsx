@@ -177,7 +177,7 @@ function CandidateRow({
         <button
           className="t-btn t-btn--sm"
           title={t('plex.openBrowser')}
-          onClick={() => navigate(`/browser?server=${serverId}&path=${encodeURIComponent(path)}`)}
+          onClick={() => navigate(`/remote?server=${serverId}&path=${encodeURIComponent(path)}`)}
         >
           <span className="sm:hidden">{t('plex.open')}</span>
           <span className="hidden sm:inline">{t('plex.openBrowser')}</span>
@@ -252,7 +252,7 @@ function AnilistSection() {
         remotePath: path,
         localPath: s.plexFolder ?? '',
       })
-      setError(t('browser.queued', { count: r.queued }))
+      setError(t('remote.queued', { count: r.queued }))
       setLastIds(r.ids ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
@@ -280,7 +280,7 @@ function AnilistSection() {
           {s.status && s.media.episodes > 0 && (
             <span>{t('suggestions.seen', { seen: s.progress, total: s.media.episodes })}</span>
           )}
-          {s.media.status && <span>{t(`browser.status.${s.media.status}`, s.media.status)}</span>}
+          {s.media.status && <span>{t(`remote.status.${s.media.status}`, s.media.status)}</span>}
           {s.media.averageScore > 0 && <span className="t-label t-label--accent">★ {s.media.averageScore}</span>}
           <a className="t-label hover:text-accent" href={`https://anilist.co/anime/${s.media.id}`} target="_blank" rel="noreferrer">
             AniList ↗
@@ -394,14 +394,14 @@ function AnilistSection() {
             onClick={async () => {
               try {
                 const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
-                setError(t('browser.syncCanceled', { count: out.canceled }))
+                setError(t('remote.syncCanceled', { count: out.canceled }))
                 setLastIds([])
               } catch (err) {
                 setError(err instanceof Error ? err.message : t('app.error'))
               }
             }}
           >
-            {t('browser.undoSync')}
+            {t('remote.undoSync')}
           </button>
         </p>
       )}
@@ -497,7 +497,7 @@ function PlexSection() {
         remotePath: path,
         localPath: s.folder ? (s.folder.split('/').pop() ?? '') : '',
       })
-      setNotice(t('browser.queued', { count: r.queued }))
+      setNotice(t('remote.queued', { count: r.queued }))
       setLastIds(r.ids ?? [])
     } catch (err) {
       setNotice(err instanceof Error ? err.message : t('app.error'))
@@ -574,7 +574,7 @@ function PlexSection() {
                   {s.sequel.seasonYear > 0 && <span className="t-label">{s.sequel.seasonYear}</span>}
                   {s.sequel.episodes > 0 && <span className="t-label">{s.sequel.episodes} EP</span>}
                   {s.sequel.status && (
-                    <span className="t-label">{t('browser.status.' + s.sequel.status, s.sequel.status)}</span>
+                    <span className="t-label">{t('remote.status.' + s.sequel.status, s.sequel.status)}</span>
                   )}
                   {s.sequel.averageScore > 0 && (
                     <span className="t-label t-label--accent">★ {s.sequel.averageScore}</span>
@@ -649,14 +649,14 @@ function PlexSection() {
               onClick={async () => {
                 try {
                   const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
-                  setNotice(t('browser.syncCanceled', { count: out.canceled }))
+                  setNotice(t('remote.syncCanceled', { count: out.canceled }))
                   setLastIds([])
                 } catch (err) {
                   setNotice(err instanceof Error ? err.message : t('app.error'))
                 }
               }}
             >
-              {t('browser.undoSync')}
+              {t('remote.undoSync')}
             </button>
           )}
         </p>
@@ -728,7 +728,7 @@ function TmdbSection() {
         remotePath: path,
         localPath: s.plexFolder ?? '',
       })
-      setNotice(t('browser.queued', { count: r.queued }))
+      setNotice(t('remote.queued', { count: r.queued }))
       setLastIds(r.ids ?? [])
     } catch (err) {
       setNotice(err instanceof Error ? err.message : t('app.error'))
@@ -748,7 +748,7 @@ function TmdbSection() {
         <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-t-muted">
           {s.media.seasonYear > 0 && <span className="t-label">{s.media.seasonYear}</span>}
           {s.media.format && <span className="t-label">{s.media.format}</span>}
-          {s.media.status && <span>{t(`browser.status.${s.media.status}`, s.media.status)}</span>}
+          {s.media.status && <span>{t(`remote.status.${s.media.status}`, s.media.status)}</span>}
           {s.media.averageScore > 0 && <span className="t-label t-label--accent">★ {s.media.averageScore}</span>}
           <a
             className="t-label hover:text-accent"
@@ -846,14 +846,14 @@ function TmdbSection() {
               onClick={async () => {
                 try {
                   const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
-                  setNotice(t('browser.syncCanceled', { count: out.canceled }))
+                  setNotice(t('remote.syncCanceled', { count: out.canceled }))
                   setLastIds([])
                 } catch (err) {
                   setNotice(err instanceof Error ? err.message : t('app.error'))
                 }
               }}
             >
-              {t('browser.undoSync')}
+              {t('remote.undoSync')}
             </button>
           )}
         </p>

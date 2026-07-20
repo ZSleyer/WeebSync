@@ -259,7 +259,7 @@ export default function Watches() {
       ) : watches.length === 0 ? (
         <div className="t-panel p-8 text-center text-t-muted">
           <Trans i18nKey="watch.empty">
-            Im <Link to="/browser" className="text-accent underline">Browser</Link> einen Ordner auswählen und „Beobachten" klicken.
+            In der <Link to="/remote" className="text-accent underline">Remote</Link>-Ansicht einen Ordner auswählen und „Beobachten" klicken.
           </Trans>
         </div>
       ) : view === 'calendar' ? (

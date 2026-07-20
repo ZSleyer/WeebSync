@@ -212,7 +212,7 @@ export default function Dashboard() {
           ) : (
             <div className="t-panel p-8 text-center text-t-muted">
               <Trans i18nKey="dash.empty">
-                Keine aktiven Downloads. Ab in den <Link to="/browser" className="text-accent underline">Browser</Link> zum Syncen.
+                Keine aktiven Downloads. Zum Syncen in die <Link to="/remote" className="text-accent underline">Remote</Link>-Ansicht wechseln.
               </Trans>
             </div>
           ))}
