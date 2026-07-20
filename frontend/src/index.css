@@ -117,7 +117,15 @@
    UA default; touch devices step up once more since phones are read at
    arm's length. Keeps the whole UI proportional instead of bumping every
    element by hand. */
-html { font-size: 17px; }
+html {
+  font-size: 17px;
+  /* Tailwind's preflight only ships the -webkit- spelling, which Firefox has
+     never aliased - without these two its font inflation stays on and scales
+     text independently of the layout. */
+  text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
 @media (pointer: coarse) { html { font-size: 18px; } }
 
 body {
