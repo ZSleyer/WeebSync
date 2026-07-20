@@ -1239,10 +1239,6 @@
             },
             "api.catalogResponse": {
                 "properties": {
-                    "inherited": {
-                        "description": "scope comes from an ancestor mark",
-                        "type": "boolean"
-                    },
                     "items": {
                         "items": {
                             "$ref": "#/components/schemas/api.catalogItem"
@@ -1553,10 +1549,6 @@
             },
             "api.scopeResponse": {
                 "properties": {
-                    "inherited": {
-                        "description": "scope comes from an ancestor mark",
-                        "type": "boolean"
-                    },
                     "scope": {
                         "description": "\"\" | anime | tv | movie",
                         "type": "string"
@@ -7536,7 +7528,7 @@
         },
         "/api/servers/{id}/catalog/scope": {
             "get": {
-                "description": "Report the effective metadata scope (own or inherited) of a catalog path.",
+                "description": "Report the metadata scope marked on a catalog path.",
                 "parameters": [
                     {
                         "description": "Server id",

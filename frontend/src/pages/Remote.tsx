@@ -36,7 +36,7 @@ export default function Remote() {
 
   // cheap scope probe (no listing/matching) so we know whether the current
   // folder is catalog-managed; drives the auto-open above without side effects
-  const { data: scopeInfo } = useQuery<{ scope: string; inherited: boolean }>({
+  const { data: scopeInfo } = useQuery<{ scope: string }>({
     queryKey: ['catalog-scope', active, remotePath],
     queryFn: () => api.get(`/api/servers/${active}/catalog/scope${remotePath ? `?path=${encodeURIComponent('/' + remotePath)}` : ''}`),
     enabled: active > 0 && !query.trim(),
@@ -491,8 +491,7 @@ export function CatalogGrid({
             </select>
           </span>
         </label>
-        {data?.inherited && <span className="t-label" title={t('remote.scopeInheritedHint')}>{t('remote.scopeInherited')}</span>}
-        {data && data.scope !== '' && !data.inherited && (
+        {data && data.scope !== '' && (
           <button className="t-btn t-btn--sm" title={t('remote.scopeClearHint')} onClick={() => setScope('')}>
             {t('remote.scopeClear')}
           </button>
