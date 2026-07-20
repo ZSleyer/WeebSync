@@ -171,7 +171,6 @@
     "autoCatalog": "Auto-open catalog folders",
     "autoCatalogHint": "Open folders with a maintained catalog straight in catalog view. Switch any folder back to classic anytime.",
     "files": "Files",
-    "filesFor": "Files in {{name}}",
     "showFiles": "Show files",
     "remote": "remote",
     "local": "local",

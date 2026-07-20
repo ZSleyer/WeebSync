@@ -191,6 +191,13 @@ export default function Remote() {
                 setSelection(e)
                 setWatchOpen(true)
               }}
+              onOpenFiles={(p) => {
+                // ponytail: the auto-open preference re-opens the catalog if the
+                // target folder carries a mark of its own; marks no longer
+                // inherit, so that only happens when the user set one there
+                setRemotePath(p.replace(/^\//, ''))
+                setView('classic')
+              }}
             />
           )}
         </section>
@@ -363,8 +370,8 @@ export function CatalogGrid({
   selected,
   onSync,
   onWatch,
+  onOpenFiles,
   cardActions,
-  fileActions,
 }: {
   serverId: number
   path: string
@@ -374,11 +381,12 @@ export function CatalogGrid({
   // omitted on the local page: there is nothing to download or watch there
   onSync?: (e: Entry) => void
   onWatch?: (e: Entry) => void
-  // local page: extra card buttons (rename/delete) and per-file controls
-  // inside the files dialog. Kept as render props so the admin logic lives
-  // with the page that owns the mutations.
+  // hands a folder to the page, which opens it in the classic browser: that
+  // one already lists files and navigates, so the catalog needs no second one
+  onOpenFiles: (path: string) => void
+  // local page: extra card buttons (rename/delete). Kept as a render prop so
+  // the admin logic lives with the page that owns the mutations.
   cardActions?: (e: Entry) => ReactNode
-  fileActions?: (e: Entry) => ReactNode
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
@@ -401,7 +409,6 @@ export function CatalogGrid({
   const qc = useQueryClient()
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   const [detail, setDetail] = useState<CatalogGroup | null>(null)
-  const [files, setFiles] = useState<Entry | null>(null)
   const [scopeError, setScopeError] = useState('')
   const pendingCount = items.filter((i) => i.pending).length
   const noMatchCount = items.filter((i) => !i.media && !i.pending).length
@@ -524,7 +531,16 @@ export function CatalogGrid({
           )
         )}
       </div>
-      {items.length === 0 && <p className="p-6 text-sm text-t-muted">{t('remote.noFolders')}</p>}
+      {/* a leaf folder holds files, not titles: offer the classic list instead
+          of leaving the user at a dead end */}
+      {items.length === 0 && (
+        <div className="flex flex-wrap items-center gap-3 p-6">
+          <p className="text-sm text-t-muted">{t('remote.noFolders')}</p>
+          <button className="t-btn t-btn--sm" onClick={() => onOpenFiles(path)}>
+            {t('remote.showFiles')}
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
         {groups.map((g) => {
           const it = g.items[0]
@@ -636,7 +652,7 @@ export function CatalogGrid({
                         className="t-btn t-btn--sm flex-1"
                         aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
                         title={t('remote.showFiles')}
-                        onClick={() => setFiles(it.entry)}
+                        onClick={() => onOpenFiles(it.entry.path)}
                       >
                         🗎
                       </button>
@@ -670,7 +686,7 @@ export function CatalogGrid({
                     className="t-btn t-btn--sm flex-1"
                     aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
                     title={t('remote.showFiles')}
-                    onClick={() => setFiles(it.entry)}
+                    onClick={() => onOpenFiles(it.entry.path)}
                   >
                     🗎
                   </button>
@@ -687,9 +703,6 @@ export function CatalogGrid({
         })}
       </div>
       {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
-      {files && (
-        <FilesDialog serverId={serverId} entry={files} actions={fileActions} onClose={() => setFiles(null)} />
-      )}
       {detail && (
         <DetailDialog
           group={detail}
@@ -702,68 +715,15 @@ export function CatalogGrid({
             setDetail(null)
             setRematch(it)
           }}
-          onFiles={setFiles}
+          onFiles={(e) => {
+            setDetail(null)
+            onOpenFiles(e.path)
+          }}
           onClose={() => setDetail(null)}
         />
       )}
       </div>
     </div>
-  )
-}
-
-// FilesDialog peeks at the actual files inside a catalog folder without leaving
-// the catalog view - reuses the classic file browser, navigable, read-only.
-function FilesDialog({
-  serverId,
-  entry,
-  actions,
-  onClose,
-}: {
-  serverId: number
-  entry: Entry
-  actions?: (e: Entry) => ReactNode
-  onClose: () => void
-}) {
-  const { t } = useTranslation()
-  const ref = useRef<HTMLDialogElement>(null)
-  const backdropDown = useRef(false)
-  const [path, setPath] = useState(entry.path.replace(/^\//, ''))
-  useEffect(() => {
-    ref.current?.showModal()
-  }, [])
-  return (
-    <dialog
-      ref={ref}
-      className="dialog-sheet w-full max-w-3xl"
-      aria-label={t('remote.filesFor', { name: entry.name })}
-      onClose={onClose}
-      onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
-      onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}
-    >
-      <div className="flex items-center gap-2 border-b border-border-subtle p-3">
-        <span className="t-label t-label--accent">{t('remote.files')}</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted" title={entry.path}>
-          {entry.name}
-        </span>
-        <button type="button" className="t-btn t-btn--sm" aria-label={t('remote.close')} onClick={() => ref.current?.close()}>
-          ✕
-        </button>
-      </div>
-      <div className="flex max-h-[70vh] min-h-64 flex-col">
-        <FileBrowser
-          // source 0 is the local filesystem, which has its own browse endpoint
-          queryKey={serverId === 0 ? ['local'] : ['catalog-files', serverId]}
-          fetchPath={(p) =>
-            serverId === 0
-              ? `/api/browse/local?path=${encodeURIComponent(p)}`
-              : `/api/servers/${serverId}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`
-          }
-          path={path}
-          onNavigate={setPath}
-          actions={actions}
-        />
-      </div>
-    </dialog>
   )
 }
 
