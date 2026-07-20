@@ -541,6 +541,9 @@ export function CatalogGrid({
         {groups.map((g) => {
           const it = g.items[0]
           const multi = g.items.length > 1
+          // the file-count heuristic reads a season that has aired one episode
+          // so far as a film; where a match exists, it knows better
+          const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
           const isSelected = g.items.some((v) => v.entry.path === selected)
           return (
             <article
@@ -596,9 +599,9 @@ export function CatalogGrid({
                     </p>
                   )}
                   <div className="mt-1.5 flex flex-wrap gap-1">
-                    {it.kind && (
-                      <span className={`t-label ${it.kind === 'movie' ? 't-label--accent' : ''}`}>
-                        {t(it.kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
+                    {kind && (
+                      <span className={`t-label ${kind === 'movie' ? 't-label--accent' : ''}`}>
+                        {t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
                       </span>
                     )}
                     {g.media && (
@@ -715,6 +718,20 @@ export function CatalogGrid({
             setDetail(null)
             onOpenFiles(e.path)
           }}
+          onSync={
+            onSync &&
+            ((e) => {
+              setDetail(null)
+              onSync(e)
+            })
+          }
+          onWatch={
+            onWatch &&
+            ((e) => {
+              setDetail(null)
+              onWatch(e)
+            })
+          }
           onClose={() => setDetail(null)}
         />
       )}
@@ -851,6 +868,8 @@ function DetailDialog({
   onSelect,
   onRematch,
   onFiles,
+  onSync,
+  onWatch,
   onClose,
 }: {
   group: CatalogGroup
@@ -858,6 +877,10 @@ function DetailDialog({
   onSelect: (e: Entry) => void
   onRematch: (it: CatalogItem) => void
   onFiles: (e: Entry) => void
+  // a card bundling several folders cannot sync "the" title - the version is
+  // picked here, where each row stands for exactly one folder
+  onSync?: (e: Entry) => void
+  onWatch?: (e: Entry) => void
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -1001,9 +1024,9 @@ function DetailDialog({
         </h4>
         <ul>
           {group.items.map((it) => (
-            <li key={it.entry.path} className="flex items-center gap-2 border-b border-border-subtle px-2 py-2">
+            <li key={it.entry.path} className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-2 py-2">
               <span
-                className={`min-w-0 flex-1 truncate text-sm ${selected === it.entry.path ? 'text-accent' : ''}`}
+                className={`min-w-0 flex-1 basis-full truncate text-sm sm:basis-auto ${selected === it.entry.path ? 'text-accent' : ''}`}
                 title={it.entry.path}
               >
                 {it.entry.name}
@@ -1014,6 +1037,16 @@ function DetailDialog({
               <button className="t-btn t-btn--sm shrink-0" title={t('remote.showFiles')} onClick={() => onFiles(it.entry)}>
                 {t('remote.files')}
               </button>
+              {onSync && (
+                <button className="t-btn t-btn--sm shrink-0" onClick={() => onSync(it.entry)}>
+                  {t('plex.syncOnce')}
+                </button>
+              )}
+              {onWatch && (
+                <button className="t-btn t-btn--sm shrink-0" onClick={() => onWatch(it.entry)}>
+                  {t('watch.add')}
+                </button>
+              )}
               <button className="t-btn t-btn--sm shrink-0" onClick={() => onRematch(it)}>
                 {t('remote.changeMatch')}
               </button>
