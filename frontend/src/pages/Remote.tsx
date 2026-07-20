@@ -431,17 +431,21 @@ export function CatalogGrid({
 
   // bundle folders matched to the same anime into one card; the version
   // (folder) is picked in a dialog. Unmatched/pending folders stay individual.
+  // The source belongs in the key: AniList, TMDB series, TMDB films and TVDB
+  // number their entries independently, so a film and a show can share an id
+  // and would otherwise collapse into one card that hides both their buttons.
   const groups = useMemo(() => {
     const out: CatalogGroup[] = []
-    const byMedia = new Map<number, CatalogGroup>()
+    const byMedia = new Map<string, CatalogGroup>()
     for (const it of items) {
-      const existing = it.media && byMedia.get(it.media.id)
+      const key = it.media ? `${it.source ?? ''}:${it.media.id}` : it.entry.path
+      const existing = it.media && byMedia.get(key)
       if (existing) {
         existing.items.push(it)
         continue
       }
-      const g: CatalogGroup = { key: it.media ? `m${it.media.id}` : it.entry.path, media: it.media, pending: it.pending, items: [it] }
-      if (it.media) byMedia.set(it.media.id, g)
+      const g: CatalogGroup = { key, media: it.media, pending: it.pending, items: [it] }
+      if (it.media) byMedia.set(key, g)
       out.push(g)
     }
     return out
