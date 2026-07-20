@@ -966,6 +966,9 @@ function DetailDialog({
                 className="aspect-video w-full"
                 title={t('remote.trailer')}
                 src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}`}
+                // the page sends no referrer at all, which the player rejects
+                // with "error 153"; this hands it the bare origin, no path
+                referrerPolicy="strict-origin"
                 allow="encrypted-media; fullscreen"
                 allowFullScreen
               />
