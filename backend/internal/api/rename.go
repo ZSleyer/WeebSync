@@ -195,7 +195,9 @@ func (s *Server) handleRenameApply(w http.ResponseWriter, r *http.Request) {
 		// safe but not what the preview showed
 		rel := filepath.FromSlash(p.New)
 		dst := filepath.Join(abs, rel)
-		if !filepath.IsLocal(rel) || !strings.HasPrefix(dst, abs+string(os.PathSeparator)) {
+		src := filepath.Join(abs, p.Old)
+		if !filepath.IsLocal(rel) || !strings.HasPrefix(dst, abs+string(os.PathSeparator)) ||
+			!filepath.IsLocal(p.Old) || !strings.HasPrefix(src, abs+string(os.PathSeparator)) {
 			p.Err = "invalid name"
 			results = append(results, p)
 			continue
@@ -210,7 +212,7 @@ func (s *Server) handleRenameApply(w http.ResponseWriter, r *http.Request) {
 			results = append(results, p)
 			continue
 		}
-		if err := os.Rename(filepath.Join(abs, filepath.Base(p.Old)), dst); err != nil {
+		if err := os.Rename(src, dst); err != nil {
 			p.Err = err.Error()
 		}
 		results = append(results, p)
