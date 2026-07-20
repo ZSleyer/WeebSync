@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -136,8 +137,9 @@ func (r *Resolver) fresh(s Series, want string) bool {
 func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, want string) {
 	m, err := r.buildMap(ctx, s, provider, ordering)
 	if err != nil {
-		// quote the user-controlled folder: escapes CR/LF so it can't forge log lines
-		slog.Warn("airmap rebuild", "folder", strconv.Quote(s.Folder), "err", err)
+		// strip CR/LF from the user-controlled folder so it can't forge log lines
+		folder := strings.ReplaceAll(strings.ReplaceAll(s.Folder, "\n", ""), "\r", "")
+		slog.Warn("airmap rebuild", "folder", folder, "err", err)
 		return
 	}
 	source := want
