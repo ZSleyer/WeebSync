@@ -11,7 +11,11 @@
   "about": {
     "dev": "Dev version",
     "stable": "Stable",
-    "channel": { "dev": "Dev", "nightly": "Nightly", "stable": "Stable" },
+    "channel": {
+      "dev": "Dev",
+      "nightly": "Nightly",
+      "stable": "Stable"
+    },
     "updateDev": "A newer build is available.",
     "updateStable": "Version {{version}} is available.",
     "updateLink": "Details",
@@ -297,11 +301,21 @@
     "view": "View",
     "viewList": "List",
     "viewCalendar": "Calendar",
-    "group": { "syncing": "Downloading", "idle": "Watching", "waiting": "Waiting", "complete": "Complete" },
+    "group": {
+      "syncing": "Downloading",
+      "idle": "Watching",
+      "waiting": "Waiting",
+      "complete": "Complete"
+    },
     "calEmpty": "No upcoming episodes with an air date.",
     "calFilter": "Filter by type",
     "calAll": "All",
-    "cat": { "anime-series": "Anime series", "anime-movie": "Anime films", "series": "Series", "movie": "Films" },
+    "cat": {
+      "anime-series": "Anime series",
+      "anime-movie": "Anime films",
+      "series": "Series",
+      "movie": "Films"
+    },
     "airingNow": "now",
     "inDaysH": "in {{d}}d {{h}}h",
     "inHoursM": "in {{h}}h {{m}}m",
@@ -596,7 +610,20 @@
     "tvdbConnected": "TVDB: connected",
     "tvdbNotConfigured": "Save the TVDB API key first.",
     "tvdbTest": "Test connection",
-    "envLockedHint": "Set via environment variable – not editable here"
+    "envLockedHint": "Set via environment variable – not editable here",
+    "plexWatchlistLink": "Link Plex watchlist",
+    "plexWatchlistUnlink": "Unlink",
+    "plexWatchlistLinked": "Watchlist linked as {{user}}",
+    "plexWatchlistPending": "Confirm in the plex.tv tab (code {{code}})…",
+    "emailCat_suggestion": "Suggestions",
+    "emailCat_upgrade": "Upgrades",
+    "pushCategories": "PUSH CATEGORIES & FREQUENCY",
+    "pushUnavailable": "Push is not configured on this instance.",
+    "notifyFreq": "Frequency",
+    "notifyFreqHint": "How often notifications are batched before delivery (push and mail).",
+    "freqInstant": "Instant",
+    "freqHourly": "Hourly",
+    "freqDaily": "Daily"
   },
   "status": {
     "queued": "queued",
@@ -659,6 +686,11 @@
   },
   "suggestions": {
     "title": "SUGGESTIONS",
+    "upgrades": "Upgrades",
+    "noUpgrades": "No better versions found.",
+    "upRes": "higher resolution",
+    "upSub": "more sub",
+    "upDub": "more dub",
     "sub": "anilist & tmdb watchlists · plex sequels · trending",
     "anilist": "AniList: your watchlist on the server",
     "plex": "Plex: missing sequels",
@@ -682,6 +714,17 @@
     "tmdbEmpty": "No watchlist title found in the index.",
     "trendingEmpty": "No trending title found.",
     "otherLibrary": "Other",
-    "plexLibraries": "Plex libraries"
+    "plexLibraries": "Plex libraries",
+    "upgradeAxes": "Axes:",
+    "axis_res": "Resolution",
+    "axis_sub": "Sub",
+    "axis_dub": "Dub",
+    "dismiss": "Dismiss",
+    "ignored": "Ignored",
+    "restore": "Restore",
+    "watchlist": "Plex watchlist",
+    "watchlistSub": "From your plex.tv account",
+    "movie": "Movie",
+    "show": "Show"
   }
 }

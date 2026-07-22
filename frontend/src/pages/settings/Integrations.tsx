@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api } from '../../api'
+import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
 import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
@@ -84,6 +84,7 @@ export default function Integrations() {
             <span className="mt-1 block">{t('settings.plexTokenHint')}</span>
           </label>
           <PlexAccount />
+          <PlexWatchlistAccount />
           {form.plexTokenSet && form.plexUrl && (
             <PlexSections
               value={form.plexSections}
@@ -330,6 +331,58 @@ function AnilistOwnApp({
 // Plex connection status: the stored URL/token are checked against the server
 // root, which also names the server and the linked plex.tv account. No connect
 // button - Plex is configured by pasting a token above.
+// PlexWatchlistAccount drives the plex.tv PIN link flow for the personal
+// watchlist (separate from the instance-wide server token above): start a PIN,
+// open the plex.tv auth page, poll until the user authorises.
+function PlexWatchlistAccount() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const { data } = useQuery<PlexAccountT>({ queryKey: ['plex-account'], queryFn: () => api.get('/api/plex/account') })
+  const [pin, setPin] = useState<PlexLinkStart | null>(null)
+  const timer = useRef<ReturnType<typeof setInterval>>(undefined)
+
+  useEffect(() => () => clearInterval(timer.current), [])
+
+  const start = async () => {
+    const p = await api.post<PlexLinkStart>('/api/plex/link/start')
+    setPin(p)
+    window.open(p.url, '_blank', 'noopener')
+    clearInterval(timer.current)
+    timer.current = setInterval(async () => {
+      const res = await api.get<PlexAccountT>(`/api/plex/link/poll?id=${p.id}`)
+      if (res.linked) {
+        clearInterval(timer.current)
+        setPin(null)
+        qc.invalidateQueries({ queryKey: ['plex-account'] })
+      }
+    }, 2000)
+  }
+
+  const unlink = async () => {
+    await api.del('/api/plex/account')
+    qc.invalidateQueries({ queryKey: ['plex-account'] })
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+      {data?.linked ? (
+        <>
+          <span className="t-label t-label--ok">{t('settings.plexWatchlistLinked', { user: data.user })}</span>
+          <button type="button" className="t-btn t-btn--sm" onClick={unlink}>
+            {t('settings.plexWatchlistUnlink')}
+          </button>
+        </>
+      ) : pin ? (
+        <span>{t('settings.plexWatchlistPending', { code: pin.code })}</span>
+      ) : (
+        <button type="button" className="t-btn t-btn--sm" onClick={start}>
+          {t('settings.plexWatchlistLink')}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function PlexAccount() {
   const { t } = useTranslation()
   const { data } = useQuery<{
