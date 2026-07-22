@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -92,6 +92,30 @@ function syncFields(sync: SyncPlan, title: string, remotePath: string): WatchFie
 // (Zeichentrick, non-Japanese), then live-action. Movies before series.
 const CATS = ['anime-movie', 'anime-tv', 'animation-movie', 'animation-tv', 'movie', 'tv'] as const
 
+// CollapsibleCat wraps one category block behind its heading; the heading is
+// the toggle (open by default, not persisted).
+function CollapsibleCat({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div>
+      <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
+        <button
+          type="button"
+          className="flex min-h-6 items-center gap-1.5 text-left"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span aria-hidden className="font-mono text-accent">
+            {open ? '▾' : '▸'}
+          </span>
+          {title} <span className="t-label">{count}</span>
+        </button>
+      </h3>
+      {open && children}
+    </div>
+  )
+}
+
 // BucketSection renders one functional bucket. Trending and Watchlist are
 // sub-grouped into the four categories (Anime series/movies, series, movies);
 // Incomplete is a flat list.
@@ -143,10 +167,7 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
         const visible = catItems.filter((it) => showCompleted || statusOf(it) !== 'COMPLETED')
         if (!visible.length) return null
         return (
-          <div key={cat}>
-            <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
-              {t(`suggestions.cat_${cat}`)} <span className="t-label">{visible.length}</span>
-            </h3>
+          <CollapsibleCat key={cat} title={t(`suggestions.cat_${cat}`)} count={visible.length}>
             <div className="space-y-3">
               {statusRows.map(([key, label]) => {
                 if (key === 'COMPLETED' && !showCompleted) return null
@@ -162,7 +183,7 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
                 )
               })}
             </div>
-          </div>
+          </CollapsibleCat>
         )
       })}
     </div>
@@ -179,12 +200,9 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
               const list = items.filter((it) => it.category === cat)
               if (!list.length) return null
               return (
-                <div key={cat}>
-                  <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
-                    {t(`suggestions.cat_${cat}`)} <span className="t-label">{list.length}</span>
-                  </h3>
+                <CollapsibleCat key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
                   {cards(list)}
-                </div>
+                </CollapsibleCat>
               )
             })}
       {watch && (
@@ -656,12 +674,9 @@ function UpgradesSection() {
                 const list = items.filter((u) => u.category === cat)
                 if (!list.length) return null
                 return (
-                  <div key={cat}>
-                    <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
-                      {t(`suggestions.cat_${cat}`)} <span className="t-label">{list.length}</span>
-                    </h3>
+                  <CollapsibleCat key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
                     <div className="space-y-3">{list.map(render)}</div>
-                  </div>
+                  </CollapsibleCat>
                 )
               })}
             </div>
