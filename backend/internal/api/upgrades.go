@@ -11,7 +11,24 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/match"
 )
+
+// rawKeyRe matches a canonical show_key used as a title fallback (tvdb:/tmdb:/
+// imdb:/fold:) - not something we ever want to display.
+var rawKeyRe = regexp.MustCompile(`^(tvdb|tmdb|imdb|fold):`)
+
+// nameOrFolder returns rawTitle unless it is a raw show_key, in which case it
+// derives a human title from the remote folder name (e.g. "Overlord IV"). Used
+// when no provider media resolved yet, so a card never shows "tvdb:294002".
+func nameOrFolder(rawTitle, folder string) string {
+	if folder != "" && rawKeyRe.MatchString(rawTitle) {
+		if n := match.GuessTitle(filepath.Base(folder)); n != "" {
+			return n
+		}
+	}
+	return rawTitle
+}
 
 var plexSeasonDirRe = regexp.MustCompile(`(?i)^season\s+(\d+)$`)
 
@@ -234,7 +251,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		}
 		up := UpgradeSuggestion{
 			Key: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
-			Title: e.title, From: cur, To: top, Options: u.remotes,
+			Title: nameOrFolder(e.title, top.Folder), From: cur, To: top, Options: u.remotes,
 			ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub,
 			Providers: e.providers, Links: e.links,
 			Cover: e.cover, Format: e.format, Episodes: e.episodes,
@@ -284,17 +301,18 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		for _, r := range u.remotes {
 			cands = append(cands, plexCandidate{ServerID: r.ServerID, ServerName: r.ServerName, Path: r.Folder})
 		}
+		title := nameOrFolder(e.title, u.remotes[0].Folder) // human name even if media unresolved
 		// carry the full resolved media (cover/episodes/score/format) so the card
 		// shows metadata, not just a title
 		media := e.media
 		media.Format = e.format
 		media.Genres = e.genres
-		media.Title.Romaji = e.title
-		media.Title.Preferred = e.title // e.title is already the localized display title
+		media.Title.Romaji = title
+		media.Title.Preferred = title
 		acc.add(SugItem{
 			RefKey: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
 			Category: categorize(e.providers, media, ""),
-			Title:    e.title, Cover: e.cover, Media: media,
+			Title:    title, Cover: e.cover, Media: media,
 			Providers: e.providers, Links: e.links, Candidates: cands,
 			Library: s.plexLibraryOf(ownedDir[u.showKey]),
 			Sync:    missingSyncPlan(ownedDir[u.showKey], u.season, u.isMovie),
