@@ -33,6 +33,7 @@ type Media struct {
 	Title struct {
 		Romaji  string `json:"romaji"`
 		English string `json:"english"`
+		Native  string `json:"native,omitempty"` // original-script title, stored per locale, never displayed directly
 		// Preferred is the canonical display title we compute (localized,
 		// never native Japanese). Set by the API layer once the media's source
 		// is known; consumers render this instead of guessing romaji/english.
@@ -87,7 +88,7 @@ func (m *Media) FutureAirings() []AiringSlot {
 	return nil
 }
 
-const mediaFields = `id title { romaji english } coverImage { large } bannerImage
+const mediaFields = `id title { romaji english native } coverImage { large } bannerImage
 	trailer { id site thumbnail }
 	nextAiringEpisode { airingAt episode }
 	airingSchedule(notYetAired: true, perPage: 25) { nodes { airingAt episode } }
