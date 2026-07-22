@@ -27,12 +27,14 @@ export default function WatchDialog({
   initial,
   onSave,
   onClose,
+  saveLabel,
 }: {
   title: string
   serverId: number
   initial: WatchFields
   onSave: (f: WatchFields) => Promise<void>
   onClose: () => void
+  saveLabel?: string // footer button text; defaults to the watch "save" label
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
@@ -370,7 +372,7 @@ export default function WatchDialog({
             {t('servers.cancel')}
           </button>
           <button className="t-btn t-btn--primary t-cut" disabled={busy}>
-            {t('settings.save')}
+            {saveLabel ?? t('settings.save')}
           </button>
         </footer>
       </form>

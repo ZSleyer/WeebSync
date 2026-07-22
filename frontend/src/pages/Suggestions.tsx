@@ -11,6 +11,7 @@ import {
   type UpgradeVariant,
   type UpgradeDims,
   type DismissedItem,
+  type SyncPlan,
 } from '../api'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { usePersistedQuery } from '../hooks'
@@ -59,6 +60,46 @@ function guessSeason(title: string): number {
   return n >= 2 ? n : 0
 }
 
+// syncFields builds the one-off sync form from a suggestion's pre-computed
+// SyncPlan (correct season/movie target + rename template) and the chosen remote
+// source. Fed to WatchDialog; its dry-run preview shows the resulting path.
+function syncFields(sync: SyncPlan, title: string, remotePath: string): WatchFields {
+  return {
+    remotePath,
+    localPath: sync.localPath,
+    mode: 'template',
+    template: sync.template ?? '',
+    separator: '',
+    titleOverride: title,
+    pattern: '',
+    replacement: '',
+    subfolder: sync.subfolder,
+    mediaId: 0,
+    mediaSource: 'anilist',
+    fromEpisode: 0,
+    airedMapping: false,
+    renameProvider: '',
+    renameOrdering: '',
+    renameTitleLang: '',
+    renameSeriesId: 0,
+    wantDub: '',
+    wantSub: '',
+  }
+}
+
+// byLibrary groups suggestions by their Plex library title for a clearer,
+// per-library layout; named libraries come first (alphabetical), items with an
+// unknown library ('') last.
+function byLibrary<T extends { library?: string }>(items: T[]): [string, T[]][] {
+  const groups = new Map<string, T[]>()
+  for (const it of items) {
+    const k = it.library || ''
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k)!.push(it)
+  }
+  return [...groups.entries()].sort((a, b) => (a[0] === '' ? 1 : b[0] === '' ? -1 : a[0].localeCompare(b[0])))
+}
+
 const CATS = ['anime-tv', 'anime-movie', 'tv', 'movie'] as const
 
 // BucketSection renders one functional bucket. Trending and Watchlist are
@@ -72,7 +113,9 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
     { refetchInterval: (q) => (q.state.data?.building ? 4000 : false) },
   )
   const [watch, setWatch] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
+  const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
   const [notice, setNotice] = useState('')
+  const [showCompleted, setShowCompleted] = useState(false)
 
   if (isLoading) return <SkeletonCards />
   const items = (data?.[bucket] ?? []) as SuggestionItem[]
@@ -81,28 +124,79 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
   const cards = (list: SuggestionItem[]) => (
     <ul className="grid grid-cols-1 gap-2">
       {list.map((it) => (
-        <SugCard key={it.refKey} it={it} onWatch={setWatch} onNotice={setNotice} />
+        <SugCard key={it.refKey} it={it} onWatch={setWatch} onSync={setSync} onNotice={setNotice} />
       ))}
     </ul>
+  )
+
+  // Watchlist (Phase 5) groups by status: Planned, Watching, Completed. Items
+  // without a status fall into Planned; Completed is hidden behind a toggle.
+  const statusOf = (it: SuggestionItem) => (it.status === 'CURRENT' || it.status === 'COMPLETED' ? it.status : 'PLANNING')
+  const completedCount = items.filter((it) => statusOf(it) === 'COMPLETED').length
+  const watchlistGroups = (
+    <div className="space-y-4">
+      {completedCount > 0 && (
+        <label className="flex items-center gap-1.5 text-sm">
+          <input type="checkbox" checked={showCompleted} onChange={() => setShowCompleted((v) => !v)} />
+          {t('suggestions.showCompleted')}
+        </label>
+      )}
+      {(
+        [
+          ['PLANNING', 'suggestions.statusPlanning'],
+          ['CURRENT', 'suggestions.statusCurrent'],
+          ['COMPLETED', 'suggestions.statusCompleted'],
+        ] as const
+      ).map(([key, label]) => {
+        if (key === 'COMPLETED' && !showCompleted) return null
+        const list = items.filter((it) => statusOf(it) === key)
+        if (!list.length) return null
+        return (
+          <div key={key}>
+            <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
+              {t(label)} <span className="t-label">{list.length}</span>
+            </h3>
+            {cards(list)}
+          </div>
+        )
+      })}
+    </div>
   )
 
   return (
     <div className="space-y-4">
       {notice && <p className="t-label t-label--accent">{notice}</p>}
       {bucket === 'incomplete'
-        ? cards(items)
-        : CATS.map((cat) => {
-            const list = items.filter((it) => it.category === cat)
-            if (!list.length) return null
+        ? (() => {
+            const groups = byLibrary(items)
+            if (groups.length === 1 && groups[0][0] === '') return cards(items)
             return (
-              <div key={cat}>
-                <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
-                  {t(`suggestions.cat_${cat}`)} <span className="t-label">{list.length}</span>
-                </h3>
-                {cards(list)}
+              <div className="space-y-4">
+                {groups.map(([lib, list]) => (
+                  <div key={lib || '_'}>
+                    <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
+                      {lib || t('suggestions.otherLibrary')} <span className="t-label">{list.length}</span>
+                    </h3>
+                    {cards(list)}
+                  </div>
+                ))}
               </div>
             )
-          })}
+          })()
+        : bucket === 'watchlist'
+          ? watchlistGroups
+          : CATS.map((cat) => {
+              const list = items.filter((it) => it.category === cat)
+              if (!list.length) return null
+              return (
+                <div key={cat}>
+                  <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
+                    {t(`suggestions.cat_${cat}`)} <span className="t-label">{list.length}</span>
+                  </h3>
+                  {cards(list)}
+                </div>
+              )
+            })}
       {watch && (
         <WatchDialog
           title={watch.name}
@@ -115,6 +209,19 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
           onClose={() => setWatch(null)}
         />
       )}
+      {sync && (
+        <WatchDialog
+          title={sync.name}
+          serverId={sync.serverId}
+          initial={sync.initial}
+          saveLabel={t('suggestions.syncOnce')}
+          onSave={async (f) => {
+            const r = await api.post<{ queued: number }>('/api/downloads/sync', { serverId: sync.serverId, ...f })
+            setNotice(t('remote.queued', { count: r.queued }))
+          }}
+          onClose={() => setSync(null)}
+        />
+      )}
     </div>
   )
 }
@@ -125,10 +232,12 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
 function SugCard({
   it,
   onWatch,
+  onSync,
   onNotice,
 }: {
   it: SuggestionItem
   onWatch: (w: { serverId: number; name: string; initial: WatchFields }) => void
+  onSync: (w: { serverId: number; name: string; initial: WatchFields }) => void
   onNotice: (s: string) => void
 }) {
   const { t } = useTranslation()
@@ -217,6 +326,11 @@ function SugCard({
         </h4>
 
         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+          {it.isMovie ? (
+            <span className="t-label t-label--accent">{t('suggestions.movie')}</span>
+          ) : it.season && it.season > 0 ? (
+            <span className="t-label t-label--accent">{t('suggestions.season', { season: it.season })}</span>
+          ) : null}
           <ProviderBadges providers={it.providers} links={it.links} />
           {it.status && (
             <span className={`t-label ${it.status === 'CURRENT' ? 't-label--accent' : ''}`}>{t(`suggestions.status${it.status}`)}</span>
@@ -250,7 +364,14 @@ function SugCard({
                   <button className="t-btn t-btn--sm t-btn--primary" onClick={() => onWatch({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })}>
                     {t('watch.add')}
                   </button>
-                  <button className="t-btn t-btn--sm" onClick={() => syncOnce(c.serverId, c.path)}>
+                  <button
+                    className="t-btn t-btn--sm"
+                    onClick={() =>
+                      it.sync?.localPath
+                        ? onSync({ serverId: c.serverId, name: it.title, initial: syncFields(it.sync, it.title, c.path) })
+                        : syncOnce(c.serverId, c.path)
+                    }
+                  >
                     {t('plex.syncOnce')}
                   </button>
                   <button className="t-btn t-btn--sm" onClick={() => navigate(`/remote?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}>
@@ -382,23 +503,29 @@ function upgradeDiff(u: UpgradeSuggestion, t: (k: string, o?: Record<string, unk
   return out
 }
 
-// VariantBox shows one copy: where it lives (Local or the server name) plus its
-// full path, and its quality make-up.
-function VariantBox({ v, label, muted }: { v: UpgradeVariant; label: string; muted?: boolean }) {
-  const { t } = useTranslation()
+// variantQuality renders a copy's make-up: resolution and its dub/sub codes.
+function variantQuality(v: UpgradeVariant): string {
   const parts = [fmtRes(v.resRank)]
   if ((v.dub ?? []).length) parts.push(`Dub ${v.dub.join(',')}`)
   if ((v.sub ?? []).length) parts.push(`Sub ${v.sub.join(',')}`)
+  return parts.join(' · ')
+}
+
+// VariantBox shows one copy: where it lives (Local (Plex) when the server name
+// is empty, else the server name) plus its full path, and its quality make-up.
+// accent frames the recommended copy.
+function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: string; muted?: boolean; accent?: boolean }) {
+  const { t } = useTranslation()
   return (
-    <div className={`min-w-0 ${muted ? 'text-t-muted' : ''}`}>
+    <div className={`min-w-0 ${accent ? 'border border-accent p-1.5' : ''} ${muted ? 'text-t-muted' : ''}`}>
       <div className="flex items-center gap-1.5">
-        <span className="t-label shrink-0">{label}</span>
-        <span className="t-label shrink-0">{v.serverId === 0 ? t('suggestions.local') : v.serverName || `#${v.serverId}`}</span>
+        <span className={`t-label shrink-0 ${accent ? 't-label--accent' : ''}`}>{label}</span>
+        <span className="t-label shrink-0">{v.serverName ? v.serverName : t('suggestions.localPlex')}</span>
       </div>
       <div className="mt-0.5 break-all font-mono text-[11px]" title={v.folder}>
         {v.folder}
       </div>
-      <div className="mt-0.5 text-[11px]">{parts.join(' · ')}</div>
+      <div className="mt-0.5 text-[11px]">{variantQuality(v)}</div>
     </div>
   )
 }
@@ -413,6 +540,8 @@ function UpgradesSection() {
     { refetchInterval: (q) => (q.state.data?.building ? 4000 : false) },
   )
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
+  const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
+  const [notice, setNotice] = useState('')
 
   const toggle = async (key: keyof UpgradeDims) => {
     if (!dims) return
@@ -421,7 +550,7 @@ function UpgradesSection() {
     qc.invalidateQueries({ queryKey: ['suggestions'] })
   }
   const dismiss = async (u: UpgradeSuggestion) => {
-    await api.post('/api/suggestions/dismiss', { kind: 'upgrade', refKey: `series:${u.seriesId}`, label: u.title })
+    await api.post('/api/suggestions/dismiss', { kind: 'upgrade', refKey: u.key, label: u.title })
     qc.invalidateQueries({ queryKey: ['suggestions'] })
     qc.invalidateQueries({ queryKey: ['dismissed'] })
   }
@@ -429,6 +558,7 @@ function UpgradesSection() {
   const items = data?.upgrades ?? []
   return (
     <div className="space-y-3">
+      {notice && <p className="t-label t-label--accent">{notice}</p>}
       {dims && (
         <div className="t-panel px-3 py-2.5">
           <span className="text-sm text-t-secondary">{t('suggestions.upgradeWhat')}</span>
@@ -447,53 +577,117 @@ function UpgradesSection() {
       ) : !items.length ? (
         <p className="t-label">{t('suggestions.noUpgrades')}</p>
       ) : (
-        items.map((u, i) => (
-          <div key={`${u.seriesId}-${i}`} className="t-panel flex flex-wrap items-start gap-4 p-3">
-            {u.cover ? (
-              <img src={u.cover} alt="" className="h-20 w-14 shrink-0 object-cover" />
-            ) : (
-              <div className="t-hatch h-20 w-14 shrink-0" />
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-3">
-                <h4 className="truncate font-display text-sm font-semibold tracking-wider">{u.title}</h4>
-                <div className="flex shrink-0 flex-wrap gap-1">
-                  {upgradeDiff(u, t).map((d, j) => (
-                    <span key={j} className="t-label t-label--accent">
-                      {d}
-                    </span>
-                  ))}
+        (() => {
+          const render = (u: UpgradeSuggestion, i: number) => {
+          const seasonLabel = u.isMovie ? t('suggestions.movie') : u.season > 0 ? t('suggestions.season', { season: u.season }) : ''
+          const isBest = (v: UpgradeVariant) => v.serverId === u.to.serverId && v.folder === u.to.folder
+          const options = u.options ?? []
+          return (
+            <div key={u.key || `${u.showKey}-${u.season}-${i}`} className="t-panel flex flex-wrap items-start gap-4 p-3">
+              {u.cover ? (
+                <img src={u.cover} alt="" className="h-20 w-14 shrink-0 object-cover" />
+              ) : (
+                <div className="t-hatch h-20 w-14 shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+                  <h4 className="min-w-0 truncate font-display text-sm font-semibold tracking-wider">{u.title}</h4>
+                  <div className="flex shrink-0 flex-wrap gap-1">
+                    {upgradeDiff(u, t).map((d, j) => (
+                      <span key={j} className="t-label t-label--accent">
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                  {seasonLabel && <span className="t-label t-label--accent">{seasonLabel}</span>}
+                  <ProviderBadges providers={u.providers ?? []} links={u.links ?? {}} />
+                  {u.format && <span className="t-label">{u.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}</span>}
+                  {u.episodes ? <span className="text-t-muted">{t('suggestions.episodes', { count: u.episodes })}</span> : null}
+                </p>
+                <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
+                  <VariantBox v={u.from} label={t('suggestions.fromLabel')} muted />
+                  <span className="text-center text-t-muted">→</span>
+                  <VariantBox v={u.to} label={t('suggestions.recommended')} accent />
+                </div>
+                {options.length > 0 && (
+                  <div className="mt-2">
+                    <span className="t-label">{t('suggestions.allVersions')}</span>
+                    <ul className="mt-1 space-y-1">
+                      {options.map((o, j) => (
+                        <li
+                          key={`${o.serverId}-${o.folder}-${j}`}
+                          className={`flex flex-col gap-0.5 border-l-2 pl-2 sm:flex-row sm:items-center sm:gap-2 ${isBest(o) ? 'border-accent' : 'border-transparent'}`}
+                        >
+                          <span className={`t-label shrink-0 ${isBest(o) ? 't-label--accent' : ''}`}>
+                            {o.serverName ? o.serverName : t('suggestions.localPlex')}
+                          </span>
+                          <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-t-secondary" title={o.folder}>
+                            {o.folder}
+                          </span>
+                          <span className="shrink-0 text-[11px] text-t-muted">{variantQuality(o)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+                  {u.sync?.localPath && (
+                    <button
+                      className="t-btn t-btn--sm t-btn--primary"
+                      onClick={() => setSync({ serverId: u.to.serverId, name: u.title, initial: syncFields(u.sync!, u.title, u.to.folder) })}
+                    >
+                      {t('plex.syncOnce')}
+                    </button>
+                  )}
+                  {u.links?.plex && (
+                    <a className="t-btn t-btn--sm" href={u.links.plex} target="_blank" rel="noreferrer">
+                      {t('suggestions.openPlex')}
+                    </a>
+                  )}
+                  <button className="t-btn t-btn--sm" onClick={() => dismiss(u)}>
+                    {t('suggestions.dismiss')}
+                  </button>
+                  <button
+                    className="t-btn t-btn--sm"
+                    onClick={() => navigate(`/remote?server=${u.to.serverId}&path=${encodeURIComponent(u.to.folder)}`)}
+                  >
+                    {t('plex.openBrowser')}
+                  </button>
                 </div>
               </div>
-              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                <ProviderBadges providers={u.providers ?? []} links={u.links ?? {}} />
-                {u.format && <span className="t-label">{u.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}</span>}
-                {u.episodes ? <span className="text-t-muted">{t('suggestions.episodes', { count: u.episodes })}</span> : null}
-              </p>
-              <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
-                <VariantBox v={u.from} label={t('suggestions.have')} muted />
-                <span className="text-center text-t-muted">→</span>
-                <VariantBox v={u.to} label={t('suggestions.better')} />
-              </div>
-              <div className="mt-2 flex flex-wrap justify-end gap-1.5">
-                {u.links?.plex && (
-                  <a className="t-btn t-btn--sm" href={u.links.plex} target="_blank" rel="noreferrer">
-                    {t('suggestions.openPlex')}
-                  </a>
-                )}
-                <button className="t-btn t-btn--sm" onClick={() => dismiss(u)}>
-                  {t('suggestions.dismiss')}
-                </button>
-                <button
-                  className="t-btn t-btn--sm"
-                  onClick={() => navigate(`/remote?server=${u.to.serverId}&path=${encodeURIComponent(u.to.folder)}`)}
-                >
-                  {t('plex.openBrowser')}
-                </button>
-              </div>
             </div>
-          </div>
-        ))
+          )
+          }
+          const groups = byLibrary(items)
+          if (groups.length === 1 && groups[0][0] === '') return items.map(render)
+          return (
+            <div className="space-y-4">
+              {groups.map(([lib, list]) => (
+                <div key={lib || '_'}>
+                  <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
+                    {lib || t('suggestions.otherLibrary')} <span className="t-label">{list.length}</span>
+                  </h3>
+                  <div className="space-y-3">{list.map(render)}</div>
+                </div>
+              ))}
+            </div>
+          )
+        })()
+      )}
+      {sync && (
+        <WatchDialog
+          title={sync.name}
+          serverId={sync.serverId}
+          initial={sync.initial}
+          saveLabel={t('suggestions.syncOnce')}
+          onSave={async (f) => {
+            const r = await api.post<{ queued: number }>('/api/downloads/sync', { serverId: sync.serverId, ...f })
+            setNotice(t('remote.queued', { count: r.queued }))
+          }}
+          onClose={() => setSync(null)}
+        />
       )}
     </div>
   )

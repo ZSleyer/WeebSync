@@ -447,6 +447,10 @@
     "plexUrlHint": "Adresse deines Plex Media Servers, z. B. https://plex.example.com.",
     "plexToken": "Plex-Token",
     "plexTokenHint": "X-Plex-Token deines Servers, findbar über die Plex-Weboberfläche (XML-Ansicht eines Titels).",
+    "plexRoots": "Plex-Wurzelverzeichnisse",
+    "plexRootsDetected": "Automatisch aus Plex erkannt:",
+    "plexRootsNone": "Noch keine Pfade aus Plex erkannt (nach dem ersten Bibliotheks-Scan verfügbar).",
+    "plexRootsHint": "Werden automatisch aus den Plex-Bibliotheks-Pfaden erkannt (mehrere pro Bibliothek möglich). Nur nötig, wenn die Dateien lokal NICHT unter dem von Plex gemeldeten Pfad liegen: pro Zeile ein Mapping \"Plex-Pfad => lokaler Pfad\" (z. B. /media/anime => /mnt/disk1/anime) oder ein einzelner zusätzlicher lokaler Pfad.",
     "plexSections": "Bibliotheken für Vorschläge",
     "plexSectionsHint": "Keine Auswahl = alle Serien- und Film-Bibliotheken. Pro Bibliothek: AniList (Anime), TMDB (Live Action, API-Key nötig) oder TVDB (nur Serien, API-Key nötig). Bibliotheken mit „anime\" im Namen wählen AniList vor.",
     "tmdbApiKey": "TMDB API-Key (Serien/Filme-Katalog)",
@@ -753,6 +757,18 @@
     "better": "Besser",
     "openPlex": "In Plex öffnen",
     "episodes": "{{count}} Folgen",
-    "localPath": "Lokaler Speicherpfad"
+    "localPath": "Lokaler Speicherpfad",
+    "season": "Staffel {{season}}",
+    "localPlex": "Lokal (Plex)",
+    "fromLabel": "Von",
+    "recommended": "Empfohlen",
+    "allVersions": "Alle Versionen",
+    "statusPlanning": "Geplant",
+    "statusCurrent": "Schaue ich",
+    "statusCompleted": "Abgeschlossen",
+    "showCompleted": "Abgeschlossene zeigen",
+    "statusCOMPLETED": "abgeschlossen",
+    "syncOnce": "Einmal synchronisieren",
+    "otherLibrary": "Sonstige"
   }
 }

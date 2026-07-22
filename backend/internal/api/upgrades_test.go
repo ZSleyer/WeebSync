@@ -20,13 +20,13 @@ func TestStrictSuperset(t *testing.T) {
 	}
 }
 
-func TestBestVariant(t *testing.T) {
-	vs := []seriesVariant{
-		{v: UpgradeVariant{Folder: "a", ResRank: 720, Dub: []string{"Ger"}}},
-		{v: UpgradeVariant{Folder: "b", ResRank: 1080, Dub: []string{"Ger"}}},        // wins on res
-		{v: UpgradeVariant{Folder: "c", ResRank: 1080, Dub: []string{"Ger", "Jap"}}}, // ties res, wins dub
+func TestBestCopy(t *testing.T) {
+	vs := []UpgradeVariant{
+		{Folder: "a", ResRank: 720, Dub: []string{"Ger"}},
+		{Folder: "b", ResRank: 1080, Dub: []string{"Ger"}},        // wins on res
+		{Folder: "c", ResRank: 1080, Dub: []string{"Ger", "Jap"}}, // ties res, wins dub
 	}
-	if got := bestVariant(vs); got.v.Folder != "c" {
-		t.Errorf("bestVariant picked %q want c", got.v.Folder)
+	if got := bestCopy(vs); got.Folder != "c" {
+		t.Errorf("bestCopy picked %q want c", got.Folder)
 	}
 }

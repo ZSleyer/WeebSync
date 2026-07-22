@@ -166,12 +166,26 @@ export interface SuggestionItem {
   providers: string[] // anilist | tmdb | tvdb | imdb | plex
   links: ProviderLinks
   candidates: SuggestionCandidate[]
-  status?: string // watchlist: CURRENT | PLANNING
+  status?: string // watchlist: CURRENT | PLANNING | COMPLETED
+  showKey?: string // local Plex key (incomplete)
+  season?: number // 0 = movie/base
+  isMovie?: boolean
   progress?: number
   have?: number // incomplete: episodes present
   need?: number // incomplete: episodes through the sequel
   sequel?: Media
   plexFolder?: string
+  library?: string // incomplete: Plex library title, for grouping
+  sync?: SyncPlan // incomplete: where a one-off sync creates the season/movie folder
+}
+
+// SyncPlan is the pre-computed local target for a one-off sync of a suggestion:
+// a series season into its Season folder under the show, a movie into its own
+// subfolder. localPath empty = target unresolved (UI hides the button).
+export interface SyncPlan {
+  localPath: string
+  template?: string
+  subfolder: boolean
 }
 
 export interface SuggestionsResponse {
@@ -192,10 +206,15 @@ export interface UpgradeVariant {
 }
 
 export interface UpgradeSuggestion {
-  seriesId: number
+  key: string // dismiss key, form "unit:{showKey}:{season}"
+  seriesId?: number
+  showKey: string
+  season: number // 0 = movie/base
+  isMovie?: boolean
   title: string
-  from: UpgradeVariant // the weaker copy present
-  to: UpgradeVariant // the better copy that exists elsewhere
+  from: UpgradeVariant // best LOCAL copy (Plex)
+  to: UpgradeVariant // recommended REMOTE copy (best)
+  options: UpgradeVariant[] // ALL remote copies
   improvesRes: boolean
   improvesSub: boolean
   improvesDub: boolean
@@ -204,6 +223,8 @@ export interface UpgradeSuggestion {
   cover?: string
   format?: string // MOVIE | TV | ...
   episodes?: number
+  library?: string // Plex library title, for grouping
+  sync?: SyncPlan // where a one-off sync writes (into the existing local season/movie folder)
 }
 
 export interface UpgradeDims {

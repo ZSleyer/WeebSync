@@ -7,23 +7,125 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 var errNotFound = errors.New("not found")
 
-// localRoots is the allowlist of local roots (arbitrary media mounts); empty
-// falls back to the single download root.
+// localRoots is the allowlist of local roots a target may live under: the env
+// media mounts (WEEBSYNC_DOWNLOADS) plus the Plex roots configured in settings
+// (where the Plex library is locally mounted, as Plex reports the paths). The
+// Plex roots let indexPlexLibrary ffprobe the real files and a one-off sync write
+// back into the library. Empty falls back to the single download root.
 func (s *Server) localRoots() []string {
-	if len(s.LocalRoots) > 0 {
-		return s.LocalRoots
+	roots := append([]string{}, s.LocalRoots...)
+	add := func(p string) {
+		if p != "" && !slices.Contains(roots, p) {
+			roots = append(roots, p)
+		}
 	}
-	return []string{s.DownloadRoot}
+	if s.DB != nil {
+		// user config: extra roots and the local side of any path mapping
+		extra, _ := s.plexRootConfig()
+		for _, p := range extra {
+			add(p)
+		}
+		// mounts auto-detected from Plex's reported library locations
+		for _, p := range splitLines(db.Setting(s.DB, "plex_lib_roots")) {
+			add(p)
+		}
+	}
+	if len(roots) == 0 {
+		return []string{s.DownloadRoot}
+	}
+	return roots
+}
+
+// plexRootConfig parses the plex_roots setting. Each line is either a bare local
+// root, or a "plexPrefix => localPrefix" mapping for when the Plex media is
+// mounted locally under a DIFFERENT path than Plex reports (or not under /media
+// at all). Returns the extra roots and the prefix mappings.
+func (s *Server) plexRootConfig() (roots []string, maps [][2]string) {
+	if s.DB == nil {
+		return
+	}
+	return parsePlexRoots(db.Setting(s.DB, "plex_roots"))
+}
+
+// parsePlexRoots splits the plex_roots setting into bare local roots and
+// "plexPrefix => localPrefix" prefix mappings (trailing slashes trimmed).
+func parsePlexRoots(setting string) (roots []string, maps [][2]string) {
+	for _, ln := range splitLines(setting) {
+		if i := strings.Index(ln, "=>"); i >= 0 {
+			from := strings.TrimRight(strings.TrimSpace(ln[:i]), "/")
+			to := strings.TrimRight(strings.TrimSpace(ln[i+2:]), "/")
+			if from != "" && to != "" {
+				maps = append(maps, [2]string{from, to})
+				roots = append(roots, to)
+			}
+			continue
+		}
+		roots = append(roots, filepath.Clean(ln))
+	}
+	return
+}
+
+// mapPlexPath rewrites a Plex-reported file path to where it is mounted locally,
+// per the configured prefix mappings; unchanged when no mapping applies (the
+// common shared-mount case).
+func (s *Server) mapPlexPath(p string) string {
+	_, maps := s.plexRootConfig()
+	return applyPathMap(p, maps)
+}
+
+// applyPathMap swaps the longest matching plexPrefix in p for its localPrefix.
+func applyPathMap(p string, maps [][2]string) string {
+	best := -1
+	var from, to string
+	for _, m := range maps {
+		if (p == m[0] || strings.HasPrefix(p, m[0]+"/")) && len(m[0]) > best {
+			best, from, to = len(m[0]), m[0], m[1]
+		}
+	}
+	if best < 0 {
+		return p
+	}
+	return to + strings.TrimPrefix(p, from)
+}
+
+// LocalRootsWithPlex is the exported view of localRoots for wiring at startup
+// (the transfer manager's allowlist must include the configured Plex roots).
+func (s *Server) LocalRootsWithPlex() []string { return s.localRoots() }
+
+// splitLines returns the non-empty, trimmed lines of s.
+func splitLines(s string) []string {
+	var out []string
+	for _, ln := range strings.Split(s, "\n") {
+		if ln = strings.TrimSpace(ln); ln != "" {
+			out = append(out, ln)
+		}
+	}
+	return out
+}
+
+// normalizeRoots cleans a newline-separated root list to absolute, deduplicated
+// lines for storage (trailing slashes stripped, blanks dropped).
+func normalizeRoots(s string) string {
+	var out []string
+	for _, p := range splitLines(s) {
+		p = filepath.Clean(p)
+		if !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, "\n")
 }
 
 // safeLocal resolves a target path to an absolute path under one of the allowed
