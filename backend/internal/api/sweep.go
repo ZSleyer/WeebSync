@@ -74,6 +74,9 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// select preferred Plex audio/sub streams on freshly indexed
 			// episodes of watches with a playback preference (no-op when empty)
 			s.processPlexStreamQueue()
+			// pull every provider's title translations for new/stale series
+			// (budgeted; new bundles have an empty stamp and are picked up first)
+			s.refreshSeriesTitles(ctx, titlesBudget)
 			// keep each user's aggregated suggestion blob warm so the page loads
 			// instantly instead of assembling on the first request
 			s.warmSuggestions()

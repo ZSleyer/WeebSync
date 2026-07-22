@@ -82,3 +82,41 @@ func TestSeasonTokenMap(t *testing.T) {
 		t.Errorf("special 1165.5 -> %v, want {0 31}", m["1165.5"])
 	}
 }
+
+func TestNameTranslations(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":{"token":"tok123"},"status":"success"}`))
+	})
+	mux.HandleFunc("/series/295/extended", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("meta") != "translations" {
+			http.Error(w, "missing meta", http.StatusBadRequest)
+			return
+		}
+		w.Write([]byte(`{"data":{"translations":{"nameTranslations":[
+			{"language":"deu","name":"Detektiv Conan"},
+			{"language":"eng","name":"Detective Conan"},
+			{"language":"jpn","name":"名探偵コナン"},
+			{"language":"xyz","name":"Odd"},
+			{"language":"","name":"skipme"}]}}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	t.Setenv("TVDB_BASE_URL", srv.URL)
+	t.Setenv("TVDB_API_KEY", "dev-key")
+
+	c := New(nil)
+	tr, err := c.NameTranslations(context.Background(), 295)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"de": "Detektiv Conan", "en": "Detective Conan", "ja": "名探偵コナン", "xyz": "Odd"}
+	if len(tr) != len(want) {
+		t.Fatalf("translations: %v", tr)
+	}
+	for loc, name := range want {
+		if tr[loc] != name {
+			t.Errorf("%s: got %q, want %q", loc, tr[loc], name)
+		}
+	}
+}

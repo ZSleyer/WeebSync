@@ -172,6 +172,49 @@ func (c *Client) SeriesTitle(ctx context.Context, id int, bcp47 string) (string,
 	return name, nil
 }
 
+// tvdbToBCP47 is the inverse of bcp47ToTVDB (built once), for turning TVDB's
+// 3-letter codes back into BCP-47 primary subtags.
+var tvdbToBCP47 = func() map[string]string {
+	m := make(map[string]string, len(bcp47ToTVDB))
+	for b, t := range bcp47ToTVDB {
+		if _, dup := m[t]; !dup {
+			m[t] = b // "nb"/"no" collide on "nob"/"nor"; first wins, both are Norwegian
+		}
+	}
+	return m
+}()
+
+// NameTranslations returns every available series title as BCP-47 primary
+// subtag → name, in ONE call via the extended record's translations meta.
+// Unknown 3-letter codes keep their TVDB code as the locale key.
+func (c *Client) NameTranslations(ctx context.Context, id int) (map[string]string, error) {
+	var resp struct {
+		Data struct {
+			Translations struct {
+				Names []struct {
+					Language string `json:"language"`
+					Name     string `json:"name"`
+				} `json:"nameTranslations"`
+			} `json:"translations"`
+		} `json:"data"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/series/%d/extended?meta=translations&short=true", id), &resp); err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, t := range resp.Data.Translations.Names {
+		if t.Language == "" || t.Name == "" {
+			continue
+		}
+		loc := tvdbToBCP47[strings.ToLower(t.Language)]
+		if loc == "" {
+			loc = strings.ToLower(t.Language)
+		}
+		out[loc] = t.Name
+	}
+	return out, nil
+}
+
 // translation fetches one language's name and overview, "" when absent.
 func (c *Client) translation(ctx context.Context, id int, lang3 string) (name, overview string) {
 	var resp struct {

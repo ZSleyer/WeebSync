@@ -248,6 +248,35 @@ func (c *Client) SeriesTitle(ctx context.Context, id int, lang string) (string, 
 	return name, nil
 }
 
+// Translations returns every available title translation of a tv series or
+// movie as locale (ISO 639-1, e.g. "de") → title. One API call; empty titles
+// are skipped. kind is "tv" or "movie".
+func (c *Client) Translations(ctx context.Context, kind string, id int) (map[string]string, error) {
+	var r struct {
+		Translations []struct {
+			Lang string `json:"iso_639_1"`
+			Data struct {
+				Name  string `json:"name"`  // tv
+				Title string `json:"title"` // movie
+			} `json:"data"`
+		} `json:"translations"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/%s/%d/translations", kind, id), nil, &r); err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, t := range r.Translations {
+		name := t.Data.Name
+		if name == "" {
+			name = t.Data.Title
+		}
+		if t.Lang != "" && name != "" {
+			out[t.Lang] = name
+		}
+	}
+	return out, nil
+}
+
 // SeasonMap builds absolute-episode → [season, episode] for a tv series by
 // walking its regular seasons' episode counts in aired order. It is the
 // tertiary aired-mapping source (after TVDB and Plex): TMDB has no native
