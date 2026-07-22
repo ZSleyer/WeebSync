@@ -93,30 +93,12 @@ export default function Integrations() {
                 sources={form.plexSectionSources}
                 onSources={(v) => set('plexSectionSources', v)}
                 tvdb={form.tvdbApiKeySet}
+                libraries={form.plexLibraries}
               />
               <div className="text-xs text-t-muted">
                 {t('settings.plexRoots')}
-                {form.plexLibraries && form.plexLibraries.length > 0 ? (
-                  <div className="mt-1 space-y-2">
-                    <span className="t-label t-label--accent">{t('settings.plexRootsDetected')}</span>
-                    {form.plexLibraries.map((lib) => (
-                      <div key={lib.title}>
-                        <span className="block font-medium text-t-secondary">{lib.title}</span>
-                        <ul className="mt-0.5 space-y-0.5 pl-3 font-mono text-t-secondary">
-                          {lib.roots.map((p) => (
-                            <li key={p} className="break-all">
-                              {p}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="mt-1 block">{t('settings.plexRootsNone')}</span>
-                )}
                 <textarea
-                  className="t-input mt-2 font-mono"
+                  className="t-input mt-1 font-mono"
                   rows={3}
                   placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
                   value={form.plexRoots}
@@ -156,12 +138,14 @@ function PlexSections({
   sources,
   onSources,
   tvdb,
+  libraries,
 }: {
   value: string
   onChange: (v: string) => void
   sources: string
   onSources: (v: string) => void
   tvdb: boolean
+  libraries?: { title: string; roots: string[] }[] // auto-detected local mounts per library
 }) {
   const { t } = useTranslation()
   const { data: sections = [], error } = useQuery<PlexSection[]>({
@@ -264,6 +248,20 @@ function PlexSections({
                 )}
               </>
             )}
+            {/* auto-detected local mounts for this library, straight under it */}
+            {(() => {
+              const roots = libraries?.find((l) => l.title === s.title)?.roots ?? []
+              if (!roots.length) return null
+              return (
+                <ul className="w-full space-y-0.5 pl-6 font-mono text-[11px] text-t-muted">
+                  {roots.map((p) => (
+                    <li key={p} className="break-all">
+                      {p}
+                    </li>
+                  ))}
+                </ul>
+              )
+            })()}
           </li>
         ))}
       </ul>
