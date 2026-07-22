@@ -102,3 +102,26 @@ func TestAiredEpisodes(t *testing.T) {
 		t.Fatalf("airedEpisodes = %d, want 2", got)
 	}
 }
+
+func TestGuidRatingKey(t *testing.T) {
+	idx := map[string]plexGuid{
+		"one piece":  {TVDB: 81797, TMDB: 37854, RatingKey: "101"},
+		"some movie": {TMDB: 550, RatingKey: "202"},
+		"imdb only":  {IMDB: 944947, RatingKey: "303"},
+		"no key":     {TVDB: 999},
+	}
+	cases := []struct{ showKey, want string }{
+		{"tvdb:81797", "101"},
+		{"tmdb:37854", "101"},
+		{"tmdb:550", "202"},
+		{"imdb:944947", "303"},
+		{"tvdb:999", ""}, // entry without ratingKey is useless for links
+		{"tvdb:123", ""},
+		{"", ""},
+	}
+	for _, c := range cases {
+		if got := guidRatingKey(idx, c.showKey); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.showKey, got, c.want)
+		}
+	}
+}

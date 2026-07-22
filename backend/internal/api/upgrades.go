@@ -516,7 +516,7 @@ func (e *unitEnrich) of(showKey string, season int) unitInfo {
 	if info.title == "" {
 		info.title = showKey
 	}
-	info.providers, info.links = e.s.providerBadgesLinks(refs, info.title)
+	info.providers, info.links = e.s.providerBadgesLinks(refs, info.title, showKey)
 	return info
 }
 
