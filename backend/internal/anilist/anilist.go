@@ -33,6 +33,10 @@ type Media struct {
 	Title struct {
 		Romaji  string `json:"romaji"`
 		English string `json:"english"`
+		// Preferred is the canonical display title we compute (localized,
+		// never native Japanese). Set by the API layer once the media's source
+		// is known; consumers render this instead of guessing romaji/english.
+		Preferred string `json:"preferred,omitempty"`
 	} `json:"title"`
 	CoverImage struct {
 		Large string `json:"large"`

@@ -221,6 +221,7 @@ func displayTitle(m anilist.Media, source string) string {
 // and links, and the category.
 func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate, plexFolder string, bySrc map[string]int64, bySeries map[int64][]providerRef) SugItem {
 	title := displayTitle(m, source) // localized display title
+	m.Title.Preferred = title        // carry it on the media for the frontend
 	// the fold key stays on the romanized title so it matches linkSeries' bundling
 	foldTitle := m.Title.Romaji
 	if foldTitle == "" {
@@ -570,6 +571,7 @@ func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64
 		it := s.buildItem(ps.Sequel, source, s.remoteCandidates(userID, ps.Sequel), "", bySrc, bySeries)
 		it.Have, it.Need = ps.LeafCount, ps.ChainNeed
 		seq := ps.Sequel
+		seq.Title.Preferred = displayTitle(seq, source) // same localized title as the card
 		it.Sequel = &seq
 		acc.add(it)
 	}
