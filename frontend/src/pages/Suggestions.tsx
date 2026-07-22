@@ -904,9 +904,11 @@ function fmtRes(r: number): string {
 }
 
 function VariantBox({ v, muted }: { v: UpgradeVariant; muted?: boolean }) {
+  const dub = v.dub ?? []
+  const sub = v.sub ?? []
   const parts = [fmtRes(v.resRank)]
-  if (v.dub.length) parts.push(`Dub ${v.dub.join(',')}`)
-  if (v.sub.length) parts.push(`Sub ${v.sub.join(',')}`)
+  if (dub.length) parts.push(`Dub ${dub.join(',')}`)
+  if (sub.length) parts.push(`Sub ${sub.join(',')}`)
   return (
     <div className={`min-w-0 ${muted ? 'text-t-muted' : ''}`}>
       <div className="truncate font-mono text-xs">{v.folder.split('/').pop()}</div>
