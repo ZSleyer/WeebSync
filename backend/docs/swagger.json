@@ -1104,6 +1104,14 @@
                     "pattern": {
                         "type": "string"
                     },
+                    "plexAudioLang": {
+                        "description": "after sync, select this audio language in Plex; \"\" = don't touch",
+                        "type": "string"
+                    },
+                    "plexSubLang": {
+                        "description": "after sync, select this subtitle language in Plex; \"\" = don't touch",
+                        "type": "string"
+                    },
                     "remotePath": {
                         "type": "string"
                     },
@@ -10571,6 +10579,63 @@
                     }
                 ],
                 "summary": "Trigger watch check",
+                "tags": [
+                    "Watches"
+                ]
+            }
+        },
+        "/api/watches/{id}/plex-streams": {
+            "post": {
+                "description": "Selects the watch's preferred audio/subtitle streams on every episode of the show Plex already has. Runs in the background.",
+                "parameters": [
+                    {
+                        "description": "Watch ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.WatchCheckResponse"
+                                }
+                            }
+                        },
+                        "description": "Accepted"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Apply Plex stream preference to existing episodes",
                 "tags": [
                     "Watches"
                 ]

@@ -132,6 +132,8 @@ export interface Watch {
   renameSeriesId: number
   wantDub: string
   wantSub: string
+  plexAudioLang: string
+  plexSubLang: string
   langWaiting: number
   missing?: number[]
   offset?: number

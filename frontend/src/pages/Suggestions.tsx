@@ -85,6 +85,8 @@ function syncFields(sync: SyncPlan, title: string, remotePath: string): WatchFie
     renameSeriesId: 0,
     wantDub: '',
     wantSub: '',
+    plexAudioLang: '',
+    plexSubLang: '',
   }
 }
 
@@ -279,6 +281,8 @@ function SugCard({
       renameSeriesId: 0,
       wantDub: '',
       wantSub: '',
+      plexAudioLang: '',
+      plexSubLang: '',
     }
   }
 

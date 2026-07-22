@@ -347,7 +347,15 @@
     "lastQueued_one": "{{count}} neu",
     "lastQueued_other": "{{count}} neu",
     "infoSource": "Quelle: {{server}} · {{quality}}",
-    "infoLocal": "Lokal (Plex): {{quality}}"
+    "infoLocal": "Lokal (Plex): {{quality}}",
+    "sectionPlex": "Plex-Wiedergabe",
+    "plexAudio": "Audio-Sprache in Plex",
+    "plexSub": "Untertitel-Sprache in Plex",
+    "plexNoChange": "Nicht ändern",
+    "plexHint": "Stellt nach dem Sync die Standard-Audio-/Untertitelspur der neuen Folge in Plex um (für das verbundene Plex-Konto), sobald Plex die Datei indexiert hat. Unabhängig vom Download-Filter oben: Beispiel JapDub + GerSub bei einer GerJapDub-Datei.",
+    "plexApplyAll": "Plex-Spuren anwenden",
+    "plexApplyAllHint": "Wendet die Audio/Untertitel-Einstellung einmalig auf alle bereits vorhandenen Folgen dieser Serie in Plex an.",
+    "plexApplyQueued": "Anwendung auf vorhandene Folgen gestartet."
   },
   "rename": {
     "title": "UMBENENNEN",

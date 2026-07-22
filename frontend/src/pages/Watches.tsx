@@ -36,6 +36,16 @@ export default function Watches() {
     }
     setTimeout(refresh, 1500)
   }
+  const [notice, setNotice] = useState('')
+  const applyPlexStreams = async (id: number) => {
+    setError('')
+    try {
+      await api.post(`/api/watches/${id}/plex-streams`)
+      setNotice(t('watch.plexApplyQueued'))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('app.error'))
+    }
+  }
   const del = async (w: Watch) => {
     if (!(await confirm({ message: t('watch.confirmDelete', { name: w.remotePath }), destructive: true }))) return
     setError('')
@@ -260,6 +270,11 @@ export default function Watches() {
           {error}
         </p>
       )}
+      {notice && (
+        <p className="t-label t-label--accent mb-3" role="status">
+          {notice}
+        </p>
+      )}
 
       {isLoading ? (
         <SkeletonCards />
@@ -391,6 +406,15 @@ export default function Watches() {
                 <button className="t-btn t-btn--sm flex-1 sm:flex-initial" onClick={() => check(w.id)}>
                   {t('watch.checkNow')}
                 </button>
+                {(w.plexAudioLang || w.plexSubLang) && (
+                  <button
+                    className="t-btn t-btn--sm flex-1 sm:flex-initial"
+                    title={t('watch.plexApplyAllHint')}
+                    onClick={() => applyPlexStreams(w.id)}
+                  >
+                    {t('watch.plexApplyAll')}
+                  </button>
+                )}
                 <button className="t-btn t-btn--sm flex-1 sm:flex-initial" onClick={() => setEdit(w)}>
                   {t('servers.edit')}
                 </button>
@@ -430,6 +454,8 @@ export default function Watches() {
             renameSeriesId: edit.renameSeriesId ?? 0,
             wantDub: edit.wantDub ?? '',
             wantSub: edit.wantSub ?? '',
+            plexAudioLang: edit.plexAudioLang ?? '',
+            plexSubLang: edit.plexSubLang ?? '',
           }}
           onSave={async (f) => {
             await api.put(`/api/watches/${edit.id}`, f)
