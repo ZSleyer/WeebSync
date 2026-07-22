@@ -432,36 +432,35 @@ type EpisodePart struct {
 	Streams   []EpisodeStream
 }
 
-// EpisodeParts lists every episode part of a show (allLeaves, with streams).
-func (c *Client) EpisodeParts(showRatingKey string) ([]EpisodePart, error) {
-	var resp struct {
-		MediaContainer struct {
-			Metadata []struct {
-				RatingKey string `json:"ratingKey"`
-				Media     []struct {
-					Part []struct {
-						ID     int64  `json:"id"`
-						File   string `json:"file"`
-						Stream []struct {
-							ID         int64  `json:"id"`
-							StreamType int    `json:"streamType"`
-							Language   string `json:"language"`
-							LangCode   string `json:"languageCode"`
-						} `json:"Stream"`
-					} `json:"Part"`
-				} `json:"Media"`
-			} `json:"Metadata"`
-		} `json:"MediaContainer"`
-	}
-	if err := c.get("/library/metadata/"+url.PathEscape(showRatingKey)+"/allLeaves?includeStreams=1", &resp); err != nil {
-		return nil, err
-	}
+// episodePartsPayload is the shared decode shape of allLeaves listings and
+// episode metadata details.
+type episodePartsPayload struct {
+	MediaContainer struct {
+		Metadata []struct {
+			RatingKey string `json:"ratingKey"`
+			Media     []struct {
+				Part []struct {
+					ID     int64  `json:"id"`
+					File   string `json:"file"`
+					Stream []struct {
+						ID         int64  `json:"id"`
+						StreamType int    `json:"streamType"`
+						Language   string `json:"language"`
+						LangCode   string `json:"languageCode"`
+					} `json:"Stream"`
+				} `json:"Part"`
+			} `json:"Media"`
+		} `json:"Metadata"`
+	} `json:"MediaContainer"`
+}
+
+func (p episodePartsPayload) parts() []EpisodePart {
 	var out []EpisodePart
-	for _, ep := range resp.MediaContainer.Metadata {
+	for _, ep := range p.MediaContainer.Metadata {
 		for _, m := range ep.Media {
-			for _, p := range m.Part {
-				part := EpisodePart{RatingKey: ep.RatingKey, PartID: p.ID, File: p.File}
-				for _, st := range p.Stream {
+			for _, pt := range m.Part {
+				part := EpisodePart{RatingKey: ep.RatingKey, PartID: pt.ID, File: pt.File}
+				for _, st := range pt.Stream {
 					part.Streams = append(part.Streams, EpisodeStream{
 						ID: st.ID, Type: st.StreamType, LangCode: st.LangCode, Language: st.Language,
 					})
@@ -470,7 +469,28 @@ func (c *Client) EpisodeParts(showRatingKey string) ([]EpisodePart, error) {
 			}
 		}
 	}
-	return out, nil
+	return out
+}
+
+// EpisodeParts lists every episode part of a show (allLeaves). Streams may be
+// EMPTY here: some PMS builds ignore includeStreams on leaf listings - fetch
+// PartStreams for an episode when they are needed.
+func (c *Client) EpisodeParts(showRatingKey string) ([]EpisodePart, error) {
+	var resp episodePartsPayload
+	if err := c.get("/library/metadata/"+url.PathEscape(showRatingKey)+"/allLeaves?includeStreams=1", &resp); err != nil {
+		return nil, err
+	}
+	return resp.parts(), nil
+}
+
+// PartStreams reads ONE episode's parts with their streams via the metadata
+// detail endpoint, which always carries the Stream array.
+func (c *Client) PartStreams(episodeRatingKey string) ([]EpisodePart, error) {
+	var resp episodePartsPayload
+	if err := c.get("/library/metadata/"+url.PathEscape(episodeRatingKey), &resp); err != nil {
+		return nil, err
+	}
+	return resp.parts(), nil
 }
 
 // SetStreams selects a part's audio and/or subtitle stream for the token's
