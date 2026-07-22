@@ -178,13 +178,28 @@ func betterMedia(a, b anilist.Media) bool {
 	return score(a) > score(b)
 }
 
+// displayTitle prefers the localized title over the romanized Japanese one.
+// TMDB stores the localized name in Romaji (original in English) -> keep Romaji
+// first; AniList/others -> prefer English, fall back to romaji.
+func displayTitle(m anilist.Media, source string) string {
+	if !strings.HasPrefix(source, "tmdb") && m.Title.English != "" {
+		return m.Title.English
+	}
+	if m.Title.Romaji != "" {
+		return m.Title.Romaji
+	}
+	return m.Title.English
+}
+
 // buildItem turns a raw provider suggestion into a deduplicated SugItem: it
 // resolves the series bundle (for the ignore key + provider union), the badges
 // and links, and the category.
 func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate, plexFolder string, bySrc map[string]int64, bySeries map[int64][]providerRef) SugItem {
-	title := m.Title.Romaji
-	if title == "" {
-		title = m.Title.English
+	title := displayTitle(m, source) // localized display title
+	// the fold key stays on the romanized title so it matches linkSeries' bundling
+	foldTitle := m.Title.Romaji
+	if foldTitle == "" {
+		foldTitle = m.Title.English
 	}
 	seriesID := bySrc[source+"|"+strconv.Itoa(m.ID)]
 	var refs []providerRef
@@ -193,7 +208,7 @@ func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate
 		refKey = "series:" + strconv.FormatInt(seriesID, 10)
 		refs = bySeries[seriesID]
 	} else {
-		refKey = "fold:" + match.FoldKey(match.StripMarkers(title)) + ":" + strconv.Itoa(m.SeasonYear)
+		refKey = "fold:" + match.FoldKey(match.StripMarkers(foldTitle)) + ":" + strconv.Itoa(m.SeasonYear)
 		refs = []providerRef{{source, m.ID}}
 	}
 	providers, links := s.providerBadgesLinks(refs, title)
