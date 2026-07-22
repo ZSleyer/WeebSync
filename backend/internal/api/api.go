@@ -46,6 +46,10 @@ type Server struct {
 	matchCh   chan matchJob
 	matchOnce sync.Once
 
+	// serialises series bundling so concurrent matchers do not create two
+	// series rows for the same fold key (see linkSeries)
+	seriesMu sync.Mutex
+
 	// per-IP brute-force limiter on the auth endpoints; admin-inspectable
 	authLimiter *ipLimiter
 
@@ -109,6 +113,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("PUT /api/auth/locale", authed(http.HandlerFunc(s.handleLocalePut)))
 	mux.Handle("GET /api/auth/email-prefs", authed(http.HandlerFunc(s.handleEmailPrefsGet)))
 	mux.Handle("PUT /api/auth/email-prefs", authed(http.HandlerFunc(s.handleEmailPrefsPut)))
+	mux.Handle("GET /api/auth/upgrade-dims", authed(http.HandlerFunc(s.handleUpgradeDimsGet)))
+	mux.Handle("PUT /api/auth/upgrade-dims", authed(http.HandlerFunc(s.handleUpgradeDimsPut)))
+	mux.Handle("GET /api/auth/notify-prefs", authed(http.HandlerFunc(s.handleNotifyPrefsGet)))
+	mux.Handle("PUT /api/auth/notify-prefs", authed(http.HandlerFunc(s.handleNotifyPrefsPut)))
 
 	// servers
 	mux.Handle("GET /api/servers", authed(http.HandlerFunc(s.handleServersList)))
@@ -218,6 +226,15 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbDisconnect)))
 	mux.Handle("GET /api/tmdb/me", authed(http.HandlerFunc(s.handleTmdbMe)))
 	mux.Handle("GET /api/tmdb/suggestions", authed(http.HandlerFunc(s.handleTmdbSuggestions)))
+	mux.Handle("GET /api/upgrades", authed(http.HandlerFunc(s.handleUpgrades)))
+	mux.Handle("POST /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismiss)))
+	mux.Handle("DELETE /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismissRestore)))
+	mux.Handle("GET /api/suggestions/dismissed", authed(http.HandlerFunc(s.handleDismissedList)))
+	mux.Handle("POST /api/plex/link/start", authed(http.HandlerFunc(s.handlePlexLinkStart)))
+	mux.Handle("GET /api/plex/link/poll", authed(http.HandlerFunc(s.handlePlexLinkPoll)))
+	mux.Handle("GET /api/plex/account", authed(http.HandlerFunc(s.handlePlexAccount)))
+	mux.Handle("DELETE /api/plex/account", authed(http.HandlerFunc(s.handlePlexAccountDisconnect)))
+	mux.Handle("GET /api/plex/watchlist", authed(http.HandlerFunc(s.handlePlexWatchlist)))
 
 	// rename
 	mux.Handle("POST /api/rename/preview", authed(http.HandlerFunc(s.handleRenamePreview)))
