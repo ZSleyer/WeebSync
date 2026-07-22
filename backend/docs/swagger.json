@@ -519,6 +519,26 @@
                 },
                 "type": "object"
             },
+            "api.ProviderLinks": {
+                "properties": {
+                    "anilist": {
+                        "type": "string"
+                    },
+                    "imdb": {
+                        "type": "string"
+                    },
+                    "plex": {
+                        "type": "string"
+                    },
+                    "tmdb": {
+                        "type": "string"
+                    },
+                    "tvdb": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.PushKeyResponse": {
                 "properties": {
                     "key": {
@@ -660,6 +680,103 @@
                     "watches": {
                         "items": {
                             "$ref": "#/components/schemas/api.statusWatch"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.SugItem": {
+                "properties": {
+                    "candidates": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.plexCandidate"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "category": {
+                        "description": "anime-movie | anime-tv | movie | tv",
+                        "type": "string"
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "have": {
+                        "description": "incomplete: episodes present",
+                        "type": "integer"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/api.ProviderLinks"
+                    },
+                    "media": {
+                        "$ref": "#/components/schemas/anilist.Media"
+                    },
+                    "need": {
+                        "description": "incomplete: episodes through sequel",
+                        "type": "integer"
+                    },
+                    "plexFolder": {
+                        "type": "string"
+                    },
+                    "progress": {
+                        "description": "watchlist",
+                        "type": "integer"
+                    },
+                    "providers": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "refKey": {
+                        "description": "series:{id} | fold:{key}:{year}",
+                        "type": "string"
+                    },
+                    "sequel": {
+                        "$ref": "#/components/schemas/anilist.Media"
+                    },
+                    "seriesId": {
+                        "description": "0 when not bundled yet",
+                        "type": "integer"
+                    },
+                    "status": {
+                        "description": "watchlist: CURRENT|PLANNING",
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "year": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "api.SuggestionsResponse": {
+                "properties": {
+                    "building": {
+                        "type": "boolean"
+                    },
+                    "incomplete": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.SugItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "trending": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.SugItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "watchlist": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.SugItem"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -8772,6 +8889,42 @@
                 "summary": "Aggregate status",
                 "tags": [
                     "Status"
+                ]
+            }
+        },
+        "/api/suggestions": {
+            "get": {
+                "description": "Trending, watchlist and incomplete-series suggestions across all providers, deduplicated per series with provider badges and links.",
+                "parameters": [
+                    {
+                        "description": "Set to 1 to force provider rebuilds",
+                        "in": "query",
+                        "name": "force",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.SuggestionsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Unified suggestions",
+                "tags": [
+                    "Suggestions"
                 ]
             }
         },
