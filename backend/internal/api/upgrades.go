@@ -175,7 +175,8 @@ type UpgradeSuggestion struct {
 	Cover       string           `json:"cover,omitempty"`
 	Format      string           `json:"format,omitempty"` // MOVIE | TV | OVA ...
 	Episodes    int              `json:"episodes,omitempty"`
-	Library     string           `json:"library,omitempty"` // Plex library title, for grouping
+	Category    string           `json:"category"`          // anime-movie | anime-tv | movie | tv, for grouping
+	Library     string           `json:"library,omitempty"` // Plex library title (informational)
 	Sync        SyncPlan         `json:"sync"`              // where a one-off sync writes (into the existing local season/movie folder)
 }
 
@@ -227,14 +228,19 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			continue
 		}
 		e := enrich.of(u.showKey, u.season)
+		catMedia := anilist.Media{Format: e.format}
+		if u.isMovie {
+			catMedia.Format = "MOVIE"
+		}
 		up := UpgradeSuggestion{
 			Key: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
 			Title: e.title, From: cur, To: top, Options: u.remotes,
 			ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub,
 			Providers: e.providers, Links: e.links,
 			Cover: e.cover, Format: e.format, Episodes: e.episodes,
-			Library: s.plexLibraryOf(cur.Folder),
-			Sync:    existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
+			Category: categorize(e.providers, catMedia, ""),
+			Library:  s.plexLibraryOf(cur.Folder),
+			Sync:     existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
 		}
 		out = append(out, up)
 	}

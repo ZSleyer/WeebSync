@@ -87,20 +87,9 @@ function syncFields(sync: SyncPlan, title: string, remotePath: string): WatchFie
   }
 }
 
-// byLibrary groups suggestions by their Plex library title for a clearer,
-// per-library layout; named libraries come first (alphabetical), items with an
-// unknown library ('') last.
-function byLibrary<T extends { library?: string }>(items: T[]): [string, T[]][] {
-  const groups = new Map<string, T[]>()
-  for (const it of items) {
-    const k = it.library || ''
-    if (!groups.has(k)) groups.set(k, [])
-    groups.get(k)!.push(it)
-  }
-  return [...groups.entries()].sort((a, b) => (a[0] === '' ? 1 : b[0] === '' ? -1 : a[0].localeCompare(b[0])))
-}
-
-const CATS = ['anime-tv', 'anime-movie', 'tv', 'movie'] as const
+// Content-category blocks, in the order the user reads them: Animefilme,
+// Animeserien, Filme, Serien.
+const CATS = ['anime-movie', 'anime-tv', 'movie', 'tv'] as const
 
 // BucketSection renders one functional bucket. Trending and Watchlist are
 // sub-grouped into the four categories (Anime series/movies, series, movies);
@@ -129,34 +118,49 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
     </ul>
   )
 
-  // Watchlist (Phase 5) groups by status: Planned, Watching, Completed. Items
-  // without a status fall into Planned; Completed is hidden behind a toggle.
+  // Watchlist: grouped by content category (Animefilme / Animeserien / Filme /
+  // Serien) like the other tabs, and within each by status (Planned / Watching /
+  // Completed). Items without a status fall into Planned; Completed is hidden
+  // behind a global toggle and never proactively suggested.
   const statusOf = (it: SuggestionItem) => (it.status === 'CURRENT' || it.status === 'COMPLETED' ? it.status : 'PLANNING')
+  const statusRows = [
+    ['PLANNING', 'suggestions.statusPlanning'],
+    ['CURRENT', 'suggestions.statusCurrent'],
+    ['COMPLETED', 'suggestions.statusCompleted'],
+  ] as const
   const completedCount = items.filter((it) => statusOf(it) === 'COMPLETED').length
   const watchlistGroups = (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {completedCount > 0 && (
         <label className="flex items-center gap-1.5 text-sm">
           <input type="checkbox" checked={showCompleted} onChange={() => setShowCompleted((v) => !v)} />
           {t('suggestions.showCompleted')}
         </label>
       )}
-      {(
-        [
-          ['PLANNING', 'suggestions.statusPlanning'],
-          ['CURRENT', 'suggestions.statusCurrent'],
-          ['COMPLETED', 'suggestions.statusCompleted'],
-        ] as const
-      ).map(([key, label]) => {
-        if (key === 'COMPLETED' && !showCompleted) return null
-        const list = items.filter((it) => statusOf(it) === key)
-        if (!list.length) return null
+      {CATS.map((cat) => {
+        const catItems = items.filter((it) => it.category === cat)
+        const visible = catItems.filter((it) => showCompleted || statusOf(it) !== 'COMPLETED')
+        if (!visible.length) return null
         return (
-          <div key={key}>
+          <div key={cat}>
             <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
-              {t(label)} <span className="t-label">{list.length}</span>
+              {t(`suggestions.cat_${cat}`)} <span className="t-label">{visible.length}</span>
             </h3>
-            {cards(list)}
+            <div className="space-y-3">
+              {statusRows.map(([key, label]) => {
+                if (key === 'COMPLETED' && !showCompleted) return null
+                const list = catItems.filter((it) => statusOf(it) === key)
+                if (!list.length) return null
+                return (
+                  <div key={key}>
+                    <span className="t-label t-label--accent mb-1 block">
+                      {t(label)} <span className="t-label">{list.length}</span>
+                    </span>
+                    {cards(list)}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )
       })}
@@ -166,26 +170,11 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
   return (
     <div className="space-y-4">
       {notice && <p className="t-label t-label--accent">{notice}</p>}
-      {bucket === 'incomplete'
-        ? (() => {
-            const groups = byLibrary(items)
-            if (groups.length === 1 && groups[0][0] === '') return cards(items)
-            return (
-              <div className="space-y-4">
-                {groups.map(([lib, list]) => (
-                  <div key={lib || '_'}>
-                    <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
-                      {lib || t('suggestions.otherLibrary')} <span className="t-label">{list.length}</span>
-                    </h3>
-                    {cards(list)}
-                  </div>
-                ))}
-              </div>
-            )
-          })()
-        : bucket === 'watchlist'
-          ? watchlistGroups
-          : CATS.map((cat) => {
+      {bucket === 'watchlist'
+        ? watchlistGroups
+        : // trending and incomplete: grouped by content category (Animefilme /
+          // Animeserien / Filme / Serien), like the rest of the suggestions
+          CATS.map((cat) => {
               const list = items.filter((it) => it.category === cat)
               if (!list.length) return null
               return (
@@ -660,18 +649,20 @@ function UpgradesSection() {
             </div>
           )
           }
-          const groups = byLibrary(items)
-          if (groups.length === 1 && groups[0][0] === '') return items.map(render)
           return (
             <div className="space-y-4">
-              {groups.map(([lib, list]) => (
-                <div key={lib || '_'}>
-                  <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
-                    {lib || t('suggestions.otherLibrary')} <span className="t-label">{list.length}</span>
-                  </h3>
-                  <div className="space-y-3">{list.map(render)}</div>
-                </div>
-              ))}
+              {CATS.map((cat) => {
+                const list = items.filter((u) => u.category === cat)
+                if (!list.length) return null
+                return (
+                  <div key={cat}>
+                    <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
+                      {t(`suggestions.cat_${cat}`)} <span className="t-label">{list.length}</span>
+                    </h3>
+                    <div className="space-y-3">{list.map(render)}</div>
+                  </div>
+                )
+              })}
             </div>
           )
         })()

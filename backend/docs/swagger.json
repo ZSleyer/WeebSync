@@ -864,6 +864,10 @@
             },
             "api.UpgradeSuggestion": {
                 "properties": {
+                    "category": {
+                        "description": "anime-movie | anime-tv | movie | tv, for grouping",
+                        "type": "string"
+                    },
                     "cover": {
                         "type": "string"
                     },
@@ -894,7 +898,7 @@
                         "type": "string"
                     },
                     "library": {
-                        "description": "Plex library title, for grouping",
+                        "description": "Plex library title (informational)",
                         "type": "string"
                     },
                     "links": {
