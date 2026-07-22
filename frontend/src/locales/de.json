@@ -345,7 +345,9 @@
     "empty": "In der <1>Remote</1>-Ansicht einen Ordner auswählen und \"Beobachten\" klicken.",
     "seen": "{{count}} gesehen",
     "lastQueued_one": "{{count}} neu",
-    "lastQueued_other": "{{count}} neu"
+    "lastQueued_other": "{{count}} neu",
+    "infoSource": "Quelle: {{server}} · {{quality}}",
+    "infoLocal": "Lokal (Plex): {{quality}}"
   },
   "rename": {
     "title": "UMBENENNEN",
@@ -764,12 +766,13 @@
     "localPlex": "Lokal (Plex)",
     "fromLabel": "Von",
     "recommended": "Empfohlen",
-    "allVersions": "Alle Versionen",
     "statusPlanning": "Geplant",
     "statusCurrent": "Schaue ich",
     "statusCompleted": "Abgeschlossen",
     "showCompleted": "Abgeschlossene zeigen",
     "statusCOMPLETED": "abgeschlossen",
-    "syncOnce": "Einmal synchronisieren"
+    "syncOnce": "Einmal synchronisieren",
+    "chooseVersion": "Version wählen",
+    "chosenVersion": "Gewählt"
   }
 }
