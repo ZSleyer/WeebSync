@@ -260,7 +260,7 @@ func (s *Server) BackfillSeries() {
 // suggestionFormat is bumped whenever the shape/content of the cached suggestion
 // blob changes (e.g. localized titles), so a deploy drops stale blobs once
 // instead of waiting out the 30-minute TTL.
-const suggestionFormat = "titles-v5"
+const suggestionFormat = "titles-v6"
 
 // ClearStaleSuggestionCache drops the cached per-user suggestion blobs once when
 // the suggestion format version changed since the last boot. Cheap no-op after
@@ -273,6 +273,9 @@ func (s *Server) ClearStaleSuggestionCache() {
 	// TVDB media cached before the English-translation fix hold native titles;
 	// drop them so they re-fetch with a latinized title (background, rate-limited).
 	s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'tvdb:media:%'`)
+	// the Plex missing-sequel blob caches each sequel's media (with its old
+	// native title); drop it so the sequels re-resolve with the fixed titles.
+	s.DB.Exec(`DELETE FROM anilist_cache WHERE key = 'plex:suggestions:v3'`)
 	db.SetSetting(s.DB, "sugg_fmt", suggestionFormat)
 }
 
