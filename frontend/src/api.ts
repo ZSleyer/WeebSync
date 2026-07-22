@@ -139,47 +139,46 @@ export interface Airing {
   episodeAbs?: number // original absolute number when it differs
 }
 
-export interface PlexSuggestions {
-  configured: boolean
-  building: boolean
-  suggestions: {
-    showTitle: string
-    year: number
-    leafCount: number
-    folder: string
-    library: string // Plex library (section) title, for grouping
-    sequel: Media
-    chainNeed: number
-    source?: string // "" = anilist, else "tmdb:tv" | "tmdb:movie" | "tvdb"
-    airedMapping?: boolean // library pairs AniList metadata with TVDB mapping
-    tvdbId?: number // series id for the rename profile
-    candidates: { serverId: number; serverName: string; path: string }[]
-  }[]
+export interface ProviderLinks {
+  anilist?: string
+  tmdb?: string
+  tvdb?: string
+  imdb?: string
+  plex?: string
 }
 
-export interface AnilistSuggestions {
-  connected: boolean
-  building: boolean
-  suggestions: {
-    status: string // CURRENT | PLANNING; "" for trending entries
-    progress: number
-    media: Media
-    plexFolder?: string // matching Plex folder basename, if any
-    candidates: { serverId: number; serverName: string; path: string }[]
-  }[]
-  trending: AnilistSuggestions['suggestions']
+export interface SuggestionCandidate {
+  serverId: number
+  serverName: string
+  path: string
 }
 
-export interface TmdbSuggestions {
-  configured: boolean
-  connected: boolean
-  watchlist: {
-    media: Media
-    source: string // tmdb:tv | tmdb:movie
-    plexFolder?: string
-    candidates: { serverId: number; serverName: string; path: string }[]
-  }[]
-  trending: TmdbSuggestions['watchlist']
+// SuggestionItem is one deduplicated suggestion (a single series regardless of
+// how many providers surfaced it). category ∈ anime-movie|anime-tv|movie|tv.
+export interface SuggestionItem {
+  refKey: string // series:{id} | fold:{key}:{year} — the series-wide ignore key
+  seriesId: number
+  category: string
+  title: string
+  year?: number
+  cover?: string
+  media: Media
+  providers: string[] // anilist | tmdb | tvdb | imdb | plex
+  links: ProviderLinks
+  candidates: SuggestionCandidate[]
+  status?: string // watchlist: CURRENT | PLANNING
+  progress?: number
+  have?: number // incomplete: episodes present
+  need?: number // incomplete: episodes through the sequel
+  sequel?: Media
+  plexFolder?: string
+}
+
+export interface SuggestionsResponse {
+  trending: SuggestionItem[]
+  watchlist: SuggestionItem[]
+  incomplete: SuggestionItem[]
+  building: boolean
 }
 
 export interface UpgradeVariant {
