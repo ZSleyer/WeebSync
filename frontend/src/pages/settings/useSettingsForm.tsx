@@ -24,6 +24,8 @@ export interface SettingsState {
   plexToken?: string
   plexSections: string
   plexSectionSources: string
+  plexRoots: string
+  plexLibRoots: string // read-only: auto-detected from Plex library locations
   oidcProviderName: string
   oidcIssuer: string
   oidcClientId: string
