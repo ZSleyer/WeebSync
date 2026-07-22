@@ -829,6 +829,16 @@
             },
             "api.UpgradeSuggestion": {
                 "properties": {
+                    "cover": {
+                        "type": "string"
+                    },
+                    "episodes": {
+                        "type": "integer"
+                    },
+                    "format": {
+                        "description": "MOVIE | TV | OVA ...",
+                        "type": "string"
+                    },
                     "from": {
                         "$ref": "#/components/schemas/api.UpgradeVariant"
                     },
@@ -840,6 +850,16 @@
                     },
                     "improvesSub": {
                         "type": "boolean"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/api.ProviderLinks"
+                    },
+                    "providers": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "seriesId": {
                         "type": "integer"
@@ -870,6 +890,10 @@
                     },
                     "serverId": {
                         "type": "integer"
+                    },
+                    "serverName": {
+                        "description": "\"\" = local filesystem",
+                        "type": "string"
                     },
                     "sub": {
                         "items": {
