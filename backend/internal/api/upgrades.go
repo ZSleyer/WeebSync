@@ -213,7 +213,7 @@ func strictSuperset(a, b []string) bool {
 
 func splitCSV(s string) []string {
 	if s == "" {
-		return nil
+		return []string{} // non-nil: marshals as [] not null, so the client can read .length
 	}
 	return strings.Split(s, ",")
 }
