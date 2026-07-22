@@ -366,6 +366,22 @@
                 },
                 "type": "object"
             },
+            "api.LibraryRoots": {
+                "description": "Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.",
+                "properties": {
+                    "roots": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.LocalStat": {
                 "description": "Local: what the folder holds on disk. Only set for the local catalog,\nwhere the question is \"what do I have\", not \"what can I fetch\".",
                 "properties": {
@@ -2115,8 +2131,16 @@
                         "type": "string"
                     },
                     "plexLibRoots": {
-                        "description": "read-only: mounts auto-detected from Plex's reported library locations",
+                        "description": "read-only: mounts auto-detected from Plex's reported library locations (flat)",
                         "type": "string"
+                    },
+                    "plexLibraries": {
+                        "description": "read-only: detected mounts grouped by their Plex library",
+                        "items": {
+                            "$ref": "#/components/schemas/api.LibraryRoots"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "plexRoots": {
                         "description": "manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)",
@@ -8777,50 +8801,6 @@
             }
         },
         "/api/settings": {
-            "get": {
-                "description": "Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.",
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/api.settingsPayload"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    },
-                    "401": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
-                                }
-                            }
-                        },
-                        "description": "Unauthorized"
-                    },
-                    "403": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
-                                }
-                            }
-                        },
-                        "description": "Forbidden"
-                    }
-                },
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "summary": "Get settings",
-                "tags": [
-                    "Settings"
-                ]
-            },
             "put": {
                 "description": "Updates the instance settings (admin only). Write-only secrets: an empty string keeps the stored value, \"-\" clears it. Env-locked keys are ignored. Returns the effective settings, including any OIDC reload error.",
                 "requestBody": {
