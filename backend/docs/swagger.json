@@ -774,6 +774,13 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "upgrades": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.UpgradeSuggestion"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "watchlist": {
                         "items": {
                             "$ref": "#/components/schemas/api.SugItem"
