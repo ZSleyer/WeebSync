@@ -28,6 +28,7 @@ export default function WatchDialog({
   onSave,
   onClose,
   saveLabel,
+  info,
 }: {
   title: string
   serverId: number
@@ -35,6 +36,7 @@ export default function WatchDialog({
   onSave: (f: WatchFields) => Promise<void>
   onClose: () => void
   saveLabel?: string // footer button text; defaults to the watch "save" label
+  info?: string[] // context lines under the header (e.g. chosen upgrade source vs local quality)
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
@@ -228,6 +230,11 @@ export default function WatchDialog({
       <form className="flex max-h-[85vh] flex-col" onSubmit={submit}>
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
+          {info?.map((line, i) => (
+            <p key={i} className="mt-1 text-[11px] text-t-secondary">
+              {line}
+            </p>
+          ))}
         </header>
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
