@@ -199,9 +199,9 @@ func hasCJK(s string) bool {
 // every candidate is native (nothing latinized exists) is one shown as a last
 // resort.
 func displayTitle(m anilist.Media, source string) string {
-	cands := []string{m.Title.English, m.Title.Romaji} // AniList: English first
-	if strings.HasPrefix(source, "tmdb") {
-		cands = []string{m.Title.Romaji, m.Title.English} // TMDB: localized (Romaji) first
+	cands := []string{m.Title.English, m.Title.Romaji} // AniList: English first (no localized title)
+	if strings.HasPrefix(source, "tmdb") || source == "tvdb" {
+		cands = []string{m.Title.Romaji, m.Title.English} // TMDB/TVDB store the localized title in Romaji
 	}
 	for _, c := range cands {
 		if c != "" && !hasCJK(c) {
