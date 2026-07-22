@@ -78,25 +78,7 @@ func probeQuality(dir string) (q FolderQuality, ok bool) {
 	if !sok {
 		return q, false
 	}
-	dub, sub := map[string]bool{}, map[string]bool{}
-	for _, st := range streams {
-		switch st.CodecType {
-		case "video":
-			if st.Height > q.ResRank {
-				q.ResRank = st.Height
-			}
-		case "audio":
-			if c := langCode(st.Lang); c != "" {
-				dub[c] = true
-			}
-		case "subtitle":
-			if c := langCode(st.Lang); c != "" {
-				sub[c] = true
-			}
-		}
-	}
-	q.Dub, q.Sub = keysSorted(dub), keysSorted(sub)
-	return q, true
+	return streamsQuality(streams), true
 }
 
 // probeStream is one ffprobe stream, flattened to what we care about.
