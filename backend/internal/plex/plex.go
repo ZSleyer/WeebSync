@@ -315,6 +315,85 @@ func (c *Client) ShowMedia(ratingKey string) (ShowMedia, error) {
 	return out, nil
 }
 
+// SeasonMedia reads a show's local quality broken down PER SEASON, keyed by the
+// season index (parentIndex on each episode). This is what lets an upgrade
+// compare "your season 3" against "the remote season 3" instead of aggregating
+// the whole show. For a movie library item the map has one entry under season 0.
+// Best effort over up to a few episodes per season.
+func (c *Client) SeasonMedia(ratingKey string) (map[int]ShowMedia, error) {
+	var resp struct {
+		MediaContainer struct {
+			Metadata []struct {
+				ParentIndex int `json:"parentIndex"` // season number of this episode
+				Media       []struct {
+					VideoResolution string `json:"videoResolution"`
+					Part            []struct {
+						File   string `json:"file"`
+						Stream []struct {
+							StreamType int    `json:"streamType"`
+							Language   string `json:"language"`
+							LangCode   string `json:"languageCode"`
+						} `json:"Stream"`
+					} `json:"Part"`
+				} `json:"Media"`
+			} `json:"Metadata"`
+		} `json:"MediaContainer"`
+	}
+	if err := c.get("/library/metadata/"+url.PathEscape(ratingKey)+"/allLeaves?includeStreams=1", &resp); err != nil {
+		return nil, err
+	}
+	out := map[int]ShowMedia{}
+	dub := map[int]map[string]bool{}
+	sub := map[int]map[string]bool{}
+	count := map[int]int{}
+	for _, ep := range resp.MediaContainer.Metadata {
+		se := ep.ParentIndex
+		if count[se] >= 5 { // a handful of episodes per season is representative
+			continue
+		}
+		count[se]++
+		m0 := out[se]
+		if dub[se] == nil {
+			dub[se], sub[se] = map[string]bool{}, map[string]bool{}
+		}
+		for _, m := range ep.Media {
+			if h := resHeight(m.VideoResolution); h > m0.ResHeight {
+				m0.ResHeight = h
+			}
+			for _, p := range m.Part {
+				if m0.File == "" {
+					m0.File = p.File
+				}
+				for _, st := range p.Stream {
+					lang := st.LangCode
+					if lang == "" {
+						lang = st.Language
+					}
+					if lang == "" {
+						continue
+					}
+					if st.StreamType == 2 {
+						dub[se][lang] = true
+					} else if st.StreamType == 3 {
+						sub[se][lang] = true
+					}
+				}
+			}
+		}
+		out[se] = m0
+	}
+	for se, m0 := range out {
+		for l := range dub[se] {
+			m0.Dub = append(m0.Dub, l)
+		}
+		for l := range sub[se] {
+			m0.Sub = append(m0.Sub, l)
+		}
+		out[se] = m0
+	}
+	return out, nil
+}
+
 // Shows lists every show of a section (title, year, episode/season counts).
 func (c *Client) Shows(sectionKey string) ([]Show, error) {
 	var resp struct {

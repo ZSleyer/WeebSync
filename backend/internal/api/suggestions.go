@@ -39,12 +39,17 @@ type SugItem struct {
 	Links      ProviderLinks   `json:"links"`
 	Candidates []plexCandidate `json:"candidates"`
 
-	Status     string         `json:"status,omitempty"`   // watchlist: CURRENT|PLANNING
+	Status     string         `json:"status,omitempty"`   // watchlist: CURRENT|PLANNING|COMPLETED
 	Progress   int            `json:"progress,omitempty"` // watchlist
 	Have       int            `json:"have,omitempty"`     // incomplete: episodes present
 	Need       int            `json:"need,omitempty"`     // incomplete: episodes through sequel
 	Sequel     *anilist.Media `json:"sequel,omitempty"`   // incomplete
 	PlexFolder string         `json:"plexFolder,omitempty"`
+	ShowKey    string         `json:"showKey,omitempty"` // incomplete (missing unit): canonical unit
+	Season     int            `json:"season,omitempty"`
+	IsMovie    bool           `json:"isMovie,omitempty"`
+	Library    string         `json:"library,omitempty"` // incomplete: Plex library title, for grouping
+	Sync       SyncPlan       `json:"sync,omitempty"`    // incomplete (missing unit): where a one-off sync creates the season/movie folder
 }
 
 // SuggestionsResponse is the unified payload: one list per functional bucket.
@@ -294,7 +299,7 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	upDismissed := s.dismissedKeys(u.ID, "upgrade")
 	kept := make([]UpgradeSuggestion, 0, len(resp.Upgrades))
 	for _, up := range resp.Upgrades {
-		if !upDismissed[fmt.Sprintf("series:%d", up.SeriesID)] {
+		if !upDismissed[up.Key] {
 			kept = append(kept, up)
 		}
 	}
@@ -373,8 +378,10 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 		wl.add(it)
 	}
 
-	// ── Incomplete: Plex missing-sequel suggestions ──
+	// ── Incomplete: seasons/movies that exist REMOTE but are missing LOCAL
+	// (Plex), plus the Plex missing-sequel chains ──
 	inc := newAcc()
+	s.addMissingUnits(inc)
 	s.addIncomplete(userID, inc, bySrc, bySeries)
 
 	resp := SuggestionsResponse{
@@ -416,7 +423,10 @@ func (s *Server) addAnilistWatchlist(userID int64, acc *sugAcc, bySrc map[string
 		s.buildAnilistSuggestions(alID, token)
 	}
 	for _, e := range list {
-		if e.Status != "CURRENT" && e.Status != "PLANNING" {
+		// geplant (PLANNING), schaue ich (CURRENT), abgeschlossen (COMPLETED).
+		// COMPLETED is carried so the UI can group it, but hidden by default and
+		// never turned into a proactive suggestion (the frontend gates it).
+		if e.Status != "CURRENT" && e.Status != "PLANNING" && e.Status != "COMPLETED" {
 			continue
 		}
 		cands := s.remoteCandidates(userID, e.Media)

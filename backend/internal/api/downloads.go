@@ -91,6 +91,59 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, DownloadCreateResponse{Queued: len(ids), IDs: ids})
 }
 
+// handleSyncOnce runs a ONE-OFF sync with the full auto-sync rename pipeline
+// (template, Season-folder creation, language filter, Plex ordering) but without
+// creating a persistent watch - "like auto-sync, just once". Used by the Sync
+// button on upgrade/incomplete suggestions, whose SyncPlan already carries the
+// right local target and template.
+// @Summary  One-off sync with rename
+// @Description Downloads a remote folder once, applying the same rename/template/language-filter as an auto-sync watch, without persisting a watch.
+// @Tags     Downloads
+// @Accept   json
+// @Produce  json
+// @Param    body body Watch true "Sync spec (remotePath, localPath, template, ...)"
+// @Success  201 {object} DownloadCreateResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Failure  502 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/sync [post]
+func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	var in Watch
+	if !readJSON(w, r, &in) {
+		return
+	}
+	if in.ServerID == 0 || in.RemotePath == "" {
+		writeErr(w, http.StatusBadRequest, "serverId and remotePath required")
+		return
+	}
+	if _, err := s.safeLocal(in.LocalPath); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var owned int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, in.ServerID, u.ID).Scan(&owned)
+	if owned == 0 {
+		writeErr(w, http.StatusNotFound, "server not found")
+		return
+	}
+	in.UserID = u.ID
+	if in.Mode == "" {
+		in.Mode = "template"
+	}
+	// same enqueue as a watch check, minus persistence: rename via watchNameFn,
+	// language filter via watchLangFilter, subfolder off when the template owns
+	// the structure.
+	ids, _, _, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath,
+		s.watchNameFn(in), s.watchLangFilter(in), true, !in.Subfolder)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, DownloadCreateResponse{Queued: len(ids), IDs: ids})
+}
+
 // DownloadsCancelRequest is the body of handleDownloadsCancel.
 type DownloadsCancelRequest struct {
 	IDs []int64 `json:"ids"`
