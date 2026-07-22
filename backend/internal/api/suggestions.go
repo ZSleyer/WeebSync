@@ -283,8 +283,11 @@ func (s *Server) providerBadgesLinks(refs []providerRef, title string) ([]string
 // any provider is AniList or TVDB (TVDB is anime-only in this setup); live when
 // only TMDB. Movie by the media format or a :movie source.
 func categorize(providers []string, m anilist.Media, source string) string {
+	// anime is decided by the providers (AniList/TVDB), not by an empty source:
+	// the upgrade/incomplete builders pass source "" and rely on the badges, so
+	// a "" must NOT force anime (that put live-action TMDB shows under Anime).
 	anime := slices.Contains(providers, "anilist") || slices.Contains(providers, "tvdb") ||
-		source == "" || source == "anilist" || source == "tvdb"
+		source == "anilist" || source == "tvdb"
 	movie := m.Format == "MOVIE" || strings.HasSuffix(source, ":movie")
 	base := "tv"
 	if movie {
