@@ -18,11 +18,13 @@ import (
 // imdb:/fold:) - not something we ever want to display.
 var rawKeyRe = regexp.MustCompile(`^(tvdb|tmdb|imdb|fold):`)
 
-// nameOrFolder returns rawTitle unless it is a raw show_key, in which case it
-// derives a human title from the remote folder name (e.g. "Overlord IV"). Used
-// when no provider media resolved yet, so a card never shows "tvdb:294002".
-func nameOrFolder(rawTitle, folder string) string {
-	if folder != "" && rawKeyRe.MatchString(rawTitle) {
+// unitTitle picks the best display title for a (show, season) unit: the resolved
+// media title when it matched this exact season, otherwise a name derived from
+// the remote folder. This avoids showing a raw show_key ("tvdb:294002") and
+// avoids reusing one season's title for another (e.g. every Umamusume season
+// titled "Season 2" because only that AniList entry was matched).
+func unitTitle(rawTitle string, exact bool, folder string) string {
+	if (!exact || rawKeyRe.MatchString(rawTitle)) && folder != "" {
 		if n := match.GuessTitle(filepath.Base(folder)); n != "" {
 			return n
 		}
@@ -251,7 +253,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		}
 		up := UpgradeSuggestion{
 			Key: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
-			Title: nameOrFolder(e.title, top.Folder), From: cur, To: top, Options: u.remotes,
+			Title: unitTitle(e.title, e.exact, top.Folder), From: cur, To: top, Options: u.remotes,
 			ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub,
 			Providers: e.providers, Links: e.links,
 			Cover: e.cover, Format: e.format, Episodes: e.episodes,
@@ -301,7 +303,7 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		for _, r := range u.remotes {
 			cands = append(cands, plexCandidate{ServerID: r.ServerID, ServerName: r.ServerName, Path: r.Folder})
 		}
-		title := nameOrFolder(e.title, u.remotes[0].Folder) // human name even if media unresolved
+		title := unitTitle(e.title, e.exact, u.remotes[0].Folder) // season-correct name even if media unresolved
 		// carry the full resolved media (cover/episodes/score/format) so the card
 		// shows metadata, not just a title
 		media := e.media
@@ -407,6 +409,7 @@ type unitInfo struct {
 	episodes  int
 	genres    []string
 	media     anilist.Media // full resolved media, so cards carry episodes/score/etc
+	exact     bool          // true when the media matched this exact (show_key, season)
 	providers []string
 	links     ProviderLinks
 }
@@ -495,14 +498,15 @@ func (e *unitEnrich) of(showKey string, season int) unitInfo {
 	refs := e.refsByKey[showKey]
 	var media *anilist.Media
 	var src string
+	exact := false
 	if m, ok := e.mediaBySeason[showKey+"|"+strconv.Itoa(season)]; ok {
-		media, src = &m, e.srcBySeason[showKey+"|"+strconv.Itoa(season)]
+		media, src, exact = &m, e.srcBySeason[showKey+"|"+strconv.Itoa(season)], true // this exact season
 	} else if m, ok := e.mediaBySeason[showKey+"|-1"]; ok {
 		media, src = &m, e.srcBySeason[showKey+"|-1"]
 	} else if m := e.s.seriesMedia(refs); m != nil {
 		media = m // source unknown -> treat like AniList (English-first)
 	}
-	info := unitInfo{seriesID: e.seriesByKey[showKey]}
+	info := unitInfo{seriesID: e.seriesByKey[showKey], exact: exact}
 	if media != nil {
 		info.title = displayTitle(*media, src)
 		info.cover, info.format, info.episodes = media.CoverImage.Large, media.Format, media.Episodes

@@ -216,6 +216,26 @@ func displayTitle(m anilist.Media, source string) string {
 	return ""
 }
 
+// dedupIncomplete drops sequel-chain items (no show_key) whose show is already
+// covered by a per-season missing-unit (show_key set) - the same show otherwise
+// appears twice in the incomplete bucket, once from each builder.
+func dedupIncomplete(items []SugItem) []SugItem {
+	covered := map[string]bool{}
+	for _, it := range items {
+		if it.ShowKey != "" {
+			covered[match.FoldKey(match.StripMarkers(it.Title))] = true
+		}
+	}
+	out := make([]SugItem, 0, len(items))
+	for _, it := range items {
+		if it.ShowKey == "" && covered[match.FoldKey(match.StripMarkers(it.Title))] {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out
+}
+
 // buildItem turns a raw provider suggestion into a deduplicated SugItem: it
 // resolves the series bundle (for the ignore key + provider union), the badges
 // and links, and the category.
@@ -438,7 +458,7 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	resp := SuggestionsResponse{
 		Watchlist:  wl.list(nil),
 		Trending:   ownedFilter(tr.list(nil)), // trending is for NEW titles only
-		Incomplete: inc.list(nil),
+		Incomplete: dedupIncomplete(inc.list(nil)),
 		Upgrades:   s.buildUpgrades(userID),
 	}
 	if b, err := json.Marshal(resp); err == nil {

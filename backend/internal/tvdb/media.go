@@ -111,6 +111,16 @@ func (c *Client) Media(ctx context.Context, id int) (*anilist.Media, error) {
 		return nil, err
 	}
 	m := resp.Data.toMedia()
+	// TVDB's default `name` is often the native (Japanese) title for anime; pull
+	// the English translation so the UI has a latinized title to prefer.
+	var tr struct {
+		Data struct {
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/series/%d/translations/eng", id), &tr); err == nil && tr.Data.Name != "" {
+		m.Title.English = tr.Data.Name
+	}
 	payload, _ := json.Marshal(m)
 	c.store(fmt.Sprintf("tvdb:media:%d", id), string(payload))
 	return &m, nil
