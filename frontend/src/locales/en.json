@@ -267,10 +267,10 @@
     "useSeriesFolder": "Use series folder",
     "openProvider": "Open at provider",
     "templatePadHint": "The :02 zero-pads to min. 2 digits (S01, E05) - needed for Plex and correct sorting; never truncates large numbers (E1187 stays). Use :03 for more digits (E001).",
-    "wantDub": "Dub language (sync this one only)",
-    "wantSub": "Sub language (sync this one only)",
+    "wantDub": "Dub language (download only if present)",
+    "wantSub": "Sub language (download only if present)",
     "langAny": "Any",
-    "langHint": "Filters by language tags in the filename ([GerDub], [GerEngSub]). An episode is only downloaded once it is available in the chosen language.",
+    "langHint": "Download filter: a remote file is only downloaded when it actually carries the chosen language - detected from the language tag in the filename ([GerDub], [GerEngSub]) or, when the name has no tag, from the real audio/subtitle tracks (ffprobe). An episode is therefore only fetched once it is available in the chosen language; until then auto-sync keeps waiting.",
     "add": "Watch",
     "addTitle": "Watch: {{name}}",
     "editTitle": "Edit auto-sync",
@@ -281,7 +281,7 @@
     "sectionPaths": "Source & target",
     "sectionMeta": "Metadata (display)",
     "metaHint": "For the calendar and covers only, not for renaming.",
-    "sectionFilter": "Language filter",
+    "sectionFilter": "Download filter (language)",
     "renameSeries": "Series",
     "renameSeriesAmbiguous": "not unique - please pick",
     "renameSeriesPick": "Choose series",
@@ -770,7 +770,6 @@
     "statusCompleted": "Completed",
     "showCompleted": "Show completed",
     "statusCOMPLETED": "completed",
-    "syncOnce": "Sync once",
-    "otherLibrary": "Other"
+    "syncOnce": "Sync once"
   }
 }
