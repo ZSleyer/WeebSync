@@ -165,15 +165,24 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 
 	out := []UpgradeSuggestion{}
 	for _, sid := range order {
-		vs := groups[sid]
-		if len(vs) < 2 {
-			continue
-		}
-		top := bestVariant(vs)
-		for _, cur := range vs {
-			if cur.v.Folder == top.v.Folder && cur.v.ServerID == top.v.ServerID {
-				continue
+		// An upgrade only makes sense against something you actually own: the
+		// local copy (server 0 = the Plex library storage). Compare that local
+		// copy to the best REMOTE source; a remote-vs-remote comparison is
+		// meaningless (you have neither locally).
+		var locals, remotes []seriesVariant
+		for _, v := range groups[sid] {
+			if v.v.ServerID == 0 {
+				locals = append(locals, v)
+			} else {
+				remotes = append(remotes, v)
 			}
+		}
+		if len(locals) == 0 || len(remotes) == 0 {
+			continue // not owned locally, or nothing remote to upgrade from
+		}
+		cur := bestVariant(locals)  // what you have in Plex/local
+		top := bestVariant(remotes) // best remote source
+		{
 			impRes := dims.Res && top.v.ResRank > cur.v.ResRank
 			impSub := dims.Sub && strictSuperset(top.v.Sub, cur.v.Sub)
 			impDub := dims.Dub && strictSuperset(top.v.Dub, cur.v.Dub)

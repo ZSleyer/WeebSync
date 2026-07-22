@@ -228,6 +228,93 @@ func idFromGuid(guid, provider string) int {
 	return n
 }
 
+// ShowMedia is the quality of a show's local copy, read from a representative
+// episode: the highest video height, one episode's file path (Plex's view of
+// it, for ffprobe when the mount is shared) and the audio/subtitle languages.
+type ShowMedia struct {
+	ResHeight int
+	File      string
+	Dub       []string
+	Sub       []string
+}
+
+// resHeight maps Plex's videoResolution string ("1080", "720", "4k", "sd") to a
+// pixel height.
+func resHeight(v string) int {
+	switch strings.ToLower(strings.TrimSuffix(v, "p")) {
+	case "4k":
+		return 2160
+	case "sd":
+		return 480
+	}
+	n, _ := strconv.Atoi(strings.TrimSuffix(strings.ToLower(v), "p"))
+	return n
+}
+
+// ShowMedia reads a show's local quality from its episodes (allLeaves, with
+// streams): the max resolution seen, one file path, and the union of audio/
+// subtitle languages. Best effort over the first episodes.
+func (c *Client) ShowMedia(ratingKey string) (ShowMedia, error) {
+	var resp struct {
+		MediaContainer struct {
+			Metadata []struct {
+				Media []struct {
+					VideoResolution string `json:"videoResolution"`
+					Part            []struct {
+						File   string `json:"file"`
+						Stream []struct {
+							StreamType int    `json:"streamType"` // 1 video, 2 audio, 3 subtitle
+							Language   string `json:"language"`
+							LangCode   string `json:"languageCode"`
+						} `json:"Stream"`
+					} `json:"Part"`
+				} `json:"Media"`
+			} `json:"Metadata"`
+		} `json:"MediaContainer"`
+	}
+	if err := c.get("/library/metadata/"+url.PathEscape(ratingKey)+"/allLeaves?includeStreams=1", &resp); err != nil {
+		return ShowMedia{}, err
+	}
+	var out ShowMedia
+	dub, sub := map[string]bool{}, map[string]bool{}
+	for i, ep := range resp.MediaContainer.Metadata {
+		if i >= 5 { // a handful of episodes is representative
+			break
+		}
+		for _, m := range ep.Media {
+			if h := resHeight(m.VideoResolution); h > out.ResHeight {
+				out.ResHeight = h
+			}
+			for _, p := range m.Part {
+				if out.File == "" {
+					out.File = p.File
+				}
+				for _, st := range p.Stream {
+					lang := st.LangCode
+					if lang == "" {
+						lang = st.Language
+					}
+					if lang == "" {
+						continue
+					}
+					if st.StreamType == 2 {
+						dub[lang] = true
+					} else if st.StreamType == 3 {
+						sub[lang] = true
+					}
+				}
+			}
+		}
+	}
+	for l := range dub {
+		out.Dub = append(out.Dub, l)
+	}
+	for l := range sub {
+		out.Sub = append(out.Sub, l)
+	}
+	return out, nil
+}
+
 // Shows lists every show of a section (title, year, episode/season counts).
 func (c *Client) Shows(sectionKey string) ([]Show, error) {
 	var resp struct {

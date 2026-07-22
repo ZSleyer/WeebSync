@@ -59,6 +59,12 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// wasn't cached yet - the self-healing net that makes the migration
 			// of old matches onto the series structure eventually complete
 			s.relinkOrphans(sweepBatch)
+			// once an hour, index the Plex library's LOCAL quality (server-0
+			// variants) so upgrade suggestions compare what you own against a
+			// better remote source, not two remote copies. Plex-API heavy.
+			if last := db.Setting(s.DB, "plex_indexed_at"); last == "" || olderThan(last, time.Hour) {
+				s.runJob("plex:index", func(context.Context) { s.indexPlexLibrary() })
+			}
 			// keep each user's aggregated suggestion blob warm so the page loads
 			// instantly instead of assembling on the first request
 			s.warmSuggestions()
@@ -174,6 +180,13 @@ func (s *Server) relinkOrphans(budget int) {
 	for _, o := range orphans {
 		s.linkSeries(o.source, o.mediaID)
 	}
+}
+
+// olderThan reports whether an RFC3339 timestamp is more than d in the past
+// (true also when it cannot be parsed, so a bad value forces a refresh).
+func olderThan(ts string, d time.Duration) bool {
+	t, err := time.Parse(time.RFC3339, ts)
+	return err != nil || time.Since(t) > d
 }
 
 // warmSuggestions rebuilds each user's stale suggestion blob in the background,
