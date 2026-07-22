@@ -68,10 +68,23 @@ func (s *Server) watchEpisodeParts(c *plex.Client, w Watch) (map[string]plex.Epi
 
 // applyStreams selects the preferred streams on one episode part. done=false
 // only on a Plex error (retry); a missing wanted language is final - the file
-// is what it is, waiting will not grow it a track.
+// is what it is, waiting will not grow it a track. Leaf listings often omit
+// streams (PMS ignores includeStreams there), so they are fetched per episode.
 func applyStreams(c *plex.Client, p plex.EpisodePart, audioLang, subLang string) (done bool) {
-	audioID := pickStream(p.Streams, 2, audioLang)
-	subID := pickStream(p.Streams, 3, subLang)
+	streams := p.Streams
+	if len(streams) == 0 {
+		detail, err := c.PartStreams(p.RatingKey)
+		if err != nil {
+			return false
+		}
+		for _, dp := range detail {
+			if dp.PartID == p.PartID {
+				streams = dp.Streams
+			}
+		}
+	}
+	audioID := pickStream(streams, 2, audioLang)
+	subID := pickStream(streams, 3, subLang)
 	if audioID == 0 && subID == 0 {
 		return true
 	}
@@ -188,6 +201,7 @@ func (s *Server) handleWatchPlexStreams(w http.ResponseWriter, r *http.Request) 
 		}
 		byFile, ok := s.watchEpisodeParts(c, wt)
 		if !ok {
+			slog.Warn("plex stream apply: show not found in Plex", "watch", wt.ID, "remote", wt.RemotePath)
 			return
 		}
 		// every episode under the watch's local folder, not just synced ones
