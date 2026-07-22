@@ -743,6 +743,10 @@
     "missing": "Fehlt",
     "rematch": "Neu matchen",
     "rematchQueued": "{{count}} Ordner neu gematcht",
-    "noIgnored": "Nichts ignoriert."
+    "noIgnored": "Nichts ignoriert.",
+    "upgradeWhat": "Upgrades anzeigen für:",
+    "upgradeWhat_res": "Bessere Auflösung",
+    "upgradeWhat_sub": "Mehr Untertitel-Sprachen",
+    "upgradeWhat_dub": "Mehr Synchron-Sprachen"
   }
 }

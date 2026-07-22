@@ -743,6 +743,10 @@
     "missing": "Missing",
     "rematch": "Rematch",
     "rematchQueued": "{{count}} folders rematched",
-    "noIgnored": "Nothing ignored."
+    "noIgnored": "Nothing ignored.",
+    "upgradeWhat": "Show upgrades for:",
+    "upgradeWhat_res": "Higher resolution",
+    "upgradeWhat_sub": "More subtitle languages",
+    "upgradeWhat_dub": "More dub languages"
   }
 }
