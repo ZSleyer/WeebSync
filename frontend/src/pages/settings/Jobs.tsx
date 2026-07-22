@@ -477,7 +477,20 @@ export default function Jobs() {
       </section>
 
       <section className="t-panel mb-4 p-5" aria-label={t('settings.jobs.matchQuality')}>
-        <span className="t-label t-label--accent">{t('settings.jobs.matchQuality')}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="t-label t-label--accent">{t('settings.jobs.matchQuality')}</span>
+          <button
+            className="t-btn t-btn--sm t-btn--danger"
+            disabled={run.isPending}
+            onClick={async () => {
+              if (await confirm({ message: t('settings.jobs.confirmRematchAllServers'), destructive: true }))
+                run.mutate({ name: 'rematch-all', body: { all: true } })
+            }}
+          >
+            {t('settings.jobs.rematchAllServers')}
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.rematchAllServersHint')}</p>
         {data.matches.length === 0 ? (
           <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
         ) : (
