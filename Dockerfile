@@ -26,7 +26,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     && mkdir -p /data/downloads
 
 # ── runtime ──
-FROM gcr.io/distroless/static-debian13:nonroot
+# alpine (not distroless) so ffprobe is available for reading the true
+# resolution / audio / subtitle tracks of local files, whose names often lack
+# those tokens. ca-certificates for provider HTTPS; nonroot uid matches the
+# distroless one we used before.
+FROM alpine:3.21
+RUN apk add --no-cache ffmpeg ca-certificates \
+    && adduser -D -H -u 65532 nonroot
 COPY --from=build /weebsync /weebsync
 # pre-owned data dir so the nonroot user can write the volume
 COPY --from=build --chown=nonroot:nonroot /data /data
@@ -37,7 +43,7 @@ ENV WEEBSYNC_ADDR=:8080 \
 VOLUME /data
 EXPOSE 8080
 USER nonroot
-# distroless has no shell/curl: the binary probes its own /healthz
+# the binary probes its own /healthz
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["/weebsync", "-healthcheck"]
 ENTRYPOINT ["/weebsync"]

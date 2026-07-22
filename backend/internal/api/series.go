@@ -131,6 +131,15 @@ type FolderQuality struct {
 func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 	q := FolderQuality{}
 	if serverID == 0 {
+		// local: no remote_index. Read the real quality from the files via
+		// ffprobe (filenames often lack the tokens); fall back to parsing the
+		// filenames when ffprobe is unavailable or finds nothing.
+		if abs, err := s.safeLocal(folder); err == nil {
+			if pq, ok := probeQuality(abs); ok {
+				return pq
+			}
+			return localFilenameQuality(abs)
+		}
 		return q
 	}
 	rows, err := s.DB.Query(`SELECT name FROM remote_index

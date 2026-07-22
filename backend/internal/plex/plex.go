@@ -70,6 +70,7 @@ type Show struct {
 	// (a mis-synced library), the matched show still carries the real ids.
 	TVDBID int
 	TMDBID int
+	IMDBID int // numeric part of the "tt…" imdb id, 0 when absent
 }
 
 // get fetches path and decodes the MediaContainer payload. The token goes
@@ -197,6 +198,9 @@ func (r rawShow) toShow() Show {
 		}
 		if n := idFromGuid(g, "tmdb"); n > 0 {
 			s.TMDBID = n
+		}
+		if n := idFromGuid(g, "imdb"); n > 0 {
+			s.IMDBID = n
 		}
 	}
 	return s
