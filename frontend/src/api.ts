@@ -175,8 +175,9 @@ export interface SuggestionItem {
 }
 
 export interface SuggestionsResponse {
-  trending: SuggestionItem[]
   watchlist: SuggestionItem[]
+  trending: SuggestionItem[]
+  upgrades: UpgradeSuggestion[]
   incomplete: SuggestionItem[]
   building: boolean
 }

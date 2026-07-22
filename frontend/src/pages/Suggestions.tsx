@@ -22,11 +22,11 @@ import { SkeletonCards } from '../components/Loading'
 // rematch. Data comes unified from GET /api/suggestions (+ /api/upgrades).
 export default function Suggestions() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'trending' | 'watchlist' | 'upgrades' | 'incomplete'>('trending')
+  const [tab, setTab] = useState<'watchlist' | 'trending' | 'upgrades' | 'incomplete'>('watchlist')
   const [showIgnored, setShowIgnored] = useState(false)
   const tabs = [
-    ['trending', t('suggestions.tabTrending')],
     ['watchlist', t('suggestions.tabWatchlist')],
+    ['trending', t('suggestions.tabTrending')],
     ['upgrades', t('suggestions.tabUpgrades')],
     ['incomplete', t('suggestions.tabIncomplete')],
   ] as const
@@ -382,33 +382,39 @@ function UpgradesSection() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { data, isLoading } = usePersistedQuery<UpgradeSuggestion[]>('upgrades', () => api.get('/api/upgrades'))
+  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>(
+    'suggestions',
+    () => api.get('/api/suggestions'),
+    { refetchInterval: (q) => (q.state.data?.building ? 4000 : false) },
+  )
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
 
   const toggle = async (key: keyof UpgradeDims) => {
     if (!dims) return
     await api.put('/api/auth/upgrade-dims', { ...dims, [key]: !dims[key] })
     qc.invalidateQueries({ queryKey: ['upgrade-dims'] })
-    qc.invalidateQueries({ queryKey: ['upgrades'] })
+    qc.invalidateQueries({ queryKey: ['suggestions'] })
   }
   const dismiss = async (u: UpgradeSuggestion) => {
     await api.post('/api/suggestions/dismiss', { kind: 'upgrade', refKey: `series:${u.seriesId}`, label: u.title })
-    qc.invalidateQueries({ queryKey: ['upgrades'] })
+    qc.invalidateQueries({ queryKey: ['suggestions'] })
     qc.invalidateQueries({ queryKey: ['dismissed'] })
   }
 
-  const items = data ?? []
+  const items = data?.upgrades ?? []
   return (
     <div className="space-y-3">
       {dims && (
-        <div className="flex flex-wrap items-center gap-3 border border-border-subtle bg-bg-secondary/20 px-3 py-2">
-          <span className="t-label">{t('suggestions.upgradeAxes')}</span>
-          {(['res', 'sub', 'dub'] as const).map((k) => (
-            <label key={k} className="flex items-center gap-1.5 text-sm">
-              <input type="checkbox" checked={dims[k]} onChange={() => toggle(k)} />
-              {t(`suggestions.axis_${k}`)}
-            </label>
-          ))}
+        <div className="t-panel px-3 py-2.5">
+          <span className="text-sm text-t-secondary">{t('suggestions.upgradeWhat')}</span>
+          <div className="mt-2 flex flex-wrap gap-4">
+            {(['res', 'sub', 'dub'] as const).map((k) => (
+              <label key={k} className="flex items-center gap-1.5 text-sm">
+                <input type="checkbox" checked={dims[k]} onChange={() => toggle(k)} />
+                {t(`suggestions.upgradeWhat_${k}`)}
+              </label>
+            ))}
+          </div>
         </div>
       )}
       {isLoading ? (
@@ -417,7 +423,7 @@ function UpgradesSection() {
         <p className="t-label">{t('suggestions.noUpgrades')}</p>
       ) : (
         items.map((u, i) => (
-          <div key={`${u.seriesId}-${i}`} className="border border-border-subtle bg-bg-secondary/20 p-3">
+          <div key={`${u.seriesId}-${i}`} className="t-panel p-3">
             <div className="flex items-baseline justify-between gap-3">
               <h4 className="truncate font-display text-sm font-semibold tracking-wider">{u.title}</h4>
               <div className="flex shrink-0 flex-wrap gap-1">
