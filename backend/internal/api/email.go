@@ -22,7 +22,7 @@ import (
 // email notification categories. userCategories are choosable by anyone;
 // adminCategories only by admins.
 var (
-	userCategories  = []string{"download_done", "download_failed"}
+	userCategories  = []string{"download_done", "download_failed", "suggestion", "upgrade"}
 	adminCategories = []string{"admin_new_user"}
 )
 
@@ -147,6 +147,48 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?verify=ok", http.StatusSeeOther)
 }
 
+// pushAllowed reports whether the user opted this category into web push.
+func (s *Server) pushAllowed(userID int64, category string) bool {
+	var prefs string
+	s.DB.QueryRow(`SELECT push_prefs FROM users WHERE id = ?`, userID).Scan(&prefs)
+	return slices.Contains(splitPrefs(prefs), category)
+}
+
+// notifyQuiet is the digest quiet period for a user: how long to keep batching
+// before a summary goes out. instant keeps the snappy default; hourly/daily
+// hold notifications back into a single, less noisy summary.
+func (s *Server) notifyQuiet(userID int64) time.Duration {
+	var freq string
+	s.DB.QueryRow(`SELECT notify_freq FROM users WHERE id = ?`, userID).Scan(&freq)
+	switch freq {
+	case "hourly":
+		return time.Hour
+	case "daily":
+		return 24 * time.Hour
+	default:
+		return digestQuiet
+	}
+}
+
+// NotifyEvent sends a one-off notification (a suggestion or an upgrade found by
+// the sweep) to a user, honouring their per-channel category opt-ins. Unlike a
+// download it is not batched by the download-queue collector - these events are
+// rare, so they go out promptly (respecting the category filters).
+//
+// ponytail: no frequency batching for these one-off events yet; add it here if
+// suggestion/upgrade notifications ever get chatty enough to need a digest.
+func (s *Server) NotifyEvent(userID int64, category, title, body, url string) {
+	if s.Push != nil && s.pushAllowed(userID, category) {
+		s.Push.Notify(userID, push.Notification{Title: title, Body: body, Tag: category, URL: url})
+	}
+	locale := s.userLocale(userID)
+	extra, manage := "", ""
+	if base := s.baseURL(); base != "" {
+		manage = base + "/settings/notifications"
+	}
+	s.EmailNotify(userID, category, title, body, emailHTML(locale, title, "<p>"+html.EscapeString(body)+"</p>", extra, manage))
+}
+
 // EmailNotify emails a single user for a category they opted into, if their
 // address is verified. No-op without SMTP.
 func (s *Server) EmailNotify(userID int64, category, subject, body, htmlBody string) {
@@ -199,7 +241,7 @@ func (s *Server) NotifyDownload(userID int64, category string, serverID int64, r
 	if t := s.digestTimer[key]; t != nil {
 		t.Stop()
 	}
-	s.digestTimer[key] = time.AfterFunc(digestQuiet, func() { s.flushDigest(key, userID, category) })
+	s.digestTimer[key] = time.AfterFunc(s.notifyQuiet(userID), func() { s.flushDigest(key, userID, category) })
 	s.digestMu.Unlock()
 }
 
@@ -215,7 +257,7 @@ func (s *Server) flushDigest(key string, userID int64, category string) {
 		s.digestMu.Unlock()
 		return
 	case s.downloadsPending():
-		s.digestTimer[key] = time.AfterFunc(digestQuiet, func() { s.flushDigest(key, userID, category) })
+		s.digestTimer[key] = time.AfterFunc(s.notifyQuiet(userID), func() { s.flushDigest(key, userID, category) })
 		s.digestMu.Unlock()
 		return
 	}
@@ -265,7 +307,7 @@ func (s *Server) downloadsPending() bool {
 // twenty). Unlike the mail it is not grouped by series; a notification that
 // needs scrolling is no longer a notification.
 func (s *Server) pushDigest(userID int64, category, locale string, items []digestItem) {
-	if s.Push == nil || len(items) == 0 {
+	if s.Push == nil || len(items) == 0 || !s.pushAllowed(userID, category) {
 		return
 	}
 	done := category == "download_done"
