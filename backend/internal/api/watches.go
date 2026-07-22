@@ -254,7 +254,7 @@ func (s *Server) runWatch(id int64) {
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
-	ids, uploading, filtered, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, s.watchNameFn(w), watchLangFilter(w), true, !w.Subfolder)
+	ids, uploading, filtered, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, s.watchNameFn(w), s.watchLangFilter(w), true, !w.Subfolder)
 	// structured result: the frontend localizes the counts; last_result only
 	// carries the error text of a failed check
 	result, queued := "", len(ids)
@@ -687,12 +687,31 @@ func parseEpisodeToken(name string) string {
 // name/folder carries the wanted dub/sub language tag, or nil when the watch
 // has no language preference. The full remote path is matched so a
 // folder-level tag ("Show [GerDub]/ep01.mkv") applies to every file inside.
-func watchLangFilter(w Watch) func(string) bool {
+func (s *Server) watchLangFilter(w Watch) func(string) bool {
 	if w.WantDub == "" && w.WantSub == "" {
 		return nil
 	}
 	return func(remotePath string) bool {
-		return rename.LangMatch(remotePath, w.WantDub, w.WantSub)
+		// fast path: when the name already carries a tag for every wanted
+		// dimension, trust it (no download). Only when a wanted dimension has
+		// NO filename tag - the "not everything is in the name" case - do we
+		// pull the header and read the real tracks with ffprobe.
+		dubTag, subTag := rename.LangTags(remotePath)
+		ambiguous := (w.WantDub != "" && dubTag == "") || (w.WantSub != "" && subTag == "")
+		if !ambiguous {
+			return rename.LangMatch(remotePath, w.WantDub, w.WantSub)
+		}
+		dub, sub, ok := s.probeRemoteLang(w.UserID, w.ServerID, remotePath)
+		if !ok {
+			return rename.LangMatch(remotePath, w.WantDub, w.WantSub) // fall back to the name
+		}
+		if w.WantDub != "" && !dub[canonCode(w.WantDub)] {
+			return false
+		}
+		if w.WantSub != "" && !sub[canonCode(w.WantSub)] {
+			return false
+		}
+		return true
 	}
 }
 
