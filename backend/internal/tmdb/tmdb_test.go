@@ -175,3 +175,35 @@ func TestAbsoluteEpisode(t *testing.T) {
 		t.Errorf("fallback: got %d, want 31", got)
 	}
 }
+
+func TestTranslations(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	db.SetSetting(d, "tmdb_api_key", "test.jwt.token")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/tv/42/translations", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"translations":[
+			{"iso_639_1":"de","data":{"name":"Beispielserie"}},
+			{"iso_639_1":"ja","data":{"name":"例のショー"}},
+			{"iso_639_1":"fr","data":{"name":""}}]}`))
+	})
+	mux.HandleFunc("/movie/7/translations", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"translations":[{"iso_639_1":"de","data":{"title":"Beispielfilm"}}]}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	c := New(d)
+	c.BaseURL = srv.URL
+
+	tr, err := c.Translations(context.Background(), "tv", 42)
+	if err != nil || len(tr) != 2 || tr["de"] != "Beispielserie" || tr["ja"] != "例のショー" {
+		t.Fatalf("tv translations: %v %v", tr, err)
+	}
+	mv, err := c.Translations(context.Background(), "movie", 7)
+	if err != nil || mv["de"] != "Beispielfilm" {
+		t.Fatalf("movie translations: %v %v", mv, err)
+	}
+}

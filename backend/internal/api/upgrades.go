@@ -513,6 +513,15 @@ func (e *unitEnrich) of(showKey string, season int) unitInfo {
 		info.genres = media.Genres
 		info.media = *media
 	}
+	// a stored multi-locale title (series_titles, de→en→x-jat) beats a
+	// show-wide/mismatched media title or a folder-derived guess; an exact
+	// per-season media title stays - it may carry the season's own name.
+	if !exact {
+		if t := e.s.seriesLocalTitle(info.seriesID); t != "" {
+			info.title = t
+			info.exact = true // callers must not replace it with a folder guess
+		}
+	}
 	if info.title == "" {
 		info.title = showKey
 	}
