@@ -498,16 +498,26 @@ function fmtRes(r: number): string {
   return `${r}p`
 }
 
-// upgradeDiff spells out exactly what improves: resolution step and the added
-// dub/sub languages, per the axes the user enabled.
-function upgradeDiff(u: UpgradeSuggestion, t: (k: string, o?: Record<string, unknown>) => string): string[] {
+// variantDiff spells out what v would improve over the local copy on the
+// user's enabled axes: resolution step and added dub/sub languages. Empty
+// means this copy is no improvement.
+function variantDiff(
+  from: UpgradeVariant,
+  v: UpgradeVariant,
+  dims: UpgradeDims | undefined,
+  t: (k: string, o?: Record<string, unknown>) => string,
+): string[] {
   const out: string[] = []
-  const from = u.from
-  const to = u.to
-  if (u.improvesRes) out.push(`${fmtRes(from.resRank)} → ${fmtRes(to.resRank)}`)
   const added = (a: string[], b: string[]) => (b ?? []).filter((x) => !(a ?? []).includes(x))
-  if (u.improvesDub) out.push(`${t('suggestions.upDub')} +${added(from.dub, to.dub).join(',')}`)
-  if (u.improvesSub) out.push(`${t('suggestions.upSub')} +${added(from.sub, to.sub).join(',')}`)
+  if ((dims?.res ?? true) && v.resRank > from.resRank) out.push(`${fmtRes(from.resRank)} → ${fmtRes(v.resRank)}`)
+  if (dims?.dub ?? true) {
+    const d = added(from.dub, v.dub)
+    if (d.length) out.push(`${t('suggestions.upDub')} +${d.join(',')}`)
+  }
+  if (dims?.sub ?? true) {
+    const s = added(from.sub, v.sub)
+    if (s.length) out.push(`${t('suggestions.upSub')} +${s.join(',')}`)
+  }
   return out
 }
 
@@ -548,8 +558,10 @@ function UpgradesSection() {
     { refetchInterval: (q) => (q.state.data?.building ? 4000 : false) },
   )
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
-  const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
+  const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields; info: string[] } | null>(null)
   const [notice, setNotice] = useState('')
+  // per-card chosen sync source among the remote copies; default = recommended
+  const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
 
   const toggle = async (key: keyof UpgradeDims) => {
     if (!dims) return
@@ -588,8 +600,13 @@ function UpgradesSection() {
         (() => {
           const render = (u: UpgradeSuggestion, i: number) => {
           const seasonLabel = u.isMovie ? t('suggestions.movie') : u.season > 0 ? t('suggestions.season', { season: u.season }) : ''
-          const isBest = (v: UpgradeVariant) => v.serverId === u.to.serverId && v.folder === u.to.folder
+          const chosen = choice[u.key] ?? u.to
+          const isChosen = (v: UpgradeVariant) => v.serverId === chosen.serverId && v.folder === chosen.folder
           const options = u.options ?? []
+          const syncInfo = [
+            t('watch.infoSource', { server: chosen.serverName || t('suggestions.localPlex'), quality: variantQuality(chosen) }),
+            t('watch.infoLocal', { quality: variantQuality(u.from) }),
+          ]
           return (
             <div key={u.key || `${u.showKey}-${u.season}-${i}`} className="t-panel flex flex-wrap items-start gap-4 p-3">
               {u.cover ? (
@@ -601,7 +618,7 @@ function UpgradesSection() {
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
                   <h4 className="min-w-0 truncate font-display text-sm font-semibold tracking-wider">{u.title}</h4>
                   <div className="flex shrink-0 flex-wrap gap-1">
-                    {upgradeDiff(u, t).map((d, j) => (
+                    {variantDiff(u.from, chosen, dims, t).map((d, j) => (
                       <span key={j} className="t-label t-label--accent">
                         {d}
                       </span>
@@ -617,34 +634,60 @@ function UpgradesSection() {
                 <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
                   <VariantBox v={u.from} label={t('suggestions.fromLabel')} muted />
                   <span className="text-center text-t-muted">→</span>
-                  <VariantBox v={u.to} label={t('suggestions.recommended')} accent />
+                  <VariantBox
+                    v={chosen}
+                    label={isChosen(u.to) ? t('suggestions.recommended') : t('suggestions.chosenVersion')}
+                    accent
+                  />
                 </div>
                 {options.length > 0 && (
-                  <div className="mt-2">
-                    <span className="t-label">{t('suggestions.allVersions')}</span>
+                  <fieldset className="mt-2 min-w-0 border-0 p-0">
+                    <legend className="t-label">{t('suggestions.chooseVersion')}</legend>
                     <ul className="mt-1 space-y-1">
-                      {options.map((o, j) => (
-                        <li
-                          key={`${o.serverId}-${o.folder}-${j}`}
-                          className={`flex flex-col gap-0.5 border-l-2 pl-2 sm:flex-row sm:items-center sm:gap-2 ${isBest(o) ? 'border-accent' : 'border-transparent'}`}
-                        >
-                          <span className={`t-label shrink-0 ${isBest(o) ? 't-label--accent' : ''}`}>
-                            {o.serverName ? o.serverName : t('suggestions.localPlex')}
-                          </span>
-                          <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-t-secondary" title={o.folder}>
-                            {o.folder}
-                          </span>
-                          <span className="shrink-0 text-[11px] text-t-muted">{variantQuality(o)}</span>
-                        </li>
-                      ))}
+                      {options.map((o, j) => {
+                        const diff = variantDiff(u.from, o, dims, t)
+                        return (
+                          <li
+                            key={`${o.serverId}-${o.folder}-${j}`}
+                            className={`border-l-2 pl-2 ${isChosen(o) ? 'border-accent' : 'border-transparent'}`}
+                          >
+                            <label className="flex min-h-6 cursor-pointer flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+                              <span className="flex shrink-0 items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name={`opt-${u.key}`}
+                                  checked={isChosen(o)}
+                                  onChange={() => setChoice((c) => ({ ...c, [u.key]: o }))}
+                                />
+                                <span className={`t-label ${isChosen(o) ? 't-label--accent' : ''}`}>
+                                  {o.serverName ? o.serverName : t('suggestions.localPlex')}
+                                </span>
+                              </span>
+                              <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-t-secondary" title={o.folder}>
+                                {o.folder}
+                              </span>
+                              <span className="flex shrink-0 flex-wrap items-center gap-1 text-[11px] text-t-muted">
+                                {variantQuality(o)}
+                                {diff.map((d, k) => (
+                                  <span key={k} className="t-label t-label--accent">
+                                    {d}
+                                  </span>
+                                ))}
+                              </span>
+                            </label>
+                          </li>
+                        )
+                      })}
                     </ul>
-                  </div>
+                  </fieldset>
                 )}
                 <div className="mt-2 flex flex-wrap justify-end gap-1.5">
                   {u.sync?.localPath && (
                     <button
                       className="t-btn t-btn--sm t-btn--primary"
-                      onClick={() => setSync({ serverId: u.to.serverId, name: u.title, initial: syncFields(u.sync!, u.title, u.to.folder) })}
+                      onClick={() =>
+                        setSync({ serverId: chosen.serverId, name: u.title, initial: syncFields(u.sync!, u.title, chosen.folder), info: syncInfo })
+                      }
                     >
                       {t('plex.syncOnce')}
                     </button>
@@ -688,6 +731,7 @@ function UpgradesSection() {
           title={sync.name}
           serverId={sync.serverId}
           initial={sync.initial}
+          info={sync.info}
           saveLabel={t('suggestions.syncOnce')}
           onSave={async (f) => {
             const r = await api.post<{ queued: number }>('/api/downloads/sync', { serverId: sync.serverId, ...f })
