@@ -252,6 +252,13 @@ func categorize(providers []string, m anilist.Media, source string) string {
 	if anime {
 		return "anime-" + base
 	}
+	// non-anime animation (Western cartoons): TMDB "Animation" genre. Split out
+	// from live-action so the user's Animationsserien library gets its own block.
+	for _, g := range m.Genres {
+		if strings.EqualFold(g, "Animation") {
+			return "animation-" + base
+		}
+	}
 	return base
 }
 
