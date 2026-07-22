@@ -12,6 +12,7 @@ import {
   type UpgradeDims,
   type DismissedItem,
   type SyncPlan,
+  mediaTitle,
 } from '../api'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { usePersistedQuery } from '../hooks'
@@ -332,7 +333,7 @@ function SugCard({
         </p>
 
         {it.sequel && (
-          <p className="mt-1 truncate text-[11px] text-t-muted">{t('suggestions.missing')}: {it.sequel.title.romaji || it.sequel.title.english}</p>
+          <p className="mt-1 truncate text-[11px] text-t-muted">{t('suggestions.missing')}: {mediaTitle(it.sequel)}</p>
         )}
         {it.plexFolder && (
           <p className="mt-1 break-all font-mono text-[11px] text-t-muted" title={it.plexFolder}>

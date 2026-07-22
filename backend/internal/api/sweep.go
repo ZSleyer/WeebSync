@@ -257,6 +257,22 @@ func (s *Server) BackfillSeries() {
 	db.SetSetting(s.DB, "series_backfilled", "1")
 }
 
+// suggestionFormat is bumped whenever the shape/content of the cached suggestion
+// blob changes (e.g. localized titles), so a deploy drops stale blobs once
+// instead of waiting out the 30-minute TTL.
+const suggestionFormat = "titles-v1"
+
+// ClearStaleSuggestionCache drops the cached per-user suggestion blobs once when
+// the suggestion format version changed since the last boot. Cheap no-op after
+// the first run of a given version.
+func (s *Server) ClearStaleSuggestionCache() {
+	if db.Setting(s.DB, "sugg_fmt") == suggestionFormat {
+		return
+	}
+	s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'suggestions:%'`)
+	db.SetSetting(s.DB, "sugg_fmt", suggestionFormat)
+}
+
 // BackfillUnits re-derives the canonical unit (show_key/season/is_movie) on
 // catalog variants that predate the per-season model, and drops the stale
 // server-0 Plex rows so indexPlexLibrary rebuilds them per season. Gated by a
