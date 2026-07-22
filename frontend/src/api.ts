@@ -49,7 +49,7 @@ export interface Download {
 
 export interface Media {
   id: number
-  title: { romaji: string; english: string }
+  title: { romaji: string; english: string; preferred?: string }
   coverImage: { large: string }
   bannerImage: string
   trailer?: { id: string; site: string; thumbnail: string } | null
@@ -73,9 +73,13 @@ const CJK_RE = /[぀-ヿ㐀-鿿豈-﫿＀-￯]/
 // the localized name for TMDB media) first, then english, skipping any candidate
 // that is native kana/kanji. Falls back to whatever exists, then to `fallback`.
 export function mediaTitle(
-  m?: { title?: { romaji?: string; english?: string } } | null,
+  m?: { title?: { preferred?: string; romaji?: string; english?: string } } | null,
   fallback = '',
 ): string {
+  // the backend stores the canonical localized title in `preferred`; use it when
+  // present, else fall back to a non-Japanese romaji/english heuristic.
+  const preferred = m?.title?.preferred ?? ''
+  if (preferred) return preferred
   const romaji = m?.title?.romaji ?? ''
   const english = m?.title?.english ?? ''
   for (const c of [romaji, english]) if (c && !CJK_RE.test(c)) return c

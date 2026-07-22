@@ -303,5 +303,8 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 			s.queueTvdbFetch(id)
 		}
 	}
+	if m != nil {
+		m.Title.Preferred = displayTitle(*m, source) // canonical localized display title
+	}
 	return m, false
 }

@@ -286,6 +286,7 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		}
 		media := anilist.Media{Format: e.format, Genres: e.genres}
 		media.Title.Romaji = e.title
+		media.Title.Preferred = e.title // e.title is already the localized display title
 		acc.add(SugItem{
 			RefKey: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
 			Category: categorize(e.providers, media, ""),
