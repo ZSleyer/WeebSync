@@ -267,10 +267,10 @@
     "useSeriesFolder": "Serien-Ordner verwenden",
     "openProvider": "Beim Anbieter öffnen",
     "templatePadHint": "Das :02 füllt mit Nullen auf min. 2 Stellen (S01, E05) - wichtig für Plex und richtige Sortierung; kürzt lange Nummern nie (E1187 bleibt). Für mehr Stellen :03 nutzen (E001).",
-    "wantDub": "Dub-Sprache (nur diese synchronisieren)",
-    "wantSub": "Sub-Sprache (nur diese synchronisieren)",
+    "wantDub": "Dub-Sprache (nur herunterladen, wenn vorhanden)",
+    "wantSub": "Sub-Sprache (nur herunterladen, wenn vorhanden)",
     "langAny": "Beliebig",
-    "langHint": "Filtert nach Sprach-Tags im Dateinamen ([GerDub], [GerEngSub]). Eine Folge wird erst geladen, sobald sie in der gewählten Sprache vorliegt.",
+    "langHint": "Download-Filter: Eine Remote-Datei wird nur heruntergeladen, wenn sie die gewählte Sprache tatsächlich enthält - erkannt am Sprach-Tag im Dateinamen ([GerDub], [GerEngSub]) oder, wenn der Name keinen Tag trägt, an den echten Tonspuren (ffprobe). Eine Folge wird also erst geladen, sobald sie in der gewählten Sprache vorliegt; bis dahin wartet der Auto-Sync.",
     "add": "Beobachten",
     "addTitle": "Beobachten: {{name}}",
     "editTitle": "Auto-Sync bearbeiten",
@@ -281,7 +281,7 @@
     "sectionPaths": "Quelle & Ziel",
     "sectionMeta": "Metadaten (Anzeige)",
     "metaHint": "Nur für Kalender und Cover, nicht fürs Umbenennen.",
-    "sectionFilter": "Sprachfilter",
+    "sectionFilter": "Download-Filter (Sprache)",
     "renameSeries": "Serie",
     "renameSeriesAmbiguous": "nicht eindeutig - bitte auswählen",
     "renameSeriesPick": "Serie auswählen",
@@ -770,7 +770,6 @@
     "statusCompleted": "Abgeschlossen",
     "showCompleted": "Abgeschlossene zeigen",
     "statusCOMPLETED": "abgeschlossen",
-    "syncOnce": "Einmal synchronisieren",
-    "otherLibrary": "Sonstige"
+    "syncOnce": "Einmal synchronisieren"
   }
 }
