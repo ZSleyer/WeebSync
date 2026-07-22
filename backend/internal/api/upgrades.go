@@ -228,7 +228,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			continue
 		}
 		e := enrich.of(u.showKey, u.season)
-		catMedia := anilist.Media{Format: e.format}
+		catMedia := anilist.Media{Format: e.format, Genres: e.genres}
 		if u.isMovie {
 			catMedia.Format = "MOVIE"
 		}
@@ -284,7 +284,7 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		for _, r := range u.remotes {
 			cands = append(cands, plexCandidate{ServerID: r.ServerID, ServerName: r.ServerName, Path: r.Folder})
 		}
-		media := anilist.Media{Format: e.format}
+		media := anilist.Media{Format: e.format, Genres: e.genres}
 		media.Title.Romaji = e.title
 		acc.add(SugItem{
 			RefKey: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
@@ -382,6 +382,7 @@ type unitInfo struct {
 	cover     string
 	format    string
 	episodes  int
+	genres    []string
 	providers []string
 	links     ProviderLinks
 }
@@ -481,6 +482,7 @@ func (e *unitEnrich) of(showKey string, season int) unitInfo {
 			info.title = media.Title.English
 		}
 		info.cover, info.format, info.episodes = media.CoverImage.Large, media.Format, media.Episodes
+		info.genres = media.Genres
 	}
 	if info.title == "" {
 		info.title = showKey
