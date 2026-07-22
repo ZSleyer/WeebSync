@@ -284,7 +284,11 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		for _, r := range u.remotes {
 			cands = append(cands, plexCandidate{ServerID: r.ServerID, ServerName: r.ServerName, Path: r.Folder})
 		}
-		media := anilist.Media{Format: e.format, Genres: e.genres}
+		// carry the full resolved media (cover/episodes/score/format) so the card
+		// shows metadata, not just a title
+		media := e.media
+		media.Format = e.format
+		media.Genres = e.genres
 		media.Title.Romaji = e.title
 		media.Title.Preferred = e.title // e.title is already the localized display title
 		acc.add(SugItem{
@@ -384,6 +388,7 @@ type unitInfo struct {
 	format    string
 	episodes  int
 	genres    []string
+	media     anilist.Media // full resolved media, so cards carry episodes/score/etc
 	providers []string
 	links     ProviderLinks
 }
@@ -484,6 +489,7 @@ func (e *unitEnrich) of(showKey string, season int) unitInfo {
 		info.title = displayTitle(*media, src)
 		info.cover, info.format, info.episodes = media.CoverImage.Large, media.Format, media.Episodes
 		info.genres = media.Genres
+		info.media = *media
 	}
 	if info.title == "" {
 		info.title = showKey
