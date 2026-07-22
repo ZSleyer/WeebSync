@@ -87,9 +87,9 @@ function syncFields(sync: SyncPlan, title: string, remotePath: string): WatchFie
   }
 }
 
-// Content-category blocks, in the order the user reads them: Animefilme,
-// Animeserien, Filme, Serien.
-const CATS = ['anime-movie', 'anime-tv', 'movie', 'tv'] as const
+// Content-category blocks, in reading order: Anime, then Western animation
+// (Zeichentrick, non-Japanese), then live-action. Movies before series.
+const CATS = ['anime-movie', 'anime-tv', 'animation-movie', 'animation-tv', 'movie', 'tv'] as const
 
 // BucketSection renders one functional bucket. Trending and Watchlist are
 // sub-grouped into the four categories (Anime series/movies, series, movies);

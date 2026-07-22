@@ -741,6 +741,8 @@
     "cat_anime-tv": "Animeserien",
     "cat_anime-movie": "Animefilme",
     "cat_tv": "Serien",
+    "cat_animation-tv": "Animationsserien",
+    "cat_animation-movie": "Animationsfilme",
     "cat_movie": "Filme",
     "empty": "Keine Vorschläge.",
     "haveNeed": "{{have}}/{{need}} Folgen",
