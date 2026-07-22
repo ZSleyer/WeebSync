@@ -107,9 +107,21 @@ type UpgradeSuggestion struct {
 //	@Router			/api/upgrades [get]
 func (s *Server) handleUpgrades(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	dims := s.upgradeDimsFor(u.ID)
 	ignored := s.dismissedKeys(u.ID, "upgrade")
+	out := []UpgradeSuggestion{}
+	for _, up := range s.buildUpgrades(u.ID) {
+		if !ignored[fmt.Sprintf("series:%d", up.SeriesID)] {
+			out = append(out, up)
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
 
+// buildUpgrades computes a user's upgrade suggestions (no dismiss filter - that
+// is applied by the caller). Shared by /api/upgrades and the cached
+// /api/suggestions blob.
+func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
+	dims := s.upgradeDimsFor(userID)
 	rows, err := s.DB.Query(`SELECT sp.series_id, se.title, v.server_id, v.folder, v.res_rank, v.dub_codes, v.sub_codes
 		FROM catalog_variants v
 		JOIN catalog_matches m  ON m.server_id = v.server_id AND m.folder = v.folder AND m.media_id != 0
@@ -117,8 +129,7 @@ func (s *Server) handleUpgrades(w http.ResponseWriter, r *http.Request) {
 		JOIN series se          ON se.id = sp.series_id
 		ORDER BY sp.series_id`)
 	if err != nil {
-		dbErr(w)
-		return
+		return []UpgradeSuggestion{}
 	}
 	defer rows.Close()
 
@@ -147,9 +158,6 @@ func (s *Server) handleUpgrades(w http.ResponseWriter, r *http.Request) {
 		if len(vs) < 2 {
 			continue
 		}
-		if ignored[fmt.Sprintf("series:%d", sid)] {
-			continue
-		}
 		top := bestVariant(vs)
 		for _, cur := range vs {
 			if cur.v.Folder == top.v.Folder && cur.v.ServerID == top.v.ServerID {
@@ -167,7 +175,7 @@ func (s *Server) handleUpgrades(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out
 }
 
 // seriesVariant pairs a copy's quality with the series' display title.

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -58,6 +59,9 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// wasn't cached yet - the self-healing net that makes the migration
 			// of old matches onto the series structure eventually complete
 			s.relinkOrphans(sweepBatch)
+			// keep each user's aggregated suggestion blob warm so the page loads
+			// instantly instead of assembling on the first request
+			s.warmSuggestions()
 		}
 	}
 }
@@ -169,6 +173,36 @@ func (s *Server) relinkOrphans(budget int) {
 	rows.Close()
 	for _, o := range orphans {
 		s.linkSeries(o.source, o.mediaID)
+	}
+}
+
+// warmSuggestions rebuilds each user's stale suggestion blob in the background,
+// deduplicated by the same runJob key the endpoint uses, so a user's first
+// visit finds the page pre-aggregated. Cheap: few users, no-op when fresh.
+func (s *Server) warmSuggestions() {
+	rows, err := s.DB.Query(`SELECT id FROM users`)
+	if err != nil {
+		return
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	rows.Close()
+	for _, id := range ids {
+		key := fmt.Sprintf("suggestions:%d", id)
+		var fetched string
+		s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&fetched)
+		stale := true
+		if t, perr := time.Parse(sqliteTime, fetched); perr == nil {
+			stale = time.Since(t) > suggestTTL
+		}
+		if stale {
+			uid := id
+			s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, uid) })
+		}
 	}
 }
 
