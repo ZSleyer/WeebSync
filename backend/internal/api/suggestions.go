@@ -49,10 +49,11 @@ type SugItem struct {
 
 // SuggestionsResponse is the unified payload: one list per functional bucket.
 type SuggestionsResponse struct {
-	Trending   []SugItem `json:"trending"`
-	Watchlist  []SugItem `json:"watchlist"`
-	Incomplete []SugItem `json:"incomplete"`
-	Building   bool      `json:"building"`
+	Watchlist  []SugItem           `json:"watchlist"`
+	Trending   []SugItem           `json:"trending"`
+	Upgrades   []UpgradeSuggestion `json:"upgrades"`
+	Incomplete []SugItem           `json:"incomplete"`
+	Building   bool                `json:"building"`
 }
 
 type providerRef struct {
@@ -263,21 +264,85 @@ func categorize(providers []string, m anilist.Media, source string) string {
 //	@Router			/api/suggestions [get]
 func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	ctx := r.Context()
 	force := r.URL.Query().Get("force") == "1"
-	bySrc, bySeries := s.seriesProviderMaps()
-	dismissed := s.dismissedKeys(u.ID, "suggestion")
+
+	// serve the pre-aggregated per-user blob instantly; rebuild in the
+	// background when stale. The assembly (merge/dedup, remoteCandidates, the
+	// live plex.tv call) is the slow part, so it never runs on the request path.
+	key := fmt.Sprintf("suggestions:%d", u.ID)
+	var payload, fetched string
+	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&payload, &fetched)
+	fresh := false
+	if t, err := time.Parse(sqliteTime, fetched); err == nil {
+		fresh = time.Since(t) <= suggestTTL
+	}
 	building := false
+	if payload == "" || !fresh || force {
+		building = true
+		uid := u.ID
+		s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, uid) })
+	}
+
+	var resp SuggestionsResponse
+	json.Unmarshal([]byte(payload), &resp)
+	// dismiss is per-user and changes instantly, so filter at read time rather
+	// than baking it into the cached blob (a dismiss needs no rebuild).
+	dismissed := s.dismissedKeys(u.ID, "suggestion")
+	resp.Trending = filterDismissed(resp.Trending, dismissed)
+	resp.Watchlist = filterDismissed(resp.Watchlist, dismissed)
+	resp.Incomplete = filterDismissed(resp.Incomplete, dismissed)
+	upDismissed := s.dismissedKeys(u.ID, "upgrade")
+	kept := make([]UpgradeSuggestion, 0, len(resp.Upgrades))
+	for _, up := range resp.Upgrades {
+		if !upDismissed[fmt.Sprintf("series:%d", up.SeriesID)] {
+			kept = append(kept, up)
+		}
+	}
+	resp.Upgrades = kept
+	resp.Building = building || payload == ""
+	if resp.Trending == nil {
+		resp.Trending = []SugItem{}
+	}
+	if resp.Watchlist == nil {
+		resp.Watchlist = []SugItem{}
+	}
+	if resp.Incomplete == nil {
+		resp.Incomplete = []SugItem{}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func filterDismissed(items []SugItem, dismissed map[string]bool) []SugItem {
+	out := make([]SugItem, 0, len(items))
+	for _, it := range items {
+		if !dismissed[it.RefKey] {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+// suggestTTL is how long a user's aggregated suggestion blob stays fresh before
+// a background rebuild. The underlying provider data has its own longer TTLs.
+const suggestTTL = 30 * time.Minute
+
+// buildUserSuggestions assembles a user's three suggestion buckets from the
+// (cached) provider builders and stores the merged result under
+// suggestions:{userID}. This is the slow path - run in the background by the
+// endpoint and the warm loop, never on the request. No dismiss filter: that is
+// applied per-request at read time.
+func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) SuggestionsResponse {
+	bySrc, bySeries := s.seriesProviderMaps()
 
 	// ── Trending: AniList + TMDB discovery charts ──
 	tr := newAcc()
-	for _, a := range s.anilistTrending(ctx, u.ID) {
+	for _, a := range s.anilistTrending(ctx, userID) {
 		tr.add(s.buildItem(a.Media, "anilist", a.Candidates, a.PlexFolder, bySrc, bySeries))
 	}
 	if s.Tmdb.Enabled() {
 		for _, kind := range []string{"tv", "movie"} {
 			if list, err := s.Tmdb.Trending(ctx, kind); err == nil {
-				for _, t := range s.tmdbSuggestList(u.ID, kind, list, true) {
+				for _, t := range s.tmdbSuggestList(userID, kind, list, true) {
 					tr.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries))
 				}
 			}
@@ -286,56 +351,68 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 
 	// ── Watchlist: AniList + TMDB + plex.tv ──
 	wl := newAcc()
-	building = s.addAnilistWatchlist(r, u.ID, wl, bySrc, bySeries, force) || building
+	s.addAnilistWatchlist(userID, wl, bySrc, bySeries)
 	if s.Tmdb.Enabled() {
-		if accountID, session, err := s.tmdbAccount(u.ID); err == nil {
+		if accountID, session, err := s.tmdbAccount(userID); err == nil {
 			for _, kind := range []string{"tv", "movie"} {
-				key := fmt.Sprintf("tmdb:watchlist:%d:%s", accountID, kind)
+				ck := fmt.Sprintf("tmdb:watchlist:%d:%s", accountID, kind)
 				var medias []anilist.Media
-				if payload, ok := s.cacheGet(key, time.Hour); ok && !force {
+				if payload, ok := s.cacheGet(ck, time.Hour); ok {
 					json.Unmarshal([]byte(payload), &medias)
 				} else if medias, err = s.Tmdb.Watchlist(ctx, session, accountID, kind); err == nil {
 					payload, _ := json.Marshal(medias)
-					s.cacheSet(key, string(payload))
+					s.cacheSet(ck, string(payload))
 				}
-				for _, t := range s.tmdbSuggestList(u.ID, kind, medias, false) {
+				for _, t := range s.tmdbSuggestList(userID, kind, medias, false) {
 					wl.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries))
 				}
 			}
 		}
 	}
-	for _, it := range s.plexWatchlistItems(u.ID, bySrc, bySeries) {
+	for _, it := range s.plexWatchlistItems(userID, bySrc, bySeries) {
 		wl.add(it)
 	}
 
 	// ── Incomplete: Plex missing-sequel suggestions ──
 	inc := newAcc()
-	building = s.addIncomplete(u.ID, inc, bySrc, bySeries, force) || building
+	s.addIncomplete(userID, inc, bySrc, bySeries)
 
-	writeJSON(w, http.StatusOK, SuggestionsResponse{
-		Trending:   tr.list(dismissed),
-		Watchlist:  wl.list(dismissed),
-		Incomplete: inc.list(dismissed),
-		Building:   building,
-	})
+	resp := SuggestionsResponse{
+		Watchlist:  wl.list(nil),
+		Trending:   ownedFilter(tr.list(nil)), // trending is for NEW titles only
+		Incomplete: inc.list(nil),
+		Upgrades:   s.buildUpgrades(userID),
+	}
+	if b, err := json.Marshal(resp); err == nil {
+		s.cacheSet(fmt.Sprintf("suggestions:%d", userID), string(b))
+	}
+	return resp
+}
+
+// ownedFilter drops trending items the user already has (present on a server or
+// in Plex) so Trending only surfaces titles to discover.
+func ownedFilter(items []SugItem) []SugItem {
+	out := make([]SugItem, 0, len(items))
+	for _, it := range items {
+		if len(it.Candidates) > 0 || it.PlexFolder != "" {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out
 }
 
 // addAnilistWatchlist adds the user's CURRENT/PLANNING titles that exist on a
-// server. Returns whether the watchlist cache is still building.
-func (s *Server) addAnilistWatchlist(r *http.Request, userID int64, acc *sugAcc, bySrc map[string]int64, bySeries map[int64][]providerRef, force bool) bool {
+// server, refreshing the watchlist cache in the background when stale.
+func (s *Server) addAnilistWatchlist(userID int64, acc *sugAcc, bySrc map[string]int64, bySeries map[int64][]providerRef) {
 	alID, token, err := s.anilistAccount(userID)
 	if err != nil {
-		return false
+		return
 	}
 	list := s.Anilist.CachedUserList(alID)
-	building := false
 	var fetched string
 	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist:%d", alID)).Scan(&fetched)
-	if t, perr := time.Parse(sqliteTime, fetched); perr != nil || time.Since(t) > time.Hour || force {
-		building = len(list) == 0
-		if force {
-			s.Anilist.InvalidateUserList(alID)
-		}
+	if t, perr := time.Parse(sqliteTime, fetched); perr != nil || time.Since(t) > time.Hour {
 		s.buildAnilistSuggestions(alID, token)
 	}
 	for _, e := range list {
@@ -350,7 +427,6 @@ func (s *Server) addAnilistWatchlist(r *http.Request, userID int64, acc *sugAcc,
 		it.Status, it.Progress = e.Status, e.Progress
 		acc.add(it)
 	}
-	return building
 }
 
 // plexWatchlistItems converts the linked plex.tv watchlist into SugItems.
@@ -414,9 +490,9 @@ func (s *Server) plexWatchlistItems(userID int64, bySrc map[string]int64, bySeri
 }
 
 // addIncomplete adds Plex missing-sequel suggestions, categorised by the sequel.
-func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64, bySeries map[int64][]providerRef, force bool) bool {
+func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64, bySeries map[int64][]providerRef) {
 	if s.plexClient() == nil {
-		return false
+		return
 	}
 	var payload, fetched string
 	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&payload, &fetched)
@@ -424,9 +500,7 @@ func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64
 	if t, err := time.Parse(sqliteTime, fetched); err == nil {
 		fresh = time.Since(t) <= s.plexSuggestTTL()
 	}
-	building := false
-	if payload == "" || !fresh || force {
-		building = true
+	if payload == "" || !fresh {
 		s.runJob("plex:suggest", func(ctx context.Context) { s.buildPlexSuggestions(ctx) })
 	}
 	var sugg []plexSuggestion
@@ -442,5 +516,4 @@ func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64
 		it.Sequel = &seq
 		acc.add(it)
 	}
-	return building
 }
