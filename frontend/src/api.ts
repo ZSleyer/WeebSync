@@ -184,6 +184,7 @@ export interface SuggestionsResponse {
 
 export interface UpgradeVariant {
   serverId: number
+  serverName?: string // "" = local filesystem
   folder: string
   resRank: number // max video height, 0 = unknown
   dub: string[]
@@ -198,6 +199,11 @@ export interface UpgradeSuggestion {
   improvesRes: boolean
   improvesSub: boolean
   improvesDub: boolean
+  providers: string[]
+  links: ProviderLinks
+  cover?: string
+  format?: string // MOVIE | TV | ...
+  episodes?: number
 }
 
 export interface UpgradeDims {
