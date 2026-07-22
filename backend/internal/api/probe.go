@@ -74,10 +74,50 @@ func probeQuality(dir string) (q FolderQuality, ok bool) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "ffprobe", "-v", "quiet",
-		"-print_format", "json", "-show_streams", video).Output()
-	if err != nil {
+	streams, sok := ffprobeFile(ctx, video)
+	if !sok {
 		return q, false
+	}
+	dub, sub := map[string]bool{}, map[string]bool{}
+	for _, st := range streams {
+		switch st.CodecType {
+		case "video":
+			if st.Height > q.ResRank {
+				q.ResRank = st.Height
+			}
+		case "audio":
+			if c := langCode(st.Lang); c != "" {
+				dub[c] = true
+			}
+		case "subtitle":
+			if c := langCode(st.Lang); c != "" {
+				sub[c] = true
+			}
+		}
+	}
+	q.Dub, q.Sub = keysSorted(dub), keysSorted(sub)
+	return q, true
+}
+
+// probeStream is one ffprobe stream, flattened to what we care about.
+type probeStream struct {
+	CodecType string
+	Height    int
+	Lang      string
+}
+
+// ffprobeFile runs ffprobe on a file and returns its streams. extra args are
+// passed before the file (e.g. bigger -probesize for a truncated header).
+// ok=false when ffprobe is missing or fails.
+func ffprobeFile(ctx context.Context, file string, extra ...string) ([]probeStream, bool) {
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		return nil, false
+	}
+	args := append([]string{"-v", "quiet", "-print_format", "json", "-show_streams"}, extra...)
+	args = append(args, file)
+	out, err := exec.CommandContext(ctx, "ffprobe", args...).Output()
+	if err != nil {
+		return nil, false
 	}
 	var probed struct {
 		Streams []struct {
@@ -89,27 +129,13 @@ func probeQuality(dir string) (q FolderQuality, ok bool) {
 		} `json:"streams"`
 	}
 	if json.Unmarshal(out, &probed) != nil {
-		return q, false
+		return nil, false
 	}
-	dub, sub := map[string]bool{}, map[string]bool{}
+	out2 := make([]probeStream, 0, len(probed.Streams))
 	for _, st := range probed.Streams {
-		switch st.CodecType {
-		case "video":
-			if st.Height > q.ResRank {
-				q.ResRank = st.Height
-			}
-		case "audio":
-			if c := langCode(st.Tags.Language); c != "" {
-				dub[c] = true
-			}
-		case "subtitle":
-			if c := langCode(st.Tags.Language); c != "" {
-				sub[c] = true
-			}
-		}
+		out2 = append(out2, probeStream{st.CodecType, st.Height, st.Tags.Language})
 	}
-	q.Dub, q.Sub = keysSorted(dub), keysSorted(sub)
-	return q, true
+	return out2, true
 }
 
 // localFilenameQuality is the ffprobe-less fallback: walk the folder and read
