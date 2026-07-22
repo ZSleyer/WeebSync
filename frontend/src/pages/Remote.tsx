@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
-import { api, fmtBytes, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
+import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
 import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
 import WatchDialog from '../components/WatchDialog'
 import { useConfirm } from '../components/confirm'
@@ -567,7 +567,7 @@ export function CatalogGrid({
                 onClick={() => (g.media ? setDetail(g) : onSelect(it.entry))}
                 aria-label={
                   g.media
-                    ? t('remote.detailsFor', { name: g.media.title.romaji })
+                    ? t('remote.detailsFor', { name: mediaTitle(g.media) })
                     : t('remote.selectItem', { name: it.entry.name })
                 }
               >
@@ -588,8 +588,8 @@ export function CatalogGrid({
                   </div>
                 )}
                 <div className="p-2">
-                  <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={g.media?.title.romaji ?? it.entry.name}>
-                    {g.media?.title.romaji ?? it.entry.name}
+                  <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={mediaTitle(g.media, it.entry.name)}>
+                    {mediaTitle(g.media, it.entry.name)}
                   </h4>
                   {multi ? (
                     <p className="font-mono text-[10px] text-accent">{t('remote.versions', { count: g.items.length })}</p>
@@ -639,7 +639,7 @@ export function CatalogGrid({
                 <div className="mx-2 mb-2 mt-auto flex gap-1.5">
                   <button
                     className="t-btn t-btn--sm flex-1"
-                    aria-label={t('remote.detailsFor', { name: g.media.title.romaji })}
+                    aria-label={t('remote.detailsFor', { name: mediaTitle(g.media) })}
                     title={t('remote.details')}
                     onClick={() => setDetail(g)}
                   >
@@ -900,7 +900,7 @@ function DetailDialog({
   })
 
   return (
-    <dialog ref={ref} className="dialog-sheet w-full max-w-4xl lg:max-w-6xl" aria-label={t('remote.detailsFor', { name: m.title.romaji })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
+    <dialog ref={ref} className="dialog-sheet w-full max-w-4xl lg:max-w-6xl" aria-label={t('remote.detailsFor', { name: mediaTitle(m) })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
       {/* close button stays reachable while the dialog scrolls */}
       <div className="sticky top-2 z-10 h-0 text-right">
         <button type="button" className="t-btn t-btn--sm mr-2" aria-label={t('remote.close')} onClick={() => ref.current?.close()}>
@@ -912,10 +912,12 @@ function DetailDialog({
         <div className="flex flex-col gap-4 sm:flex-row">
           {m.coverImage?.large && <img src={m.coverImage.large} alt="" className="h-40 w-28 shrink-0 object-cover" />}
           <div className="min-w-0">
-            <h3 className="font-display font-semibold tracking-wider">{m.title.romaji}</h3>
-            {m.title.english && m.title.english !== m.title.romaji && (
-              <p className="text-sm text-t-muted">{m.title.english}</p>
-            )}
+            <h3 className="font-display font-semibold tracking-wider">{mediaTitle(m)}</h3>
+            {m.title.english &&
+              mediaTitle({ title: { english: m.title.english } }) === m.title.english &&
+              m.title.english !== mediaTitle(m) && (
+                <p className="text-sm text-t-muted">{m.title.english}</p>
+              )}
             <div className="mt-2 flex flex-wrap gap-1">
               {m.seasonYear > 0 && <span className="t-label">{m.seasonYear}</span>}
               {m.format && <span className="t-label">{m.format}</span>}
@@ -1144,7 +1146,7 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
         <h3 className="mb-1 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
         {item.media && (
           <p className="mb-2 text-xs text-t-muted">
-            {t('remote.currentMatch', { title: item.media.title.romaji, id: item.media.id })}
+            {t('remote.currentMatch', { title: mediaTitle(item.media), id: item.media.id })}
           </p>
         )}
         <div className="mb-1 flex gap-2">
@@ -1172,7 +1174,7 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
               >
                 <img src={m.coverImage.large} alt="" className="h-14 w-10 object-cover" />
                 <span className="min-w-0">
-                  <span className="block truncate text-sm">{m.title.romaji}</span>
+                  <span className="block truncate text-sm">{mediaTitle(m)}</span>
                   <span className="text-xs text-t-muted">
                     {m.seasonYear} · {m.format} · {m.episodes} EP
                   </span>

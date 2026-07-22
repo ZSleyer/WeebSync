@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { api, fmtMissing, type Watch } from '../api'
+import { api, fmtMissing, mediaTitle, type Watch } from '../api'
 import WatchDialog from '../components/WatchDialog'
 import { useConfirm } from '../components/confirm'
 import { SkeletonCards } from '../components/Loading'
@@ -139,7 +139,7 @@ export default function Watches() {
   ] as const
   const nextTs = (w: Watch) =>
     w.nextAiringAt ? w.nextAiringAt * 1000 : w.lastCheck ? Date.parse(w.lastCheck.replace(' ', 'T') + 'Z') + w.intervalMin * 60_000 : 0
-  const nameOf = (w: Watch) => (w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop() || '').toLowerCase()
+  const nameOf = (w: Watch) => (w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')).toLowerCase()
   const seasonOf = (w: Watch) => Number(w.template.match(/S(\d+)E/i)?.[1] ?? 0)
   const sorted = [...watches].sort((a, b) => {
     switch (sort) {
@@ -287,7 +287,7 @@ export default function Watches() {
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-t-primary">
-                          {e.watch.titleOverride || e.watch.media?.title.romaji || e.watch.remotePath.split('/').pop()}
+                          {e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '')}
                         </p>
                         <p className="text-[11px] text-t-muted">
                           {t('watch.nextEp', { n: e.episode })}
@@ -326,7 +326,7 @@ export default function Watches() {
               )}
               <div className="min-w-0 flex-1">
                 <h3 className="truncate text-sm font-medium text-t-primary">
-                  {w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop()}
+                  {w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')}
                 </h3>
                 <p className="truncate font-mono text-[11px] text-t-muted" title={w.remotePath}>
                   {w.serverName}:{w.remotePath} → {w.localPath}
