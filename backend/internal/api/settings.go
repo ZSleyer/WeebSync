@@ -115,6 +115,8 @@ type settingsPayload struct {
 	PlexToken            string `json:"plexToken,omitempty"` // write-only
 	PlexSections         string `json:"plexSections"`        // csv of section keys, empty = all show/movie sections
 	PlexSectionSources   string `json:"plexSectionSources"`  // csv of key:source (anilist|tmdb); missing key = by library title
+	PlexRoots            string `json:"plexRoots"`           // manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)
+	PlexLibRoots         string `json:"plexLibRoots"`        // read-only: mounts auto-detected from Plex's reported library locations
 	OidcProviderName     string `json:"oidcProviderName"`    // login button label ("Sign in with X")
 	OidcIssuer           string `json:"oidcIssuer"`
 	OidcClientID         string `json:"oidcClientId"`
@@ -162,6 +164,8 @@ func (s *Server) settingsState() settingsPayload {
 		PlexTokenSet:         db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
 		PlexSections:         db.Setting(s.DB, "plex_sections"),
 		PlexSectionSources:   db.Setting(s.DB, "plex_section_sources"),
+		PlexRoots:            db.Setting(s.DB, "plex_roots"),
+		PlexLibRoots:         db.Setting(s.DB, "plex_lib_roots"),
 		OidcProviderName:     db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
 		OidcIssuer:           db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
 		OidcClientID:         db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
@@ -279,6 +283,12 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	setSetting(s.DB, "plex_url", strings.TrimSpace(in.PlexURL))
 	setSetting(s.DB, "plex_sections", in.PlexSections)
 	setSetting(s.DB, "plex_section_sources", in.PlexSectionSources)
+	setSetting(s.DB, "plex_roots", normalizeRoots(in.PlexRoots))
+	// the Plex roots widen the local-path allowlist (ffprobe + one-off sync into
+	// the library); refresh the transfer manager's copy so downloads there pass,
+	// and re-detect the auto roots from Plex in case the connection just changed
+	s.Transfers.Roots = s.localRoots()
+	go s.refreshPlexRoots()
 	setSetting(s.DB, "anilist_client_id", strings.TrimSpace(in.AnilistClientID))
 	setSetting(s.DB, "anilist_redirect_url", strings.TrimSpace(in.AnilistRedirectURL))
 	// secrets are write-only: "" keeps the stored value, "-" clears it.

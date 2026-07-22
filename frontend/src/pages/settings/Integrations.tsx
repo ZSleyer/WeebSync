@@ -86,13 +86,40 @@ export default function Integrations() {
           <PlexAccount />
           <PlexWatchlistAccount />
           {form.plexTokenSet && form.plexUrl && (
-            <PlexSections
-              value={form.plexSections}
-              onChange={(v) => set('plexSections', v)}
-              sources={form.plexSectionSources}
-              onSources={(v) => set('plexSectionSources', v)}
-              tvdb={form.tvdbApiKeySet}
-            />
+            <>
+              <PlexSections
+                value={form.plexSections}
+                onChange={(v) => set('plexSections', v)}
+                sources={form.plexSectionSources}
+                onSources={(v) => set('plexSectionSources', v)}
+                tvdb={form.tvdbApiKeySet}
+              />
+              <div className="text-xs text-t-muted">
+                {t('settings.plexRoots')}
+                {form.plexLibRoots ? (
+                  <div className="mt-1">
+                    <span className="t-label t-label--accent">{t('settings.plexRootsDetected')}</span>
+                    <ul className="mt-1 space-y-0.5 font-mono text-t-secondary">
+                      {form.plexLibRoots.split('\n').filter(Boolean).map((p) => (
+                        <li key={p} className="break-all">
+                          {p}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <span className="mt-1 block">{t('settings.plexRootsNone')}</span>
+                )}
+                <textarea
+                  className="t-input mt-2 font-mono"
+                  rows={3}
+                  placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
+                  value={form.plexRoots}
+                  onChange={(e) => set('plexRoots', e.target.value)}
+                />
+                <span className="mt-1 block">{t('settings.plexRootsHint')}</span>
+              </div>
+            </>
           )}
         </div>
       </section>
