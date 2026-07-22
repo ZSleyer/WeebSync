@@ -395,13 +395,14 @@ type unitEnrich struct {
 	refsByKey     map[string][]providerRef // show_key -> all provider hits
 	seriesByKey   map[string]int64         // show_key -> series id
 	mediaBySeason map[string]anilist.Media // "show_key|season" -> per-season media
+	srcBySeason   map[string]string        // "show_key|season" -> that media's provider source
 	s             *Server
 }
 
 func (s *Server) unitEnrichIndex() *unitEnrich {
 	e := &unitEnrich{
 		refsByKey: map[string][]providerRef{}, seriesByKey: map[string]int64{},
-		mediaBySeason: map[string]anilist.Media{}, s: s,
+		mediaBySeason: map[string]anilist.Media{}, srcBySeason: map[string]string{}, s: s,
 	}
 	// Drive off catalog_matches, not series_provider: a variant's show_key is
 	// derived straight from its match, so an orphan match (not yet bundled into a
@@ -458,6 +459,7 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 		}
 		if media != nil {
 			e.mediaBySeason[showKey+"|"+strconv.Itoa(season)] = *media
+			e.srcBySeason[showKey+"|"+strconv.Itoa(season)] = source
 		}
 	}
 	return e
@@ -468,19 +470,17 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 func (e *unitEnrich) of(showKey string, season int) unitInfo {
 	refs := e.refsByKey[showKey]
 	var media *anilist.Media
+	var src string
 	if m, ok := e.mediaBySeason[showKey+"|"+strconv.Itoa(season)]; ok {
-		media = &m
+		media, src = &m, e.srcBySeason[showKey+"|"+strconv.Itoa(season)]
 	} else if m, ok := e.mediaBySeason[showKey+"|-1"]; ok {
-		media = &m
+		media, src = &m, e.srcBySeason[showKey+"|-1"]
 	} else if m := e.s.seriesMedia(refs); m != nil {
-		media = m
+		media = m // source unknown -> treat like AniList (English-first)
 	}
 	info := unitInfo{seriesID: e.seriesByKey[showKey]}
 	if media != nil {
-		info.title = media.Title.Romaji
-		if info.title == "" {
-			info.title = media.Title.English
-		}
+		info.title = displayTitle(*media, src)
 		info.cover, info.format, info.episodes = media.CoverImage.Large, media.Format, media.Episodes
 		info.genres = media.Genres
 	}
