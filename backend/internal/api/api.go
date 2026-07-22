@@ -226,6 +226,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbDisconnect)))
 	mux.Handle("GET /api/tmdb/me", authed(http.HandlerFunc(s.handleTmdbMe)))
 	mux.Handle("GET /api/tmdb/suggestions", authed(http.HandlerFunc(s.handleTmdbSuggestions)))
+	mux.Handle("GET /api/suggestions", authed(http.HandlerFunc(s.handleSuggestions)))
 	mux.Handle("GET /api/upgrades", authed(http.HandlerFunc(s.handleUpgrades)))
 	mux.Handle("POST /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismiss)))
 	mux.Handle("DELETE /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismissRestore)))
