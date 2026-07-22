@@ -223,7 +223,8 @@ export interface UpgradeSuggestion {
   cover?: string
   format?: string // MOVIE | TV | ...
   episodes?: number
-  library?: string // Plex library title, for grouping
+  category: string // anime-movie | anime-tv | movie | tv, for grouping
+  library?: string // Plex library title (informational)
   sync?: SyncPlan // where a one-off sync writes (into the existing local season/movie folder)
 }
 
