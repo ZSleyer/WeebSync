@@ -43,7 +43,7 @@ export default function Suggestions() {
         </button>
       </header>
 
-      {showIgnored && <IgnoredPanel />}
+      {showIgnored && <IgnoredModal onClose={() => setShowIgnored(false)} />}
 
       <TabBar label={t('suggestions.title')} tabs={tabs.map(([key, label]) => ({ key, label }))} active={tab} onChange={setTab} />
 
@@ -223,6 +223,8 @@ function SugCard({
           )}
           {it.status && it.media.episodes > 0 && <span className="text-t-muted">{t('suggestions.seen', { seen: it.progress, total: it.media.episodes })}</span>}
           {it.need ? <span className="text-t-muted">{t('suggestions.haveNeed', { have: it.have, need: it.need })}</span> : null}
+          {it.media.format && <span className="t-label">{it.media.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}</span>}
+          {!it.status && it.media.episodes > 0 && <span className="text-t-muted">{t('suggestions.episodes', { count: it.media.episodes })}</span>}
           {it.media.averageScore > 0 && <span className="t-label t-label--accent">★ {it.media.averageScore}</span>}
         </p>
 
@@ -230,8 +232,8 @@ function SugCard({
           <p className="mt-1 truncate text-[11px] text-t-muted">{t('suggestions.missing')}: {it.sequel.title.romaji || it.sequel.title.english}</p>
         )}
         {it.plexFolder && (
-          <p className="mt-1 truncate font-mono text-[11px] text-t-muted" title={it.plexFolder}>
-            {t('suggestions.plexFolder')}: {it.plexFolder}
+          <p className="mt-1 break-all font-mono text-[11px] text-t-muted" title={it.plexFolder}>
+            {t('suggestions.localPath')}: {it.plexFolder}
           </p>
         )}
 
@@ -240,8 +242,9 @@ function SugCard({
           <ul className="mt-2 space-y-1">
             {it.candidates.map((c) => (
               <li key={`${c.serverId}-${c.path}`} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-t-secondary" title={c.path}>
-                  {c.path.replace(/\/+$/, '').split('/').pop()} <span className="t-label">{c.serverName}</span>
+                <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-t-secondary" title={c.path}>
+                  <span className="t-label mr-1">{c.serverName}</span>
+                  {c.path}
                 </span>
                 <span className="flex gap-1.5">
                   <button className="t-btn t-btn--sm t-btn--primary" onClick={() => onWatch({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })}>
@@ -310,8 +313,9 @@ function ProviderBadges({ providers, links }: { providers: string[]; links: Prov
   )
 }
 
-// IgnoredPanel lists ignored items (suggestions + upgrades) and restores them.
-function IgnoredPanel() {
+// IgnoredModal lists ignored items (suggestions + upgrades) in an overlay and
+// restores them. Backdrop click or Escape closes.
+function IgnoredModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data } = usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
@@ -320,27 +324,39 @@ function IgnoredPanel() {
     await api.del('/api/suggestions/dismiss', { kind: d.kind, refKey: d.refKey })
     qc.invalidateQueries({ queryKey: ['dismissed'] })
     qc.invalidateQueries({ queryKey: ['suggestions'] })
-    qc.invalidateQueries({ queryKey: ['upgrades'] })
   }
   return (
-    <div className="mb-4 border border-border-subtle bg-bg-secondary/20 p-3">
-      <h3 className="mb-2 font-display text-sm font-semibold tracking-wider">{t('suggestions.ignored')}</h3>
-      {!items.length ? (
-        <p className="t-label">{t('suggestions.noIgnored')}</p>
-      ) : (
-        <ul className="space-y-1">
-          {items.map((d) => (
-            <li key={`${d.kind}-${d.refKey}`} className="flex items-center justify-between gap-2 text-sm">
-              <span className="min-w-0 truncate">
-                {d.label || d.refKey} <span className="t-label">{d.kind}</span>
-              </span>
-              <button className="t-btn t-btn--sm shrink-0" onClick={() => restore(d)}>
-                {t('suggestions.restore')}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-[10vh]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('suggestions.ignored')}
+      onClick={onClose}
+    >
+      <div className="t-panel w-full max-w-lg p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="font-display text-sm font-semibold tracking-wider">{t('suggestions.ignored')}</h3>
+          <button className="t-btn t-btn--sm" onClick={onClose} aria-label={t('common.cancel')}>
+            ✕
+          </button>
+        </div>
+        {!items.length ? (
+          <p className="t-label">{t('suggestions.noIgnored')}</p>
+        ) : (
+          <ul className="max-h-[60vh] space-y-1 overflow-y-auto">
+            {items.map((d) => (
+              <li key={`${d.kind}-${d.refKey}`} className="flex items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 truncate">
+                  {d.label || d.refKey} <span className="t-label">{d.kind}</span>
+                </span>
+                <button className="t-btn t-btn--sm shrink-0" onClick={() => restore(d)}>
+                  {t('suggestions.restore')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
@@ -366,13 +382,22 @@ function upgradeDiff(u: UpgradeSuggestion, t: (k: string, o?: Record<string, unk
   return out
 }
 
-function VariantBox({ v, muted }: { v: UpgradeVariant; muted?: boolean }) {
+// VariantBox shows one copy: where it lives (Local or the server name) plus its
+// full path, and its quality make-up.
+function VariantBox({ v, label, muted }: { v: UpgradeVariant; label: string; muted?: boolean }) {
+  const { t } = useTranslation()
   const parts = [fmtRes(v.resRank)]
   if ((v.dub ?? []).length) parts.push(`Dub ${v.dub.join(',')}`)
   if ((v.sub ?? []).length) parts.push(`Sub ${v.sub.join(',')}`)
   return (
     <div className={`min-w-0 ${muted ? 'text-t-muted' : ''}`}>
-      <div className="truncate font-mono text-xs">{v.folder.split('/').pop()}</div>
+      <div className="flex items-center gap-1.5">
+        <span className="t-label shrink-0">{label}</span>
+        <span className="t-label shrink-0">{v.serverId === 0 ? t('suggestions.local') : v.serverName || `#${v.serverId}`}</span>
+      </div>
+      <div className="mt-0.5 break-all font-mono text-[11px]" title={v.folder}>
+        {v.folder}
+      </div>
       <div className="mt-0.5 text-[11px]">{parts.join(' · ')}</div>
     </div>
   )
@@ -423,32 +448,49 @@ function UpgradesSection() {
         <p className="t-label">{t('suggestions.noUpgrades')}</p>
       ) : (
         items.map((u, i) => (
-          <div key={`${u.seriesId}-${i}`} className="t-panel p-3">
-            <div className="flex items-baseline justify-between gap-3">
-              <h4 className="truncate font-display text-sm font-semibold tracking-wider">{u.title}</h4>
-              <div className="flex shrink-0 flex-wrap gap-1">
-                {upgradeDiff(u, t).map((d, j) => (
-                  <span key={j} className="t-label t-label--accent">
-                    {d}
-                  </span>
-                ))}
+          <div key={`${u.seriesId}-${i}`} className="t-panel flex flex-wrap items-start gap-4 p-3">
+            {u.cover ? (
+              <img src={u.cover} alt="" className="h-20 w-14 shrink-0 object-cover" />
+            ) : (
+              <div className="t-hatch h-20 w-14 shrink-0" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <h4 className="truncate font-display text-sm font-semibold tracking-wider">{u.title}</h4>
+                <div className="flex shrink-0 flex-wrap gap-1">
+                  {upgradeDiff(u, t).map((d, j) => (
+                    <span key={j} className="t-label t-label--accent">
+                      {d}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
-              <VariantBox v={u.from} muted />
-              <span className="text-center text-t-muted">→</span>
-              <VariantBox v={u.to} />
-            </div>
-            <div className="mt-2 flex justify-end gap-2">
-              <button className="t-btn t-btn--sm" onClick={() => dismiss(u)}>
-                {t('suggestions.dismiss')}
-              </button>
-              <button
-                className="t-btn t-btn--sm"
-                onClick={() => navigate(`/remote?server=${u.to.serverId}&path=${encodeURIComponent(u.to.folder)}`)}
-              >
-                {t('plex.openBrowser')}
-              </button>
+              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <ProviderBadges providers={u.providers ?? []} links={u.links ?? {}} />
+                {u.format && <span className="t-label">{u.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}</span>}
+                {u.episodes ? <span className="text-t-muted">{t('suggestions.episodes', { count: u.episodes })}</span> : null}
+              </p>
+              <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
+                <VariantBox v={u.from} label={t('suggestions.have')} muted />
+                <span className="text-center text-t-muted">→</span>
+                <VariantBox v={u.to} label={t('suggestions.better')} />
+              </div>
+              <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+                {u.links?.plex && (
+                  <a className="t-btn t-btn--sm" href={u.links.plex} target="_blank" rel="noreferrer">
+                    {t('suggestions.openPlex')}
+                  </a>
+                )}
+                <button className="t-btn t-btn--sm" onClick={() => dismiss(u)}>
+                  {t('suggestions.dismiss')}
+                </button>
+                <button
+                  className="t-btn t-btn--sm"
+                  onClick={() => navigate(`/remote?server=${u.to.serverId}&path=${encodeURIComponent(u.to.folder)}`)}
+                >
+                  {t('plex.openBrowser')}
+                </button>
+              </div>
             </div>
           </div>
         ))

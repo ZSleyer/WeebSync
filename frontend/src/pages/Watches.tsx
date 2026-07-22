@@ -162,12 +162,35 @@ export default function Watches() {
 
   return (
     <div className="max-w-4xl">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      {/* title + view toggle form a stable top bar: the toggle lives here in
+          every view, so switching list/calendar never moves it. The
+          view-specific controls (calendar filter / list sort) sit on their own
+          row below and only they change - critical on a narrow phone viewport. */}
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('watch.title')}</h2>
           <span className="t-label mt-1">{t('watch.sub')}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div role="group" aria-label={t('watch.view')} className="flex shrink-0">
+          <button
+            className={`t-btn t-btn--sm ${view === 'list' ? 't-btn--primary' : ''}`}
+            aria-pressed={view === 'list'}
+            onClick={() => setView('list')}
+          >
+            {t('watch.viewList')}
+          </button>
+          <button
+            className={`t-btn t-btn--sm ${view === 'calendar' ? 't-btn--primary' : ''}`}
+            aria-pressed={view === 'calendar'}
+            onClick={() => setView('calendar')}
+          >
+            {t('watch.viewCalendar')}
+          </button>
+        </div>
+      </header>
+
+      {(view === 'calendar' && calCats.length > 1) || (view === 'list' && watches.length > 1) ? (
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           {view === 'calendar' && calCats.length > 1 && (
             <div role="group" aria-label={t('watch.calFilter')} className="flex flex-wrap gap-2">
               <button
@@ -191,22 +214,6 @@ export default function Watches() {
               ))}
             </div>
           )}
-          <div role="group" aria-label={t('watch.view')} className="flex">
-            <button
-              className={`t-btn t-btn--sm ${view === 'list' ? 't-btn--primary' : ''}`}
-              aria-pressed={view === 'list'}
-              onClick={() => setView('list')}
-            >
-              {t('watch.viewList')}
-            </button>
-            <button
-              className={`t-btn t-btn--sm ${view === 'calendar' ? 't-btn--primary' : ''}`}
-              aria-pressed={view === 'calendar'}
-              onClick={() => setView('calendar')}
-            >
-              {t('watch.viewCalendar')}
-            </button>
-          </div>
           {view === 'list' && watches.length > 1 && (
             <div className="relative" ref={sortRef}>
               <button
@@ -246,7 +253,7 @@ export default function Watches() {
             </div>
           )}
         </div>
-      </header>
+      ) : null}
 
       {error && (
         <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">

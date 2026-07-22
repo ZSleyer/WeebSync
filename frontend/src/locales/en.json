@@ -747,6 +747,12 @@
     "upgradeWhat": "Show upgrades for:",
     "upgradeWhat_res": "Higher resolution",
     "upgradeWhat_sub": "More subtitle languages",
-    "upgradeWhat_dub": "More dub languages"
+    "upgradeWhat_dub": "More dub languages",
+    "local": "Local",
+    "have": "Current",
+    "better": "Better",
+    "openPlex": "Open in Plex",
+    "episodes": "{{count}} episodes",
+    "localPath": "Local path"
   }
 }
