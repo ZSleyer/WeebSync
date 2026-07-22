@@ -1,9 +1,12 @@
 package api
 
 import (
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/rename"
 )
@@ -170,11 +173,104 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 	return q
 }
 
-// refreshVariant recomputes and stores a folder's quality variant.
+// refreshVariant recomputes and stores a folder's quality variant along with the
+// canonical unit (show_key, season, is_movie) it belongs to, so upgrade and
+// incomplete comparisons can GROUP BY that unit across servers.
 func (s *Server) refreshVariant(serverID int64, folder string) {
 	q := s.scanQuality(serverID, folder)
+	showKey, season, isMovie := s.folderUnit(serverID, folder)
 	s.DB.Exec(`INSERT OR REPLACE INTO catalog_variants
-		(server_id, folder, res_rank, dub_codes, sub_codes, computed_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		serverID, folder, q.ResRank, strings.Join(q.Dub, ","), strings.Join(q.Sub, ","),
-		time.Now().UTC().Format(time.RFC3339))
+		time.Now().UTC().Format(time.RFC3339), showKey, season, boolInt(isMovie))
+}
+
+// folderUnit derives the canonical (show_key, season, is_movie) of a matched
+// folder from its catalog_matches provider hit. The show_key is the shared
+// cross-provider show identity so a local and a remote copy of the SAME season
+// collide on it:
+//   - anilist: the Fribb mapping gives the exact TVDB/TMDB id + season number
+//     (authoritative, matches Plex's season index). Without a mapping, fall back
+//     to the title fold key + a best-effort season from the media/folder name.
+//   - tmdb:tv / tvdb: one id spans all seasons; the season is parsed from the
+//     folder name (live-action folders carry "Season N").
+//   - tmdb:movie: a movie, season 0.
+func (s *Server) folderUnit(serverID int64, folder string) (showKey string, season int, isMovie bool) {
+	var source string
+	var mediaID int
+	if s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+		serverID, folder).Scan(&source, &mediaID); source == "" || mediaID == 0 {
+		return "", 0, false
+	}
+	base := filepath.Base(folder)
+	switch {
+	case source == "anilist":
+		media, _ := s.sourceMedia(source, mediaID)
+		if a, ok := s.animeIDs(mediaID); ok {
+			switch {
+			case a.tvdbID != 0:
+				return "tvdb:" + strconv.Itoa(a.tvdbID), unitSeason(a.tvdbSeason, media, base), false
+			case a.tmdbID != 0 && a.tmdbKind == "movie":
+				return "tmdb:" + strconv.Itoa(a.tmdbID), 0, true
+			case a.tmdbID != 0:
+				return "tmdb:" + strconv.Itoa(a.tmdbID), unitSeason(a.tmdbSeason, media, base), false
+			case a.imdbID != "":
+				return "imdb:" + a.imdbID, unitSeason(0, media, base), false
+			}
+		}
+		// no Fribb mapping: best-effort fold key + season (won't line up with
+		// Plex's tvdb key, so no false cross matches - just no suggestion)
+		if media != nil {
+			if media.Format == "MOVIE" {
+				return "fold:" + match.FoldKey(match.StripMarkers(mediaTitle(media))), 0, true
+			}
+			return "fold:" + match.FoldKey(match.StripMarkers(mediaTitle(media))), unitSeason(0, media, base), false
+		}
+		return "", 0, false
+	case source == "tmdb:movie":
+		return "tmdb:" + strconv.Itoa(mediaID), 0, true
+	case source == "tmdb:tv":
+		return "tmdb:" + strconv.Itoa(mediaID), match.ParseName(base, "", "").Season, false
+	case source == "tvdb":
+		return "tvdb:" + strconv.Itoa(mediaID), match.ParseName(base, "", "").Season, false
+	case source == "imdb":
+		return "imdb:" + strconv.Itoa(mediaID), match.ParseName(base, "", "").Season, false
+	}
+	return "", 0, false
+}
+
+// unitSeason resolves an anime folder's season: the Fribb season when known
+// (authoritative), else AniList's SeasonOf, else the folder name, defaulting to
+// 1 so a base anime entry lines up with Plex's season-1 index.
+//
+// ponytail: default-to-1 is a heuristic for the no-Fribb path; the Fribb season
+// is the real key. A show whose Plex season index disagrees just won't match.
+func unitSeason(fribbSeason int, media *anilist.Media, base string) int {
+	if fribbSeason > 0 {
+		return fribbSeason
+	}
+	if media != nil {
+		if s := match.SeasonOf(*media); s > 0 {
+			return s
+		}
+	}
+	if s := match.ParseName(base, "", "").Season; s > 0 {
+		return s
+	}
+	return 1
+}
+
+func mediaTitle(m *anilist.Media) string {
+	if m.Title.Romaji != "" {
+		return m.Title.Romaji
+	}
+	return m.Title.English
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

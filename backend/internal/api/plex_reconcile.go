@@ -102,7 +102,7 @@ func (s *Server) reconcilePlex(budget int) {
 		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
 		WHERE cm.media_id != 0
 		  AND NOT EXISTS (SELECT 1 FROM series_provider x
-		                  WHERE x.series_id = sp.series_id AND (x.source = 'tvdb' OR x.source LIKE 'tmdb:%'))
+		                  WHERE x.series_id = sp.series_id AND x.source = 'tvdb')
 		LIMIT ?`, budget)
 	if err != nil {
 		return

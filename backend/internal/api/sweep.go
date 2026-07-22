@@ -52,6 +52,12 @@ func (s *Server) SweepLoop(ctx context.Context) {
 				last[id] = now
 				s.sweepServer(ctx, id, sweepBatch)
 			}
+			// refresh the external anime-lists mapping (AniList id -> shared
+			// TVDB/TMDB/IMDB id + season), the bridge that lets local (Plex) and
+			// remote copies line up per (show, season). Daily, dataset is large.
+			if last := db.Setting(s.DB, "anime_ids_at"); last == "" || olderThan(last, 24*time.Hour) {
+				s.runJob("anime:ids", func(context.Context) { s.refreshAnimeIDs() })
+			}
 			// enrich series bundles with Plex's authoritative tvdb/tmdb ids
 			// (cross-provider bundling, grounded in Plex); no-op without Plex
 			s.reconcilePlex(sweepBatch)

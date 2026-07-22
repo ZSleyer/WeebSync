@@ -3,12 +3,69 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 )
+
+var plexSeasonDirRe = regexp.MustCompile(`(?i)^season\s+(\d+)$`)
+
+// seasonFolderName builds the Season-folder name for a new season, matching the
+// zero-padding a sibling season folder already uses ("Season 03" vs "Season 3");
+// defaults to Plex's zero-padded convention.
+func seasonFolderName(siblingBase string, season int) string {
+	if m := plexSeasonDirRe.FindStringSubmatch(siblingBase); m != nil && len(m[1]) < 2 {
+		return fmt.Sprintf("Season %d", season)
+	}
+	return fmt.Sprintf("Season %02d", season)
+}
+
+// episodeTemplate is the rename template for a series season: the season number
+// is fixed (files may be absolute-numbered remotely), the episode comes from the
+// file. {title} is filled from the title override.
+func episodeTemplate(season int) string {
+	return fmt.Sprintf("{title} - S%02dE{episode:02}", season)
+}
+
+// existingSyncPlan targets the folder a copy ALREADY lives in (an upgrade): the
+// existing season dir for a series, the movie's own dir for a movie. Empty when
+// the local path is not a shared mount here (a "plex:" fallback key).
+func existingSyncPlan(localDir string, season int, isMovie bool) SyncPlan {
+	if !strings.HasPrefix(localDir, "/") {
+		return SyncPlan{}
+	}
+	if isMovie {
+		return SyncPlan{LocalPath: localDir, Template: "{title}"}
+	}
+	return SyncPlan{LocalPath: localDir, Template: episodeTemplate(season)}
+}
+
+// missingSyncPlan targets a season/movie the library does NOT have yet, using a
+// sibling owned copy of the same show to locate where it belongs: a new
+// "Season NN" folder under the show root (matching the sibling's padding), or -
+// for a movie - its own subfolder under the movie library. siblingDir empty or a
+// non-mount path yields an empty plan (UI hides the button).
+func missingSyncPlan(siblingDir string, season int, isMovie bool) SyncPlan {
+	if !strings.HasPrefix(siblingDir, "/") {
+		return SyncPlan{}
+	}
+	if isMovie {
+		// sibling is a movie's own folder; its parent is the movie library root.
+		// Give the new movie its OWN subfolder, never another movie's folder.
+		return SyncPlan{LocalPath: filepath.Dir(siblingDir), Template: "{title}/{title}"}
+	}
+	base := filepath.Base(siblingDir)
+	showRoot := siblingDir // flat library: the sibling IS the show folder
+	if plexSeasonDirRe.MatchString(base) {
+		showRoot = filepath.Dir(siblingDir) // sibling is a Season folder → show root is its parent
+	}
+	return SyncPlan{LocalPath: showRoot, Template: seasonFolderName(base, season) + "/" + episodeTemplate(season)}
+}
 
 // UpgradeDims is which quality axes a user wants upgrade suggestions for.
 type UpgradeDims struct {
@@ -74,7 +131,19 @@ func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
-// UpgradeVariant is one physical copy of a series and its quality.
+// SyncPlan is the pre-computed local target for a one-off sync of a suggestion,
+// so the "Sync" button drops files into the RIGHT place with the auto-sync
+// rename: a series season goes into its Season folder under the show, a movie
+// into its OWN subfolder under the movie library (never mixed into another
+// movie's folder). LocalPath empty = target could not be resolved (the Plex file
+// path is not a shared local mount here), so the UI hides the button.
+type SyncPlan struct {
+	LocalPath string `json:"localPath"`          // base dir to sync into
+	Template  string `json:"template,omitempty"` // rename template (may carry a "Season NN/" or "{title}/" subfolder)
+	Subfolder bool   `json:"subfolder"`          // false: the template controls the folder structure
+}
+
+// UpgradeVariant is one physical copy of a season/movie and its quality.
 type UpgradeVariant struct {
 	ServerID   int64    `json:"serverId"`
 	ServerName string   `json:"serverName,omitempty"` // "" = local filesystem
@@ -84,23 +153,30 @@ type UpgradeVariant struct {
 	Sub        []string `json:"sub"`
 }
 
-// UpgradeSuggestion proposes replacing a series' weaker copy (From) with a
-// better one that already exists elsewhere (To), naming which axes improve and
-// carrying enough context to act: which integrations matched it (with links),
-// the media make-up (movie vs series, episode count) and cover.
+// UpgradeSuggestion proposes replacing your LOCAL copy (From, the Plex library)
+// of ONE (show, season) - or a movie - with a better REMOTE copy that already
+// exists (To, the recommended option), naming which axes improve. Options lists
+// every remote copy so the UI can show all of them with the best highlighted.
 type UpgradeSuggestion struct {
-	SeriesID    int64          `json:"seriesId"`
-	Title       string         `json:"title"`
-	From        UpgradeVariant `json:"from"`
-	To          UpgradeVariant `json:"to"`
-	ImprovesRes bool           `json:"improvesRes"`
-	ImprovesSub bool           `json:"improvesSub"`
-	ImprovesDub bool           `json:"improvesDub"`
-	Providers   []string       `json:"providers"`
-	Links       ProviderLinks  `json:"links"`
-	Cover       string         `json:"cover,omitempty"`
-	Format      string         `json:"format,omitempty"` // MOVIE | TV | OVA ...
-	Episodes    int            `json:"episodes,omitempty"`
+	Key         string           `json:"key"` // dismiss key: unit:{showKey}:{season}
+	SeriesID    int64            `json:"seriesId,omitempty"`
+	ShowKey     string           `json:"showKey"`
+	Season      int              `json:"season"`
+	IsMovie     bool             `json:"isMovie,omitempty"`
+	Title       string           `json:"title"`
+	From        UpgradeVariant   `json:"from"`    // best LOCAL copy
+	To          UpgradeVariant   `json:"to"`      // recommended remote copy
+	Options     []UpgradeVariant `json:"options"` // all remote copies
+	ImprovesRes bool             `json:"improvesRes"`
+	ImprovesSub bool             `json:"improvesSub"`
+	ImprovesDub bool             `json:"improvesDub"`
+	Providers   []string         `json:"providers"`
+	Links       ProviderLinks    `json:"links"`
+	Cover       string           `json:"cover,omitempty"`
+	Format      string           `json:"format,omitempty"` // MOVIE | TV | OVA ...
+	Episodes    int              `json:"episodes,omitempty"`
+	Library     string           `json:"library,omitempty"` // Plex library title, for grouping
+	Sync        SyncPlan         `json:"sync"`              // where a one-off sync writes (into the existing local season/movie folder)
 }
 
 // handleUpgrades lists, per series, every copy that a sibling copy beats on one
@@ -119,90 +195,292 @@ func (s *Server) handleUpgrades(w http.ResponseWriter, r *http.Request) {
 	ignored := s.dismissedKeys(u.ID, "upgrade")
 	out := []UpgradeSuggestion{}
 	for _, up := range s.buildUpgrades(u.ID) {
-		if !ignored[fmt.Sprintf("series:%d", up.SeriesID)] {
+		if !ignored[up.Key] {
 			out = append(out, up)
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
-// buildUpgrades computes a user's upgrade suggestions (no dismiss filter - that
-// is applied by the caller). Shared by /api/upgrades and the cached
-// /api/suggestions blob.
+// buildUpgrades computes a user's upgrade suggestions per canonical unit
+// (show_key, season): your LOCAL Plex copy vs the best REMOTE copy of the SAME
+// season/movie. No dismiss filter (applied by the caller), no season mixing
+// (S1 is never compared to S3), no remote-vs-remote. Shared by /api/upgrades and
+// the cached /api/suggestions blob.
 func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	dims := s.upgradeDimsFor(userID)
-	names := s.serverNames()
-	_, bySeries := s.seriesProviderMaps()
-	rows, err := s.DB.Query(`SELECT sp.series_id, se.title, v.server_id, v.folder, v.res_rank, v.dub_codes, v.sub_codes
-		FROM catalog_variants v
-		JOIN catalog_matches m  ON m.server_id = v.server_id AND m.folder = v.folder AND m.media_id != 0
-		JOIN series_provider sp ON sp.source = m.source AND sp.media_id = m.media_id
-		JOIN series se          ON se.id = sp.series_id
-		ORDER BY sp.series_id`)
-	if err != nil {
-		return []UpgradeSuggestion{}
-	}
-	defer rows.Close()
-
-	groups := map[int64][]seriesVariant{}
-	var order []int64
-	for rows.Next() {
-		var sid int64
-		var title, folder, dub, sub string
-		var serverID int64
-		var res int
-		if rows.Scan(&sid, &title, &serverID, &folder, &res, &dub, &sub) != nil {
-			continue
-		}
-		if _, ok := groups[sid]; !ok {
-			order = append(order, sid)
-		}
-		groups[sid] = append(groups[sid], seriesVariant{
-			v:     UpgradeVariant{ServerID: serverID, ServerName: names[serverID], Folder: folder, ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub)},
-			title: title,
-		})
-	}
+	units := s.loadUnits()
+	enrich := s.unitEnrichIndex()
 
 	out := []UpgradeSuggestion{}
-	for _, sid := range order {
-		// An upgrade only makes sense against something you actually own: the
-		// local copy (server 0 = the Plex library storage). Compare that local
-		// copy to the best REMOTE source; a remote-vs-remote comparison is
-		// meaningless (you have neither locally).
-		var locals, remotes []seriesVariant
-		for _, v := range groups[sid] {
-			if v.v.ServerID == 0 {
-				locals = append(locals, v)
-			} else {
-				remotes = append(remotes, v)
-			}
-		}
-		if len(locals) == 0 || len(remotes) == 0 {
+	for _, key := range units.order {
+		u := units.byKey[key]
+		if len(u.locals) == 0 || len(u.remotes) == 0 {
 			continue // not owned locally, or nothing remote to upgrade from
 		}
-		cur := bestVariant(locals)  // what you have in Plex/local
-		top := bestVariant(remotes) // best remote source
-		{
-			impRes := dims.Res && top.v.ResRank > cur.v.ResRank
-			impSub := dims.Sub && strictSuperset(top.v.Sub, cur.v.Sub)
-			impDub := dims.Dub && strictSuperset(top.v.Dub, cur.v.Dub)
-			if !impRes && !impSub && !impDub {
-				continue
-			}
-			up := UpgradeSuggestion{
-				SeriesID: sid, Title: cur.title, From: cur.v, To: top.v,
-				ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub,
-			}
-			// same context the other cards carry: which APIs matched (+ links),
-			// cover and the media make-up (movie vs series, episode count)
-			up.Providers, up.Links = s.providerBadgesLinks(bySeries[sid], cur.title)
-			if m := s.seriesMedia(bySeries[sid]); m != nil {
-				up.Cover, up.Format, up.Episodes = m.CoverImage.Large, m.Format, m.Episodes
-			}
-			out = append(out, up)
+		cur := bestCopy(u.locals)  // your Plex/local copy
+		top := bestCopy(u.remotes) // best remote copy of the SAME season
+		impRes := dims.Res && top.ResRank > cur.ResRank
+		impSub := dims.Sub && strictSuperset(top.Sub, cur.Sub)
+		impDub := dims.Dub && strictSuperset(top.Dub, cur.Dub)
+		if !impRes && !impSub && !impDub {
+			continue
 		}
+		e := enrich.of(u.showKey, u.season)
+		up := UpgradeSuggestion{
+			Key: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
+			Title: e.title, From: cur, To: top, Options: u.remotes,
+			ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub,
+			Providers: e.providers, Links: e.links,
+			Cover: e.cover, Format: e.format, Episodes: e.episodes,
+			Library: s.plexLibraryOf(cur.Folder),
+			Sync:    existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
+		}
+		out = append(out, up)
 	}
 	return out
+}
+
+// addMissingUnits adds "incomplete" suggestions for canonical units that exist
+// REMOTE (server != 0) but NOT in the local Plex library (server 0) - a missing
+// season or movie. Each carries all remote copies as candidates so the UI shows
+// where to get it and in what quality. Season-precise: a show whose S1-S2 are
+// local but S3 is only remote surfaces S3 alone.
+func (s *Server) addMissingUnits(acc *sugAcc) {
+	units := s.loadUnits()
+	enrich := s.unitEnrichIndex()
+	// "unvollständig" means a gap in a show you OWN: only surface a missing
+	// season/movie when at least one OTHER season of the same show_key is in the
+	// local Plex library. A show you own nothing of belongs to trending/watchlist,
+	// not here - this also keeps the list from flooding with every unowned remote.
+	// remember a real local season/movie dir per show_key, so a missing season's
+	// target is a sibling of an owned one (Show/Season NN) and a missing movie
+	// lands in its own subfolder under the movie library.
+	ownedDir := map[string]string{}
+	for _, key := range units.order {
+		u := units.byKey[key]
+		for _, l := range u.locals {
+			if strings.HasPrefix(l.Folder, "/") && ownedDir[u.showKey] == "" {
+				ownedDir[u.showKey] = l.Folder
+			}
+		}
+	}
+	for _, key := range units.order {
+		u := units.byKey[key]
+		if len(u.locals) > 0 || len(u.remotes) == 0 || ownedDir[u.showKey] == "" {
+			continue // owned this unit already, nothing remote, or show not owned locally
+		}
+		e := enrich.of(u.showKey, u.season)
+		if e.title == "" {
+			continue
+		}
+		cands := make([]plexCandidate, 0, len(u.remotes))
+		for _, r := range u.remotes {
+			cands = append(cands, plexCandidate{ServerID: r.ServerID, ServerName: r.ServerName, Path: r.Folder})
+		}
+		media := anilist.Media{Format: e.format}
+		media.Title.Romaji = e.title
+		acc.add(SugItem{
+			RefKey: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
+			Category: categorize(e.providers, media, ""),
+			Title:    e.title, Cover: e.cover, Media: media,
+			Providers: e.providers, Links: e.links, Candidates: cands,
+			Library: s.plexLibraryOf(ownedDir[u.showKey]),
+			Sync:    missingSyncPlan(ownedDir[u.showKey], u.season, u.isMovie),
+		})
+	}
+}
+
+// catUnit is one canonical unit (a show's season, or a movie) with all its
+// local (server 0) and remote (server != 0) copies.
+type catUnit struct {
+	showKey string
+	season  int
+	isMovie bool
+	locals  []UpgradeVariant
+	remotes []UpgradeVariant
+}
+
+type catUnits struct {
+	byKey map[string]*catUnit
+	order []string
+}
+
+// loadUnits reads every quality variant that carries a canonical unit and groups
+// them by (show_key, season) - the SAME key a local and a remote copy of one
+// season share, so grouping lines them up. is_movie units are keyed at season 0.
+func (s *Server) loadUnits() catUnits {
+	names := s.serverNames()
+	u := catUnits{byKey: map[string]*catUnit{}}
+	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, is_movie
+		FROM catalog_variants WHERE show_key != '' ORDER BY show_key, season`)
+	if err != nil {
+		return u
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var serverID int64
+		var folder, dub, sub, showKey string
+		var res, season, isMovie int
+		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &showKey, &season, &isMovie) != nil {
+			continue
+		}
+		key := unitKey(showKey, season)
+		cu := u.byKey[key]
+		if cu == nil {
+			cu = &catUnit{showKey: showKey, season: season, isMovie: isMovie == 1}
+			u.byKey[key] = cu
+			u.order = append(u.order, key)
+		}
+		v := UpgradeVariant{ServerID: serverID, ServerName: names[serverID], Folder: folder,
+			ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub)}
+		if serverID == 0 {
+			cu.locals = append(cu.locals, v)
+		} else {
+			cu.remotes = append(cu.remotes, v)
+		}
+	}
+	return u
+}
+
+// unitKey / unitSeasonLabel are the shared dismiss-key and season display helpers.
+func unitKey(showKey string, season int) string {
+	return "unit:" + showKey + ":" + strconv.Itoa(season)
+}
+
+// bestCopy picks the strongest copy: highest resolution, then most dub, then
+// most sub languages.
+func bestCopy(vs []UpgradeVariant) UpgradeVariant {
+	best := vs[0]
+	for _, cur := range vs[1:] {
+		switch {
+		case cur.ResRank != best.ResRank:
+			if cur.ResRank > best.ResRank {
+				best = cur
+			}
+		case len(cur.Dub) != len(best.Dub):
+			if len(cur.Dub) > len(best.Dub) {
+				best = cur
+			}
+		case len(cur.Sub) > len(best.Sub):
+			best = cur
+		}
+	}
+	return best
+}
+
+// unitInfo is the display context for a unit, resolved from its show_key.
+type unitInfo struct {
+	seriesID  int64
+	title     string
+	cover     string
+	format    string
+	episodes  int
+	providers []string
+	links     ProviderLinks
+}
+
+// unitEnrich maps a show_key (and season) to the provider hits and media behind
+// it, so upgrade/incomplete cards carry the same title/cover/badges/links the
+// other suggestion cards do. Built once per build from series_provider + the
+// Fribb anime mapping (which bridges an AniList id to its tvdb/tmdb show_key).
+type unitEnrich struct {
+	refsByKey     map[string][]providerRef // show_key -> all provider hits
+	seriesByKey   map[string]int64         // show_key -> series id
+	mediaBySeason map[string]anilist.Media // "show_key|season" -> per-season media
+	s             *Server
+}
+
+func (s *Server) unitEnrichIndex() *unitEnrich {
+	e := &unitEnrich{
+		refsByKey: map[string][]providerRef{}, seriesByKey: map[string]int64{},
+		mediaBySeason: map[string]anilist.Media{}, s: s,
+	}
+	// Drive off catalog_matches, not series_provider: a variant's show_key is
+	// derived straight from its match, so an orphan match (not yet bundled into a
+	// series) still resolves a title/cover here. bySrc backfills the series id.
+	bySrc, _ := s.seriesProviderMaps()
+	rows, err := s.DB.Query(`SELECT DISTINCT source, media_id FROM catalog_matches WHERE media_id != 0`)
+	if err != nil {
+		return e
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var source string
+		var mediaID int
+		if rows.Scan(&source, &mediaID) != nil {
+			continue
+		}
+		seriesID := bySrc[source+"|"+strconv.Itoa(mediaID)]
+		showKey, season := "", -1 // -1 = spans all seasons (one id per show)
+		var media *anilist.Media
+		switch source {
+		case "anilist":
+			media, _ = s.sourceMedia(source, mediaID)
+			a, ok := s.animeIDs(mediaID)
+			if !ok {
+				continue
+			}
+			switch {
+			case a.tvdbID != 0:
+				showKey, season = "tvdb:"+strconv.Itoa(a.tvdbID), unitSeason(a.tvdbSeason, media, "")
+			case a.tmdbID != 0 && a.tmdbKind == "movie":
+				showKey, season = "tmdb:"+strconv.Itoa(a.tmdbID), 0
+			case a.tmdbID != 0:
+				showKey, season = "tmdb:"+strconv.Itoa(a.tmdbID), unitSeason(a.tmdbSeason, media, "")
+			case a.imdbID != "":
+				showKey, season = "imdb:"+a.imdbID, unitSeason(0, media, "")
+			}
+		case "tmdb:movie":
+			showKey, season = "tmdb:"+strconv.Itoa(mediaID), 0
+			media, _ = s.sourceMedia(source, mediaID)
+		case "tmdb:tv":
+			showKey = "tmdb:" + strconv.Itoa(mediaID)
+			media, _ = s.sourceMedia(source, mediaID)
+		case "tvdb":
+			showKey = "tvdb:" + strconv.Itoa(mediaID)
+		case "imdb":
+			showKey = "imdb:" + strconv.Itoa(mediaID)
+		}
+		if showKey == "" {
+			continue
+		}
+		e.refsByKey[showKey] = append(e.refsByKey[showKey], providerRef{source, mediaID})
+		if seriesID != 0 {
+			e.seriesByKey[showKey] = seriesID
+		}
+		if media != nil {
+			e.mediaBySeason[showKey+"|"+strconv.Itoa(season)] = *media
+		}
+	}
+	return e
+}
+
+// of resolves the display context for one unit, preferring the season-specific
+// media, then the show-wide media, then anything the show_key's providers offer.
+func (e *unitEnrich) of(showKey string, season int) unitInfo {
+	refs := e.refsByKey[showKey]
+	var media *anilist.Media
+	if m, ok := e.mediaBySeason[showKey+"|"+strconv.Itoa(season)]; ok {
+		media = &m
+	} else if m, ok := e.mediaBySeason[showKey+"|-1"]; ok {
+		media = &m
+	} else if m := e.s.seriesMedia(refs); m != nil {
+		media = m
+	}
+	info := unitInfo{seriesID: e.seriesByKey[showKey]}
+	if media != nil {
+		info.title = media.Title.Romaji
+		if info.title == "" {
+			info.title = media.Title.English
+		}
+		info.cover, info.format, info.episodes = media.CoverImage.Large, media.Format, media.Episodes
+	}
+	if info.title == "" {
+		info.title = showKey
+	}
+	info.providers, info.links = e.s.providerBadgesLinks(refs, info.title)
+	return info
 }
 
 // serverNames maps server id → display name (id 0 / local has none).
@@ -240,33 +518,6 @@ func (s *Server) seriesMedia(refs []providerRef) *anilist.Media {
 		return m
 	}
 	return pick("")
-}
-
-// seriesVariant pairs a copy's quality with the series' display title.
-type seriesVariant struct {
-	v     UpgradeVariant
-	title string
-}
-
-// bestVariant picks the strongest copy: highest resolution, then most dub
-// languages, then most sub languages.
-func bestVariant(vs []seriesVariant) seriesVariant {
-	best := vs[0]
-	for _, cur := range vs[1:] {
-		switch {
-		case cur.v.ResRank != best.v.ResRank:
-			if cur.v.ResRank > best.v.ResRank {
-				best = cur
-			}
-		case len(cur.v.Dub) != len(best.v.Dub):
-			if len(cur.v.Dub) > len(best.v.Dub) {
-				best = cur
-			}
-		case len(cur.v.Sub) > len(best.v.Sub):
-			best = cur
-		}
-	}
-	return best
 }
 
 // strictSuperset reports whether a contains every element of b plus at least one
