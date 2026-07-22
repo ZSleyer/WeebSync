@@ -181,3 +181,23 @@ func TestCodes(t *testing.T) {
 		t.Errorf("Codes(GerJapDub) = %v", got)
 	}
 }
+
+func TestResolution(t *testing.T) {
+	cases := []struct {
+		name string
+		want int
+	}{
+		{"Show - E01 [1080p].mkv", 1080},
+		{"Show E01 [720p,GerDub].mkv", 720},
+		{"Show [BD 1920x1080].mkv", 1080},
+		{"Movie [4K,GerDub].mkv", 2160},
+		{"Show [8k].mkv", 4320},
+		{"Show [1080p][GerSub] E01 [720p].mkv", 1080}, // highest wins
+		{"Show E01 [GerDub].mkv", 0},                  // none
+	}
+	for _, c := range cases {
+		if got := Resolution(c.name); got != c.want {
+			t.Errorf("Resolution(%q) = %d, want %d", c.name, got, c.want)
+		}
+	}
+}

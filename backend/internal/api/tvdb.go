@@ -38,11 +38,10 @@ func (s *Server) queueTvdbMatch(serverID int64, folder, name string, force bool)
 		if len(list) > 0 {
 			mediaID = list[0].ID
 		}
-		s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, 0, ?)`,
-			serverID, folder, mediaID, "tvdb")
 		if mediaID != 0 {
-			s.Tvdb.Media(ctx, mediaID) // full details into the cache
+			s.Tvdb.Media(ctx, mediaID) // full details into the cache first
 		}
+		s.persistMatch(serverID, folder, mediaID, false, "tvdb")
 	})
 }
 

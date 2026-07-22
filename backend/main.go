@@ -111,6 +111,8 @@ func main() {
 
 	go srv.WatchLoop(rootCtx)
 	go srv.IndexLoop(rootCtx)
+	go srv.BackfillSeries()
+	go srv.SweepLoop(rootCtx)
 	mux := http.NewServeMux()
 	srv.Register(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

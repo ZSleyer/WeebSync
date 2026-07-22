@@ -254,11 +254,10 @@ func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force
 		if len(list) > 0 {
 			mediaID = list[0].ID
 		}
-		s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, 0, ?)`,
-			serverID, folder, mediaID, "tmdb:"+kind)
 		if mediaID != 0 {
-			s.Tmdb.Media(ctx, kind, mediaID) // full details into the cache
+			s.Tmdb.Media(ctx, kind, mediaID) // full details into the cache first
 		}
+		s.persistMatch(serverID, folder, mediaID, false, "tmdb:"+kind)
 	})
 }
 

@@ -224,10 +224,11 @@ func StripMarkers(s string) string {
 // "Haikyu", "Gakkou" vs "Gakko"). Comparison-only - see foldKey.
 var vowelFold = strings.NewReplacer("aa", "a", "ee", "e", "oo", "o", "ou", "o", "uu", "u")
 
-// foldKey reduces a string to its comparison form: Normalize plus long-vowel
+// FoldKey reduces a string to its comparison form: Normalize plus long-vowel
 // folding, with punctuation dropped so "Haikyuu!!" and "Haikyu" compare
-// equal. Not a search query - Normalize is the query-safe form.
-func foldKey(s string) string {
+// equal. Not a search query - Normalize is the query-safe form. Exported so the
+// series bundler can key a canonical series by the same fold the matcher uses.
+func FoldKey(s string) string {
 	s = vowelFold.Replace(Normalize(s))
 	var b strings.Builder
 	b.Grow(len(s))
@@ -242,7 +243,7 @@ func foldKey(s string) string {
 // tokens returns the unique folded word set of s.
 func tokens(s string) map[string]bool {
 	set := map[string]bool{}
-	for _, t := range strings.Fields(foldKey(s)) {
+	for _, t := range strings.Fields(FoldKey(s)) {
 		set[t] = true
 	}
 	return set
@@ -294,19 +295,19 @@ func Pick(info Info, list []anilist.Media) (int, bool) {
 	if len(list) == 0 {
 		return 0, false
 	}
-	names := []string{foldKey(info.Full)}
+	names := []string{FoldKey(info.Full)}
 	sets := []map[string]bool{tokens(info.Full)}
 	if info.Alt != "" {
-		names = append(names, foldKey(info.Alt))
+		names = append(names, FoldKey(info.Alt))
 		sets = append(sets, tokens(info.Alt))
 	}
 	best, bestScore := 0, -1<<30
 	for i, m := range list {
 		cands := []string{
-			foldKey(m.Title.Romaji),
-			foldKey(m.Title.English),
-			foldKey(StripMarkers(m.Title.Romaji)),
-			foldKey(StripMarkers(m.Title.English)),
+			FoldKey(m.Title.Romaji),
+			FoldKey(m.Title.English),
+			FoldKey(StripMarkers(m.Title.Romaji)),
+			FoldKey(StripMarkers(m.Title.English)),
 		}
 		score := 0
 		for _, n := range names {
