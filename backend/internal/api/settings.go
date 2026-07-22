@@ -95,47 +95,48 @@ func setSetting(d *sql.DB, key, value string) {
 // Secrets are write-only: GET reports only whether they are set, PUT with
 // an empty string keeps the stored value, "-" clears it.
 type settingsPayload struct {
-	BaseURL              string `json:"baseUrl"` // public origin of this instance, used in email links
-	MaxConcurrent        int64  `json:"maxConcurrent"`
-	GlobalRateLimit      int64  `json:"globalRateLimit"`  // bytes/s, 0 = unlimited
-	WatchIntervalMin     int64  `json:"watchIntervalMin"` // global auto-sync check interval
-	RegistrationDisabled bool   `json:"registrationDisabled"`
-	TrustedNetworks      string `json:"trustedNetworks"` // csv of CIDRs/IPs that bypass the login rate limit
-	AuthMode             string `json:"authMode"`        // password | oidc-only | oidc-auto
-	AnilistClientID      string `json:"anilistClientId"`
-	AnilistSecretSet     bool   `json:"anilistSecretSet"`
-	AnilistClientSecret  string `json:"anilistClientSecret,omitempty"` // write-only
-	AnilistRedirectURL   string `json:"anilistRedirectUrl"`
-	TmdbApiKeySet        bool   `json:"tmdbApiKeySet"`
-	TmdbApiKey           string `json:"tmdbApiKey,omitempty"` // write-only
-	TvdbApiKeySet        bool   `json:"tvdbApiKeySet"`
-	TvdbApiKey           string `json:"tvdbApiKey,omitempty"` // write-only, resolves aired-order season boundaries
-	PlexURL              string `json:"plexUrl"`
-	PlexTokenSet         bool   `json:"plexTokenSet"`
-	PlexToken            string `json:"plexToken,omitempty"` // write-only
-	PlexSections         string `json:"plexSections"`        // csv of section keys, empty = all show/movie sections
-	PlexSectionSources   string `json:"plexSectionSources"`  // csv of key:source (anilist|tmdb); missing key = by library title
-	PlexRoots            string `json:"plexRoots"`           // manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)
-	PlexLibRoots         string `json:"plexLibRoots"`        // read-only: mounts auto-detected from Plex's reported library locations
-	OidcProviderName     string `json:"oidcProviderName"`    // login button label ("Sign in with X")
-	OidcIssuer           string `json:"oidcIssuer"`
-	OidcClientID         string `json:"oidcClientId"`
-	OidcRedirectURL      string `json:"oidcRedirectUrl"`
-	OidcClientSecretSet  bool   `json:"oidcClientSecretSet"`
-	OidcClientSecret     string `json:"oidcClientSecret,omitempty"` // write-only
-	OidcClaim            string `json:"oidcClaim"`                  // token claim holding groups/roles
-	OidcAdminValues      string `json:"oidcAdminValues"`            // csv, any match = admin
-	OidcUserValues       string `json:"oidcUserValues"`             // csv login allowlist, empty = everyone
-	OidcEnabled          bool   `json:"oidcEnabled"`
-	OidcError            string `json:"oidcError,omitempty"`
-	SmtpHost             string `json:"smtpHost"`
-	SmtpPort             int64  `json:"smtpPort"`
-	SmtpUsername         string `json:"smtpUsername"`
-	SmtpFrom             string `json:"smtpFrom"`
-	SmtpSecurity         string `json:"smtpSecurity"` // starttls | tls | none
-	SmtpPasswordSet      bool   `json:"smtpPasswordSet"`
-	SmtpPassword         string `json:"smtpPassword,omitempty"` // write-only
-	ApiTokenSet          bool   `json:"apiTokenSet"`            // read-only, managed via /api/settings/token
+	BaseURL              string         `json:"baseUrl"` // public origin of this instance, used in email links
+	MaxConcurrent        int64          `json:"maxConcurrent"`
+	GlobalRateLimit      int64          `json:"globalRateLimit"`  // bytes/s, 0 = unlimited
+	WatchIntervalMin     int64          `json:"watchIntervalMin"` // global auto-sync check interval
+	RegistrationDisabled bool           `json:"registrationDisabled"`
+	TrustedNetworks      string         `json:"trustedNetworks"` // csv of CIDRs/IPs that bypass the login rate limit
+	AuthMode             string         `json:"authMode"`        // password | oidc-only | oidc-auto
+	AnilistClientID      string         `json:"anilistClientId"`
+	AnilistSecretSet     bool           `json:"anilistSecretSet"`
+	AnilistClientSecret  string         `json:"anilistClientSecret,omitempty"` // write-only
+	AnilistRedirectURL   string         `json:"anilistRedirectUrl"`
+	TmdbApiKeySet        bool           `json:"tmdbApiKeySet"`
+	TmdbApiKey           string         `json:"tmdbApiKey,omitempty"` // write-only
+	TvdbApiKeySet        bool           `json:"tvdbApiKeySet"`
+	TvdbApiKey           string         `json:"tvdbApiKey,omitempty"` // write-only, resolves aired-order season boundaries
+	PlexURL              string         `json:"plexUrl"`
+	PlexTokenSet         bool           `json:"plexTokenSet"`
+	PlexToken            string         `json:"plexToken,omitempty"` // write-only
+	PlexSections         string         `json:"plexSections"`        // csv of section keys, empty = all show/movie sections
+	PlexSectionSources   string         `json:"plexSectionSources"`  // csv of key:source (anilist|tmdb); missing key = by library title
+	PlexRoots            string         `json:"plexRoots"`           // manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)
+	PlexLibRoots         string         `json:"plexLibRoots"`        // read-only: mounts auto-detected from Plex's reported library locations (flat)
+	PlexLibraries        []LibraryRoots `json:"plexLibraries"`       // read-only: detected mounts grouped by their Plex library
+	OidcProviderName     string         `json:"oidcProviderName"`    // login button label ("Sign in with X")
+	OidcIssuer           string         `json:"oidcIssuer"`
+	OidcClientID         string         `json:"oidcClientId"`
+	OidcRedirectURL      string         `json:"oidcRedirectUrl"`
+	OidcClientSecretSet  bool           `json:"oidcClientSecretSet"`
+	OidcClientSecret     string         `json:"oidcClientSecret,omitempty"` // write-only
+	OidcClaim            string         `json:"oidcClaim"`                  // token claim holding groups/roles
+	OidcAdminValues      string         `json:"oidcAdminValues"`            // csv, any match = admin
+	OidcUserValues       string         `json:"oidcUserValues"`             // csv login allowlist, empty = everyone
+	OidcEnabled          bool           `json:"oidcEnabled"`
+	OidcError            string         `json:"oidcError,omitempty"`
+	SmtpHost             string         `json:"smtpHost"`
+	SmtpPort             int64          `json:"smtpPort"`
+	SmtpUsername         string         `json:"smtpUsername"`
+	SmtpFrom             string         `json:"smtpFrom"`
+	SmtpSecurity         string         `json:"smtpSecurity"` // starttls | tls | none
+	SmtpPasswordSet      bool           `json:"smtpPasswordSet"`
+	SmtpPassword         string         `json:"smtpPassword,omitempty"` // write-only
+	ApiTokenSet          bool           `json:"apiTokenSet"`            // read-only, managed via /api/settings/token
 	// json field names whose value comes from an env var; the UI locks them
 	EnvLocked []string `json:"envLocked"`
 }
@@ -166,6 +167,7 @@ func (s *Server) settingsState() settingsPayload {
 		PlexSectionSources:   db.Setting(s.DB, "plex_section_sources"),
 		PlexRoots:            db.Setting(s.DB, "plex_roots"),
 		PlexLibRoots:         db.Setting(s.DB, "plex_lib_roots"),
+		PlexLibraries:        plexLibraries(db.Setting(s.DB, "plex_lib_map")),
 		OidcProviderName:     db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
 		OidcIssuer:           db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
 		OidcClientID:         db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
@@ -204,6 +206,47 @@ func smtpSecurity(d *sql.DB) string {
 // @Failure      403  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/settings [get]
+// LibraryRoots is a Plex library and the local mounts detected for it.
+type LibraryRoots struct {
+	Title string   `json:"title"`
+	Roots []string `json:"roots"`
+}
+
+// plexLibraries groups the plex_lib_map setting ("root\ttitle" per line) by
+// library title, preserving first-seen order, so the settings UI can show which
+// detected mounts belong to which library.
+func plexLibraries(mapSetting string) []LibraryRoots {
+	var order []string
+	roots := map[string][]string{}
+	for _, ln := range strings.Split(mapSetting, "\n") {
+		if ln = strings.TrimSpace(ln); ln == "" {
+			continue
+		}
+		root, title, ok := strings.Cut(ln, "\t")
+		if !ok {
+			continue
+		}
+		if _, seen := roots[title]; !seen {
+			order = append(order, title)
+		}
+		dup := false
+		for _, r := range roots[title] {
+			if r == root {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			roots[title] = append(roots[title], root)
+		}
+	}
+	out := make([]LibraryRoots, 0, len(order))
+	for _, t := range order {
+		out = append(out, LibraryRoots{Title: t, Roots: roots[t]})
+	}
+	return out
+}
+
 func (s *Server) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.settingsState())
 }

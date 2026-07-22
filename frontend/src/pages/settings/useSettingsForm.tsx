@@ -25,7 +25,8 @@ export interface SettingsState {
   plexSections: string
   plexSectionSources: string
   plexRoots: string
-  plexLibRoots: string // read-only: auto-detected from Plex library locations
+  plexLibRoots: string // read-only: auto-detected from Plex library locations (flat)
+  plexLibraries?: { title: string; roots: string[] }[] // read-only: grouped by library
   oidcProviderName: string
   oidcIssuer: string
   oidcClientId: string

@@ -96,16 +96,21 @@ export default function Integrations() {
               />
               <div className="text-xs text-t-muted">
                 {t('settings.plexRoots')}
-                {form.plexLibRoots ? (
-                  <div className="mt-1">
+                {form.plexLibraries && form.plexLibraries.length > 0 ? (
+                  <div className="mt-1 space-y-2">
                     <span className="t-label t-label--accent">{t('settings.plexRootsDetected')}</span>
-                    <ul className="mt-1 space-y-0.5 font-mono text-t-secondary">
-                      {form.plexLibRoots.split('\n').filter(Boolean).map((p) => (
-                        <li key={p} className="break-all">
-                          {p}
-                        </li>
-                      ))}
-                    </ul>
+                    {form.plexLibraries.map((lib) => (
+                      <div key={lib.title}>
+                        <span className="block font-medium text-t-secondary">{lib.title}</span>
+                        <ul className="mt-0.5 space-y-0.5 pl-3 font-mono text-t-secondary">
+                          {lib.roots.map((p) => (
+                            <li key={p} className="break-all">
+                              {p}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <span className="mt-1 block">{t('settings.plexRootsNone')}</span>
