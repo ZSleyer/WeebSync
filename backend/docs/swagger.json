@@ -98,6 +98,10 @@
                             "english": {
                                 "type": "string"
                             },
+                            "preferred": {
+                                "description": "Preferred is the canonical display title we compute (localized,\nnever native Japanese). Set by the API layer once the media's source\nis known; consumers render this instead of guessing romaji/english.",
+                                "type": "string"
+                            },
                             "romaji": {
                                 "type": "string"
                             }
