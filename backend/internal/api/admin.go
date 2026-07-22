@@ -360,48 +360,74 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, jobStartedResponse{Status: "started"})
 
 	case "rematch":
-		// server-wide variant of handleCatalogRematch: re-queue automatic
-		// matches with a forced search - by default only "no match" rows,
-		// with all=true every automatic match. Manual rows are left alone.
 		if in.ServerID == 0 {
 			writeErr(w, http.StatusBadRequest, "serverId required")
 			return
 		}
-		cond := "AND media_id = 0"
-		if in.All {
-			cond = ""
-		}
-		rows, err := s.DB.Query(`SELECT folder, source FROM catalog_matches
-			WHERE server_id = ? AND manual = 0 `+cond, in.ServerID)
-		if err != nil {
-			dbErr(w)
-			return
-		}
-		type match struct{ folder, source string }
-		var matches []match
-		for rows.Next() {
-			var m match
-			rows.Scan(&m.folder, &m.source)
-			matches = append(matches, m)
-		}
-		rows.Close()
-		for _, m := range matches {
-			switch m.source {
-			case "tmdb:tv", "tmdb:movie":
-				s.queueTmdbMatch(in.ServerID, m.folder, path.Base(m.folder), strings.TrimPrefix(m.source, "tmdb:"), true)
-			default: // anilist
-				s.queueMatch(in.ServerID, m.folder, path.Base(m.folder), true)
+		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: s.rematchServer(in.ServerID, in.All)})
+
+	case "rematch-all":
+		// the sledgehammer: re-queue automatic matches on every server plus the
+		// local filesystem (id 0). Used to force old matches onto the new series
+		// structure when the self-healing sweep is too slow.
+		var ids []int64
+		rows, err := s.DB.Query(`SELECT id FROM servers`)
+		if err == nil {
+			for rows.Next() {
+				var id int64
+				rows.Scan(&id)
+				ids = append(ids, id)
 			}
-			// drop the row so the catalog shows these as pending while the
-			// forced search runs (same semantics as handleCatalogRematch)
-			s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
-				in.ServerID, m.folder)
+			rows.Close()
 		}
-		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: len(matches)})
+		ids = append(ids, localServerID)
+		total := 0
+		for _, id := range ids {
+			total += s.rematchServer(id, in.All)
+		}
+		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: total})
 
 	default:
 		writeErr(w, http.StatusNotFound, "unknown job")
 	}
+}
+
+// rematchServer re-queues a server's automatic matches with a forced (cache-
+// bypassing) search - by default only "no match" rows, with all=true every
+// automatic match. Manual rows (manual=1) are left alone. Returns the count.
+// Dropping the row makes the catalog show these as pending while the forced
+// search runs, same as handleCatalogRematch.
+func (s *Server) rematchServer(serverID int64, all bool) int {
+	cond := "AND media_id = 0"
+	if all {
+		cond = ""
+	}
+	rows, err := s.DB.Query(`SELECT folder, source FROM catalog_matches
+		WHERE server_id = ? AND manual = 0 `+cond, serverID)
+	if err != nil {
+		return 0
+	}
+	type match struct{ folder, source string }
+	var matches []match
+	for rows.Next() {
+		var m match
+		rows.Scan(&m.folder, &m.source)
+		matches = append(matches, m)
+	}
+	rows.Close()
+	for _, m := range matches {
+		switch m.source {
+		case "tmdb:tv", "tmdb:movie":
+			s.queueTmdbMatch(serverID, m.folder, path.Base(m.folder), strings.TrimPrefix(m.source, "tmdb:"), true)
+		case "tvdb":
+			s.queueTvdbMatch(serverID, m.folder, path.Base(m.folder), true)
+		default: // anilist
+			s.queueMatch(serverID, m.folder, path.Base(m.folder), true)
+		}
+		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
+			serverID, m.folder)
+	}
+	return len(matches)
 }
 
 // deletedResponse reports how many rows a delete affected.

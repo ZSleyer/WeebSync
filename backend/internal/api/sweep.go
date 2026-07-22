@@ -54,6 +54,10 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// enrich series bundles with Plex's authoritative tvdb/tmdb ids
 			// (cross-provider bundling, grounded in Plex); no-op without Plex
 			s.reconcilePlex(sweepBatch)
+			// retry matches that BackfillSeries skipped because their metadata
+			// wasn't cached yet - the self-healing net that makes the migration
+			// of old matches onto the series structure eventually complete
+			s.relinkOrphans(sweepBatch)
 		}
 	}
 }
@@ -133,6 +137,38 @@ func (s *Server) refreshStaleVariants(serverID int64, budget int) {
 	rows.Close()
 	for _, f := range folders {
 		s.refreshVariant(serverID, f)
+	}
+}
+
+// relinkOrphans links catalog matches that have no series_provider row yet -
+// the ones BackfillSeries skipped because sourceMedia had no cached metadata at
+// boot. linkSeries queues the missing media fetch when it still can't resolve,
+// so the row links on a later tick once the cache warms. Budget-bounded, runs
+// every sweep, converges to zero. This is what makes the old-match migration
+// reliable without a flag.
+func (s *Server) relinkOrphans(budget int) {
+	rows, err := s.DB.Query(`SELECT source, media_id FROM catalog_matches cm
+		WHERE cm.media_id != 0
+		  AND NOT EXISTS (SELECT 1 FROM series_provider sp
+		                  WHERE sp.source = cm.source AND sp.media_id = cm.media_id)
+		LIMIT ?`, budget)
+	if err != nil {
+		return
+	}
+	type orphan struct {
+		source  string
+		mediaID int
+	}
+	var orphans []orphan
+	for rows.Next() {
+		var o orphan
+		if rows.Scan(&o.source, &o.mediaID) == nil {
+			orphans = append(orphans, o)
+		}
+	}
+	rows.Close()
+	for _, o := range orphans {
+		s.linkSeries(o.source, o.mediaID)
 	}
 }
 

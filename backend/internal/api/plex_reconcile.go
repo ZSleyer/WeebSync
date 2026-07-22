@@ -33,6 +33,7 @@ func absInt(n int) int {
 type plexGuid struct {
 	TVDB int `json:"tvdb"`
 	TMDB int `json:"tmdb"`
+	IMDB int `json:"imdb"`
 	Year int `json:"year"`
 }
 
@@ -66,7 +67,7 @@ func (s *Server) plexGuidIndex() map[string]plexGuid {
 			if sh.TVDBID == 0 && sh.TMDBID == 0 {
 				continue
 			}
-			g := plexGuid{TVDB: sh.TVDBID, TMDB: sh.TMDBID, Year: sh.Year}
+			g := plexGuid{TVDB: sh.TVDBID, TMDB: sh.TMDBID, IMDB: sh.IMDBID, Year: sh.Year}
 			for _, t := range []string{sh.Title, sh.OriginalTitle} {
 				if k := match.FoldKey(t); k != "" {
 					idx[k] = g
@@ -134,6 +135,12 @@ func (s *Server) reconcilePlex(budget int) {
 		if g.TMDB != 0 {
 			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('tmdb:tv', ?, ?)`,
 				g.TMDB, h.seriesID)
+		}
+		// imdb id only comes from Plex; attach it in the same pass (used for the
+		// suggestion imdb badge/link, and as an extra dedup axis)
+		if g.IMDB != 0 {
+			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('imdb', ?, ?)`,
+				g.IMDB, h.seriesID)
 		}
 	}
 }
