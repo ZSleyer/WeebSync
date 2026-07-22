@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -588,6 +589,11 @@ func (s *Server) plexWebLink(titles ...string) string {
 	if key == "" {
 		return ""
 	}
+	return s.plexLinkFor(c, key)
+}
+
+// plexLinkFor assembles the app.plex.tv deep link for a library ratingKey.
+func (s *Server) plexLinkFor(c *plex.Client, key string) string {
 	mid, ok := s.cacheGet("plex:machineid", 24*time.Hour)
 	if !ok {
 		var err error
@@ -597,6 +603,39 @@ func (s *Server) plexWebLink(titles ...string) string {
 		s.cacheSet("plex:machineid", mid)
 	}
 	return "https://app.plex.tv/desktop/#!/server/" + mid + "/details?key=" + url.QueryEscape("/library/metadata/"+key)
+}
+
+// plexWebLinkByKey resolves the deep link via Plex's own guids: a canonical
+// show_key ("tvdb:123" / "tmdb:123" / "imdb:123") is matched against the guid
+// index, so the link works even when the display title is localized and the
+// title index misses. Falls back to the title lookup, then "".
+func (s *Server) plexWebLinkByKey(showKey string, titles ...string) string {
+	if showKey != "" {
+		if c := s.plexClient(); c != nil {
+			if key := guidRatingKey(s.plexGuidIndex(), showKey); key != "" {
+				if l := s.plexLinkFor(c, key); l != "" {
+					return l
+				}
+			}
+		}
+	}
+	return s.plexWebLink(titles...)
+}
+
+// guidRatingKey finds the ratingKey whose Plex guid carries the show_key's
+// provider id. ponytail: linear scan, the index holds one entry per library show.
+func guidRatingKey(idx map[string]plexGuid, showKey string) string {
+	for _, g := range idx {
+		if g.RatingKey == "" {
+			continue
+		}
+		if (g.TVDB != 0 && showKey == "tvdb:"+strconv.Itoa(g.TVDB)) ||
+			(g.TMDB != 0 && showKey == "tmdb:"+strconv.Itoa(g.TMDB)) ||
+			(g.IMDB != 0 && showKey == "imdb:"+strconv.Itoa(g.IMDB)) {
+			return g.RatingKey
+		}
+	}
+	return ""
 }
 
 // plexFolderNames maps media ids to the Plex folder basename of the same

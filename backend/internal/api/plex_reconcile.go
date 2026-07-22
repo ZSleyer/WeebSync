@@ -31,10 +31,11 @@ func absInt(n int) int {
 
 // plexGuid is the authoritative provider identity Plex holds for one show.
 type plexGuid struct {
-	TVDB int `json:"tvdb"`
-	TMDB int `json:"tmdb"`
-	IMDB int `json:"imdb"`
-	Year int `json:"year"`
+	TVDB      int    `json:"tvdb"`
+	TMDB      int    `json:"tmdb"`
+	IMDB      int    `json:"imdb"`
+	Year      int    `json:"year"`
+	RatingKey string `json:"ratingKey"` // Plex library entry, for deep links
 }
 
 // plexGuidIndex folds every Plex show/movie title to the tvdb/tmdb id Plex
@@ -43,7 +44,8 @@ type plexGuid struct {
 // place that carries all three ids for the same show.
 func (s *Server) plexGuidIndex() map[string]plexGuid {
 	idx := map[string]plexGuid{}
-	if p, ok := s.cacheGet("plex:guididx", time.Hour); ok {
+	// v2: ratingKey added; a key bump skips stale cached blobs without the field
+	if p, ok := s.cacheGet("plex:guididx:v2", time.Hour); ok {
 		json.Unmarshal([]byte(p), &idx)
 		return idx
 	}
@@ -67,7 +69,7 @@ func (s *Server) plexGuidIndex() map[string]plexGuid {
 			if sh.TVDBID == 0 && sh.TMDBID == 0 {
 				continue
 			}
-			g := plexGuid{TVDB: sh.TVDBID, TMDB: sh.TMDBID, IMDB: sh.IMDBID, Year: sh.Year}
+			g := plexGuid{TVDB: sh.TVDBID, TMDB: sh.TMDBID, IMDB: sh.IMDBID, Year: sh.Year, RatingKey: sh.RatingKey}
 			for _, t := range []string{sh.Title, sh.OriginalTitle} {
 				if k := match.FoldKey(t); k != "" {
 					idx[k] = g
@@ -76,7 +78,7 @@ func (s *Server) plexGuidIndex() map[string]plexGuid {
 		}
 	}
 	if p, err := json.Marshal(idx); err == nil {
-		s.cacheSet("plex:guididx", string(p))
+		s.cacheSet("plex:guididx:v2", string(p))
 	}
 	return idx
 }
