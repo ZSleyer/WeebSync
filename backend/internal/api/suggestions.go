@@ -257,7 +257,7 @@ func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate
 		refKey = "fold:" + match.FoldKey(match.StripMarkers(foldTitle)) + ":" + strconv.Itoa(m.SeasonYear)
 		refs = []providerRef{{source, m.ID}}
 	}
-	providers, links := s.providerBadgesLinks(refs, title)
+	providers, links := s.providerBadgesLinks(refs, title, "")
 	return SugItem{
 		RefKey: refKey, SeriesID: seriesID, Category: categorize(providers, m, source),
 		Title: title, Year: m.SeasonYear, Cover: m.CoverImage.Large, Media: m,
@@ -266,8 +266,10 @@ func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate
 }
 
 // providerBadgesLinks turns provider hits into the badge set and per-integration
-// title links. A Plex web link is added when the title is in a Plex library.
-func (s *Server) providerBadgesLinks(refs []providerRef, title string) ([]string, ProviderLinks) {
+// title links. A Plex web link is added when the title is in a Plex library;
+// showKey ("tvdb:123"...) makes that lookup id-based (reliable for localized
+// titles), "" falls back to the title index alone.
+func (s *Server) providerBadgesLinks(refs []providerRef, title, showKey string) ([]string, ProviderLinks) {
 	set := map[string]bool{}
 	var l ProviderLinks
 	for _, r := range refs {
@@ -292,7 +294,7 @@ func (s *Server) providerBadgesLinks(refs []providerRef, title string) ([]string
 			l.Imdb = fmt.Sprintf("https://www.imdb.com/title/tt%d", r.MediaID)
 		}
 	}
-	if pl := s.plexWebLink(title); pl != "" {
+	if pl := s.plexWebLinkByKey(showKey, title); pl != "" {
 		set["plex"] = true
 		l.Plex = pl
 	}
