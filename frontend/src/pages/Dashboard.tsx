@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { api, fmtBytes, fmtMissing, fmtSpeed, type Download, type Watch } from '../api'
+import { api, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type Watch } from '../api'
 import { useConfirm } from '../components/confirm'
 import { useAuth } from '../hooks'
 
@@ -286,7 +286,7 @@ function SyncSummary() {
   const waiting = watches.filter((w) => w.waiting).length
   const complete = watches.filter((w) => w.complete).length
   const behind = watches.reduce((s, w) => s + (w.behind ?? 0), 0)
-  const title = (w: Watch) => w.titleOverride || w.media?.title.romaji || w.remotePath.split('/').pop()
+  const title = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
   const airFmt = (ts: number) => new Date(ts * 1000).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
   // "interesting" = actionable: behind, waiting for an airing, dub/sub-gated, or a gap
   const interesting = watches.filter(

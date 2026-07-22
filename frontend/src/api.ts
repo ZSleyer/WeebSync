@@ -64,6 +64,24 @@ export interface Media {
   siteUrl?: string
 }
 
+// CJK_RE matches Japanese/Chinese native script (kana, CJK ideographs, fullwidth
+// forms) - a title we never want to display raw.
+// eslint-disable-next-line no-control-regex
+const CJK_RE = /[぀-ヿ㐀-鿿豈-﫿＀-￯]/
+
+// mediaTitle picks a displayable, non-Japanese title: romaji (romanized name, or
+// the localized name for TMDB media) first, then english, skipping any candidate
+// that is native kana/kanji. Falls back to whatever exists, then to `fallback`.
+export function mediaTitle(
+  m?: { title?: { romaji?: string; english?: string } } | null,
+  fallback = '',
+): string {
+  const romaji = m?.title?.romaji ?? ''
+  const english = m?.title?.english ?? ''
+  for (const c of [romaji, english]) if (c && !CJK_RE.test(c)) return c
+  return romaji || english || fallback
+}
+
 export interface CatalogItem {
   entry: Entry
   media?: Media

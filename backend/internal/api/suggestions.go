@@ -178,17 +178,42 @@ func betterMedia(a, b anilist.Media) bool {
 	return score(a) > score(b)
 }
 
-// displayTitle prefers the localized title over the romanized Japanese one.
-// TMDB stores the localized name in Romaji (original in English) -> keep Romaji
-// first; AniList/others -> prefer English, fall back to romaji.
+// hasCJK reports whether s contains Japanese/Chinese script (kana or CJK
+// ideographs, plus fullwidth forms), i.e. a native title we never want to show.
+func hasCJK(s string) bool {
+	for _, r := range s {
+		if (r >= 0x3040 && r <= 0x30ff) || // hiragana + katakana
+			(r >= 0x3400 && r <= 0x9fff) || // CJK ideographs
+			(r >= 0xf900 && r <= 0xfaff) || // CJK compat ideographs
+			(r >= 0xff00 && r <= 0xffef) { // fullwidth/halfwidth forms
+			return true
+		}
+	}
+	return false
+}
+
+// displayTitle picks a localized, non-Japanese title. TMDB stores the localized
+// name in Romaji (original in English), AniList the romanized name in Romaji and
+// the localized one in English - so the preference order differs by source. In
+// both cases a title containing native script (kana/kanji) is skipped; only if
+// every candidate is native (nothing latinized exists) is one shown as a last
+// resort.
 func displayTitle(m anilist.Media, source string) string {
-	if !strings.HasPrefix(source, "tmdb") && m.Title.English != "" {
-		return m.Title.English
+	cands := []string{m.Title.English, m.Title.Romaji} // AniList: English first
+	if strings.HasPrefix(source, "tmdb") {
+		cands = []string{m.Title.Romaji, m.Title.English} // TMDB: localized (Romaji) first
 	}
-	if m.Title.Romaji != "" {
-		return m.Title.Romaji
+	for _, c := range cands {
+		if c != "" && !hasCJK(c) {
+			return c
+		}
 	}
-	return m.Title.English
+	for _, c := range cands {
+		if c != "" {
+			return c
+		}
+	}
+	return ""
 }
 
 // buildItem turns a raw provider suggestion into a deduplicated SugItem: it
