@@ -231,7 +231,10 @@ func (c *Client) Shows(sectionKey string) ([]Show, error) {
 			Metadata []rawShow `json:"Metadata"`
 		} `json:"MediaContainer"`
 	}
-	if err := c.get("/library/sections/"+url.PathEscape(sectionKey)+"/all", &resp); err != nil {
+	// includeGuids=1 makes the bulk listing carry each show's provider guid
+	// array (tvdb://, tmdb://); without it guids only come from a per-show
+	// detail fetch. Supported by modern PMS; ignored by old ones (guids stay 0).
+	if err := c.get("/library/sections/"+url.PathEscape(sectionKey)+"/all?includeGuids=1", &resp); err != nil {
 		return nil, err
 	}
 	shows := make([]Show, 0, len(resp.MediaContainer.Metadata))

@@ -81,6 +81,45 @@ func Codes(tag string) []string {
 	return codeRe.FindAllString(tag, -1)
 }
 
+// resHeightRe pulls a video height out of a resolution token in any of the
+// forms that show up in release names: "1080p", "1920x1080", "4K", "8k".
+var resHeightRe = regexp.MustCompile(`(?i)^(?:(\d{3,4})p|\d{3,4}x(\d{3,4})|([48])k)$`)
+
+// Resolution scans a name (anitogo's guess plus every bracket/paren token) and
+// returns the highest video height it can read, or 0 when none is present.
+// "4K" folds to 2160, "8K" to 4320. Used to rank quality variants of a folder.
+func Resolution(name string) int {
+	best := 0
+	consider := func(tok string) {
+		tok = strings.TrimSpace(tok)
+		m := resHeightRe.FindStringSubmatch(tok)
+		if m == nil {
+			return
+		}
+		h := 0
+		switch {
+		case m[1] != "": // "1080p"
+			h, _ = strconv.Atoi(m[1])
+		case m[2] != "": // "1920x1080"
+			h, _ = strconv.Atoi(m[2])
+		case m[3] == "4":
+			h = 2160
+		case m[3] == "8":
+			h = 4320
+		}
+		if h > best {
+			best = h
+		}
+	}
+	consider(anitogo.Parse(name, anitogo.DefaultOptions).VideoResolution)
+	for _, g := range tokenRe.FindAllStringSubmatch(name, -1) {
+		for _, tok := range strings.Split(g[1], ",") {
+			consider(tok)
+		}
+	}
+	return best
+}
+
 // LangMatch reports whether name satisfies the wanted dub/sub languages.
 // An empty want is no constraint; a non-empty want requires the matching tag to
 // carry that exact language code (case-insensitive). A name with no tag for a

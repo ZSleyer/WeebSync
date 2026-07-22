@@ -349,8 +349,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 			mediaID = picked[i].ID
 			s.Anilist.CacheMedia(picked[i])
 		}
-		s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual) VALUES (?, ?, ?, 0)`,
-			b.serverID, b.folder, mediaID)
+		s.persistMatch(b.serverID, b.folder, mediaID, false, "anilist")
 	}
 }
 
@@ -561,8 +560,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 			// media entry - adopt it instead of searching for the same name
 			// again
 			if id, ok := s.reuseMatch(serverID, e.Name, itemSource); ok {
-				s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source)
-					VALUES (?, ?, ?, 0, ?)`, serverID, e.Path, id, itemSource)
+				s.persistMatch(serverID, e.Path, id, false, itemSource)
 				item.Media, item.Pending = s.sourceMedia(itemSource, id)
 				break
 			}
@@ -765,7 +763,6 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	// that was listed there, and its kind can narrow tv to movie
 	scope := s.scopeFor(serverID, path.Dir(in.Folder))
 	source := sourceForScope(scopeForItem(scope, s.itemKind(serverID, in.Folder, path.Base(in.Folder))))
-	s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, 1, ?)`,
-		serverID, in.Folder, in.MediaID, source)
+	s.persistMatch(serverID, in.Folder, in.MediaID, true, source)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
