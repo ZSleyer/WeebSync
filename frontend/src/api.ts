@@ -182,6 +182,56 @@ export interface TmdbSuggestions {
   trending: TmdbSuggestions['watchlist']
 }
 
+export interface UpgradeVariant {
+  serverId: number
+  folder: string
+  resRank: number // max video height, 0 = unknown
+  dub: string[]
+  sub: string[]
+}
+
+export interface UpgradeSuggestion {
+  seriesId: number
+  title: string
+  from: UpgradeVariant // the weaker copy present
+  to: UpgradeVariant // the better copy that exists elsewhere
+  improvesRes: boolean
+  improvesSub: boolean
+  improvesDub: boolean
+}
+
+export interface UpgradeDims {
+  res: boolean
+  sub: boolean
+  dub: boolean
+}
+
+export interface DismissedItem {
+  kind: string
+  refKey: string
+  label: string
+  dismissedAt: string
+}
+
+export interface PlexAccount {
+  linked: boolean
+  user?: string
+}
+
+export interface PlexLinkStart {
+  id: number
+  code: string
+  url: string
+}
+
+export interface PlexWatchItem {
+  title: string
+  year: number
+  type: string // show | movie
+  tvdb: number
+  tmdb: number
+}
+
 export interface Review {
   summary: string
   score: number // reviewer's 0-100 rating

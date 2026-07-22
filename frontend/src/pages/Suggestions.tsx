@@ -2,7 +2,17 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
-import { api, type AnilistSuggestions, type PlexSuggestions, type TmdbSuggestions } from '../api'
+import {
+  api,
+  type AnilistSuggestions,
+  type PlexSuggestions,
+  type TmdbSuggestions,
+  type UpgradeSuggestion,
+  type UpgradeVariant,
+  type UpgradeDims,
+  type DismissedItem,
+  type PlexWatchItem,
+} from '../api'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { usePersistedQuery } from '../hooks'
 import { SkeletonCards } from '../components/Loading'
@@ -14,11 +24,12 @@ import { SkeletonCards } from '../components/Loading'
 // placement; TMDB lists the linked account's watchlist plus trending titles.
 export default function Suggestions() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'plex' | 'anilist' | 'tmdb'>('plex')
+  const [tab, setTab] = useState<'plex' | 'anilist' | 'tmdb' | 'upgrades'>('plex')
   const tabs = [
     ['plex', 'Plex'],
     ['anilist', 'AniList'],
     ['tmdb', 'TMDB'],
+    ['upgrades', t('suggestions.upgrades')],
   ] as const
   return (
     <div className="max-w-4xl">
@@ -32,7 +43,18 @@ export default function Suggestions() {
         active={tab}
         onChange={setTab}
       />
-      {tab === 'plex' ? <PlexSection /> : tab === 'anilist' ? <AnilistSection /> : <TmdbSection />}
+      {tab === 'plex' ? (
+        <>
+          <PlexWatchlistGroup />
+          <PlexSection />
+        </>
+      ) : tab === 'anilist' ? (
+        <AnilistSection />
+      ) : tab === 'tmdb' ? (
+        <TmdbSection />
+      ) : (
+        <UpgradesSection />
+      )}
     </div>
   )
 }
@@ -871,5 +893,157 @@ function TmdbSection() {
         />
       )}
     </section>
+  )
+}
+
+// fmtRes turns a video height into a label ("1080p", "4K", "?" when unknown).
+function fmtRes(r: number): string {
+  if (!r) return '?'
+  if (r >= 2160) return '4K'
+  return `${r}p`
+}
+
+function VariantBox({ v, muted }: { v: UpgradeVariant; muted?: boolean }) {
+  const parts = [fmtRes(v.resRank)]
+  if (v.dub.length) parts.push(`Dub ${v.dub.join(',')}`)
+  if (v.sub.length) parts.push(`Sub ${v.sub.join(',')}`)
+  return (
+    <div className={`min-w-0 ${muted ? 'text-t-muted' : ''}`}>
+      <div className="truncate font-mono text-xs">{v.folder.split('/').pop()}</div>
+      <div className="mt-0.5 text-[11px]">{parts.join(' · ')}</div>
+    </div>
+  )
+}
+
+// UpgradesSection lists series that exist in a better copy somewhere (higher
+// resolution, or more sub/dub) than the one present, per the user's enabled
+// axes. Read-only view; "open" jumps to the better copy in the file browser.
+function UpgradesSection() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const qc = useQueryClient()
+  const { data, isLoading } = usePersistedQuery<UpgradeSuggestion[]>('upgrades', () => api.get('/api/upgrades'))
+  const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
+
+  const [showIgnored, setShowIgnored] = useState(false)
+  const { data: ignored } = usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
+
+  const toggle = async (key: keyof UpgradeDims) => {
+    if (!dims) return
+    const next = { ...dims, [key]: !dims[key] }
+    await api.put('/api/auth/upgrade-dims', next)
+    qc.invalidateQueries({ queryKey: ['upgrade-dims'] })
+    qc.invalidateQueries({ queryKey: ['upgrades'] })
+  }
+
+  const dismiss = async (u: UpgradeSuggestion) => {
+    await api.post('/api/suggestions/dismiss', { kind: 'upgrade', refKey: `series:${u.seriesId}`, label: u.title })
+    qc.invalidateQueries({ queryKey: ['upgrades'] })
+    qc.invalidateQueries({ queryKey: ['dismissed'] })
+  }
+
+  const restore = async (d: DismissedItem) => {
+    await api.del('/api/suggestions/dismiss', { kind: d.kind, refKey: d.refKey })
+    qc.invalidateQueries({ queryKey: ['upgrades'] })
+    qc.invalidateQueries({ queryKey: ['dismissed'] })
+  }
+
+  const upgradeIgnored = (ignored ?? []).filter((d) => d.kind === 'upgrade')
+  const items = data ?? []
+  return (
+    <div className="space-y-3">
+      {dims && (
+        <div className="flex flex-wrap items-center gap-3 border border-border-subtle bg-bg-secondary/20 px-3 py-2">
+          <span className="t-label">{t('suggestions.upgradeAxes')}</span>
+          {(['res', 'sub', 'dub'] as const).map((k) => (
+            <label key={k} className="flex items-center gap-1.5 text-sm">
+              <input type="checkbox" checked={dims[k]} onChange={() => toggle(k)} />
+              {t(`suggestions.axis_${k}`)}
+            </label>
+          ))}
+          {upgradeIgnored.length > 0 && (
+            <button className="t-btn t-btn--sm ml-auto" onClick={() => setShowIgnored((v) => !v)}>
+              {t('suggestions.ignored')} ({upgradeIgnored.length})
+            </button>
+          )}
+        </div>
+      )}
+      {showIgnored && upgradeIgnored.length > 0 && (
+        <div className="border border-border-subtle bg-bg-secondary/20 p-3">
+          <h3 className="mb-2 font-display text-sm font-semibold tracking-wider">{t('suggestions.ignored')}</h3>
+          <ul className="space-y-1">
+            {upgradeIgnored.map((d) => (
+              <li key={d.refKey} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{d.label || d.refKey}</span>
+                <button className="t-btn t-btn--sm shrink-0" onClick={() => restore(d)}>
+                  {t('suggestions.restore')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {isLoading ? (
+        <SkeletonCards />
+      ) : !items.length ? (
+        <p className="t-label">{t('suggestions.noUpgrades')}</p>
+      ) : (
+        items.map((u, i) => (
+        <div key={`${u.seriesId}-${i}`} className="border border-border-subtle bg-bg-secondary/20 p-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="truncate font-display text-sm font-semibold tracking-wider">{u.title}</h3>
+            <div className="flex shrink-0 gap-1">
+              {u.improvesRes && <span className="t-label">{t('suggestions.upRes')}</span>}
+              {u.improvesSub && <span className="t-label">{t('suggestions.upSub')}</span>}
+              {u.improvesDub && <span className="t-label">{t('suggestions.upDub')}</span>}
+            </div>
+          </div>
+          <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
+            <VariantBox v={u.from} muted />
+            <span className="text-center text-t-muted">→</span>
+            <VariantBox v={u.to} />
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <button className="t-btn t-btn--sm" onClick={() => dismiss(u)}>
+              {t('suggestions.dismiss')}
+            </button>
+            <button
+              className="t-btn t-btn--sm"
+              onClick={() => navigate(`/remote?server=${u.to.serverId}&path=${encodeURIComponent(u.to.folder)}`)}
+            >
+              {t('plex.openBrowser')}
+            </button>
+          </div>
+        </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+// PlexWatchlistGroup shows the linked plex.tv account's personal watchlist.
+// Hidden entirely when the account is not linked or the list is empty, so it
+// only appears when it has something to add.
+function PlexWatchlistGroup() {
+  const { t } = useTranslation()
+  const { data } = usePersistedQuery<PlexWatchItem[]>('plex-watchlist', () => api.get('/api/plex/watchlist'))
+  const items = data ?? []
+  if (!items.length) return null
+  return (
+    <div className="mb-4">
+      <Group title={t('suggestions.watchlist')} subtitle={t('suggestions.watchlistSub')} count={items.length}>
+        <ul className="space-y-1">
+          {items.map((it, i) => (
+            <li key={`${it.title}-${i}`} className="flex items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 truncate">
+                {it.title}
+                {it.year > 0 && <span className="text-t-muted"> ({it.year})</span>}
+              </span>
+              <span className="t-label shrink-0">{it.type === 'movie' ? t('suggestions.movie') : t('suggestions.show')}</span>
+            </li>
+          ))}
+        </ul>
+      </Group>
+    </div>
   )
 }
