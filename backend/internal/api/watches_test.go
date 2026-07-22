@@ -122,27 +122,33 @@ func TestSmartDue(t *testing.T) {
 		have        int
 		offset      int
 		fromEpisode int
+		filtered    int
 		aired       bool
 		want        bool
 	}{
-		{"interval not reached", false, nil, 0, 0, 0, false, false},
-		{"no match: plain interval", true, nil, 0, 0, 0, false, true},
-		{"no schedule: plain interval", true, &anilist.Media{Status: "FINISHED"}, 12, 0, 0, false, true},
-		{"all aired synced, before release: wait", true, airing(5, now.Add(2*time.Hour)), 4, 0, 0, false, false},
-		{"all aired synced, release time reached: check", true, airing(5, now.Add(-10*time.Minute)), 4, 0, 0, false, true},
-		{"episode missing: keep checking", true, airing(5, now.Add(2*time.Hour)), 3, 0, 0, false, true},
+		{"interval not reached", false, nil, 0, 0, 0, 0, false, false},
+		{"no match: plain interval", true, nil, 0, 0, 0, 0, false, true},
+		{"no schedule: plain interval", true, &anilist.Media{Status: "FINISHED"}, 12, 0, 0, 0, false, true},
+		{"all aired synced, before release: wait", true, airing(5, now.Add(2*time.Hour)), 4, 0, 0, 0, false, false},
+		{"all aired synced, release time reached: check", true, airing(5, now.Add(-10*time.Minute)), 4, 0, 0, 0, false, true},
+		{"episode missing: keep checking", true, airing(5, now.Add(2*time.Hour)), 3, 0, 0, 0, false, true},
 		// offset maps absolute→local S23: next abs 1157 = local E02, so E01 (abs 1156) has aired
-		{"offset caught up: wait", true, airing(1157, now.Add(2*time.Hour)), 1, -1155, 0, false, false},
-		{"offset missing: check", true, airing(1157, now.Add(2*time.Hour)), 0, -1155, 0, false, true},
+		{"offset caught up: wait", true, airing(1157, now.Add(2*time.Hour)), 1, -1155, 0, 0, false, false},
+		{"offset missing: check", true, airing(1157, now.Add(2*time.Hour)), 0, -1155, 0, 0, false, true},
 		// Conan-style: from_episode 31, offset -1147, next abs 1186 → 8 aired in part
-		{"from_episode caught up: wait", true, airing(1186, now.Add(2*time.Hour)), 8, -1147, 31, false, false},
-		{"from_episode missing: check", true, airing(1186, now.Add(2*time.Hour)), 7, -1147, 31, false, true},
+		{"from_episode caught up: wait", true, airing(1186, now.Add(2*time.Hour)), 8, -1147, 31, 0, false, false},
+		{"from_episode missing: check", true, airing(1186, now.Add(2*time.Hour)), 7, -1147, 31, 0, false, true},
 		// aired-mapping (endless): local count ignored; caught up while next unreleased
-		{"aired before release: wait", true, airing(1171, now.Add(2*time.Hour)), 148, 0, 0, true, false},
-		{"aired release reached: check", true, airing(1171, now.Add(-10*time.Minute)), 148, 0, 0, true, true},
+		{"aired before release: wait", true, airing(1171, now.Add(2*time.Hour)), 148, 0, 0, 0, true, false},
+		{"aired release reached: check", true, airing(1171, now.Add(-10*time.Minute)), 148, 0, 0, 0, true, true},
+		// lang-filter backlog: a skipped remote file whose target is not local yet
+		// keeps the watch on the plain interval, even mid-wait
+		{"lang backlog, aired mid-wait: check", true, airing(1172, now.Add(2*time.Hour)), 148, 0, 0, 1, true, true},
+		{"lang backlog, caught up before release: check", true, airing(5, now.Add(2*time.Hour)), 4, 0, 0, 2, false, true},
+		{"lang backlog, interval not reached: still wait", false, airing(5, now.Add(2*time.Hour)), 4, 0, 0, 2, false, false},
 	}
 	for _, c := range cases {
-		if got := smartDue(c.intervalDue, c.media, c.have, c.offset, c.fromEpisode, c.aired, now); got != c.want {
+		if got := smartDue(c.intervalDue, c.media, c.have, c.offset, c.fromEpisode, c.filtered, c.aired, now); got != c.want {
 			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
 		}
 	}

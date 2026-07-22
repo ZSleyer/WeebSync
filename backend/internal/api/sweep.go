@@ -12,7 +12,7 @@ const (
 	sweepTick      = 5 * time.Minute // scheduler granularity for the match sweep
 	sweepInterval  = 30 * time.Minute
 	sweepBatch     = 30             // max match enqueues per server per sweep, protects the provider rate limiters
-	variantRecheck = 24 * time.Hour // recompute a folder's quality at most this often
+	variantRecheck = 12 * time.Hour // recompute a folder's quality at most this often
 )
 
 // SweepLoop is the background match cronjob: it scans scoped directories for
