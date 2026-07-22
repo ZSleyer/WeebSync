@@ -707,6 +707,13 @@
                         "description": "incomplete: episodes present",
                         "type": "integer"
                     },
+                    "isMovie": {
+                        "type": "boolean"
+                    },
+                    "library": {
+                        "description": "incomplete: Plex library title, for grouping",
+                        "type": "string"
+                    },
                     "links": {
                         "$ref": "#/components/schemas/api.ProviderLinks"
                     },
@@ -735,6 +742,9 @@
                         "description": "series:{id} | fold:{key}:{year}",
                         "type": "string"
                     },
+                    "season": {
+                        "type": "integer"
+                    },
                     "sequel": {
                         "$ref": "#/components/schemas/anilist.Media"
                     },
@@ -742,9 +752,16 @@
                         "description": "0 when not bundled yet",
                         "type": "integer"
                     },
-                    "status": {
-                        "description": "watchlist: CURRENT|PLANNING",
+                    "showKey": {
+                        "description": "incomplete (missing unit): canonical unit",
                         "type": "string"
+                    },
+                    "status": {
+                        "description": "watchlist: CURRENT|PLANNING|COMPLETED",
+                        "type": "string"
+                    },
+                    "sync": {
+                        "$ref": "#/components/schemas/api.SyncPlan"
                     },
                     "title": {
                         "type": "string"
@@ -787,6 +804,24 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.SyncPlan": {
+                "description": "incomplete (missing unit): where a one-off sync creates the season/movie folder",
+                "properties": {
+                    "localPath": {
+                        "description": "base dir to sync into",
+                        "type": "string"
+                    },
+                    "subfolder": {
+                        "description": "false: the template controls the folder structure",
+                        "type": "boolean"
+                    },
+                    "template": {
+                        "description": "rename template (may carry a \"Season NN/\" or \"{title}/\" subfolder)",
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -851,8 +886,27 @@
                     "improvesSub": {
                         "type": "boolean"
                     },
+                    "isMovie": {
+                        "type": "boolean"
+                    },
+                    "key": {
+                        "description": "dismiss key: unit:{showKey}:{season}",
+                        "type": "string"
+                    },
+                    "library": {
+                        "description": "Plex library title, for grouping",
+                        "type": "string"
+                    },
                     "links": {
                         "$ref": "#/components/schemas/api.ProviderLinks"
+                    },
+                    "options": {
+                        "description": "all remote copies",
+                        "items": {
+                            "$ref": "#/components/schemas/api.UpgradeVariant"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "providers": {
                         "items": {
@@ -861,8 +915,17 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "season": {
+                        "type": "integer"
+                    },
                     "seriesId": {
                         "type": "integer"
+                    },
+                    "showKey": {
+                        "type": "string"
+                    },
+                    "sync": {
+                        "$ref": "#/components/schemas/api.SyncPlan"
                     },
                     "title": {
                         "type": "string"
@@ -874,6 +937,7 @@
                 "type": "object"
             },
             "api.UpgradeVariant": {
+                "description": "best LOCAL copy",
                 "properties": {
                     "dub": {
                         "items": {
@@ -2044,6 +2108,14 @@
                     },
                     "oidcUserValues": {
                         "description": "csv login allowlist, empty = everyone",
+                        "type": "string"
+                    },
+                    "plexLibRoots": {
+                        "description": "read-only: mounts auto-detected from Plex's reported library locations",
+                        "type": "string"
+                    },
+                    "plexRoots": {
+                        "description": "manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)",
                         "type": "string"
                     },
                     "plexSectionSources": {
@@ -6237,6 +6309,82 @@
                     }
                 ],
                 "summary": "Set global rate limit",
+                "tags": [
+                    "Downloads"
+                ]
+            }
+        },
+        "/api/downloads/sync": {
+            "post": {
+                "description": "Downloads a remote folder once, applying the same rename/template/language-filter as an auto-sync watch, without persisting a watch.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.Watch",
+                                        "summary": "body",
+                                        "description": "Sync spec (remotePath, localPath, template, ...)"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Sync spec (remotePath, localPath, template, ...)",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.DownloadCreateResponse"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "One-off sync with rename",
                 "tags": [
                     "Downloads"
                 ]

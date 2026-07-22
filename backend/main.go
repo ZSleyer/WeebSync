@@ -102,7 +102,7 @@ func main() {
 		Conns:        pool.New(),
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
-	srv.Transfers.Roots = localRoots
+	srv.Transfers.Roots = srv.LocalRootsWithPlex() // env mounts + configured Plex roots
 	srv.Transfers.OnFinished = srv.NotifyDownloadFinished
 	srv.Anilist.TokenSource = srv.AnilistToken // linked-account bearer for API calls
 
@@ -112,6 +112,7 @@ func main() {
 	go srv.WatchLoop(rootCtx)
 	go srv.IndexLoop(rootCtx)
 	go srv.BackfillSeries()
+	go srv.RefreshPlexRoots() // auto-detect Plex library mounts up front (not just on the hourly index)
 	go srv.SweepLoop(rootCtx)
 	mux := http.NewServeMux()
 	srv.Register(mux)
