@@ -23,9 +23,16 @@ func testServer(t *testing.T) *httptest.Server {
 		w.Write([]byte(`{"MediaContainer":{"Metadata":[
 			{"ratingKey":"10","title":"Example Show","year":2024,"leafCount":12,"childCount":1}]}}`))
 	})
+	// mirrors real PMS behavior: leaf listings omit Stream even with
+	// includeStreams=1; only the episode metadata detail carries them
 	mux.HandleFunc("/library/metadata/10/allLeaves", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"MediaContainer":{"Metadata":[
 			{"ratingKey":"100","parentIndex":1,"Media":[{"videoResolution":"1080","Part":[
+				{"id":501,"file":"/media/plex/series/Example_Show/Season 01/ep01.mkv"}]}]}]}}`))
+	})
+	mux.HandleFunc("/library/metadata/100", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"MediaContainer":{"Metadata":[
+			{"ratingKey":"100","Media":[{"Part":[
 				{"id":501,"file":"/media/plex/series/Example_Show/Season 01/ep01.mkv","Stream":[
 					{"id":1,"streamType":1},
 					{"id":2,"streamType":2,"language":"German","languageCode":"deu"},
@@ -98,14 +105,19 @@ func TestClient(t *testing.T) {
 		t.Error("unrelated path must not match a library")
 	}
 
-	// per-episode parts carry ids for stream selection
+	// per-episode parts carry ids for stream selection; leaf listing has no
+	// streams (real PMS behavior), the detail fetch does
 	parts, err := c.EpisodeParts("10")
 	if err != nil || len(parts) != 1 {
 		t.Fatalf("episode parts: %v %v", parts, err)
 	}
 	p := parts[0]
-	if p.RatingKey != "100" || p.PartID != 501 || len(p.Streams) != 4 {
+	if p.RatingKey != "100" || p.PartID != 501 || len(p.Streams) != 0 {
 		t.Fatalf("part: %+v", p)
+	}
+	detail, err := c.PartStreams("100")
+	if err != nil || len(detail) != 1 || detail[0].PartID != 501 || len(detail[0].Streams) != 4 {
+		t.Fatalf("part streams: %+v %v", detail, err)
 	}
 	if err := c.SetStreams(501, 3, 4); err != nil {
 		t.Errorf("set streams: %v", err)
