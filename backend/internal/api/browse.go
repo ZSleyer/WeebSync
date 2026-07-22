@@ -128,6 +128,76 @@ func normalizeRoots(s string) string {
 	return strings.Join(out, "\n")
 }
 
+// virtualEntries lists one navigation level ABOVE the real roots. ok=false
+// when rel is a root or inside one (real filesystem browsing applies). Roots
+// below rel are grouped by their next path component and each group is
+// compressed to the longest chain its members share (capped at a root), so
+// sibling mounts collapse instead of listing every allowlist line. A level
+// with a single virtual entry is skipped (descend directly).
+func virtualEntries(roots []string, rel string) ([]remote.Entry, bool) {
+	base := path.Clean("/" + strings.TrimPrefix(rel, "/"))
+	if base == "/" {
+		base = ""
+	}
+	var under []string
+	for _, r := range roots {
+		r = filepath.Clean(r)
+		if r == base || strings.HasPrefix(base, r+"/") {
+			return nil, false // rel is a root or inside one: real browsing
+		}
+		if strings.HasPrefix(r, base+"/") {
+			under = append(under, r)
+		}
+	}
+	if len(under) == 0 {
+		return nil, false
+	}
+	groups := map[string][]string{}
+	for _, r := range under {
+		first := strings.SplitN(strings.TrimPrefix(r, base+"/"), "/", 2)[0]
+		groups[first] = append(groups[first], r)
+	}
+	entries := make([]remote.Entry, 0, len(groups))
+	for first, members := range groups {
+		chain := commonRootChain(base+"/"+first, members)
+		entries = append(entries, remote.Entry{
+			Name:  strings.TrimPrefix(chain, base+"/"),
+			Path:  chain,
+			IsDir: true,
+		})
+	}
+	slices.SortFunc(entries, func(a, b remote.Entry) int { return strings.Compare(a.Name, b.Name) })
+	// a level with exactly one non-root entry adds a pointless click: descend
+	if len(entries) == 1 && !slices.Contains(under, entries[0].Path) {
+		if deeper, ok := virtualEntries(roots, entries[0].Path); ok {
+			return deeper, true
+		}
+	}
+	return entries, true
+}
+
+// commonRootChain extends chain component-wise while every member still lies
+// on it, stopping when the chain IS one of the members (a real root must stay
+// a browseable entry, never be skipped over).
+func commonRootChain(chain string, members []string) string {
+	for {
+		if slices.Contains(members, chain) {
+			return chain
+		}
+		next := ""
+		for _, m := range members {
+			rest := strings.TrimPrefix(m, chain+"/")
+			comp := strings.SplitN(rest, "/", 2)[0]
+			if next == "" {
+				next = comp
+			} else if next != comp {
+				return chain // members diverge here
+			}
+		}
+		chain = chain + "/" + next
+	}
+}
+
 // safeLocal resolves a target path to an absolute path under one of the allowed
 // roots (or, for a legacy/relative path, under the primary root).
 func (s *Server) safeLocal(rel string) (string, error) {
@@ -148,20 +218,15 @@ func (s *Server) safeLocal(rel string) (string, error) {
 func (s *Server) handleBrowseLocal(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
 	roots := s.localRoots()
-	// virtual root: with several allowed roots (media mounts), the top level
-	// lists the roots themselves so the user can pick a mount
-	if rel == "" && len(roots) > 1 {
-		entries := make([]remote.Entry, 0, len(roots))
-		for _, root := range roots {
-			root = filepath.Clean(root)
-			entries = append(entries, remote.Entry{
-				Name:  strings.TrimPrefix(root, "/"),
-				Path:  root,
-				IsDir: true,
-			})
+	// virtual levels above the real roots: with several allowed mounts the
+	// top level (and any shared parent) shows a COMPRESSED tree instead of one
+	// entry per mount - a dozen roots under /media/<disk>/plex collapse into
+	// one entry per disk
+	if len(roots) > 1 {
+		if entries, ok := virtualEntries(roots, rel); ok {
+			writeJSON(w, http.StatusOK, entries)
+			return
 		}
-		writeJSON(w, http.StatusOK, entries)
-		return
 	}
 	abs, err := s.safeLocal(rel)
 	if err != nil {
