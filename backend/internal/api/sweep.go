@@ -256,3 +256,60 @@ func (s *Server) BackfillSeries() {
 	}
 	db.SetSetting(s.DB, "series_backfilled", "1")
 }
+
+// BackfillUnits re-derives the canonical unit (show_key/season/is_movie) on
+// catalog variants that predate the per-season model, and drops the stale
+// server-0 Plex rows so indexPlexLibrary rebuilds them per season. Gated by a
+// flag AND self-detecting: it only does work when old rows without a show_key
+// actually exist, so a fresh install or an already-migrated instance is a no-op
+// (force only when needed). Runs once at startup.
+func (s *Server) BackfillUnits() {
+	if db.Setting(s.DB, "units_backfilled_v1") == "1" {
+		return
+	}
+	var staleRemote, staleLocal int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches cm
+		JOIN catalog_variants cv ON cv.server_id = cm.server_id AND cv.folder = cm.folder
+		WHERE cm.server_id != 0 AND cm.media_id != 0 AND cv.show_key = ''`).Scan(&staleRemote)
+	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_variants WHERE server_id = 0 AND show_key = ''`).Scan(&staleLocal)
+	if staleRemote == 0 && staleLocal == 0 {
+		db.SetSetting(s.DB, "units_backfilled_v1", "1") // nothing to fix
+		return
+	}
+	// folderUnit resolves anime seasons via the Fribb map - make sure it is loaded
+	var animeN int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM anime_ids`).Scan(&animeN)
+	if animeN == 0 {
+		s.refreshAnimeIDs()
+	}
+	// re-derive the unit for every remote matched folder whose variant lacks it
+	if rows, err := s.DB.Query(`SELECT cm.server_id, cm.folder FROM catalog_matches cm
+		JOIN catalog_variants cv ON cv.server_id = cm.server_id AND cv.folder = cm.folder
+		WHERE cm.server_id != 0 AND cm.media_id != 0 AND cv.show_key = ''`); err == nil {
+		type f struct {
+			sid    int64
+			folder string
+		}
+		var todo []f
+		for rows.Next() {
+			var x f
+			if rows.Scan(&x.sid, &x.folder) == nil {
+				todo = append(todo, x)
+			}
+		}
+		rows.Close()
+		for _, x := range todo {
+			s.refreshVariant(x.sid, x.folder)
+		}
+	}
+	// stale server-0 rows are the OLD per-show Plex index (no show_key). Drop them
+	// and force a per-season re-index on the next sweep tick.
+	if staleLocal > 0 {
+		s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0`)
+		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = 0`)
+		db.SetSetting(s.DB, "plex_indexed_at", "")
+	}
+	// rebuild the cached suggestion blobs against the now-populated units
+	s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'suggestions:%'`)
+	db.SetSetting(s.DB, "units_backfilled_v1", "1")
+}
