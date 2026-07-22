@@ -11,7 +11,11 @@
   "about": {
     "dev": "Dev-Version",
     "stable": "Stable",
-    "channel": { "dev": "Dev", "nightly": "Nightly", "stable": "Stable" },
+    "channel": {
+      "dev": "Dev",
+      "nightly": "Nightly",
+      "stable": "Stable"
+    },
     "updateDev": "Neuer Build verfügbar.",
     "updateStable": "Neue Version {{version}} verfügbar.",
     "updateLink": "Details",
@@ -297,11 +301,21 @@
     "view": "Ansicht",
     "viewList": "Liste",
     "viewCalendar": "Kalender",
-    "group": { "syncing": "Wird geladen", "idle": "Überwacht", "waiting": "Wartet", "complete": "Komplett" },
+    "group": {
+      "syncing": "Wird geladen",
+      "idle": "Überwacht",
+      "waiting": "Wartet",
+      "complete": "Komplett"
+    },
     "calEmpty": "Keine anstehenden Folgen mit Airing-Termin.",
     "calFilter": "Nach Art filtern",
     "calAll": "Alle",
-    "cat": { "anime-series": "Animeserien", "anime-movie": "Animefilme", "series": "Serien", "movie": "Filme" },
+    "cat": {
+      "anime-series": "Animeserien",
+      "anime-movie": "Animefilme",
+      "series": "Serien",
+      "movie": "Filme"
+    },
     "airingNow": "jetzt",
     "inDaysH": "in {{d}} T {{h}} h",
     "inHoursM": "in {{h}} h {{m}} min",
@@ -408,7 +422,7 @@
     "adminOnly": "Nur Admins können Einstellungen ändern.",
     "users": "benutzer",
     "usersCreate": "Anlegen",
-    "usersOidcOnly": "Manuelles Anlegen ist im OIDC-Modus deaktiviert - Nutzer melden sich \u00fcber den Identity-Provider an.",
+    "usersOidcOnly": "Manuelles Anlegen ist im OIDC-Modus deaktiviert - Nutzer melden sich über den Identity-Provider an.",
     "usersAdmin": "admin",
     "usersYou": "du",
     "usersMakeAdmin": "Zum Admin machen",
@@ -596,7 +610,20 @@
     "tvdbConnected": "TVDB: verbunden",
     "tvdbNotConfigured": "Erst TVDB-API-Key speichern.",
     "tvdbTest": "Verbindung testen",
-    "envLockedHint": "Über Umgebungsvariable gesetzt – hier nicht änderbar"
+    "envLockedHint": "Über Umgebungsvariable gesetzt – hier nicht änderbar",
+    "plexWatchlistLink": "Plex-Merkliste verknüpfen",
+    "plexWatchlistUnlink": "Trennen",
+    "plexWatchlistLinked": "Merkliste verknüpft als {{user}}",
+    "plexWatchlistPending": "Im plex.tv-Tab bestätigen (Code {{code}})…",
+    "emailCat_suggestion": "Vorschläge",
+    "emailCat_upgrade": "Upgrades",
+    "pushCategories": "PUSH-KATEGORIEN & FREQUENZ",
+    "pushUnavailable": "Push auf dieser Instanz nicht konfiguriert.",
+    "notifyFreq": "Frequenz",
+    "notifyFreqHint": "Wie oft Benachrichtigungen gebündelt zugestellt werden (Push und Mail).",
+    "freqInstant": "Sofort",
+    "freqHourly": "Stündlich",
+    "freqDaily": "Täglich"
   },
   "status": {
     "queued": "wartend",
@@ -660,6 +687,11 @@
   "suggestions": {
     "title": "VORSCHLÄGE",
     "sub": "anilist- & tmdb-watchlist · plex-fortsetzungen · trending",
+    "upgrades": "Upgrades",
+    "noUpgrades": "Keine besseren Versionen gefunden.",
+    "upRes": "bessere Auflösung",
+    "upSub": "mehr Sub",
+    "upDub": "mehr Dub",
     "anilist": "AniList: deine Watchlist auf dem Server",
     "plex": "Plex: fehlende Fortsetzungen",
     "notConnected": "Kein AniList-Konto verbunden. Unter <1>Einstellungen</1> verbinden.",
@@ -682,6 +714,17 @@
     "tmdbEmpty": "Kein Watchlist-Titel im Index gefunden.",
     "trendingEmpty": "Kein Trending-Titel gefunden.",
     "otherLibrary": "Sonstige",
-    "plexLibraries": "Plex-Bibliotheken"
+    "plexLibraries": "Plex-Bibliotheken",
+    "upgradeAxes": "Achsen:",
+    "axis_res": "Auflösung",
+    "axis_sub": "Sub",
+    "axis_dub": "Dub",
+    "dismiss": "Ausblenden",
+    "ignored": "Ignorierte",
+    "restore": "Wiederherstellen",
+    "watchlist": "Plex-Merkliste",
+    "watchlistSub": "Von deinem plex.tv-Konto",
+    "movie": "Film",
+    "show": "Serie"
   }
 }

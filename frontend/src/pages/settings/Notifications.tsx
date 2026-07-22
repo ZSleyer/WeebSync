@@ -9,6 +9,7 @@ export default function Notifications() {
     <>
       <EmailPrefsSection />
       <PushSection />
+      <NotifyPrefsSection />
     </>
   )
 }
@@ -132,6 +133,59 @@ function PushSection() {
         </p>
       )}
       {state === 'unsupported' && <p className="mt-1 text-xs text-t-muted">{t('settings.pushUnsupported')}</p>}
+    </section>
+  )
+}
+
+interface NotifyPrefs {
+  push: string[]
+  available: string[]
+  pushAvailable: boolean
+  freq: string
+}
+
+// NotifyPrefsSection: per-category web-push opt-ins plus the delivery cadence
+// (instant / hourly / daily) that batches the notification digest.
+function NotifyPrefsSection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const { data } = useQuery<NotifyPrefs>({ queryKey: ['notify-prefs'], queryFn: () => api.get('/api/auth/notify-prefs') })
+  const save = useMutation({
+    mutationFn: (body: { push: string[]; freq: string }) => api.put('/api/auth/notify-prefs', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notify-prefs'] }),
+  })
+  if (!data) return null
+
+  const togglePush = (cat: string) => {
+    const push = data.push.includes(cat) ? data.push.filter((c) => c !== cat) : [...data.push, cat]
+    save.mutate({ push, freq: data.freq })
+  }
+  const setFreq = (freq: string) => save.mutate({ push: data.push, freq })
+
+  return (
+    <section className="t-panel mb-4 p-5" aria-label={t('settings.pushCategories')}>
+      <span className="t-label t-label--accent">{t('settings.pushCategories')}</span>
+      {data.pushAvailable ? (
+        <div className="mt-3 space-y-1.5">
+          {data.available.map((cat) => (
+            <label key={cat} className="flex items-center gap-2 text-sm text-t-secondary">
+              <input type="checkbox" checked={data.push.includes(cat)} onChange={() => togglePush(cat)} />
+              {t(`settings.emailCat_${cat}`)}
+            </label>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-t-muted">{t('settings.pushUnavailable')}</p>
+      )}
+      <label className="mt-4 flex items-center gap-2 text-sm text-t-secondary">
+        {t('settings.notifyFreq')}
+        <select className="t-input t-input--sm" value={data.freq} onChange={(e) => setFreq(e.target.value)}>
+          <option value="instant">{t('settings.freqInstant')}</option>
+          <option value="hourly">{t('settings.freqHourly')}</option>
+          <option value="daily">{t('settings.freqDaily')}</option>
+        </select>
+      </label>
+      <p className="mt-2 text-xs text-t-muted">{t('settings.notifyFreqHint')}</p>
     </section>
   )
 }
