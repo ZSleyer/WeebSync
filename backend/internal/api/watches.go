@@ -137,7 +137,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 			return
 		case <-tick.C:
 			interval := time.Duration(s.watchInterval()) * time.Minute
-			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, from_episode, aired_mapping, last_check FROM watches`)
+			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, from_episode, aired_mapping, last_filtered, last_check FROM watches`)
 			if err != nil {
 				continue
 			}
@@ -148,19 +148,22 @@ func (s *Server) WatchLoop(ctx context.Context) {
 				subfolder                                  bool
 				fromEpisode                                int
 				aired                                      bool
+				filtered                                   int
 			}
 			var cands []cand
 			for rows.Next() {
 				var c cand
-				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.fromEpisode, &c.aired, &c.lastCheck)
+				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.fromEpisode, &c.aired, &c.filtered, &c.lastCheck)
 				cands = append(cands, c)
 			}
 			rows.Close()
 			now := time.Now()
 			for _, c := range cands {
 				intervalDue := true
+				stale := true // unparseable/empty last_check counts as stale
 				if t, err := time.Parse("2006-01-02 15:04:05", c.lastCheck); err == nil {
 					intervalDue = !t.Add(interval).After(now.UTC())
+					stale = now.UTC().Sub(t) > staleRecheck
 				}
 				media := s.watchMedia(c.serverID, c.remotePath)
 				local := c.localPath
@@ -172,7 +175,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 					minEp = 0
 				}
 				have := s.countVideos(local, minEp)
-				if smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.aired, now) {
+				if stale || smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.filtered, c.aired, now) {
 					s.runWatch(c.id)
 				}
 			}
@@ -194,6 +197,12 @@ func watchOffset(template string) int {
 	return n
 }
 
+// staleRecheck forces a full check on a watch that has not scanned for this
+// long, however idle its airing schedule says it is: remote upgrades (v2
+// files, better encodes) of already-synced episodes appear without any airing
+// event, so a waiting watch would otherwise never see them.
+const staleRecheck = 12 * time.Hour
+
 // smartDue decides whether a watch should check now. Without an AniList
 // airing schedule the plain interval rule applies. With one, a watch that
 // already holds every aired episode stays idle until the next episode's
@@ -201,9 +210,18 @@ func watchOffset(template string) int {
 // season-relative ones (rename template); fromEpisode is the part's first
 // local episode when it shares a season folder. haveEps is the count of the
 // part's local files, compared against how many of its episodes have aired.
-func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset, fromEpisode int, aired bool, now time.Time) bool {
+// filtered is the watch's last_filtered count: remote videos the dub/sub
+// filter skipped whose target is not local yet - a backlog waiting on a
+// delayed language release (GerDub lagging the JapDub). While it is non-zero
+// the watch must keep scanning on the plain interval; the aired branch would
+// otherwise go back to sleep as soon as NextAiring rolls to the following
+// episode, missing the late release entirely.
+func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset, fromEpisode, filtered int, aired bool, now time.Time) bool {
 	if !intervalDue {
 		return false
+	}
+	if filtered > 0 {
+		return true
 	}
 	if media == nil || media.NextAiring == nil {
 		return true
@@ -785,7 +803,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 				it.NextEpisodeAbs = it.Media.NextAiring.Episode // show absolute in parens
 			}
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
-			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, it.AiredMapping, time.Now())
+			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, it.LangWaiting, it.AiredMapping, time.Now())
 			// aired per AniList but not yet local - the source release can lag
 			// the original broadcast; auto-sync keeps checking and grabs them
 			start := it.FromEpisode
