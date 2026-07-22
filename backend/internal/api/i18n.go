@@ -107,6 +107,10 @@ var catalog = map[string]map[string]string{
 		"en": "Push notifications are working.",
 		"de": "Push-Benachrichtigungen funktionieren.",
 	},
+	"notify.newSeries": {
+		"en": "New series found",
+		"de": "Neue Serie gefunden",
+	},
 }
 
 // tr resolves a catalog key for a locale, falling back to English; extra args
