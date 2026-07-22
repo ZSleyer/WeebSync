@@ -71,6 +71,9 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			if last := db.Setting(s.DB, "plex_indexed_at"); last == "" || olderThan(last, time.Hour) {
 				s.runJob("plex:index", func(context.Context) { s.indexPlexLibrary() })
 			}
+			// select preferred Plex audio/sub streams on freshly indexed
+			// episodes of watches with a playback preference (no-op when empty)
+			s.processPlexStreamQueue()
 			// keep each user's aggregated suggestion blob warm so the page loads
 			// instantly instead of assembling on the first request
 			s.warmSuggestions()

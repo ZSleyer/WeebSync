@@ -51,6 +51,8 @@ type Watch struct {
 	RenameSeriesID  int    `json:"renameSeriesId"`  // explicit provider series id for rename; 0 = auto
 	WantDub         string `json:"wantDub"`         // sync only files tagged with this dub language code (e.g. "Ger"); "" = any
 	WantSub         string `json:"wantSub"`         // sync only files tagged with this sub language code; "" = any
+	PlexAudioLang   string `json:"plexAudioLang"`   // after sync, select this audio language in Plex; "" = don't touch
+	PlexSubLang     string `json:"plexSubLang"`     // after sync, select this subtitle language in Plex; "" = don't touch
 	IntervalMin     int    `json:"intervalMin"`     // global setting, echoed for the UI
 	LastCheck       string `json:"lastCheck"`
 	LastResult      string `json:"lastResult"`    // error text of the last check, "" on success
@@ -264,15 +266,22 @@ func (s *Server) watchMedia(serverID int64, remotePath string) *anilist.Media {
 // enqueues missing/changed files through the normal transfer queue.
 func (s *Server) runWatch(id int64) {
 	var w Watch
-	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub
+	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub, plex_audio_lang, plex_sub_lang
 		FROM watches WHERE id = ?`, id).
-		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder, &w.AiredMapping, &w.RenameProvider, &w.RenameOrdering, &w.RenameTitleLang, &w.RenameSeriesID, &w.WantDub, &w.WantSub)
+		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder, &w.AiredMapping, &w.RenameProvider, &w.RenameOrdering, &w.RenameTitleLang, &w.RenameSeriesID, &w.WantDub, &w.WantSub, &w.PlexAudioLang, &w.PlexSubLang)
 	if err != nil {
 		return
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
 	ids, uploading, filtered, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, s.watchNameFn(w), s.watchLangFilter(w), true, !w.Subfolder)
+	// a Plex playback preference queues every new download for the post-index
+	// stream-selection pass (drained by the sweep once Plex has the file)
+	if w.PlexAudioLang != "" || w.PlexSubLang != "" {
+		for _, dl := range ids {
+			s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, watch_id) VALUES (?, ?)`, dl, id)
+		}
+	}
 	// structured result: the frontend localizes the counts; last_result only
 	// carries the error text of a failed check
 	result, queued := "", len(ids)
@@ -748,7 +757,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.plex_audio_lang, w.plex_sub_lang, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -761,7 +770,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var it Watch
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
-			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub,
+			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub, &it.PlexAudioLang, &it.PlexSubLang,
 			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &it.CreatedAt); err != nil {
 			dbErr(w)
 			return
@@ -985,9 +994,9 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub)
+	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub, plex_audio_lang, plex_sub_lang)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.PlexAudioLang, in.PlexSubLang)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
@@ -1037,6 +1046,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		RenameSeriesID  int    `json:"renameSeriesId"`
 		WantDub         string `json:"wantDub"`
 		WantSub         string `json:"wantSub"`
+		PlexAudioLang   string `json:"plexAudioLang"`
+		PlexSubLang     string `json:"plexSubLang"`
 	}
 	if !readJSON(w, r, &in) {
 		return
@@ -1063,8 +1074,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
-	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?
-		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, id, u.ID)
+	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?, plex_audio_lang = ?, plex_sub_lang = ?
+		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.PlexAudioLang, in.PlexSubLang, id, u.ID)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
