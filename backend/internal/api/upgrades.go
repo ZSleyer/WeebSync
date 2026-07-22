@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 )
 
@@ -75,15 +76,18 @@ func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
 
 // UpgradeVariant is one physical copy of a series and its quality.
 type UpgradeVariant struct {
-	ServerID int64    `json:"serverId"`
-	Folder   string   `json:"folder"`
-	ResRank  int      `json:"resRank"`
-	Dub      []string `json:"dub"`
-	Sub      []string `json:"sub"`
+	ServerID   int64    `json:"serverId"`
+	ServerName string   `json:"serverName,omitempty"` // "" = local filesystem
+	Folder     string   `json:"folder"`
+	ResRank    int      `json:"resRank"`
+	Dub        []string `json:"dub"`
+	Sub        []string `json:"sub"`
 }
 
 // UpgradeSuggestion proposes replacing a series' weaker copy (From) with a
-// better one that already exists elsewhere (To), naming which axes improve.
+// better one that already exists elsewhere (To), naming which axes improve and
+// carrying enough context to act: which integrations matched it (with links),
+// the media make-up (movie vs series, episode count) and cover.
 type UpgradeSuggestion struct {
 	SeriesID    int64          `json:"seriesId"`
 	Title       string         `json:"title"`
@@ -92,6 +96,11 @@ type UpgradeSuggestion struct {
 	ImprovesRes bool           `json:"improvesRes"`
 	ImprovesSub bool           `json:"improvesSub"`
 	ImprovesDub bool           `json:"improvesDub"`
+	Providers   []string       `json:"providers"`
+	Links       ProviderLinks  `json:"links"`
+	Cover       string         `json:"cover,omitempty"`
+	Format      string         `json:"format,omitempty"` // MOVIE | TV | OVA ...
+	Episodes    int            `json:"episodes,omitempty"`
 }
 
 // handleUpgrades lists, per series, every copy that a sibling copy beats on one
@@ -122,6 +131,8 @@ func (s *Server) handleUpgrades(w http.ResponseWriter, r *http.Request) {
 // /api/suggestions blob.
 func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	dims := s.upgradeDimsFor(userID)
+	names := s.serverNames()
+	_, bySeries := s.seriesProviderMaps()
 	rows, err := s.DB.Query(`SELECT sp.series_id, se.title, v.server_id, v.folder, v.res_rank, v.dub_codes, v.sub_codes
 		FROM catalog_variants v
 		JOIN catalog_matches m  ON m.server_id = v.server_id AND m.folder = v.folder AND m.media_id != 0
@@ -147,7 +158,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			order = append(order, sid)
 		}
 		groups[sid] = append(groups[sid], seriesVariant{
-			v:     UpgradeVariant{ServerID: serverID, Folder: folder, ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub)},
+			v:     UpgradeVariant{ServerID: serverID, ServerName: names[serverID], Folder: folder, ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub)},
 			title: title,
 		})
 	}
@@ -169,13 +180,57 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			if !impRes && !impSub && !impDub {
 				continue
 			}
-			out = append(out, UpgradeSuggestion{
+			up := UpgradeSuggestion{
 				SeriesID: sid, Title: cur.title, From: cur.v, To: top.v,
 				ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub,
-			})
+			}
+			// same context the other cards carry: which APIs matched (+ links),
+			// cover and the media make-up (movie vs series, episode count)
+			up.Providers, up.Links = s.providerBadgesLinks(bySeries[sid], cur.title)
+			if m := s.seriesMedia(bySeries[sid]); m != nil {
+				up.Cover, up.Format, up.Episodes = m.CoverImage.Large, m.Format, m.Episodes
+			}
+			out = append(out, up)
 		}
 	}
 	return out
+}
+
+// serverNames maps server id → display name (id 0 / local has none).
+func (s *Server) serverNames() map[int64]string {
+	m := map[int64]string{}
+	rows, err := s.DB.Query(`SELECT id, name FROM servers`)
+	if err != nil {
+		return m
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var name string
+		if rows.Scan(&id, &name) == nil {
+			m[id] = name
+		}
+	}
+	return m
+}
+
+// seriesMedia resolves cached media for a series from its provider hits,
+// preferring AniList (richest metadata), for cover/format/episode display.
+func (s *Server) seriesMedia(refs []providerRef) *anilist.Media {
+	pick := func(want string) *anilist.Media {
+		for _, r := range refs {
+			if want == "" || r.Source == want {
+				if m, _ := s.sourceMedia(r.Source, r.MediaID); m != nil {
+					return m
+				}
+			}
+		}
+		return nil
+	}
+	if m := pick("anilist"); m != nil {
+		return m
+	}
+	return pick("")
 }
 
 // seriesVariant pairs a copy's quality with the series' display title.
