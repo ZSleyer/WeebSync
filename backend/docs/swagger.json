@@ -221,6 +221,23 @@
                 },
                 "type": "object"
             },
+            "api.DismissedItem": {
+                "properties": {
+                    "dismissedAt": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "refKey": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.DownloadCreateRequest": {
                 "properties": {
                     "flat": {
@@ -424,6 +441,46 @@
                 },
                 "type": "object"
             },
+            "api.NotifyPrefsResponse": {
+                "properties": {
+                    "available": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "freq": {
+                        "type": "string"
+                    },
+                    "push": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "pushAvailable": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "api.NotifyPrefsUpdateRequest": {
+                "properties": {
+                    "freq": {
+                        "type": "string"
+                    },
+                    "push": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "api.OIDCDiscoverResponse": {
                 "properties": {
                     "issuer": {
@@ -437,6 +494,27 @@
                     "status": {
                         "example": "ok",
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.PlexWatchItem": {
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "tmdb": {
+                        "type": "integer"
+                    },
+                    "tvdb": {
+                        "type": "integer"
+                    },
+                    "type": {
+                        "description": "show | movie",
+                        "type": "string"
+                    },
+                    "year": {
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -607,6 +685,74 @@
                 "properties": {
                     "enabled": {
                         "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "api.UpgradeDims": {
+                "properties": {
+                    "dub": {
+                        "type": "boolean"
+                    },
+                    "res": {
+                        "type": "boolean"
+                    },
+                    "sub": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "api.UpgradeSuggestion": {
+                "properties": {
+                    "from": {
+                        "$ref": "#/components/schemas/api.UpgradeVariant"
+                    },
+                    "improvesDub": {
+                        "type": "boolean"
+                    },
+                    "improvesRes": {
+                        "type": "boolean"
+                    },
+                    "improvesSub": {
+                        "type": "boolean"
+                    },
+                    "seriesId": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "to": {
+                        "$ref": "#/components/schemas/api.UpgradeVariant"
+                    }
+                },
+                "type": "object"
+            },
+            "api.UpgradeVariant": {
+                "properties": {
+                    "dub": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "folder": {
+                        "type": "string"
+                    },
+                    "resRank": {
+                        "type": "integer"
+                    },
+                    "serverId": {
+                        "type": "integer"
+                    },
+                    "sub": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -1276,6 +1422,23 @@
                 },
                 "type": "object"
             },
+            "api.dismissRequest": {
+                "properties": {
+                    "kind": {
+                        "description": "\"suggestion\" | \"upgrade\"",
+                        "type": "string"
+                    },
+                    "label": {
+                        "description": "display title, for the restore list",
+                        "type": "string"
+                    },
+                    "refKey": {
+                        "description": "stable id: \"series:42\" or \"source:media_id\"",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.ipStatus": {
                 "properties": {
                     "blocked": {
@@ -1301,6 +1464,17 @@
                 },
                 "type": "object"
             },
+            "api.plexAccountResponse": {
+                "properties": {
+                    "linked": {
+                        "type": "boolean"
+                    },
+                    "user": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.plexCandidate": {
                 "properties": {
                     "path": {
@@ -1310,6 +1484,21 @@
                         "type": "integer"
                     },
                     "serverName": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.plexLinkResponse": {
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "url": {
+                        "description": "the plex.tv page the user opens to authorise",
                         "type": "string"
                     }
                 },
@@ -3903,6 +4092,84 @@
                 ]
             }
         },
+        "/api/auth/notify-prefs": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.NotifyPrefsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Get push/notify preferences",
+                "tags": [
+                    "Notifications"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.NotifyPrefsUpdateRequest",
+                                        "summary": "prefs",
+                                        "description": "Push categories and frequency"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Push categories and frequency",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Update push/notify preferences",
+                "tags": [
+                    "Notifications"
+                ]
+            }
+        },
         "/api/auth/oidc/discover": {
             "post": {
                 "description": "Probes a base URL (and common mount paths) for an OIDC discovery document and returns the issuer of the first hit. Open during first-run; requires an admin session afterwards.",
@@ -4495,6 +4762,84 @@
                 "summary": "Begin TOTP enrollment",
                 "tags": [
                     "TwoFactor"
+                ]
+            }
+        },
+        "/api/auth/upgrade-dims": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.UpgradeDims"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Get upgrade suggestion axes",
+                "tags": [
+                    "Suggestions"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.UpgradeDims",
+                                        "summary": "body",
+                                        "description": "Enabled axes"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Enabled axes",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Set upgrade suggestion axes",
+                "tags": [
+                    "Suggestions"
                 ]
             }
         },
@@ -6403,6 +6748,125 @@
                 ]
             }
         },
+        "/api/plex/account": {
+            "delete": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Unlink plex.tv account",
+                "tags": [
+                    "Suggestions"
+                ]
+            },
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.plexAccountResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "plex.tv account status",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/plex/link/poll": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "PIN id from link/start",
+                        "in": "query",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.plexAccountResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Poll plex.tv account link",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/plex/link/start": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.plexLinkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Start plex.tv account link",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
         "/api/plex/me": {
             "get": {
                 "description": "Report whether the configured Plex URL and token reach a server, including its name and the linked account.",
@@ -6509,6 +6973,34 @@
                     }
                 ],
                 "summary": "Plex suggestions",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/plex/watchlist": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.PlexWatchItem"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "plex.tv watchlist",
                 "tags": [
                     "Suggestions"
                 ]
@@ -8283,6 +8775,142 @@
                 ]
             }
         },
+        "/api/suggestions/dismiss": {
+            "delete": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.dismissRequest",
+                                        "summary": "body",
+                                        "description": "Item to restore (kind + refKey)"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Item to restore (kind + refKey)",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Restore an ignored suggestion",
+                "tags": [
+                    "Suggestions"
+                ]
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.dismissRequest",
+                                        "summary": "body",
+                                        "description": "Item to ignore"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Item to ignore",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Ignore a suggestion",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/suggestions/dismissed": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.DismissedItem"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "List ignored suggestions",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
         "/api/tmdb/callback": {
             "get": {
                 "description": "Finish TMDB linking (token check, session creation, account storage); redirects to /settings.",
@@ -8781,6 +9409,35 @@
                     }
                 ],
                 "summary": "Search TVDB",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/upgrades": {
+            "get": {
+                "description": "Better-quality copies (resolution / more sub or dub) of series already present.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.UpgradeSuggestion"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Upgrade suggestions",
                 "tags": [
                     "Suggestions"
                 ]
