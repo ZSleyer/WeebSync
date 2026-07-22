@@ -347,7 +347,15 @@
     "lastQueued_one": "{{count}} new",
     "lastQueued_other": "{{count}} new",
     "infoSource": "Source: {{server}} · {{quality}}",
-    "infoLocal": "Local (Plex): {{quality}}"
+    "infoLocal": "Local (Plex): {{quality}}",
+    "sectionPlex": "Plex playback",
+    "plexAudio": "Audio language in Plex",
+    "plexSub": "Subtitle language in Plex",
+    "plexNoChange": "Do not change",
+    "plexHint": "After a sync, selects the new episode’s default audio/subtitle track in Plex (for the linked Plex account) once Plex has indexed the file. Independent of the download filter above: e.g. JapDub + GerSub on a GerJapDub file.",
+    "plexApplyAll": "Apply Plex tracks",
+    "plexApplyAllHint": "Applies the audio/subtitle preference once to every episode of this show already in Plex.",
+    "plexApplyQueued": "Applying to existing episodes started."
   },
   "rename": {
     "title": "RENAME",

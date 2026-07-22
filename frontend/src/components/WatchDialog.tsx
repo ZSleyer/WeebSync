@@ -15,12 +15,15 @@ export interface WatchFields extends RenameRule {
   mediaSource: string
   wantDub: string
   wantSub: string
+  plexAudioLang: string
+  plexSubLang: string
 }
 
 // WatchDialog collects the paths and rename rule of a watch (create from
 // Browser, edit from the Watches page). Anatomy: fixed header, scrollable
-// body in four sections (source&target / display metadata / language filter /
-// rename+preview), sticky footer. The dry-run preview loads automatically.
+// body in five sections (source&target / display metadata / download filter /
+// Plex playback / rename+preview), sticky footer. The dry-run preview loads
+// automatically.
 export default function WatchDialog({
   title,
   serverId,
@@ -305,6 +308,36 @@ export default function WatchDialog({
                         onChange={(e) => setF({ ...f, [key]: e.target.value })}
                       >
                         <option value="">{t('watch.langAny')}</option>
+                        {all.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </section>
+
+          <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionPlex')}>
+            <span className="t-label t-label--accent">{t('watch.sectionPlex')}</span>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
+                const opts = key === 'plexAudioLang' ? langs.dub : langs.sub
+                const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
+                return (
+                  <label key={key} className="text-xs text-t-muted">
+                    {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
+                    {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
+                    <span className="t-select-wrap mt-1 block">
+                      <select
+                        className="t-select"
+                        value={f[key]}
+                        onChange={(e) => setF({ ...f, [key]: e.target.value })}
+                      >
+                        <option value="">{t('watch.plexNoChange')}</option>
                         {all.map((c) => (
                           <option key={c} value={c}>
                             {c}

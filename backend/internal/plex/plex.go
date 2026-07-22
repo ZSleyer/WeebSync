@@ -93,6 +93,25 @@ func (c *Client) get(path string, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
+// put issues a parameterless-body PUT (Plex mutations carry everything in the
+// URL). Token in the header, like get.
+func (c *Client) put(path string) error {
+	req, err := http.NewRequest(http.MethodPut, c.URL+path, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Plex-Token", c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("plex: HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func (c *Client) Sections() ([]Section, error) {
 	var resp struct {
 		MediaContainer struct {
@@ -392,6 +411,79 @@ func (c *Client) SeasonMedia(ratingKey string) (map[int]ShowMedia, error) {
 		out[se] = m0
 	}
 	return out, nil
+}
+
+// EpisodeStream is one audio/subtitle stream of an episode's file, with the
+// id needed to select it.
+type EpisodeStream struct {
+	ID       int64
+	Type     int // 2 audio, 3 subtitle
+	LangCode string
+	Language string
+}
+
+// EpisodePart is one episode's media part: its Plex-side file path plus every
+// selectable stream. Unlike ShowMedia/SeasonMedia this keeps ids per episode,
+// which the stream-selection PUT needs.
+type EpisodePart struct {
+	RatingKey string
+	PartID    int64
+	File      string
+	Streams   []EpisodeStream
+}
+
+// EpisodeParts lists every episode part of a show (allLeaves, with streams).
+func (c *Client) EpisodeParts(showRatingKey string) ([]EpisodePart, error) {
+	var resp struct {
+		MediaContainer struct {
+			Metadata []struct {
+				RatingKey string `json:"ratingKey"`
+				Media     []struct {
+					Part []struct {
+						ID     int64  `json:"id"`
+						File   string `json:"file"`
+						Stream []struct {
+							ID         int64  `json:"id"`
+							StreamType int    `json:"streamType"`
+							Language   string `json:"language"`
+							LangCode   string `json:"languageCode"`
+						} `json:"Stream"`
+					} `json:"Part"`
+				} `json:"Media"`
+			} `json:"Metadata"`
+		} `json:"MediaContainer"`
+	}
+	if err := c.get("/library/metadata/"+url.PathEscape(showRatingKey)+"/allLeaves?includeStreams=1", &resp); err != nil {
+		return nil, err
+	}
+	var out []EpisodePart
+	for _, ep := range resp.MediaContainer.Metadata {
+		for _, m := range ep.Media {
+			for _, p := range m.Part {
+				part := EpisodePart{RatingKey: ep.RatingKey, PartID: p.ID, File: p.File}
+				for _, st := range p.Stream {
+					part.Streams = append(part.Streams, EpisodeStream{
+						ID: st.ID, Type: st.StreamType, LangCode: st.LangCode, Language: st.Language,
+					})
+				}
+				out = append(out, part)
+			}
+		}
+	}
+	return out, nil
+}
+
+// SetStreams selects a part's audio and/or subtitle stream for the token's
+// account (0 = leave that dimension untouched).
+func (c *Client) SetStreams(partID, audioStreamID, subtitleStreamID int64) error {
+	q := url.Values{"allParts": {"1"}}
+	if audioStreamID != 0 {
+		q.Set("audioStreamID", strconv.FormatInt(audioStreamID, 10))
+	}
+	if subtitleStreamID != 0 {
+		q.Set("subtitleStreamID", strconv.FormatInt(subtitleStreamID, 10))
+	}
+	return c.put("/library/parts/" + strconv.FormatInt(partID, 10) + "?" + q.Encode())
 }
 
 // Shows lists every show of a section (title, year, episode/season counts).

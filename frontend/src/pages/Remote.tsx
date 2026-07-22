@@ -279,6 +279,8 @@ export default function Remote() {
             renameSeriesId: 0,
             wantDub: '',
             wantSub: '',
+            plexAudioLang: '',
+            plexSubLang: '',
           }}
           onSave={async (f) => {
             await api.post('/api/watches', { serverId: active, ...f })

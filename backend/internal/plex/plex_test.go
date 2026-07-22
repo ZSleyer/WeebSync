@@ -23,6 +23,27 @@ func testServer(t *testing.T) *httptest.Server {
 		w.Write([]byte(`{"MediaContainer":{"Metadata":[
 			{"ratingKey":"10","title":"Example Show","year":2024,"leafCount":12,"childCount":1}]}}`))
 	})
+	mux.HandleFunc("/library/metadata/10/allLeaves", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"MediaContainer":{"Metadata":[
+			{"ratingKey":"100","parentIndex":1,"Media":[{"videoResolution":"1080","Part":[
+				{"id":501,"file":"/media/plex/series/Example_Show/Season 01/ep01.mkv","Stream":[
+					{"id":1,"streamType":1},
+					{"id":2,"streamType":2,"language":"German","languageCode":"deu"},
+					{"id":3,"streamType":2,"language":"Japanese","languageCode":"jpn"},
+					{"id":4,"streamType":3,"language":"German","languageCode":"deu"}]}]}]}]}}`))
+	})
+	mux.HandleFunc("/library/parts/501", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			http.Error(w, "method", http.StatusMethodNotAllowed)
+			return
+		}
+		q := r.URL.Query()
+		if q.Get("allParts") != "1" || q.Get("audioStreamID") != "3" || q.Get("subtitleStreamID") != "4" {
+			http.Error(w, "params", http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
 	mux.HandleFunc("/library/metadata/10", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("includePreferences") == "1" {
 			w.Write([]byte(`{"MediaContainer":{"Metadata":[{"Preferences":{"Setting":[
@@ -75,6 +96,19 @@ func TestClient(t *testing.T) {
 	}
 	if _, ok := c.LibraryForPath("/somewhere/else"); ok {
 		t.Error("unrelated path must not match a library")
+	}
+
+	// per-episode parts carry ids for stream selection
+	parts, err := c.EpisodeParts("10")
+	if err != nil || len(parts) != 1 {
+		t.Fatalf("episode parts: %v %v", parts, err)
+	}
+	p := parts[0]
+	if p.RatingKey != "100" || p.PartID != 501 || len(p.Streams) != 4 {
+		t.Fatalf("part: %+v", p)
+	}
+	if err := c.SetStreams(501, 3, 4); err != nil {
+		t.Errorf("set streams: %v", err)
 	}
 
 	c.Token = "wrong"

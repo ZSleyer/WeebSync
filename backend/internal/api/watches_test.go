@@ -80,6 +80,16 @@ func TestWatchCRUD(t *testing.T) {
 	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"remotePath":"/x/Show","localPath":"anime","mode":"regex","pattern":"\\d+","replacement":"E$0"}`, cookieA); rec.Code != http.StatusOK {
 		t.Errorf("update: got %d: %s", rec.Code, rec.Body)
 	}
+	// Plex playback preference round-trips through update and list
+	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"remotePath":"/x/Show","localPath":"anime","plexAudioLang":"Jap","plexSubLang":"Ger"}`, cookieA); rec.Code != http.StatusOK {
+		t.Errorf("plex streams update: got %d: %s", rec.Code, rec.Body)
+	}
+	rec = doReq(mux, "GET", "/api/watches", "", cookieA)
+	list = nil
+	json.Unmarshal(rec.Body.Bytes(), &list)
+	if len(list) != 1 || list[0].PlexAudioLang != "Jap" || list[0].PlexSubLang != "Ger" {
+		t.Errorf("plex streams roundtrip: %s", rec.Body)
+	}
 	// update may move the watch to another remote/local path
 	if rec := doReq(mux, "PUT", fmt.Sprintf("/api/watches/%d", id), `{"remotePath":"/x/Show v2","localPath":"anime2"}`, cookieA); rec.Code != http.StatusOK {
 		t.Errorf("path update: got %d: %s", rec.Code, rec.Body)
