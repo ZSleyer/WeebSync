@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api, type Entry, type RenamePair } from '../api'
+import { api } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
 import Loading from './Loading'
 import RenameOptions, { Hint, type RenameProfile, type RenameRule } from './RenameOptions'
+import { useRenamePreview } from './useRenamePreview'
 
 export interface WatchFields extends RenameRule {
   remotePath: string
@@ -72,8 +73,6 @@ export default function WatchDialog({
     initial.remotePath.split('/').filter(Boolean).slice(0, -1).join('/'),
   )
   const [localBrowse, setLocalBrowse] = useState('')
-  const [pairs, setPairs] = useState<RenamePair[] | null>(null)
-  const [previewBusy, setPreviewBusy] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   // language codes present in this server's index, for the dub/sub filter
@@ -86,7 +85,7 @@ export default function WatchDialog({
       .catch(() => {}) // filter is optional; a saved value still shows via its own option below
   }, [serverId])
 
-  const hasRule = (f.mode === 'template' && !!f.template) || (f.mode === 'regex' && !!f.pattern)
+  const { pairs, busy: previewBusy, hasRule } = useRenamePreview({ serverId, fields: f, enabled: renameOn })
 
   // unsaved-changes guard: confirm before closing via backdrop / Escape / cancel
   const dirty =
@@ -111,54 +110,6 @@ export default function WatchDialog({
     window.addEventListener('beforeunload', h)
     return () => window.removeEventListener('beforeunload', h)
   }, [dirty])
-
-  // live preview, debounced against typing
-  useEffect(() => {
-    if (!renameOn || !hasRule || !f.remotePath) {
-      setPairs(null)
-      return
-    }
-    let stale = false // an in-flight preview must not overwrite a newer one
-    const run = setTimeout(async () => {
-      setPreviewBusy(true)
-      try {
-        const entries = await api.get<Entry[]>(
-          `/api/servers/${serverId}/browse?path=${encodeURIComponent(f.remotePath)}`,
-        )
-        const names = entries.filter((e) => !e.isDir).map((e) => e.name).slice(0, 8)
-        // send the full watch context so the preview applies the aired-order
-        // mapping and localized title exactly like the real sync
-        const next = names.length ? await api.post<RenamePair[]>('/api/rename/names', { names, serverId, ...f }) : []
-        if (!stale) setPairs(next)
-      } catch {
-        if (!stale) setPairs(null) // preview is best-effort; saving reports real errors
-      } finally {
-        if (!stale) setPreviewBusy(false)
-      }
-    }, 500)
-    return () => {
-      stale = true
-      clearTimeout(run)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    renameOn,
-    hasRule,
-    serverId,
-    f.remotePath,
-    f.localPath,
-    f.mode,
-    f.template,
-    f.separator,
-    f.titleOverride,
-    f.pattern,
-    f.replacement,
-    f.airedMapping,
-    f.renameProvider,
-    f.renameOrdering,
-    f.renameTitleLang,
-    f.renameSeriesId,
-  ])
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()

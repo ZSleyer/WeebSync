@@ -1,9 +1,22 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Check, Clock, Download, ExternalLink, Eye, Files, Info, Pause, Pencil, Play, Radio, Star, Undo2, X, type LucideIcon } from 'lucide-react'
+
+// icon per AniList airing status, shown inside the detail dialog's t-label chip
+const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
+  RELEASING: Radio,
+  FINISHED: Check,
+  NOT_YET_RELEASED: Clock,
+  CANCELLED: X,
+  HIATUS: Pause,
+}
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
 import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
+import FileIcon from '../components/FileIcon'
+import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
+import { useRenamePreview } from '../components/useRenamePreview'
 import WatchDialog from '../components/WatchDialog'
 import { useConfirm } from '../components/confirm'
 import Loading from '../components/Loading'
@@ -16,7 +29,6 @@ export default function Remote() {
   })
   const [params] = useSearchParams()
   const [serverId, setServerId] = useState<number>(Number(params.get('server')) || 0)
-  const [view, setView] = useState<'classic' | 'catalog'>('classic')
   // deep links (e.g. Plex suggestions) open the browser at a remote path
   const [remotePath, setRemotePath] = useState((params.get('path') ?? '').replace(/^\//, ''))
   const [localPath, setLocalPath] = useState('')
@@ -29,41 +41,54 @@ export default function Remote() {
   const [syncEntry, setSyncEntry] = useState<Entry | null>(null)
   const [flat, setFlat] = useState(false)
   const [query, setQuery] = useState('')
-  // preference: land in catalog view automatically for catalog-managed folders
-  const [catalogAuto, setCatalogAuto] = useState(() => localStorage.getItem('catalogAutoOpen') === '1')
+  // one view control instead of checkbox + toggle: classic list, catalog for
+  // the current tree, or auto (persisted: follow the folder's catalog scope)
+  const [mode, setMode] = useState<'classic' | 'catalog' | 'auto'>(() =>
+    localStorage.getItem('catalogAutoOpen') === '1' ? 'auto' : 'classic',
+  )
   useEffect(() => {
-    localStorage.setItem('catalogAutoOpen', catalogAuto ? '1' : '0')
-  }, [catalogAuto])
+    localStorage.setItem('catalogAutoOpen', mode === 'auto' ? '1' : '0')
+  }, [mode])
 
   const active = serverId || servers[0]?.id || 0
 
   // cheap scope probe (no listing/matching) so we know whether the current
-  // folder is catalog-managed; drives the auto-open above without side effects
+  // folder is catalog-managed; previous data carries over while the next
+  // probe loads so the view doesn't flicker to classic on every navigation
   const { data: scopeInfo } = useQuery<{ scope: string }>({
     queryKey: ['catalog-scope', active, remotePath],
     queryFn: () => api.get(`/api/servers/${active}/catalog/scope${remotePath ? `?path=${encodeURIComponent('/' + remotePath)}` : ''}`),
     enabled: active > 0 && !query.trim(),
     staleTime: 60_000,
+    placeholderData: (prev) => prev,
   })
-  // re-runs only on navigation / preference change, so a manual switch to
-  // classic on a catalog folder sticks until the user navigates elsewhere.
-  // Without the auto preference we only fall back: navigating out of the
-  // catalog tree (no scope, so nothing to show) lands in the classic list.
+  // manual catalog only lives inside the catalog tree: navigating out (no
+  // scope, so nothing to show) drops back to classic, like the old toggle
   useEffect(() => {
-    if (!scopeInfo) return
-    if (catalogAuto) setView(scopeInfo.scope !== '' ? 'catalog' : 'classic')
-    else if (scopeInfo.scope === '') setView('classic')
-  }, [catalogAuto, scopeInfo, remotePath])
+    if (mode === 'catalog' && scopeInfo?.scope === '') setMode('classic')
+  }, [mode, scopeInfo])
+  const view = mode !== 'classic' && scopeInfo?.scope ? 'catalog' : 'classic'
 
   const [lastIds, setLastIds] = useState<number[]>([])
   const enqueue = useMutation({
-    mutationFn: (entry: Entry) =>
-      api.post<{ queued: number; ids: number[] }>('/api/downloads', {
-        serverId: active,
-        remotePath: entry.path,
-        localPath,
-        flat: flat && entry.isDir,
-      }),
+    // with a rename rule the one-off sync endpoint applies the full watch
+    // pipeline (template, aired mapping) without persisting a watch; note the
+    // inverted flag: handleSyncOnce derives flat from !subfolder
+    mutationFn: ({ entry, rename }: { entry: Entry; rename: RenameRule | null }) =>
+      rename
+        ? api.post<{ queued: number; ids: number[] }>('/api/downloads/sync', {
+            serverId: active,
+            remotePath: entry.path,
+            localPath,
+            subfolder: !(flat && entry.isDir),
+            ...rename,
+          })
+        : api.post<{ queued: number; ids: number[] }>('/api/downloads', {
+            serverId: active,
+            remotePath: entry.path,
+            localPath,
+            flat: flat && entry.isDir,
+          }),
     onSuccess: (r) => {
       setNotice(t('remote.queued', { count: r.queued }))
       setLastIds(r.ids ?? [])
@@ -96,42 +121,36 @@ export default function Remote() {
 
   return (
     <div className="flex min-h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-3rem)]">
-      <header className="mb-4 flex flex-wrap items-center gap-3">
+      {/* controls sit side by side with their labels stacked on top, so the
+          selects share one baseline instead of two ragged label+select rows */}
+      <header className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-2">
         <div className="mr-auto">
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('remote.title')}</h2>
           <span className="t-label mt-1">{t('remote.sub')}</span>
         </div>
-        <label className="flex items-center gap-2 text-xs text-t-muted">
-          {t('remote.source')}
-          <span className="t-select-wrap w-48">
-            <select className="t-select" value={active} onChange={(e) => setServerId(Number(e.target.value))}>
-              {servers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </span>
-        </label>
-        <label className="flex items-center gap-2 text-xs text-t-muted" title={t('remote.autoCatalogHint')}>
-          <input type="checkbox" checked={catalogAuto} onChange={(e) => setCatalogAuto(e.target.checked)} />
-          {t('remote.autoCatalog')}
-        </label>
-        <div role="group" aria-label={t('remote.view')} className="flex">
-          <button
-            className={`t-btn t-btn--sm ${view === 'classic' ? 't-btn--primary' : ''}`}
-            aria-pressed={view === 'classic'}
-            onClick={() => setView('classic')}
-          >
-            {t('remote.classic')}
-          </button>
-          <button
-            className={`t-btn t-btn--sm ${view === 'catalog' ? 't-btn--primary' : ''}`}
-            aria-pressed={view === 'catalog'}
-            onClick={() => setView('catalog')}
-          >
-            {t('remote.catalog')}
-          </button>
+        <div className="flex w-full gap-3 sm:w-auto">
+          <label className="flex-1 text-xs text-t-muted sm:flex-none">
+            {t('remote.source')}
+            <span className="t-select-wrap mt-1 block sm:w-44">
+              <select className="t-select" value={active} onChange={(e) => setServerId(Number(e.target.value))}>
+                {servers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
+          <label className="flex-1 text-xs text-t-muted sm:flex-none" title={t('remote.autoCatalogHint')}>
+            {t('remote.view')}
+            <span className="t-select-wrap mt-1 block sm:w-40">
+              <select className="t-select" value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
+                <option value="classic">{t('remote.classic')}</option>
+                <option value="catalog">{t('remote.catalog')}</option>
+                <option value="auto">{t('remote.catalogAutoOption')}</option>
+              </select>
+            </span>
+          </label>
         </div>
       </header>
 
@@ -188,11 +207,11 @@ export default function Remote() {
               onSync={setSyncEntry}
               onWatch={setWatchEntry}
               onOpenFiles={(p) => {
-                // ponytail: the auto-open preference re-opens the catalog if the
-                // target folder carries a mark of its own; marks no longer
-                // inherit, so that only happens when the user set one there
+                // ponytail: in auto mode the view re-derives from the target's
+                // own scope; marks no longer inherit, so subfolders without a
+                // mark of their own land in the classic list anyway
                 setRemotePath(p.replace(/^\//, ''))
-                setView('classic')
+                if (mode === 'catalog') setMode('classic')
               }}
             />
           )}
@@ -207,13 +226,13 @@ export default function Remote() {
         <div
           role="region"
           aria-label={t('remote.selectionBar')}
-          className="t-panel fixed inset-x-4 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 flex flex-wrap items-center gap-2 p-3 lg:static lg:z-auto lg:mt-4 lg:inset-auto"
+          // fixed!/static!: .t-panel is unlayered CSS, its position:relative
+          // beats the utilities layer without the important marker
+          className="t-panel fixed! inset-x-4 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 flex flex-wrap items-center gap-2 p-3 lg:static! lg:z-auto lg:mt-4 lg:inset-auto"
         >
           {selection && (
-            <span className="min-w-0 flex-1 truncate text-sm text-t-secondary" title={selection.path}>
-              <span aria-hidden className="mr-1.5 font-mono text-xs text-accent">
-                {selection.isDir ? '▸' : '·'}
-              </span>
+            <span className="min-w-28 flex-1 truncate text-sm text-t-secondary" title={selection.path}>
+              <FileIcon isDir={selection.isDir} name={selection.name} className="mr-1.5 inline align-[-2px]" />
               {selection.name}
             </span>
           )}
@@ -222,6 +241,7 @@ export default function Remote() {
               {notice}
               {lastIds.length > 0 && (
                 <button className="t-btn t-btn--sm t-btn--danger" onClick={cancelLast}>
+                  <Undo2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('remote.undoSync')}
                 </button>
               )}
@@ -230,9 +250,11 @@ export default function Remote() {
           {selection && (
             <>
               <button className="t-btn t-btn--sm" disabled={!selection.isDir} onClick={() => setWatchEntry(selection)}>
+                <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('watch.add')}
               </button>
               <button className="t-btn t-btn--primary t-btn--sm t-cut" onClick={() => setSyncEntry(selection)}>
+                <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.syncOpen')}
               </button>
             </>
@@ -243,13 +265,14 @@ export default function Remote() {
       {syncEntry && (
         <SyncDialog
           entry={syncEntry}
+          serverId={active}
           localPath={localPath}
           onLocalPath={setLocalPath}
           flat={flat}
           onFlat={setFlat}
           pending={enqueue.isPending}
-          onConfirm={() => {
-            enqueue.mutate(syncEntry)
+          onConfirm={(rename) => {
+            enqueue.mutate({ entry: syncEntry, rename })
             setSyncEntry(null)
           }}
           onClose={() => setSyncEntry(null)}
@@ -339,9 +362,7 @@ function SearchResults({
               }`}
               onClick={() => (e.isDir ? onOpenDir(e.path) : onSelect(e))}
             >
-              <span aria-hidden className={`font-mono text-xs ${e.isDir ? 'text-accent' : 'text-t-faint'}`}>
-                {e.isDir ? '▸' : '·'}
-              </span>
+              <FileIcon isDir={e.isDir} name={e.name} />
               <span className="min-w-0 flex-1 truncate">
                 {e.name}
                 <span className="mt-0.5 block truncate font-mono text-[10px] text-t-faint">{e.path}</span>
@@ -561,7 +582,7 @@ export function CatalogGrid({
                   title={t('remote.changeMatch')}
                   onClick={() => setRematch(it)}
                 >
-                  ✎
+                  <Pencil aria-hidden size="1.2em" />
                 </button>
               )}
               <button
@@ -610,7 +631,7 @@ export function CatalogGrid({
                       <>
                         {g.media.seasonYear > 0 && <span className="t-label">{g.media.seasonYear}</span>}
                         {g.media.episodes > 0 && <span className="t-label">{g.media.episodes} EP</span>}
-                        {g.media.averageScore > 0 && <span className="t-label t-label--accent">★ {g.media.averageScore}</span>}
+                        {g.media.averageScore > 0 && <span className="t-label t-label--accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{g.media.averageScore}</span>}
                       </>
                     )}
                   </div>
@@ -645,7 +666,7 @@ export function CatalogGrid({
                     title={t('remote.details')}
                     onClick={() => setDetail(g)}
                   >
-                    ℹ
+                    <Info aria-hidden size="1.2em" />
                   </button>
                   {!multi && (
                     <>
@@ -655,7 +676,7 @@ export function CatalogGrid({
                         title={t('remote.showFiles')}
                         onClick={() => onOpenFiles(it.entry.path)}
                       >
-                        🗎
+                        <Files aria-hidden size="1.2em" />
                       </button>
                       {onSync && (
                         <button
@@ -664,7 +685,7 @@ export function CatalogGrid({
                           title={t('plex.syncOnce')}
                           onClick={() => onSync(it.entry)}
                         >
-                          ⇣
+                          <Download aria-hidden size="1.2em" />
                         </button>
                       )}
                       {onWatch && (
@@ -674,7 +695,7 @@ export function CatalogGrid({
                           title={t('watch.add')}
                           onClick={() => onWatch(it.entry)}
                         >
-                          ◉
+                          <Eye aria-hidden size="1.2em" />
                         </button>
                       )}
                       {cardActions?.(it.entry)}
@@ -689,7 +710,7 @@ export function CatalogGrid({
                     title={t('remote.showFiles')}
                     onClick={() => onOpenFiles(it.entry.path)}
                   >
-                    🗎
+                    <Files aria-hidden size="1.2em" />
                   </button>
                   {!g.pending && !!it.source && (
                     <button className="t-btn t-btn--sm flex-1" onClick={() => setRematch(it)}>
@@ -745,8 +766,26 @@ export function CatalogGrid({
 // Sync dialog: picks the local target for the selected remote entry. Replaces
 // the old second column, which on phones ended up below a list of hundreds of
 // entries. Target and flat flag live in the parent, so the choice survives.
+// The optional rename rule is per-dialog: a one-off sync through the watch
+// pipeline, so it starts empty every time.
+const EMPTY_RULE: RenameRule = {
+  mode: 'template',
+  template: '',
+  separator: '',
+  titleOverride: '',
+  pattern: '',
+  replacement: '',
+  fromEpisode: 0,
+  airedMapping: false,
+  renameProvider: '',
+  renameOrdering: '',
+  renameTitleLang: '',
+  renameSeriesId: 0,
+}
+
 function SyncDialog({
   entry,
+  serverId,
   localPath,
   onLocalPath,
   flat,
@@ -756,12 +795,13 @@ function SyncDialog({
   onClose,
 }: {
   entry: Entry
+  serverId: number
   localPath: string
   onLocalPath: (p: string) => void
   flat: boolean
   onFlat: (v: boolean) => void
   pending: boolean
-  onConfirm: () => void
+  onConfirm: (rename: RenameRule | null) => void
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -769,6 +809,30 @@ function SyncDialog({
   const backdropDown = useRef(false)
   const confirmed = useRef(false)
   const [browse, setBrowse] = useState(false)
+  const [renameOn, setRenameOn] = useState(false)
+  const [rule, setRule] = useState<RenameRule>(EMPTY_RULE)
+  const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean; tmdbApiKeySet?: boolean }>({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/api/settings'),
+    retry: false,
+    staleTime: 5 * 60_000,
+  })
+  const { data: detected } = useQuery<RenameProfile>({
+    queryKey: ['rename-profile', serverId, entry.path, localPath, rule.renameProvider],
+    queryFn: () =>
+      api.get(
+        `/api/servers/${serverId}/rename-profile?path=${encodeURIComponent(entry.path)}&local=${encodeURIComponent(localPath)}&provider=${rule.renameProvider}`,
+      ),
+    enabled: !!rule.airedMapping,
+    retry: false,
+    staleTime: 60_000,
+  })
+  const { pairs, busy: previewBusy, hasRule } = useRenamePreview({
+    serverId,
+    fields: { ...rule, remotePath: entry.path, localPath },
+    enabled: renameOn,
+    fileName: entry.isDir ? undefined : entry.name,
+  })
   useEffect(() => {
     ref.current?.showModal()
   }, [])
@@ -783,7 +847,7 @@ function SyncDialog({
       ref={ref}
       className="dialog-sheet w-full max-w-lg p-0"
       aria-label={t('remote.syncTitle', { name: entry.name })}
-      onClose={() => (confirmed.current ? onConfirm() : onClose())}
+      onClose={() => (confirmed.current ? onConfirm(renameOn && hasRule ? rule : null) : onClose())}
       onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
       onClick={(e) => e.target === ref.current && backdropDown.current && close(false)}
     >
@@ -833,6 +897,49 @@ function SyncDialog({
           <p className="text-xs text-t-muted">
             {t('remote.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
           </p>
+
+          <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
+            <div className="flex items-center justify-between">
+              <span className="t-label t-label--accent">{t('watch.sectionRename')}</span>
+              <label className="flex items-center gap-2 text-sm text-t-secondary">
+                <input type="checkbox" checked={renameOn} onChange={(e) => setRenameOn(e.target.checked)} />
+                {t('watch.renameToggle')}
+              </label>
+            </div>
+            {renameOn && (
+              <RenameOptions
+                rule={rule}
+                onChange={(patch) => setRule({ ...rule, ...patch })}
+                caps={caps}
+                detected={detected}
+                idPrefix="sync"
+                seriesQuery={
+                  entry.isDir ? entry.name : entry.path.split('/').filter(Boolean).slice(-2, -1)[0] || entry.name
+                }
+              />
+            )}
+          </section>
+
+          {renameOn && hasRule && (
+            <section className="space-y-2 border-t border-border-subtle pt-4" aria-label={t('rename.preview')}>
+              <div className="flex items-center gap-2">
+                <span className="t-label t-label--accent">{t('rename.preview')}</span>
+                {previewBusy && <Loading />}
+              </div>
+              {pairs && (
+                <div className="max-h-40 overflow-y-auto border border-border-subtle">
+                  {pairs.length === 0 && <p className="p-2 text-xs text-t-muted">{t('remote.emptyDir')}</p>}
+                  {pairs.map((p) => (
+                    <p key={p.old} className="border-b border-border-subtle/50 px-2 py-1 font-mono text-[11px]">
+                      <span className="text-t-muted">{p.old}</span>
+                      <span className="text-t-faint"> → </span>
+                      <span className={p.error ? 'text-err' : 'text-accent'}>{p.error ?? p.new}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
@@ -892,6 +999,7 @@ function DetailDialog({
     ref.current?.showModal()
   }, [])
   const m = group.media!
+  const MediaStatusIcon = m.status ? MEDIA_STATUS_ICON[m.status] : undefined
   const source = group.items[0].source
   const [allReviews, setAllReviews] = useState(false)
   // reviews load lazily with the modal, never with the catalog grid
@@ -906,7 +1014,7 @@ function DetailDialog({
       {/* close button stays reachable while the dialog scrolls */}
       <div className="sticky top-2 z-10 h-0 text-right">
         <button type="button" className="t-btn t-btn--sm mr-2" aria-label={t('remote.close')} onClick={() => ref.current?.close()}>
-          ✕
+          <X aria-hidden size="1.2em" />
         </button>
       </div>
       {m.bannerImage && <img src={m.bannerImage} alt="" className="max-h-36 w-full object-cover" />}
@@ -924,8 +1032,13 @@ function DetailDialog({
               {m.seasonYear > 0 && <span className="t-label">{m.seasonYear}</span>}
               {m.format && <span className="t-label">{m.format}</span>}
               {m.episodes > 0 && <span className="t-label">{m.episodes} EP</span>}
-              {m.status && <span className="t-label">{t(`remote.status.${m.status}`, m.status)}</span>}
-              {m.averageScore > 0 && <span className="t-label t-label--accent">★ {m.averageScore}</span>}
+              {m.status && (
+                <span className="t-label">
+                  {MediaStatusIcon && <MediaStatusIcon aria-hidden size="1em" />}
+                  {t(`remote.status.${m.status}`, m.status)}
+                </span>
+              )}
+              {m.averageScore > 0 && <span className="t-label t-label--accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{m.averageScore}</span>}
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {m.genres?.map((g) => (
@@ -944,7 +1057,7 @@ function DetailDialog({
                   rel="noreferrer"
                 >
                   {l.label} #{m.id}
-                  <span aria-hidden>↗</span>
+                  <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
                 </a>
               )
             })()}
@@ -984,9 +1097,9 @@ function DetailDialog({
                 target="_blank"
                 rel="noreferrer"
               >
-                ▶ {t('remote.trailer')}
+                <Play aria-hidden size="1em" className="inline align-[-0.125em]" fill="currentColor" strokeWidth={0} /> {t('remote.trailer')}
                 {m.trailer.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
-                <span aria-hidden>↗</span>
+                <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
               </a>
             )}
           </section>
@@ -1011,7 +1124,7 @@ function DetailDialog({
                   <div className="min-w-0 flex-1 border border-border-subtle bg-bg-secondary p-3 text-sm text-t-secondary">
                     <p className="mb-1 flex flex-wrap items-center gap-2">
                       <span className="t-label">{r.user.name}</span>
-                      {r.score > 0 && <span className="t-label t-label--accent">★ {r.score}</span>}
+                      {r.score > 0 && <span className="t-label t-label--accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{r.score}</span>}
                     </p>
                     <p className="whitespace-pre-line">{r.summary}</p>
                   </div>
