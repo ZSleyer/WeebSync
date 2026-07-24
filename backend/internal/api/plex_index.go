@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,10 +32,12 @@ func (s *Server) indexPlexLibrary() {
 	}
 	sections, err := c.Sections()
 	if err != nil {
+		slog.Warn("plex index", "err", err)
 		return
 	}
 	s.storePlexRoots(sections) // auto-detect the local mounts Plex reports
 	now := time.Now().UTC().Format(time.RFC3339)
+	units := 0
 	for _, sec := range sections {
 		if sec.Type != "show" && sec.Type != "movie" {
 			continue
@@ -71,10 +74,12 @@ func (s *Server) indexPlexLibrary() {
 					VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					folder, q.ResRank, strings.Join(q.Dub, ","), strings.Join(q.Sub, ","),
 					now, showKey, season, boolInt(isMovie))
+				units++
 			}
 		}
 	}
 	db.SetSetting(s.DB, "plex_indexed_at", now)
+	slog.Info("plex library indexed", "units", units, "sections", len(sections))
 }
 
 // storePlexRoots caches, from Plex's reported library locations: the local mounts

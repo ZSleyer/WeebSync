@@ -281,6 +281,8 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	// this check and downloads normally.
 	if alreadyComplete(d.LocalPath, size) {
 		m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, size, d.ID)
+		// self-heal skip: file already present at full size (stale queue)
+		slog.Debug("download skipped", "id", d.ID, "reason", "already complete", "size", size)
 		return nil
 	}
 
@@ -360,6 +362,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	if transferred < size {
 		return fmt.Errorf("incomplete transfer: %d of %d bytes", transferred, size)
 	}
+	slog.Info("download complete", "id", d.ID, "size", size)
 	return os.Rename(part, d.LocalPath)
 }
 

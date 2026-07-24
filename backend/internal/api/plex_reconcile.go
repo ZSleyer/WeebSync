@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"path"
 	"regexp"
 	"strconv"
@@ -122,6 +123,7 @@ func (s *Server) reconcilePlex(budget int) {
 	}
 	rows.Close()
 
+	enriched := 0
 	for _, h := range hits {
 		g, ok := idx[match.FoldKey(match.GuessTitle(path.Base(h.folder)))]
 		if !ok {
@@ -144,5 +146,14 @@ func (s *Server) reconcilePlex(budget int) {
 			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('imdb', ?, ?)`,
 				g.IMDB, h.seriesID)
 		}
+		if g.TVDB != 0 || g.TMDB != 0 || g.IMDB != 0 {
+			enriched++
+			// series gained its cross-provider ids from Plex ground truth
+			slog.Debug("plex reconcile enrich", "seriesId", h.seriesID,
+				"tvdb", g.TVDB, "tmdb", g.TMDB, "imdb", g.IMDB)
+		}
+	}
+	if enriched > 0 {
+		slog.Info("plex reconcile", "enriched", enriched, "candidates", len(hits))
 	}
 }

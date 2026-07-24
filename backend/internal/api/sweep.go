@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -47,6 +48,8 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			now := time.Now()
 			for _, id := range ids {
 				if now.Sub(last[id]) < sweepInterval {
+					slog.Debug("sweep skip server", "server", id, "reason", "not due",
+						"nextIn", (sweepInterval - now.Sub(last[id])).Round(time.Second))
 					continue
 				}
 				last[id] = now
@@ -56,6 +59,7 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// TVDB/TMDB/IMDB id + season), the bridge that lets local (Plex) and
 			// remote copies line up per (show, season). Daily, dataset is large.
 			if last := db.Setting(s.DB, "anime_ids_at"); last == "" || olderThan(last, 24*time.Hour) {
+				slog.Info("sweep triggers job", "job", "anime:ids", "reason", "daily refresh due")
 				s.runJob("anime:ids", func(context.Context) { s.refreshAnimeIDs() })
 			}
 			// enrich series bundles with Plex's authoritative tvdb/tmdb ids
@@ -69,6 +73,7 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// variants) so upgrade suggestions compare what you own against a
 			// better remote source, not two remote copies. Plex-API heavy.
 			if last := db.Setting(s.DB, "plex_indexed_at"); last == "" || olderThan(last, time.Hour) {
+				slog.Info("sweep triggers job", "job", "plex:index", "reason", "hourly local-quality index due")
 				s.runJob("plex:index", func(context.Context) { s.indexPlexLibrary() })
 			}
 			// select preferred Plex audio/sub streams on freshly indexed
@@ -103,6 +108,7 @@ func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
 	queued := 0
 	for _, m := range marks {
 		if queued >= budget {
+			slog.Debug("sweep budget exhausted", "server", serverID, "budget", budget)
 			return
 		}
 		// direct child directories with no catalog match yet
@@ -129,6 +135,10 @@ func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
 		if ctx.Err() != nil {
 			return
 		}
+	}
+
+	if queued > 0 {
+		slog.Info("sweep queued matches", "server", serverID, "queued", queued, "budget", budget)
 	}
 
 	// refresh variants that are missing or older than variantRecheck for
