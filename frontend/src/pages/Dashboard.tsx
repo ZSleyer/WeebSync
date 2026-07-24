@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, Pause, Play, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, Pause, Play, RefreshCw, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
 
 // icon per download status, shown inside the t-label chips (inline-flex, 4px gap)
 const STATUS_ICON: Record<Download['status'], LucideIcon> = {
@@ -405,17 +405,24 @@ function SyncSummary() {
   return (
     <section aria-label={t('dash.syncSummary')}>
       <div className="t-panel p-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <span className="t-label t-label--accent">{t('dash.syncSummary')}</span>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-t-muted">
-            <span>{t('dash.syncWatched', { count: watches.length })}</span>
-            {waiting > 0 && <span>{t('dash.syncWaiting', { count: waiting })}</span>}
-            {complete > 0 && <span>{t('dash.syncComplete', { count: complete })}</span>}
-            {behind > 0 && <span className="text-warn">{t('dash.syncBehind', { count: behind })}</span>}
-            <Link to="/watches" className="text-accent hover:underline">
-              {t('dash.syncAll')} →
-            </Link>
-          </div>
+        {/* same divider anatomy as the section headers on the left, so the
+            chip never has to share its row with the counters (it used to
+            wrap onto two lines in the narrow column) */}
+        <div className="mb-2 flex items-center gap-2">
+          <span className="t-label t-label--accent whitespace-nowrap">
+            <RefreshCw aria-hidden size="1em" />
+            {t('dash.syncSummary')}
+          </span>
+          <span className="h-px flex-1 bg-border-subtle" />
+          <Link to="/watches" className="whitespace-nowrap text-[11px] text-accent hover:underline">
+            {t('dash.syncAll')} →
+          </Link>
+        </div>
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-t-muted">
+          <span>{t('dash.syncWatched', { count: watches.length })}</span>
+          {waiting > 0 && <span>{t('dash.syncWaiting', { count: waiting })}</span>}
+          {complete > 0 && <span>{t('dash.syncComplete', { count: complete })}</span>}
+          {behind > 0 && <span className="text-warn">{t('dash.syncBehind', { count: behind })}</span>}
         </div>
         {interesting.length === 0 ? (
           <p className="text-xs text-t-muted">{t('dash.syncAllGood')}</p>
