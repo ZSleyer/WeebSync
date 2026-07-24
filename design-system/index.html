@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WeebSync Tempest - Komponenten</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* gallery chrome only - never copy this into the app */
+  body { padding: 24px; max-width: 1100px; margin: 0 auto; }
+  h1 { font-family: var(--font-display); letter-spacing: .18em; font-size: 20px; }
+  h2 { font-family: var(--font-display); letter-spacing: .12em; font-size: 13px; text-transform: uppercase;
+       color: var(--text-muted); margin: 28px 0 10px; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .note { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; }
+  #measure { position: fixed; right: 12px; top: 12px; z-index: 10; font-size: 11px; }
+  table { border-collapse: collapse; font-size: 12px; }
+  td, th { border: 1px solid var(--border-subtle); padding: 3px 8px; text-align: left; }
+</style>
+</head>
+<body class="t-hatch">
+<h1>WEEB<span style="color:var(--accent-blue)">SYNC</span> TEMPEST</h1>
+<p class="note">Zeigt die echte gebaute App-CSS. Jede Zeile mischt bewusst Schriftkontexte, damit ungleiche Höhen sofort auffallen.</p>
+<button id="measure" class="t-btn t-btn--sm" onclick="measure()">Höhen messen</button>
+
+<h2>Voll-Controls (--ctl-h)</h2>
+<div class="row" data-family="full">
+  <input class="t-input" style="width:160px" value="input">
+  <span class="t-select-wrap" style="width:160px"><select class="t-select"><option>select</option></select></span>
+  <button class="t-btn">button</button>
+  <button class="t-btn t-btn--primary t-cut">primary cut</button>
+  <button class="t-btn t-btn--danger">danger</button>
+</div>
+<div class="row text-xs" data-family="full">
+  <input class="t-input" style="width:160px" value="im text-xs-Kontext">
+  <span class="t-select-wrap" style="width:160px"><select class="t-select"><option>select</option></select></span>
+  <button class="t-btn">button</button>
+</div>
+
+<h2>Kleine Controls (--ctl-h-sm)</h2>
+<div class="row" data-family="sm">
+  <button class="t-btn t-btn--sm">klein</button>
+  <button class="t-btn t-btn--sm t-btn--primary">klein primär</button>
+  <button class="t-iconbtn rounded" aria-label="Hilfe">
+    <span class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border-subtle text-[10px] leading-none text-t-secondary">?</span>
+  </button>
+</div>
+
+<h2>Badges / Chips</h2>
+<div class="row">
+  <span class="t-label">NEUTRAL</span>
+  <span class="t-label t-label--accent">AKZENT</span>
+  <span class="t-label t-label--ok">OK</span>
+  <span class="t-label t-label--warn">WARN</span>
+  <span class="t-label t-label--err">FEHLER</span>
+</div>
+<div class="row text-sm">
+  <span class="t-label">IM TEXT-SM-KONTEXT</span>
+  <span class="t-label t-label--accent">GLEICH HOCH</span>
+</div>
+
+<h2>Checkbox und Beschriftung</h2>
+<div class="row">
+  <label class="flex items-center gap-2 text-sm"><input type="checkbox" checked> ausgewählt</label>
+  <label class="flex items-center gap-2 text-sm"><input type="checkbox"> leer</label>
+  <label class="flex items-center gap-2 text-sm"><input type="checkbox" disabled> gesperrt</label>
+</div>
+
+<h2>Feld mit Beschriftung (.t-field, ROW_GRID)</h2>
+<div class="grid gap-3 sm:grid-cols-2" style="max-width:640px">
+  <label class="t-field text-xs text-t-muted">
+    <span class="block">Beschriftung mit Hinweis
+      <button class="t-iconbtn rounded align-middle" aria-label="Hilfe"><span class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border-subtle text-[10px] leading-none text-t-secondary">?</span></button>
+    </span>
+    <span class="t-select-wrap block"><select class="t-select"><option>Auswahl</option></select></span>
+  </label>
+  <label class="t-field text-xs text-t-muted">
+    <span class="block">Beschriftung ohne Hinweis</span>
+    <input class="t-input" value="gleich hoch, gleiche Kante">
+  </label>
+</div>
+
+<h2>Feld neben Button (items-stretch)</h2>
+<div class="flex items-stretch gap-2" style="max-width:640px">
+  <input class="t-input" value="/pfad/zum/ordner">
+  <button class="t-btn t-btn--sm shrink-0">Durchsuchen</button>
+</div>
+
+<h2>Abschnitts-Trenner mit Zähler (.t-divider)</h2>
+<div class="t-divider" style="max-width:640px">
+  <span class="t-label t-label--accent">ÜBERWACHT</span>
+  <span class="t-divider-rule"></span>
+  <span class="t-count">12</span>
+</div>
+<div class="t-divider" style="max-width:640px">
+  <span class="t-label t-label--accent">FERTIG</span>
+  <span class="t-divider-rule"></span>
+  <span class="t-count">3</span>
+</div>
+
+<h2>Toolbar (eigene kompakte Zeile, --ctl-h: 2rem)</h2>
+<div class="t-toolbar" style="max-width:760px" data-family="toolbar">
+  <input class="t-input" style="width:180px" placeholder="Suchen…">
+  <span class="t-select-wrap" style="width:150px"><select class="t-select"><option>Filter</option></select></span>
+  <button class="t-btn t-btn--sm">Aktion</button>
+  <span class="t-label">STATUS</span>
+  <label class="flex items-center gap-2 text-sm"><input type="checkbox"> alle</label>
+</div>
+
+<h2>Panels / Kacheln</h2>
+<div class="grid gap-3 sm:grid-cols-2" style="max-width:760px">
+  <div class="t-panel p-5">
+    <span class="t-label t-label--accent">PANEL p-5</span>
+    <p class="mt-2 text-sm text-t-secondary">Standard für Formular- und Einstellungsflächen.</p>
+  </div>
+  <div class="t-panel p-3">
+    <span class="t-label">KACHEL p-3</span>
+    <p class="mt-2 text-sm text-t-secondary">Kompakte Listenkachel.</p>
+  </div>
+</div>
+
+<h2>Tabs</h2>
+<div class="t-tabs" style="max-width:460px">
+  <button class="t-tab" aria-selected="true">Aktiv</button>
+  <button class="t-tab">Zweiter</button>
+  <button class="t-tab">Dritter</button>
+</div>
+
+<h2>Icons (size="1em", skalieren mit dem Text)</h2>
+<div class="row">
+  <span class="text-xs">text-xs <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span>
+  <span class="text-sm">text-sm <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></span>
+  <button class="t-btn t-btn--sm"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><circle cx="12" cy="12" r="9"/></svg>im Button</button>
+</div>
+
+<h2 id="out">Messung</h2>
+<div id="result" class="note">„Höhen messen" klicken. Innerhalb einer Familie muss jede Zahl identisch sein.</div>
+
+<script>
+function measure() {
+  const groups = {};
+  document.querySelectorAll('[data-family]').forEach(row => {
+    const fam = row.dataset.family;
+    groups[fam] = groups[fam] || [];
+    row.querySelectorAll('.t-input, .t-select, .t-btn, .t-label, .t-iconbtn').forEach(el => {
+      const cls = el.className.split(' ').filter(c => c.startsWith('t-')).join('.');
+      groups[fam].push([cls, el.getBoundingClientRect().height.toFixed(1)]);
+    });
+  });
+  const rows = [];
+  for (const [fam, items] of Object.entries(groups)) {
+    const heights = [...new Set(items.map(i => i[1]))];
+    rows.push(`<tr><th>${fam}</th><td>${heights.join(' / ')}</td><td>${heights.length === 1 ? 'ok' : 'ABWEICHUNG'}</td></tr>`);
+    for (const [cls, h] of items) rows.push(`<tr><td style="padding-left:18px">${cls}</td><td>${h}px</td><td></td></tr>`);
+  }
+  const cs = getComputedStyle(document.documentElement);
+  rows.push(`<tr><th>--ctl-h / --ctl-h-sm</th><td>${cs.getPropertyValue('--ctl-h')} / ${cs.getPropertyValue('--ctl-h-sm')}</td><td></td></tr>`);
+  document.getElementById('result').innerHTML = '<table>' + rows.join('') + '</table>';
+}
+</script>
+</body>
+</html>
