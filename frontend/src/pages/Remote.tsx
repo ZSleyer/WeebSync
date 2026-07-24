@@ -13,6 +13,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
+import { CatalogViewSelect } from '../components/CatalogViewSelect'
+import { useCatalogView } from '../components/useCatalogView'
 import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
 import FileIcon from '../components/FileIcon'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
@@ -41,33 +43,12 @@ export default function Remote() {
   const [syncEntry, setSyncEntry] = useState<Entry | null>(null)
   const [flat, setFlat] = useState(false)
   const [query, setQuery] = useState('')
-  // one view control instead of checkbox + toggle: classic list, catalog for
-  // the current tree, or auto (persisted: follow the folder's catalog scope)
-  const [mode, setMode] = useState<'classic' | 'catalog' | 'auto'>(() =>
-    localStorage.getItem('catalogAutoOpen') === '1' ? 'auto' : 'classic',
-  )
-  useEffect(() => {
-    localStorage.setItem('catalogAutoOpen', mode === 'auto' ? '1' : '0')
-  }, [mode])
 
   const active = serverId || servers[0]?.id || 0
 
-  // cheap scope probe (no listing/matching) so we know whether the current
-  // folder is catalog-managed; previous data carries over while the next
-  // probe loads so the view doesn't flicker to classic on every navigation
-  const { data: scopeInfo } = useQuery<{ scope: string }>({
-    queryKey: ['catalog-scope', active, remotePath],
-    queryFn: () => api.get(`/api/servers/${active}/catalog/scope${remotePath ? `?path=${encodeURIComponent('/' + remotePath)}` : ''}`),
-    enabled: active > 0 && !query.trim(),
-    staleTime: 60_000,
-    placeholderData: (prev) => prev,
-  })
-  // manual catalog only lives inside the catalog tree: navigating out (no
-  // scope, so nothing to show) drops back to classic, like the old toggle
-  useEffect(() => {
-    if (mode === 'catalog' && scopeInfo?.scope === '') setMode('classic')
-  }, [mode, scopeInfo])
-  const view = mode !== 'classic' && scopeInfo?.scope ? 'catalog' : 'classic'
+  // default classic, catalog only for folders the user saved as catalog
+  // (server-side scope mark); "once"/"saved" switch and persist per folder
+  const { view, value: viewValue, set: setView } = useCatalogView(active, remotePath)
 
   const [lastIds, setLastIds] = useState<number[]>([])
   const enqueue = useMutation({
@@ -141,16 +122,7 @@ export default function Remote() {
               </select>
             </span>
           </label>
-          <label className="flex-1 text-xs text-t-muted sm:flex-none" title={t('remote.autoCatalogHint')}>
-            {t('remote.view')}
-            <span className="t-select-wrap mt-1 block sm:w-40">
-              <select className="t-select" value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
-                <option value="classic">{t('remote.classic')}</option>
-                <option value="catalog">{t('remote.catalog')}</option>
-                <option value="auto">{t('remote.catalogAutoOption')}</option>
-              </select>
-            </span>
-          </label>
+          <CatalogViewSelect value={viewValue} onChange={setView} />
         </div>
       </header>
 
@@ -207,11 +179,10 @@ export default function Remote() {
               onSync={setSyncEntry}
               onWatch={setWatchEntry}
               onOpenFiles={(p) => {
-                // ponytail: in auto mode the view re-derives from the target's
-                // own scope; marks no longer inherit, so subfolders without a
-                // mark of their own land in the classic list anyway
+                // opening a title's files navigates into a subfolder; the view
+                // re-derives from that folder's own scope (marks don't inherit,
+                // so it lands in the classic list) - no explicit reset needed
                 setRemotePath(p.replace(/^\//, ''))
-                if (mode === 'catalog') setMode('classic')
               }}
             />
           )}
