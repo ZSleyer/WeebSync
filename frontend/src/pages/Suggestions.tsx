@@ -1,8 +1,6 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import {
   Bookmark,
-  ChevronDown,
-  ChevronRight,
   CircleArrowUp,
   CircleDashed,
   Download,
@@ -51,6 +49,7 @@ import {
   type SyncPlan,
   mediaTitle,
 } from '../api'
+import Collapsible from '../components/Collapsible'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { usePersistedQuery } from '../hooks'
 import { SkeletonCards } from '../components/Loading'
@@ -132,49 +131,6 @@ function syncFields(sync: SyncPlan, title: string, remotePath: string): WatchFie
 // (Zeichentrick, non-Japanese), then live-action. Movies before series.
 const CATS = ['anime-movie', 'anime-tv', 'animation-movie', 'animation-tv', 'movie', 'tv'] as const
 
-// CollapsibleCat wraps one category or status block behind its heading; the
-// heading is the toggle (not persisted). `small` renders the status-row label
-// style instead of the category heading.
-function CollapsibleCat({
-  title,
-  count,
-  children,
-  defaultOpen = true,
-  small = false,
-}: {
-  title: string
-  count: number
-  children: ReactNode
-  defaultOpen?: boolean
-  small?: boolean
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  const toggle = (
-    <button
-      type="button"
-      className="flex min-h-6 items-center gap-1.5 text-left"
-      aria-expanded={open}
-      onClick={() => setOpen((o) => !o)}
-    >
-      {open ? (
-        <ChevronDown aria-hidden size="1em" className="shrink-0 text-accent" />
-      ) : (
-        <ChevronRight aria-hidden size="1em" className="shrink-0 text-accent" />
-      )}
-      {title} <span className="t-label">{count}</span>
-    </button>
-  )
-  return (
-    <div>
-      {small ? (
-        <span className="t-label t-label--accent mb-1 block">{toggle}</span>
-      ) : (
-        <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">{toggle}</h3>
-      )}
-      {open && children}
-    </div>
-  )
-}
 
 // BucketSection renders one functional bucket. Trending and Watchlist are
 // sub-grouped into the four categories (Anime series/movies, series, movies);
@@ -219,19 +175,19 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
         const statusItems = items.filter((it) => statusOf(it) === key)
         if (!statusItems.length) return null
         return (
-          <CollapsibleCat key={key} title={t(label)} count={statusItems.length} defaultOpen={key !== 'COMPLETED'}>
+          <Collapsible key={key} title={t(label)} count={statusItems.length} defaultOpen={key !== 'COMPLETED'}>
             <div className="space-y-3">
               {CATS.map((cat) => {
                 const list = statusItems.filter((it) => it.category === cat)
                 if (!list.length) return null
                 return (
-                  <CollapsibleCat key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
+                  <Collapsible key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
                     {cards(list)}
-                  </CollapsibleCat>
+                  </Collapsible>
                 )
               })}
             </div>
-          </CollapsibleCat>
+          </Collapsible>
         )
       })}
     </div>
@@ -248,9 +204,9 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
               const list = items.filter((it) => it.category === cat)
               if (!list.length) return null
               return (
-                <CollapsibleCat key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
+                <Collapsible key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
                   {cards(list)}
-                </CollapsibleCat>
+                </Collapsible>
               )
             })}
       {watch && (
@@ -815,9 +771,9 @@ function UpgradesSection() {
                 const list = items.filter((u) => u.category === cat)
                 if (!list.length) return null
                 return (
-                  <CollapsibleCat key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
+                  <Collapsible key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
                     <div className="space-y-3">{list.map(render)}</div>
-                  </CollapsibleCat>
+                  </Collapsible>
                 )
               })}
             </div>
