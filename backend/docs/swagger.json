@@ -1376,6 +1376,10 @@
                     "index": {
                         "$ref": "#/components/schemas/api.adminIndexInfo"
                     },
+                    "logLevel": {
+                        "description": "LogLevel is the current effective log level (trace|debug|info|warn|error).",
+                        "type": "string"
+                    },
                     "matchQueue": {
                         "type": "integer"
                     },
@@ -1729,6 +1733,15 @@
                 "properties": {
                     "status": {
                         "example": "started",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.logLevelRequest": {
+                "properties": {
+                    "level": {
+                        "example": "debug",
                         "type": "string"
                     }
                 },
@@ -3217,6 +3230,128 @@
                     }
                 ],
                 "summary": "Run background job",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
+        "/api/admin/loglevel": {
+            "put": {
+                "description": "Switches the runtime log level (admin only): trace, debug, info, warn or error. Takes effect immediately without a restart and controls what the live-log stream emits.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.logLevelRequest",
+                                        "summary": "request",
+                                        "description": "log level"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "log level",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.logLevelRequest"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Set log level",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
+        "/api/admin/logs/stream": {
+            "get": {
+                "description": "Streams backend log records to the admin as Server-Sent Events: the buffered recent backlog first, then live records. The volume follows the current log level.",
+                "responses": {
+                    "401": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Stream backend logs",
                 "tags": [
                     "Admin"
                 ]

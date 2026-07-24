@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path"
 	"sort"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/logbus"
 	"github.com/ch4d1/weebsync/internal/secret"
 )
 
@@ -149,6 +151,8 @@ type adminJobsResponse struct {
 	Index      adminIndexInfo   `json:"index"`
 	Watch      adminWatchInfo   `json:"watch"`
 	Matches    []adminMatchStat `json:"matches"`
+	// LogLevel is the current effective log level (trace|debug|info|warn|error).
+	LogLevel string `json:"logLevel"`
 }
 
 // adminTTLInfo reports the effective cache TTLs in hours.
@@ -265,6 +269,10 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 		out.Matches = append(out.Matches, v)
 	}
 	rows.Close()
+
+	if s.Logs != nil {
+		out.LogLevel = logbus.LevelString(s.Logs.Level.Level())
+	}
 
 	writeJSON(w, http.StatusOK, out)
 }
@@ -788,6 +796,92 @@ func (s *Server) handleAdminMatchDelete(w http.ResponseWriter, r *http.Request) 
 	}
 	n, _ := res.RowsAffected()
 	writeJSON(w, http.StatusOK, deletedResponse{Deleted: n})
+}
+
+// logLevelRequest sets the runtime log level.
+type logLevelRequest struct {
+	Level string `json:"level" example:"debug"`
+}
+
+// handleAdminLogLevel switches the runtime log level (trace|debug|info|warn|error).
+// PUT /api/admin/loglevel {level}
+//
+// @Summary      Set log level
+// @Description  Switches the runtime log level (admin only): trace, debug, info, warn or error. Takes effect immediately without a restart and controls what the live-log stream emits.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        request  body      logLevelRequest  true  "log level"
+// @Success      200  {object}  logLevelRequest
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/loglevel [put]
+func (s *Server) handleAdminLogLevel(w http.ResponseWriter, r *http.Request) {
+	var in logLevelRequest
+	if !readJSON(w, r, &in) {
+		return
+	}
+	switch strings.ToLower(strings.TrimSpace(in.Level)) {
+	case "trace", "debug", "info", "warn", "error":
+	default:
+		writeErr(w, http.StatusBadRequest, "invalid level")
+		return
+	}
+	if s.Logs == nil {
+		writeErr(w, http.StatusBadRequest, "logging not configured")
+		return
+	}
+	lvl := logbus.ParseLevel(in.Level)
+	s.Logs.Level.Set(lvl)
+	name := logbus.LevelString(lvl)
+	slog.Info("log level changed", "level", name)
+	writeJSON(w, http.StatusOK, logLevelRequest{Level: name})
+}
+
+// handleAdminLogStream streams backend log records to the admin as SSE: the
+// buffered backlog first, then live records. What it emits follows the current
+// log level (see handleAdminLogLevel).
+//
+// @Summary      Stream backend logs
+// @Description  Streams backend log records to the admin as Server-Sent Events: the buffered recent backlog first, then live records. The volume follows the current log level.
+// @Tags         Admin
+// @Produce      text/event-stream
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/logs/stream [get]
+func (s *Server) handleAdminLogStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+	if s.Logs == nil {
+		writeErr(w, http.StatusInternalServerError, "logging not configured")
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+
+	// subscribe before draining the backlog so nothing slips through the gap
+	ch, unsubscribe := s.Logs.Subscribe()
+	defer unsubscribe()
+	for _, line := range s.Logs.Backlog() {
+		fmt.Fprintf(w, "data: %s\n\n", line)
+	}
+	flusher.Flush()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case msg := <-ch:
+			fmt.Fprintf(w, "data: %s\n\n", msg)
+			flusher.Flush()
+		}
+	}
 }
 
 // handleAdminIndexFlush drops the remote index of one server; the crawler
