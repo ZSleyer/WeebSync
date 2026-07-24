@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
+import PathInput from './PathInput'
 import Loading from './Loading'
 import RenameOptions, { Hint, type RenameProfile, type RenameRule } from './RenameOptions'
 import { useRenamePreview } from './useRenamePreview'
@@ -135,11 +136,18 @@ export default function WatchDialog({
           {t(isRemote ? 'watch.remotePath' : 'watch.localPath')}
         </label>
         <div className="flex items-center gap-2">
-          <input
+          <PathInput
             id={`watch-path-${which}`}
-            className="t-input font-mono"
             value={isRemote ? f.remotePath : f.localPath}
-            onChange={(e) => setF({ ...f, [isRemote ? 'remotePath' : 'localPath']: e.target.value })}
+            onChange={(v) => setF({ ...f, [isRemote ? 'remotePath' : 'localPath']: v })}
+            onCommit={(v) => setF({ ...f, [isRemote ? 'remotePath' : 'localPath']: v })}
+            fetchPath={(p) =>
+              isRemote
+                ? `/api/servers/${serverId}/browse${p ? `?path=${encodeURIComponent('/' + p.replace(/^\/+/, ''))}` : ''}`
+                : `/api/browse/local?path=${encodeURIComponent(p.replace(/^\/+/, ''))}`
+            }
+            queryKey={isRemote ? ['watch-remote', serverId] : ['local']}
+            ariaLabel={t(isRemote ? 'watch.remotePath' : 'watch.localPath')}
           />
           <button
             type="button"

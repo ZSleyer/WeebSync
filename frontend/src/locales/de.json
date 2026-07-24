@@ -217,6 +217,7 @@
     "emptyDir": "leer",
     "emptyLocal": "leer, Unterordner unten anlegen",
     "path": "Pfad",
+    "editPath": "Pfad bearbeiten",
     "thisFolder": "Dieser Ordner: {{name}}",
     "localTarget": "Lokales Ziel",
     "selectionBar": "Auswahl und Aktionen",

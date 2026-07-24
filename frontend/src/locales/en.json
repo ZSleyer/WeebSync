@@ -217,6 +217,7 @@
     "emptyDir": "empty",
     "emptyLocal": "empty, create a subfolder below",
     "path": "Path",
+    "editPath": "Edit path",
     "thisFolder": "This folder: {{name}}",
     "localTarget": "Local target",
     "selectionBar": "Selection and actions",

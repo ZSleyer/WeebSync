@@ -16,6 +16,7 @@ import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type
 import { CatalogViewSelect } from '../components/CatalogViewSelect'
 import { useCatalogView } from '../components/useCatalogView'
 import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
+import PathInput from '../components/PathInput'
 import FileIcon from '../components/FileIcon'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
 import { useRenamePreview } from '../components/useRenamePreview'
@@ -450,7 +451,20 @@ export function CatalogGrid({
 
   // the breadcrumb is outside the loading/error branches on purpose: without
   // it a slow or failing folder would be a dead end with no way back up
-  const crumbs = <PathCrumbs path={path} onNavigate={onNavigate} />
+  // same browse endpoints (and query keys) as the classic FileBrowser so the
+  // path-edit autocomplete reuses any listing already cached
+  const browseUrl = (p: string) =>
+    serverId === 0
+      ? `/api/browse/local?path=${encodeURIComponent(p)}`
+      : `/api/servers/${serverId}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`
+  const crumbs = (
+    <PathCrumbs
+      path={path}
+      onNavigate={onNavigate}
+      fetchPath={browseUrl}
+      queryKey={serverId === 0 ? ['local'] : ['remote', serverId]}
+    />
+  )
 
   if (isLoading)
     return (
@@ -836,11 +850,14 @@ function SyncDialog({
               {t('remote.localTarget')}
             </label>
             <div className="flex items-center gap-2">
-              <input
+              <PathInput
                 id="sync-target"
-                className="t-input font-mono"
                 value={localPath}
-                onChange={(e) => onLocalPath(e.target.value)}
+                onChange={onLocalPath}
+                onCommit={onLocalPath}
+                fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p.replace(/^\/+/, ''))}`}
+                queryKey={['local']}
+                ariaLabel={t('remote.localTarget')}
               />
               <button
                 type="button"
