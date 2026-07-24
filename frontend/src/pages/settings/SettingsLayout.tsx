@@ -42,7 +42,7 @@ export default function SettingsLayout() {
   }, [current, t])
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <header className="mb-6">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('settings.title')}</h2>
         <span className="t-label mt-1">{t('settings.sub')}</span>
@@ -99,7 +99,7 @@ export default function SettingsLayout() {
           </div>
         </nav>
 
-        <div className="min-w-0 max-w-2xl flex-1">
+        <div className="min-w-0 max-w-4xl flex-1">
           <Outlet />
         </div>
       </div>

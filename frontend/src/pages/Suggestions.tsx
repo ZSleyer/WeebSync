@@ -70,7 +70,7 @@ export default function Suggestions() {
   ] as const
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>

@@ -180,7 +180,7 @@ export default function Watches() {
   const grouped = GROUP_ORDER.map((g) => ({ g, items: sorted.filter((w) => groupOf(w) === g) })).filter((x) => x.items.length > 0)
 
   return (
-    <div className="max-w-4xl">
+    <div>
       {/* title + view toggle form a stable top bar: the toggle lives here in
           every view, so switching list/calendar never moves it. The
           view-specific controls (calendar filter / list sort) sit on their own
