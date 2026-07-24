@@ -10,9 +10,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/netguard"
 )
 
 type Service struct {
@@ -114,6 +116,10 @@ func (s *Service) Notify(userID int64, n Notification) {
 			Endpoint: x.endpoint,
 			Keys:     webpush.Keys{P256dh: x.p256dh, Auth: x.auth},
 		}, &webpush.Options{
+			// route the send through netguard so a subscription host that
+			// DNS-rebinds or 30x-redirects to link-local/metadata is blocked
+			// at dial time; the default client would follow it unchecked
+			HTTPClient:      netguard.Client(15 * time.Second),
 			Subscriber:      s.subscriber(),
 			VAPIDPublicKey:  s.public,
 			VAPIDPrivateKey: s.private,
