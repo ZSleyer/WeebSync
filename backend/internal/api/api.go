@@ -13,6 +13,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/logbus"
 	"github.com/ch4d1/weebsync/internal/mailer"
 	"github.com/ch4d1/weebsync/internal/push"
 	"github.com/ch4d1/weebsync/internal/remote/pool"
@@ -38,6 +39,9 @@ type Server struct {
 	// Conns pools and caps SSH/FTP connections per server (multiplexes SFTP
 	// channels; downloads take priority over the index crawler).
 	Conns *pool.Pool
+	// Logs is the app-wide log bus (ring buffer + SSE fan-out + runtime level
+	// switch) backing the admin live-log stream.
+	Logs *logbus.Bus
 
 	// background AniList matching (see queueMatch in anilist.go):
 	// dedup of in-flight jobs plus a queue drained in batches by one worker
@@ -255,6 +259,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/admin/matches", authed(adminOnly(http.HandlerFunc(s.handleAdminMatchDelete))))
 	mux.Handle("PUT /api/admin/ttl", authed(adminOnly(http.HandlerFunc(s.handleAdminTTL))))
 	mux.Handle("PUT /api/admin/index/{id}/config", authed(adminOnly(http.HandlerFunc(s.handleAdminIndexConfig))))
+	mux.Handle("PUT /api/admin/loglevel", authed(adminOnly(http.HandlerFunc(s.handleAdminLogLevel))))
+	mux.Handle("GET /api/admin/logs/stream", authed(adminOnly(http.HandlerFunc(s.handleAdminLogStream))))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

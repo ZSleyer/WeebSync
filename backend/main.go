@@ -18,6 +18,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/api"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/logbus"
 	"github.com/ch4d1/weebsync/internal/mailer"
 	"github.com/ch4d1/weebsync/internal/push"
 	"github.com/ch4d1/weebsync/internal/remote/pool"
@@ -54,6 +55,14 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "-healthcheck" {
 		os.Exit(healthcheck(addr))
 	}
+
+	// app-wide logger: keeps stderr text output, adds a runtime-switchable
+	// level (WEEBSYNC_LOG_LEVEL: trace|debug|info|warn|error) and mirrors
+	// records to the admin live-log stream.
+	logLevel := new(slog.LevelVar)
+	logLevel.Set(logbus.ParseLevel(env("WEEBSYNC_LOG_LEVEL", "info")))
+	logs := logbus.New(logLevel, 500)
+	slog.SetDefault(slog.New(logs))
 
 	dataDir := env("WEEBSYNC_DATA", "./data")
 	// WEEBSYNC_DOWNLOADS is a ":"-separated allowlist of local roots (arbitrary
@@ -100,6 +109,7 @@ func main() {
 		Push:         pushSvc,
 		Mail:         mailer.New(database),
 		Conns:        pool.New(),
+		Logs:         logs,
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
 	srv.Transfers.Roots = srv.LocalRootsWithPlex() // env mounts + configured Plex roots
