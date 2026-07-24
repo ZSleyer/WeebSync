@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Fingerprint, KeyRound, LogIn } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type User } from '../api'
@@ -181,6 +182,7 @@ export default function Login() {
               </p>
             ) : null}
             <a className="t-btn t-btn--primary t-cut block w-full" href="/api/auth/oidc/login">
+              <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {oidcLabel}
             </a>
           </div>
@@ -190,6 +192,7 @@ export default function Login() {
             <p className="mb-4 text-xs text-t-muted">{t('login.totpHint')}</p>
             {twoFA.webauthn && (
               <button type="button" className="t-btn mb-4 block w-full" disabled={busy} onClick={securityKey2FA}>
+                <KeyRound aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('login.useSecurityKey')}
               </button>
             )}
@@ -296,11 +299,13 @@ export default function Login() {
             </button>
             {mode === 'login' && !autofill && (
               <button type="button" className="t-btn mt-3 block w-full text-center" disabled={busy} onClick={passkeyLogin}>
+                <Fingerprint aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('login.passkey')}
               </button>
             )}
             {cfg.oidc && (
               <a className="t-btn mt-3 block w-full text-center" href="/api/auth/oidc/login">
+                <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {oidcLabel}
               </a>
             )}
