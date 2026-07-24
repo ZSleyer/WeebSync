@@ -1,4 +1,41 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  Bookmark,
+  ChevronDown,
+  ChevronRight,
+  CircleArrowUp,
+  CircleDashed,
+  Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  FolderOpen,
+  ListVideo,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  CalendarClock,
+  Check,
+  Clapperboard,
+  Pause,
+  Play,
+  Server,
+  Star,
+  TrendingUp,
+  Tv,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
+
+// icon per AniList watch status, shown inside the t-label chips
+const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
+  PLANNING: CalendarClock,
+  CURRENT: Play,
+  COMPLETED: Check,
+  PAUSED: Pause,
+  DROPPED: X,
+  REPEATING: RefreshCw,
+}
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -27,10 +64,10 @@ export default function Suggestions() {
   const [tab, setTab] = useState<'watchlist' | 'trending' | 'upgrades' | 'incomplete'>('watchlist')
   const [showIgnored, setShowIgnored] = useState(false)
   const tabs = [
-    ['watchlist', t('suggestions.tabWatchlist')],
-    ['trending', t('suggestions.tabTrending')],
-    ['upgrades', t('suggestions.tabUpgrades')],
-    ['incomplete', t('suggestions.tabIncomplete')],
+    ['watchlist', t('suggestions.tabWatchlist'), Bookmark],
+    ['trending', t('suggestions.tabTrending'), TrendingUp],
+    ['upgrades', t('suggestions.tabUpgrades'), CircleArrowUp],
+    ['incomplete', t('suggestions.tabIncomplete'), CircleDashed],
   ] as const
 
   return (
@@ -41,13 +78,14 @@ export default function Suggestions() {
           <span className="t-label mt-1">{t('suggestions.sub')}</span>
         </div>
         <button className="t-btn t-btn--sm" onClick={() => setShowIgnored((v) => !v)}>
+          <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('suggestions.ignored')}
         </button>
       </header>
 
       {showIgnored && <IgnoredModal onClose={() => setShowIgnored(false)} />}
 
-      <TabBar label={t('suggestions.title')} tabs={tabs.map(([key, label]) => ({ key, label }))} active={tab} onChange={setTab} />
+      <TabBar label={t('suggestions.title')} tabs={tabs.map(([key, label, icon]) => ({ key, label, icon }))} active={tab} onChange={setTab} />
 
       {tab === 'upgrades' ? <UpgradesSection /> : <BucketSection bucket={tab} />}
     </div>
@@ -94,25 +132,45 @@ function syncFields(sync: SyncPlan, title: string, remotePath: string): WatchFie
 // (Zeichentrick, non-Japanese), then live-action. Movies before series.
 const CATS = ['anime-movie', 'anime-tv', 'animation-movie', 'animation-tv', 'movie', 'tv'] as const
 
-// CollapsibleCat wraps one category block behind its heading; the heading is
-// the toggle (open by default, not persisted).
-function CollapsibleCat({ title, count, children }: { title: string; count: number; children: ReactNode }) {
-  const [open, setOpen] = useState(true)
+// CollapsibleCat wraps one category or status block behind its heading; the
+// heading is the toggle (not persisted). `small` renders the status-row label
+// style instead of the category heading.
+function CollapsibleCat({
+  title,
+  count,
+  children,
+  defaultOpen = true,
+  small = false,
+}: {
+  title: string
+  count: number
+  children: ReactNode
+  defaultOpen?: boolean
+  small?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const toggle = (
+    <button
+      type="button"
+      className="flex min-h-6 items-center gap-1.5 text-left"
+      aria-expanded={open}
+      onClick={() => setOpen((o) => !o)}
+    >
+      {open ? (
+        <ChevronDown aria-hidden size="1em" className="shrink-0 text-accent" />
+      ) : (
+        <ChevronRight aria-hidden size="1em" className="shrink-0 text-accent" />
+      )}
+      {title} <span className="t-label">{count}</span>
+    </button>
+  )
   return (
     <div>
-      <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">
-        <button
-          type="button"
-          className="flex min-h-6 items-center gap-1.5 text-left"
-          aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
-        >
-          <span aria-hidden className="font-mono text-accent">
-            {open ? '▾' : '▸'}
-          </span>
-          {title} <span className="t-label">{count}</span>
-        </button>
-      </h3>
+      {small ? (
+        <span className="t-label t-label--accent mb-1 block">{toggle}</span>
+      ) : (
+        <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">{toggle}</h3>
+      )}
       {open && children}
     </div>
   )
@@ -131,7 +189,6 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
   const [watch, setWatch] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
   const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
   const [notice, setNotice] = useState('')
-  const [showCompleted, setShowCompleted] = useState(false)
 
   if (isLoading) return <SkeletonCards />
   const items = (data?.[bucket] ?? []) as SuggestionItem[]
@@ -145,43 +202,32 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
     </ul>
   )
 
-  // Watchlist: grouped by content category (Animefilme / Animeserien / Filme /
-  // Serien) like the other tabs, and within each by status (Planned / Watching /
-  // Completed). Items without a status fall into Planned; Completed is hidden
-  // behind a global toggle and never proactively suggested.
+  // Watchlist: grouped by status (Planned / Watching / Completed, in that
+  // order), each status collapsible with the content categories (Animefilme /
+  // Animeserien / Filme / Serien) as collapsible sub-groups. Items without a
+  // status fall into Planned; Completed starts collapsed and is never
+  // proactively suggested.
   const statusOf = (it: SuggestionItem) => (it.status === 'CURRENT' || it.status === 'COMPLETED' ? it.status : 'PLANNING')
   const statusRows = [
     ['PLANNING', 'suggestions.statusPlanning'],
     ['CURRENT', 'suggestions.statusCurrent'],
     ['COMPLETED', 'suggestions.statusCompleted'],
   ] as const
-  const completedCount = items.filter((it) => statusOf(it) === 'COMPLETED').length
   const watchlistGroups = (
     <div className="space-y-6">
-      {completedCount > 0 && (
-        <label className="flex items-center gap-1.5 text-sm">
-          <input type="checkbox" checked={showCompleted} onChange={() => setShowCompleted((v) => !v)} />
-          {t('suggestions.showCompleted')}
-        </label>
-      )}
-      {CATS.map((cat) => {
-        const catItems = items.filter((it) => it.category === cat)
-        const visible = catItems.filter((it) => showCompleted || statusOf(it) !== 'COMPLETED')
-        if (!visible.length) return null
+      {statusRows.map(([key, label]) => {
+        const statusItems = items.filter((it) => statusOf(it) === key)
+        if (!statusItems.length) return null
         return (
-          <CollapsibleCat key={cat} title={t(`suggestions.cat_${cat}`)} count={visible.length}>
+          <CollapsibleCat key={key} title={t(label)} count={statusItems.length} defaultOpen={key !== 'COMPLETED'}>
             <div className="space-y-3">
-              {statusRows.map(([key, label]) => {
-                if (key === 'COMPLETED' && !showCompleted) return null
-                const list = catItems.filter((it) => statusOf(it) === key)
+              {CATS.map((cat) => {
+                const list = statusItems.filter((it) => it.category === cat)
                 if (!list.length) return null
                 return (
-                  <div key={key}>
-                    <span className="t-label t-label--accent mb-1 block">
-                      {t(label)} <span className="t-label">{list.length}</span>
-                    </span>
+                  <CollapsibleCat key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
                     {cards(list)}
-                  </div>
+                  </CollapsibleCat>
                 )
               })}
             </div>
@@ -253,6 +299,7 @@ function SugCard({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const StatusIcon = it.status ? WATCH_STATUS_ICON[it.status] : undefined
 
   const prefill = (path: string): WatchFields => {
     const season = guessSeason(it.title)
@@ -345,13 +392,36 @@ function SugCard({
           ) : null}
           <ProviderBadges providers={it.providers} links={it.links} />
           {it.status && (
-            <span className={`t-label ${it.status === 'CURRENT' ? 't-label--accent' : ''}`}>{t(`suggestions.status${it.status}`)}</span>
+            <span className={`t-label ${it.status === 'CURRENT' ? 't-label--accent' : ''}`}>
+              {StatusIcon && <StatusIcon aria-hidden size="1em" />}
+              {t(`suggestions.status${it.status}`)}
+            </span>
           )}
-          {it.status && it.media.episodes > 0 && <span className="text-t-muted">{t('suggestions.seen', { seen: it.progress, total: it.media.episodes })}</span>}
-          {it.need ? <span className="text-t-muted">{t('suggestions.haveNeed', { have: it.have, need: it.need })}</span> : null}
-          {it.media.format && <span className="t-label">{it.media.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}</span>}
-          {!it.status && it.media.episodes > 0 && <span className="text-t-muted">{t('suggestions.episodes', { count: it.media.episodes })}</span>}
-          {it.media.averageScore > 0 && <span className="t-label t-label--accent">★ {it.media.averageScore}</span>}
+          {it.status && it.media.episodes > 0 && (
+            <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
+              <Eye aria-hidden size="1em" />
+              {t('suggestions.seen', { seen: it.progress ?? 0, total: it.media.episodes })}
+            </span>
+          )}
+          {it.need ? (
+            <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
+              <ListVideo aria-hidden size="1em" />
+              {t('suggestions.haveNeed', { have: it.have, need: it.need })}
+            </span>
+          ) : null}
+          {it.media.format && (
+            <span className="t-label">
+              {it.media.format === 'MOVIE' ? <Clapperboard aria-hidden size="1em" /> : <Tv aria-hidden size="1em" />}
+              {it.media.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}
+            </span>
+          )}
+          {!it.status && it.media.episodes > 0 && (
+            <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
+              <ListVideo aria-hidden size="1em" />
+              {t('suggestions.episodes', { count: it.media.episodes })}
+            </span>
+          )}
+          {it.media.averageScore > 0 && <span className="t-label t-label--accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{it.media.averageScore}</span>}
         </p>
 
         {it.sequel && (
@@ -369,11 +439,15 @@ function SugCard({
             {it.candidates.map((c) => (
               <li key={`${c.serverId}-${c.path}`} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-t-secondary" title={c.path}>
-                  <span className="t-label mr-1">{c.serverName}</span>
+                  <span className="t-label mr-1">
+                    <Server aria-hidden size="1em" />
+                    {c.serverName}
+                  </span>
                   {c.path}
                 </span>
                 <span className="flex gap-1.5">
                   <button className="t-btn t-btn--sm t-btn--primary" onClick={() => onWatch({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })}>
+                    <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('watch.add')}
                   </button>
                   <button
@@ -384,9 +458,11 @@ function SugCard({
                         : syncOnce(c.serverId, c.path)
                     }
                   >
+                    <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.syncOnce')}
                   </button>
                   <button className="t-btn t-btn--sm" onClick={() => navigate(`/remote?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}>
+                    <FolderOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.open')}
                   </button>
                 </span>
@@ -399,15 +475,18 @@ function SugCard({
         <div className="mt-2 flex flex-wrap gap-1.5">
           {it.status && (
             <button className="t-btn t-btn--sm" title={t('suggestions.plusOneHint')} onClick={plusOne}>
+              <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {t('suggestions.plusOne')}
             </button>
           )}
           {it.candidates.length > 0 && (
             <button className="t-btn t-btn--sm" onClick={rematch}>
+              <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {t('suggestions.rematch')}
             </button>
           )}
           <button className="t-btn t-btn--sm" onClick={dismiss}>
+            <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('suggestions.dismiss')}
           </button>
         </div>
@@ -434,7 +513,7 @@ function ProviderBadges({ providers, links }: { providers: string[]; links: Prov
         const label = PROVIDER_LABEL[p] ?? p
         return url ? (
           <a key={p} className="t-label hover:text-accent" href={url} target="_blank" rel="noreferrer">
-            {label} ↗
+            {label} <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
           </a>
         ) : (
           <span key={p} className="t-label">
@@ -470,7 +549,7 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-display text-sm font-semibold tracking-wider">{t('suggestions.ignored')}</h3>
           <button className="t-btn t-btn--sm" onClick={onClose} aria-label={t('common.cancel')}>
-            ✕
+            <X aria-hidden size="1.2em" />
           </button>
         </div>
         {!items.length ? (
@@ -483,6 +562,7 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
                   {d.label || d.refKey} <span className="t-label">{d.kind}</span>
                 </span>
                 <button className="t-btn t-btn--sm shrink-0" onClick={() => restore(d)}>
+                  <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('suggestions.restore')}
                 </button>
               </li>
@@ -632,8 +712,18 @@ function UpgradesSection() {
                 <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
                   {seasonLabel && <span className="t-label t-label--accent">{seasonLabel}</span>}
                   <ProviderBadges providers={u.providers ?? []} links={u.links ?? {}} />
-                  {u.format && <span className="t-label">{u.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}</span>}
-                  {u.episodes ? <span className="text-t-muted">{t('suggestions.episodes', { count: u.episodes })}</span> : null}
+                  {u.format && (
+                    <span className="t-label">
+                      {u.format === 'MOVIE' ? <Clapperboard aria-hidden size="1em" /> : <Tv aria-hidden size="1em" />}
+                      {u.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}
+                    </span>
+                  )}
+                  {u.episodes ? (
+                    <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
+                      <ListVideo aria-hidden size="1em" />
+                      {t('suggestions.episodes', { count: u.episodes })}
+                    </span>
+                  ) : null}
                 </p>
                 <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
                   <VariantBox v={u.from} label={t('suggestions.fromLabel')} muted />
@@ -693,21 +783,25 @@ function UpgradesSection() {
                         setSync({ serverId: chosen.serverId, name: u.title, initial: syncFields(u.sync!, u.title, chosen.folder), info: syncInfo })
                       }
                     >
+                      <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('plex.syncOnce')}
                     </button>
                   )}
                   {u.links?.plex && (
                     <a className="t-btn t-btn--sm" href={u.links.plex} target="_blank" rel="noreferrer">
+                      <ExternalLink aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('suggestions.openPlex')}
                     </a>
                   )}
                   <button className="t-btn t-btn--sm" onClick={() => dismiss(u)}>
+                    <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('suggestions.dismiss')}
                   </button>
                   <button
                     className="t-btn t-btn--sm"
                     onClick={() => navigate(`/remote?server=${u.to.serverId}&path=${encodeURIComponent(u.to.folder)}`)}
                   >
+                    <FolderOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.openBrowser')}
                   </button>
                 </div>
@@ -755,7 +849,7 @@ function TabBar<T extends string>({
   onChange,
   label,
 }: {
-  tabs: { key: T; label: string }[]
+  tabs: { key: T; label: string; icon?: LucideIcon }[]
   active: T
   onChange: (k: T) => void
   label: string
@@ -781,6 +875,7 @@ function TabBar<T extends string>({
           onClick={() => onChange(tb.key)}
           onKeyDown={(e) => onKey(e, i)}
         >
+          {tb.icon && <tb.icon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />}
           {tb.label}
         </button>
       ))}
