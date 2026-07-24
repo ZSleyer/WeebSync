@@ -44,13 +44,11 @@ export default function Dashboard() {
   const active = downloads.filter(
     (d) => (d.status === 'running' || d.status === 'queued' || d.status === 'paused') && nameMatch(d, query),
   )
-  const finished = downloads.filter(
-    (d) =>
-      d.status !== 'running' &&
-      d.status !== 'queued' &&
-      d.status !== 'paused' &&
-      (statusFilter.size === 0 || statusFilter.has(d.status)) &&
-      nameMatch(d, historyQuery),
+  // section visibility keys off the unfiltered set: a filter with zero hits
+  // must not hide the section (and with it the very chips to undo the filter)
+  const finishedAll = downloads.filter((d) => d.status !== 'running' && d.status !== 'queued' && d.status !== 'paused')
+  const finished = finishedAll.filter(
+    (d) => (statusFilter.size === 0 || statusFilter.has(d.status)) && nameMatch(d, historyQuery),
   )
   const finishedShown = finished.slice(0, historyFiltering || showAllHistory ? finished.length : 20)
   const totalSpeed = downloads.reduce((s, d) => s + (d.status === 'running' ? (d.bytesPerSec ?? 0) : 0), 0)
@@ -263,7 +261,7 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {finished.length > 0 && (
+          {finishedAll.length > 0 && (
             <section aria-label={t('dash.finishedSection')} className="mt-8">
               {/* divider header doubles as the collapse toggle, like the
                   watch-list groups */}
@@ -360,6 +358,9 @@ export default function Dashboard() {
                         {t('dash.clearSelection')}
                       </button>
                     </div>
+                  )}
+                  {finished.length === 0 && historyFiltering && (
+                    <div className="t-panel p-6 text-center text-sm text-t-muted">{t('dash.noMatches')}</div>
                   )}
                   <div className="mt-2 flex flex-col gap-2">
                     {finishedShown.map((d) => (
