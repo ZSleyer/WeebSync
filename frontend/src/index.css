@@ -7,6 +7,9 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "tailwindcss";
+/* the design-system package lives outside this Vite root, so its utility
+   classes are invisible to the automatic content scan without this */
+@source "../../design-system/src";
 
 /* ═══ WeebSync - Tempest design language (from Encounty) ═══
    Hard corners everywhere: radius 0, softness comes from corner cuts
