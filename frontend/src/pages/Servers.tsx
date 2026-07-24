@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Lock, LockOpen, Pencil, Plus, PlugZap, Save, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Dialog, EmptyState, Field, Input, Panel, Select } from '@weebsync/design-system'
 import { api, ApiError, type ServerInfo } from '../api'
 import { useConfirm } from '../components/confirm'
 
@@ -13,13 +14,14 @@ export default function Servers() {
     queryKey: ['servers'],
     queryFn: () => api.get('/api/servers'),
   })
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  // mount-to-open, like every other dialog in the app: the state IS the dialog
   const [editing, setEditing] = useState<ServerInfo | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [testResult, setTestResult] = useState<Record<number, string>>({})
 
   const openDialog = (s: ServerInfo | null) => {
     setEditing(s)
-    dialogRef.current?.showModal()
+    setDialogOpen(true)
   }
 
   const del = useMutation({
@@ -66,23 +68,23 @@ export default function Servers() {
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('servers.title')}</h2>
-          <span className="t-label mt-1">{t('servers.sub')}</span>
+          <Badge className="mt-1">{t('servers.sub')}</Badge>
         </div>
-        <button className="t-btn t-btn--primary t-cut" onClick={() => openDialog(null)}>
+        <Button variant="primary" cut onClick={() => openDialog(null)}>
           <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('servers.add')}
-        </button>
+        </Button>
       </header>
 
-      {servers.length === 0 && <div className="t-panel p-8 text-center text-t-muted">{t('servers.none')}</div>}
+      {servers.length === 0 && <EmptyState>{t('servers.none')}</EmptyState>}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {servers.map((s) => (
-          <div key={s.id} className="t-panel p-4">
+          <Panel key={s.id} className="p-4">
             <div className="mb-2 flex items-center gap-2">
-              <span className="t-label t-label--accent">
+              <Badge tone="accent">
                 {s.protocol === 'ftp' ? <LockOpen aria-hidden size="1em" /> : <Lock aria-hidden size="1em" />}
                 {s.protocol}
-              </span>
+              </Badge>
               <h3 className="min-w-0 flex-1 truncate font-display font-semibold">{s.name}</h3>
             </div>
             <p className="font-mono text-xs text-t-muted">
@@ -90,16 +92,17 @@ export default function Servers() {
             </p>
             <p className="mb-3 font-mono text-xs text-t-muted">root: {s.rootPath}</p>
             <div className="flex flex-wrap items-center gap-2">
-              <button className="t-btn t-btn--sm" onClick={() => test(s.id)}>
+              <Button size="sm" onClick={() => test(s.id)}>
                 <PlugZap aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('servers.test')}
-              </button>
-              <button className="t-btn t-btn--sm" onClick={() => openDialog(s)}>
+              </Button>
+              <Button size="sm" onClick={() => openDialog(s)}>
                 <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('servers.edit')}
-              </button>
-              <button
-                className="t-btn t-btn--sm t-btn--danger"
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
                 onClick={async () => {
                   if (await confirm({ message: t('servers.confirmDelete', { name: s.name }), destructive: true }))
                     del.mutate(s.id)
@@ -107,13 +110,11 @@ export default function Servers() {
               >
                 <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('servers.delete')}
-              </button>
+              </Button>
               {testResult[s.id] && (
-                <span
-                  className={`t-label ${testResult[s.id] === 'ok' ? 't-label--ok' : testResult[s.id] === '…' ? '' : 't-label--err'}`}
-                >
+                <Badge tone={testResult[s.id] === 'ok' ? 'ok' : testResult[s.id] === '…' ? 'neutral' : 'err'}>
                   {testResult[s.id] === 'ok' ? t('servers.connected') : testResult[s.id] === '…' ? t('servers.testing') : t('servers.failed')}
-                </span>
+                </Badge>
               )}
             </div>
             {testResult[s.id] && testResult[s.id] !== 'ok' && testResult[s.id] !== '…' && !keyConflict[s.id] && (
@@ -137,37 +138,34 @@ export default function Servers() {
                   {keyConflict[s.id]!.newFingerprint}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    className="t-btn t-btn--sm t-btn--danger"
-                    onClick={() => acceptKey(s.id, keyConflict[s.id]!.newKey)}
-                  >
+                  <Button size="sm" variant="danger" onClick={() => acceptKey(s.id, keyConflict[s.id]!.newKey)}>
                     <ShieldCheck aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('servers.hostKeyAccept')}
-                  </button>
-                  <button className="t-btn t-btn--sm" onClick={() => rejectKey(s.id)}>
+                  </Button>
+                  <Button size="sm" onClick={() => rejectKey(s.id)}>
                     {t('servers.hostKeyReject')}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
-          </div>
+          </Panel>
         ))}
       </div>
 
-      <ServerDialog ref={dialogRef} editing={editing} />
+      {dialogOpen && <ServerDialog editing={editing} onClose={() => setDialogOpen(false)} />}
     </div>
   )
 }
 
-function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement | null>; editing: ServerInfo | null }) {
+function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClose: () => void }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
-  const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   const qc = useQueryClient()
   const [error, setError] = useState('')
   // uncontrolled form: any input change marks it dirty for the close guard
   const [dirty, setDirty] = useState(false)
-  const guardedClose = async () => {
+  // Dialog asks this before Escape or a backdrop click closes it
+  const mayClose = async () => {
     if (
       dirty &&
       !(await confirm({
@@ -178,9 +176,12 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
         destructive: true,
       }))
     )
-      return
-    ref.current?.close()
+      return false
     setDirty(false)
+    return true
+  }
+  const cancel = async () => {
+    if (await mayClose()) onClose()
   }
   // reopening the dialog (same or different server) starts clean
   useEffect(() => setDirty(false), [editing])
@@ -209,82 +210,77 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
       if (editing) await api.put(`/api/servers/${editing.id}`, body)
       else await api.post('/api/servers', body)
       qc.invalidateQueries({ queryKey: ['servers'] })
-      ref.current?.close()
       setDirty(false)
+      onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
     }
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-md" onCancel={(e) => { e.preventDefault(); guardedClose() }} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && guardedClose()} aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}>
+    <Dialog
+      onClose={onClose}
+      onRequestClose={mayClose}
+      aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}
+    >
       {/* key remounts the form so defaultValues follow the edited server */}
       <form key={editing?.id ?? 'new'} onSubmit={submit} onChange={() => setDirty(true)} className="p-6">
         <h3 className="mb-4 font-display text-lg font-semibold tracking-wider">
           {editing ? t('servers.editTitle') : t('servers.newTitle')}
         </h3>
         <div className="grid grid-cols-2 gap-3">
-          <label className="col-span-2 text-xs text-t-muted">
-            {t('servers.name')}
-            <input name="name" className="t-input mt-1" required defaultValue={editing?.name} />
-          </label>
-          <label className="text-xs text-t-muted">
-            {t('servers.protocol')}
-            <span className="t-select-wrap mt-1">
-              <select name="protocol" className="t-select" defaultValue={editing?.protocol ?? 'sftp'}>
-                <option value="sftp">SFTP (SSH)</option>
-                <option value="ftps">FTPS (TLS)</option>
-                <option value="ftp">FTP</option>
-              </select>
-            </span>
-          </label>
-          <label className="text-xs text-t-muted">
-            {t('servers.port')}
-            <input
+          <Field label={t('servers.name')} className="col-span-2">
+            <Input name="name" required defaultValue={editing?.name} />
+          </Field>
+          <Field label={t('servers.protocol')}>
+            <Select name="protocol" defaultValue={editing?.protocol ?? 'sftp'}>
+              <option value="sftp">SFTP (SSH)</option>
+              <option value="ftps">FTPS (TLS)</option>
+              <option value="ftp">FTP</option>
+            </Select>
+          </Field>
+          <Field label={t('servers.port')}>
+            <Input
               name="port"
-              className="t-input mt-1 font-mono"
+              className="font-mono"
               type="number"
               min={1}
               max={65535}
               placeholder="22 / 21"
               defaultValue={editing?.port || ''}
             />
-          </label>
-          <label className="col-span-2 text-xs text-t-muted">
-            {t('servers.host')}
-            <input name="host" className="t-input mt-1 font-mono" required defaultValue={editing?.host} />
-          </label>
-          <label className="text-xs text-t-muted">
-            {t('servers.user')}
-            <input name="username" className="t-input mt-1 font-mono" required defaultValue={editing?.username} />
-          </label>
-          <label className="text-xs text-t-muted">
-            {t('servers.password')}
-            <input
+          </Field>
+          <Field label={t('servers.host')} className="col-span-2">
+            <Input name="host" className="font-mono" required defaultValue={editing?.host} />
+          </Field>
+          <Field label={t('servers.user')}>
+            <Input name="username" className="font-mono" required defaultValue={editing?.username} />
+          </Field>
+          <Field label={t('servers.password')}>
+            <Input
               name="password"
-              className="t-input mt-1"
               type="password"
               placeholder={editing ? t('servers.unchanged') : ''}
               required={!editing}
               autoComplete="new-password"
             />
-          </label>
-          <label className="col-span-2 text-xs text-t-muted">
-            {t('servers.rootPath')}
-            <input name="rootPath" className="t-input mt-1 font-mono" defaultValue={editing?.rootPath ?? '/'} />
-          </label>
-          <label className="col-span-2 text-xs text-t-muted">
-            {t('servers.maxConnections')}
-            <input
+          </Field>
+          <Field label={t('servers.rootPath')} className="col-span-2">
+            <Input name="rootPath" className="font-mono" defaultValue={editing?.rootPath ?? '/'} />
+          </Field>
+          {/* the hint is its own grid cell: inside the Field it would sit
+              below the control, which pins itself to the bottom of the row */}
+          <Field label={t('servers.maxConnections')} className="col-span-2">
+            <Input
               name="maxConnections"
               type="number"
               min={1}
               max={10}
-              className="t-input mt-1 w-24"
+              className="w-24"
               defaultValue={editing?.maxConnections ?? 3}
             />
-            <span className="mt-1 block text-[11px] text-t-muted">{t('servers.maxConnectionsHint')}</span>
-          </label>
+          </Field>
+          <p className="col-span-2 text-[11px] text-t-muted">{t('servers.maxConnectionsHint')}</p>
         </div>
         {error && (
           <p className="mt-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
@@ -292,16 +288,16 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
           </p>
         )}
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" className="t-btn" onClick={guardedClose}>
+          <Button onClick={cancel}>
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.cancel')}
-          </button>
-          <button className="t-btn t-btn--primary t-cut">
+          </Button>
+          <Button type="submit" variant="primary" cut>
             <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.save')}
-          </button>
+          </Button>
         </div>
       </form>
-    </dialog>
+    </Dialog>
   )
 }
