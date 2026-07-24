@@ -1,4 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check, Clock, Pause, Play, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+
+// icon per download status, shown inside the t-label chips (inline-flex, 4px gap)
+const STATUS_ICON: Record<Download['status'], LucideIcon> = {
+  running: Play,
+  queued: Clock,
+  paused: Pause,
+  done: Check,
+  error: TriangleAlert,
+  canceled: X,
+}
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -110,11 +121,13 @@ export default function Dashboard() {
           <>
             {anyActive && (
               <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause' })}>
+                <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('dash.pauseAll')}
               </button>
             )}
             {anyPaused && (
               <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume' })}>
+                <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('dash.resumeAll')}
               </button>
             )}
@@ -125,6 +138,7 @@ export default function Dashboard() {
                 if (await confirm({ message: t('dash.cancelAllConfirm'), destructive: true })) bulk.mutate({ a: 'cancel' })
               }}
             >
+              <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {t('dash.cancelAll')}
             </button>
           </>
@@ -150,16 +164,20 @@ export default function Dashboard() {
             checked={allMatchingSelected}
             onChange={() => setSelected(allMatchingSelected ? new Set() : new Set(allMatchingIds))}
           />
-          {STATUSES.map((st) => (
-            <button
-              key={st}
-              aria-pressed={statusFilter.has(st)}
-              className={`t-label min-h-6 cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
-              onClick={() => toggleStatus(st)}
-            >
-              {t(`status.${st}`)}
-            </button>
-          ))}
+          {STATUSES.map((st) => {
+            const Icon = STATUS_ICON[st]
+            return (
+              <button
+                key={st}
+                aria-pressed={statusFilter.has(st)}
+                className={`t-label min-h-6 cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
+                onClick={() => toggleStatus(st)}
+              >
+                <Icon aria-hidden size="1em" />
+                {t(`status.${st}`)}
+              </button>
+            )
+          })}
           {filtering && (
             <button
               className="t-label min-h-6 cursor-pointer hover:text-accent"
@@ -168,7 +186,8 @@ export default function Dashboard() {
                 setStatusFilter(new Set())
               }}
             >
-              ✕ {t('dash.filterClear')}
+              <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('dash.filterClear')}
             </button>
           )}
         </div>
@@ -178,9 +197,11 @@ export default function Dashboard() {
         <div className="t-panel mb-4 flex flex-wrap items-center gap-2 p-3" role="toolbar" aria-label={t('dash.selectionActions')}>
           <span className="t-label t-label--accent">{t('dash.selectedCount', { count: selected.size })}</span>
           <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause', ids: [...selected] })}>
+            <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.pause')}
           </button>
           <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: [...selected] })}>
+            <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.resume')}
           </button>
           <button
@@ -188,6 +209,7 @@ export default function Dashboard() {
             disabled={bulk.isPending}
             onClick={() => bulk.mutate({ a: 'cancel', ids: [...selected] })}
           >
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.cancel')}
           </button>
           <button
@@ -195,10 +217,12 @@ export default function Dashboard() {
             disabled={bulk.isPending}
             onClick={() => bulk.mutate({ a: 'delete', ids: [...selected] })}
           >
+            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.removeSelected')}
           </button>
           <button className="t-btn t-btn--sm ml-auto" onClick={() => setSelected(new Set())}>
-            ✕ {t('dash.clearSelection')}
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('dash.clearSelection')}
           </button>
         </div>
       )}
@@ -248,6 +272,7 @@ export default function Dashboard() {
                 <span className="font-mono text-xs text-t-muted">{fmtBytes(d.size)}</span>
                 {(d.status === 'error' || d.status === 'canceled') && (
                   <button className="t-btn t-btn--sm" onClick={() => action.mutate({ id: d.id, verb: 'resume' })}>
+                    <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('dash.retry')}
                   </button>
                 )}
@@ -256,7 +281,7 @@ export default function Dashboard() {
                   aria-label={t('dash.remove', { id: d.id })}
                   onClick={() => action.mutate({ id: d.id, verb: 'delete' })}
                 >
-                  ✕
+                  <X aria-hidden size="1.2em" />
                 </button>
               </div>
             ))}
@@ -318,15 +343,20 @@ function SyncSummary() {
                   {title(w)}
                 </span>
                 {(w.behind ?? 0) > 0 && (
-                  <span className="t-label t-label--warn shrink-0">{t('watch.behind', { count: w.behind })}</span>
+                  <span className="t-label t-label--warn shrink-0">
+                    <Clock aria-hidden size="1em" />
+                    {t('watch.behind', { count: w.behind })}
+                  </span>
                 )}
                 {(w.missing?.length ?? 0) > 0 && (
                   <span className="t-label t-label--err shrink-0" title={w.missing!.join(', ')}>
+                    <TriangleAlert aria-hidden size="1em" />
                     {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
                   </span>
                 )}
                 {(w.langWaiting ?? 0) > 0 && (
                   <span className="t-label t-label--warn shrink-0">
+                    <Clock aria-hidden size="1em" />
                     {t('watch.langWaiting', {
                       count: w.langWaiting,
                       lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
@@ -390,7 +420,13 @@ export function StatusChip({ status }: { status: Download['status'] }) {
   const { t } = useTranslation()
   const cls =
     status === 'done' ? 't-label--ok' : status === 'error' ? 't-label--err' : status === 'running' ? 't-label--accent' : status === 'paused' ? 't-label--warn' : ''
-  return <span className={`t-label ${cls}`}>{t(`status.${status}`)}</span>
+  const Icon = STATUS_ICON[status]
+  return (
+    <span className={`t-label ${cls}`}>
+      <Icon aria-hidden size="1em" />
+      {t(`status.${status}`)}
+    </span>
+  )
 }
 
 // Selection checkbox: click toggles, shift-click selects a range (handled by
@@ -461,14 +497,17 @@ function DownloadRow({
       <div className="mt-2 flex flex-wrap items-center gap-2 sm:flex-nowrap">
         {d.status === 'running' || d.status === 'queued' ? (
           <button className="t-btn t-btn--sm shrink-0" onClick={() => onAction('pause')}>
+            <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.pause')}
           </button>
         ) : (
           <button className="t-btn t-btn--sm shrink-0" onClick={() => onAction('resume')}>
+            <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.resume')}
           </button>
         )}
         <button className="t-btn t-btn--sm t-btn--danger shrink-0" onClick={() => onAction('cancel')}>
+          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('dash.cancel')}
         </button>
         <RateLimitInput d={d} />

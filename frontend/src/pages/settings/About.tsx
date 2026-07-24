@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../api'
 import { useAuth } from '../../hooks'
@@ -59,7 +60,7 @@ export default function About() {
               <>
                 {' '}
                 <a href={data.url} target="_blank" rel="noreferrer" className="text-accent hover:underline">
-                  {t('about.updateLink')} ↗
+                  {t('about.updateLink')} <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
                 </a>
               </>
             )}
@@ -82,7 +83,7 @@ export default function About() {
           <dd>
             {repoUrl ? (
               <a href={repoUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">
-                {data?.repo} ↗
+                {data?.repo} <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
               </a>
             ) : (
               <span className="text-t-muted">-</span>
