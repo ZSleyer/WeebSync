@@ -680,8 +680,13 @@
     "dialogEdit": "Server bearbeiten",
     "dialogNew": "Server hinzufügen",
     "validation": "Name, Protokoll (sftp|ftps|ftp), Host, Benutzer, Passwort erforderlich",
-    "hostKeyChanged": "Der SSH-Host-Key des Servers hat sich geändert. Nur vertrauen, wenn die Änderung erwartet ist (z. B. Server neu aufgesetzt) - sonst mögliche Man-in-the-Middle-Attacke.",
-    "trustHostKey": "Neuem Host-Key vertrauen"
+    "hostKeyChanged": "Der SSH-Host-Key des Servers hat sich geändert. Fingerprints vergleichen und nur akzeptieren, wenn die Änderung erwartet ist (z. B. Server neu aufgesetzt) - sonst mögliche Man-in-the-Middle-Attacke.",
+    "hostKeyUnknown": "Erste Verbindung zu diesem Server. Fingerprint mit dem vom Serverbetreiber veröffentlichten vergleichen und nur bei Übereinstimmung akzeptieren.",
+    "hostKeyOld": "Bekannt",
+    "hostKeyNew": "Neu",
+    "hostKeyAccept": "Akzeptieren",
+    "hostKeyReject": "Ablehnen",
+    "hostKeyRejected": "Host-Key abgelehnt - es wurde nichts gespeichert."
   },
   "plex": {
     "title": "PLEX",

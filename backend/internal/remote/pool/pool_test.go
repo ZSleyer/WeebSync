@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -22,7 +24,8 @@ import (
 type testSFTP struct {
 	ln          net.Listener
 	dir         string
-	maxSessions int // channels a single connection may hold (0 = unlimited)
+	hostKey     string // base64 host key, pinned by cfg()
+	maxSessions int    // channels a single connection may hold (0 = unlimited)
 
 	mu        sync.Mutex
 	peakConns int // most TCP connections open at once
@@ -46,7 +49,10 @@ func startTestSFTP(t *testing.T, maxSessions int) *testSFTP {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello"), 0o644)
 
-	s := &testSFTP{ln: ln, dir: dir, maxSessions: maxSessions}
+	s := &testSFTP{
+		ln: ln, dir: dir, maxSessions: maxSessions,
+		hostKey: base64.StdEncoding.EncodeToString(signer.PublicKey().Marshal()),
+	}
 	cfg := &ssh.ServerConfig{PasswordCallback: func(ssh.ConnMetadata, []byte) (*ssh.Permissions, error) { return nil, nil }}
 	cfg.AddHostKey(signer)
 
@@ -140,7 +146,7 @@ func (s *testSFTP) cfg() remote.Config {
 	for _, c := range port {
 		p = p*10 + int(c-'0')
 	}
-	return remote.Config{Protocol: "sftp", Host: "127.0.0.1", Port: p, Username: "u", Password: "p"}
+	return remote.Config{Protocol: "sftp", Host: "127.0.0.1", Port: p, Username: "u", Password: "p", HostKey: s.hostKey}
 }
 
 func (s *testSFTP) peak() int {
@@ -306,4 +312,31 @@ func TestReserve(t *testing.T) {
 			t.Errorf("reserve(%v,%d)=%d want %d", c.prio, c.total, got, c.want)
 		}
 	}
+}
+
+// TestDialHostKeyPinning verifies the strict pinning in remote.dialSSH against
+// a real handshake (the in-process server lives in this package): unknown and
+// wrong keys are refused with the offered key reported, the pinned key passes.
+func TestDialHostKeyPinning(t *testing.T) {
+	s := startTestSFTP(t, 0)
+
+	cfg := s.cfg()
+	cfg.HostKey = "" // first contact: refuse, report the offered key
+	var hk *remote.HostKeyError
+	if _, err := remote.DialSSH(cfg); !errors.As(err, &hk) {
+		t.Fatalf("empty pin: want HostKeyError, got %v", err)
+	} else if hk.Offered != s.hostKey || hk.Stored != "" {
+		t.Fatalf("empty pin: offered=%q stored=%q", hk.Offered, hk.Stored)
+	}
+
+	cfg.HostKey = "AAAA" // wrong pin: mismatch
+	if _, err := remote.DialSSH(cfg); !errors.As(err, &hk) || hk.Stored != "AAAA" {
+		t.Fatalf("wrong pin: want mismatch HostKeyError, got %v", err)
+	}
+
+	conn, err := remote.DialSSH(s.cfg()) // correct pin: connects
+	if err != nil {
+		t.Fatalf("correct pin: %v", err)
+	}
+	conn.Close()
 }

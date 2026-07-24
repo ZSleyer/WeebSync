@@ -2,7 +2,6 @@
 package remote
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -10,9 +9,20 @@ import (
 	"github.com/ch4d1/weebsync/internal/netguard"
 )
 
-// ErrHostKeyMismatch marks a failed SSH handshake caused by a host key that
-// differs from the learned TOFU key. Callers can offer a key reset.
-var ErrHostKeyMismatch = errors.New("ssh host key mismatch - server changed or MITM")
+// HostKeyError aborts an SSH handshake whose host key is not the pinned one.
+// Offered lets the caller show its fingerprint and pin the key after explicit
+// user approval; Stored is empty on first contact.
+type HostKeyError struct {
+	Offered string // base64 key the server presented
+	Stored  string // base64 pinned key, "" = first contact
+}
+
+func (e *HostKeyError) Error() string {
+	if e.Stored == "" {
+		return "ssh host key not trusted yet - review and accept it via the connection test"
+	}
+	return "ssh host key mismatch - server changed or MITM"
+}
 
 type Entry struct {
 	Name    string    `json:"name"`
@@ -36,10 +46,13 @@ type Config struct {
 	Port     int
 	Username string
 	Password string
-	// HostKey is the known SSH host key (base64, TOFU). Empty = first
-	// connect, learned key is written back via the OnHostKey callback.
-	HostKey   string
-	OnHostKey func(key string) // called when a new host key is learned
+	// HostKey is the pinned SSH host key (base64). Anything else the server
+	// presents - including first contact while this is empty - fails the
+	// dial with *HostKeyError until the user explicitly pins a key.
+	HostKey string
+	// InsecureHostKey accepts any host key. One-shot CLI tools only,
+	// never the server.
+	InsecureHostKey bool
 	// MaxConns caps concurrent connections to this server (default applied by
 	// the caller). For SFTP the pool multiplexes channels over up to this many
 	// connections; for FTP/FTPS it caps concurrent connections directly.

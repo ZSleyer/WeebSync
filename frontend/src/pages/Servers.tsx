@@ -27,28 +27,38 @@ export default function Servers() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['servers'] }),
   })
 
-  // 409 on /test = SSH host key changed; the user can explicitly trust the new key
-  const [keyMismatch, setKeyMismatch] = useState<Record<number, boolean>>({})
+  // 409 on /test = SSH host key unknown or changed; the test itself never
+  // trusts anything - the user reviews old/new fingerprints and accepts or
+  // rejects explicitly
+  type KeyConflict = { code: string; newKey: string; newFingerprint: string; oldFingerprint?: string }
+  const [keyConflict, setKeyConflict] = useState<Record<number, KeyConflict | undefined>>({})
 
   const test = async (id: number) => {
     setTestResult((r) => ({ ...r, [id]: '…' }))
-    setKeyMismatch((m) => ({ ...m, [id]: false }))
+    setKeyConflict((m) => ({ ...m, [id]: undefined }))
     try {
       await api.post(`/api/servers/${id}/test`)
       setTestResult((r) => ({ ...r, [id]: 'ok' }))
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) setKeyMismatch((m) => ({ ...m, [id]: true }))
+      if (e instanceof ApiError && e.status === 409 && (e.data as KeyConflict)?.newKey)
+        setKeyConflict((m) => ({ ...m, [id]: e.data as KeyConflict }))
       setTestResult((r) => ({ ...r, [id]: e instanceof Error ? e.message : t('app.error') }))
     }
   }
 
-  const trustKey = async (id: number) => {
+  // accept pins exactly the reviewed key; reject just dismisses the prompt
+  const acceptKey = async (id: number, key: string) => {
     try {
-      await api.post(`/api/servers/${id}/trust-hostkey`)
-      await test(id) // re-learns the new key via TOFU
+      await api.post(`/api/servers/${id}/trust-hostkey`, { key })
+      await test(id)
     } catch (e) {
       setTestResult((r) => ({ ...r, [id]: e instanceof Error ? e.message : t('app.error') }))
     }
+  }
+
+  const rejectKey = (id: number) => {
+    setKeyConflict((m) => ({ ...m, [id]: undefined }))
+    setTestResult((r) => ({ ...r, [id]: t('servers.hostKeyRejected') }))
   }
 
   return (
@@ -106,18 +116,38 @@ export default function Servers() {
                 </span>
               )}
             </div>
-            {testResult[s.id] && testResult[s.id] !== 'ok' && testResult[s.id] !== '…' && (
+            {testResult[s.id] && testResult[s.id] !== 'ok' && testResult[s.id] !== '…' && !keyConflict[s.id] && (
               <p className="mt-2 break-all text-xs text-err" role="alert">
                 {testResult[s.id]}
               </p>
             )}
-            {keyMismatch[s.id] && (
-              <div className="mt-2">
-                <p className="mb-2 text-xs text-t-muted">{t('servers.hostKeyChanged')}</p>
-                <button className="t-btn t-btn--sm t-btn--danger" onClick={() => trustKey(s.id)}>
-                  <ShieldCheck aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('servers.trustHostKey')}
-                </button>
+            {keyConflict[s.id] && (
+              <div className="mt-2 border border-err/40 p-3">
+                <p className="mb-2 text-xs text-t-muted">
+                  {t(keyConflict[s.id]!.code === 'host_key_unknown' ? 'servers.hostKeyUnknown' : 'servers.hostKeyChanged')}
+                </p>
+                {keyConflict[s.id]!.oldFingerprint && (
+                  <p className="break-all font-mono text-xs">
+                    <span className="text-t-muted">{t('servers.hostKeyOld')}: </span>
+                    {keyConflict[s.id]!.oldFingerprint}
+                  </p>
+                )}
+                <p className="mb-2 break-all font-mono text-xs">
+                  <span className="text-t-muted">{t('servers.hostKeyNew')}: </span>
+                  {keyConflict[s.id]!.newFingerprint}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="t-btn t-btn--sm t-btn--danger"
+                    onClick={() => acceptKey(s.id, keyConflict[s.id]!.newKey)}
+                  >
+                    <ShieldCheck aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                    {t('servers.hostKeyAccept')}
+                  </button>
+                  <button className="t-btn t-btn--sm" onClick={() => rejectKey(s.id)}>
+                    {t('servers.hostKeyReject')}
+                  </button>
+                </div>
               </div>
             )}
           </div>

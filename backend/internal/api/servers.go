@@ -226,22 +226,32 @@ func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // HostKeyConflict is returned (409) by handleServerTest when the server's SSH
-// host key changed, so the UI can offer to trust the new key.
+// host key is unknown or changed, so the UI can show both fingerprints and let
+// the user explicitly accept or reject the offered key.
 type HostKeyConflict struct {
 	Error string `json:"error"`
-	Code  string `json:"code" example:"host_key_mismatch"`
+	// Code is host_key_unknown (first contact) or host_key_mismatch.
+	Code string `json:"code" example:"host_key_mismatch"`
+	// NewKey is the offered key (base64); echo it back to /trust-hostkey on
+	// accept so exactly the reviewed key gets pinned.
+	NewKey         string `json:"newKey"`
+	NewFingerprint string `json:"newFingerprint" example:"ssh-ed25519 SHA256:..."`
+	// OldFingerprint is empty on first contact.
+	OldFingerprint string `json:"oldFingerprint,omitempty"`
 }
 
 // handleServerTest dials the server and lists its root to validate the config.
+// It never pins a host key itself - an untrusted key comes back as 409 with
+// fingerprints, and only /trust-hostkey (explicit user accept) pins it.
 // @Summary  Test server connection
-// @Description Dials the server and lists its root path to validate the stored configuration.
+// @Description Dials the server and lists its root path to validate the stored configuration. Never pins a host key; an unknown or changed SSH host key is reported as 409 with old/new fingerprints for explicit accept via /trust-hostkey.
 // @Tags     Servers
 // @Produce  json
 // @Param    id path int true "Server ID"
 // @Success  200 {object} OkResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
-// @Failure  409 {object} HostKeyConflict "SSH host key mismatch"
+// @Failure  409 {object} HostKeyConflict "SSH host key unknown or changed"
 // @Failure  502 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/servers/{id}/test [post]
@@ -250,12 +260,17 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
-		if errors.Is(err, remote.ErrHostKeyMismatch) {
-			// 409 + code so the UI can offer "trust the new host key"
-			writeJSON(w, http.StatusConflict, HostKeyConflict{
-				Error: err.Error(),
-				Code:  "host_key_mismatch",
-			})
+		var hk *remote.HostKeyError
+		if errors.As(err, &hk) {
+			// 409 + fingerprints so the UI can ask accept/reject
+			c := HostKeyConflict{Error: err.Error(), Code: "host_key_mismatch", NewKey: hk.Offered}
+			c.NewFingerprint, _ = remote.KeyLabel(hk.Offered)
+			if hk.Stored == "" {
+				c.Code = "host_key_unknown"
+			} else {
+				c.OldFingerprint, _ = remote.KeyLabel(hk.Stored)
+			}
+			writeJSON(w, http.StatusConflict, c)
 			return
 		}
 		status := http.StatusBadGateway
@@ -273,15 +288,25 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
-// handleServerTrustHostKey drops the learned SSH host key after the user
-// explicitly accepted that the server key changed; the next connect
-// re-learns the new key via trust-on-first-use.
-// @Summary  Trust new host key
-// @Description Drops the learned SSH host key so the next connect re-learns it via trust-on-first-use.
+// TrustHostKeyInput carries the host key the user reviewed and accepted.
+type TrustHostKeyInput struct {
+	// Key is the base64 host key from the failed test's newKey field.
+	Key string `json:"key"`
+}
+
+// handleServerTrustHostKey pins the exact host key whose fingerprint the user
+// reviewed and accepted. Pinning the reviewed key (instead of clearing for a
+// TOFU re-learn) means a key that changes again between review and accept
+// fails the next connect instead of being trusted silently.
+// @Summary  Trust host key
+// @Description Pins the SSH host key the user explicitly accepted after reviewing its fingerprint.
 // @Tags     Servers
+// @Accept   json
 // @Produce  json
 // @Param    id path int true "Server ID"
+// @Param    body body TrustHostKeyInput true "Accepted host key"
 // @Success  200 {object} OkResponse
+// @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
@@ -290,7 +315,15 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleServerTrustHostKey(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
-	res, err := s.DB.Exec(`UPDATE servers SET host_key='' WHERE id = ? AND user_id = ?`, id, u.ID)
+	var in TrustHostKeyInput
+	if !readJSON(w, r, &in) {
+		return
+	}
+	if _, err := remote.KeyLabel(in.Key); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	res, err := s.DB.Exec(`UPDATE servers SET host_key = ? WHERE id = ? AND user_id = ?`, in.Key, id, u.ID)
 	if err != nil {
 		dbErr(w)
 		return
@@ -299,6 +332,8 @@ func (s *Server) handleServerTrustHostKey(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
 	}
+	// connections dialed under the old key may still be pooled
+	s.Conns.Evict(id)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -331,9 +366,6 @@ func (s *Server) dialServer(ctx context.Context, userID, serverID int64, prio po
 	cfg.Password, err = secret.Decrypt(enc)
 	if err != nil {
 		return nil, "", err
-	}
-	cfg.OnHostKey = func(key string) {
-		s.DB.Exec(`UPDATE servers SET host_key = ? WHERE id = ?`, key, serverID)
 	}
 	client, err := s.Conns.Lease(ctx, serverID, cfg, prio)
 	if err != nil {
