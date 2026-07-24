@@ -160,6 +160,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("PUT /api/users/{id}", authed(adminOnly(http.HandlerFunc(s.handleUserUpdate))))
 	mux.Handle("DELETE /api/users/{id}", authed(adminOnly(http.HandlerFunc(s.handleUserDelete))))
 
+	// one-shot migration from the original Node weebsync's config.json
+	mux.Handle("POST /api/import/legacy", authed(http.HandlerFunc(s.handleLegacyImport)))
+
 	// settings (mutations are admin-only)
 	mux.Handle("GET /api/settings", authed(adminOnly(http.HandlerFunc(s.handleSettingsGet))))
 	mux.Handle("PUT /api/settings", authed(adminOnly(http.HandlerFunc(s.handleSettingsPut))))

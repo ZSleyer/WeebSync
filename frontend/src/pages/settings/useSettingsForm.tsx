@@ -46,6 +46,9 @@ export interface SettingsState {
   smtpPasswordSet: boolean
   smtpPassword?: string
   apiTokenSet?: boolean
+  downloadRoots?: string[] // read-only: local dirs files may be written to
+  downloadsEnvSet?: boolean // read-only: WEEBSYNC_DOWNLOADS is set
+  onboardingDone?: boolean // first-run wizard finished; write-once
   envLocked: string[]
 }
 
