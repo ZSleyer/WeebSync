@@ -1,6 +1,9 @@
 export {
   Badge,
   Button,
+  ButtonLabel,
+  ButtonLink,
+  buttonClass,
   Checkbox,
   Count,
   Divider,
@@ -19,6 +22,8 @@ export {
 export type {
   BadgeProps,
   BadgeTone,
+  ButtonLabelProps,
+  ButtonLinkProps,
   ButtonProps,
   ButtonVariant,
   CheckboxProps,
@@ -48,6 +53,7 @@ export {
   MenuItem,
   Modal,
   NavItem,
+  navItemClass,
   SuggestionCard,
 } from './composites'
 export type {
@@ -63,5 +69,9 @@ export type {
   MenuProps,
   ModalProps,
   NavItemProps,
+  NavVariant,
   SuggestionCardProps,
 } from './composites'
+
+export { Dialog } from './dialog'
+export type { DialogProps } from './dialog'
