@@ -415,11 +415,56 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
 }
 
 /* ── Form controls ── */
+/* Tempest checkbox: hard corners, hairline border, CSS-drawn check - the
+   native control's rounded look broke the design language. */
 input[type='checkbox'] {
+  appearance: none;
   width: 1.125rem;
   height: 1.125rem;
-  accent-color: var(--accent-blue);
   flex-shrink: 0;
+  position: relative;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: var(--bg-card);
+  cursor: pointer;
+}
+input[type='checkbox']:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+input[type='checkbox']:checked,
+input[type='checkbox']:indeterminate {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+input[type='checkbox']:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.625rem;
+  height: 0.3125rem;
+  border-left: 2px solid var(--bg-primary);
+  border-bottom: 2px solid var(--bg-primary);
+  transform: translate(-50%, -70%) rotate(-45deg);
+}
+input[type='checkbox']:indeterminate::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.625rem;
+  height: 2px;
+  background: var(--bg-primary);
+  transform: translate(-50%, -50%);
+}
+input[type='checkbox']:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-primary),
+    0 0 0 4px var(--accent-blue);
+}
+input[type='checkbox']:disabled { opacity: 0.45; cursor: not-allowed; }
+@media (pointer: coarse) {
+  /* WCAG 2.5.8 touch target */
+  input[type='checkbox'] { width: 1.5rem; height: 1.5rem; }
 }
 
 /* ── Native dialog: Tempest panel + CRT reveal ── */
