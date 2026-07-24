@@ -135,8 +135,9 @@ func (r *Resolver) fresh(s Series, want string) bool {
 // retries); on a definitive empty result it stamps the meta row with the
 // wanted source, backing off API calls for one TTL.
 func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, want string) {
-	// strip CR/LF from the user-controlled folder so it can't forge log lines
-	folder := strings.ReplaceAll(strings.ReplaceAll(s.Folder, "\n", ""), "\r", "")
+	// strip CR/LF from the user-controlled folder so it can't forge log lines.
+	// NewReplacer form (not nested ReplaceAll) so CodeQL recognizes the barrier.
+	folder := strings.NewReplacer("\r", "", "\n", "").Replace(s.Folder)
 	m, err := r.buildMap(ctx, s, provider, ordering)
 	if err != nil {
 		slog.Warn("airmap rebuild", "folder", folder, "err", err)

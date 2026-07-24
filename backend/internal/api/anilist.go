@@ -285,7 +285,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 				// with which query - a 4th-stage hit is invisible in the DB
 				if len(fb[n]) > 0 {
 					slog.Debug("match fallback hit", "stage", stage,
-						"folder", batch[i].folder, "query", sub[n].Query, "candidates", len(fb[n]))
+						"folder", logSafe(batch[i].folder), "query", sub[n].Query, "candidates", len(fb[n]))
 				}
 			}
 		}
@@ -340,24 +340,24 @@ func (s *Server) matchBatch(batch []matchJob) {
 	rescue := make([]bool, len(batch))
 	for i := range batch {
 		if len(results[i]) == 0 {
-			slog.Debug("match unresolved", "folder", batch[i].folder, "reason", "no candidates after fallbacks")
+			slog.Debug("match unresolved", "folder", logSafe(batch[i].folder), "reason", "no candidates after fallbacks")
 			continue
 		}
 		idx, ok := match.Pick(infos[i], results[i])
 		switch {
 		case ok:
 			picked[i] = &results[i][idx]
-			slog.Debug("match picked", "folder", batch[i].folder, "media", picked[i].ID,
+			slog.Debug("match picked", "folder", logSafe(batch[i].folder), "media", picked[i].ID,
 				"title", picked[i].Title.Romaji, "candidates", len(results[i]), "confident", true)
 		case infos[i].Season >= 2 && match.SeasonOf(results[i][idx]) == 0:
 			picked[i], rescue[i] = &results[i][idx], true
 			// sequel folder, best candidate has no season marker: keep it
 			// tentatively for the relations pass to confirm or discard
-			slog.Debug("match picked", "folder", batch[i].folder, "media", picked[i].ID,
+			slog.Debug("match picked", "folder", logSafe(batch[i].folder), "media", picked[i].ID,
 				"title", picked[i].Title.Romaji, "candidates", len(results[i]),
 				"confident", false, "rescue", true, "season", infos[i].Season)
 		default:
-			slog.Debug("match unresolved", "folder", batch[i].folder,
+			slog.Debug("match unresolved", "folder", logSafe(batch[i].folder),
 				"candidates", len(results[i]), "reason", "no confident candidate")
 		}
 	}
