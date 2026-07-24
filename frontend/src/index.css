@@ -112,6 +112,44 @@
 [data-theme="light"] [data-accent="pink"]    { --accent-blue: #be185d; }
 [data-theme="light"] [data-accent="orange"]  { --accent-blue: #b03a0b; }
 
+/* Re-bind the Tailwind colour bridge on every themed element, not just :root.
+   A custom property that points at another one is resolved where it is
+   DEFINED, so `--color-t-primary: var(--text-primary)` in :root freezes to the
+   root theme - a `[data-theme="light"]` section nested inside a dark page kept
+   handing its text the dark value (white on white, 1.12:1). Re-declaring the
+   bridge here re-resolves it against whatever theme the element carries. */
+[data-theme] {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-card: var(--bg-card);
+  --color-bg-hover: var(--bg-hover);
+  --color-accent: var(--accent-blue);
+  --color-ok: var(--accent-green);
+  --color-warn: var(--accent-yellow);
+  --color-err: var(--accent-red);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-active: var(--border-active);
+  --color-t-primary: var(--text-primary);
+  --color-t-secondary: var(--text-secondary);
+  --color-t-muted: var(--text-muted);
+  --color-t-faint: var(--text-faint);
+}
+
+/* ── Control metrics ──
+   One height per control family, and a fixed line box inside each: without
+   these an input, a select and a button in the same row come out at three
+   different heights, because inputs inherit the surrounding font size while
+   buttons carry their own. Touch overrides the values further down, so every
+   rule can just reference the variable. */
+:root {
+  --ctl-h: 36px; /* input, select, button */
+  --ctl-h-sm: 26px; /* small + icon buttons */
+  --ctl-fs: 14px;
+  --ctl-fs-sm: 11px;
+  --ctl-lh: 20px;
+  --ctl-lh-sm: 16px;
+}
+
 /* Root font-size is the master scale: every rem-based Tailwind utility
    (text, spacing, widths) grows from it. Desktop steps up from the 16px
    UA default; touch devices step up once more since phones are read at
@@ -195,7 +233,10 @@ body {
   gap: 4px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  font-size: 11px;
+  font-size: var(--ctl-fs-sm);
+  /* fixed line box: without it a chip is taller inside text-sm than inside
+     text-xs, and chips in different sections stop matching */
+  line-height: var(--ctl-lh-sm);
   font-weight: 600;
   border: 1px solid var(--border-subtle);
   border-radius: 0;
@@ -209,6 +250,27 @@ body {
 .t-label--ok    { border-color: color-mix(in srgb, var(--accent-green) 55%, transparent); color: var(--accent-green); }
 .t-label--warn  { border-color: color-mix(in srgb, var(--accent-yellow) 55%, transparent); color: var(--accent-yellow); }
 .t-label--err   { border-color: color-mix(in srgb, var(--accent-red) 55%, transparent); color: var(--accent-red); }
+
+/* Section divider with a trailing count: chip, hairline rule, number. One
+   fixed row height so a divider reads the same in every list. */
+.t-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--ctl-h-sm);
+}
+.t-divider-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+.t-count {
+  font-family: var(--font-mono);
+  font-size: var(--ctl-fs-sm);
+  line-height: var(--ctl-lh-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Corner-cut CTA: clips top-right corner; focus ring via box-shadow
    because the clip-path would clip an outline (WCAG 2.4.7). */
@@ -233,7 +295,9 @@ body {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: 0.04em;
-  font-size: 14px;
+  font-size: var(--ctl-fs);
+  line-height: var(--ctl-lh);
+  min-height: var(--ctl-h);
   border: 1px solid var(--border-subtle);
   background: var(--bg-secondary);
   color: var(--text-primary);
@@ -251,7 +315,24 @@ body {
 .t-btn--primary:hover { background: color-mix(in srgb, var(--accent-blue) 85%, var(--bg-primary)); }
 .t-btn--danger { color: var(--accent-red); border-color: color-mix(in srgb, var(--accent-red) 45%, transparent); }
 .t-btn--danger:hover { border-color: var(--accent-red); background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
-.t-btn--sm { padding: 4px 10px; font-size: 11px; min-height: 24px; min-width: 24px; } /* WCAG 2.5.8 target size */
+/* WCAG 2.5.8 target size; the shared variable keeps it level with every other
+   small control in the same row */
+.t-btn--sm {
+  padding: 4px 10px;
+  font-size: var(--ctl-fs-sm);
+  line-height: var(--ctl-lh-sm);
+  min-height: var(--ctl-h-sm);
+  min-width: var(--ctl-h-sm);
+}
+/* Square icon-only button (help "?", inline actions): same box as t-btn--sm. */
+.t-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ctl-h-sm);
+  height: var(--ctl-h-sm);
+  flex-shrink: 0;
+}
 
 /* Tabs: segmented bar in the Tempest style - display font, accent
    underline marks the active tab. On phones the bar scrolls horizontally
@@ -317,9 +398,23 @@ body {
   background: linear-gradient(to left, transparent, var(--bg-secondary) 70%);
 }
 
+/* One field of a multi-column row: label on top, control pinned to the bottom,
+   so the controls of a row still line up when one label wraps or carries a
+   help button (which is taller than a bare text line). The caption must be a
+   single element - every child becomes a flex item, so a bare text node next
+   to a <Hint> would stack instead of sitting on one line. */
+/* The caption/control spacing is a gap, not padding on the control: padding
+   here would override the control's own and make it shorter than a <select>
+   next to it. */
+.t-field { display: flex; flex-direction: column; height: 100%; gap: 4px; }
+.t-field > :last-child { margin-top: auto; }
+
 /* Inputs */
 .t-input {
-  font: inherit;
+  font-family: inherit;
+  font-size: var(--ctl-fs);
+  line-height: var(--ctl-lh);
+  min-height: var(--ctl-h);
   background: var(--bg-secondary);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
@@ -357,7 +452,10 @@ body {
   pointer-events: none;
 }
 .t-select {
-  font: inherit;
+  font-family: inherit;
+  font-size: var(--ctl-fs);
+  line-height: var(--ctl-lh);
+  min-height: var(--ctl-h);
   appearance: none;
   background: var(--bg-secondary);
   color: var(--text-primary);
@@ -409,38 +507,54 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
    which is what stops iOS Safari from zooming into a focused field - it must
    never resolve below 16px, hence the floor in the clamp. */
 @media (pointer: coarse) {
-  .t-input, .t-select { font-size: 0.889rem; min-height: 2.667rem; }
-  .t-btn   { font-size: 0.889rem; min-height: 2.667rem; padding: 0.556rem 0.889rem; }
-  .t-btn--sm { font-size: 0.722rem; min-height: 2.222rem; padding: 0.333rem 0.667rem; }
-  .t-tab   { font-size: 0.889rem; min-height: 2.667rem; padding: 0.556rem 0.889rem; }
+  :root {
+    --ctl-h: 2.667rem;
+    --ctl-h-sm: 2.222rem;
+    --ctl-fs: 0.889rem;
+    --ctl-fs-sm: 0.722rem;
+    --ctl-lh: 1.333rem;
+    --ctl-lh-sm: 1.111rem;
+  }
+  .t-btn { padding: 0.556rem 0.889rem; }
+  .t-btn--sm { padding: 0.333rem 0.667rem; }
+  .t-tab { font-size: var(--ctl-fs); min-height: var(--ctl-h); padding: 0.556rem 0.889rem; }
 }
 
 /* ── Toolbar: one control row with a single normalized height ── */
 .t-toolbar {
+  /* one compact height for the whole row - the base rules read the variable,
+     so nothing has to be overridden control by control */
+  --ctl-h: 2rem;
+  --ctl-h-sm: 2rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
-.t-toolbar .t-btn--sm,
-.t-toolbar .t-label { min-height: 2rem; }
+.t-toolbar .t-label { min-height: var(--ctl-h-sm); }
 /* chips grown to toolbar height need matching horizontal room */
 .t-toolbar .t-label { padding-inline: 0.625rem; }
 .t-toolbar .t-input,
 .t-toolbar .t-select {
-  min-height: 2rem;
   padding-top: 0;
   padding-bottom: 0;
 }
-.t-toolbar input[type='checkbox'] { width: 1.25rem; height: 1.25rem; }
+/* pointer:fine only - on touch the shrink would drop the box to 22.5px and
+   break the 24px target size (WCAG 2.5.8) */
+@media (pointer: fine) {
+  /* stays at the 24px floor even in the compact row */
+  .t-toolbar input[type='checkbox'] { width: 1.5rem; height: 1.5rem; }
+}
 
 /* ── Form controls ── */
 /* Tempest checkbox: hard corners, hairline border, CSS-drawn check - the
    native control's rounded look broke the design language. */
 input[type='checkbox'] {
   appearance: none;
-  width: 1.125rem;
-  height: 1.125rem;
+  /* 24px is the WCAG 2.5.8 floor; the box is author-styled, so the
+     user-agent exception doesn't apply to it */
+  width: 1.5rem;
+  height: 1.5rem;
   flex-shrink: 0;
   position: relative;
   border: 1px solid var(--border-subtle);

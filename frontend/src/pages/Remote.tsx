@@ -849,7 +849,7 @@ function SyncDialog({
             <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="sync-target">
               {t('remote.localTarget')}
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-stretch gap-2">
               <PathInput
                 id="sync-target"
                 value={localPath}

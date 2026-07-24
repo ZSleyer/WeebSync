@@ -4,6 +4,11 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { api, type Media } from '../api'
 
+// Every two-column row of the watch dialog - here and in WatchDialog itself -
+// uses this one grid, so the split between the left and right column stays put
+// across sections instead of shifting from row to row.
+export const ROW_GRID = 'grid gap-3 sm:grid-cols-2'
+
 // RenameRule is the part of a rename configuration that auto-sync and the
 // rename page share; a watch carries more fields on top of it.
 export interface RenameRule {
@@ -77,7 +82,7 @@ export function Hint({ text }: { text: string }) {
     <span ref={ref} className="relative ml-1 inline-block align-middle">
       <button
         type="button"
-        className="group/hint inline-flex h-6 w-6 items-center justify-center rounded align-middle focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
+        className="group/hint t-iconbtn rounded align-middle focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
         aria-label={text}
         onMouseEnter={show}
         onMouseLeave={() => setPos(null)}
@@ -342,7 +347,7 @@ export default function RenameOptions({
               </button>
             ))}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className={ROW_GRID}>
             <label className="text-xs text-t-muted">
               {t('rename.separator')}
               <span className="t-select-wrap mt-1 block">
@@ -362,7 +367,7 @@ export default function RenameOptions({
           </div>
         </>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={ROW_GRID}>
           <label className="text-xs text-t-muted">
             {t('rename.pattern')}
             <input
