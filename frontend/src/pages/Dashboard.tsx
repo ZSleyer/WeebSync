@@ -83,6 +83,10 @@ export default function Dashboard() {
     })
     lastClick.current = id
   }
+  // per-section slices of the shared selection, so each section shows its own
+  // toolbar with only the actions that make sense there
+  const activeSelected = activeIds.filter((id) => selected.has(id))
+  const historySelected = historyIds.filter((id) => selected.has(id))
   const allActiveSelected = activeIds.length > 0 && activeIds.every((id) => selected.has(id))
   const allHistorySelected = historyIds.length > 0 && historyIds.every((id) => selected.has(id))
   // native indeterminate state for the select-all boxes on partial selection
@@ -210,34 +214,26 @@ export default function Dashboard() {
               </span>
             </div>
 
-      {selected.size > 0 && (
+      {activeSelected.length > 0 && (
         <div className="t-panel mb-4 flex flex-wrap items-center gap-2 p-3" role="toolbar" aria-label={t('dash.selectionActions')}>
-          <span className="t-label t-label--accent">{t('dash.selectedCount', { count: selected.size })}</span>
-          <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause', ids: [...selected] })}>
+          <span className="t-label t-label--accent">{t('dash.selectedCount', { count: activeSelected.length })}</span>
+          <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}>
             <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.pause')}
           </button>
-          <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: [...selected] })}>
+          <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}>
             <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.resume')}
           </button>
           <button
             className="t-btn t-btn--sm t-btn--danger"
             disabled={bulk.isPending}
-            onClick={() => bulk.mutate({ a: 'cancel', ids: [...selected] })}
+            onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}
           >
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.cancel')}
           </button>
-          <button
-            className="t-btn t-btn--sm t-btn--danger"
-            disabled={bulk.isPending}
-            onClick={() => bulk.mutate({ a: 'delete', ids: [...selected] })}
-          >
-            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('dash.removeSelected')}
-          </button>
-          <button className="t-btn t-btn--sm ml-auto" onClick={() => setSelected(new Set())}>
+          <button className="t-btn t-btn--sm ml-auto" onClick={() => toggleSection(activeIds, true)}>
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('dash.clearSelection')}
           </button>
@@ -336,6 +332,35 @@ export default function Dashboard() {
                       )}
                     </div>
                   </div>
+                  {historySelected.length > 0 && (
+                    <div
+                      className="t-panel mb-2 flex flex-wrap items-center gap-2 p-3"
+                      role="toolbar"
+                      aria-label={t('dash.selectionActions')}
+                    >
+                      <span className="t-label t-label--accent">{t('dash.selectedCount', { count: historySelected.length })}</span>
+                      <button
+                        className="t-btn t-btn--sm"
+                        disabled={bulk.isPending}
+                        onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}
+                      >
+                        <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('dash.retry')}
+                      </button>
+                      <button
+                        className="t-btn t-btn--sm t-btn--danger"
+                        disabled={bulk.isPending}
+                        onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}
+                      >
+                        <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('dash.removeSelected')}
+                      </button>
+                      <button className="t-btn t-btn--sm ml-auto" onClick={() => toggleSection(historyIds, true)}>
+                        <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('dash.clearSelection')}
+                      </button>
+                    </div>
+                  )}
                   <div className="mt-2 flex flex-col gap-2">
                     {finishedShown.map((d) => (
               <div key={d.id} className="flex items-center gap-3 border border-border-subtle bg-bg-card px-3 py-2 text-sm">
