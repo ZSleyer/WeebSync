@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ExternalLink, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { api, type Media } from '../api'
@@ -155,8 +156,8 @@ export function SeriesPicker({
         <button type="button" className="t-btn t-btn--sm" onClick={() => void search(q)}>
           {t('remote.search')}
         </button>
-        <button type="button" className="t-btn t-btn--sm" onClick={onClose}>
-          ✕
+        <button type="button" className="t-btn t-btn--sm" onClick={onClose} aria-label={t('common.cancel')}>
+          <X aria-hidden size="1.2em" />
         </button>
       </div>
       <div className="max-h-64 overflow-y-auto">
@@ -189,7 +190,7 @@ export function SeriesPicker({
                 title={t('watch.openProvider')}
                 onClick={(e) => e.stopPropagation()}
               >
-                ↗
+                <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
               </a>
             )}
           </div>
@@ -517,7 +518,7 @@ export default function RenameOptions({
                       aria-label={t('watch.openProvider')}
                       title={t('watch.openProvider')}
                     >
-                      ↗
+                      <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
                     </a>
                   )}
                   <button type="button" className="t-btn t-btn--sm ml-2" onClick={() => setPickOpen((v) => !v)}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { TriangleAlert } from 'lucide-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type RenamePair } from '../api'
@@ -201,7 +202,16 @@ export default function Rename() {
                   <td
                     className={`px-3 py-1.5 ${p.error ? 'text-err' : p.old === p.new ? 'text-t-muted' : applied ? 'text-ok' : 'text-accent'}`}
                   >
-                    {p.error ? `⚠ ${p.error}` : p.old === p.new ? t('rename.unchanged') : p.new}
+                    {p.error ? (
+                      <>
+                        <TriangleAlert aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {p.error}
+                      </>
+                    ) : p.old === p.new ? (
+                      t('rename.unchanged')
+                    ) : (
+                      p.new
+                    )}
                   </td>
                 </tr>
               ))}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
@@ -298,9 +299,11 @@ function AnilistOwnApp({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <span aria-hidden className="font-mono text-accent">
-          {open ? '▾' : '▸'}
-        </span>
+        {open ? (
+          <ChevronDown aria-hidden size="1em" className="shrink-0 text-accent" />
+        ) : (
+          <ChevronRight aria-hidden size="1em" className="shrink-0 text-accent" />
+        )}
         <span>{t('settings.anilistOwnApp')}</span>
       </button>
       {open && (

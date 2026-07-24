@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Lock, LockOpen, Pencil, Plus, PlugZap, ShieldCheck, Trash2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError, type ServerInfo } from '../api'
@@ -58,6 +59,7 @@ export default function Servers() {
           <span className="t-label mt-1">{t('servers.sub')}</span>
         </div>
         <button className="t-btn t-btn--primary t-cut" onClick={() => openDialog(null)}>
+          <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('servers.add')}
         </button>
       </header>
@@ -67,7 +69,10 @@ export default function Servers() {
         {servers.map((s) => (
           <div key={s.id} className="t-panel p-4">
             <div className="mb-2 flex items-center gap-2">
-              <span className="t-label t-label--accent">{s.protocol}</span>
+              <span className="t-label t-label--accent">
+                {s.protocol === 'ftp' ? <LockOpen aria-hidden size="1em" /> : <Lock aria-hidden size="1em" />}
+                {s.protocol}
+              </span>
               <h3 className="min-w-0 flex-1 truncate font-display font-semibold">{s.name}</h3>
             </div>
             <p className="font-mono text-xs text-t-muted">
@@ -76,9 +81,11 @@ export default function Servers() {
             <p className="mb-3 font-mono text-xs text-t-muted">root: {s.rootPath}</p>
             <div className="flex flex-wrap items-center gap-2">
               <button className="t-btn t-btn--sm" onClick={() => test(s.id)}>
+                <PlugZap aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('servers.test')}
               </button>
               <button className="t-btn t-btn--sm" onClick={() => openDialog(s)}>
+                <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('servers.edit')}
               </button>
               <button
@@ -88,6 +95,7 @@ export default function Servers() {
                     del.mutate(s.id)
                 }}
               >
+                <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('servers.delete')}
               </button>
               {testResult[s.id] && (
@@ -107,6 +115,7 @@ export default function Servers() {
               <div className="mt-2">
                 <p className="mb-2 text-xs text-t-muted">{t('servers.hostKeyChanged')}</p>
                 <button className="t-btn t-btn--sm t-btn--danger" onClick={() => trustKey(s.id)}>
+                  <ShieldCheck aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('servers.trustHostKey')}
                 </button>
               </div>

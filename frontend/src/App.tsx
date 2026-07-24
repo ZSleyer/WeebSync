@@ -1,4 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  Cloud,
+  Ellipsis,
+  HardDrive,
+  LayoutDashboard,
+  LogOut,
+  PenLine,
+  RefreshCw,
+  Server,
+  Settings,
+  Sparkles,
+} from 'lucide-react'
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -33,14 +45,14 @@ import Users from './pages/settings/Users'
 import Jobs from './pages/settings/Jobs'
 
 const NAV = [
-  { to: '/', key: 'nav.dashboard', code: '01' },
-  { to: '/local', key: 'nav.local', code: '02' },
-  { to: '/remote', key: 'nav.remote', code: '03' },
-  { to: '/watches', key: 'nav.watches', code: '04' },
-  { to: '/suggestions', key: 'nav.suggestions', code: '05' },
-  { to: '/servers', key: 'nav.servers', code: '06' },
-  { to: '/rename', key: 'nav.rename', code: '07' },
-  { to: '/settings', key: 'nav.settings', code: '08' },
+  { to: '/', key: 'nav.dashboard', icon: LayoutDashboard },
+  { to: '/local', key: 'nav.local', icon: HardDrive },
+  { to: '/remote', key: 'nav.remote', icon: Cloud },
+  { to: '/watches', key: 'nav.watches', icon: RefreshCw },
+  { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
+  { to: '/servers', key: 'nav.servers', icon: Server },
+  { to: '/rename', key: 'nav.rename', icon: PenLine },
+  { to: '/settings', key: 'nav.settings', icon: Settings },
 ]
 // mobile bottom bar: only the daily-use targets get a tab, the rest moves
 // into a "more" sheet so touch targets stay wide enough
@@ -114,6 +126,20 @@ function RouteTitle() {
   return null
 }
 
+// RouteTransition drops the animation class once the wipe finished: a filled
+// transform animation keeps the wrapper a containing block, which would pin
+// position:fixed descendants (e.g. the browser's selection bar) to the page
+// instead of the viewport. Lives inside the keyed <main>, so a navigation
+// remounts it and the next animation plays from scratch.
+function RouteTransition({ cls, children }: { cls: string; children: ReactNode }) {
+  const [done, setDone] = useState(false)
+  return (
+    <div className={done ? undefined : cls} onAnimationEnd={(e) => e.target === e.currentTarget && setDone(true)}>
+      {children}
+    </div>
+  )
+}
+
 function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
   const location = useLocation()
@@ -172,7 +198,7 @@ function Shell({ email }: { email: string }) {
             }`
       }
     >
-      <span className="font-mono text-[0.56rem] text-t-muted">{n.code}</span>
+      <n.icon aria-hidden size="1.25em" className="shrink-0" />
       {mobile ? (
         <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
       ) : (
@@ -200,6 +226,7 @@ function Shell({ email }: { email: string }) {
             {email}
           </p>
           <button className="t-btn t-btn--sm w-full" onClick={logout}>
+            <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('app.logout')}
           </button>
         </div>
@@ -211,14 +238,15 @@ function Shell({ email }: { email: string }) {
           WEEB<span className="text-accent">SYNC</span>
         </h1>
         <button className="t-btn t-btn--sm" onClick={logout}>
+          <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('app.logout')}
         </button>
       </header>
 
       <main className="min-w-0 flex-1 overflow-x-clip p-4 pb-20 lg:p-6 lg:pb-6" key={location.pathname}>
-        <div className={transitionClass}>
+        <RouteTransition cls={transitionClass}>
           <Outlet />
-        </div>
+        </RouteTransition>
       </main>
 
       {/* mobile bottom nav: primary tabs + "more" sheet */}
@@ -239,7 +267,7 @@ function Shell({ email }: { email: string }) {
                   }`
                 }
               >
-                <span className="font-mono text-[0.56rem] text-t-muted">{n.code}</span>
+                <n.icon aria-hidden size="1.25em" className="shrink-0" />
                 {t(n.key)}
               </NavLink>
             ))}
@@ -255,7 +283,7 @@ function Shell({ email }: { email: string }) {
             aria-controls="nav-more"
             onClick={() => setMoreOpen((o) => !o)}
           >
-            <span className="font-mono text-[0.56rem] text-t-muted">⋯</span>
+            <Ellipsis aria-hidden size="1.25em" className="shrink-0" />
             <span className="max-w-full truncate whitespace-nowrap">{t('nav.more')}</span>
           </button>
         </div>

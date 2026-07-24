@@ -1,21 +1,22 @@
 import { useEffect, type ReactNode } from 'react'
+import { Activity, ArrowDownUp, Bell, Info, Mail, Palette, Plug, Shield, UserRound, Users } from 'lucide-react'
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../hooks'
 
 const PERSONAL = [
-  { to: 'look', key: 'settings.nav.look' },
-  { to: 'account', key: 'settings.nav.account' },
-  { to: 'notifications', key: 'settings.nav.notifications' },
-  { to: 'about', key: 'settings.nav.about' },
+  { to: 'look', key: 'settings.nav.look', icon: Palette },
+  { to: 'account', key: 'settings.nav.account', icon: UserRound },
+  { to: 'notifications', key: 'settings.nav.notifications', icon: Bell },
+  { to: 'about', key: 'settings.nav.about', icon: Info },
 ]
 const ADMIN = [
-  { to: 'transfers', key: 'settings.nav.transfers' },
-  { to: 'security', key: 'settings.nav.security' },
-  { to: 'integrations', key: 'settings.nav.integrations' },
-  { to: 'email', key: 'settings.nav.email' },
-  { to: 'users', key: 'settings.nav.users' },
-  { to: 'jobs', key: 'settings.nav.jobs' },
+  { to: 'transfers', key: 'settings.nav.transfers', icon: ArrowDownUp },
+  { to: 'security', key: 'settings.nav.security', icon: Shield },
+  { to: 'integrations', key: 'settings.nav.integrations', icon: Plug },
+  { to: 'email', key: 'settings.nav.email', icon: Mail },
+  { to: 'users', key: 'settings.nav.users', icon: Users },
+  { to: 'jobs', key: 'settings.nav.jobs', icon: Activity },
 ]
 
 export function AdminRoute({ children }: { children: ReactNode }) {
@@ -60,6 +61,7 @@ export default function SettingsLayout() {
                     to={i.to}
                     className={({ isActive }) => `t-btn t-btn--sm ${isActive ? 't-btn--primary' : ''}`}
                   >
+                    <i.icon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t(i.key)}
                   </NavLink>
                 ))}
@@ -79,13 +81,14 @@ export default function SettingsLayout() {
                       <NavLink
                         to={i.to}
                         className={({ isActive }) =>
-                          `flex items-center whitespace-nowrap border-l-2 px-4 py-2 font-display text-sm transition-colors ${
+                          `flex items-center gap-2 whitespace-nowrap border-l-2 px-4 py-2 font-display text-sm transition-colors ${
                             isActive
                               ? 'border-accent bg-bg-hover text-accent'
                               : 'border-transparent text-t-muted hover:bg-bg-hover hover:text-t-primary'
                           }`
                         }
                       >
+                        <i.icon aria-hidden size="1.25em" className="shrink-0" />
                         {t(i.key)}
                       </NavLink>
                     </li>

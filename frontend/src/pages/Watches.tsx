@@ -1,4 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { ArrowUpDown, CalendarDays, Check, Clock, Download, Eye, List, Pencil, PenLine, RefreshCw, Trash2, TriangleAlert, Upload, type LucideIcon } from 'lucide-react'
+
+// icon per status group divider (syncing / idle / waiting / complete)
+const GROUP_ICON: Record<string, LucideIcon> = {
+  syncing: Download,
+  idle: Eye,
+  waiting: Clock,
+  complete: Check,
+}
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -187,6 +196,7 @@ export default function Watches() {
             aria-pressed={view === 'list'}
             onClick={() => setView('list')}
           >
+            <List aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('watch.viewList')}
           </button>
           <button
@@ -194,6 +204,7 @@ export default function Watches() {
             aria-pressed={view === 'calendar'}
             onClick={() => setView('calendar')}
           >
+            <CalendarDays aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('watch.viewCalendar')}
           </button>
         </div>
@@ -235,9 +246,7 @@ export default function Watches() {
                 title={t('watch.sortBy')}
                 onClick={() => setSortOpen((o) => !o)}
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3" />
-                </svg>
+                <ArrowUpDown aria-hidden size="1.2em" />
               </button>
               {sortOpen && (
                 <ul className="absolute right-0 z-20 mt-1 min-w-44 border border-border-subtle bg-bg-card py-1 shadow-lg" role="listbox" aria-label={t('watch.sortBy')}>
@@ -254,7 +263,7 @@ export default function Watches() {
                         }}
                       >
                         {t(o.k)}
-                        {sort === o.v && <span aria-hidden>✓</span>}
+                        {sort === o.v && <Check aria-hidden size="1.2em" className="shrink-0" />}
                       </button>
                     </li>
                   ))}
@@ -324,10 +333,15 @@ export default function Watches() {
         </div>
       ) : (
         <div className="grid gap-6">
-          {grouped.map(({ g, items }) => (
+          {grouped.map(({ g, items }) => {
+            const GroupIcon = GROUP_ICON[g]
+            return (
             <section key={g}>
               <div className="mb-3 flex items-center gap-2">
-                <span className="t-label t-label--accent">{t(`watch.group.${g}`)}</span>
+                <span className="t-label t-label--accent">
+                  <GroupIcon aria-hidden size="1em" />
+                  {t(`watch.group.${g}`)}
+                </span>
                 <span className="h-px flex-1 bg-border-subtle" />
                 <span className="font-mono text-[11px] text-t-muted">{items.length}</span>
               </div>
@@ -355,6 +369,7 @@ export default function Watches() {
                 <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-t-muted">
                   {w.nextAiringAt ? (
                     <span className={`t-label ${w.behind ? 't-label--warn' : 't-label--ok'}`} title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}>
+                      <CalendarDays aria-hidden size="1em" />
                       {t('watch.nextEp', { n: w.nextEpisode })}
                       {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''} ·{' '}
                       {airFmt(w.nextAiringAt)}
@@ -363,15 +378,20 @@ export default function Watches() {
                     w.lastCheck && <span>{next(w)}</span>
                   )}
                   {(w.behind ?? 0) > 0 && (
-                    <span className="t-label t-label--warn">{t('watch.behind', { count: w.behind })}</span>
+                    <span className="t-label t-label--warn">
+                      <Clock aria-hidden size="1em" />
+                      {t('watch.behind', { count: w.behind })}
+                    </span>
                   )}
                   {(w.missing?.length ?? 0) > 0 && (
                     <span className="t-label t-label--err" title={w.missing!.join(', ')}>
+                      <TriangleAlert aria-hidden size="1em" />
                       {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
                     </span>
                   )}
                   {(w.langWaiting ?? 0) > 0 && (
                     <span className="t-label t-label--warn">
+                      <Clock aria-hidden size="1em" />
                       {t('watch.langWaiting', {
                         count: w.langWaiting,
                         lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
@@ -379,13 +399,29 @@ export default function Watches() {
                     </span>
                   )}
                   {w.lastUploading > 0 && (
-                    <span className="t-label t-label--warn">{t('watch.uploading')}</span>
+                    <span className="t-label t-label--warn">
+                      <Upload aria-hidden size="1em" />
+                      {t('watch.uploading')}
+                    </span>
                   )}
                   {(w.seenEpisodes ?? 0) > 0 && (
-                    <span className="t-label">{t('watch.seen', { count: w.seenEpisodes })}</span>
+                    <span className="t-label">
+                      <Eye aria-hidden size="1em" />
+                      {t('watch.seen', { count: w.seenEpisodes })}
+                    </span>
                   )}
-                  {(w.template || w.pattern) && <span className="t-label">{t('watch.renamed')}</span>}
-                  {w.active > 0 && <span className="t-label t-label--accent">{t('watch.active', { count: w.active })}</span>}
+                  {(w.template || w.pattern) && (
+                    <span className="t-label">
+                      <PenLine aria-hidden size="1em" />
+                      {t('watch.renamed')}
+                    </span>
+                  )}
+                  {w.active > 0 && (
+                    <span className="t-label t-label--accent">
+                      <Download aria-hidden size="1em" />
+                      {t('watch.active', { count: w.active })}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="text-right text-xs">
@@ -398,12 +434,14 @@ export default function Watches() {
                 )}
                 {w.complete && (
                   <p className="mt-1 text-ok" role="status">
-                    ✓ {t('watch.complete')}
+                    <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                    {t('watch.complete')}
                   </p>
                 )}
               </div>
               <div className="flex w-full gap-1 sm:w-auto">
                 <button className="t-btn t-btn--sm flex-1 sm:flex-initial" onClick={() => check(w.id)}>
+                  <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('watch.checkNow')}
                 </button>
                 {(w.plexAudioLang || w.plexSubLang) && (
@@ -416,9 +454,11 @@ export default function Watches() {
                   </button>
                 )}
                 <button className="t-btn t-btn--sm flex-1 sm:flex-initial" onClick={() => setEdit(w)}>
+                  <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('servers.edit')}
                 </button>
                 <button className="t-btn t-btn--sm t-btn--danger flex-1 sm:flex-initial" onClick={() => del(w)}>
+                  <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('servers.delete')}
                 </button>
               </div>
@@ -426,7 +466,8 @@ export default function Watches() {
                 ))}
               </ul>
             </section>
-          ))}
+            )
+          })}
         </div>
       )}
 

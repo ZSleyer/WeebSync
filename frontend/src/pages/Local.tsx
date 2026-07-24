@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { LayoutGrid, List, Pencil, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type Entry } from '../api'
@@ -73,7 +74,7 @@ export default function Local() {
           title={t('local.rename')}
           onClick={() => rename(e)}
         >
-          ✎
+          <Pencil aria-hidden size="1.2em" />
         </button>
         <button
           type="button"
@@ -82,7 +83,7 @@ export default function Local() {
           title={t('local.delete')}
           onClick={() => remove(e)}
         >
-          ✕
+          <X aria-hidden size="1.2em" />
         </button>
       </span>
     ) : undefined
@@ -100,6 +101,7 @@ export default function Local() {
             aria-pressed={view === 'classic'}
             onClick={() => setView('classic')}
           >
+            <List aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.classic')}
           </button>
           <button
@@ -107,6 +109,7 @@ export default function Local() {
             aria-pressed={view === 'catalog'}
             onClick={() => setView('catalog')}
           >
+            <LayoutGrid aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.catalog')}
           </button>
         </div>
