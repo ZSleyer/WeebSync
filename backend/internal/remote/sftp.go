@@ -53,24 +53,22 @@ func dialSFTP(cfg Config) (Client, error) {
 }
 
 func dialSSH(cfg Config) (*ssh.Client, error) {
-	// Trust-on-first-use: accept and persist the key on first connect,
-	// require an exact match afterwards.
-	// mismatch flags the failure outside the callback because the ssh
-	// package does not reliably wrap the callback error for errors.Is.
-	var mismatch bool
+	// Only the exact pinned key passes; anything else - including first
+	// contact - aborts the handshake and reports the offered key so the UI
+	// can show its fingerprint and ask the user to accept or reject it.
+	// hkErr is captured outside the callback because the ssh package does
+	// not reliably wrap the callback error for errors.As.
+	var hkErr *HostKeyError
 	hostKeyCB := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		got := base64.StdEncoding.EncodeToString(key.Marshal())
-		if cfg.HostKey == "" {
-			if cfg.OnHostKey != nil {
-				cfg.OnHostKey(got)
-			}
+		if cfg.InsecureHostKey {
 			return nil
 		}
-		if got != cfg.HostKey {
-			mismatch = true
-			return fmt.Errorf("ssh host key mismatch for %s - server changed or MITM", hostname)
+		got := base64.StdEncoding.EncodeToString(key.Marshal())
+		if got == cfg.HostKey && cfg.HostKey != "" {
+			return nil
 		}
-		return nil
+		hkErr = &HostKeyError{Offered: got, Stored: cfg.HostKey}
+		return hkErr
 	}
 	// Resolve once and dial the verified IP through netguard, then run the SSH
 	// handshake over that connection - a plain ssh.Dial re-resolves the host and
@@ -88,12 +86,27 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 	})
 	if err != nil {
 		netConn.Close()
-		if mismatch {
-			return nil, fmt.Errorf("%w for %s:%d", ErrHostKeyMismatch, cfg.Host, cfg.Port)
+		if hkErr != nil {
+			return nil, hkErr
 		}
 		return nil, err
 	}
 	return ssh.NewClient(sc, chans, reqs), nil
+}
+
+// KeyLabel renders a host key (base64 wire format) as "algo SHA256:..." for
+// display, e.g. "ssh-ed25519 SHA256:pnPn3SxYc...". Doubles as validation for
+// keys echoed back by the trust endpoint.
+func KeyLabel(b64 string) (string, error) {
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return "", fmt.Errorf("invalid host key: %w", err)
+	}
+	pk, err := ssh.ParsePublicKey(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid host key: %w", err)
+	}
+	return pk.Type() + " " + ssh.FingerprintSHA256(pk), nil
 }
 
 func (c *sftpClient) List(dir string) ([]Entry, error) {
