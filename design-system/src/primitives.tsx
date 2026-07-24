@@ -1,7 +1,9 @@
 import type {
+  AnchorHTMLAttributes,
   ButtonHTMLAttributes,
   HTMLAttributes,
   InputHTMLAttributes,
+  LabelHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
 } from 'react'
@@ -51,6 +53,63 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   cut?: boolean
 }
 
+/**
+ * The button's class string on its own. For the cases a real `<button>` is the
+ * wrong element - a router link, a file-input label, a NavLink whose className
+ * is a function - and where wrapping would break the element's semantics.
+ */
+export function buttonClass(opts: Pick<ButtonProps, 'variant' | 'size' | 'cut'> & { className?: string } = {}) {
+  const { variant = 'default', size = 'md', cut, className } = opts
+  return cx(
+    't-btn',
+    size === 'sm' && 't-btn--sm',
+    variant === 'primary' && 't-btn--primary',
+    variant === 'danger' && 't-btn--danger',
+    cut && 't-cut',
+    className,
+  )
+}
+
+export interface ButtonLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+  variant?: ButtonVariant
+  size?: 'md' | 'sm'
+  cut?: boolean
+}
+
+/** A link that looks like a button - navigation, not an action. */
+export function ButtonLink({ variant, size, cut, className, ...rest }: ButtonLinkProps) {
+  return <a {...rest} className={buttonClass({ variant, size, cut, className })} />
+}
+
+export interface ButtonLabelProps extends LabelHTMLAttributes<HTMLLabelElement> {
+  variant?: ButtonVariant
+  size?: 'md' | 'sm'
+  cut?: boolean
+}
+
+/**
+ * A label styled as a button, for the file-input pattern: the real `<input
+ * type="file">` is visually hidden inside, so the label must stay a label to
+ * keep the click and the focus ring working.
+ */
+export function ButtonLabel({ variant, size, cut, className, ...rest }: ButtonLabelProps) {
+  return (
+    <label
+      {...rest}
+      className={buttonClass({
+        variant,
+        size,
+        cut,
+        className: cx(
+          'inline-flex cursor-pointer items-center',
+          'focus-within:outline focus-within:outline-1 focus-within:outline-offset-2 focus-within:outline-accent',
+          className,
+        ),
+      })}
+    />
+  )
+}
+
 export function Button({ variant = 'default', size = 'md', cut, className, ...rest }: ButtonProps) {
   return (
     <button
@@ -80,21 +139,29 @@ export function IconButton({ className, ...rest }: IconButtonProps) {
   return <button type="button" {...rest} className={cx('t-iconbtn', className)} />
 }
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {}
-
-export function Input({ className, ...rest }: InputProps) {
-  return <input {...rest} className={cx('t-input', className)} />
+// the native `size` attribute (character width / visible rows) is dropped in
+// favour of the design-system size step
+export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  /** compact field for dense rows; matches a small Button in the same row */
+  size?: 'md' | 'sm'
 }
 
-export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+export function Input({ size = 'md', className, ...rest }: InputProps) {
+  return <input {...rest} className={cx('t-input', size === 'sm' && 't-input--sm', className)} />
+}
+
+export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
   children: ReactNode
+  size?: 'md' | 'sm'
+  /** class for the wrapper that draws the chevron, not the select itself */
+  wrapperClassName?: string
 }
 
 /** Native select plus the chevron the wrapper draws. */
-export function Select({ className, children, ...rest }: SelectProps) {
+export function Select({ size = 'md', className, wrapperClassName, children, ...rest }: SelectProps) {
   return (
-    <span className="t-select-wrap block">
-      <select {...rest} className={cx('t-select', className)}>
+    <span className={cx('t-select-wrap block', wrapperClassName)}>
+      <select {...rest} className={cx('t-select', size === 'sm' && 't-select--sm', className)}>
         {children}
       </select>
     </span>

@@ -10,16 +10,35 @@ const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).j
 export interface CoverProps {
   /** poster URL; omitted or failing, the hatched placeholder stands in */
   src?: string
-  /** list tiles use 'md', calendar rows 'sm' */
-  size?: 'md' | 'sm'
+  /** list tiles use 'md', calendar rows 'sm', grid tiles 'fill' */
+  size?: 'md' | 'sm' | 'lg' | 'fill'
   alt?: string
+  /** defer offscreen posters - grids of dozens of tiles */
+  loading?: 'eager' | 'lazy'
+  /** shown over the placeholder, e.g. a matching hint */
+  children?: ReactNode
+  className?: string
 }
 
-/** Poster thumbnail with the hatched placeholder the app falls back to. */
-export function Cover({ src, size = 'md', alt = '' }: CoverProps) {
-  const box = size === 'sm' ? 'h-14 w-10' : 'h-20 w-14'
-  if (!src) return <div className={cx('t-hatch shrink-0', box)} />
-  return <img src={src} alt={alt} className={cx('shrink-0 object-cover', box)} />
+const COVER_BOX = {
+  sm: 'h-14 w-10',
+  md: 'h-20 w-14',
+  lg: 'h-24 w-16',
+  fill: 'aspect-2/3 w-full',
+} as const
+
+/**
+ * Poster thumbnail in a fixed frame. The frame decides the size and the image
+ * is cropped into it, so a poster of any aspect ratio leaves the layout alone.
+ */
+export function Cover({ src, size = 'md', alt = '', loading, children, className }: CoverProps) {
+  const box = cx(COVER_BOX[size], size === 'fill' ? undefined : 'shrink-0', className)
+  if (!src) {
+    return (
+      <div className={cx('t-hatch grid place-items-center', box)}>{children}</div>
+    )
+  }
+  return <img src={src} alt={alt} loading={loading} className={cx('object-cover', box)} />
 }
 
 export interface MediaCardProps {
@@ -27,32 +46,51 @@ export interface MediaCardProps {
   title: ReactNode
   /** source and target, rendered monospaced under the title */
   path?: ReactNode
+  /** title attribute for the path, which is usually truncated */
+  pathTitle?: string
   /** one line of status text, e.g. when it was last checked */
   meta?: ReactNode
   /** poster URL */
   cover?: string
   /** status chips - use Badge with the tone that fits */
   badges?: ReactNode
-  /** row of buttons on the right */
+  /** right-aligned counters between the text block and the actions */
+  status?: ReactNode
+  /** row of buttons; full width below the sm breakpoint, inline above it */
   actions?: ReactNode
   className?: string
 }
 
 /**
- * A watched series or movie: poster, title, path, status chips, actions.
- * The workhorse tile of the auto-sync list.
+ * A watched series or movie: poster, title, path, status chips, counters and
+ * actions. The workhorse tile of the auto-sync list.
  */
-export function MediaCard({ title, path, meta, cover, badges, actions, className }: MediaCardProps) {
+export function MediaCard({
+  title,
+  path,
+  pathTitle,
+  meta,
+  cover,
+  badges,
+  status,
+  actions,
+  className,
+}: MediaCardProps) {
   return (
     <Panel className={cx('flex flex-wrap items-center gap-4 p-3', className)}>
       <Cover src={cover} />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium text-t-primary">{title}</h3>
-        {path && <p className="truncate font-mono text-[11px] text-t-muted">{path}</p>}
+        {path && (
+          <p className="truncate font-mono text-[11px] text-t-muted" title={pathTitle}>
+            {path}
+          </p>
+        )}
         {meta && <p className="mt-1 text-[11px] text-t-muted">{meta}</p>}
         {badges && <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">{badges}</div>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
+      {status && <div className="text-right text-xs">{status}</div>}
+      {actions && <div className="flex w-full gap-1 sm:w-auto">{actions}</div>}
     </Panel>
   )
 }
@@ -66,24 +104,52 @@ export interface SuggestionCardProps {
   badges?: ReactNode
   /** short explanation under the title */
   detail?: ReactNode
+  /** anything below the text: candidate lists, option groups, quality grids */
+  children?: ReactNode
   actions?: ReactNode
+  /**
+   * "inline" keeps the buttons in the text column under the content (the
+   * suggestion list); "side" puts them at the right edge of the tile.
+   */
+  actionsPlacement?: 'inline' | 'side'
+  /** the upgrade tile titles in the display face without a year */
+  titleStyle?: 'plain' | 'display'
   className?: string
 }
 
 /** A recommendation: same tile, top-aligned, with the year behind the title. */
-export function SuggestionCard({ title, year, cover, badges, detail, actions, className }: SuggestionCardProps) {
+export function SuggestionCard({
+  title,
+  year,
+  cover,
+  badges,
+  detail,
+  children,
+  actions,
+  actionsPlacement = 'side',
+  titleStyle = 'plain',
+  className,
+}: SuggestionCardProps) {
+  const heading =
+    titleStyle === 'display'
+      ? 'truncate font-display text-sm font-semibold tracking-wider text-t-primary'
+      : 'truncate text-sm font-medium text-t-primary'
   return (
     <Panel className={cx('flex flex-wrap items-start gap-4 p-3', className)}>
       <Cover src={cover} />
       <div className="min-w-0 flex-1">
-        <h4 className="truncate text-sm font-medium text-t-primary">
+        <h4 className={heading}>
           {title}
           {year ? <span className="text-t-muted"> ({year})</span> : null}
         </h4>
         {badges && <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">{badges}</p>}
         {detail && <p className="mt-1 text-[11px] text-t-muted">{detail}</p>}
+        {children}
+        {actions && actionsPlacement === 'inline' && (
+          <div className="mt-2 flex flex-wrap gap-1.5">{actions}</div>
+        )}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
+      {actions && actionsPlacement === 'side' && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
     </Panel>
   )
 }
@@ -141,32 +207,53 @@ export interface BreadcrumbProps {
   onNavigate?: (path: string) => void
   /** trailing control, e.g. an edit button */
   trailing?: ReactNode
+  /** clicking the empty area starts editing; each crumb keeps navigating */
+  onStartEdit?: () => void
+  /** accessible name of the bar - the app passes its translated label */
+  label?: string
   className?: string
 }
 
-/** Path bar of the file browser: root, segments, optional trailing action. */
-export function Breadcrumb({ segments, onNavigate, trailing, className }: BreadcrumbProps) {
+/**
+ * Path bar of the file browser: root, segments, optional trailing action. With
+ * onStartEdit the empty area turns into a hit area for the path editor, while
+ * the crumbs keep navigating (they stop the click from bubbling).
+ */
+export function Breadcrumb({
+  segments,
+  onNavigate,
+  trailing,
+  onStartEdit,
+  label = 'Pfad',
+  className,
+}: BreadcrumbProps) {
+  const crumb = (text: string, target: string, extra?: string) => (
+    <button
+      type="button"
+      className={cx('min-h-6 px-1.5 text-accent hover:underline', extra)}
+      onClick={(e) => {
+        e.stopPropagation()
+        onNavigate?.(target)
+      }}
+    >
+      {text}
+    </button>
+  )
   return (
     <nav
       className={cx(
         'flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs',
+        onStartEdit && 'cursor-text',
         className,
       )}
-      aria-label="Pfad"
+      aria-label={label}
+      onClick={onStartEdit}
     >
       {/* every crumb keeps a 24px target (WCAG 2.5.8) */}
-      <button type="button" className="min-h-6 min-w-6 px-1.5 text-accent hover:underline" onClick={() => onNavigate?.('')}>
-        /
-      </button>
+      {crumb('/', '', 'min-w-6')}
       {segments.map((c, i) => (
         <span key={i} className="flex items-center">
-          <button
-            type="button"
-            className="min-h-6 max-w-40 truncate px-1.5 text-accent hover:underline"
-            onClick={() => onNavigate?.(segments.slice(0, i + 1).join('/'))}
-          >
-            {c}
-          </button>
+          {crumb(c, segments.slice(0, i + 1).join('/'), 'max-w-40 truncate')}
           {i < segments.length - 1 && <span className="text-t-faint">/</span>}
         </span>
       ))}
@@ -182,17 +269,35 @@ export interface FileRowProps extends Omit<HTMLAttributes<HTMLButtonElement>, 'o
   /** right-aligned size or date */
   detail?: ReactNode
   selected?: boolean
+  /**
+   * "comfortable" is the browser listing (text-sm), "compact" the monospaced
+   * picker rows inside a dialog.
+   */
+  density?: 'comfortable' | 'compact'
+  /** trailing controls outside the clickable row, e.g. a select button */
+  actions?: ReactNode
+  onDoubleClick?: HTMLAttributes<HTMLButtonElement>['onDoubleClick']
 }
 
 /** One entry in a browser listing. */
-export function FileRow({ name, icon, detail, selected, className, ...rest }: FileRowProps) {
-  return (
+export function FileRow({
+  name,
+  icon,
+  detail,
+  selected,
+  density = 'comfortable',
+  actions,
+  className,
+  ...rest
+}: FileRowProps) {
+  const row = (
     <button
       type="button"
       {...rest}
       className={cx(
-        'flex w-full items-center gap-2 px-2 py-1 text-left font-mono text-xs hover:bg-bg-hover',
-        selected ? 'text-accent' : 'text-t-secondary',
+        'flex min-w-0 flex-1 items-center gap-2 text-left transition-colors',
+        density === 'compact' ? 'px-2 py-1 font-mono text-xs' : 'px-3 py-1.5 text-sm',
+        selected ? 'bg-bg-hover text-accent' : 'text-t-secondary hover:bg-bg-hover',
         className,
       )}
     >
@@ -200,6 +305,13 @@ export function FileRow({ name, icon, detail, selected, className, ...rest }: Fi
       <span className="min-w-0 flex-1 truncate">{name}</span>
       {detail && <span className="shrink-0 text-t-muted">{detail}</span>}
     </button>
+  )
+  if (!actions) return row
+  return (
+    <li className="flex items-stretch border-b border-border-subtle/50 last:border-b-0">
+      {row}
+      {actions}
+    </li>
   )
 }
 
@@ -268,26 +380,50 @@ export function MenuItem({ selected, trailing, children, className, ...rest }: M
   )
 }
 
-export interface NavItemProps extends HTMLAttributes<HTMLAnchorElement> {
+export type NavVariant = 'sidebar' | 'bottomTab' | 'sheet'
+
+export interface NavItemProps {
   icon?: ReactNode
+  children: ReactNode
   active?: boolean
-  href?: string
+  /**
+   * sidebar: accent bar on the left edge (desktop rail and settings menu)
+   * bottomTab: icon over label, accent bar on top (phone tab bar)
+   * sheet: tall touch row in the overflow sheet
+   */
+  variant?: NavVariant
+  className?: string
 }
 
-/** Sidebar entry: accent bar and tinted background mark the active route. */
-export function NavItem({ icon, active, children, className, ...rest }: NavItemProps) {
+const NAV_BASE: Record<NavVariant, string> = {
+  sidebar: 'flex items-center gap-2 whitespace-nowrap border-l-2 px-4 py-2 font-display text-sm transition-colors',
+  bottomTab: 'flex flex-1 flex-col items-center gap-0.5 border-t-2 px-1 py-2 font-display text-[11px] transition-colors',
+  sheet: 'flex min-h-14 items-center gap-3 px-5 font-display text-sm transition-colors',
+}
+const NAV_ACTIVE: Record<NavVariant, string> = {
+  sidebar: 'border-accent bg-bg-hover text-accent',
+  bottomTab: 'border-accent text-accent',
+  sheet: 'bg-bg-hover text-accent',
+}
+const NAV_IDLE: Record<NavVariant, string> = {
+  sidebar: 'border-transparent text-t-muted hover:bg-bg-hover hover:text-t-primary',
+  bottomTab: 'border-transparent text-t-muted',
+  sheet: 'text-t-muted hover:bg-bg-hover hover:text-t-primary',
+}
+
+/**
+ * The class string of a navigation entry. The app renders its entries as
+ * react-router NavLinks, whose className is a function of the active state -
+ * so the styling has to be available without the element.
+ */
+export function navItemClass(variant: NavVariant, active: boolean, className?: string) {
+  return cx(NAV_BASE[variant], active ? NAV_ACTIVE[variant] : NAV_IDLE[variant], className)
+}
+
+/** Navigation entry as a plain anchor, for previews and non-router use. */
+export function NavItem({ icon, children, active, variant = 'sidebar', className, ...rest }: NavItemProps & HTMLAttributes<HTMLAnchorElement> & { href?: string }) {
   return (
-    <a
-      {...rest}
-      aria-current={active ? 'page' : undefined}
-      className={cx(
-        'flex items-center gap-2 whitespace-nowrap border-l-2 px-4 py-2 font-display text-sm transition-colors',
-        active
-          ? 'border-accent bg-bg-hover text-accent'
-          : 'border-transparent text-t-muted hover:bg-bg-hover hover:text-t-primary',
-        className,
-      )}
-    >
+    <a {...rest} aria-current={active ? 'page' : undefined} className={navItemClass(variant, !!active, className)}>
       {icon}
       {children}
     </a>
@@ -327,20 +463,24 @@ export function Modal({ title, info, children, footer, className }: ModalProps) 
 export interface EmptyStateProps {
   /** short chip heading */
   label?: ReactNode
+  /** the message; may carry links, so it is rendered inline, not wrapped */
   children: ReactNode
   className?: string
 }
 
-/** Centred placeholder for an empty list. */
+/**
+ * Centred placeholder for an empty list. The muted colour sits on the panel so
+ * a message with an embedded link keeps its accent colour.
+ */
 export function EmptyState({ label, children, className }: EmptyStateProps) {
   return (
-    <Panel className={cx('p-8 text-center', className)}>
+    <Panel className={cx('p-8 text-center text-t-muted', className)}>
       {label && (
         <Badge tone="accent" className="mb-3">
           {label}
         </Badge>
       )}
-      <p className="text-sm text-t-muted">{children}</p>
+      {children}
     </Panel>
   )
 }
