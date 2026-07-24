@@ -137,6 +137,9 @@ type settingsPayload struct {
 	SmtpPasswordSet      bool           `json:"smtpPasswordSet"`
 	SmtpPassword         string         `json:"smtpPassword,omitempty"` // write-only
 	ApiTokenSet          bool           `json:"apiTokenSet"`            // read-only, managed via /api/settings/token
+	DownloadRoots        []string       `json:"downloadRoots"`          // read-only: local roots files may be written to
+	DownloadsEnvSet      bool           `json:"downloadsEnvSet"`        // read-only: WEEBSYNC_DOWNLOADS is set (else only the data dir default)
+	OnboardingDone       bool           `json:"onboardingDone"`         // first-run wizard finished (or an install that predates it)
 	// json field names whose value comes from an env var; the UI locks them
 	EnvLocked []string `json:"envLocked"`
 }
@@ -184,8 +187,25 @@ func (s *Server) settingsState() settingsPayload {
 		SmtpSecurity:         smtpSecurity(s.DB),
 		SmtpPasswordSet:      db.Setting(s.DB, "smtp_password") != "" || os.Getenv("SMTP_PASSWORD") != "",
 		ApiTokenSet:          db.Setting(s.DB, "api_token_hash") != "",
+		DownloadRoots:        s.localRoots(),
+		DownloadsEnvSet:      os.Getenv("WEEBSYNC_DOWNLOADS") != "",
+		OnboardingDone:       s.onboardingDone(),
 		EnvLocked:            envLockedFields(),
 	}
+}
+
+// onboardingDone reports whether the first-run wizard still has steps to run.
+// It matters for the OIDC-only path: there the account is created by the first
+// OIDC login, so the wizard has to pick up again afterwards. An instance that
+// already has a server predates the wizard and counts as done - upgrading must
+// not greet existing admins with a setup screen.
+func (s *Server) onboardingDone() bool {
+	if db.Setting(s.DB, "onboarding_done") == "true" {
+		return true
+	}
+	var servers int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM servers`).Scan(&servers)
+	return servers > 0
 }
 
 func smtpSecurity(d *sql.DB) string {
@@ -314,6 +334,10 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setSetting(s.DB, "registration_disabled", strconv.FormatBool(in.RegistrationDisabled))
+	// one-way: the wizard marks itself done, a later save never reopens it
+	if in.OnboardingDone {
+		setSetting(s.DB, "onboarding_done", "true")
+	}
 	setSetting(s.DB, "trusted_networks", strings.TrimSpace(in.TrustedNetworks))
 	setSetting(s.DB, "auth_mode", in.AuthMode)
 	setSetting(s.DB, "oidc_provider_name", in.OidcProviderName)

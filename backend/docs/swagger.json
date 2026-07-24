@@ -387,6 +387,168 @@
                 },
                 "type": "object"
             },
+            "api.LegacyImportRequest": {
+                "properties": {
+                    "config": {
+                        "$ref": "#/components/schemas/api.legacyConfig"
+                    },
+                    "dryRun": {
+                        "description": "true = preview only, no writes",
+                        "type": "boolean"
+                    },
+                    "intervalMin": {
+                        "description": "global auto-sync interval to apply",
+                        "type": "integer"
+                    },
+                    "localRoot": {
+                        "description": "destination folders are rebased onto this",
+                        "type": "string"
+                    },
+                    "server": {
+                        "$ref": "#/components/schemas/api.serverInput"
+                    },
+                    "serverId": {
+                        "description": "reuse an existing server instead of creating one",
+                        "type": "integer"
+                    },
+                    "watches": {
+                        "description": "the reviewed plan rows; empty on a dry run",
+                        "items": {
+                            "$ref": "#/components/schemas/api.LegacyWatchPlan"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.LegacyImportResult": {
+                "properties": {
+                    "errors": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "imported": {
+                        "type": "integer"
+                    },
+                    "serverId": {
+                        "type": "integer"
+                    },
+                    "skipped": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "api.LegacyPlan": {
+                "properties": {
+                    "dropped": {
+                        "description": "old settings without an equivalent",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "intervalMin": {
+                        "type": "integer"
+                    },
+                    "server": {
+                        "$ref": "#/components/schemas/api.LegacyServerPlan"
+                    },
+                    "warnings": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "watches": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.LegacyWatchPlan"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.LegacyServerPlan": {
+                "properties": {
+                    "hasPassword": {
+                        "type": "boolean"
+                    },
+                    "host": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "oldPort": {
+                        "type": "integer"
+                    },
+                    "port": {
+                        "type": "integer"
+                    },
+                    "protocol": {
+                        "type": "string"
+                    },
+                    "username": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.LegacyWatchPlan": {
+                "properties": {
+                    "error": {
+                        "type": "string"
+                    },
+                    "fromEpisode": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "description": "old syncMap id, also the UI row key",
+                        "type": "string"
+                    },
+                    "localPath": {
+                        "type": "string"
+                    },
+                    "mode": {
+                        "type": "string"
+                    },
+                    "offset": {
+                        "description": "renumber offset found, 0 = none",
+                        "type": "integer"
+                    },
+                    "pattern": {
+                        "type": "string"
+                    },
+                    "remotePath": {
+                        "type": "string"
+                    },
+                    "replacement": {
+                        "type": "string"
+                    },
+                    "template": {
+                        "type": "string"
+                    },
+                    "titleOverride": {
+                        "type": "string"
+                    },
+                    "warnings": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "api.LibraryRoots": {
                 "description": "Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.",
                 "properties": {
@@ -1738,6 +1900,72 @@
                 },
                 "type": "object"
             },
+            "api.legacyConfig": {
+                "description": "parsed old weebsync.config.json",
+                "properties": {
+                    "autoSyncIntervalInMinutes": {
+                        "type": "integer"
+                    },
+                    "debugFileNames": {
+                        "type": "boolean"
+                    },
+                    "server": {
+                        "properties": {
+                            "host": {
+                                "type": "string"
+                            },
+                            "password": {
+                                "type": "string"
+                            },
+                            "port": {
+                                "type": "integer"
+                            },
+                            "user": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "startAsTray": {
+                        "type": "boolean"
+                    },
+                    "syncMaps": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.legacySyncMap"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "syncOnStart": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "api.legacySyncMap": {
+                "properties": {
+                    "destinationFolder": {
+                        "type": "string"
+                    },
+                    "fileRegex": {
+                        "type": "string"
+                    },
+                    "fileRenameTemplate": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "originFolder": {
+                        "type": "string"
+                    },
+                    "rename": {
+                        "description": "absent in old files, then derived",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
             "api.logLevelRequest": {
                 "properties": {
                     "level": {
@@ -2072,6 +2300,7 @@
                 "type": "object"
             },
             "api.serverInput": {
+                "description": "server to create (protocol/port/password confirmed by the user)",
                 "properties": {
                     "host": {
                         "type": "string"
@@ -2128,6 +2357,18 @@
                         "description": "public origin of this instance, used in email links",
                         "type": "string"
                     },
+                    "downloadRoots": {
+                        "description": "read-only: local roots files may be written to",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "downloadsEnvSet": {
+                        "description": "read-only: WEEBSYNC_DOWNLOADS is set (else only the data dir default)",
+                        "type": "boolean"
+                    },
                     "envLocked": {
                         "description": "json field names whose value comes from an env var; the UI locks them",
                         "items": {
@@ -2180,6 +2421,10 @@
                     "oidcUserValues": {
                         "description": "csv login allowlist, empty = everyone",
                         "type": "string"
+                    },
+                    "onboardingDone": {
+                        "description": "first-run wizard finished (or an install that predates it)",
+                        "type": "boolean"
                     },
                     "plexLibRoots": {
                         "description": "read-only: mounts auto-detected from Plex's reported library locations (flat)",
@@ -7177,6 +7422,102 @@
                 "summary": "Stream download events",
                 "tags": [
                     "Downloads"
+                ]
+            }
+        },
+        "/api/import/legacy": {
+            "post": {
+                "description": "Converts a config.json of the original Node weebsync (BastianGanze/weebsync) into a server and watches. With dryRun the conversion is only previewed; the reviewed plan is sent back to commit it.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.LegacyImportRequest",
+                                        "summary": "body",
+                                        "description": "Old config plus import options"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Old config plus import options",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.LegacyPlan"
+                                }
+                            }
+                        },
+                        "description": "dry run: the conversion preview"
+                    },
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.LegacyImportResult"
+                                }
+                            }
+                        },
+                        "description": "commit: what was created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Import a legacy weebsync config",
+                "tags": [
+                    "Import"
                 ]
             }
         },

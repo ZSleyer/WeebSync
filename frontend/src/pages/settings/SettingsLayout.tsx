@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { Activity, ArrowDownUp, Bell, Info, Mail, Palette, Plug, Shield, UserRound, Users } from 'lucide-react'
+import { Activity, ArrowDownUp, Bell, Info, Mail, Palette, Plug, Shield, Upload, UserRound, Users } from 'lucide-react'
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../hooks'
@@ -17,6 +17,7 @@ const ADMIN = [
   { to: 'email', key: 'settings.nav.email', icon: Mail },
   { to: 'users', key: 'settings.nav.users', icon: Users },
   { to: 'jobs', key: 'settings.nav.jobs', icon: Activity },
+  { to: 'import', key: 'settings.nav.import', icon: Upload },
 ]
 
 export function AdminRoute({ children }: { children: ReactNode }) {

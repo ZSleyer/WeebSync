@@ -21,9 +21,11 @@ import {
   useLocation,
 } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 import { useAuth, useEvents } from './hooks'
 import Loading from './components/Loading'
+import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Servers from './pages/Servers'
@@ -43,6 +45,7 @@ import Integrations from './pages/settings/Integrations'
 import Smtp from './pages/settings/Smtp'
 import Users from './pages/settings/Users'
 import Jobs from './pages/settings/Jobs'
+import Import from './pages/settings/Import'
 
 const NAV = [
   { to: '/', key: 'nav.dashboard', icon: LayoutDashboard },
@@ -79,7 +82,23 @@ function RootLayout() {
     )
   }
   if (!user) return <Login />
+  if (user.isAdmin) return <AdminGate email={user.email} />
   return <Shell email={user.email} />
+}
+
+// The OIDC-only setup path has no account until the first OIDC login, so the
+// wizard cannot run its later steps inline - it navigates away and picks up
+// here on the way back, at the same step list it left off at. Instances that
+// already have a server report onboardingDone, so upgrades never see this.
+function AdminGate({ email }: { email: string }) {
+  const qc = useQueryClient()
+  const { data } = useQuery<{ onboardingDone?: boolean }>({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/api/settings'),
+  })
+  if (data?.onboardingDone === false)
+    return <Setup initialStep="import" onDone={() => qc.invalidateQueries({ queryKey: ['settings'] })} />
+  return <Shell email={email} />
 }
 
 export const router = createBrowserRouter(
@@ -107,6 +126,7 @@ export const router = createBrowserRouter(
         <Route path="email" element={<AdminRoute><Smtp /></AdminRoute>} />
         <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
         <Route path="jobs" element={<AdminRoute><Jobs /></AdminRoute>} />
+        <Route path="import" element={<AdminRoute><Import /></AdminRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Route>,

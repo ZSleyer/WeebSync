@@ -112,21 +112,29 @@ func (s *Server) handleServerCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "name, protocol (sftp|ftps|ftp), host, username, password required")
 		return
 	}
-	enc, err := secret.Encrypt(in.Password)
+	id, err := s.insertServer(u.ID, in)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path, max_connections)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections)
-	if err != nil {
-		dbErr(w)
-		return
-	}
-	id, _ := res.LastInsertId()
 	writeJSON(w, http.StatusCreated, serverInfo{ID: id, Name: in.Name, Protocol: in.Protocol,
 		Host: in.Host, Port: in.Port, Username: in.Username, RootPath: in.RootPath, MaxConnections: in.MaxConnections})
+}
+
+// insertServer stores a validated server for a user; shared by the create
+// endpoint and the legacy config import.
+func (s *Server) insertServer(userID int64, in serverInput) (int64, error) {
+	enc, err := secret.Encrypt(in.Password)
+	if err != nil {
+		return 0, err
+	}
+	res, err := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path, max_connections)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		userID, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
 }
 
 // @Summary  Update server
