@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { LayoutGrid, List, Pencil, X } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, type Entry } from '../api'
+import { CatalogViewSelect } from '../components/CatalogViewSelect'
+import { useCatalogView } from '../components/useCatalogView'
 import { FileBrowser } from '../components/FileBrowser'
 import { CatalogGrid } from './Remote'
 import { useConfirm } from '../components/confirm'
@@ -18,9 +20,11 @@ export default function Local() {
   const qc = useQueryClient()
   const confirm = useConfirm()
   const prompt = usePrompt()
-  const [view, setView] = useState<'classic' | 'catalog'>('classic')
   const [path, setPath] = useState('')
   const [error, setError] = useState('')
+  // same three folder modes as the remote browser (default classic; a folder
+  // saved as "dauerhaft" reopens in the catalog), addressed as source id 0
+  const { view, value: viewValue, set: setView } = useCatalogView(0, path)
 
   // both views read from their own cache: the plain listing and the catalog
   const refresh = () => {
@@ -95,24 +99,7 @@ export default function Local() {
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('local.title')}</h2>
           <span className="t-label mt-1">{t('local.sub')}</span>
         </div>
-        <div role="group" aria-label={t('remote.view')} className="flex">
-          <button
-            className={`t-btn t-btn--sm ${view === 'classic' ? 't-btn--primary' : ''}`}
-            aria-pressed={view === 'classic'}
-            onClick={() => setView('classic')}
-          >
-            <List aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('remote.classic')}
-          </button>
-          <button
-            className={`t-btn t-btn--sm ${view === 'catalog' ? 't-btn--primary' : ''}`}
-            aria-pressed={view === 'catalog'}
-            onClick={() => setView('catalog')}
-          >
-            <LayoutGrid aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('remote.catalog')}
-          </button>
-        </div>
+        <CatalogViewSelect value={viewValue} onChange={setView} />
       </header>
 
       <section className="t-panel flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('local.title')}>
