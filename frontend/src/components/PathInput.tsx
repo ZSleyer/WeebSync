@@ -70,12 +70,14 @@ export default function PathInput({
   const commit = (p: string) => {
     setOpen(false)
     setActive(-1)
-    onCommit(p)
+    onCommit(p.replace(/\/+$/, ''))
   }
   const pick = (p: string) => {
-    onChange(p)
+    // append a slash so the next keystroke-free suggestion lists the picked
+    // dir's children; the user can descend without typing separators
+    onChange(`${p}/`)
+    setOpen(true)
     setActive(-1)
-    // keep open so the user can descend further into the picked dir
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
