@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path"
 	"regexp"
@@ -269,7 +270,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 	// search → alternative title from parens ("Romaji (English)" folders) →
 	// normalized query (typographic quotes, diacritics) → base title with
 	// season/OVA markers stripped
-	runFallback := func(idx []int, build func(i int) anilist.SearchReq) {
+	runFallback := func(stage string, idx []int, build func(i int) anilist.SearchReq) {
 		if len(idx) == 0 {
 			return
 		}
@@ -280,6 +281,12 @@ func (s *Server) matchBatch(batch []matchJob) {
 		if fb, ferr := s.Anilist.SearchBatch(ctx, sub); ferr == nil {
 			for n, i := range idx {
 				results[i] = fb[n]
+				// which rescue stage recovered a previously empty result, and
+				// with which query - a 4th-stage hit is invisible in the DB
+				if len(fb[n]) > 0 {
+					slog.Debug("match fallback hit", "stage", stage,
+						"folder", batch[i].folder, "query", sub[n].Query, "candidates", len(fb[n]))
+				}
 			}
 		}
 	}
@@ -289,7 +296,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 			retry = append(retry, i)
 		}
 	}
-	runFallback(retry, func(i int) anilist.SearchReq {
+	runFallback("unfiltered", retry, func(i int) anilist.SearchReq {
 		return anilist.SearchReq{Query: reqs[i].Query, Force: reqs[i].Force}
 	})
 	var alt []int
@@ -298,7 +305,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 			alt = append(alt, i)
 		}
 	}
-	runFallback(alt, func(i int) anilist.SearchReq {
+	runFallback("alt-title", alt, func(i int) anilist.SearchReq {
 		return anilist.SearchReq{Query: GuessAltTitle(batch[i].name), Force: reqs[i].Force}
 	})
 	infos := make([]match.Info, len(batch))
@@ -311,7 +318,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 			normed = append(normed, i)
 		}
 	}
-	runFallback(normed, func(i int) anilist.SearchReq {
+	runFallback("normalized", normed, func(i int) anilist.SearchReq {
 		return anilist.SearchReq{Query: match.Normalize(reqs[i].Query), Force: reqs[i].Force}
 	})
 	var stripped []int
@@ -322,7 +329,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 			}
 		}
 	}
-	runFallback(stripped, func(i int) anilist.SearchReq {
+	runFallback("stripped-markers", stripped, func(i int) anilist.SearchReq {
 		return anilist.SearchReq{Query: match.StripMarkers(reqs[i].Query), Force: reqs[i].Force}
 	})
 
@@ -333,13 +340,25 @@ func (s *Server) matchBatch(batch []matchJob) {
 	rescue := make([]bool, len(batch))
 	for i := range batch {
 		if len(results[i]) == 0 {
+			slog.Debug("match unresolved", "folder", batch[i].folder, "reason", "no candidates after fallbacks")
 			continue
 		}
 		idx, ok := match.Pick(infos[i], results[i])
-		if ok {
+		switch {
+		case ok:
 			picked[i] = &results[i][idx]
-		} else if infos[i].Season >= 2 && match.SeasonOf(results[i][idx]) == 0 {
+			slog.Debug("match picked", "folder", batch[i].folder, "media", picked[i].ID,
+				"title", picked[i].Title.Romaji, "candidates", len(results[i]), "confident", true)
+		case infos[i].Season >= 2 && match.SeasonOf(results[i][idx]) == 0:
 			picked[i], rescue[i] = &results[i][idx], true
+			// sequel folder, best candidate has no season marker: keep it
+			// tentatively for the relations pass to confirm or discard
+			slog.Debug("match picked", "folder", batch[i].folder, "media", picked[i].ID,
+				"title", picked[i].Title.Romaji, "candidates", len(results[i]),
+				"confident", false, "rescue", true, "season", infos[i].Season)
+		default:
+			slog.Debug("match unresolved", "folder", batch[i].folder,
+				"candidates", len(results[i]), "reason", "no confident candidate")
 		}
 	}
 	s.fixSequelPicks(ctx, infos, picked, rescue)
@@ -411,10 +430,15 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 		if hasPrequel(edges) {
 			continue // already a sequel entry, keep it
 		}
+		base := picked[i].ID
 		if m := seasonTarget(walkChain(*picked[i], rels, sequelFormats), infos[i].Season); m != nil {
 			picked[i] = m
+			slog.Debug("sequel chain resolved", "media", m.ID, "title", m.Title.Romaji,
+				"season", infos[i].Season, "base", base)
 		} else if rescue[i] {
 			picked[i] = nil
+			slog.Debug("sequel chain unresolved", "base", base, "season", infos[i].Season,
+				"reason", "no season entry in chain, rescue dropped")
 		}
 	}
 }

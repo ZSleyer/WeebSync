@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -52,10 +53,12 @@ func (s *Server) refreshAnimeIDs() {
 	}
 	resp, err := netguard.Client(60 * time.Second).Do(req)
 	if err != nil {
+		slog.Warn("anime-ids fetch", "err", err)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		slog.Warn("anime-ids fetch", "status", resp.StatusCode)
 		return
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20)) // 32 MiB cap
@@ -98,6 +101,7 @@ func (s *Server) refreshAnimeIDs() {
 	}
 	tx.Commit()
 	db.SetSetting(s.DB, "anime_ids_at", time.Now().UTC().Format(time.RFC3339))
+	slog.Info("anime-ids refreshed", "rows", n, "entries", len(entries))
 }
 
 // parseFribb resolves one dataset row's variable-shaped id fields.

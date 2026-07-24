@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"path"
 	"strconv"
@@ -60,13 +61,24 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 	// not reliably wrap the callback error for errors.As.
 	var hkErr *HostKeyError
 	hostKeyCB := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		if cfg.InsecureHostKey {
-			return nil
-		}
 		got := base64.StdEncoding.EncodeToString(key.Marshal())
-		if got == cfg.HostKey && cfg.HostKey != "" {
+		if cfg.InsecureHostKey {
+			// security-relevant: connecting without verifying the host key
+			slog.Warn("host key accepted unverified", "audit", "insecure-host-key",
+				"host", cfg.Host, "key", got)
 			return nil
 		}
+		if got == cfg.HostKey && cfg.HostKey != "" {
+			slog.Debug("host key verified", "host", cfg.Host)
+			return nil
+		}
+		reason := "host key mismatch"
+		if cfg.HostKey == "" {
+			reason = "first contact, key not yet trusted"
+		}
+		// security-relevant: refused key, UI must prompt accept/reject
+		slog.Warn("host key rejected", "audit", "host-key-reject",
+			"host", cfg.Host, "reason", reason, "offered", got)
 		hkErr = &HostKeyError{Offered: got, Stored: cfg.HostKey}
 		return hkErr
 	}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -261,7 +262,14 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			Library:  s.plexLibraryOf(cur.Folder),
 			Sync:     existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
 		}
+		// a better remote copy exists for a season you own: which axis wins
+		slog.Debug("upgrade found", "showKey", u.showKey, "season", u.season,
+			"res", impRes, "sub", impSub, "dub", impDub,
+			"fromRes", cur.ResRank, "toRes", top.ResRank)
 		out = append(out, up)
+	}
+	if len(out) > 0 {
+		slog.Debug("upgrades built", "user", userID, "suggestions", len(out))
 	}
 	return out
 }

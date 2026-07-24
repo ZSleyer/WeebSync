@@ -17,6 +17,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/logbus"
 	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/plex"
 	"github.com/ch4d1/weebsync/internal/rename"
@@ -178,7 +179,13 @@ func (s *Server) WatchLoop(ctx context.Context) {
 				}
 				have := s.countVideos(local, minEp)
 				if stale || smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.filtered, c.aired, now) {
+					slog.Debug("watch due", "id", c.id, "stale", stale,
+						"have", have, "fromEpisode", c.fromEpisode, "aired", c.aired, "filtered", c.filtered)
 					s.runWatch(c.id)
+				} else {
+					// caught up, waiting for the next airing slot (very chatty: per
+					// watch, per minute) - TRACE only
+					logbus.Trace("watch waiting", "id", c.id, "have", have, "aired", c.aired)
 				}
 			}
 		}
@@ -288,6 +295,10 @@ func (s *Server) runWatch(id int64) {
 	if err != nil {
 		result, queued, uploading, filtered = err.Error(), -1, 0, 0
 		slog.Warn("watch check", "id", id, "err", err)
+	} else if queued > 0 || uploading > 0 || filtered > 0 {
+		slog.Info("watch checked", "id", id, "queued", queued, "uploading", uploading, "filtered", filtered)
+	} else {
+		slog.Debug("watch checked", "id", id, "queued", 0)
 	}
 	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ? WHERE id = ?`, result, queued, uploading, filtered, id)
 }

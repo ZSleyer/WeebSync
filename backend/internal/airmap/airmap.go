@@ -135,16 +135,22 @@ func (r *Resolver) fresh(s Series, want string) bool {
 // retries); on a definitive empty result it stamps the meta row with the
 // wanted source, backing off API calls for one TTL.
 func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, want string) {
+	// strip CR/LF from the user-controlled folder so it can't forge log lines
+	folder := strings.ReplaceAll(strings.ReplaceAll(s.Folder, "\n", ""), "\r", "")
 	m, err := r.buildMap(ctx, s, provider, ordering)
 	if err != nil {
-		// strip CR/LF from the user-controlled folder so it can't forge log lines
-		folder := strings.ReplaceAll(strings.ReplaceAll(s.Folder, "\n", ""), "\r", "")
 		slog.Warn("airmap rebuild", "folder", folder, "err", err)
 		return
 	}
 	source := want
 	if len(m) == 0 {
 		source = "none"
+		// definitive empty: stamp source=none and back off API calls for one TTL
+		slog.Debug("airmap empty", "folder", folder, "provider", provider,
+			"ordering", ordering, "reason", "no mapping from provider, backing off one TTL")
+	} else {
+		slog.Info("airmap built", "folder", folder, "provider", provider,
+			"ordering", ordering, "tokens", len(m))
 	}
 	tx, err := r.DB.Begin()
 	if err != nil {

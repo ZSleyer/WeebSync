@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -91,6 +92,11 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 	}
 	s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
 		source, mediaID, seriesID)
+	if created {
+		slog.Debug("series created", "seriesId", seriesID, "title", title, "year", year, "source", source, "media", mediaID)
+	} else {
+		slog.Debug("series joined", "seriesId", seriesID, "title", title, "source", source, "media", mediaID)
+	}
 	return created, title
 }
 
