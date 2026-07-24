@@ -588,6 +588,15 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 				item.Media, item.Pending = s.sourceMedia(itemSource, id)
 				break
 			}
+			// local library: adopt Plex's tvdb/tmdb id (ground truth) to skip the
+			// title search when the show is already known
+			if serverID == localServerID {
+				if id, ok := s.matchLocalByPlexID(e.Path, itemSource); ok {
+					s.persistMatch(serverID, e.Path, id, false, itemSource)
+					item.Media, item.Pending = s.sourceMedia(itemSource, id)
+					break
+				}
+			}
 			// never looked up, or the folder's scope changed since the match
 			// was stored: match in the background, show the folder now
 			item.Pending = true
@@ -638,6 +647,15 @@ func (s *Server) reuseMatch(serverID int64, name, source string) (int, bool) {
 
 // queueScopedMatch dispatches folder matching to the scope's metadata source.
 func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, force bool) {
+	// local library: try Plex's authoritative tvdb/tmdb id first (also drains
+	// the sweep this way); an explicit rematch (force) still does a title search
+	if serverID == localServerID && !force {
+		src := sourceForScope(scope)
+		if id, ok := s.matchLocalByPlexID(folder, src); ok {
+			s.persistMatch(serverID, folder, id, false, src)
+			return
+		}
+	}
 	if scope == "" || scope == "anime" {
 		s.queueMatch(serverID, folder, name, force)
 		return
