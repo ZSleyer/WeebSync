@@ -58,8 +58,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # Prune old nightlies: keep the 3 newest tagged nightlies, drop everything
-  # else including orphaned multi-arch children. Release tags stay untouched.
+  # Prune nightlies older than 2 days plus orphaned multi-arch children.
+  # Release tags stay untouched. packages must be lowercase - the registry
+  # package is "weebsync", deriving it from the repo name ("WeebSync") 404s.
   cleanup:
     runs-on: ubuntu-latest
     needs: nightly-image
@@ -67,7 +68,9 @@ jobs:
     steps:
       - uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
         with:
-          keep-n-tagged: 3
+          packages: weebsync
+          delete-tags: "nightly-*,dev-*"
+          older-than: 2 days
           exclude-tags: "nightly,latest,v*"
           delete-untagged: true
           delete-ghost-images: true
