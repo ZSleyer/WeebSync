@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react'
+import { FolderOpen, FolderPlus } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, fmtBytes, type Entry } from '../api'
+import FileIcon from './FileIcon'
 import Loading from './Loading'
 
 // Path breadcrumb: root button plus one button per segment. Shared by the
@@ -89,7 +91,7 @@ export function FileBrowser({
         {leafDir && (
           <div className="flex items-stretch border-b border-border-subtle bg-bg-secondary/50">
             <span className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-sm text-t-muted">
-              <span aria-hidden className="font-mono text-xs text-accent">▾</span>
+              <FolderOpen aria-hidden size="1em" className="shrink-0 text-accent" />
               <span className="truncate">{t('remote.thisFolder', { name: leafDir.name })}</span>
             </span>
             <button
@@ -121,9 +123,7 @@ export function FileBrowser({
                     }}
                     onDoubleClick={() => selectable && onSelect(e)}
                   >
-                    <span aria-hidden className={`font-mono text-xs ${e.isDir ? 'text-accent' : 'text-t-faint'}`}>
-                      {e.isDir ? '▸' : '·'}
-                    </span>
+                    <FileIcon isDir={e.isDir} name={e.name} />
                     <span className="min-w-0 flex-1 truncate" title={e.name}>
                       {e.name}
                     </span>
@@ -189,6 +189,7 @@ export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p
           onKeyDown={(e) => e.key === 'Enter' && mkdir()}
         />
         <button type="button" className="t-btn t-btn--sm shrink-0" onClick={mkdir}>
+          <FolderPlus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('remote.createFolder')}
         </button>
       </div>
