@@ -93,9 +93,9 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 	s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
 		source, mediaID, seriesID)
 	if created {
-		slog.Debug("series created", "seriesId", seriesID, "title", logSafe(title), "year", year, "source", source, "media", mediaID)
+		slog.Debug("series created", "seriesId", seriesID, "title", logSafe(title), "year", year, "source", logSafe(source), "media", mediaID)
 	} else {
-		slog.Debug("series joined", "seriesId", seriesID, "title", logSafe(title), "source", source, "media", mediaID)
+		slog.Debug("series joined", "seriesId", seriesID, "title", logSafe(title), "source", logSafe(source), "media", mediaID)
 	}
 	return created, title
 }
