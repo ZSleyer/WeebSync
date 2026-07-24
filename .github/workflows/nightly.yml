@@ -16,21 +16,34 @@ jobs:
   nightly-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
       - uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
+      # nightly-<shortsha> already in the registry means HEAD hasn't moved since
+      # the last build; skip the rebuild so identical nightlies don't pile up.
+      - name: Check if HEAD is already built
+        id: fresh
+        run: |
+          if docker manifest inspect "ghcr.io/${GITHUB_REPOSITORY,,}:nightly-${GITHUB_SHA::7}" >/dev/null 2>&1; then
+            echo "nightly-${GITHUB_SHA::7} already exists, skipping build"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.fresh.outputs.skip != 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - if: steps.fresh.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+      - if: steps.fresh.outputs.skip != 'true'
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
         id: meta
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=nightly
             type=raw,value=nightly-{{sha}}
-      - uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+      - if: steps.fresh.outputs.skip != 'true'
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -44,3 +57,19 @@ jobs:
             REPO=${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Prune old nightlies: keep the 3 newest tagged nightlies, drop everything
+  # else including orphaned multi-arch children. Release tags stay untouched.
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: nightly-image
+    if: always() && needs.nightly-image.result == 'success'
+    steps:
+      - uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
+        with:
+          keep-n-tagged: 3
+          exclude-tags: "nightly,latest,v*"
+          delete-untagged: true
+          delete-ghost-images: true
+          delete-partial-images: true
+          token: ${{ secrets.GITHUB_TOKEN }}
