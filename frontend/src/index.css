@@ -328,6 +328,7 @@ body {
   width: 100%;
   transition: border-color 150ms;
 }
+.t-input { text-overflow: ellipsis; } /* also applies to a clipped placeholder */
 .t-input:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
@@ -423,6 +424,8 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
 }
 .t-toolbar .t-btn--sm,
 .t-toolbar .t-label { min-height: 2rem; }
+/* chips grown to toolbar height need matching horizontal room */
+.t-toolbar .t-label { padding-inline: 0.625rem; }
 .t-toolbar .t-input,
 .t-toolbar .t-select {
   min-height: 2rem;
