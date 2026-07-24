@@ -174,7 +174,7 @@ export default function Dashboard() {
                 onChange={() => toggleSection(activeIds, allActiveSelected)}
               />
               <input
-                className="t-input font-mono text-xs sm:max-w-56"
+                className="t-input font-mono text-xs sm:max-w-72"
                 type="search"
                 placeholder={t('dash.search')}
                 aria-label={t('dash.search')}
@@ -300,7 +300,7 @@ export default function Dashboard() {
                       onChange={() => toggleSection(historyIds, allHistorySelected)}
                     />
                     <input
-                      className="t-input font-mono text-xs sm:max-w-56"
+                      className="t-input font-mono text-xs sm:max-w-72"
                       type="search"
                       placeholder={t('dash.search')}
                       aria-label={t('dash.search')}
