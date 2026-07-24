@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Clock, Pause, Play, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, Pause, Play, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
 
 // icon per download status, shown inside the t-label chips (inline-flex, 4px gap)
 const STATUS_ICON: Record<Download['status'], LucideIcon> = {
@@ -70,6 +70,12 @@ export default function Dashboard() {
     lastClick.current = id
   }
   const allMatchingSelected = allMatchingIds.length > 0 && allMatchingIds.every((id) => selected.has(id))
+  // native indeterminate state for the select-all box on partial selection
+  const selectAllRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = selected.size > 0 && !allMatchingSelected
+  }, [selected, allMatchingSelected])
+  const [historyOpen, setHistoryOpen] = useState(true)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setSelected(new Set())
@@ -102,96 +108,109 @@ export default function Dashboard() {
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
-          <span className="t-label mt-1">{t('dash.sub')}</span>
-        </div>
-        <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto">
-          <StatTile label={t('dash.active')} value={String(active.filter((d) => d.status === 'running').length)} />
-          <StatTile label={t('dash.queue')} value={String(active.filter((d) => d.status === 'queued').length)} />
-          <StatTile label={t('dash.speed')} value={fmtSpeed(totalSpeed)} wide>
-            <SpeedSparkline current={totalSpeed} />
-          </StatTile>
-        </div>
+      <header className="mb-6">
+        <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
+        <span className="t-label mt-1">{t('dash.sub')}</span>
       </header>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {(anyActive || anyPaused) && (
-          <>
-            {anyActive && (
-              <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause' })}>
-                <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('dash.pauseAll')}
-              </button>
-            )}
-            {anyPaused && (
-              <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume' })}>
-                <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('dash.resumeAll')}
-              </button>
-            )}
-            <button
-              className="t-btn t-btn--sm t-btn--danger"
-              disabled={bulk.isPending}
-              onClick={async () => {
-                if (await confirm({ message: t('dash.cancelAllConfirm'), destructive: true })) bulk.mutate({ a: 'cancel' })
-              }}
-            >
-              <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('dash.cancelAll')}
-            </button>
-          </>
-        )}
-        {!!user?.isAdmin && <GlobalLimitInput />}
-      </div>
+      {/* phones stack status overview on top; from lg it becomes the right
+          column next to the transfer queue */}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+        <aside className="flex flex-col gap-4 lg:order-2">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2">
+            <StatTile label={t('dash.active')} value={String(active.filter((d) => d.status === 'running').length)} />
+            <StatTile label={t('dash.queue')} value={String(active.filter((d) => d.status === 'queued').length)} />
+            <StatTile label={t('dash.speed')} value={fmtSpeed(totalSpeed)} wide>
+              <SpeedSparkline current={totalSpeed} />
+            </StatTile>
+          </div>
+          <SyncSummary />
+        </aside>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <input
-          className="t-input w-full py-1.5 font-mono text-xs sm:w-56"
-          type="search"
-          placeholder={t('dash.search')}
-          aria-label={t('dash.search')}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <div role="group" aria-label={t('dash.filterStatus')} className="flex flex-wrap items-center gap-1">
-          <input
-            type="checkbox"
-            className="mr-1"
-            title={t('dash.selectAll')}
-            aria-label={t('dash.selectAll')}
-            checked={allMatchingSelected}
-            onChange={() => setSelected(allMatchingSelected ? new Set() : new Set(allMatchingIds))}
-          />
-          {STATUSES.map((st) => {
-            const Icon = STATUS_ICON[st]
-            return (
-              <button
-                key={st}
-                aria-pressed={statusFilter.has(st)}
-                className={`t-label min-h-6 cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
-                onClick={() => toggleStatus(st)}
-              >
-                <Icon aria-hidden size="1em" />
-                {t(`status.${st}`)}
-              </button>
-            )
-          })}
-          {filtering && (
-            <button
-              className="t-label min-h-6 cursor-pointer hover:text-accent"
-              onClick={() => {
-                setQuery('')
-                setStatusFilter(new Set())
-              }}
-            >
-              <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('dash.filterClear')}
-            </button>
-          )}
-        </div>
-      </div>
+        <div className="min-w-0 lg:order-1">
+          <section aria-label={t('dash.activeSection')}>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="t-label t-label--accent">
+                <DownloadIcon aria-hidden size="1em" />
+                {t('dash.activeSection')}
+              </span>
+              <span className="h-px flex-1 bg-border-subtle" />
+              <span className="font-mono text-[11px] text-t-muted">{active.length}</span>
+            </div>
+
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <input
+                ref={selectAllRef}
+                type="checkbox"
+                title={t('dash.selectAll')}
+                aria-label={t('dash.selectAll')}
+                checked={allMatchingSelected}
+                onChange={() => setSelected(allMatchingSelected ? new Set() : new Set(allMatchingIds))}
+              />
+              <input
+                className="t-input py-1.5 font-mono text-xs sm:max-w-56"
+                type="search"
+                placeholder={t('dash.search')}
+                aria-label={t('dash.search')}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <div role="group" aria-label={t('dash.filterStatus')} className="flex flex-wrap items-center gap-1">
+                {STATUSES.map((st) => {
+                  const Icon = STATUS_ICON[st]
+                  return (
+                    <button
+                      key={st}
+                      aria-pressed={statusFilter.has(st)}
+                      className={`t-label min-h-6 cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
+                      onClick={() => toggleStatus(st)}
+                    >
+                      <Icon aria-hidden size="1em" />
+                      {t(`status.${st}`)}
+                    </button>
+                  )
+                })}
+                {filtering && (
+                  <button
+                    className="t-label min-h-6 cursor-pointer hover:text-accent"
+                    onClick={() => {
+                      setQuery('')
+                      setStatusFilter(new Set())
+                    }}
+                  >
+                    <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                    {t('dash.filterClear')}
+                  </button>
+                )}
+              </div>
+              <span className="ml-auto flex flex-wrap items-center gap-2">
+                {anyActive && (
+                  <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause' })}>
+                    <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                    {t('dash.pauseAll')}
+                  </button>
+                )}
+                {anyPaused && (
+                  <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume' })}>
+                    <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                    {t('dash.resumeAll')}
+                  </button>
+                )}
+                {(anyActive || anyPaused) && (
+                  <button
+                    className="t-btn t-btn--sm t-btn--danger"
+                    disabled={bulk.isPending}
+                    onClick={async () => {
+                      if (await confirm({ message: t('dash.cancelAllConfirm'), destructive: true })) bulk.mutate({ a: 'cancel' })
+                    }}
+                  >
+                    <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                    {t('dash.cancelAll')}
+                  </button>
+                )}
+                {!!user?.isAdmin && <GlobalLimitInput />}
+              </span>
+            </div>
 
       {selected.size > 0 && (
         <div className="t-panel mb-4 flex flex-wrap items-center gap-2 p-3" role="toolbar" aria-label={t('dash.selectionActions')}>
@@ -227,37 +246,54 @@ export default function Dashboard() {
         </div>
       )}
 
-      <SyncSummary />
-
-      <section aria-label={t('dash.activeSection')}>
-        {active.length === 0 &&
-          (filtering ? (
-            <div className="t-panel p-8 text-center text-t-muted">{t('dash.noMatches')}</div>
-          ) : (
-            <div className="t-panel p-8 text-center text-t-muted">
-              <Trans i18nKey="dash.empty">
-                Keine aktiven Downloads. Zum Syncen in die <Link to="/remote" className="text-accent underline">Remote</Link>-Ansicht wechseln.
-              </Trans>
+            {active.length === 0 &&
+              (filtering ? (
+                <div className="t-panel p-8 text-center text-t-muted">{t('dash.noMatches')}</div>
+              ) : (
+                <div className="t-panel p-8 text-center text-t-muted">
+                  <Trans i18nKey="dash.empty">
+                    Keine aktiven Downloads. Zum Syncen in die <Link to="/remote" className="text-accent underline">Remote</Link>-Ansicht wechseln.
+                  </Trans>
+                </div>
+              ))}
+            <div className="flex flex-col gap-3">
+              {active.map((d) => (
+                <DownloadRow
+                  key={d.id}
+                  d={d}
+                  selected={selected.has(d.id)}
+                  onSelect={(shift) => selectRow(d.id, shift)}
+                  onAction={(verb) => action.mutate({ id: d.id, verb })}
+                />
+              ))}
             </div>
-          ))}
-        <div className="flex flex-col gap-3">
-          {active.map((d) => (
-            <DownloadRow
-              key={d.id}
-              d={d}
-              selected={selected.has(d.id)}
-              onSelect={(shift) => selectRow(d.id, shift)}
-              onAction={(verb) => action.mutate({ id: d.id, verb })}
-            />
-          ))}
-        </div>
-      </section>
+          </section>
 
-      {finished.length > 0 && (
-        <section aria-label={t('dash.finishedSection')} className="mt-8">
-          <span className="t-label mb-3">{t('dash.history')}</span>
-          <div className="mt-2 flex flex-col gap-2">
-            {finishedShown.map((d) => (
+          {finished.length > 0 && (
+            <section aria-label={t('dash.finishedSection')} className="mt-8">
+              {/* divider header doubles as the collapse toggle, like the
+                  watch-list groups */}
+              <div className="mb-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  className="t-label t-label--accent cursor-pointer"
+                  aria-expanded={historyOpen}
+                  onClick={() => setHistoryOpen((o) => !o)}
+                >
+                  {historyOpen ? (
+                    <ChevronDown aria-hidden size="1em" />
+                  ) : (
+                    <ChevronRight aria-hidden size="1em" />
+                  )}
+                  {t('dash.history')}
+                </button>
+                <span className="h-px flex-1 bg-border-subtle" />
+                <span className="font-mono text-[11px] text-t-muted">{finished.length}</span>
+              </div>
+              {historyOpen && (
+                <>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {finishedShown.map((d) => (
               <div key={d.id} className="flex items-center gap-3 border border-border-subtle bg-bg-card px-3 py-2 text-sm">
                 <SelectBox
                   checked={selected.has(d.id)}
@@ -283,16 +319,20 @@ export default function Dashboard() {
                 >
                   <X aria-hidden size="1.2em" />
                 </button>
-              </div>
-            ))}
-          </div>
-          {finished.length > finishedShown.length && (
-            <button className="t-btn t-btn--sm mt-3" onClick={() => setShowAllHistory(true)}>
-              {t('dash.showAllHistory', { count: finished.length })}
-            </button>
+                      </div>
+                    ))}
+                  </div>
+                  {finished.length > finishedShown.length && (
+                    <button className="t-btn t-btn--sm mt-3" onClick={() => setShowAllHistory(true)}>
+                      {t('dash.showAllHistory', { count: finished.length })}
+                    </button>
+                  )}
+                </>
+              )}
+            </section>
           )}
-        </section>
-      )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -319,7 +359,7 @@ function SyncSummary() {
   )
 
   return (
-    <section className="mb-4" aria-label={t('dash.syncSummary')}>
+    <section aria-label={t('dash.syncSummary')}>
       <div className="t-panel p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <span className="t-label t-label--accent">{t('dash.syncSummary')}</span>
