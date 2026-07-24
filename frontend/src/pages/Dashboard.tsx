@@ -17,7 +17,9 @@ import { api, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type Wa
 import { useConfirm } from '../components/confirm'
 import { useAuth } from '../hooks'
 
-const STATUSES: Download['status'][] = ['running', 'queued', 'paused', 'done', 'error', 'canceled']
+// history-only status filter: the active queue is short and searchable, its
+// three states never need chips
+const HISTORY_STATUSES: Download['status'][] = ['done', 'error', 'canceled']
 
 export default function Dashboard() {
   const { t } = useTranslation()
@@ -29,17 +31,28 @@ export default function Dashboard() {
     queryFn: () => api.get('/api/downloads'),
     refetchInterval: 5000,
   })
+  // active queue and history filter independently: searching the queue must
+  // not reshuffle the history and vice versa
   const [query, setQuery] = useState('')
+  const [historyQuery, setHistoryQuery] = useState('')
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [statusFilter, setStatusFilter] = useState<Set<Download['status']>>(new Set())
-  const filtering = query.trim() !== '' || statusFilter.size > 0
-  const matches = (d: Download) =>
-    (statusFilter.size === 0 || statusFilter.has(d.status)) &&
-    (query.trim() === '' || d.remotePath.toLowerCase().includes(query.trim().toLowerCase()))
+  const filtering = query.trim() !== ''
+  const historyFiltering = historyQuery.trim() !== '' || statusFilter.size > 0
+  const nameMatch = (d: Download, q: string) => q.trim() === '' || d.remotePath.toLowerCase().includes(q.trim().toLowerCase())
 
-  const active = downloads.filter((d) => (d.status === 'running' || d.status === 'queued' || d.status === 'paused') && matches(d))
-  const finished = downloads.filter((d) => d.status !== 'running' && d.status !== 'queued' && d.status !== 'paused' && matches(d))
-  const finishedShown = finished.slice(0, filtering || showAllHistory ? finished.length : 20)
+  const active = downloads.filter(
+    (d) => (d.status === 'running' || d.status === 'queued' || d.status === 'paused') && nameMatch(d, query),
+  )
+  const finished = downloads.filter(
+    (d) =>
+      d.status !== 'running' &&
+      d.status !== 'queued' &&
+      d.status !== 'paused' &&
+      (statusFilter.size === 0 || statusFilter.has(d.status)) &&
+      nameMatch(d, historyQuery),
+  )
+  const finishedShown = finished.slice(0, historyFiltering || showAllHistory ? finished.length : 20)
   const totalSpeed = downloads.reduce((s, d) => s + (d.status === 'running' ? (d.bytesPerSec ?? 0) : 0), 0)
   const anyActive = downloads.some((d) => d.status === 'running' || d.status === 'queued')
   const anyPaused = downloads.some((d) => d.status === 'paused')
@@ -49,9 +62,10 @@ export default function Dashboard() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const lastClick = useRef<number | null>(null)
   const visibleIds = [...active, ...finishedShown].map((d) => d.id)
-  // select-all spans every matching download (not just the rendered slice) so
-  // bulk actions reach the full history, not only the first page
-  const allMatchingIds = [...active, ...finished].map((d) => d.id)
+  // per-section select-all; history spans every matching download (not just
+  // the rendered slice) so bulk actions reach the full history
+  const activeIds = active.map((d) => d.id)
+  const historyIds = finished.map((d) => d.id)
   const selectRow = (id: number, shift: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev)
@@ -69,12 +83,24 @@ export default function Dashboard() {
     })
     lastClick.current = id
   }
-  const allMatchingSelected = allMatchingIds.length > 0 && allMatchingIds.every((id) => selected.has(id))
-  // native indeterminate state for the select-all box on partial selection
-  const selectAllRef = useRef<HTMLInputElement>(null)
+  const allActiveSelected = activeIds.length > 0 && activeIds.every((id) => selected.has(id))
+  const allHistorySelected = historyIds.length > 0 && historyIds.every((id) => selected.has(id))
+  // native indeterminate state for the select-all boxes on partial selection
+  const activeAllRef = useRef<HTMLInputElement>(null)
+  const historyAllRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
-    if (selectAllRef.current) selectAllRef.current.indeterminate = selected.size > 0 && !allMatchingSelected
-  }, [selected, allMatchingSelected])
+    if (activeAllRef.current)
+      activeAllRef.current.indeterminate = activeIds.some((id) => selected.has(id)) && !allActiveSelected
+    if (historyAllRef.current)
+      historyAllRef.current.indeterminate = historyIds.some((id) => selected.has(id)) && !allHistorySelected
+  })
+  // toggling a section's select-all only touches that section's ids
+  const toggleSection = (ids: number[], all: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      ids.forEach((id) => (all ? next.delete(id) : next.add(id)))
+      return next
+    })
   const [historyOpen, setHistoryOpen] = useState(true)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -138,52 +164,24 @@ export default function Dashboard() {
               <span className="font-mono text-[11px] text-t-muted">{active.length}</span>
             </div>
 
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="t-toolbar mb-3">
               <input
-                ref={selectAllRef}
+                ref={activeAllRef}
                 type="checkbox"
                 title={t('dash.selectAll')}
                 aria-label={t('dash.selectAll')}
-                checked={allMatchingSelected}
-                onChange={() => setSelected(allMatchingSelected ? new Set() : new Set(allMatchingIds))}
+                checked={allActiveSelected}
+                onChange={() => toggleSection(activeIds, allActiveSelected)}
               />
               <input
-                className="t-input py-1.5 font-mono text-xs sm:max-w-56"
+                className="t-input font-mono text-xs sm:max-w-56"
                 type="search"
                 placeholder={t('dash.search')}
                 aria-label={t('dash.search')}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
-              <div role="group" aria-label={t('dash.filterStatus')} className="flex flex-wrap items-center gap-1">
-                {STATUSES.map((st) => {
-                  const Icon = STATUS_ICON[st]
-                  return (
-                    <button
-                      key={st}
-                      aria-pressed={statusFilter.has(st)}
-                      className={`t-label min-h-6 cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
-                      onClick={() => toggleStatus(st)}
-                    >
-                      <Icon aria-hidden size="1em" />
-                      {t(`status.${st}`)}
-                    </button>
-                  )
-                })}
-                {filtering && (
-                  <button
-                    className="t-label min-h-6 cursor-pointer hover:text-accent"
-                    onClick={() => {
-                      setQuery('')
-                      setStatusFilter(new Set())
-                    }}
-                  >
-                    <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('dash.filterClear')}
-                  </button>
-                )}
-              </div>
-              <span className="ml-auto flex flex-wrap items-center gap-2">
+              <span className="t-toolbar ml-auto">
                 {anyActive && (
                   <button className="t-btn t-btn--sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause' })}>
                     <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -292,6 +290,52 @@ export default function Dashboard() {
               </div>
               {historyOpen && (
                 <>
+                  <div className="t-toolbar mb-2">
+                    <input
+                      ref={historyAllRef}
+                      type="checkbox"
+                      title={t('dash.selectAll')}
+                      aria-label={t('dash.selectAll')}
+                      checked={allHistorySelected}
+                      onChange={() => toggleSection(historyIds, allHistorySelected)}
+                    />
+                    <input
+                      className="t-input font-mono text-xs sm:max-w-56"
+                      type="search"
+                      placeholder={t('dash.search')}
+                      aria-label={t('dash.search')}
+                      value={historyQuery}
+                      onChange={(e) => setHistoryQuery(e.target.value)}
+                    />
+                    <div role="group" aria-label={t('dash.filterStatus')} className="flex flex-wrap items-center gap-1">
+                      {HISTORY_STATUSES.map((st) => {
+                        const Icon = STATUS_ICON[st]
+                        return (
+                          <button
+                            key={st}
+                            aria-pressed={statusFilter.has(st)}
+                            className={`t-label cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
+                            onClick={() => toggleStatus(st)}
+                          >
+                            <Icon aria-hidden size="1em" />
+                            {t(`status.${st}`)}
+                          </button>
+                        )
+                      })}
+                      {historyFiltering && (
+                        <button
+                          className="t-label cursor-pointer hover:text-accent"
+                          onClick={() => {
+                            setHistoryQuery('')
+                            setStatusFilter(new Set())
+                          }}
+                        >
+                          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                          {t('dash.filterClear')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <div className="mt-2 flex flex-col gap-2">
                     {finishedShown.map((d) => (
               <div key={d.id} className="flex items-center gap-3 border border-border-subtle bg-bg-card px-3 py-2 text-sm">
@@ -382,25 +426,33 @@ function SyncSummary() {
                 <span className="min-w-0 flex-1 truncate text-t-secondary" title={w.remotePath}>
                   {title(w)}
                 </span>
+                {/* compact chips: icon + count only, the sidebar column is too
+                    narrow for the full sentences - they live in the tooltip */}
                 {(w.behind ?? 0) > 0 && (
-                  <span className="t-label t-label--warn shrink-0">
+                  <span className="t-label t-label--warn shrink-0" title={t('watch.behind', { count: w.behind })}>
                     <Clock aria-hidden size="1em" />
-                    {t('watch.behind', { count: w.behind })}
+                    {w.behind}
                   </span>
                 )}
                 {(w.missing?.length ?? 0) > 0 && (
-                  <span className="t-label t-label--err shrink-0" title={w.missing!.join(', ')}>
+                  <span
+                    className="t-label t-label--err shrink-0"
+                    title={`${t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })} (${w.missing!.join(', ')})`}
+                  >
                     <TriangleAlert aria-hidden size="1em" />
-                    {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
+                    {w.missing!.length}
                   </span>
                 )}
                 {(w.langWaiting ?? 0) > 0 && (
-                  <span className="t-label t-label--warn shrink-0">
-                    <Clock aria-hidden size="1em" />
-                    {t('watch.langWaiting', {
+                  <span
+                    className="t-label t-label--warn shrink-0"
+                    title={t('watch.langWaiting', {
                       count: w.langWaiting,
                       lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
                     })}
+                  >
+                    <Clock aria-hidden size="1em" />
+                    {w.langWaiting}
                   </span>
                 )}
                 {w.waiting && w.nextAiringAt ? (
