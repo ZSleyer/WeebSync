@@ -26,3 +26,15 @@ tools/sftp-test/index.json
 
 # plexeval eval binary (build artifact)
 /backend/plexeval
+
+# design-system build artifacts (styles.css is a copy of the app's build)
+design-system/dist/
+design-system/styles.css
+design-system/node_modules
+
+# design-sync: staged converter, generated bundle, machine state
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
