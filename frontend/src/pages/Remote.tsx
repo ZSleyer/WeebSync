@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Check, Clock, Download, ExternalLink, Eye, Files, Info, Pause, Pencil, Play, Radio, Star, Undo2, X, type LucideIcon } from 'lucide-react'
+import { Check, ChevronDown, Clock, Download, ExternalLink, Eye, Files, Folder, Info, Pause, Pencil, Play, Radio, RefreshCw, Replace, Search, Star, Trash2, Undo2, X, type LucideIcon } from 'lucide-react'
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
 const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
@@ -877,6 +877,7 @@ function SyncDialog({
                 aria-expanded={browse}
                 onClick={() => setBrowse((b) => !b)}
               >
+                <Folder aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('watch.browse')}
               </button>
             </div>
@@ -944,9 +945,11 @@ function SyncDialog({
 
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
           <button type="button" className="t-btn" onClick={() => close(false)}>
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('common.cancel')}
           </button>
           <button type="button" className="t-btn t-btn--primary t-cut" disabled={pending} onClick={() => close(true)}>
+            <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {entry.isDir ? t('remote.syncFolder') : t('remote.downloadFile')}
           </button>
         </footer>
@@ -1133,6 +1136,7 @@ function DetailDialog({
             </ul>
             {!allReviews && rev.reviews.length > 5 && (
               <button type="button" className="t-btn t-btn--sm mt-3" onClick={() => setAllReviews(true)}>
+                <ChevronDown aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.moreReviews', { count: rev.reviews.length - 5 })}
               </button>
             )}
@@ -1152,22 +1156,27 @@ function DetailDialog({
                 {it.entry.name}
               </span>
               <button className="t-btn t-btn--sm t-btn--primary shrink-0" onClick={() => onSelect(it.entry)}>
+                <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.select')}
               </button>
               <button className="t-btn t-btn--sm shrink-0" title={t('remote.showFiles')} onClick={() => onFiles(it.entry)}>
+                <Files aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.files')}
               </button>
               {onSync && (
                 <button className="t-btn t-btn--sm shrink-0" onClick={() => onSync(it.entry)}>
+                  <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('plex.syncOnce')}
                 </button>
               )}
               {onWatch && (
                 <button className="t-btn t-btn--sm shrink-0" onClick={() => onWatch(it.entry)}>
+                  <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('watch.add')}
                 </button>
               )}
               <button className="t-btn t-btn--sm shrink-0" onClick={() => onRematch(it)}>
+                <Replace aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.changeMatch')}
               </button>
             </li>
@@ -1175,6 +1184,7 @@ function DetailDialog({
         </ul>
         <div className="mt-4 flex justify-end">
           <button className="t-btn" onClick={() => ref.current?.close()}>
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.close')}
           </button>
         </div>
@@ -1277,6 +1287,7 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
             onKeyDown={(e) => e.key === 'Enter' && search()}
           />
           <button className="t-btn shrink-0" onClick={search}>
+            <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.search')}
           </button>
         </div>
@@ -1305,9 +1316,11 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
         )}
         <div className="mt-4 flex justify-between">
           <button className="t-btn t-btn--danger t-btn--sm" onClick={() => pick(0)}>
+            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.removeMatch')}
           </button>
           <button className="t-btn" onClick={() => ref.current?.close()}>
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.close')}
           </button>
         </div>

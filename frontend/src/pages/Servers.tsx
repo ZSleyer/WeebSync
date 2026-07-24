@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Lock, LockOpen, Pencil, Plus, PlugZap, ShieldCheck, Trash2 } from 'lucide-react'
+import { Lock, LockOpen, Pencil, Plus, PlugZap, Save, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError, type ServerInfo } from '../api'
@@ -293,9 +293,13 @@ function ServerDialog({ ref, editing }: { ref: React.RefObject<HTMLDialogElement
         )}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className="t-btn" onClick={guardedClose}>
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.cancel')}
           </button>
-          <button className="t-btn t-btn--primary t-cut">{t('servers.save')}</button>
+          <button className="t-btn t-btn--primary t-cut">
+            <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('servers.save')}
+          </button>
         </div>
       </form>
     </dialog>

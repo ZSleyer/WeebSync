@@ -1,3 +1,4 @@
+import { Check, ChevronLeft, ChevronRight, Pause, Play, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
@@ -77,7 +78,142 @@ interface AdminJobs {
   index: { tickSec: number; recheckSec: number; servers: IndexServer[] }
   watch: { intervalMin: number; count: number }
   matches: MatchStat[]
+  logLevel: LogLevel
   ttl?: TtlConfig // arriving with the config workstream; fall back to defaults
+}
+
+type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error'
+const LOG_LEVELS: LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error']
+
+interface LogLine {
+  ts: string
+  level: LogLevel
+  msg: string
+  attrs?: Record<string, unknown>
+}
+
+const LOG_COLOR: Record<LogLevel, string> = {
+  trace: 'text-t-muted',
+  debug: 'text-t-secondary',
+  info: 'text-accent',
+  warn: 'text-warn',
+  error: 'text-err',
+}
+
+// LogPanel is the admin live log: an SSE stream of backend records (backlog
+// first, then live) with a runtime level switch, a client-side level filter,
+// pause and clear. Modelled on useEvents (hooks.ts) but keeps its own capped
+// buffer instead of a react-query cache.
+function LogPanel({ level }: { level: LogLevel }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [lines, setLines] = useState<LogLine[]>([])
+  const [paused, setPaused] = useState(false)
+  const [filter, setFilter] = useState<LogLevel | 'all'>('all')
+  const pausedRef = useRef(paused)
+  pausedRef.current = paused
+  const endRef = useRef<HTMLDivElement>(null)
+
+  const setLevel = useMutation({
+    mutationFn: (lvl: LogLevel) => api.put('/api/admin/loglevel', { level: lvl }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['adminJobs'] }),
+  })
+
+  useEffect(() => {
+    const es = new EventSource('/api/admin/logs/stream')
+    es.onmessage = (ev) => {
+      if (pausedRef.current) return
+      let line: LogLine
+      try {
+        line = JSON.parse(ev.data)
+      } catch {
+        return // ignore keepalive/malformed frames
+      }
+      // cap at 500 so a chatty trace level can't grow the DOM unbounded
+      setLines((old) => (old.length >= 500 ? [...old.slice(old.length - 499), line] : [...old, line]))
+    }
+    // a 401 (expired session) otherwise reconnect-loops forever; re-check auth
+    es.onerror = () => qc.invalidateQueries({ queryKey: ['me'] })
+    return () => es.close()
+  }, [qc])
+
+  const shown = filter === 'all' ? lines : lines.filter((l) => l.level === filter)
+
+  useEffect(() => {
+    if (!paused) endRef.current?.scrollIntoView({ block: 'end' })
+  }, [shown.length, paused])
+
+  const fmtAttrs = (a?: Record<string, unknown>) =>
+    a
+      ? Object.entries(a)
+          .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
+          .join(' ')
+      : ''
+
+  return (
+    <section className="t-panel mb-4 p-5" aria-label={t('settings.jobs.logs.title')}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="t-label t-label--accent">{t('settings.jobs.logs.title')}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-xs text-t-muted" htmlFor="log-level">
+            {t('settings.jobs.logs.level')}
+          </label>
+          <select
+            id="log-level"
+            className="t-input t-input--sm"
+            value={level}
+            disabled={setLevel.isPending}
+            onChange={(e) => setLevel.mutate(e.target.value as LogLevel)}
+          >
+            {LOG_LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <label className="text-xs text-t-muted" htmlFor="log-filter">
+            {t('settings.jobs.logs.filter')}
+          </label>
+          <select id="log-filter" className="t-input t-input--sm" value={filter} onChange={(e) => setFilter(e.target.value as LogLevel | 'all')}>
+            <option value="all">{t('settings.jobs.logs.all')}</option>
+            {LOG_LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="t-btn t-btn--sm" onClick={() => setPaused((p) => !p)}>
+            {paused ? (
+              <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            ) : (
+              <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            )}
+            {paused ? t('settings.jobs.logs.resume') : t('settings.jobs.logs.pause')}
+          </button>
+          <button type="button" className="t-btn t-btn--sm" onClick={() => setLines([])}>
+            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('settings.jobs.logs.clear')}
+          </button>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.logs.hint')}</p>
+      <div className="mt-3 max-h-96 overflow-y-auto border border-border-subtle bg-bg-secondary/40 p-2 font-mono text-xs leading-relaxed">
+        {shown.length === 0 ? (
+          <p className="text-t-secondary">{t('settings.jobs.logs.empty')}</p>
+        ) : (
+          shown.map((l, i) => (
+            <div key={i} className="whitespace-pre-wrap break-words">
+              <span className="text-t-muted">{l.ts.slice(11, 19)}</span>{' '}
+              <span className={`${LOG_COLOR[l.level] ?? ''} font-semibold uppercase`}>{l.level}</span>{' '}
+              <span>{l.msg}</span>
+              {l.attrs && Object.keys(l.attrs).length > 0 && <span className="text-t-muted"> {fmtAttrs(l.attrs)}</span>}
+            </div>
+          ))
+        )}
+        <div ref={endRef} />
+      </div>
+    </section>
+  )
 }
 
 interface CacheEntry {
@@ -343,6 +479,8 @@ export default function Jobs() {
         </p>
       </section>
 
+      <LogPanel level={data.logLevel} />
+
       <section className="t-panel mb-4 p-5" aria-label={t('settings.jobs.anilistCaches')}>
         <span className="t-label t-label--accent">{t('settings.jobs.anilistCaches')}</span>
         {/* header rhythm shared by all cache panels: info line, then one
@@ -594,6 +732,7 @@ function Modal({
         <footer className="flex items-center justify-between gap-2 border-t border-border-subtle px-5 py-3">
           <span>{footer}</span>
           <button className="t-btn" onClick={() => ref.current?.close()}>
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.close')}
           </button>
         </footer>
@@ -608,6 +747,7 @@ function Pager({ offset, total, onOffset }: { offset: number; total: number; onO
   return (
     <div className="mt-3 flex items-center justify-between gap-2">
       <button className="t-btn t-btn--sm" disabled={offset === 0} onClick={() => onOffset(Math.max(0, offset - PAGE))}>
+        <ChevronLeft aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
         {t('settings.jobs.prev')}
       </button>
       <span className="font-mono text-xs tabular-nums text-t-muted">
@@ -619,6 +759,7 @@ function Pager({ offset, total, onOffset }: { offset: number; total: number; onO
       </span>
       <button className="t-btn t-btn--sm" disabled={offset + PAGE >= total} onClick={() => onOffset(offset + PAGE)}>
         {t('settings.jobs.next')}
+        <ChevronRight aria-hidden size="1em" className="ml-1 inline align-[-0.125em]" />
       </button>
     </div>
   )
@@ -688,6 +829,7 @@ function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () =
                       del.mutate(e.key)
                   }}
                 >
+                  <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('servers.delete')}
                 </button>
               </span>
@@ -849,6 +991,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                     aria-expanded={correcting?.folder === m.folder}
                     onClick={() => (correcting?.folder === m.folder ? setCorrecting(null) : startCorrect(m))}
                   >
+                    <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('settings.jobs.correct')}
                   </button>
                   <button
@@ -859,6 +1002,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                         del.mutate(m.folder)
                     }}
                   >
+                    <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('servers.delete')}
                   </button>
                 </span>
@@ -878,6 +1022,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                       onKeyDown={(e) => e.key === 'Enter' && search(m)}
                     />
                     <button className="t-btn t-btn--sm shrink-0" onClick={() => search(m)}>
+                      <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('remote.search')}
                     </button>
                   </div>
@@ -901,9 +1046,11 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                   )}
                   <div className="mt-2 flex justify-between">
                     <button className="t-btn t-btn--sm t-btn--danger" disabled={picking} onClick={() => pick(m, 0)}>
+                      <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('settings.jobs.noMatch')}
                     </button>
                     <button className="t-btn t-btn--sm" onClick={() => setCorrecting(null)}>
+                      <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('servers.cancel')}
                     </button>
                   </div>
