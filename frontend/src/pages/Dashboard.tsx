@@ -157,13 +157,13 @@ export default function Dashboard() {
 
         <div className="min-w-0 lg:order-1">
           <section aria-label={t('dash.activeSection')}>
-            <div className="mb-3 flex items-center gap-2">
+            <div className="t-divider mb-3">
               <span className="t-label t-label--accent">
                 <DownloadIcon aria-hidden size="1em" />
                 {t('dash.activeSection')}
               </span>
-              <span className="h-px flex-1 bg-border-subtle" />
-              <span className="font-mono text-[11px] text-t-muted">{active.length}</span>
+              <span className="t-divider-rule" />
+              <span className="t-count">{active.length}</span>
             </div>
 
             <div className="t-toolbar mb-3">
@@ -265,7 +265,7 @@ export default function Dashboard() {
             <section aria-label={t('dash.finishedSection')} className="mt-8">
               {/* divider header doubles as the collapse toggle, like the
                   watch-list groups */}
-              <div className="mb-3 flex items-center gap-2">
+              <div className="t-divider mb-3">
                 <button
                   type="button"
                   className="t-label t-label--accent cursor-pointer"
@@ -279,8 +279,8 @@ export default function Dashboard() {
                   )}
                   {t('dash.history')}
                 </button>
-                <span className="h-px flex-1 bg-border-subtle" />
-                <span className="font-mono text-[11px] text-t-muted">{finished.length}</span>
+                <span className="t-divider-rule" />
+                <span className="t-count">{finished.length}</span>
               </div>
               {historyOpen && (
                 <>
@@ -434,13 +434,17 @@ function SyncSummary() {
         {/* same divider anatomy as the section headers on the left, so the
             chip never has to share its row with the counters (it used to
             wrap onto two lines in the narrow column) */}
-        <div className="mb-2 flex items-center gap-2">
+        <div className="t-divider mb-2">
           <span className="t-label t-label--accent whitespace-nowrap">
             <RefreshCw aria-hidden size="1em" />
             {t('dash.syncSummary')}
           </span>
-          <span className="h-px flex-1 bg-border-subtle" />
-          <Link to="/watches" className="whitespace-nowrap text-[11px] text-accent hover:underline">
+          <span className="t-divider-rule" />
+          {/* inline-flex + min-h keeps the 24px target size (WCAG 2.5.8) */}
+          <Link
+            to="/watches"
+            className="inline-flex min-h-6 items-center whitespace-nowrap text-[11px] text-accent hover:underline"
+          >
             {t('dash.syncAll')} →
           </Link>
         </div>

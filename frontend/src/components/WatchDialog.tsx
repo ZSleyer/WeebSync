@@ -7,7 +7,7 @@ import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
 import PathInput from './PathInput'
 import Loading from './Loading'
-import RenameOptions, { Hint, type RenameProfile, type RenameRule } from './RenameOptions'
+import RenameOptions, { Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
 import { useRenamePreview } from './useRenamePreview'
 
 export interface WatchFields extends RenameRule {
@@ -135,7 +135,9 @@ export default function WatchDialog({
         <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor={`watch-path-${which}`}>
           {t(isRemote ? 'watch.remotePath' : 'watch.localPath')}
         </label>
-        <div className="flex items-center gap-2">
+        {/* stretch, not center: the button is t-btn--sm and would otherwise
+            sit shorter than the path field next to it */}
+        <div className="flex items-stretch gap-2">
           <PathInput
             id={`watch-path-${which}`}
             value={isRemote ? f.remotePath : f.localPath}
@@ -214,11 +216,15 @@ export default function WatchDialog({
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionMeta')}>
             <span className="t-label t-label--accent">{t('watch.sectionMeta')}</span>
-            <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr]">
-              <label className="text-xs text-t-muted">
-                {t('watch.mediaSource')}
-                <Hint text={t('watch.metaHint')} />
-                <span className="t-select-wrap mt-1 block">
+            {/* same 50/50 split as every other two-column row in this dialog,
+                so the column edge never shifts between sections */}
+            <div className={ROW_GRID}>
+              <label className="t-field text-xs text-t-muted">
+                <span className="block">
+                  {t('watch.mediaSource')}
+                  <Hint text={t('watch.metaHint')} />
+                </span>
+                <span className="t-select-wrap block">
                   <select
                     className="t-select"
                     value={f.mediaSource || 'anilist'}
@@ -231,12 +237,12 @@ export default function WatchDialog({
                   </select>
                 </span>
               </label>
-              <label className="text-xs text-t-muted" htmlFor="watch-mediaid">
+              <label className="t-field text-xs text-t-muted" htmlFor="watch-mediaid">
                 {t('watch.mediaId')}
                 <input
                   id="watch-mediaid"
                   type="number"
-                  className="t-input mt-1 font-mono"
+                  className="t-input font-mono"
                   value={f.mediaId || ''}
                   placeholder={
                     f.mediaSource === 'tvdb'
@@ -253,16 +259,18 @@ export default function WatchDialog({
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionFilter')}>
             <span className="t-label t-label--accent">{t('watch.sectionFilter')}</span>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className={ROW_GRID}>
               {(['wantDub', 'wantSub'] as const).map((key) => {
                 const opts = key === 'wantDub' ? langs.dub : langs.sub
                 // include the saved value even if the index no longer lists it
                 const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
                 return (
-                  <label key={key} className="text-xs text-t-muted">
-                    {t(key === 'wantDub' ? 'watch.wantDub' : 'watch.wantSub')}
-                    {key === 'wantDub' && <Hint text={t('watch.langHint')} />}
-                    <span className="t-select-wrap mt-1 block">
+                  <label key={key} className="t-field text-xs text-t-muted">
+                    <span className="block">
+                      {t(key === 'wantDub' ? 'watch.wantDub' : 'watch.wantSub')}
+                      {key === 'wantDub' && <Hint text={t('watch.langHint')} />}
+                    </span>
+                    <span className="t-select-wrap block">
                       <select
                         className="t-select"
                         value={f[key]}
@@ -284,15 +292,17 @@ export default function WatchDialog({
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionPlex')}>
             <span className="t-label t-label--accent">{t('watch.sectionPlex')}</span>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className={ROW_GRID}>
               {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
                 const opts = key === 'plexAudioLang' ? langs.dub : langs.sub
                 const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
                 return (
-                  <label key={key} className="text-xs text-t-muted">
-                    {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
-                    {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
-                    <span className="t-select-wrap mt-1 block">
+                  <label key={key} className="t-field text-xs text-t-muted">
+                    <span className="block">
+                      {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
+                      {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
+                    </span>
+                    <span className="t-select-wrap block">
                       <select
                         className="t-select"
                         value={f[key]}

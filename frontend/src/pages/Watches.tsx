@@ -337,13 +337,13 @@ export default function Watches() {
             const GroupIcon = GROUP_ICON[g]
             return (
             <section key={g}>
-              <div className="mb-3 flex items-center gap-2">
+              <div className="t-divider mb-3">
                 <span className="t-label t-label--accent">
                   <GroupIcon aria-hidden size="1em" />
                   {t(`watch.group.${g}`)}
                 </span>
-                <span className="h-px flex-1 bg-border-subtle" />
-                <span className="font-mono text-[11px] text-t-muted">{items.length}</span>
+                <span className="t-divider-rule" />
+                <span className="t-count">{items.length}</span>
               </div>
               <ul className="grid grid-cols-1 gap-3">
                 {items.map((w) => (
