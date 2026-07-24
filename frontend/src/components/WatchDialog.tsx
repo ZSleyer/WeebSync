@@ -1,3 +1,4 @@
+import { Folder, Save, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -146,6 +147,7 @@ export default function WatchDialog({
             aria-expanded={browse === which}
             onClick={() => setBrowse(browse === which ? null : which)}
           >
+            <Folder aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('watch.browse')}
           </button>
         </div>
@@ -360,9 +362,11 @@ export default function WatchDialog({
 
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
           <button type="button" className="t-btn" onClick={guardedClose}>
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.cancel')}
           </button>
           <button className="t-btn t-btn--primary t-cut" disabled={busy}>
+            <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {saveLabel ?? t('settings.save')}
           </button>
         </footer>

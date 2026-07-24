@@ -1,3 +1,4 @@
+import { Check, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -72,9 +73,11 @@ export default function PromptModal({
         </div>
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
           <button type="button" className="t-btn" onClick={() => close(null)}>
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {cancelLabel ?? t('common.cancel')}
           </button>
           <button type="submit" className="t-btn t-btn--primary t-cut">
+            <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {confirmLabel ?? t('common.confirm')}
           </button>
         </footer>

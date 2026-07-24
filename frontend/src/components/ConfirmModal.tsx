@@ -1,3 +1,4 @@
+import { Check, Trash2, X } from 'lucide-react'
 import { useEffect, useId, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -63,6 +64,7 @@ export default function ConfirmModal({
         <div className="px-5 py-4 text-sm text-t-secondary">{message}</div>
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
           <button type="button" className="t-btn" onClick={() => close(false)} autoFocus>
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {cancelLabel ?? t('common.cancel')}
           </button>
           <button
@@ -70,6 +72,11 @@ export default function ConfirmModal({
             className={`t-btn t-cut ${destructive ? 't-btn--danger' : 't-btn--primary'}`}
             onClick={() => close(true)}
           >
+            {destructive ? (
+              <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            ) : (
+              <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            )}
             {confirmLabel ?? t('common.confirm')}
           </button>
         </footer>

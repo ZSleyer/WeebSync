@@ -519,6 +519,17 @@
     "jobs": {
       "activity": "Aktive Aufgaben",
       "hint": "Hintergrund-Jobs, Caches und Index-Zustand. Aktualisiert sich alle 5 Sekunden.",
+      "logs": {
+        "title": "Live-Log",
+        "hint": "Live-Strom der Backend-Aktivität. Höheres Level (debug/trace) zeigt Entscheidungen und Begründungen; gilt sofort, ohne Neustart.",
+        "level": "Level",
+        "filter": "Filter",
+        "all": "alle",
+        "pause": "Pause",
+        "resume": "Weiter",
+        "clear": "Leeren",
+        "empty": "Noch keine Log-Einträge. Level anheben, um mehr zu sehen."
+      },
       "idle": "idle",
       "queue": "{{count}} in der Match-Queue",
       "watchSummary": "{{count}} Auto-Syncs, Prüfung alle {{min}} min",
@@ -654,7 +665,7 @@
   "servers": {
     "title": "SERVER",
     "sub": "remote-quellen",
-    "add": "+ Server hinzufügen",
+    "add": "Server hinzufügen",
     "none": "Noch keine Server konfiguriert.",
     "test": "Test",
     "edit": "Bearbeiten",
