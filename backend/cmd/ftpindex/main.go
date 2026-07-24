@@ -52,7 +52,7 @@ func main() {
 	// exactly ONE connection, reused for the whole sequential walk
 	client, err := remote.Dial(remote.Config{
 		Protocol: *proto, Host: *host, Port: *port, Username: *user, Password: pass,
-		OnHostKey: func(string) {}, // TOFU, key not persisted for a one-shot tool
+		InsecureHostKey: true, // one-shot indexing tool, key not pinned
 	})
 	if err != nil {
 		log.Fatalf("dial: %v", err)

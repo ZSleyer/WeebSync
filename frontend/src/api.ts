@@ -304,9 +304,12 @@ export interface RenamePair {
 
 export class ApiError extends Error {
   status: number
-  constructor(status: number, message: string) {
+  // parsed JSON error body, for endpoints that return more than {error}
+  data?: unknown
+  constructor(status: number, message: string, data?: unknown) {
     super(message)
     this.status = status
+    this.data = data
   }
 }
 
@@ -320,13 +323,15 @@ async function request<T>(method: string, url: string, body?: unknown, headers?:
   })
   if (!res.ok) {
     let msg = res.statusText
+    let data: unknown
     try {
-      const data = await res.json()
-      if (data.error) msg = data.error
+      data = await res.json()
+      const err = (data as { error?: string }).error
+      if (err) msg = err
     } catch {
       /* not json */
     }
-    throw new ApiError(res.status, msg)
+    throw new ApiError(res.status, msg, data)
   }
   return res.json()
 }

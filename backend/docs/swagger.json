@@ -365,10 +365,23 @@
             "api.HostKeyConflict": {
                 "properties": {
                     "code": {
+                        "description": "Code is host_key_unknown (first contact) or host_key_mismatch.",
                         "example": "host_key_mismatch",
                         "type": "string"
                     },
                     "error": {
+                        "type": "string"
+                    },
+                    "newFingerprint": {
+                        "example": "ssh-ed25519 SHA256:...",
+                        "type": "string"
+                    },
+                    "newKey": {
+                        "description": "NewKey is the offered key (base64); echo it back to /trust-hostkey on\naccept so exactly the reviewed key gets pinned.",
+                        "type": "string"
+                    },
+                    "oldFingerprint": {
+                        "description": "OldFingerprint is empty on first contact.",
                         "type": "string"
                     }
                 },
@@ -859,6 +872,15 @@
                         "type": "string"
                     },
                     "secret": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.TrustHostKeyInput": {
+                "properties": {
+                    "key": {
+                        "description": "Key is the base64 host key from the failed test's newKey field.",
                         "type": "string"
                     }
                 },
@@ -8674,7 +8696,7 @@
         },
         "/api/servers/{id}/test": {
             "post": {
-                "description": "Dials the server and lists its root path to validate the stored configuration.",
+                "description": "Dials the server and lists its root path to validate the stored configuration. Never pins a host key; an unknown or changed SSH host key is reported as 409 with old/new fingerprints for explicit accept via /trust-hostkey.",
                 "parameters": [
                     {
                         "description": "Server ID",
@@ -8725,7 +8747,7 @@
                                 }
                             }
                         },
-                        "description": "SSH host key mismatch"
+                        "description": "SSH host key unknown or changed"
                     },
                     "502": {
                         "content": {
@@ -8751,7 +8773,7 @@
         },
         "/api/servers/{id}/trust-hostkey": {
             "post": {
-                "description": "Drops the learned SSH host key so the next connect re-learns it via trust-on-first-use.",
+                "description": "Pins the SSH host key the user explicitly accepted after reviewing its fingerprint.",
                 "parameters": [
                     {
                         "description": "Server ID",
@@ -8763,6 +8785,26 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.TrustHostKeyInput",
+                                        "summary": "body",
+                                        "description": "Accepted host key"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Accepted host key",
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "content": {
@@ -8773,6 +8815,16 @@
                             }
                         },
                         "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
                     },
                     "401": {
                         "content": {
@@ -8810,7 +8862,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "summary": "Trust new host key",
+                "summary": "Trust host key",
                 "tags": [
                     "Servers"
                 ]
