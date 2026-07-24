@@ -1,20 +1,74 @@
 import { useState, type ReactNode } from 'react'
-import { FolderOpen, FolderPlus } from 'lucide-react'
+import { FolderOpen, FolderPlus, Pencil } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, fmtBytes, type Entry } from '../api'
 import FileIcon from './FileIcon'
 import Loading from './Loading'
+import PathInput from './PathInput'
 
 // Path breadcrumb: root button plus one button per segment. Shared by the
-// classic file list and the catalog grid, so both navigate the same way.
-export function PathCrumbs({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
+// classic file list and the catalog grid, so both navigate the same way. Given
+// fetchPath/queryKey, an edit button swaps the crumbs for a PathInput so a deep
+// path can be typed with autocomplete instead of clicked level by level.
+export function PathCrumbs({
+  path,
+  onNavigate,
+  fetchPath,
+  queryKey,
+}: {
+  path: string
+  onNavigate: (path: string) => void
+  fetchPath?: (path: string) => string
+  queryKey?: unknown[]
+}) {
   const { t } = useTranslation()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
   const crumbs = path.split('/').filter(Boolean)
+
+  if (editing && fetchPath && queryKey) {
+    return (
+      <div className="flex items-center gap-1 border-b border-border-subtle px-2 py-1">
+        <PathInput
+          value={draft}
+          onChange={setDraft}
+          onCommit={(p) => {
+            onNavigate(p.replace(/^\//, ''))
+            setEditing(false)
+          }}
+          onCancel={() => setEditing(false)}
+          fetchPath={fetchPath}
+          queryKey={queryKey}
+          ariaLabel={t('remote.editPath')}
+          autoFocus
+        />
+      </div>
+    )
+  }
+
+  const canEdit = !!(fetchPath && queryKey)
+  const startEdit = () => {
+    setDraft(path)
+    setEditing(true)
+  }
   return (
-    <nav className="flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs" aria-label={t('remote.path')}>
+    // clicking the empty path area (not a crumb) opens the editor; crumb
+    // buttons stop propagation so they still navigate
+    <nav
+      className={`flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs ${canEdit ? 'cursor-text' : ''}`}
+      aria-label={t('remote.path')}
+      onClick={canEdit ? startEdit : undefined}
+    >
       {/* min 24x24 target (WCAG 2.5.8) */}
-      <button type="button" className="min-h-6 min-w-6 px-1.5 text-accent hover:underline" onClick={() => onNavigate('')}>
+      <button
+        type="button"
+        className="min-h-6 min-w-6 px-1.5 text-accent hover:underline"
+        onClick={(e) => {
+          e.stopPropagation()
+          onNavigate('')
+        }}
+      >
         /
       </button>
       {crumbs.map((c, i) => (
@@ -22,13 +76,30 @@ export function PathCrumbs({ path, onNavigate }: { path: string; onNavigate: (pa
           <button
             type="button"
             className="min-h-6 max-w-40 truncate px-1.5 text-accent hover:underline"
-            onClick={() => onNavigate(crumbs.slice(0, i + 1).join('/'))}
+            onClick={(e) => {
+              e.stopPropagation()
+              onNavigate(crumbs.slice(0, i + 1).join('/'))
+            }}
           >
             {c}
           </button>
           {i < crumbs.length - 1 && <span className="text-t-faint">/</span>}
         </span>
       ))}
+      {canEdit && (
+        <button
+          type="button"
+          className="ml-auto flex min-h-6 min-w-6 items-center justify-center px-1.5 text-t-muted hover:text-accent"
+          aria-label={t('remote.editPath')}
+          title={t('remote.editPath')}
+          onClick={(e) => {
+            e.stopPropagation()
+            startEdit()
+          }}
+        >
+          <Pencil aria-hidden size="0.9em" />
+        </button>
+      )}
     </nav>
   )
 }
@@ -81,7 +152,7 @@ export function FileBrowser({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PathCrumbs path={path} onNavigate={onNavigate} />
+      <PathCrumbs path={path} onNavigate={onNavigate} fetchPath={fetchPath} queryKey={queryKey} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {isLoading && <Loading className="p-4" />}
         {error && <p className="wrap-break-word p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>}
