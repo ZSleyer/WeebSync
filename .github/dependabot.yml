@@ -1,0 +1,63 @@
+version: 2
+
+# Version updates, on top of the security updates GitHub raises on its own.
+# Everything is grouped: a lockfile bump per package is noise, one PR a week
+# per ecosystem is a review.
+updates:
+  - package-ecosystem: gomod
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      go:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # react and its types move together; a lone bump of one half fails to build
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      dev:
+        dependency-type: development
+        update-types: [minor, patch]
+      prod:
+        dependency-type: production
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /tools/ui-audit
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      audit:
+        patterns: ["*"]
+
+  # the actions are pinned by commit sha, which is why they need updating at all
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      images:
+        patterns: ["*"]
