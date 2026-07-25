@@ -249,8 +249,11 @@ body {
   font-weight: 600;
   border: 1px solid var(--border-subtle);
   border-radius: 0;
-  padding: 1px 6px;
+  padding: 0 6px;
   color: var(--text-muted);
+  /* one box for every chip: decorative ones then match the interactive ones,
+     which need 24px to clear the target-size floor of WCAG 2.5.8 */
+  min-height: 1.5rem;
 }
 .t-label--accent {
   border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent);
@@ -286,7 +289,46 @@ body {
 .t-cut {
   clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
   border-radius: 0;
+  position: relative;
+  --cut-edge: var(--border-subtle);
 }
+/* The clip cuts the border away along the diagonal and leaves the outline
+   open there. Patching just that one edge never lines up: a pseudo element
+   positions against the padding box while the clip works on the border box,
+   and a 1px border resolves to 0.667px at a device pixel ratio of 3, so any
+   correction is off by that remainder. So the whole outline is drawn as one
+   ring instead - an even-odd polygon with the same shape offset 1px inwards.
+   Corner and diagonal come from a single shape and cannot drift apart. */
+.t-btn.t-cut { border-color: transparent; }
+.t-btn.t-cut::after {
+  content: '';
+  position: absolute;
+  inset: -1px; /* the pseudo element's padding box = the button's border box */
+  background: var(--cut-edge);
+  /* 10.414 = 10 + 1*sqrt(2)/2 - the diagonal moves inwards along its normal,
+     so its intercepts shift by more than the 1px the straight edges do */
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% 100%,
+    0 100%,
+    0 0,
+    1px 1px,
+    calc(100% - 10.414px) 1px,
+    calc(100% - 1px) 10.414px,
+    calc(100% - 1px) calc(100% - 1px),
+    1px calc(100% - 1px),
+    1px 1px
+  );
+  pointer-events: none;
+}
+.t-btn.t-cut:hover { --cut-edge: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+.t-btn--primary.t-cut { --cut-edge: var(--accent-blue); }
+.t-btn--primary.t-cut:hover { --cut-edge: color-mix(in srgb, var(--accent-blue) 85%, var(--bg-primary)); }
+.t-btn--danger.t-cut { --cut-edge: color-mix(in srgb, var(--accent-red) 45%, transparent); }
+.t-btn--danger.t-cut:hover { --cut-edge: var(--accent-red); }
 .kbd .t-cut:focus-visible {
   outline: none;
   box-shadow:
@@ -631,7 +673,11 @@ dialog {
   margin: auto;
   width: calc(100vw - 2rem);
   max-height: calc(100dvh - 2rem);
-  overflow-y: auto;
+  /* The dialog itself never scrolls: at a device pixel ratio of 3 its 1px
+     border resolves to 0.667px, and the rounding alone makes scrollHeight
+     exceed clientHeight - a scrollbar down the side of a four-line confirm
+     box. The content box scrolls instead, where the maths is whole. */
+  overflow: hidden;
   clip-path: inset(-2px); /* -2px keeps the hairline border visible */
   opacity: 1;
   transition:
@@ -639,6 +685,13 @@ dialog {
     opacity 200ms ease-out,
     overlay 240ms allow-discrete,
     display 240ms allow-discrete;
+}
+/* The box inside must not take the scrolling over either - it inherits the
+   same fractional height and would show the same phantom bar one level down.
+   Every dialog that can outgrow the screen scrolls a section of its own
+   (`min-h-0 flex-1 overflow-y-auto`), which is where the maths is whole. */
+dialog > :only-child {
+  max-height: 100%;
 }
 /* Detail modal: fullscreen sheet on phones (same cascade context as the
    base dialog rules above, so it wins without !important and the CRT
