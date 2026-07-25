@@ -509,12 +509,12 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
     qc.invalidateQueries({ queryKey: ['suggestions'] })
   }
   return (
-    <Dialog onClose={onClose} width="max-w-lg" aria-label={t('suggestions.ignored')}>
+    // the list caps itself at 60dvh, so this dialog never needs a full screen
+    <Dialog onClose={onClose} width="max-w-lg" sheet={false} aria-label={t('suggestions.ignored')}>
       <div className="p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-display text-sm font-semibold tracking-wider">{t('suggestions.ignored')}</h3>
-          {/* the sheet brings its own close button on phones */}
-          <Button size="sm" className="max-sm:hidden" onClick={onClose} aria-label={t('common.cancel')}>
+          <Button size="sm" onClick={onClose} aria-label={t('common.cancel')}>
             <X aria-hidden size="1.2em" />
           </Button>
         </div>
