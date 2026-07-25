@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Entry } from '../api'
 import { suggestDirs } from '../components/PathInput'
 import { isSeasonFolder } from '../components/RenameOptions'
+import { syncTargetDir } from '../components/useTargetFolder'
 
 const dir = (name: string): Entry => ({ name, path: name, size: 0, isDir: true, modTime: '' })
 const file = (name: string): Entry => ({ ...dir(name), isDir: false })
@@ -52,5 +53,23 @@ describe('isSeasonFolder', () => {
 
   it.each(['Detective Conan', 'Movies', 'Season', 'S123', 'Extras'])('leaves %s alone', (name) => {
     expect(isSeasonFolder(name)).toBe(false)
+  })
+})
+
+describe('syncTargetDir', () => {
+  it('appends the remote folder name when a subfolder is wanted', () => {
+    expect(syncTargetDir('/media/plex/Show', '/ftp/Show S02 [Sub]', true)).toBe('/media/plex/Show/Show S02 [Sub]')
+  })
+
+  it('writes straight into localPath when it is not', () => {
+    expect(syncTargetDir('/media/plex/Show/Season 02', '/ftp/Show S02', false)).toBe('/media/plex/Show/Season 02')
+  })
+
+  it('ignores a trailing slash on the remote path', () => {
+    expect(syncTargetDir('/target', '/ftp/Show/', true)).toBe('/target/Show')
+  })
+
+  it('does not lead with a slash when localPath is empty', () => {
+    expect(syncTargetDir('', '/ftp/Show', true)).toBe('Show')
   })
 })

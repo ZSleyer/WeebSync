@@ -10,6 +10,7 @@ import PathInput from './PathInput'
 import Loading from './Loading'
 import RenameOptions, { Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
 import { useRenamePreview } from './useRenamePreview'
+import { syncTargetDir, useTargetFolder } from './useTargetFolder'
 
 export interface WatchFields extends RenameRule {
   remotePath: string
@@ -86,6 +87,10 @@ export default function WatchDialog({
   }, [serverId])
 
   const { pairs, busy: previewBusy, hasRule } = useRenamePreview({ serverId, fields: f, enabled: renameOn })
+
+  // the folder the files really land in, and whether it is there yet
+  const targetDir = syncTargetDir(f.localPath, f.remotePath, f.subfolder)
+  const { missing: targetMissing } = useTargetFolder(targetDir)
 
   // unsaved-changes guard: confirm before closing via backdrop / Escape / cancel
   const dirty =
@@ -215,6 +220,11 @@ export default function WatchDialog({
               <input type="checkbox" checked={f.subfolder} onChange={(e) => setF({ ...f, subfolder: e.target.checked })} />
               {t('watch.subfolder')}
             </label>
+            {targetMissing && (
+              <p className="text-[11px] text-t-muted">
+                {t('watch.targetMissing', { folder: targetDir.split('/').filter(Boolean).pop() ?? targetDir })}
+              </p>
+            )}
           </section>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionMeta')}>

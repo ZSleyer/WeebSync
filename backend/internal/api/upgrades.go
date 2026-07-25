@@ -70,6 +70,11 @@ func existingSyncPlan(localDir string, season int, isMovie bool) SyncPlan {
 // "Season NN" folder under the show root (matching the sibling's padding), or -
 // for a movie - its own subfolder under the movie library. siblingDir empty or a
 // non-mount path yields an empty plan (UI hides the button).
+//
+// The season folder is part of the PATH, not of the template. As a template
+// prefix it only materialised when renaming was switched on, so a plain sync
+// dropped the episodes straight into the show root; and the dialog could not
+// name the folder it was about to create.
 func missingSyncPlan(siblingDir string, season int, isMovie bool) SyncPlan {
 	if !strings.HasPrefix(siblingDir, "/") {
 		return SyncPlan{}
@@ -77,6 +82,8 @@ func missingSyncPlan(siblingDir string, season int, isMovie bool) SyncPlan {
 	if isMovie {
 		// sibling is a movie's own folder; its parent is the movie library root.
 		// Give the new movie its OWN subfolder, never another movie's folder.
+		// This one stays in the template: the folder is named after {title}, and
+		// only the rename engine sanitises a title into a safe path segment.
 		return SyncPlan{LocalPath: filepath.Dir(siblingDir), Template: "{title}/{title}"}
 	}
 	base := filepath.Base(siblingDir)
@@ -84,7 +91,10 @@ func missingSyncPlan(siblingDir string, season int, isMovie bool) SyncPlan {
 	if plexSeasonDirRe.MatchString(base) {
 		showRoot = filepath.Dir(siblingDir) // sibling is a Season folder → show root is its parent
 	}
-	return SyncPlan{LocalPath: showRoot, Template: seasonFolderName(base, season) + "/" + episodeTemplate(season)}
+	return SyncPlan{
+		LocalPath: filepath.Join(showRoot, seasonFolderName(base, season)),
+		Template:  episodeTemplate(season),
+	}
 }
 
 // UpgradeDims is which quality axes a user wants upgrade suggestions for.
