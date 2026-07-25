@@ -716,6 +716,43 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: not-allowed; }
   input[type='checkbox'] { width: 1.5rem; height: 1.5rem; }
 }
 
+/* Tempest radio: the one control that stays round on purpose - "only toggles
+   and true indicator dots are round". Everything else (size, border, focus
+   ring) matches the checkbox, so a mixed form reads as one set of controls. */
+input[type='radio'] {
+  appearance: none;
+  /* same 24px WCAG 2.5.8 floor as the checkbox: author-styled, so the
+     user-agent exception does not apply */
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  position: relative;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--bg-card);
+  cursor: pointer;
+}
+input[type='radio']:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+input[type='radio']:checked { border-color: var(--accent-blue); }
+input[type='radio']:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  transform: translate(-50%, -50%);
+}
+input[type='radio']:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-primary),
+    0 0 0 4px var(--accent-blue);
+}
+input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
+
 /* A page that scrolls its own lists (the file browsers) has to be told how
    tall it is. <main> is a flex item whose automatic minimum is its content, so
    it grows past the viewport and the page ends up with a scrollbar of its own

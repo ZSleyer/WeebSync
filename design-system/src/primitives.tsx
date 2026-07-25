@@ -194,6 +194,25 @@ export function Checkbox({ label, labelClassName, className, ...rest }: Checkbox
   )
 }
 
+export interface RadioProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
+  /** text next to the dot; omit for a bare radio in a row that labels itself */
+  label?: ReactNode
+  /** extra classes for the label around dot and text - colour, truncation */
+  labelClassName?: string
+}
+
+/** One choice of a group; give every member of a group the same `name`. */
+export function Radio({ label, labelClassName, className, ...rest }: RadioProps) {
+  const dot = <input type="radio" {...rest} className={className} />
+  if (!label) return dot
+  return (
+    <label className={cx('flex items-center gap-2 text-sm', labelClassName)}>
+      {dot}
+      {label}
+    </label>
+  )
+}
+
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   /** compact field, same step as Input - height still comes from `rows` */
   size?: 'md' | 'sm'

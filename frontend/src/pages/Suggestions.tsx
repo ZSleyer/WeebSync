@@ -45,6 +45,7 @@ import {
   Cover,
   Dialog,
   Panel,
+  Radio,
   SuggestionCard,
   Tab,
   Tabs,
@@ -711,8 +712,7 @@ function UpgradesSection() {
                           >
                             <label className="flex min-h-6 cursor-pointer flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
                               <span className="flex shrink-0 items-center gap-2">
-                                <input
-                                  type="radio"
+                                <Radio
                                   name={`opt-${u.key}`}
                                   checked={isChosen(o)}
                                   onChange={() => setChoice((c) => ({ ...c, [u.key]: o }))}
