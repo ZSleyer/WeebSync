@@ -5,6 +5,10 @@ graphify-out
 tools
 frontend/node_modules
 frontend/dist
+# the design system is a source dependency of the frontend build; only its
+# own build output and symlinked deps stay out
+design-system/node_modules
+design-system/dist
 **/*.md
 AGENTS.md
 CLAUDE.md

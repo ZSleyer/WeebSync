@@ -1,8 +1,15 @@
 # ── frontend build ── (arch-independent JS, always native)
 FROM --platform=$BUILDPLATFORM node:24-alpine AS web
-WORKDIR /src
+# the frontend keeps its place in the tree: @weebsync/design-system resolves to
+# ../design-system/src, and index.css scans the same path for Tailwind classes
+WORKDIR /src/frontend
 COPY frontend/package.json frontend/yarn.lock ./
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn yarn install --frozen-lockfile
+COPY design-system/ /src/design-system/
+# the design system has no dependency tree of its own - it borrows the app's,
+# the same symlink design-system/build.sh makes locally. Without it tsc cannot
+# resolve React's types from design-system/src and every prop falls back to any.
+RUN ln -sfn /src/frontend/node_modules /src/design-system/node_modules
 COPY frontend/ ./
 RUN yarn build
 
@@ -36,7 +43,7 @@ RUN apk add --no-cache ffmpeg ca-certificates \
 COPY --from=build /weebsync /weebsync
 # pre-owned data dir so the nonroot user can write the volume
 COPY --from=build --chown=nonroot:nonroot /data /data
-COPY --from=web /src/dist /web
+COPY --from=web /src/frontend/dist /web
 ENV WEEBSYNC_ADDR=:8080 \
     WEEBSYNC_DATA=/data \
     WEEBSYNC_WEB=/web

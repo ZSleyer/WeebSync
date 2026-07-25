@@ -13,11 +13,26 @@ const arg = (n, d) => {
 const BASE = arg('base', 'http://127.0.0.1:8080')
 const TOKEN = process.env.WS_TOKEN || ''
 
-// route -> the controls that open a dialog there, by accessible name
+// route -> the controls that open a dialog there, by accessible name. `setup`
+// runs first for views that are not the route's default - the catalogue on
+// /remote is a separate view with dialogs of its own, and a plain visit never
+// reaches it.
 const TRIGGERS = [
   { route: '/servers', names: [/Server hinzufügen|Add server/, /Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
   { route: '/watches', names: [/Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
   { route: '/remote', names: [/Details|^Detail/] },
+  {
+    route: '/remote',
+    label: 'Katalog',
+    setup: async (page) => {
+      const view = page.getByRole('combobox', { name: /Ansicht|View/ }).first()
+      if (!(await view.count().catch(() => 0))) return false
+      await view.selectOption({ index: 2 }) // catalogue, persisted
+      await page.waitForTimeout(2500)
+      return true
+    },
+    names: [/Details zu|Details for/, /Match ändern|Change match/, /Syncen|Sync/],
+  },
   { route: '/suggestions', names: [/Ignorierte|Ignored/] },
   { route: '/settings/jobs', names: [/Treffer|Matches|Cache/] },
 ]
@@ -108,9 +123,10 @@ const run = async (browserName, type) => {
         { name: 'weebsync_session', value: TOKEN, domain: new URL(BASE).hostname, path: '/', httpOnly: true, sameSite: 'Lax' },
       ])
     const page = await ctx.newPage()
-    for (const { route, names } of TRIGGERS) {
+    for (const { route, names, setup, label } of TRIGGERS) {
       await page.goto(BASE + route, { waitUntil: 'load' })
       await page.waitForTimeout(700)
+      if (setup && !(await setup(page))) continue
       for (const re of names) {
         const btn = page.getByRole('button', { name: re }).first()
         if (!(await btn.count().catch(() => 0))) continue
@@ -121,7 +137,7 @@ const run = async (browserName, type) => {
         }
         await page.waitForTimeout(500)
         const r = await page.evaluate(auditDialog)
-        if (r) found.push({ browser: browserName, viewport: vpName, route, trigger: String(re), ...r })
+        if (r) found.push({ browser: browserName, viewport: vpName, route: label ? `${route} (${label})` : route, trigger: String(re), ...r })
         await page.keyboard.press('Escape')
         await page.waitForTimeout(400)
       }

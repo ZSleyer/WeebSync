@@ -11,7 +11,11 @@ desktop 1280x900 and Pixel 8 Pro 448x998 (DPR 3):
   something is clicked.
 
 Both need `playwright` (1.61.0 matches the cached chromium-1228 and
-firefox-1532 builds) and a logged-in session:
+firefox-1532 builds) and a logged-in session. Install it here once:
+
+    cd tools/ui-audit && yarn install
+
+Then run the passes from the repo root:
 
     WS_TOKEN=<raw session token> node tools/ui-audit/e2e.mjs --base http://127.0.0.1:8080
     WS_TOKEN=<raw session token> node tools/ui-audit/modals.mjs --base http://127.0.0.1:8080
