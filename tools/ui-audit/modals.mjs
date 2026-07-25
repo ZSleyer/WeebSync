@@ -164,6 +164,18 @@ const auditDialog = () => {
       shell.push(`sheet does not fill the screen: ${Math.round(r.width)}x${Math.round(r.height)} of ${innerWidth}x${innerHeight}`)
     const closers = [...d.querySelectorAll('button[aria-label]')].filter((b) => vis(b) && /schließen|close/i.test(b.getAttribute('aria-label')))
     if (closers.length !== 1) shell.push(`sheet has ${closers.length} close buttons, expected exactly 1`)
+    // and the reverse of "does it fill the screen": a dialog that takes the
+    // whole screen for a search box and four rows reads as broken, not as
+    // deliberate. Such a dialog belongs in a centred box (sheet={false}).
+    // leaves only: the boxes around the content are stretched to the sheet by
+    // `height: 100%`, so measuring them would always report a full screen
+    let deepest = 0
+    for (const e of d.querySelectorAll('*')) {
+      if (!vis(e) || e.children.length) continue
+      deepest = Math.max(deepest, e.getBoundingClientRect().bottom)
+    }
+    const empty = Math.round(r.bottom - deepest)
+    if (empty > innerHeight * 0.25) shell.push(`sheet leaves ${empty}px empty - it does not need the whole screen`)
   }
 
   return {
