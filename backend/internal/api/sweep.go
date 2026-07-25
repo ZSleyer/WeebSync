@@ -79,6 +79,9 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// select preferred Plex audio/sub streams on freshly indexed
 			// episodes of watches with a playback preference (no-op when empty)
 			s.processPlexStreamQueue()
+			// file the episodes that were collected because the provider did
+			// not know their number yet, once it does
+			s.processPendingEpisodes(ctx)
 			// pull every provider's title translations for new/stale series
 			// (budgeted; new bundles have an empty stamp and are picked up first)
 			s.refreshSeriesTitles(ctx, titlesBudget)
