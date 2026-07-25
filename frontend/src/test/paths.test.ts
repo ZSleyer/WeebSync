@@ -1,0 +1,56 @@
+import { describe, expect, it } from 'vitest'
+import type { Entry } from '../api'
+import { suggestDirs } from '../components/PathInput'
+import { isSeasonFolder } from '../components/RenameOptions'
+
+const dir = (name: string): Entry => ({ name, path: name, size: 0, isDir: true, modTime: '' })
+const file = (name: string): Entry => ({ ...dir(name), isDir: false })
+
+const LISTING: Entry[] = [dir('Anime'), dir('anime-movies'), dir('Docs'), file('Anime.txt')]
+
+describe('suggestDirs', () => {
+  it('matches the last segment case-insensitively and keeps the parent path', () => {
+    expect(suggestDirs('media/an', LISTING)).toEqual(['media/Anime', 'media/anime-movies'])
+  })
+
+  it('works root-relative, without a leading slash on the result', () => {
+    expect(suggestDirs('an', LISTING)).toEqual(['Anime', 'anime-movies'])
+  })
+
+  it('offers every directory for an empty partial', () => {
+    expect(suggestDirs('', LISTING)).toEqual(['Anime', 'anime-movies', 'Docs'])
+  })
+
+  it('offers every directory of a parent when the path ends in a slash', () => {
+    expect(suggestDirs('media/', LISTING)).toEqual(['media/Anime', 'media/anime-movies', 'media/Docs'])
+  })
+
+  it('never suggests files, only directories', () => {
+    expect(suggestDirs('anime.', LISTING)).toEqual([])
+  })
+
+  it('returns nothing when the prefix matches nothing', () => {
+    expect(suggestDirs('zz', LISTING)).toEqual([])
+  })
+
+  it('sorts by name, independent of the listing order', () => {
+    expect(suggestDirs('', [dir('zeta'), dir('alpha'), dir('Beta')])).toEqual(['alpha', 'Beta', 'zeta'])
+  })
+
+  it('keeps deeper parents intact', () => {
+    expect(suggestDirs('a/b/c/Do', LISTING)).toEqual(['a/b/c/Docs'])
+  })
+})
+
+describe('isSeasonFolder', () => {
+  it.each(['Season 3', 'season 12', 'Staffel 2', 'Saison 1', 'Temporada 4', 'Stagione 2', 'S02', 's7', 'Specials'])(
+    'recognises %s',
+    (name) => {
+      expect(isSeasonFolder(name)).toBe(true)
+    },
+  )
+
+  it.each(['Detective Conan', 'Movies', 'Season', 'S123', 'Extras'])('leaves %s alone', (name) => {
+    expect(isSeasonFolder(name)).toBe(false)
+  })
+})
