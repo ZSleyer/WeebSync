@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useBlocker } from 'react-router-dom'
+import { useBlocker } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import ConfirmModal from '../components/ConfirmModal'
 
