@@ -641,7 +641,12 @@ export function CatalogGrid({
                 </div>
               </button>
               {g.media ? (
-                <div className="mx-2 mb-2 mt-auto flex gap-1.5">
+                // four icon buttons at the touch size of --ctl-h-sm need 180px,
+                // a catalog tile offers 140: the square minimum has to go here
+                // or the last button hangs over the card's edge. Height keeps
+                // the touch target, width shrinks to its share of the row, and
+                // flex-wrap catches the card that adds a fifth action.
+                <div className="mx-2 mb-2 mt-auto flex flex-wrap gap-1.5 [&>.t-btn]:min-w-0! [&>.t-btn]:px-1!">
                   <Button
                     size="sm"
                     className="flex-1"
