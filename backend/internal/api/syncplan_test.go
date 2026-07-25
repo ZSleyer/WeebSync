@@ -1,6 +1,9 @@
 package api
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSeasonFolderName(t *testing.T) {
 	cases := []struct {
@@ -39,13 +42,22 @@ func TestExistingSyncPlan(t *testing.T) {
 func TestMissingSyncPlan(t *testing.T) {
 	// missing series season: sibling is a Season folder -> new Season under show root
 	p := missingSyncPlan("/media/plex/Show/Season 01", 3, false)
-	if p.LocalPath != "/media/plex/Show" || p.Template != "Season 03/{title} - S03E{episode:02}" {
+	if p.LocalPath != "/media/plex/Show/Season 03" || p.Template != "{title} - S03E{episode:02}" {
 		t.Fatalf("missing season (season sibling): %+v", p)
 	}
 	// flat library: sibling IS the show folder -> Season under it
 	p = missingSyncPlan("/media/plex/Show", 2, false)
-	if p.LocalPath != "/media/plex/Show" || p.Template != "Season 02/{title} - S02E{episode:02}" {
+	if p.LocalPath != "/media/plex/Show/Season 02" || p.Template != "{title} - S02E{episode:02}" {
 		t.Fatalf("missing season (flat): %+v", p)
+	}
+	// unpadded sibling: the new folder mirrors it, in the path
+	if p := missingSyncPlan("/media/plex/Show/Season 1", 3, false); p.LocalPath != "/media/plex/Show/Season 3" {
+		t.Fatalf("missing season (unpadded sibling): %+v", p)
+	}
+	// the season must never sit in the template again: there it only applied
+	// when renaming was on, and a plain sync landed in the show root
+	if strings.Contains(p.Template, "/") {
+		t.Fatalf("series template carries a folder: %q", p.Template)
 	}
 	// missing movie: OWN subfolder under the movie library root, never a sibling's folder
 	p = missingSyncPlan("/media/plex/Movies/Other Film (2019)", 0, true)

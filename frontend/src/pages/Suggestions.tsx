@@ -271,6 +271,11 @@ function SugCard({
   const StatusIcon = it.status ? WATCH_STATUS_ICON[it.status] : undefined
 
   const prefill = (path: string): WatchFields => {
+    // a missing-unit card already carries the resolved target - the season
+    // folder and the template with its fixed season number. plexFolder is only
+    // a basename (and empty on those cards), so it would resolve under the
+    // primary download root instead of the Plex library.
+    if (it.sync?.localPath) return syncFields(it.sync, it.title, path)
     const season = guessSeason(it.title)
     const movie = it.category.endsWith('movie')
     return {

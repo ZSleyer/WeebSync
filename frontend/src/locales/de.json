@@ -285,6 +285,7 @@
     "airedSeasonTip": "Optional: Folgen in Staffel-Unterordner (Season NN/) ablegen",
     "localIsSeasonFolder": "Lokales Ziel \"{{folder}}\" sieht aus wie ein Staffel-Ordner. Bei aired-Mapping sollte das Ziel der Serien-Hauptordner sein, sonst entsteht Staffel/Season NN/.",
     "useSeriesFolder": "Serien-Ordner verwenden",
+    "targetMissing": "Ordner \"{{folder}}\" existiert noch nicht und wird beim Sync angelegt.",
     "openProvider": "Beim Anbieter öffnen",
     "templatePadHint": "Das :02 füllt mit Nullen auf min. 2 Stellen (S01, E05) - wichtig für Plex und richtige Sortierung; kürzt lange Nummern nie (E1187 bleibt). Für mehr Stellen :03 nutzen (E001).",
     "wantDub": "Dub-Sprache (nur herunterladen, wenn vorhanden)",

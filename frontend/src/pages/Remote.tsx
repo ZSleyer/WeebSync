@@ -21,6 +21,7 @@ import PathInput from '../components/PathInput'
 import FileIcon from '../components/FileIcon'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
 import { useRenamePreview } from '../components/useRenamePreview'
+import { syncTargetDir, useTargetFolder } from '../components/useTargetFolder'
 import WatchDialog from '../components/WatchDialog'
 import { useConfirm } from '../components/confirm'
 import Loading from '../components/Loading'
@@ -829,7 +830,8 @@ function SyncDialog({
     enabled: renameOn,
     fileName: entry.isDir ? undefined : entry.name,
   })
-  const target = entry.isDir && !flat ? [localPath, entry.name].filter(Boolean).join('/') : localPath
+  const target = syncTargetDir(localPath, entry.path, entry.isDir && !flat)
+  const { missing: targetMissing } = useTargetFolder(target)
   // mount-to-open: Escape and the backdrop end in onClose, the footer buttons
   // decide explicitly - the parent unmounts either way
   return (
@@ -886,9 +888,16 @@ function SyncDialog({
             </label>
           )}
 
-          <p className="text-xs text-t-muted">
-            {t('remote.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs text-t-muted">
+              {t('remote.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
+            </p>
+            {targetMissing && (
+              <p className="text-[11px] text-t-muted">
+                {t('watch.targetMissing', { folder: target.split('/').filter(Boolean).pop() ?? target })}
+              </p>
+            )}
+          </div>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
             <div className="flex items-center justify-between">
