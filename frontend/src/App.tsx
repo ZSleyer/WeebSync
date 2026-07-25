@@ -77,7 +77,7 @@ function RootLayout() {
 
   if (isLoading) {
     return (
-      <div className="grid min-h-screen place-items-center">
+      <div className="grid min-h-dvh place-items-center">
         <Loading />
       </div>
     )
@@ -155,7 +155,12 @@ function RouteTitle() {
 function RouteTransition({ cls, children }: { cls: string; children: ReactNode }) {
   const [done, setDone] = useState(false)
   return (
-    <div className={done ? undefined : cls} onAnimationEnd={(e) => e.target === e.currentTarget && setDone(true)}>
+    // the layout classes have to survive the animation class being dropped:
+    // they are what lets a page claim the remaining height of <main>
+    <div
+      className={`flex min-h-0 flex-1 flex-col${done ? '' : ' ' + cls}`}
+      onAnimationEnd={(e) => e.target === e.currentTarget && setDone(true)}
+    >
       {children}
     </div>
   )
@@ -213,7 +218,7 @@ function Shell({ email }: { email: string }) {
       end={n.to === '/'}
       className={({ isActive }) =>
         mobile
-          ? `flex min-h-[3.33rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
+          ? `flex min-h-[var(--nav-h)] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
               isActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
             }`
           : `group flex items-center gap-3 border-l-2 px-4 py-2.5 font-display text-sm transition-colors ${
@@ -232,11 +237,15 @@ function Shell({ email }: { email: string }) {
     </NavLink>
   )
 
+  // min-h-dvh, not min-h-screen: on phones 100vh is the *large* viewport (URL
+  // bar hidden), so even a short page overflowed by the toolbar height and every
+  // scroll gesture toggled the toolbar - which is what made the header drift off
+  // the top edge and the fixed tab bar look unpinned.
   return (
-    <div className="t-hatch flex min-h-screen flex-col lg:flex-row">
+    <div className="t-hatch flex min-h-dvh flex-col lg:flex-row">
       <RouteTitle />
       {/* desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
+      <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
         <div className="border-b border-border-subtle px-4 py-5">
           <h1 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
             WEEB<span className="text-accent">SYNC</span>
@@ -257,8 +266,10 @@ function Shell({ email }: { email: string }) {
         </div>
       </aside>
 
-      {/* mobile top bar */}
-      <header className="flex items-center justify-between border-b border-border-subtle bg-bg-secondary px-4 py-3 lg:hidden">
+      {/* mobile top bar - sticky so it cannot drift off the top edge, and
+          padded past the status bar for the installed PWA (viewport-fit=cover
+          puts the page under it; in a browser tab the inset is 0) */}
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border-subtle bg-bg-secondary px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden">
         <h1 className="font-display text-base font-bold tracking-[0.2em] text-t-primary">
           WEEB<span className="text-accent">SYNC</span>
         </h1>
@@ -268,7 +279,16 @@ function Shell({ email }: { email: string }) {
         </Button>
       </header>
 
-      <main className="min-w-0 flex-1 overflow-x-clip p-4 pb-20 lg:p-6 lg:pb-6" key={location.pathname}>
+      {/* the bottom padding has to clear the tab bar, whose height rides the
+          rem scale - a fixed pb-20 was short of it once the root font grew */}
+      {/* a flex column, so a page that wants the rest of the screen (the file
+          browsers) says `flex-1` instead of subtracting the header and the
+          padding by hand - the hand-computed value was 19px off, and those 19px
+          were exactly the phantom scroll that toggles a phone's URL bar */}
+      <main
+        className="flex min-w-0 flex-1 flex-col overflow-x-clip p-4 pb-[calc(var(--nav-h)+env(safe-area-inset-bottom)+1rem)] lg:p-6 lg:pb-6"
+        key={location.pathname}
+      >
         <RouteTransition cls={transitionClass}>
           <Outlet />
         </RouteTransition>
@@ -301,7 +321,7 @@ function Shell({ email }: { email: string }) {
         <div className="flex">
           {NAV_PRIMARY.map((n) => navLink(n, true))}
           <button
-            className={`flex min-h-[3.33rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
+            className={`flex min-h-[var(--nav-h)] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
               moreOpen || moreActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
             }`}
             aria-expanded={moreOpen}

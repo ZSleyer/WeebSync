@@ -154,7 +154,7 @@ export default function Login() {
 
   if (!cfg) {
     return (
-      <main className="grid min-h-screen place-items-center">
+      <main className="grid min-h-dvh place-items-center">
         <Loading />
       </main>
     )
@@ -166,7 +166,7 @@ export default function Login() {
   const oidcLabel = cfg.oidcName ? t('login.oidcNamed', { name: cfg.oidcName }) : t('login.oidc')
 
   return (
-    <main className="t-hatch grid min-h-screen place-items-center p-4">
+    <main className="t-hatch grid min-h-dvh place-items-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
