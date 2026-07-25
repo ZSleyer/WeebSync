@@ -222,11 +222,9 @@ export default function WatchDialog({
               <input type="checkbox" checked={f.subfolder} onChange={(e) => setF({ ...f, subfolder: e.target.checked })} />
               {t('watch.subfolder')}
             </label>
-            {targetMissing && (
-              <p className="text-[11px] text-t-muted">
-                {t('watch.targetMissing', { folder: targetDir.split('/').filter(Boolean).pop() ?? targetDir })}
-              </p>
-            )}
+            {/* no folder name: several levels can be missing at once, and
+                naming only the innermost reads as if the rest were there */}
+            {targetMissing && <p className="text-[11px] text-t-muted">{t('watch.targetMissing')}</p>}
           </section>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionMeta')}>

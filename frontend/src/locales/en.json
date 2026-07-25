@@ -285,7 +285,7 @@
     "airedSeasonTip": "Optional: put episodes into season subfolders (Season NN/)",
     "localIsSeasonFolder": "Local target \"{{folder}}\" looks like a season folder. With aired mapping the target should be the series' main folder, otherwise you get Season/Season NN/.",
     "useSeriesFolder": "Use series folder",
-    "targetMissing": "Folder \"{{folder}}\" does not exist yet and gets created on sync.",
+    "targetMissing": "This target folder does not exist yet and gets created on sync.",
     "openProvider": "Open at provider",
     "templatePadHint": "The :02 zero-pads to min. 2 digits (S01, E05) - needed for Plex and correct sorting; never truncates large numbers (E1187 stays). Use :03 for more digits (E001).",
     "wantDub": "Dub language (download only if present)",

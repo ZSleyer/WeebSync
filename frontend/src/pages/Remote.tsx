@@ -896,11 +896,9 @@ function SyncDialog({
             <p className="text-xs text-t-muted">
               {t('remote.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
             </p>
-            {targetMissing && (
-              <p className="text-[11px] text-t-muted">
-                {t('watch.targetMissing', { folder: target.split('/').filter(Boolean).pop() ?? target })}
-              </p>
-            )}
+            {/* no folder name: the full path is right above, and several
+                levels can be missing at once */}
+            {targetMissing && <p className="text-[11px] text-t-muted">{t('watch.targetMissing')}</p>}
           </div>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
