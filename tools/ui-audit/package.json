@@ -1,0 +1,9 @@
+{
+  "name": "weebsync-ui-audit",
+  "private": true,
+  "type": "module",
+  "description": "Playwright passes that check the UI against WCAG 2.2 AA",
+  "devDependencies": {
+    "playwright": "1.61.0"
+  }
+}

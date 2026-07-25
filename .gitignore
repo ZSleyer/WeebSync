@@ -41,3 +41,6 @@ ds-bundle/
 
 # e2e screenshots + report (regenerated per run)
 e2e-shots/
+
+# the audit borrows playwright from wherever it is installed
+tools/ui-audit/node_modules
