@@ -696,7 +696,9 @@ function LimitInput({ label, bytes, onSave }: { label: string; bytes: number; on
     }
   }
   return (
-    <label className="ml-auto flex items-center gap-2 whitespace-nowrap text-xs text-t-muted">
+    // wraps at the phone width, where the caption plus a number field plus a
+    // unit select need 404px of a 357px row and nowrap has nothing to clip it
+    <label className="ml-auto flex flex-wrap items-center gap-2 text-xs text-t-muted">
       {label}
       <Input
         className="w-24 py-1 font-mono text-xs"
