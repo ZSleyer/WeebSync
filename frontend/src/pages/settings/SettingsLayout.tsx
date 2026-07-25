@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react'
 import { Activity, ArrowDownUp, Bell, Info, Mail, Palette, Plug, Shield, Upload, UserRound, Users } from 'lucide-react'
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Badge, buttonClass, navItemClass } from '@weebsync/design-system'
 import { useAuth } from '../../hooks'
 
 const PERSONAL = [
@@ -46,7 +47,7 @@ export default function SettingsLayout() {
     <div>
       <header className="mb-6">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('settings.title')}</h2>
-        <span className="t-label mt-1">{t('settings.sub')}</span>
+        <Badge className="mt-1">{t('settings.sub')}</Badge>
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -54,13 +55,13 @@ export default function SettingsLayout() {
         <nav aria-label={t('settings.navLabel')} className="flex flex-col gap-3 lg:hidden">
           {groups.map((g) => (
             <div key={g.label}>
-              <span className="t-label mb-1.5">{t(g.label)}</span>
+              <Badge className="mb-1.5">{t(g.label)}</Badge>
               <div className="flex flex-wrap gap-1.5">
                 {g.items.map((i) => (
                   <NavLink
                     key={i.to}
                     to={i.to}
-                    className={({ isActive }) => `t-btn t-btn--sm ${isActive ? 't-btn--primary' : ''}`}
+                    className={({ isActive }) => buttonClass({ size: 'sm', variant: isActive ? 'primary' : 'default' })}
                   >
                     <i.icon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t(i.key)}
@@ -75,20 +76,11 @@ export default function SettingsLayout() {
           <div className="flex flex-col gap-5">
             {groups.map((g) => (
               <div key={g.label}>
-                <span className="t-label mb-1">{t(g.label)}</span>
+                <Badge className="mb-1">{t(g.label)}</Badge>
                 <ul className="flex flex-col gap-1">
                   {g.items.map((i) => (
                     <li key={i.to}>
-                      <NavLink
-                        to={i.to}
-                        className={({ isActive }) =>
-                          `flex items-center gap-2 whitespace-nowrap border-l-2 px-4 py-2 font-display text-sm transition-colors ${
-                            isActive
-                              ? 'border-accent bg-bg-hover text-accent'
-                              : 'border-transparent text-t-muted hover:bg-bg-hover hover:text-t-primary'
-                          }`
-                        }
-                      >
+                      <NavLink to={i.to} className={({ isActive }) => navItemClass('sidebar', isActive)}>
                         <i.icon aria-hidden size="1.25em" className="shrink-0" />
                         {t(i.key)}
                       </NavLink>

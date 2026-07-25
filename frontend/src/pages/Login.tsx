@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Fingerprint, KeyRound, LogIn } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, ButtonLink, Input, Panel } from '@weebsync/design-system'
 import { api, type User } from '../api'
 import { loginPasskey, assertSecurityKey, supportsPasskeyAutofill, conditionalPasskeyLogin } from '../webauthn'
 import Loading from '../components/Loading'
@@ -171,39 +172,39 @@ export default function Login() {
           <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
             WEEB<span className="text-accent">SYNC</span>
           </h1>
-          <span className="t-label mt-3">{t('login.tagline')}</span>
+          <Badge className="mt-3">{t('login.tagline')}</Badge>
         </div>
 
         {oidcOnly ? (
-          <div className="t-panel animate-fadeIn p-6 text-center">
+          <Panel className="animate-fadeIn p-6 text-center">
             {cfg.authMode === 'oidc-auto' ? (
               <p className="mb-4 text-sm text-t-secondary" role="status">
                 {t('login.redirecting')}
               </p>
             ) : null}
-            <a className="t-btn t-btn--primary t-cut block w-full" href="/api/auth/oidc/login">
+            <ButtonLink variant="primary" cut className="block w-full" href="/api/auth/oidc/login">
               <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {oidcLabel}
-            </a>
-          </div>
+            </ButtonLink>
+          </Panel>
         ) : twoFA ? (
-          <form className="t-panel animate-fadeIn p-6" onSubmit={submitTotp}>
+          <Panel as="form" className="animate-fadeIn p-6" onSubmit={submitTotp}>
             <h2 className="mb-1 font-display font-semibold tracking-wider">{t('login.totpTitle')}</h2>
             <p className="mb-4 text-xs text-t-muted">{t('login.totpHint')}</p>
             {twoFA.webauthn && (
-              <button type="button" className="t-btn mb-4 block w-full" disabled={busy} onClick={securityKey2FA}>
+              <Button className="mb-4 block w-full" disabled={busy} onClick={securityKey2FA}>
                 <KeyRound aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('login.useSecurityKey')}
-              </button>
+              </Button>
             )}
             {twoFA.totp && (
               <>
-                <label className="t-label mb-1 block w-fit" htmlFor="totp-code">
+                <Badge as="label" htmlFor="totp-code" className="mb-1 block w-fit">
                   {t('login.totpCode')}
-                </label>
-                <input
+                </Badge>
+                <Input
                   id="totp-code"
-                  className="t-input mb-4 font-mono tracking-[0.3em]"
+                  className="mb-4 font-mono tracking-[0.3em]"
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   autoFocus
@@ -219,13 +220,12 @@ export default function Login() {
               </p>
             )}
             {twoFA.totp && (
-              <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
+              <Button type="submit" variant="primary" cut className="w-full" disabled={busy}>
                 {t('login.submitLogin')}
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              className="t-btn mt-3 block w-full text-center"
+            <Button
+              className="mt-3 block w-full text-center"
               onClick={() => {
                 setTwoFA(null)
                 setCode('')
@@ -233,37 +233,41 @@ export default function Login() {
               }}
             >
               {t('servers.cancel')}
-            </button>
-          </form>
+            </Button>
+          </Panel>
         ) : (
-          <form className="t-panel animate-fadeIn p-6" onSubmit={submit}>
+          <Panel as="form" className="animate-fadeIn p-6" onSubmit={submit}>
             {/* tab bar only when there's a real choice (registration open) */}
             {cfg.registrationOpen && (
               <div className="mb-4 flex gap-1" role="group" aria-label={t('login.tabs')}>
-                <button
-                  type="button"
+                <Button
                   aria-pressed={mode === 'login'}
-                  className={`t-btn t-btn--sm flex-1 ${mode === 'login' ? 't-btn--primary t-cut' : ''}`}
+                  size="sm"
+                  variant={mode === 'login' ? 'primary' : 'default'}
+                  cut={mode === 'login'}
+                  className="flex-1"
                   onClick={() => setMode('login')}
                 >
                   {t('login.login')}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
                   aria-pressed={mode === 'register'}
-                  className={`t-btn t-btn--sm flex-1 ${mode === 'register' ? 't-btn--primary t-cut' : ''}`}
+                  size="sm"
+                  variant={mode === 'register' ? 'primary' : 'default'}
+                  cut={mode === 'register'}
+                  className="flex-1"
                   onClick={() => setMode('register')}
                 >
                   {t('login.register')}
-                </button>
+                </Button>
               </div>
             )}
-            <label className="t-label mb-1 block w-fit" htmlFor="email">
+            <Badge as="label" htmlFor="email" className="mb-1 block w-fit">
               {t('login.email')}
-            </label>
-            <input
+            </Badge>
+            <Input
               id="email"
-              className="t-input mb-4"
+              className="mb-4"
               type="email"
               // "webauthn" arms passkey autofill on this field (conditional UI)
               autoComplete="username webauthn"
@@ -271,12 +275,12 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-            <label className="t-label mb-1 block w-fit" htmlFor="password">
+            <Badge as="label" htmlFor="password" className="mb-1 block w-fit">
               {t('login.password')}
-            </label>
-            <input
+            </Badge>
+            <Input
               id="password"
-              className="t-input mb-4"
+              className="mb-4"
               type="password"
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               required
@@ -294,22 +298,22 @@ export default function Login() {
                 {error}
               </p>
             )}
-            <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
+            <Button type="submit" variant="primary" cut className="w-full" disabled={busy}>
               {mode === 'login' ? t('login.submitLogin') : t('login.submitRegister')}
-            </button>
+            </Button>
             {mode === 'login' && !autofill && (
-              <button type="button" className="t-btn mt-3 block w-full text-center" disabled={busy} onClick={passkeyLogin}>
+              <Button className="mt-3 block w-full text-center" disabled={busy} onClick={passkeyLogin}>
                 <Fingerprint aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('login.passkey')}
-              </button>
+              </Button>
             )}
             {cfg.oidc && (
-              <a className="t-btn mt-3 block w-full text-center" href="/api/auth/oidc/login">
+              <ButtonLink className="mt-3 block w-full text-center" href="/api/auth/oidc/login">
                 <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {oidcLabel}
-              </a>
+              </ButtonLink>
             )}
-          </form>
+          </Panel>
         )}
       </div>
     </main>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Pencil, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Panel } from '@weebsync/design-system'
 import { api, type Entry } from '../api'
 import { CatalogViewSelect } from '../components/CatalogViewSelect'
 import { useCatalogView } from '../components/useCatalogView'
@@ -71,24 +72,23 @@ export default function Local() {
   const actions = (e: Entry, className = '') =>
     user?.isAdmin ? (
       <span className={`my-1 mr-2 flex shrink-0 gap-1.5 ${className}`}>
-        <button
-          type="button"
-          className="t-btn t-btn--sm"
+        <Button
+          size="sm"
           aria-label={t('local.renameItem', { name: e.name })}
           title={t('local.rename')}
           onClick={() => rename(e)}
         >
           <Pencil aria-hidden size="1.2em" />
-        </button>
-        <button
-          type="button"
-          className="t-btn t-btn--sm t-btn--danger"
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
           aria-label={t('local.deleteItem', { name: e.name })}
           title={t('local.delete')}
           onClick={() => remove(e)}
         >
           <X aria-hidden size="1.2em" />
-        </button>
+        </Button>
       </span>
     ) : undefined
 
@@ -97,14 +97,14 @@ export default function Local() {
       <header className="mb-4 flex flex-wrap items-center gap-3">
         <div className="mr-auto">
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('local.title')}</h2>
-          <span className="t-label mt-1">{t('local.sub')}</span>
+          <Badge className="mt-1">{t('local.sub')}</Badge>
         </div>
         <CatalogViewSelect value={viewValue} onChange={setView} />
       </header>
 
-      <section className="t-panel flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('local.title')}>
+      <Panel as="section" className="flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('local.title')}>
         <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-          <span className="t-label t-label--accent">{t('remote.local')}</span>
+          <Badge tone="accent">{t('remote.local')}</Badge>
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">{path || '/'}</span>
         </div>
         {error && (
@@ -137,7 +137,7 @@ export default function Local() {
           actions={(e) => actions(e)}
         />
         )}
-      </section>
+      </Panel>
     </div>
   )
 }

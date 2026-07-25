@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
+import { Badge, Button, Field, Input, Panel, Select } from '@weebsync/design-system'
 import { api, ApiError } from '../api'
 import { useSettingsForm, EnvBadge } from '../pages/settings/useSettingsForm'
 import LegacyImport from './LegacyImport'
@@ -92,22 +93,22 @@ export default function SetupSteps({
 
   const nav = (skipLabel = t('setup.skip')) => (
     <div className="mt-5 flex gap-2">
-      <button type="button" className="t-btn flex-1" onClick={next}>
+      <Button className="flex-1" onClick={next}>
         {skipLabel}
-      </button>
-      <button type="button" className="t-btn t-btn--primary t-cut flex-1" disabled={save.isPending} onClick={finish}>
+      </Button>
+      <Button variant="primary" cut className="flex-1" disabled={save.isPending} onClick={finish}>
         {t('setup.finish')}
-      </button>
+      </Button>
     </div>
   )
 
   if (step === 'import')
     return (
       <section className="animate-fadeIn" aria-label={t('setup.step.import')}>
-        <div className="t-panel mb-4 p-6">
+        <Panel className="mb-4 p-6">
           {heading(t('setup.importTitle'))}
           <p className="text-sm text-t-secondary">{t('setup.importHint')}</p>
-        </div>
+        </Panel>
         {/* stay put after importing so its result summary stays readable */}
         <LegacyImport onDone={() => setImported(true)} />
         {nav(imported ? t('setup.continue') : t('setup.noOldConfig'))}
@@ -116,63 +117,47 @@ export default function SetupSteps({
 
   if (step === 'server')
     return (
-      <section className="t-panel animate-fadeIn p-6" aria-label={t('setup.step.server')}>
+      <Panel as="section" className="animate-fadeIn p-6" aria-label={t('setup.step.server')}>
         {heading(t('setup.serverTitle'))}
         <p className="mb-4 text-sm text-t-secondary">{t('setup.serverHint')}</p>
         <form onSubmit={createServer} className="grid grid-cols-2 gap-3">
-          <label className="t-field col-span-2 text-xs text-t-muted">
-            {t('servers.name')}
-            <input name="name" className="t-input" required disabled={!!serverId} />
-          </label>
-          <label className="t-field text-xs text-t-muted">
-            {t('servers.protocol')}
-            <span className="t-select-wrap block">
-              <select name="protocol" className="t-select" defaultValue="sftp" disabled={!!serverId}>
-                <option value="sftp">SFTP (SSH)</option>
-                <option value="ftps">FTPS (TLS)</option>
-                <option value="ftp">FTP</option>
-              </select>
-            </span>
-          </label>
-          <label className="t-field text-xs text-t-muted">
-            {t('servers.port')}
-            <input
+          <Field label={t('servers.name')} className="col-span-2">
+            <Input name="name" required disabled={!!serverId} />
+          </Field>
+          <Field label={t('servers.protocol')}>
+            <Select name="protocol" defaultValue="sftp" disabled={!!serverId}>
+              <option value="sftp">SFTP (SSH)</option>
+              <option value="ftps">FTPS (TLS)</option>
+              <option value="ftp">FTP</option>
+            </Select>
+          </Field>
+          <Field label={t('servers.port')}>
+            <Input
               name="port"
-              className="t-input font-mono"
+              className="font-mono"
               type="number"
               min={1}
               max={65535}
               placeholder="22 / 21"
               disabled={!!serverId}
             />
-          </label>
-          <label className="t-field col-span-2 text-xs text-t-muted">
-            {t('servers.host')}
-            <input name="host" className="t-input font-mono" required disabled={!!serverId} />
-          </label>
-          <label className="t-field text-xs text-t-muted">
-            {t('servers.user')}
-            <input name="username" className="t-input font-mono" required disabled={!!serverId} />
-          </label>
-          <label className="t-field text-xs text-t-muted">
-            {t('servers.password')}
-            <input
-              name="password"
-              className="t-input"
-              type="password"
-              required
-              autoComplete="new-password"
-              disabled={!!serverId}
-            />
-          </label>
-          <label className="t-field col-span-2 text-xs text-t-muted">
-            {t('servers.rootPath')}
-            <input name="rootPath" className="t-input font-mono" defaultValue="/" disabled={!!serverId} />
-          </label>
+          </Field>
+          <Field label={t('servers.host')} className="col-span-2">
+            <Input name="host" className="font-mono" required disabled={!!serverId} />
+          </Field>
+          <Field label={t('servers.user')}>
+            <Input name="username" className="font-mono" required disabled={!!serverId} />
+          </Field>
+          <Field label={t('servers.password')}>
+            <Input name="password" type="password" required autoComplete="new-password" disabled={!!serverId} />
+          </Field>
+          <Field label={t('servers.rootPath')} className="col-span-2">
+            <Input name="rootPath" className="font-mono" defaultValue="/" disabled={!!serverId} />
+          </Field>
           {!serverId && (
-            <button className="t-btn t-btn--primary t-cut col-span-2" disabled={busy}>
+            <Button type="submit" variant="primary" cut className="col-span-2" disabled={busy}>
               {t('setup.serverCreate')}
-            </button>
+            </Button>
           )}
         </form>
         {srvErr && (
@@ -192,32 +177,31 @@ export default function SetupSteps({
             </p>
             <p className="mb-2 break-all font-mono">{keyConflict.newFingerprint}</p>
             <div className="flex gap-2">
-              <button
-                type="button"
-                className="t-btn t-btn--sm"
+              <Button
+                size="sm"
                 onClick={async () => {
                   await api.post(`/api/servers/${serverId}/trust-hostkey`, { key: keyConflict.newKey })
                   await testServer(serverId)
                 }}
               >
                 {t('servers.hostKeyAccept')}
-              </button>
-              <button type="button" className="t-btn t-btn--sm" onClick={() => setKeyConflict(null)}>
+              </Button>
+              <Button size="sm" onClick={() => setKeyConflict(null)}>
                 {t('servers.hostKeyReject')}
-              </button>
+              </Button>
             </div>
           </div>
         )}
         {nav(serverId ? t('setup.continue') : t('setup.skip'))}
-      </section>
+      </Panel>
     )
 
   if (step === 'storage' && form)
     return (
-      <section className="t-panel animate-fadeIn p-6" aria-label={t('setup.step.storage')}>
+      <Panel as="section" className="animate-fadeIn p-6" aria-label={t('setup.step.storage')}>
         {heading(t('setup.storageTitle'))}
         <p className="mb-4 text-sm text-t-secondary">{t('setup.storageHint')}</p>
-        <span className="t-label">{t('setup.roots')}</span>
+        <Badge>{t('setup.roots')}</Badge>
         <ul className="mb-2 mt-1 border border-border-subtle p-2 font-mono text-xs text-t-secondary">
           {form.downloadRoots?.map((r) => <li key={r}>{r}</li>)}
         </ul>
@@ -227,46 +211,43 @@ export default function SetupSteps({
           </p>
         )}
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className="t-field text-xs text-t-muted">
-            {t('settings.watchInterval')}
-            <input
+          <Field label={t('settings.watchInterval')}>
+            <Input
               type="number"
               min={5}
               max={1440}
-              className="t-input font-mono"
+              className="font-mono"
               value={form.watchIntervalMin}
               onChange={(e) => set('watchIntervalMin', Number(e.target.value) || 30)}
             />
-          </label>
-          <label className="t-field text-xs text-t-muted">
-            {t('settings.maxConcurrent')}
-            <input
+          </Field>
+          <Field label={t('settings.maxConcurrent')}>
+            <Input
               type="number"
               min={1}
               max={20}
-              className="t-input font-mono"
+              className="font-mono"
               value={form.maxConcurrent}
               onChange={(e) => set('maxConcurrent', Number(e.target.value) || 3)}
             />
-          </label>
-          <label className="t-field text-xs text-t-muted">
-            {t('settings.globalLimit')}
-            <input
+          </Field>
+          <Field label={t('settings.globalLimit')}>
+            <Input
               type="number"
               min={0}
-              className="t-input font-mono"
+              className="font-mono"
               value={Math.round(form.globalRateLimit / 1024)}
               onChange={(e) => set('globalRateLimit', Number(e.target.value) * 1024)}
             />
-          </label>
+          </Field>
         </div>
         {nav()}
-      </section>
+      </Panel>
     )
 
   if (step === 'meta' && form)
     return (
-      <section className="t-panel animate-fadeIn p-6" aria-label={t('setup.step.meta')}>
+      <Panel as="section" className="animate-fadeIn p-6" aria-label={t('setup.step.meta')}>
         {heading(t('setup.metaTitle'))}
         <p className="mb-4 text-sm text-t-secondary">{t('setup.metaHint')}</p>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -280,25 +261,29 @@ export default function SetupSteps({
               ['anilistClientSecret', 'settings.anilistClientSecret', 'password'],
             ] as const
           ).map(([key, label, type]) => (
-            <label key={key} className="t-field text-xs text-t-muted">
-              <span className="flex w-fit items-center">
-                {t(label)}
-                <EnvBadge show={locked(key)} />
-              </span>
-              <input
+            <Field
+              key={key}
+              label={
+                <span className="flex w-fit items-center">
+                  {t(label)}
+                  <EnvBadge show={locked(key)} />
+                </span>
+              }
+            >
+              <Input
                 type={type}
-                className="t-input font-mono"
+                className="font-mono"
                 autoComplete="off"
                 disabled={locked(key)}
                 value={form[key] ?? ''}
                 onChange={(e) => set(key, e.target.value)}
               />
-            </label>
+            </Field>
           ))}
         </div>
         <p className="mt-3 text-xs text-t-muted">{t('setup.metaLater')}</p>
         {nav()}
-      </section>
+      </Panel>
     )
 
   return null

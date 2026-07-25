@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Input } from '@weebsync/design-system'
 import { api, type Entry } from '../api'
 
 // Split a root-relative partial path into its parent dir and the last segment,
@@ -103,7 +104,7 @@ export default function PathInput({
 
   return (
     <div ref={boxRef} className="relative min-w-0 flex-1">
-      <input
+      <Input
         id={inputId}
         role="combobox"
         aria-expanded={showList}
@@ -111,7 +112,7 @@ export default function PathInput({
         aria-autocomplete="list"
         aria-activedescendant={showList && active >= 0 ? `${listId}-${active}` : undefined}
         aria-label={ariaLabel}
-        className="t-input w-full py-1 font-mono text-xs"
+        className="w-full py-1 font-mono text-xs"
         placeholder={placeholder}
         value={value}
         autoFocus={autoFocus}

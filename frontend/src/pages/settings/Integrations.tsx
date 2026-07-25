@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Input, Panel, Select } from '@weebsync/design-system'
 import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
 import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
@@ -14,18 +15,18 @@ export default function Integrations() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.integrations')}>
-        <span className="t-label t-label--accent">{t('settings.integrations')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.integrations')}>
+        <Badge tone="accent">{t('settings.integrations')}</Badge>
         <div className="mt-3 grid grid-cols-1 gap-4">
-          <span className="t-label">AniList</span>
+          <Badge>AniList</Badge>
           <AnilistAccount />
           <AnilistOwnApp form={form} set={set} locked={locked} />
         </div>
         <label className="mt-3 block text-xs text-t-muted">
           {t('settings.tmdbApiKey')}
           <EnvBadge show={locked('tmdbApiKey')} />
-          <input
-            className="t-input mt-1 font-mono"
+          <Input
+            className="mt-1 font-mono"
             type="password"
             autoComplete="off"
             placeholder={form.tmdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
@@ -41,8 +42,8 @@ export default function Integrations() {
         <label className="mt-3 block text-xs text-t-muted">
           {t('settings.tvdbApiKey')}
           <EnvBadge show={locked('tvdbApiKey')} />
-          <input
-            className="t-input mt-1 font-mono"
+          <Input
+            className="mt-1 font-mono"
             type="password"
             autoComplete="off"
             placeholder={form.tvdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
@@ -57,12 +58,12 @@ export default function Integrations() {
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4">
-          <span className="t-label">{t('settings.plex')}</span>
+          <Badge>{t('settings.plex')}</Badge>
           <label className="text-xs text-t-muted">
             {t('settings.plexUrl')}
             <EnvBadge show={locked('plexUrl')} />
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               placeholder="https://plex.example.com"
               value={form.plexUrl}
               disabled={locked('plexUrl')}
@@ -73,8 +74,8 @@ export default function Integrations() {
           <label className="text-xs text-t-muted">
             {t('settings.plexToken')}
             <EnvBadge show={locked('plexToken')} />
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               type="password"
               autoComplete="off"
               placeholder={form.plexTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
@@ -110,7 +111,7 @@ export default function Integrations() {
             </>
           )}
         </div>
-      </section>
+      </Panel>
       <SaveBar form={form} save={save} saved={saved} />
     </>
   )
@@ -204,33 +205,31 @@ function PlexSections({
               <input type="checkbox" checked={selected.has(s.key)} onChange={() => toggle(s)} />
               <span className="truncate">{s.title}</span>
             </label>
-            <span className="t-label">{s.type === 'movie' ? t('settings.plexMovies') : t('settings.plexShows')}</span>
+            <Badge>{s.type === 'movie' ? t('settings.plexMovies') : t('settings.plexShows')}</Badge>
             {/* what Plex itself uses, so the preselection is traceable */}
             {s.provider && (
-              <span className="t-label" title={s.ordering}>
+              <Badge title={s.ordering}>
                 {t('settings.plexUses', { name: s.provider.toUpperCase() })}
-              </span>
+              </Badge>
             )}
             {selected.has(s.key) && (
               <>
-                <span className="t-select-wrap">
-                  <select
-                    className="t-select py-1 text-xs"
-                    aria-label={t('settings.plexSource', { name: s.title })}
-                    value={sourceOf(s) === ANILIST_TVDB ? 'anilist' : sourceOf(s)}
-                    onChange={(e) => {
-                      const nextSrc = new Map(srcMap)
-                      // keep the aired-mapping choice when switching to AniList
-                      const keep = e.target.value === 'anilist' && sourceOf(s) === ANILIST_TVDB
-                      nextSrc.set(s.key, keep ? ANILIST_TVDB : e.target.value)
-                      writeSources(nextSrc)
-                    }}
-                  >
-                    <option value="anilist">AniList</option>
-                    <option value="tmdb">TMDB</option>
-                    {tvdb && s.type === 'show' && <option value="tvdb">TVDB</option>}
-                  </select>
-                </span>
+                <Select
+                  className="py-1 text-xs"
+                  aria-label={t('settings.plexSource', { name: s.title })}
+                  value={sourceOf(s) === ANILIST_TVDB ? 'anilist' : sourceOf(s)}
+                  onChange={(e) => {
+                    const nextSrc = new Map(srcMap)
+                    // keep the aired-mapping choice when switching to AniList
+                    const keep = e.target.value === 'anilist' && sourceOf(s) === ANILIST_TVDB
+                    nextSrc.set(s.key, keep ? ANILIST_TVDB : e.target.value)
+                    writeSources(nextSrc)
+                  }}
+                >
+                  <option value="anilist">AniList</option>
+                  <option value="tmdb">TMDB</option>
+                  {tvdb && s.type === 'show' && <option value="tvdb">TVDB</option>}
+                </Select>
                 {/* AniList for metadata, TVDB for the aired season mapping -
                     the pairing endless series need */}
                 {tvdb && s.type === 'show' && sourceOf(s).startsWith('anilist') && (
@@ -312,8 +311,8 @@ function AnilistOwnApp({
             <label className="text-xs text-t-muted">
               {t('settings.anilistClientId')}
               <EnvBadge show={locked('anilistClientId')} />
-              <input
-                className="t-input mt-1 font-mono"
+              <Input
+                className="mt-1 font-mono"
                 value={form.anilistClientId}
                 disabled={locked('anilistClientId')}
                 onChange={(e) => set('anilistClientId', e.target.value)}
@@ -322,8 +321,8 @@ function AnilistOwnApp({
             <label className="text-xs text-t-muted">
               {t('settings.anilistClientSecret')}
               <EnvBadge show={locked('anilistClientSecret')} />
-              <input
-                className="t-input mt-1 font-mono"
+              <Input
+                className="mt-1 font-mono"
                 type="password"
                 autoComplete="off"
                 placeholder={form.anilistSecretSet ? t('settings.secretSet') : t('settings.secretUnset')}
@@ -335,8 +334,8 @@ function AnilistOwnApp({
           </div>
           <label className="text-xs text-t-muted">
             {t('settings.anilistRedirectUrl')}
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               placeholder={`${window.location.origin}/api/anilist/callback`}
               value={form.anilistRedirectUrl}
               onChange={(e) => set('anilistRedirectUrl', e.target.value)}
@@ -345,14 +344,13 @@ function AnilistOwnApp({
           </label>
           {/* OAuth redirect: belongs to the own-app path, needs a saved secret */}
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="t-btn t-btn--sm"
+            <Button
+              size="sm"
               disabled={!data?.configured}
               onClick={() => (window.location.href = '/api/anilist/connect')}
             >
               {t('settings.anilistConnect')}
-            </button>
+            </Button>
             {!data?.configured && <span>{t('settings.anilistNotConfigured')}</span>}
           </div>
         </div>
@@ -400,17 +398,17 @@ function PlexWatchlistAccount() {
     <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
       {data?.linked ? (
         <>
-          <span className="t-label t-label--ok">{t('settings.plexWatchlistLinked', { user: data.user })}</span>
-          <button type="button" className="t-btn t-btn--sm" onClick={unlink}>
+          <Badge tone="ok">{t('settings.plexWatchlistLinked', { user: data.user })}</Badge>
+          <Button size="sm" onClick={unlink}>
             {t('settings.plexWatchlistUnlink')}
-          </button>
+          </Button>
         </>
       ) : pin ? (
         <span>{t('settings.plexWatchlistPending', { code: pin.code })}</span>
       ) : (
-        <button type="button" className="t-btn t-btn--sm" onClick={start}>
+        <Button size="sm" onClick={start}>
           {t('settings.plexWatchlistLink')}
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -432,11 +430,11 @@ function PlexAccount() {
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
       {data.connected ? (
-        <span className="t-label t-label--ok">
+        <Badge tone="ok">
           {data.username
             ? t('settings.plexConnectedAs', { user: data.username, server: data.server })
             : t('settings.plexConnectedTo', { server: data.server })}
-        </span>
+        </Badge>
       ) : data.configured ? (
         <span className="text-err" role="alert">
           {data.error}
@@ -472,7 +470,7 @@ function TvdbAccount() {
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
       {data.connected ? (
-        <span className="t-label t-label--ok">{t('settings.tvdbConnected')}</span>
+        <Badge tone="ok">{t('settings.tvdbConnected')}</Badge>
       ) : data.configured ? (
         <span className="text-err" role="alert">
           {data.error}
@@ -481,9 +479,9 @@ function TvdbAccount() {
         <span>{t('settings.tvdbNotConfigured')}</span>
       )}
       {data.configured && (
-        <button type="button" className="t-btn t-btn--sm" disabled={testing} onClick={test}>
+        <Button size="sm" disabled={testing} onClick={test}>
           {t('settings.tvdbTest')}
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -510,9 +508,9 @@ function TmdbAccount() {
     <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
       {data.connected ? (
         <>
-          <span className="t-label t-label--ok">{t('settings.tmdbConnectedAs', { name: data.username })}</span>
-          <button
-            className="t-btn t-btn--sm"
+          <Badge tone="ok">{t('settings.tmdbConnectedAs', { name: data.username })}</Badge>
+          <Button
+            size="sm"
             onClick={async () => {
               try {
                 await api.del('/api/tmdb/connect')
@@ -525,25 +523,25 @@ function TmdbAccount() {
             }}
           >
             {t('settings.tmdbDisconnect')}
-          </button>
+          </Button>
         </>
       ) : (
         <>
           {/* the key alone already drives matching and trending, so its state
               is shown even without a linked account */}
-          {data.keyValid && <span className="t-label t-label--ok">{t('settings.tmdbConnected')}</span>}
+          {data.keyValid && <Badge tone="ok">{t('settings.tmdbConnected')}</Badge>}
           {data.configured && !data.keyValid && (
             <span className="text-err" role="alert">
               {data.error}
             </span>
           )}
-          <button
-            className="t-btn t-btn--sm"
+          <Button
+            size="sm"
             disabled={!data.configured}
             onClick={() => (window.location.href = '/api/tmdb/connect')}
           >
             {t('settings.tmdbConnect')}
-          </button>
+          </Button>
           {!data.configured && <span>{t('settings.tmdbConnectHint')}</span>}
         </>
       )}
@@ -584,15 +582,15 @@ function AnilistAccount() {
     <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
       {data.connected ? (
         <>
-          <span className="t-label t-label--ok">{t('settings.anilistConnectedAs', { name: data.name })}</span>
+          <Badge tone="ok">{t('settings.anilistConnectedAs', { name: data.name })}</Badge>
           {expires > 0 && (
             <span className={expiringSoon ? 'text-warn' : ''}>
               {t('settings.anilistExpires', { date: new Date(expires).toLocaleDateString() })}
               {expiringSoon && ` ${t('settings.anilistReconnect')}`}
             </span>
           )}
-          <button
-            className="t-btn t-btn--sm"
+          <Button
+            size="sm"
             onClick={async () => {
               try {
                 await api.del('/api/anilist/connect')
@@ -605,7 +603,7 @@ function AnilistAccount() {
             }}
           >
             {t('settings.anilistDisconnect')}
-          </button>
+          </Button>
           {error && (
             <span className="text-err" role="alert">
               {error}
@@ -620,22 +618,22 @@ function AnilistAccount() {
           <label className="text-xs text-t-muted">
             {t('settings.anilistPinLabel')}
             <span className="mt-1 flex gap-2">
-              <input
-                className="t-input font-mono"
+              <Input
+                className="font-mono"
                 type="password"
                 autoComplete="off"
                 placeholder={t('settings.anilistPinPlaceholder')}
                 value={pinToken}
                 onChange={(e) => setPinToken(e.target.value)}
               />
-              <button
-                type="button"
-                className="t-btn t-btn--sm shrink-0"
+              <Button
+                size="sm"
+                className="shrink-0"
                 disabled={!pinToken.trim() || connectPin.isPending}
                 onClick={() => connectPin.mutate()}
               >
                 {t('settings.anilistPinConnect')}
-              </button>
+              </Button>
             </span>
             <span className="mt-1 block">
               {data.clientId ? (

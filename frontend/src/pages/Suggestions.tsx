@@ -38,6 +38,18 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
+  Badge,
+  Button,
+  ButtonLink,
+  Checkbox,
+  Cover,
+  Dialog,
+  Panel,
+  SuggestionCard,
+  Tab,
+  Tabs,
+} from '@weebsync/design-system'
+import {
   api,
   type SuggestionItem,
   type SuggestionsResponse,
@@ -74,12 +86,12 @@ export default function Suggestions() {
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>
-          <span className="t-label mt-1">{t('suggestions.sub')}</span>
+          <Badge className="mt-1">{t('suggestions.sub')}</Badge>
         </div>
-        <button className="t-btn t-btn--sm" onClick={() => setShowIgnored((v) => !v)}>
+        <Button size="sm" onClick={() => setShowIgnored((v) => !v)}>
           <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('suggestions.ignored')}
-        </button>
+        </Button>
       </header>
 
       {showIgnored && <IgnoredModal onClose={() => setShowIgnored(false)} />}
@@ -148,7 +160,7 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
 
   if (isLoading) return <SkeletonCards />
   const items = (data?.[bucket] ?? []) as SuggestionItem[]
-  if (!items.length) return <p className="t-label">{t('suggestions.empty')}</p>
+  if (!items.length) return <Badge>{t('suggestions.empty')}</Badge>
 
   const cards = (list: SuggestionItem[]) => (
     <ul className="grid grid-cols-1 gap-2">
@@ -195,7 +207,7 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
 
   return (
     <div className="space-y-4">
-      {notice && <p className="t-label t-label--accent">{notice}</p>}
+      {notice && <Badge tone="accent">{notice}</Badge>}
       {bucket === 'watchlist'
         ? watchlistGroups
         : // trending and incomplete: grouped by content category (Animefilme /
@@ -328,58 +340,81 @@ function SugCard({
   }
 
   return (
-    <li className="t-panel flex flex-wrap items-start gap-4 p-3">
-      {it.cover ? (
-        <img src={it.cover} alt="" className="h-20 w-14 shrink-0 object-cover" />
-      ) : (
-        <div className="t-hatch h-20 w-14 shrink-0" />
-      )}
-      <div className="min-w-0 flex-1">
-        <h4 className="truncate text-sm font-medium text-t-primary">
-          {it.title}
-          {it.year ? <span className="text-t-muted"> ({it.year})</span> : null}
-        </h4>
-
-        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-          {it.isMovie ? (
-            <span className="t-label t-label--accent">{t('suggestions.movie')}</span>
-          ) : it.season && it.season > 0 ? (
-            <span className="t-label t-label--accent">{t('suggestions.season', { season: it.season })}</span>
-          ) : null}
-          <ProviderBadges providers={it.providers} links={it.links} />
-          {it.status && (
-            <span className={`t-label ${it.status === 'CURRENT' ? 't-label--accent' : ''}`}>
-              {StatusIcon && <StatusIcon aria-hidden size="1em" />}
-              {t(`suggestions.status${it.status}`)}
-            </span>
-          )}
-          {it.status && it.media.episodes > 0 && (
-            <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
-              <Eye aria-hidden size="1em" />
-              {t('suggestions.seen', { seen: it.progress ?? 0, total: it.media.episodes })}
-            </span>
-          )}
-          {it.need ? (
-            <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
-              <ListVideo aria-hidden size="1em" />
-              {t('suggestions.haveNeed', { have: it.have, need: it.need })}
-            </span>
-          ) : null}
-          {it.media.format && (
-            <span className="t-label">
-              {it.media.format === 'MOVIE' ? <Clapperboard aria-hidden size="1em" /> : <Tv aria-hidden size="1em" />}
-              {it.media.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}
-            </span>
-          )}
-          {!it.status && it.media.episodes > 0 && (
-            <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
-              <ListVideo aria-hidden size="1em" />
-              {t('suggestions.episodes', { count: it.media.episodes })}
-            </span>
-          )}
-          {it.media.averageScore > 0 && <span className="t-label t-label--accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{it.media.averageScore}</span>}
-        </p>
-
+    <li>
+      <SuggestionCard
+        cover={it.cover}
+        title={it.title}
+        year={it.year}
+        badges={
+          <>
+            {it.isMovie ? (
+              <Badge tone="accent">{t('suggestions.movie')}</Badge>
+            ) : it.season && it.season > 0 ? (
+              <Badge tone="accent">{t('suggestions.season', { season: it.season })}</Badge>
+            ) : null}
+            <ProviderBadges providers={it.providers} links={it.links} />
+            {it.status && (
+              <Badge tone={it.status === 'CURRENT' ? 'accent' : 'neutral'}>
+                {StatusIcon && <StatusIcon aria-hidden size="1em" />}
+                {t(`suggestions.status${it.status}`)}
+              </Badge>
+            )}
+            {it.status && it.media.episodes > 0 && (
+              <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
+                <Eye aria-hidden size="1em" />
+                {t('suggestions.seen', { seen: it.progress ?? 0, total: it.media.episodes })}
+              </span>
+            )}
+            {it.need ? (
+              <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
+                <ListVideo aria-hidden size="1em" />
+                {t('suggestions.haveNeed', { have: it.have, need: it.need })}
+              </span>
+            ) : null}
+            {it.media.format && (
+              <Badge>
+                {it.media.format === 'MOVIE' ? <Clapperboard aria-hidden size="1em" /> : <Tv aria-hidden size="1em" />}
+                {it.media.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}
+              </Badge>
+            )}
+            {!it.status && it.media.episodes > 0 && (
+              <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
+                <ListVideo aria-hidden size="1em" />
+                {t('suggestions.episodes', { count: it.media.episodes })}
+              </span>
+            )}
+            {it.media.averageScore > 0 && (
+              <Badge tone="accent">
+                <Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />
+                {it.media.averageScore}
+              </Badge>
+            )}
+          </>
+        }
+        actionsPlacement="inline"
+        actions={
+          <>
+            {it.status && (
+              <Button size="sm" title={t('suggestions.plusOneHint')} onClick={plusOne}>
+                <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('suggestions.plusOne')}
+              </Button>
+            )}
+            {it.candidates.length > 0 && (
+              <Button size="sm" onClick={rematch}>
+                <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('suggestions.rematch')}
+              </Button>
+            )}
+            <Button size="sm" onClick={dismiss}>
+              <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('suggestions.dismiss')}
+            </Button>
+          </>
+        }
+      >
+        {/* two differently styled detail lines plus the candidate list - more
+            than the card's single `detail` slot, so they ride along as children */}
         {it.sequel && (
           <p className="mt-1 truncate text-[11px] text-t-muted">{t('suggestions.missing')}: {mediaTitle(it.sequel)}</p>
         )}
@@ -395,19 +430,19 @@ function SugCard({
             {it.candidates.map((c) => (
               <li key={`${c.serverId}-${c.path}`} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-t-secondary" title={c.path}>
-                  <span className="t-label mr-1">
+                  <Badge className="mr-1">
                     <Server aria-hidden size="1em" />
                     {c.serverName}
-                  </span>
+                  </Badge>
                   {c.path}
                 </span>
                 <span className="flex gap-1.5">
-                  <button className="t-btn t-btn--sm t-btn--primary" onClick={() => onWatch({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })}>
+                  <Button size="sm" variant="primary" onClick={() => onWatch({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })}>
                     <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('watch.add')}
-                  </button>
-                  <button
-                    className="t-btn t-btn--sm"
+                  </Button>
+                  <Button
+                    size="sm"
                     onClick={() =>
                       it.sync?.localPath
                         ? onSync({ serverId: c.serverId, name: it.title, initial: syncFields(it.sync, it.title, c.path) })
@@ -416,37 +451,17 @@ function SugCard({
                   >
                     <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.syncOnce')}
-                  </button>
-                  <button className="t-btn t-btn--sm" onClick={() => navigate(`/remote?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}>
+                  </Button>
+                  <Button size="sm" onClick={() => navigate(`/remote?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}>
                     <FolderOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.open')}
-                  </button>
+                  </Button>
                 </span>
               </li>
             ))}
           </ul>
         )}
-
-        {/* actions on every item */}
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {it.status && (
-            <button className="t-btn t-btn--sm" title={t('suggestions.plusOneHint')} onClick={plusOne}>
-              <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('suggestions.plusOne')}
-            </button>
-          )}
-          {it.candidates.length > 0 && (
-            <button className="t-btn t-btn--sm" onClick={rematch}>
-              <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('suggestions.rematch')}
-            </button>
-          )}
-          <button className="t-btn t-btn--sm" onClick={dismiss}>
-            <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('suggestions.dismiss')}
-          </button>
-        </div>
-      </div>
+      </SuggestionCard>
     </li>
   )
 }
@@ -468,21 +483,21 @@ function ProviderBadges({ providers, links }: { providers: string[]; links: Prov
         const url = (links as Record<string, string | undefined>)[p]
         const label = PROVIDER_LABEL[p] ?? p
         return url ? (
+          // no anchor variant of Badge in the design system, so the linked chip
+          // keeps the class directly
           <a key={p} className="t-label hover:text-accent" href={url} target="_blank" rel="noreferrer">
             {label} <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
           </a>
         ) : (
-          <span key={p} className="t-label">
-            {label}
-          </span>
+          <Badge key={p}>{label}</Badge>
         )
       })}
     </>
   )
 }
 
-// IgnoredModal lists ignored items (suggestions + upgrades) in an overlay and
-// restores them. Backdrop click or Escape closes.
+// IgnoredModal lists ignored items (suggestions + upgrades) and restores them.
+// Backdrop click or Escape closes - both come from the design system's Dialog.
 function IgnoredModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -494,39 +509,33 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
     qc.invalidateQueries({ queryKey: ['suggestions'] })
   }
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-[10vh]"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('suggestions.ignored')}
-      onClick={onClose}
-    >
-      <div className="t-panel w-full max-w-lg p-4" onClick={(e) => e.stopPropagation()}>
+    <Dialog onClose={onClose} width="max-w-lg" aria-label={t('suggestions.ignored')}>
+      <div className="p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-display text-sm font-semibold tracking-wider">{t('suggestions.ignored')}</h3>
-          <button className="t-btn t-btn--sm" onClick={onClose} aria-label={t('common.cancel')}>
+          <Button size="sm" onClick={onClose} aria-label={t('common.cancel')}>
             <X aria-hidden size="1.2em" />
-          </button>
+          </Button>
         </div>
         {!items.length ? (
-          <p className="t-label">{t('suggestions.noIgnored')}</p>
+          <Badge>{t('suggestions.noIgnored')}</Badge>
         ) : (
           <ul className="max-h-[60vh] space-y-1 overflow-y-auto">
             {items.map((d) => (
               <li key={`${d.kind}-${d.refKey}`} className="flex items-center justify-between gap-2 text-sm">
                 <span className="min-w-0 truncate">
-                  {d.label || d.refKey} <span className="t-label">{d.kind}</span>
+                  {d.label || d.refKey} <Badge>{d.kind}</Badge>
                 </span>
-                <button className="t-btn t-btn--sm shrink-0" onClick={() => restore(d)}>
+                <Button size="sm" className="shrink-0" onClick={() => restore(d)}>
                   <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('suggestions.restore')}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
         )}
       </div>
-    </div>
+    </Dialog>
   )
 }
 
@@ -577,8 +586,10 @@ function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: str
   return (
     <div className={`min-w-0 ${accent ? 'border border-accent p-1.5' : ''} ${muted ? 'text-t-muted' : ''}`}>
       <div className="flex items-center gap-1.5">
-        <span className={`t-label shrink-0 ${accent ? 't-label--accent' : ''}`}>{label}</span>
-        <span className="t-label shrink-0">{v.serverName ? v.serverName : t('suggestions.localPlex')}</span>
+        <Badge tone={accent ? 'accent' : 'neutral'} className="shrink-0">
+          {label}
+        </Badge>
+        <Badge className="shrink-0">{v.serverName ? v.serverName : t('suggestions.localPlex')}</Badge>
       </div>
       <div className="mt-0.5 break-all font-mono text-[11px]" title={v.folder}>
         {v.folder}
@@ -618,24 +629,21 @@ function UpgradesSection() {
   const items = data?.upgrades ?? []
   return (
     <div className="space-y-3">
-      {notice && <p className="t-label t-label--accent">{notice}</p>}
+      {notice && <Badge tone="accent">{notice}</Badge>}
       {dims && (
-        <div className="t-panel px-3 py-2.5">
+        <Panel className="px-3 py-2.5">
           <span className="text-sm text-t-secondary">{t('suggestions.upgradeWhat')}</span>
           <div className="mt-2 flex flex-wrap gap-4">
             {(['res', 'sub', 'dub'] as const).map((k) => (
-              <label key={k} className="flex items-center gap-1.5 text-sm">
-                <input type="checkbox" checked={dims[k]} onChange={() => toggle(k)} />
-                {t(`suggestions.upgradeWhat_${k}`)}
-              </label>
+              <Checkbox key={k} checked={dims[k]} onChange={() => toggle(k)} label={t(`suggestions.upgradeWhat_${k}`)} />
             ))}
           </div>
-        </div>
+        </Panel>
       )}
       {isLoading ? (
         <SkeletonCards />
       ) : !items.length ? (
-        <p className="t-label">{t('suggestions.noUpgrades')}</p>
+        <Badge>{t('suggestions.noUpgrades')}</Badge>
       ) : (
         (() => {
           const render = (u: UpgradeSuggestion, i: number) => {
@@ -648,31 +656,30 @@ function UpgradesSection() {
             t('watch.infoLocal', { quality: variantQuality(u.from) }),
           ]
           return (
-            <div key={u.key || `${u.showKey}-${u.season}-${i}`} className="t-panel flex flex-wrap items-start gap-4 p-3">
-              {u.cover ? (
-                <img src={u.cover} alt="" className="h-20 w-14 shrink-0 object-cover" />
-              ) : (
-                <div className="t-hatch h-20 w-14 shrink-0" />
-              )}
+            // handwritten instead of SuggestionCard: the heading row pairs the
+            // title with the right-aligned diff chips, which the card's plain
+            // <h4> slot cannot hold
+            <Panel key={u.key || `${u.showKey}-${u.season}-${i}`} className="flex flex-wrap items-start gap-4 p-3">
+              <Cover src={u.cover} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
                   <h4 className="min-w-0 truncate font-display text-sm font-semibold tracking-wider">{u.title}</h4>
                   <div className="flex shrink-0 flex-wrap gap-1">
                     {variantDiff(u.from, chosen, dims, t).map((d, j) => (
-                      <span key={j} className="t-label t-label--accent">
+                      <Badge key={j} tone="accent">
                         {d}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 </div>
                 <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                  {seasonLabel && <span className="t-label t-label--accent">{seasonLabel}</span>}
+                  {seasonLabel && <Badge tone="accent">{seasonLabel}</Badge>}
                   <ProviderBadges providers={u.providers ?? []} links={u.links ?? {}} />
                   {u.format && (
-                    <span className="t-label">
+                    <Badge>
                       {u.format === 'MOVIE' ? <Clapperboard aria-hidden size="1em" /> : <Tv aria-hidden size="1em" />}
                       {u.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}
-                    </span>
+                    </Badge>
                   )}
                   {u.episodes ? (
                     <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
@@ -709,9 +716,9 @@ function UpgradesSection() {
                                   checked={isChosen(o)}
                                   onChange={() => setChoice((c) => ({ ...c, [u.key]: o }))}
                                 />
-                                <span className={`t-label ${isChosen(o) ? 't-label--accent' : ''}`}>
+                                <Badge tone={isChosen(o) ? 'accent' : 'neutral'}>
                                   {o.serverName ? o.serverName : t('suggestions.localPlex')}
-                                </span>
+                                </Badge>
                               </span>
                               <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-t-secondary" title={o.folder}>
                                 {o.folder}
@@ -719,9 +726,9 @@ function UpgradesSection() {
                               <span className="flex shrink-0 flex-wrap items-center gap-1 text-[11px] text-t-muted">
                                 {variantQuality(o)}
                                 {diff.map((d, k) => (
-                                  <span key={k} className="t-label t-label--accent">
+                                  <Badge key={k} tone="accent">
                                     {d}
-                                  </span>
+                                  </Badge>
                                 ))}
                               </span>
                             </label>
@@ -733,36 +740,37 @@ function UpgradesSection() {
                 )}
                 <div className="mt-2 flex flex-wrap justify-end gap-1.5">
                   {u.sync?.localPath && (
-                    <button
-                      className="t-btn t-btn--sm t-btn--primary"
+                    <Button
+                      size="sm"
+                      variant="primary"
                       onClick={() =>
                         setSync({ serverId: chosen.serverId, name: u.title, initial: syncFields(u.sync!, u.title, chosen.folder), info: syncInfo })
                       }
                     >
                       <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('plex.syncOnce')}
-                    </button>
+                    </Button>
                   )}
                   {u.links?.plex && (
-                    <a className="t-btn t-btn--sm" href={u.links.plex} target="_blank" rel="noreferrer">
+                    <ButtonLink size="sm" href={u.links.plex} target="_blank" rel="noreferrer">
                       <ExternalLink aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('suggestions.openPlex')}
-                    </a>
+                    </ButtonLink>
                   )}
-                  <button className="t-btn t-btn--sm" onClick={() => dismiss(u)}>
+                  <Button size="sm" onClick={() => dismiss(u)}>
                     <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('suggestions.dismiss')}
-                  </button>
-                  <button
-                    className="t-btn t-btn--sm"
+                  </Button>
+                  <Button
+                    size="sm"
                     onClick={() => navigate(`/remote?server=${u.to.serverId}&path=${encodeURIComponent(u.to.folder)}`)}
                   >
                     <FolderOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.openBrowser')}
-                  </button>
+                  </Button>
                 </div>
               </div>
-            </div>
+            </Panel>
           )
           }
           return (
@@ -820,21 +828,19 @@ function TabBar<T extends string>({
     els?.[next]?.focus()
   }
   return (
-    <div role="tablist" aria-label={label} className="t-tabs mb-4">
+    <Tabs aria-label={label} className="mb-4">
       {tabs.map((tb, i) => (
-        <button
+        <Tab
           key={tb.key}
-          role="tab"
-          aria-selected={active === tb.key}
+          selected={active === tb.key}
           tabIndex={active === tb.key ? 0 : -1}
-          className="t-tab"
           onClick={() => onChange(tb.key)}
           onKeyDown={(e) => onKey(e, i)}
         >
           {tb.icon && <tb.icon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />}
           {tb.label}
-        </button>
+        </Tab>
       ))}
-    </div>
+    </Tabs>
   )
 }

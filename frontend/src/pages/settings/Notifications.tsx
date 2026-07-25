@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Panel, Select } from '@weebsync/design-system'
 import { api } from '../../api'
 import { pushSubscription, pushSupported, subscribePush, unsubscribePush } from '../../push'
 
@@ -45,8 +46,8 @@ function EmailPrefsSection() {
   }
 
   return (
-    <section className="t-panel mb-4 p-5" aria-label={t('settings.emailNotifications')}>
-      <span className="t-label t-label--accent">{t('settings.emailNotifications')}</span>
+    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.emailNotifications')}>
+      <Badge tone="accent">{t('settings.emailNotifications')}</Badge>
       {!data.smtpAvailable ? (
         <p className="mt-2 text-sm text-t-secondary">{t('settings.emailNotConfigured')}</p>
       ) : (
@@ -69,7 +70,7 @@ function EmailPrefsSection() {
           {error}
         </p>
       )}
-    </section>
+    </Panel>
   )
 }
 
@@ -107,8 +108,8 @@ function PushSection() {
   }
 
   return (
-    <section className="t-panel mb-4 p-5" aria-label={t('settings.notifications')}>
-      <span className="t-label t-label--accent">{t('settings.notifications')}</span>
+    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.notifications')}>
+      <Badge tone="accent">{t('settings.notifications')}</Badge>
       <label className="mt-3 flex items-center gap-2 text-sm text-t-secondary">
         <input
           type="checkbox"
@@ -121,9 +122,9 @@ function PushSection() {
       <p className="mt-2 text-xs text-t-muted">{t('settings.pushHint')}</p>
       {enabled && (
         <p className="mt-2 flex items-center gap-3">
-          <button type="button" className="t-btn t-btn--sm" onClick={sendTest}>
+          <Button size="sm" onClick={sendTest}>
             {t('settings.pushTest')}
-          </button>
+          </Button>
           {sent && <span className="text-xs text-t-muted">{t('settings.pushTestSent')}</span>}
         </p>
       )}
@@ -133,7 +134,7 @@ function PushSection() {
         </p>
       )}
       {state === 'unsupported' && <p className="mt-1 text-xs text-t-muted">{t('settings.pushUnsupported')}</p>}
-    </section>
+    </Panel>
   )
 }
 
@@ -163,8 +164,8 @@ function NotifyPrefsSection() {
   const setFreq = (freq: string) => save.mutate({ push: data.push, freq })
 
   return (
-    <section className="t-panel mb-4 p-5" aria-label={t('settings.pushCategories')}>
-      <span className="t-label t-label--accent">{t('settings.pushCategories')}</span>
+    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.pushCategories')}>
+      <Badge tone="accent">{t('settings.pushCategories')}</Badge>
       {data.pushAvailable ? (
         <div className="mt-3 space-y-1.5">
           {data.available.map((cat) => (
@@ -179,13 +180,13 @@ function NotifyPrefsSection() {
       )}
       <label className="mt-4 flex items-center gap-2 text-sm text-t-secondary">
         {t('settings.notifyFreq')}
-        <select className="t-input t-input--sm" value={data.freq} onChange={(e) => setFreq(e.target.value)}>
+        <Select size="sm" value={data.freq} onChange={(e) => setFreq(e.target.value)}>
           <option value="instant">{t('settings.freqInstant')}</option>
           <option value="hourly">{t('settings.freqHourly')}</option>
           <option value="daily">{t('settings.freqDaily')}</option>
-        </select>
+        </Select>
       </label>
       <p className="mt-2 text-xs text-t-muted">{t('settings.notifyFreqHint')}</p>
-    </section>
+    </Panel>
   )
 }

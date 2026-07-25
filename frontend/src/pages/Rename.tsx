@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Panel } from '@weebsync/design-system'
 import { api, type RenamePair } from '../api'
 import { LocalPicker } from '../components/FileBrowser'
 import RenameOptions, { type RenameRule } from '../components/RenameOptions'
@@ -115,20 +116,20 @@ export default function Rename() {
     <div>
       <header className="mb-6">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('rename.title')}</h2>
-        <span className="t-label mt-1">{t('rename.sub')}</span>
+        <Badge className="mt-1">{t('rename.sub')}</Badge>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(16rem,0.5fr)_1fr]">
-        <section className="t-panel flex h-96 min-w-0 flex-col" aria-label={t('rename.folderSection')}>
+        <Panel as="section" className="flex h-96 min-w-0 flex-col" aria-label={t('rename.folderSection')}>
           <div className="border-b border-border-subtle px-3 py-2">
-            <span className="t-label">
+            <Badge>
               {t('rename.folder')}: downloads/{path}
-            </span>
+            </Badge>
           </div>
           <LocalPicker path={path} onNavigate={setPath} />
-        </section>
+        </Panel>
 
-        <section className="t-panel min-w-0 space-y-3 p-4" aria-label={t('rename.rules')}>
+        <Panel as="section" className="min-w-0 space-y-3 p-4" aria-label={t('rename.rules')}>
           <RenameOptions
             rule={rule}
             onChange={(patch) => setRule({ ...rule, ...patch })}
@@ -142,14 +143,15 @@ export default function Rename() {
           />
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-4">
-            <button
-              className="t-btn t-btn--primary t-cut"
+            <Button
+              variant="primary"
+              cut
               disabled={picked.size === 0 || doApply.isPending}
               onClick={() => doApply.mutate()}
             >
               {t('rename.apply')}
-            </button>
-            {previewBusy && <span className="t-label">{t('app.loading')}</span>}
+            </Button>
+            {previewBusy && <Badge>{t('app.loading')}</Badge>}
             {!previewBusy && preview && (
               <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>
             )}
@@ -159,11 +161,11 @@ export default function Rename() {
               {previewErr || (doApply.error as Error).message}
             </p>
           )}
-        </section>
+        </Panel>
       </div>
 
       {rows && (
-        <section className="t-panel mt-4 overflow-x-auto" aria-label={t('rename.result')}>
+        <Panel as="section" className="mt-4 overflow-x-auto" aria-label={t('rename.result')}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle text-left">
@@ -178,10 +180,10 @@ export default function Rename() {
                   )}
                 </th>
                 <th className="px-3 py-2">
-                  <span className="t-label">{t('rename.old')}</span>
+                  <Badge>{t('rename.old')}</Badge>
                 </th>
                 <th className="px-3 py-2">
-                  <span className="t-label">{applied ? t('rename.applied') : t('rename.new')}</span>
+                  <Badge>{applied ? t('rename.applied') : t('rename.new')}</Badge>
                 </th>
               </tr>
             </thead>
@@ -217,7 +219,7 @@ export default function Rename() {
               ))}
             </tbody>
           </table>
-        </section>
+        </Panel>
       )}
     </div>
   )

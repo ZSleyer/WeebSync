@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { AlertTriangle, Check, FileJson, Upload } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, ButtonLabel, Field, Input, Panel, Select } from '@weebsync/design-system'
 import { api, type ServerInfo } from '../api'
 import PathInput from './PathInput'
 
@@ -140,7 +141,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
 
   if (result) {
     return (
-      <div className="t-panel p-5">
+      <Panel className="p-5">
         <p className="mb-2 flex items-center gap-2 text-sm text-ok" role="status">
           <Check aria-hidden size="1em" />
           {t('legacy.doneCount', { imported: result.imported, skipped: result.skipped })}
@@ -152,13 +153,13 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
             ))}
           </ul>
         )}
-      </div>
+      </Panel>
     )
   }
 
   if (!plan) {
     return (
-      <div className="t-panel p-5">
+      <Panel className="p-5">
         <p className="mb-1 text-sm text-t-secondary">{t('legacy.intro')}</p>
         <p className="mb-4 text-xs text-t-muted">
           {t('legacy.upstreamNote')}{' '}
@@ -168,7 +169,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
         </p>
         {errorBox}
         {/* the real input is sr-only, so mirror its focus ring onto the label */}
-        <label className="t-btn t-btn--primary t-cut inline-flex cursor-pointer items-center focus-within:outline focus-within:outline-1 focus-within:outline-offset-2 focus-within:outline-accent">
+        <ButtonLabel variant="primary" cut>
           <Upload aria-hidden size="1em" className="mr-2" />
           {t('legacy.pickFile')}
           <input
@@ -177,9 +178,9 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
             className="sr-only"
             onChange={(e) => e.target.files?.[0] && pickFile(e.target.files[0])}
           />
-        </label>
+        </ButtonLabel>
         <p className="mt-2 text-xs text-t-muted">{t('legacy.pickFileHint')}</p>
-      </div>
+      </Panel>
     )
   }
 
@@ -194,83 +195,63 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
         </p>
       </div>
 
-      <section className="t-panel space-y-3 p-5" aria-label={t('legacy.serverSection')}>
-        <span className="t-label t-label--accent">{t('legacy.serverSection')}</span>
+      <Panel as="section" className="space-y-3 p-5" aria-label={t('legacy.serverSection')}>
+        <Badge tone="accent">{t('legacy.serverSection')}</Badge>
         {servers.length > 0 && (
-          <label className="t-field block text-xs text-t-muted">
-            {t('legacy.targetServer')}
-            <span className="t-select-wrap block">
-              <select className="t-select" value={serverId} onChange={(e) => setServerId(Number(e.target.value))}>
-                <option value={0}>{t('legacy.newServer')}</option>
-                {servers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.protocol})
-                  </option>
-                ))}
-              </select>
-            </span>
-          </label>
+          <Field label={t('legacy.targetServer')} className="block">
+            <Select value={serverId} onChange={(e) => setServerId(Number(e.target.value))}>
+              <option value={0}>{t('legacy.newServer')}</option>
+              {servers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.protocol})
+                </option>
+              ))}
+            </Select>
+          </Field>
         )}
         {serverId === 0 && (
           <div className="grid grid-cols-2 gap-3">
-            <label className="t-field col-span-2 text-xs text-t-muted">
-              {t('servers.name')}
-              <input name="name" className="t-input" required defaultValue={plan.server.name} />
-            </label>
-            <label className="t-field text-xs text-t-muted">
-              {t('servers.protocol')}
-              <span className="t-select-wrap block">
-                <select name="protocol" className="t-select" defaultValue="sftp">
-                  <option value="sftp">SFTP (SSH)</option>
-                  <option value="ftps">FTPS (TLS)</option>
-                  <option value="ftp">FTP</option>
-                </select>
-              </span>
-            </label>
-            <label className="t-field text-xs text-t-muted">
-              {t('servers.port')}
-              <input
-                name="port"
-                className="t-input font-mono"
-                type="number"
-                min={1}
-                max={65535}
-                defaultValue={plan.server.port}
-              />
-            </label>
-            <label className="t-field col-span-2 text-xs text-t-muted">
-              {t('servers.host')}
-              <input name="host" className="t-input font-mono" required defaultValue={plan.server.host} />
-            </label>
-            <label className="t-field text-xs text-t-muted">
-              {t('servers.user')}
-              <input name="username" className="t-input font-mono" required defaultValue={plan.server.username} />
-            </label>
-            <label className="t-field text-xs text-t-muted">
-              {t('servers.password')}
-              <input
+            <Field label={t('servers.name')} className="col-span-2">
+              <Input name="name" required defaultValue={plan.server.name} />
+            </Field>
+            <Field label={t('servers.protocol')}>
+              <Select name="protocol" defaultValue="sftp">
+                <option value="sftp">SFTP (SSH)</option>
+                <option value="ftps">FTPS (TLS)</option>
+                <option value="ftp">FTP</option>
+              </Select>
+            </Field>
+            <Field label={t('servers.port')}>
+              <Input name="port" className="font-mono" type="number" min={1} max={65535} defaultValue={plan.server.port} />
+            </Field>
+            <Field label={t('servers.host')} className="col-span-2">
+              <Input name="host" className="font-mono" required defaultValue={plan.server.host} />
+            </Field>
+            <Field label={t('servers.user')}>
+              <Input name="username" className="font-mono" required defaultValue={plan.server.username} />
+            </Field>
+            <Field label={t('servers.password')}>
+              <Input
                 name="password"
-                className="t-input"
                 type="password"
                 required
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-            </label>
-            <label className="t-field col-span-2 text-xs text-t-muted">
-              {t('servers.rootPath')}
-              <input name="rootPath" className="t-input font-mono" defaultValue="/" />
-            </label>
+            </Field>
+            <Field label={t('servers.rootPath')} className="col-span-2">
+              <Input name="rootPath" className="font-mono" defaultValue="/" />
+            </Field>
             <p className="col-span-2 text-xs text-t-muted">
               {plan.server.hasPassword ? t('legacy.passwordCarried') : t('legacy.passwordMissing')}
             </p>
           </div>
         )}
-      </section>
+      </Panel>
 
-      <section className="t-panel space-y-3 p-5" aria-label={t('legacy.targetSection')}>
-        <span className="t-label t-label--accent">{t('legacy.targetSection')}</span>
+      <Panel as="section" className="space-y-3 p-5" aria-label={t('legacy.targetSection')}>
+        <Badge tone="accent">{t('legacy.targetSection')}</Badge>
         <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="legacy-root">
           {t('legacy.localRoot')}
         </label>
@@ -287,19 +268,19 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
             queryKey={['local']}
             ariaLabel={t('legacy.localRoot')}
           />
-          <button type="button" className="t-btn shrink-0" disabled={busy} onClick={() => preview(cfg, localRoot)}>
+          <Button className="shrink-0" disabled={busy} onClick={() => preview(cfg, localRoot)}>
             {t('legacy.applyRoot')}
-          </button>
+          </Button>
         </div>
         <p className="text-xs text-t-muted">{t('legacy.localRootHint')}</p>
         <p className="text-xs text-t-muted">{t('legacy.intervalInfo', { min: plan.intervalMin })}</p>
         {(plan.dropped?.length ?? 0) > 0 && (
           <p className="text-xs text-t-muted">{t('legacy.dropped', { keys: plan.dropped?.join(', ') })}</p>
         )}
-      </section>
+      </Panel>
 
-      <section className="t-panel space-y-3 p-5" aria-label={t('legacy.watchSection')}>
-        <span className="t-label t-label--accent">{t('legacy.watchSection')}</span>
+      <Panel as="section" className="space-y-3 p-5" aria-label={t('legacy.watchSection')}>
+        <Badge tone="accent">{t('legacy.watchSection')}</Badge>
         <p className="text-xs text-t-muted">{t('legacy.filterInfo')}</p>
         <ul className="divide-y divide-border-subtle border border-border-subtle">
           {plan.watches.map((w) => (
@@ -338,12 +319,13 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
               {/* only a positive offset means absolute numbering (episode 1156
                   of an endless series); a negative one just shifts a part */}
               {w.offset > 0 && (
+                /* not <Field>: that one bakes in text-xs, this caption is 11px */
                 <label className="t-field mt-2 block pl-6 text-[11px] text-t-muted">
                   {t('legacy.fromEpisode', { offset: w.offset })}
-                  <input
+                  <Input
                     type="number"
                     min={0}
-                    className="t-input w-24 font-mono"
+                    className="w-24 font-mono"
                     value={fromEp[w.id] ?? w.fromEpisode}
                     onChange={(e) => setFromEp((f) => ({ ...f, [w.id]: Number(e.target.value) || 0 }))}
                   />
@@ -352,16 +334,16 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
             </li>
           ))}
         </ul>
-      </section>
+      </Panel>
 
       {errorBox}
       <div className="flex justify-end gap-2">
-        <button type="button" className="t-btn" onClick={() => setPlan(null)} disabled={busy}>
+        <Button onClick={() => setPlan(null)} disabled={busy}>
           {t('legacy.restart')}
-        </button>
-        <button className="t-btn t-btn--primary t-cut" disabled={busy}>
+        </Button>
+        <Button type="submit" variant="primary" cut disabled={busy}>
           {t('legacy.commit')}
-        </button>
+        </Button>
       </div>
     </form>
   )

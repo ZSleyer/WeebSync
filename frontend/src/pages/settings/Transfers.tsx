@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Badge, Input, Panel } from '@weebsync/design-system'
 import { EnvBadge, SaveBar, useSettingsForm } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
@@ -10,13 +11,13 @@ export default function Transfers() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.instance')}>
-        <span className="t-label t-label--accent">{t('settings.instance')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.instance')}>
+        <Badge tone="accent">{t('settings.instance')}</Badge>
         <label className="mt-3 block text-xs text-t-muted">
           {t('settings.baseUrl')}
           <EnvBadge show={locked('baseUrl')} />
-          <input
-            className="t-input mt-1 font-mono"
+          <Input
+            className="mt-1 font-mono"
             type="url"
             placeholder="https://weebsync.example.com"
             value={form.baseUrl}
@@ -25,15 +26,15 @@ export default function Transfers() {
           />
           <span className="mt-1 block">{t('settings.baseUrlHint')}</span>
         </label>
-      </section>
+      </Panel>
 
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.transfers')}>
-        <span className="t-label t-label--accent">{t('settings.transfers')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.transfers')}>
+        <Badge tone="accent">{t('settings.transfers')}</Badge>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <label className="text-xs text-t-muted">
             {t('settings.maxConcurrent')}
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               type="number"
               min={1}
               max={20}
@@ -43,8 +44,8 @@ export default function Transfers() {
           </label>
           <label className="text-xs text-t-muted">
             {t('settings.globalLimit')}
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               type="number"
               min={0}
               value={Math.round(form.globalRateLimit / 1024)}
@@ -53,8 +54,8 @@ export default function Transfers() {
           </label>
           <label className="text-xs text-t-muted">
             {t('settings.watchInterval')}
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               type="number"
               min={5}
               max={1440}
@@ -63,7 +64,7 @@ export default function Transfers() {
             />
           </label>
         </div>
-      </section>
+      </Panel>
       <SaveBar form={form} save={save} saved={saved} />
     </>
   )

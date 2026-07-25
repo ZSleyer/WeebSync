@@ -22,6 +22,7 @@ import {
 } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Badge, Button } from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents } from './hooks'
 import Loading from './components/Loading'
@@ -201,6 +202,10 @@ function Shell({ email }: { email: string }) {
     window.location.href = '/'
   }
 
+  // hand-written, not navItemClass(): the shell's rail and tab bar carry more
+  // than the design system's sidebar/bottomTab variants - a wider icon gap and
+  // taller rows on the rail, a 3.33rem touch target plus truncation on the tab
+  // bar. Migrating them would shrink the touch targets.
   const navLink = (n: (typeof NAV)[number], mobile: boolean) => (
     <NavLink
       key={n.to}
@@ -236,7 +241,7 @@ function Shell({ email }: { email: string }) {
           <h1 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
             WEEB<span className="text-accent">SYNC</span>
           </h1>
-          <span className="t-label mt-2">{t('app.tagline')}</span>
+          <Badge className="mt-2">{t('app.tagline')}</Badge>
         </div>
         <nav className="flex-1 py-3" aria-label={t('nav.main')}>
           {NAV.map((n) => navLink(n, false))}
@@ -245,10 +250,10 @@ function Shell({ email }: { email: string }) {
           <p className="mb-2 truncate font-mono text-xs text-t-muted" title={email}>
             {email}
           </p>
-          <button className="t-btn t-btn--sm w-full" onClick={logout}>
+          <Button size="sm" className="w-full" onClick={logout}>
             <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('app.logout')}
-          </button>
+          </Button>
         </div>
       </aside>
 
@@ -257,10 +262,10 @@ function Shell({ email }: { email: string }) {
         <h1 className="font-display text-base font-bold tracking-[0.2em] text-t-primary">
           WEEB<span className="text-accent">SYNC</span>
         </h1>
-        <button className="t-btn t-btn--sm" onClick={logout}>
+        <Button size="sm" onClick={logout}>
           <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('app.logout')}
-        </button>
+        </Button>
       </header>
 
       <main className="min-w-0 flex-1 overflow-x-clip p-4 pb-20 lg:p-6 lg:pb-6" key={location.pathname}>

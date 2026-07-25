@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Input, Panel, Select } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
@@ -28,8 +29,8 @@ export default function Security() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.auth')}>
-        <span className="t-label t-label--accent">{t('settings.auth')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.auth')}>
+        <Badge tone="accent">{t('settings.auth')}</Badge>
         <div className="mt-3 grid grid-cols-1 gap-4">
           <label className="flex items-center gap-2 text-sm text-t-secondary">
             <input
@@ -41,8 +42,8 @@ export default function Security() {
           </label>
           <label className="text-xs text-t-muted">
             {t('settings.trustedNetworks')}
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               type="text"
               placeholder="192.168.0.0/16, 10.0.0.0/8"
               value={form.trustedNetworks}
@@ -52,36 +53,34 @@ export default function Security() {
           </label>
           <label className="text-xs text-t-muted">
             {t('settings.authMode')}
-            <span className="t-select-wrap mt-1 max-w-sm">
-              <select
-                className="t-select"
-                value={form.authMode}
-                onChange={(e) => set('authMode', e.target.value as SettingsState['authMode'])}
-              >
-                <option value="password">{t('settings.authModePassword')}</option>
-                <option value="oidc-only" disabled={!form.oidcIssuer}>
-                  {t('settings.authModeOidcOnly')}
-                </option>
-                <option value="oidc-auto" disabled={!form.oidcIssuer}>
-                  {t('settings.authModeOidcAuto')}
-                </option>
-              </select>
-            </span>
+            <Select
+              wrapperClassName="mt-1 max-w-sm"
+              value={form.authMode}
+              onChange={(e) => set('authMode', e.target.value as SettingsState['authMode'])}
+            >
+              <option value="password">{t('settings.authModePassword')}</option>
+              <option value="oidc-only" disabled={!form.oidcIssuer}>
+                {t('settings.authModeOidcOnly')}
+              </option>
+              <option value="oidc-auto" disabled={!form.oidcIssuer}>
+                {t('settings.authModeOidcAuto')}
+              </option>
+            </Select>
           </label>
 
           <fieldset className="border border-border-subtle p-3">
-            <legend className="t-label">
+            <Badge as="legend">
               {t('settings.oidc')} ·{' '}
               <span className={form.oidcEnabled ? 'text-ok' : 'text-t-muted'}>
                 {form.oidcEnabled ? t('settings.oidcActive') : t('settings.oidcInactive')}
               </span>
-            </legend>
+            </Badge>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs text-t-muted sm:col-span-2">
                 {t('settings.oidcProviderName')}
                 <EnvBadge show={locked('oidcProviderName')} />
-                <input
-                  className="t-input mt-1"
+                <Input
+                  className="mt-1"
                   placeholder="Authentik"
                   value={form.oidcProviderName}
                   disabled={locked('oidcProviderName')}
@@ -93,21 +92,21 @@ export default function Security() {
                 {t('settings.oidcIssuer')}
                 <EnvBadge show={locked('oidcIssuer')} />
                 <span className="mt-1 flex gap-2">
-                  <input
-                    className="t-input font-mono"
+                  <Input
+                    className="font-mono"
                     placeholder="https://auth.example.com/application/o/weebsync/"
                     value={form.oidcIssuer}
                     disabled={locked('oidcIssuer')}
                     onChange={(e) => set('oidcIssuer', e.target.value)}
                   />
-                  <button
-                    type="button"
-                    className="t-btn t-btn--sm shrink-0"
+                  <Button
+                    size="sm"
+                    className="shrink-0"
                     disabled={!form.oidcIssuer || locked('oidcIssuer')}
                     onClick={discover}
                   >
                     {t('settings.oidcDiscover')}
-                  </button>
+                  </Button>
                 </span>
                 {discovered && (
                   <span className="mt-1 block" role="status">
@@ -118,8 +117,8 @@ export default function Security() {
               <label className="text-xs text-t-muted">
                 {t('settings.oidcClientId')}
                 <EnvBadge show={locked('oidcClientId')} />
-                <input
-                  className="t-input mt-1 font-mono"
+                <Input
+                  className="mt-1 font-mono"
                   value={form.oidcClientId}
                   disabled={locked('oidcClientId')}
                   onChange={(e) => set('oidcClientId', e.target.value)}
@@ -128,8 +127,8 @@ export default function Security() {
               <label className="text-xs text-t-muted">
                 {t('settings.oidcClientSecret')}
                 <EnvBadge show={locked('oidcClientSecret')} />
-                <input
-                  className="t-input mt-1 font-mono"
+                <Input
+                  className="mt-1 font-mono"
                   type="password"
                   autoComplete="off"
                   placeholder={form.oidcClientSecretSet ? t('settings.secretSet') : t('settings.secretUnset')}
@@ -141,8 +140,8 @@ export default function Security() {
               <label className="text-xs text-t-muted sm:col-span-2">
                 {t('settings.oidcRedirectUrl')}
                 <EnvBadge show={locked('oidcRedirectUrl')} />
-                <input
-                  className="t-input mt-1 font-mono"
+                <Input
+                  className="mt-1 font-mono"
                   placeholder="https://weebsync.example.com/api/auth/oidc/callback"
                   value={form.oidcRedirectUrl}
                   disabled={locked('oidcRedirectUrl')}
@@ -152,8 +151,8 @@ export default function Security() {
               <label className="text-xs text-t-muted sm:col-span-2">
                 {t('settings.oidcClaim')}
                 <EnvBadge show={locked('oidcClaim')} />
-                <input
-                  className="t-input mt-1 font-mono"
+                <Input
+                  className="mt-1 font-mono"
                   placeholder="groups"
                   value={form.oidcClaim}
                   disabled={locked('oidcClaim')}
@@ -164,8 +163,8 @@ export default function Security() {
               <label className="text-xs text-t-muted">
                 {t('settings.oidcAdminValues')}
                 <EnvBadge show={locked('oidcAdminValues')} />
-                <input
-                  className="t-input mt-1 font-mono"
+                <Input
+                  className="mt-1 font-mono"
                   placeholder="admins"
                   value={form.oidcAdminValues}
                   disabled={locked('oidcAdminValues')}
@@ -176,8 +175,8 @@ export default function Security() {
               <label className="text-xs text-t-muted">
                 {t('settings.oidcUserValues')}
                 <EnvBadge show={locked('oidcUserValues')} />
-                <input
-                  className="t-input mt-1 font-mono"
+                <Input
+                  className="mt-1 font-mono"
                   placeholder="users"
                   value={form.oidcUserValues}
                   disabled={locked('oidcUserValues')}
@@ -195,7 +194,7 @@ export default function Security() {
             <p className="mt-2 text-xs text-t-muted">{t('settings.oidcMigrationHint')}</p>
           </fieldset>
         </div>
-      </section>
+      </Panel>
       <SaveBar form={form} save={save} saved={saved} />
       <ApiTokenSection />
       <RateLimitSection />
@@ -243,26 +242,27 @@ function ApiTokenSection() {
   const isSet = tokenSet || !!token
 
   return (
-    <section className="t-panel mb-4 p-5" aria-label={t('settings.apiTokenTitle')}>
-      <span className="t-label t-label--accent">{t('settings.apiTokenTitle')}</span>
+    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.apiTokenTitle')}>
+      <Badge tone="accent">{t('settings.apiTokenTitle')}</Badge>
       <p className="mt-2 text-xs text-t-muted">{t('settings.apiTokenHint')}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className={`t-label ${isSet ? 't-label--ok' : ''}`}>
+        <Badge tone={isSet ? 'ok' : 'neutral'}>
           {isSet ? t('settings.apiTokenSet') : t('settings.apiTokenNotSet')}
-        </span>
-        <button className="t-btn t-btn--sm" disabled={generate.isPending} onClick={() => generate.mutate()}>
+        </Badge>
+        <Button size="sm" disabled={generate.isPending} onClick={() => generate.mutate()}>
           {isSet ? t('settings.apiTokenRegenerate') : t('settings.apiTokenGenerate')}
-        </button>
+        </Button>
         {isSet && (
-          <button
-            className="t-btn t-btn--sm t-btn--danger"
+          <Button
+            size="sm"
+            variant="danger"
             disabled={revoke.isPending}
             onClick={async () => {
               if (await confirm({ message: t('settings.apiTokenConfirmRevoke'), destructive: true })) revoke.mutate()
             }}
           >
             {t('settings.apiTokenRevoke')}
-          </button>
+          </Button>
         )}
       </div>
       {token && (
@@ -270,17 +270,17 @@ function ApiTokenSection() {
           <label className="text-xs text-t-muted">
             {t('settings.apiTokenShowOnce')}
             <span className="mt-1 flex gap-2">
-              <input className="t-input font-mono" readOnly value={token} onFocus={(e) => e.target.select()} />
-              <button
-                type="button"
-                className="t-btn t-btn--sm shrink-0"
+              <Input className="font-mono" readOnly value={token} onFocus={(e) => e.target.select()} />
+              <Button
+                size="sm"
+                className="shrink-0"
                 onClick={async () => {
                   await navigator.clipboard.writeText(token)
                   setCopied(true)
                 }}
               >
                 {t('settings.apiTokenCopy')}
-              </button>
+              </Button>
             </span>
           </label>
           {copied && (
@@ -295,7 +295,7 @@ function ApiTokenSection() {
           {error}
         </p>
       )}
-    </section>
+    </Panel>
   )
 }
 
@@ -326,8 +326,8 @@ function RateLimitSection() {
 
   const list = ips ?? []
   return (
-    <section className="t-panel mb-4 p-5" aria-label={t('settings.rateLimit')}>
-      <span className="t-label t-label--accent">{t('settings.rateLimit')}</span>
+    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.rateLimit')}>
+      <Badge tone="accent">{t('settings.rateLimit')}</Badge>
       <p className="mt-2 text-xs text-t-muted">{t('settings.rateLimitHint')}</p>
       {list.length === 0 ? (
         <p className="mt-3 text-sm text-t-secondary">{t('settings.rateLimitEmpty')}</p>
@@ -339,18 +339,18 @@ function RateLimitSection() {
                 <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-secondary" title={s.ip}>
                   {s.ip}
                 </span>
-                <span className={`t-label ${s.blocked ? 't-label--err' : ''}`}>
+                <Badge tone={s.blocked ? 'err' : 'neutral'}>
                   {s.blocked ? t('settings.rateLimitBlocked') : t('settings.rateLimitOk')}
-                </span>
-                <button className="t-btn t-btn--sm" disabled={reset.isPending} onClick={() => reset.mutate(s.ip)}>
+                </Badge>
+                <Button size="sm" disabled={reset.isPending} onClick={() => reset.mutate(s.ip)}>
                   {t('settings.rateLimitUnblock')}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
-          <button className="t-btn t-btn--sm mt-3" disabled={resetAll.isPending} onClick={() => resetAll.mutate()}>
+          <Button size="sm" className="mt-3" disabled={resetAll.isPending} onClick={() => resetAll.mutate()}>
             {t('settings.rateLimitUnblockAll')}
-          </button>
+          </Button>
         </>
       )}
       {error && (
@@ -358,6 +358,6 @@ function RateLimitSection() {
           {error}
         </p>
       )}
-    </section>
+    </Panel>
   )
 }

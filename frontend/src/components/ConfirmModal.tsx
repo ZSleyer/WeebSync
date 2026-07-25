@@ -1,6 +1,7 @@
 import { Check, Trash2, X } from 'lucide-react'
-import { useEffect, useId, useRef } from 'react'
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Button, Dialog } from '@weebsync/design-system'
 
 export interface ConfirmOptions {
   title?: string
@@ -10,10 +11,9 @@ export interface ConfirmOptions {
   destructive?: boolean
 }
 
-// Custom confirmation modal on the native <dialog> (same look/behaviour as
-// WatchDialog): CRT reveal, backdrop-click and Escape both cancel. The decision
-// is read on the dialog's close event so the exit stays consistent with the
-// rest of the app. Controlled: the parent unmounts it after onConfirm/onCancel.
+// Custom confirmation modal on the design system's <Dialog> (same mechanics as
+// every other modal): CRT reveal, backdrop-click and Escape both cancel.
+// Controlled: the parent unmounts it after onConfirm/onCancel.
 export default function ConfirmModal({
   title,
   message,
@@ -25,62 +25,41 @@ export default function ConfirmModal({
 }: ConfirmOptions & { onConfirm: () => void; onCancel: () => void }) {
   const { t } = useTranslation()
   const titleId = useId()
-  const ref = useRef<HTMLDialogElement>(null)
-  const confirmed = useRef(false)
-  const backdropDown = useRef(false) // pointerdown started on the backdrop, not a drag out of a button
-  useEffect(() => {
-    ref.current?.showModal()
-  }, [])
-  const close = (ok: boolean) => {
-    confirmed.current = ok
-    ref.current?.close()
-  }
+  // Escape and the backdrop both close the dialog, and both mean "cancel";
+  // the two buttons report their decision and let the parent unmount us.
   return (
-    <dialog
-      ref={ref}
-      className="w-full max-w-md p-0"
-      aria-labelledby={titleId}
-      onClose={() => (confirmed.current ? onConfirm() : onCancel())}
-      onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
-      onClick={(e) => e.target === ref.current && backdropDown.current && close(false)}
-    >
-      <div className={`flex flex-col ${destructive ? 't-panel--danger' : ''}`}>
-        <header className="flex items-center gap-2 border-b border-border-subtle px-5 py-4">
-          {destructive && (
-            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-err">
-              <path
-                d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+    <Dialog onClose={onCancel} danger={destructive} width="max-w-md" aria-labelledby={titleId}>
+      <header className="flex items-center gap-2 border-b border-border-subtle px-5 py-4">
+        {destructive && (
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-err">
+            <path
+              d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+        <h3 id={titleId} className="font-display font-semibold tracking-wider">
+          {title ?? t('common.confirmTitle')}
+        </h3>
+      </header>
+      <div className="px-5 py-4 text-sm text-t-secondary">{message}</div>
+      <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
+        <Button onClick={onCancel} autoFocus>
+          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {cancelLabel ?? t('common.cancel')}
+        </Button>
+        <Button cut variant={destructive ? 'danger' : 'primary'} onClick={onConfirm}>
+          {destructive ? (
+            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          ) : (
+            <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           )}
-          <h3 id={titleId} className="font-display font-semibold tracking-wider">
-            {title ?? t('common.confirmTitle')}
-          </h3>
-        </header>
-        <div className="px-5 py-4 text-sm text-t-secondary">{message}</div>
-        <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          <button type="button" className="t-btn" onClick={() => close(false)} autoFocus>
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {cancelLabel ?? t('common.cancel')}
-          </button>
-          <button
-            type="button"
-            className={`t-btn t-cut ${destructive ? 't-btn--danger' : 't-btn--primary'}`}
-            onClick={() => close(true)}
-          >
-            {destructive ? (
-              <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            ) : (
-              <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            )}
-            {confirmLabel ?? t('common.confirm')}
-          </button>
-        </footer>
-      </div>
-    </dialog>
+          {confirmLabel ?? t('common.confirm')}
+        </Button>
+      </footer>
+    </Dialog>
   )
 }

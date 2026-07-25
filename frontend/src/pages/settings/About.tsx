@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Badge, Panel } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useAuth } from '../../hooks'
 
@@ -33,15 +34,15 @@ export default function About() {
 
   return (
     <section className="max-w-xl" aria-label={t('settings.nav.about')}>
-      <div className="t-panel space-y-5 p-5">
+      <Panel className="space-y-5 p-5">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
             WEEB<span className="text-accent">SYNC</span>
           </h2>
           {data && (
-            <span className={`t-label ${data.channel === 'stable' ? 't-label--ok' : data.channel === 'nightly' ? 't-label--accent' : 't-label--warn'}`}>
+            <Badge tone={data.channel === 'stable' ? 'ok' : data.channel === 'nightly' ? 'accent' : 'warn'}>
               {t(`about.channel.${data.channel}`, data.channel)}
-            </span>
+            </Badge>
           )}
           <span className="font-mono text-xs text-t-muted">
             {data?.version}
@@ -104,7 +105,7 @@ export default function About() {
             {t('about.updateCheckToggle')}
           </label>
         )}
-      </div>
+      </Panel>
     </section>
   )
 }

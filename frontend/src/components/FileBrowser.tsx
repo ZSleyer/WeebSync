@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { FolderOpen, FolderPlus, Pencil } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Button, Input } from '@weebsync/design-system'
 import { api, fmtBytes, type Entry } from '../api'
 import FileIcon from './FileIcon'
 import Loading from './Loading'
@@ -165,14 +166,14 @@ export function FileBrowser({
               <FolderOpen aria-hidden size="1em" className="shrink-0 text-accent" />
               <span className="truncate">{t('remote.thisFolder', { name: leafDir.name })}</span>
             </span>
-            <button
-              type="button"
-              className="t-btn t-btn--sm my-1 mr-2 shrink-0"
+            <Button
+              size="sm"
+              className="my-1 mr-2 shrink-0"
               aria-label={t('remote.selectItem', { name: leafDir.name })}
               onClick={() => onSelect!(leafDir)}
             >
               {t('remote.select')}
-            </button>
+            </Button>
           </div>
         )}
         <ul>
@@ -201,14 +202,14 @@ export function FileBrowser({
                     {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>}
                   </button>
                   {selectable && e.isDir && (
-                    <button
-                      type="button"
-                      className="t-btn t-btn--sm my-1 mr-2 shrink-0"
+                    <Button
+                      size="sm"
+                      className="my-1 mr-2 shrink-0"
                       aria-label={t('remote.selectItem', { name: e.name })}
                       onClick={() => onSelect(e)}
                     >
                       {t('remote.select')}
-                    </button>
+                    </Button>
                   )}
                   {actions?.(e)}
                 </li>
@@ -251,18 +252,18 @@ export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p
         <label className="sr-only" htmlFor="mkdir-input">
           {t('remote.newFolder')}
         </label>
-        <input
+        <Input
           id="mkdir-input"
-          className="t-input py-1 text-xs"
+          className="py-1 text-xs"
           placeholder={t('remote.newFolder')}
           value={newDir}
           onChange={(e) => setNewDir(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && mkdir()}
         />
-        <button type="button" className="t-btn t-btn--sm shrink-0" onClick={mkdir}>
+        <Button size="sm" className="shrink-0" onClick={mkdir}>
           <FolderPlus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('remote.createFolder')}
-        </button>
+        </Button>
       </div>
       {mkdirError && (
         <p className="px-2 pb-2 text-xs text-err" role="alert">

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Badge, Input, Panel, Select } from '@weebsync/design-system'
 import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
@@ -10,15 +11,15 @@ export default function Smtp() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.email')}>
-        <span className="t-label t-label--accent">{t('settings.email')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.email')}>
+        <Badge tone="accent">{t('settings.email')}</Badge>
         <p className="mt-2 text-xs text-t-muted">{t('settings.emailHint')}</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="text-xs text-t-muted sm:col-span-2">
             {t('settings.smtpHost')}
             <EnvBadge show={locked('smtpHost')} />
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               placeholder="smtp.example.com"
               value={form.smtpHost}
               disabled={locked('smtpHost')}
@@ -28,8 +29,8 @@ export default function Smtp() {
           <label className="text-xs text-t-muted">
             {t('settings.smtpPort')}
             <EnvBadge show={locked('smtpPort')} />
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               type="number"
               min={1}
               max={65535}
@@ -42,24 +43,22 @@ export default function Smtp() {
           <label className="text-xs text-t-muted">
             {t('settings.smtpSecurity')}
             <EnvBadge show={locked('smtpSecurity')} />
-            <span className="t-select-wrap mt-1">
-              <select
-                className="t-select"
-                value={form.smtpSecurity}
-                disabled={locked('smtpSecurity')}
-                onChange={(e) => set('smtpSecurity', e.target.value as SettingsState['smtpSecurity'])}
-              >
-                <option value="starttls">STARTTLS (587)</option>
-                <option value="tls">TLS (465)</option>
-                <option value="none">{t('settings.smtpSecurityNone')}</option>
-              </select>
-            </span>
+            <Select
+              wrapperClassName="mt-1"
+              value={form.smtpSecurity}
+              disabled={locked('smtpSecurity')}
+              onChange={(e) => set('smtpSecurity', e.target.value as SettingsState['smtpSecurity'])}
+            >
+              <option value="starttls">STARTTLS (587)</option>
+              <option value="tls">TLS (465)</option>
+              <option value="none">{t('settings.smtpSecurityNone')}</option>
+            </Select>
           </label>
           <label className="text-xs text-t-muted">
             {t('settings.smtpUsername')}
             <EnvBadge show={locked('smtpUsername')} />
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               autoComplete="off"
               value={form.smtpUsername}
               disabled={locked('smtpUsername')}
@@ -69,8 +68,8 @@ export default function Smtp() {
           <label className="text-xs text-t-muted">
             {t('settings.smtpPassword')}
             <EnvBadge show={locked('smtpPassword')} />
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               type="password"
               autoComplete="off"
               placeholder={form.smtpPasswordSet ? t('settings.secretSet') : t('settings.secretUnset')}
@@ -82,8 +81,8 @@ export default function Smtp() {
           <label className="text-xs text-t-muted sm:col-span-2">
             {t('settings.smtpFrom')}
             <EnvBadge show={locked('smtpFrom')} />
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               placeholder="weebsync@example.com"
               value={form.smtpFrom}
               disabled={locked('smtpFrom')}
@@ -92,7 +91,7 @@ export default function Smtp() {
             <span className="mt-1 block">{t('settings.smtpFromHint')}</span>
           </label>
         </div>
-      </section>
+      </Panel>
       <SaveBar form={form} save={save} saved={saved} />
     </>
   )
