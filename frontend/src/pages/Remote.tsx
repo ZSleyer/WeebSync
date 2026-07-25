@@ -1009,8 +1009,10 @@ function DetailDialog({
       aria-label={t('remote.detailsFor', { name: mediaTitle(m) })}
       onClose={onClose}
     >
-      {/* close button stays reachable while the dialog scrolls */}
-      <div className="sticky top-2 z-10 h-0 text-right">
+      {/* close button stays reachable while the dialog scrolls - below the
+          sheet breakpoint the Dialog draws its own, so this one would be the
+          second X in the same corner */}
+      <div className="sticky top-2 z-10 h-0 text-right max-sm:hidden">
         <Button size="sm" className="mr-2" aria-label={t('remote.close')} onClick={onClose}>
           <X aria-hidden size="1.2em" />
         </Button>

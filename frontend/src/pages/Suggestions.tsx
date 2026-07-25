@@ -513,7 +513,8 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
       <div className="p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-display text-sm font-semibold tracking-wider">{t('suggestions.ignored')}</h3>
-          <Button size="sm" onClick={onClose} aria-label={t('common.cancel')}>
+          {/* the sheet brings its own close button on phones */}
+          <Button size="sm" className="max-sm:hidden" onClick={onClose} aria-label={t('common.cancel')}>
             <X aria-hidden size="1.2em" />
           </Button>
         </div>
