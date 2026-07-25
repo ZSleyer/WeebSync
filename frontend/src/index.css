@@ -294,6 +294,25 @@ body {
 .t-label--warn  { border-color: color-mix(in srgb, var(--accent-yellow) 55%, transparent); color: var(--accent-yellow); }
 .t-label--err   { border-color: color-mix(in srgb, var(--accent-red) 55%, transparent); color: var(--accent-red); }
 
+/* An interactive chip has to look interactive. The gap badge is the only way
+   into the episode list, and as a chip among decorative chips nothing said it
+   could be clicked. currentColor picks up whichever tone the chip carries, so
+   this works for every variant without repeating them. */
+button.t-label,
+a.t-label {
+  cursor: pointer;
+  transition: background-color 120ms, border-color 120ms;
+}
+button.t-label:hover,
+a.t-label:hover {
+  border-color: currentColor;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  button.t-label,
+  a.t-label { transition: none; }
+}
+
 /* Section divider with a trailing count: chip, hairline rule, number. One
    fixed row height so a divider reads the same in every list. */
 .t-divider {
