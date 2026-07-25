@@ -689,10 +689,15 @@ export function CatalogGrid({
                   )}
                 </div>
               ) : (
-                <div className="mx-2 mb-2 mt-auto flex gap-1.5">
+                // a 150px card cannot hold an icon button and a labelled one
+                // side by side - the label ended up in a 40px box and broke
+                // across two lines. The icon keeps its natural width, the label
+                // claims a width it can use, and the row wraps rather than the
+                // text inside it.
+                <div className="mx-2 mb-2 mt-auto flex flex-wrap gap-1.5">
                   <Button
                     size="sm"
-                    className="flex-1"
+                    className="shrink-0"
                     aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
                     title={t('remote.showFiles')}
                     onClick={() => onOpenFiles(it.entry.path)}
@@ -700,7 +705,9 @@ export function CatalogGrid({
                     <Files aria-hidden size="1.2em" />
                   </Button>
                   {!g.pending && !!it.source && (
-                    <Button size="sm" className="flex-1" onClick={() => setRematch(it)}>
+                    // xs: at the small size the label needs 114px and the tile
+                    // gives it 110. Same box, same touch target, smaller type.
+                    <Button size="xs" className="min-w-24! flex-1" onClick={() => setRematch(it)}>
                       {t('remote.changeMatch')}
                     </Button>
                   )}

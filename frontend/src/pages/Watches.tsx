@@ -358,34 +358,42 @@ export default function Watches() {
                       badges={
                         <>
                           {w.nextAiringAt ? (
-                            <Badge
-                              tone={w.behind ? 'warn' : 'ok'}
-                              title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}
-                            >
-                              <CalendarDays aria-hidden size="1em" />
-                              {t('watch.nextEp', { n: w.nextEpisode })}
-                              {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''} ·{' '}
-                              {airFmt(w.nextAiringAt)}
-                            </Badge>
+                            // two chips, not one: episode and airing time in a
+                            // single chip came to ~400px, which no phone column
+                            // can hold - split, each one fits on its own line
+                            <>
+                              <Badge tone={w.behind ? 'warn' : 'ok'} size="sm">
+                                <CalendarDays aria-hidden size="1em" />
+                                {t('watch.nextEp', { n: w.nextEpisode })}
+                                {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''}
+                              </Badge>
+                              <Badge
+                                tone={w.behind ? 'warn' : 'ok'}
+                                size="sm"
+                                title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}
+                              >
+                                {airFmt(w.nextAiringAt)}
+                              </Badge>
+                            </>
                           ) : (
                             // the only non-chip child, so it carries the muted
                             // colour the surrounding row used to supply
                             w.lastCheck && <span className="text-t-muted">{next(w)}</span>
                           )}
                           {(w.behind ?? 0) > 0 && (
-                            <Badge tone="warn">
+                            <Badge tone="warn" size="sm">
                               <Clock aria-hidden size="1em" />
                               {t('watch.behind', { count: w.behind })}
                             </Badge>
                           )}
                           {(w.missing?.length ?? 0) > 0 && (
-                            <Badge tone="err" title={w.missing!.join(', ')}>
+                            <Badge tone="err" size="sm" title={w.missing!.join(', ')}>
                               <TriangleAlert aria-hidden size="1em" />
                               {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
                             </Badge>
                           )}
                           {(w.langWaiting ?? 0) > 0 && (
-                            <Badge tone="warn">
+                            <Badge tone="warn" size="sm">
                               <Clock aria-hidden size="1em" />
                               {t('watch.langWaiting', {
                                 count: w.langWaiting,
@@ -394,25 +402,25 @@ export default function Watches() {
                             </Badge>
                           )}
                           {w.lastUploading > 0 && (
-                            <Badge tone="warn">
+                            <Badge tone="warn" size="sm">
                               <Upload aria-hidden size="1em" />
                               {t('watch.uploading')}
                             </Badge>
                           )}
                           {(w.seenEpisodes ?? 0) > 0 && (
-                            <Badge>
+                            <Badge size="sm">
                               <Eye aria-hidden size="1em" />
                               {t('watch.seen', { count: w.seenEpisodes })}
                             </Badge>
                           )}
                           {(w.template || w.pattern) && (
-                            <Badge>
+                            <Badge size="sm">
                               <PenLine aria-hidden size="1em" />
                               {t('watch.renamed')}
                             </Badge>
                           )}
                           {w.active > 0 && (
-                            <Badge tone="accent">
+                            <Badge tone="accent" size="sm">
                               <Download aria-hidden size="1em" />
                               {t('watch.active', { count: w.active })}
                             </Badge>
