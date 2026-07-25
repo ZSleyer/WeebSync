@@ -136,6 +136,7 @@ export interface Watch {
   plexSubLang: string
   langWaiting: number
   missing?: number[]
+  unsorted?: number // episodes waiting in the collecting folder for the provider
   offset?: number
   intervalMin: number
   lastCheck: string

@@ -347,6 +347,9 @@
     "inSeconds": "in {{s}} s",
     "behind": "{{count}} noch nicht verfügbar",
     "langWaiting": "{{count}} wartet auf {{lang}}",
+    "unsorted_one": "{{count}} noch nicht zugeordnet",
+    "unsorted_other": "{{count}} noch nicht zugeordnet",
+    "unsortedHint": "Der Anbieter kennt die Folgennummer noch nicht. Die Datei liegt im Ordner \"_Unzugeordnet\" und wird automatisch einsortiert, sobald die Nummer bekannt ist.",
     "missing_one": "Folge {{eps}} fehlt",
     "missing_other": "{{count}} Lücken: {{eps}}",
     "gaps": {
