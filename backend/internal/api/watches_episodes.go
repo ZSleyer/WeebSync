@@ -109,7 +109,7 @@ func gapSeasons(nums map[int]bool) []int {
 	// be a second definition free to drift from the badge.
 	bySeason := map[int]map[int]bool{}
 	for k := range nums {
-		se := k / 1000
+		se, _ := splitEpKey(k)
 		if se == 0 {
 			continue // season 0 = specials, inherently sparse
 		}
@@ -140,10 +140,10 @@ func gapSeasons(nums map[int]bool) []int {
 func localSpan(nums map[int]bool, season int) (lo, hi int) {
 	lo = 1 << 31
 	for k := range nums {
-		if k/1000 != season {
+		se, e := splitEpKey(k)
+		if se != season {
 			continue
 		}
-		e := k % 1000
 		if e < lo {
 			lo = e
 		}
@@ -193,7 +193,7 @@ func markBySeason(eps []provEpisode, locals map[int]bool, alias map[int]int) []W
 		out = append(out, WatchEpisode{
 			Season: se, Episode: e.Number, Absolute: e.Absolute,
 			Title: e.Title, Aired: e.Aired,
-			Have: locals[se*1000+e.Number],
+			Have: locals[epKey(se, e.Number)],
 		})
 	}
 	sortEpisodes(out)
@@ -222,7 +222,7 @@ func markByAbsolute(eps []provEpisode, locals map[int]bool, season, offset int) 
 		out = append(out, WatchEpisode{
 			Season: season, Episode: local, Absolute: e.Absolute, Local: local,
 			Title: e.Title, Aired: e.Aired,
-			Have: locals[season*1000+local],
+			Have: locals[epKey(season, local)],
 		})
 	}
 	sortEpisodes(out)
@@ -238,7 +238,7 @@ func spanEpisodes(nums map[int]bool, seasons []int) []WatchEpisode {
 	for _, se := range seasons {
 		lo, hi := localSpan(nums, se)
 		for e := lo; e <= hi && hi > 0; e++ {
-			out = append(out, WatchEpisode{Season: se, Episode: e, Have: nums[se*1000+e]})
+			out = append(out, WatchEpisode{Season: se, Episode: e, Have: nums[epKey(se, e)]})
 		}
 	}
 	sortEpisodes(out)

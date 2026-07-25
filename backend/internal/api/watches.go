@@ -894,6 +894,22 @@ func (s *Server) countVideos(rel string, minEp int) int {
 	return n
 }
 
+// seasonStride encodes (season, episode) into one int as season*stride+episode.
+// It has to exceed any real episode number, or the encoding wraps: with a
+// stride of 1000, a stray "S01E1208" (an absolute number left in the episode
+// field) landed on the same key as S02E208 and gave season 2 a span of 1..208 -
+// 181 gaps reported for a season that was complete.
+const seasonStride = 100000
+
+// maxEpisode is the largest episode number a season can plausibly hold. Beyond
+// that the name carries an absolute number in the episode field, and letting it
+// set the span would invent gaps for every number in between.
+const maxEpisode = 999
+
+func epKey(season, episode int) int { return season*seasonStride + episode }
+
+func splitEpKey(k int) (season, episode int) { return k / seasonStride, k % seasonStride }
+
 // localEpisodeNums returns the set of SxxEyy episode numbers present locally
 // (only files >= minEp when minEp > 0). Used for gap detection - files without a
 // parseable episode number are ignored.
@@ -913,8 +929,8 @@ func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
 		}
 		se, _ := strconv.Atoi(m[1])
 		ep, _ := strconv.Atoi(m[2])
-		if ep >= minEp {
-			nums[se*1000+ep] = true // season-encoded so gaps stay per-season
+		if ep >= minEp && ep <= maxEpisode {
+			nums[epKey(se, ep)] = true // season-encoded so gaps stay per-season
 		}
 		return nil
 	})
@@ -924,7 +940,7 @@ func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
 // missingEpisodes returns the gaps WITHIN the contiguous span of local episodes,
 // i.e. between the lowest and highest number present (e.g. {1,2,3,5} → [4]).
 // Only holes inside what you already have count - a partial start or a Behind
-// tail are not gaps. nums are season-encoded (season*1000+episode) and gaps are
+// tail are not gaps. nums are season-encoded (see epKey) and gaps are
 // computed within each season's own lo..hi span, so a multi-season (aired-
 // mapping) watch never reports the cross-season number range as missing.
 func missingEpisodes(nums map[int]bool) []int {
@@ -933,7 +949,7 @@ func missingEpisodes(nums map[int]bool) []int {
 	}
 	bySeason := map[int]map[int]bool{}
 	for k := range nums {
-		se, ep := k/1000, k%1000
+		se, ep := splitEpKey(k)
 		if se == 0 {
 			continue // season 0 = specials; their numbering is inherently sparse
 		}

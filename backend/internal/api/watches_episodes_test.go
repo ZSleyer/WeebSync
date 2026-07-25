@@ -10,14 +10,12 @@ import (
 	"github.com/ch4d1/weebsync/internal/db"
 )
 
-// key builds the season-encoded number localEpisodeNums parses out of a file
-// name, so the tests read like the file listing they stand for.
-func key(season, ep int) int { return season*1000 + ep }
-
+// nums builds the key set localEpisodeNums parses out of a file listing, so the
+// tests read like the files they stand for.
 func nums(pairs ...[2]int) map[int]bool {
 	m := map[int]bool{}
 	for _, p := range pairs {
-		m[key(p[0], p[1])] = true
+		m[epKey(p[0], p[1])] = true
 	}
 	return m
 }
