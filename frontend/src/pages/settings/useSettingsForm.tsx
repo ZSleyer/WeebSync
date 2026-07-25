@@ -11,6 +11,9 @@ export interface SettingsState {
   watchIntervalMin: number
   registrationDisabled: boolean
   trustedNetworks: string
+  /** proxies whose X-Forwarded-* headers are believed; empty = none */
+  trustedProxies: string
+  forceHttps: boolean
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
   anilistClientId: string
   anilistSecretSet: boolean

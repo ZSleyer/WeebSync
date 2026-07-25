@@ -52,6 +52,30 @@ export default function Security() {
             <span className="mt-1 block text-xs text-t-muted">{t('settings.trustedNetworksHint')}</span>
           </label>
           <label className="text-xs text-t-muted">
+            {t('settings.trustedProxies')}
+            <EnvBadge show={locked('trustedProxies')} />
+            <Input
+              className="mt-1 font-mono"
+              type="text"
+              placeholder="172.30.0.0/16, 10.0.0.0/8"
+              value={form.trustedProxies}
+              disabled={locked('trustedProxies')}
+              onChange={(e) => set('trustedProxies', e.target.value)}
+            />
+            <span className="mt-1 block text-xs text-t-muted">{t('settings.trustedProxiesHint')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-t-muted">
+            <input
+              type="checkbox"
+              checked={form.forceHttps}
+              disabled={locked('forceHttps')}
+              onChange={(e) => set('forceHttps', e.target.checked)}
+            />
+            {t('settings.forceHttps')}
+            <EnvBadge show={locked('forceHttps')} />
+          </label>
+          <span className="-mt-2 block text-xs text-t-muted">{t('settings.forceHttpsHint')}</span>
+          <label className="text-xs text-t-muted">
             {t('settings.authMode')}
             <Select
               wrapperClassName="mt-1 max-w-sm"
