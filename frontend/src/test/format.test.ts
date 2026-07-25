@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fmtBytes, fmtMissing, fmtSpeed, mediaTitle } from '../api'
+import { fmtBytes, fmtMissing, fmtSpeed, mediaTitle, syncOutcome } from '../api'
 
 // The pure formatters out of api.ts. No fetch, no query client - importing the
 // module only defines functions, so these run without a backend.
@@ -100,5 +100,29 @@ describe('fmtSpeed', () => {
     expect(fmtSpeed(0)).toBe('0 B/s')
     expect(fmtSpeed(1024)).toBe('1.0 KiB/s')
     expect(fmtSpeed(12.5 * 1024 ** 2)).toBe('12.5 MiB/s')
+  })
+})
+
+describe('syncOutcome', () => {
+  // t is only used for lookups here, so echoing the key with its count keeps
+  // the assertions about the logic rather than about the wording
+  const t = (k: string, o?: Record<string, unknown>) => (o?.count !== undefined ? `${k}:${o.count}` : (o?.reasons as string) ?? k)
+
+  it('says nothing when files were queued - the queue is the answer', () => {
+    expect(syncOutcome({ queued: 3, skipped: 2 }, t)).toBe('')
+  })
+
+  it('names the reason when nothing was queued', () => {
+    expect(syncOutcome({ queued: 0, skipped: 12 }, t)).toBe('remote.syncSkipped:12')
+  })
+
+  it('lists every reason that applies', () => {
+    expect(syncOutcome({ queued: 0, skipped: 1, uploading: 2, filtered: 3 }, t)).toBe(
+      'remote.syncSkipped:1, remote.syncUploading:2, remote.syncFiltered:3',
+    )
+  })
+
+  it('falls back to a plain answer when nothing explains it', () => {
+    expect(syncOutcome({ queued: 0 }, t)).toBe('remote.syncNothing')
   })
 })

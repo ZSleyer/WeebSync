@@ -54,6 +54,11 @@ type DownloadCreateRequest struct {
 type DownloadCreateResponse struct {
 	Queued int     `json:"queued"`
 	IDs    []int64 `json:"ids"`
+	// why nothing was queued, when nothing was: without these a sync that had
+	// nothing to do is indistinguishable from one that failed
+	Skipped   int `json:"skipped,omitempty"`   // already at the target, same size
+	Uploading int `json:"uploading,omitempty"` // still growing on the remote
+	Filtered  int `json:"filtered,omitempty"`  // dropped by the language filter
 }
 
 // handleDownloadCreate queues a file, or syncs a directory (all missing files).
@@ -83,12 +88,12 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	ids, _, _, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, nil, false, in.Flat)
+	res, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, nil, false, in.Flat)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, DownloadCreateResponse{Queued: len(ids), IDs: ids})
+	writeJSON(w, http.StatusCreated, enqueueResponse(res))
 }
 
 // handleSyncOnce runs a ONE-OFF sync with the full auto-sync rename pipeline
@@ -135,13 +140,22 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 	// same enqueue as a watch check, minus persistence: rename via watchNameFn,
 	// language filter via watchLangFilter, subfolder off when the template owns
 	// the structure.
-	ids, _, _, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath,
+	res, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath,
 		s.watchNameFn(in), s.watchLangFilter(in), true, !in.Subfolder)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, DownloadCreateResponse{Queued: len(ids), IDs: ids})
+	writeJSON(w, http.StatusCreated, enqueueResponse(res))
+}
+
+// enqueueResponse carries the counters through, so the UI can say why a sync
+// queued nothing rather than leaving the user with a bare zero.
+func enqueueResponse(res transfer.EnqueueResult) DownloadCreateResponse {
+	return DownloadCreateResponse{
+		Queued: len(res.IDs), IDs: res.IDs,
+		Skipped: res.Skipped, Uploading: res.Uploading, Filtered: res.Filtered,
+	}
 }
 
 // DownloadsCancelRequest is the body of handleDownloadsCancel.

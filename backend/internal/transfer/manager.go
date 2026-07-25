@@ -412,13 +412,24 @@ func looksUploading(size int64, siblings []int64) bool {
 // filtered counts video files present on the remote but skipped by langFilter
 // whose local target does not yet exist - i.e. episodes waiting to appear in
 // the wanted dub/sub language.
-func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat bool) (ids []int64, uploading, filtered int, err error) {
+// EnqueueResult says what became of the files a sync looked at. The counters
+// are the difference between "nothing to do" and "something went wrong", which
+// a bare list of queued ids cannot express: a caller that only reports len(IDs)
+// tells the user "0 queued" and leaves them guessing.
+type EnqueueResult struct {
+	IDs       []int64
+	Uploading int // still growing on the remote, so not fetched yet
+	Filtered  int // skipped by the language filter
+	Skipped   int // already present at the target, same size
+}
+
+func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat bool) (res EnqueueResult, err error) {
 	if nameFn == nil {
 		nameFn = func(s string) string { return s }
 	}
 	client, _, err := m.Dial(userID, serverID)
 	if err != nil {
-		return nil, 0, 0, err
+		return res, err
 	}
 	defer client.Close()
 
@@ -436,7 +447,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 	if isFile {
 		size, serr := client.Size(remotePath)
 		if serr != nil {
-			return nil, 0, 0, fmt.Errorf("path is neither listable nor a file: %w", serr)
+			return res, fmt.Errorf("path is neither listable nor a file: %w", serr)
 		}
 		jobs = append(jobs, job{remotePath, path.Join(localRel, nameFn(path.Base(remotePath))), "", size})
 	} else {
@@ -468,7 +479,7 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 			base = localRel
 		}
 		if err := walk(remotePath, base, 0); err != nil {
-			return nil, 0, 0, err
+			return res, err
 		}
 	}
 
@@ -483,18 +494,20 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		if langFilter != nil && !langFilter(j.remote) {
 			if VideoExt[strings.ToLower(path.Ext(j.remote))] {
 				if _, serr := os.Stat(local); serr != nil {
-					filtered++
+					res.Filtered++
 				}
 			}
 			continue
 		}
-		// sync: skip files that already exist with the right size
+		// sync: skip files that already exist with the right size. Counted, so
+		// the caller can say "already there" instead of a bare "0 queued"
 		if fi, err := os.Stat(local); err == nil && fi.Size() == j.size {
+			res.Skipped++
 			continue
 		}
 		// probably still being uploaded: wait for a later check
 		if sizeGuard && VideoExt[strings.ToLower(path.Ext(j.remote))] && looksUploading(j.size, dirSizes[j.dir]) {
-			uploading++
+			res.Uploading++
 			continue
 		}
 		// skip duplicates already in the queue
@@ -504,16 +517,16 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		if existing > 0 {
 			continue
 		}
-		res, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size)
+		ins, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size)
 			VALUES (?, ?, ?, ?, ?)`, userID, serverID, j.remote, local, j.size)
 		if ierr == nil {
-			if id, lerr := res.LastInsertId(); lerr == nil {
-				ids = append(ids, id)
+			if id, lerr := ins.LastInsertId(); lerr == nil {
+				res.IDs = append(res.IDs, id)
 			}
 		}
 	}
 	m.Wake()
-	return ids, uploading, filtered, nil
+	return res, nil
 }
 
 // Shutdown cancels all active downloads, requeues them (resume picks up the

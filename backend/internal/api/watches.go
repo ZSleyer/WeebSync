@@ -287,8 +287,9 @@ func (s *Server) runWatch(id int64) {
 	// files already collected must not be fetched again: Enqueue only skips
 	// what is complete at the EXPECTED target, and theirs is still empty
 	skip := s.pendingRemotePaths(w.ID)
-	ids, uploading, filtered, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
+	res, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
 		nameFn, andNotPending(s.watchLangFilter(w), skip), true, !w.Subfolder)
+	ids, uploading, filtered := res.IDs, res.Uploading, res.Filtered
 	if waiting != nil {
 		s.rememberPending(w.ID, ids, waiting())
 	}
