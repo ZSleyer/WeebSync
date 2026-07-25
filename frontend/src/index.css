@@ -263,7 +263,11 @@ body {
   /* a chip never widens its panel; a chip that still cannot fit wraps inside
      its own box instead of pushing the row into a horizontal scroll */
   max-width: 100%;
-  min-width: 0;
+  /* but it is not the item that gives way either: a chip is content-sized, and
+     letting it shrink in a flex row squeezed the box below its own word, which
+     then hung over the border with nothing to clip it. The flexible item in
+     such a row is the path or the search field beside it, not the label. */
+  flex-shrink: 0;
 }
 /* Dense chip: the size step below the default, for the chip rows inside a
    media tile, where several chips share one narrow column on a phone. The
