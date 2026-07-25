@@ -242,7 +242,7 @@ function Shell({ email }: { email: string }) {
   // scroll gesture toggled the toolbar - which is what made the header drift off
   // the top edge and the fixed tab bar look unpinned.
   return (
-    <div className="t-hatch flex min-h-dvh flex-col lg:flex-row">
+    <div className="app-shell t-hatch flex min-h-dvh flex-col lg:flex-row">
       <RouteTitle />
       {/* desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
