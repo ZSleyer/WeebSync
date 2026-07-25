@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/airmap"
@@ -281,7 +282,15 @@ func (s *Server) runWatch(id int64) {
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
-	ids, uploading, filtered, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath, s.watchNameFn(w), s.watchLangFilter(w), true, !w.Subfolder)
+	nameFn, waiting := s.watchNameFnQuarantine(w, s.unsortedDir(w.UserID))
+	// files already collected must not be fetched again: Enqueue only skips
+	// what is complete at the EXPECTED target, and theirs is still empty
+	skip := s.pendingRemotePaths(w.ID)
+	ids, uploading, filtered, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
+		nameFn, andNotPending(s.watchLangFilter(w), skip), true, !w.Subfolder)
+	if waiting != nil {
+		s.rememberPending(w.ID, ids, waiting())
+	}
 	// a Plex playback preference queues every new download for the post-index
 	// stream-selection pass (drained by the sweep once Plex has the file)
 	if w.PlexAudioLang != "" || w.PlexSubLang != "" {
@@ -309,7 +318,31 @@ func (s *Server) runWatch(id int64) {
 // (when a title language is set) replaces {title}, and aired mapping resolves
 // each file's absolute episode number to its real broadcast season/episode
 // (e.g. 1187 → S34E01) so the template can build a "Season NN/..." path.
+//
+// See watchNameFnQuarantine for the variant that also reports the files whose
+// number the provider did not know.
 func (s *Server) watchNameFn(w Watch) func(string) string {
+	fn, _ := s.watchNameFnQuarantine(w, "")
+	return fn
+}
+
+// pendingFile is a downloaded episode whose absolute number the provider did
+// not list, so its season is a guess and it waits in the collecting folder.
+type pendingFile struct {
+	Name  string // the local name it was given, relative to the watch target
+	Token string // the absolute number the provider did not know
+}
+
+// watchNameFnQuarantine is watchNameFn plus a way out for the files aired
+// mapping could not resolve. Renaming those anyway is what files an episode
+// under season 1: the template asks for {season}, nothing answered, and
+// rename.New defaults it. They go into a collecting folder instead - named
+// through the guess, so the folder can be read - and the second return value
+// lists them so the caller can remember to fix them later.
+//
+// dir is that folder's name; empty switches the whole behaviour off, which is
+// what the dry-run previews want.
+func (s *Server) watchNameFnQuarantine(w Watch, dir string) (func(string) string, func() []pendingFile) {
 	o := rename.Options{
 		Mode: w.Mode, Template: w.Template, Separator: w.Separator,
 		TitleOverride: w.TitleOverride, Pattern: w.Pattern, Replacement: w.Replacement,
@@ -318,7 +351,7 @@ func (s *Server) watchNameFn(w Watch) func(string) string {
 		o.Mode = "template"
 	}
 	if (o.Mode == "template" && o.Template == "") || (o.Mode == "regex" && o.Pattern == "") {
-		return nil // no rename configured
+		return nil, nil // no rename configured
 	}
 	// the localized title and aired mapping are independent opt-ins, both only
 	// meaningful for the template mode
@@ -337,11 +370,23 @@ func (s *Server) watchNameFn(w Watch) func(string) string {
 			}
 		}
 	}
-	return func(name string) string {
+	var mu sync.Mutex
+	var pending []pendingFile
+	fn := func(name string) string {
 		opts := o
+		token := ""
 		if useAired && resolver != nil {
 			if tok := parseEpisodeToken(name); tok != "" {
-				if season, ep, ok := resolver.Resolve(context.Background(), series, tok); ok {
+				season, ep, ok := resolver.Resolve(context.Background(), series, tok)
+				if !ok && dir != "" {
+					// the provider has not listed this number yet. Counting on
+					// from the newest one it knows gives the file a readable
+					// name, but it stays a guess - so it is collected rather
+					// than filed, and remembered for a later correction.
+					season, ep, ok = resolver.Guess(series, tok)
+					token = tok
+				}
+				if ok {
 					opts.SeasonOverride = &season
 					opts.EpisodeOverride = &ep
 				}
@@ -349,10 +394,29 @@ func (s *Server) watchNameFn(w Watch) func(string) string {
 		}
 		n, err := rename.New(name, opts)
 		if err != nil || n == "" {
-			return name
+			n = name
 		}
+		if token == "" {
+			return n
+		}
+		n = quarantined(dir, n)
+		mu.Lock()
+		pending = append(pending, pendingFile{Name: n, Token: token})
+		mu.Unlock()
 		return n
 	}
+	return fn, func() []pendingFile {
+		mu.Lock()
+		defer mu.Unlock()
+		return pending
+	}
+}
+
+// quarantined puts a name into the collecting folder, keeping only its base:
+// the template may have produced a "Season NN/" path, and that season is the
+// very thing we are unsure about.
+func quarantined(dir, name string) string {
+	return path.Join(dir, path.Base(name))
 }
 
 // airResolver builds the aired-order resolver from the configured providers;
@@ -725,6 +789,21 @@ func parseEpisodeToken(name string) string {
 // name/folder carries the wanted dub/sub language tag, or nil when the watch
 // has no language preference. The full remote path is matched so a
 // folder-level tag ("Show [GerDub]/ep01.mkv") applies to every file inside.
+// andNotPending narrows a file filter by the remote paths already waiting in
+// the collecting folder. Returns nil when neither applies, which Enqueue reads
+// as "take everything".
+func andNotPending(lang func(string) bool, pending map[string]bool) func(string) bool {
+	if len(pending) == 0 {
+		return lang
+	}
+	return func(remotePath string) bool {
+		if pending[remotePath] {
+			return false
+		}
+		return lang == nil || lang(remotePath)
+	}
+}
+
 func (s *Server) watchLangFilter(w Watch) func(string) bool {
 	if w.WantDub == "" && w.WantSub == "" {
 		return nil

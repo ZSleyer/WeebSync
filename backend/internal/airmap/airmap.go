@@ -230,6 +230,22 @@ func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, wa
 	source := want
 	if len(m) == 0 {
 		source = "none"
+		// A series that had a map yesterday and answers with nothing today has
+		// a provider problem, not zero episodes. Keep what we have: replacing
+		// it with nothing would unfile every following episode, and it is also
+		// the only basis Guess has to count from.
+		var had int
+		r.DB.QueryRow(`SELECT COUNT(*) FROM season_maps WHERE server_id=? AND folder=?`,
+			s.ServerID, s.Folder).Scan(&had)
+		if had > 0 {
+			slog.Warn("airmap empty", "folder", folder, "provider", logProvider,
+				"ordering", logOrdering, "kept", had, "reason", "provider returned nothing, keeping the previous map")
+			r.DB.Exec(`INSERT INTO season_maps_meta (server_id, folder, source, updated_at)
+				VALUES (?,?,?,datetime('now'))
+				ON CONFLICT(server_id, folder) DO UPDATE SET source=excluded.source, updated_at=excluded.updated_at`,
+				s.ServerID, s.Folder, source)
+			return
+		}
 		// definitive empty: stamp source=none and back off API calls for one TTL
 		slog.Debug("airmap empty", "folder", folder, "provider", logProvider,
 			"ordering", logOrdering, "reason", "no mapping from provider, backing off one TTL")

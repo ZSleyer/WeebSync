@@ -111,6 +111,13 @@ var catalog = map[string]map[string]string{
 		"en": "New series found",
 		"de": "Neue Serie gefunden",
 	},
+	// A folder name on disk, not a label: the leading underscore keeps it out
+	// of Plex's way, and it is only ever chosen when the folder is created.
+	// Switching the interface language later does not rename what is there.
+	"folder.unsorted": {
+		"en": "_Unsorted",
+		"de": "_Unzugeordnet",
+	},
 }
 
 // tr resolves a catalog key for a locale, falling back to English; extra args
