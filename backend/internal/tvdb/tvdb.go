@@ -167,9 +167,18 @@ type Episode struct {
 }
 
 // Episodes returns every episode of a series in the given season type
-// ("official" = aired order) in TVDB's default language.
+// ("official" = aired order) in TVDB's default language, from the cache when
+// it is warm.
 func (c *Client) Episodes(ctx context.Context, seriesID int, seasonType string) ([]Episode, error) {
-	return c.EpisodesLang(ctx, seriesID, seasonType, "")
+	return c.episodes(ctx, seriesID, seasonType, "", false)
+}
+
+// EpisodesFresh skips the cache. The aired-order map must never be rebuilt from
+// a day-old list: a rebuild happens precisely because a number was missing, and
+// answering it from the same stale copy makes the rebuild pointless - which is
+// how an episode that aired today ends up renamed into season 1.
+func (c *Client) EpisodesFresh(ctx context.Context, seriesID int, seasonType string) ([]Episode, error) {
+	return c.episodes(ctx, seriesID, seasonType, "", true)
 }
 
 // EpisodesLang is Episodes with translated episode names: bcp47 "" keeps the
@@ -181,12 +190,16 @@ func (c *Client) Episodes(ctx context.Context, seriesID int, seasonType string) 
 // episode list is fetched again every time its modal opens. c.DB is nil in the
 // package tests, which then always talk to the fake server.
 func (c *Client) EpisodesLang(ctx context.Context, seriesID int, seasonType, bcp47 string) ([]Episode, error) {
+	return c.episodes(ctx, seriesID, seasonType, bcp47, false)
+}
+
+func (c *Client) episodes(ctx context.Context, seriesID int, seasonType, bcp47 string, fresh bool) ([]Episode, error) {
 	lang := ""
 	if bcp47 != "" {
 		lang = tvdbLang(bcp47)
 	}
 	key := fmt.Sprintf("tvdb:eps:%d:%s:%s", seriesID, seasonType, lang)
-	if c.DB != nil {
+	if c.DB != nil && !fresh {
 		if payload, ok := c.cached(key); ok {
 			var hit []Episode
 			if json.Unmarshal([]byte(payload), &hit) == nil {

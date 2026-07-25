@@ -10,9 +10,11 @@ package airmap
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -84,7 +86,19 @@ type Resolver struct {
 	TVDB *tvdb.Client
 	Plex *plex.Client
 	TMDB *tmdb.Client
+
+	mu     sync.Mutex
+	forced map[string]time.Time // series → last miss-triggered rebuild
+
+	// test seam: rebuild needs a provider client to do anything, so a test
+	// stands in for the provider here rather than over HTTP
+	onRebuild func()
 }
+
+// missBackoff is the shortest gap between two rebuilds triggered by an unknown
+// token. Specials carry ".5" tokens the provider never lists, so a miss is not
+// by itself unusual and must not turn every file into an API round trip.
+const missBackoff = 10 * time.Minute
 
 // Resolve returns the (season, episode) for an episode token, or ok=false when
 // no mapping is known - the caller then falls back to its normal naming. The
@@ -100,12 +114,41 @@ func (r *Resolver) Resolve(ctx context.Context, s Series, token string) (season,
 	if !r.fresh(s, want) {
 		r.rebuild(ctx, s, provider, ordering, want)
 	}
-	err := r.DB.QueryRow(`SELECT season, episode FROM season_maps WHERE server_id=? AND folder=? AND token=?`,
-		s.ServerID, s.Folder, token).Scan(&season, &episode)
-	if err != nil {
+	lookup := func() error {
+		return r.DB.QueryRow(`SELECT season, episode FROM season_maps WHERE server_id=? AND folder=? AND token=?`,
+			s.ServerID, s.Folder, token).Scan(&season, &episode)
+	}
+	if err := lookup(); err == nil {
+		return season, episode, true
+	}
+	// An episode the map does not know is usually one that aired after the map
+	// was built - and waiting out the TTL means renaming it from a list that
+	// cannot contain it, which files today's episode under season 1. So a miss
+	// rebuilds now, rate-limited per series.
+	if !r.mayForce(s) {
+		return 0, 0, false
+	}
+	r.rebuild(ctx, s, provider, ordering, want)
+	if err := lookup(); err != nil {
 		return 0, 0, false
 	}
 	return season, episode, true
+}
+
+// mayForce reports whether this series may trigger another miss-driven rebuild,
+// and records the attempt.
+func (r *Resolver) mayForce(s Series) bool {
+	key := fmt.Sprintf("%d\x00%s", s.ServerID, s.Folder)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.forced == nil {
+		r.forced = map[string]time.Time{}
+	}
+	if last, ok := r.forced[key]; ok && time.Since(last) < missBackoff {
+		return false
+	}
+	r.forced[key] = time.Now()
+	return true
 }
 
 // ttl is the season-map cache lifetime (setting ttl_tvdb_h, default 24h).
@@ -135,6 +178,10 @@ func (r *Resolver) fresh(s Series, want string) bool {
 // retries); on a definitive empty result it stamps the meta row with the
 // wanted source, backing off API calls for one TTL.
 func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, want string) {
+	if r.onRebuild != nil {
+		r.onRebuild()
+		return
+	}
 	// strip CR/LF from user-controlled values so they can't forge log lines.
 	// NewReplacer form (not nested ReplaceAll) so CodeQL recognizes the barrier;
 	// log-only copies keep the raw provider/ordering for buildMap/DB below.
@@ -204,7 +251,9 @@ func (r *Resolver) buildMap(ctx context.Context, s Series, provider, ordering st
 		if id == 0 {
 			return nil, nil
 		}
-		eps, err := r.TVDB.Episodes(ctx, id, ordering) // official | dvd | absolute
+		// deliberately uncached: a rebuild runs because the map was stale or a
+		// number was missing, so a cached list would answer with the same gap
+		eps, err := r.TVDB.EpisodesFresh(ctx, id, ordering) // official | dvd | absolute
 		if err != nil {
 			return nil, err
 		}
