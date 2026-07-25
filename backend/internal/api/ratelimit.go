@@ -1,9 +1,7 @@
 package api
 
 import (
-	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -95,30 +93,10 @@ func (l *ipLimiter) allow(ip string) bool {
 }
 
 // ipTrusted reports whether ipStr falls inside an admin-configured trusted
-// network. The setting is a CSV of CIDRs (10.0.0.0/8) or bare IPs.
+// network. The setting is a CSV of CIDRs (10.0.0.0/8) or bare IPs - the same
+// shape as the trusted-proxy list, so both share one matcher.
 func (s *Server) ipTrusted(ipStr string) bool {
-	raw := db.Setting(s.DB, "trusted_networks")
-	if raw == "" {
-		return false
-	}
-	ip := net.ParseIP(ipStr)
-	if ip == nil {
-		return false
-	}
-	for _, part := range strings.Split(raw, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		if strings.Contains(part, "/") {
-			if _, netw, err := net.ParseCIDR(part); err == nil && netw.Contains(ip) {
-				return true
-			}
-		} else if pip := net.ParseIP(part); pip != nil && pip.Equal(ip) {
-			return true
-		}
-	}
-	return false
+	return auth.ParseIPList(db.Setting(s.DB, "trusted_networks")).Contains(ipStr)
 }
 
 // handleRateLimitList lists the tracked IPs and their current throttle state.
