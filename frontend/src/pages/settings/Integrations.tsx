@@ -430,7 +430,9 @@ function PlexAccount() {
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
       {data.connected ? (
-        <Badge tone="ok">
+        // carries a user name and a server name, so its length is the user's,
+        // not the designer's - it may run over two lines on a phone
+        <Badge tone="ok" multiline>
           {data.username
             ? t('settings.plexConnectedAs', { user: data.username, server: data.server })
             : t('settings.plexConnectedTo', { server: data.server })}

@@ -86,7 +86,7 @@ export default function Suggestions() {
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>
-          <Badge className="mt-1">{t('suggestions.sub')}</Badge>
+          <Badge multiline className="mt-1">{t('suggestions.sub')}</Badge>
         </div>
         <Button size="sm" onClick={() => setShowIgnored((v) => !v)}>
           <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -520,7 +520,7 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
         {!items.length ? (
           <Badge>{t('suggestions.noIgnored')}</Badge>
         ) : (
-          <ul className="max-h-[60vh] space-y-1 overflow-y-auto">
+          <ul className="max-h-[60dvh] space-y-1 overflow-y-auto">
             {items.map((d) => (
               <li key={`${d.kind}-${d.refKey}`} className="flex items-center justify-between gap-2 text-sm">
                 <span className="min-w-0 truncate">

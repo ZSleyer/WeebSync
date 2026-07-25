@@ -87,10 +87,21 @@ export function MediaCard({
           </p>
         )}
         {meta && <p className="mt-1 text-[11px] text-t-muted">{meta}</p>}
-        {badges && <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">{badges}</div>}
+        {badges && <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]">{badges}</div>}
       </div>
-      {status && <div className="text-right text-xs">{status}</div>}
-      {actions && <div className="flex w-full gap-1 sm:w-auto">{actions}</div>}
+      {/* on a phone the counters take a row of their own: as a third column they
+          left the chip row barely 170px, which is what made the status chips
+          wrap into three lines */}
+      {status && <div className="order-1 basis-full text-xs sm:order-none sm:basis-auto sm:text-right">{status}</div>}
+      {/* the action row wraps as a row - two buttons per line - instead of
+          letting each button wrap its own label; the basis is the widest label
+          this tile carries. The important suffix is required: `.t-btn--sm` sets
+          a min-width unlayered, which otherwise beats any utility. */}
+      {actions && (
+        <div className="flex w-full flex-wrap gap-1 sm:w-auto sm:flex-nowrap [&>.t-btn]:min-w-[7.5rem]! sm:[&>.t-btn]:min-w-0!">
+          {actions}
+        </div>
+      )}
     </Panel>
   )
 }
