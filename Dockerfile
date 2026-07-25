@@ -1,5 +1,7 @@
 # ── frontend build ── (arch-independent JS, always native)
-FROM --platform=$BUILDPLATFORM node:24-alpine AS web
+FROM --platform=$BUILDPLATFORM node:26-alpine AS web
+# node images stopped shipping yarn and corepack with node 25
+RUN npm i -g yarn@1.22.22
 # the frontend keeps its place in the tree: @weebsync/design-system resolves to
 # ../design-system/src, and index.css scans the same path for Tailwind classes
 WORKDIR /src/frontend
@@ -37,7 +39,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # resolution / audio / subtitle tracks of local files, whose names often lack
 # those tokens. ca-certificates for provider HTTPS; nonroot uid matches the
 # distroless one we used before.
-FROM alpine:3.21
+FROM alpine:3.24
 RUN apk add --no-cache ffmpeg ca-certificates \
     && adduser -D -H -u 65532 nonroot
 COPY --from=build /weebsync /weebsync
