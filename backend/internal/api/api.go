@@ -207,6 +207,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	checkH := http.HandlerFunc(s.handleWatchCheck)
 	mux.Handle("POST /api/watches/{id}/check", s.bearerOr(authed(checkH), checkH))
 	mux.Handle("POST /api/watches/{id}/plex-streams", authed(http.HandlerFunc(s.handleWatchPlexStreams)))
+	mux.Handle("GET /api/watches/{id}/episodes", authed(http.HandlerFunc(s.handleWatchEpisodes)))
 
 	// anilist + catalog
 	mux.Handle("GET /api/anilist/search", authed(http.HandlerFunc(s.handleAnilistSearch)))
