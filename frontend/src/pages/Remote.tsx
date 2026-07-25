@@ -111,8 +111,8 @@ export default function Remote() {
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('remote.title')}</h2>
           <Badge className="mt-1">{t('remote.sub')}</Badge>
         </div>
-        <div className="flex w-full gap-3 sm:w-auto">
-          <label className="flex-1 text-xs text-t-muted sm:flex-none">
+        <div className="flex w-full flex-wrap gap-3 sm:w-auto">
+          <label className="flex-1 min-w-44 text-xs text-t-muted sm:flex-none">
             {t('remote.source')}
             <Select wrapperClassName="mt-1 sm:w-44" value={active} onChange={(e) => setServerId(Number(e.target.value))}>
               {servers.map((s) => (
