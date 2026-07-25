@@ -128,7 +128,14 @@ export function Dialog({
           </svg>
         </button>
       )}
-      <div className={cx('flex flex-col', danger && 't-panel--danger', bodyClassName)}>{children}</div>
+      {/* The dialog element itself must not scroll (fractional border height
+          conjures a phantom scrollbar), so this box is the scroll container of
+          last resort: content taller than the dialog would otherwise be clipped
+          with no way to reach it. Modals that scroll a section of their own
+          (`dialog-body`) never reach this overflow. */}
+      <div className={cx('flex flex-col overflow-y-auto', danger && 't-panel--danger', bodyClassName)}>
+        {children}
+      </div>
     </dialog>
   )
 }
