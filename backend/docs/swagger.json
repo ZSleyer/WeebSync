@@ -1371,6 +1371,10 @@
                     "titleOverride": {
                         "type": "string"
                     },
+                    "unsorted": {
+                        "description": "episodes waiting in the collecting folder for the provider to list their number",
+                        "type": "integer"
+                    },
                     "userId": {
                         "type": "integer"
                     },

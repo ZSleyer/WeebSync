@@ -347,6 +347,9 @@
     "inSeconds": "in {{s}}s",
     "behind": "{{count}} not yet available",
     "langWaiting": "{{count}} waiting for {{lang}}",
+    "unsorted_one": "{{count}} not sorted yet",
+    "unsorted_other": "{{count}} not sorted yet",
+    "unsortedHint": "The provider does not know this episode number yet. The file waits in the \"_Unsorted\" folder and is filed automatically once the number is known.",
     "missing_one": "episode {{eps}} missing",
     "missing_other": "{{count}} gaps: {{eps}}",
     "gaps": {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpDown, CalendarDays, Check, Clock, Download, Eye, List, Pencil, PenLine, RefreshCw, Trash2, TriangleAlert, Upload, type LucideIcon } from 'lucide-react'
+import { ArrowUpDown, CalendarDays, Check, Clock, Download, Eye, FolderClock, List, Pencil, PenLine, RefreshCw, Trash2, TriangleAlert, Upload, type LucideIcon } from 'lucide-react'
 
 // icon per status group divider (syncing / idle / waiting / complete)
 const GROUP_ICON: Record<string, LucideIcon> = {
@@ -403,6 +403,14 @@ export default function Watches() {
                             >
                               <TriangleAlert aria-hidden size="1em" />
                               {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
+                            </Badge>
+                          )}
+                          {(w.unsorted ?? 0) > 0 && (
+                            // not an error: the file is here, only its place is
+                            // still open until the provider lists the number
+                            <Badge tone="warn" size="sm" title={t('watch.unsortedHint')}>
+                              <FolderClock aria-hidden size="1em" />
+                              {t('watch.unsorted', { count: w.unsorted })}
                             </Badge>
                           )}
                           {(w.langWaiting ?? 0) > 0 && (

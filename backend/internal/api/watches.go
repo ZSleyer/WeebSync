@@ -74,6 +74,7 @@ type Watch struct {
 	NextAiringAt   int64          `json:"nextAiringAt,omitempty"`   // unix seconds of its release
 	Waiting        bool           `json:"waiting"`                  // smart sync: idle until NextAiringAt
 	Behind         int            `json:"behind,omitempty"`         // episodes aired per AniList but not yet available locally (the source release can lag the original broadcast)
+	Unsorted       int            `json:"unsorted,omitempty"`       // episodes waiting in the collecting folder for the provider to list their number
 	Missing        []int          `json:"missing,omitempty"`        // gaps below the newest local episode (e.g. have 1,2,3,5 → 4 is missing), independent of airing state
 	Offset         int            `json:"offset,omitempty"`         // {episode-N} renumber offset: absolute episode = local - offset (for showing the original number)
 	Airings        []Airing       `json:"airings,omitempty"`        // every scheduled future release the provider knows (multi-week calendar)
@@ -879,6 +880,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		}
 		it.LocalFiles = s.countVideos(local, minEp)
 		it.Missing = missingEpisodes(s.localEpisodeNums(local, minEp))
+		it.Unsorted = s.pendingCount(it.ID)
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
