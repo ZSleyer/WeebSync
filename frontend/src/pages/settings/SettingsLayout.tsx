@@ -72,7 +72,10 @@ export default function SettingsLayout() {
           ))}
         </nav>
         {/* desktop: grouped side menu */}
-        <nav aria-label={t('settings.navLabel')} className="hidden shrink-0 lg:block lg:w-44">
+        {/* w-52 like the app's own sidebar: at w-44 the entry "Benachrichtigungen"
+            needed 9px more than it had, and a nowrap entry has nothing to clip
+            it - the label ran into the border */}
+        <nav aria-label={t('settings.navLabel')} className="hidden shrink-0 lg:block lg:w-52">
           <div className="flex flex-col gap-5">
             {groups.map((g) => (
               <div key={g.label}>
