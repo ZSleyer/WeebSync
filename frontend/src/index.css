@@ -732,7 +732,8 @@ dialog {
      width (not max-width) so per-dialog max-w-* utilities still cap it. */
   margin: auto;
   width: calc(100vw - 2rem);
-  max-height: calc(100dvh - 2rem);
+  --dialog-max-h: calc(100dvh - 2rem);
+  max-height: var(--dialog-max-h);
   /* The dialog itself never scrolls: at a device pixel ratio of 3 its 1px
      border resolves to 0.667px, and the rounding alone makes scrollHeight
      exceed clientHeight - a scrollbar down the side of a four-line confirm
@@ -746,12 +747,14 @@ dialog {
     overlay 240ms allow-discrete,
     display 240ms allow-discrete;
 }
-/* The box inside must not take the scrolling over either - it inherits the
-   same fractional height and would show the same phantom bar one level down.
-   Every dialog that can outgrow the screen scrolls a section of its own
-   (`min-h-0 flex-1 overflow-y-auto`), which is where the maths is whole. */
+/* The box inside inherits the cap, so a dialog whose content outgrows the
+   screen scrolls there instead of at the dialog (whose fractional border
+   height would show a phantom bar). The length has to be repeated rather than
+   written as `100%`: the dialog's own height is auto, and a percentage
+   max-height against an auto height computes to none - the box then grew past
+   the dialog and the overflow:hidden above simply cut the rest off. */
 dialog > :only-child {
-  max-height: 100%;
+  max-height: var(--dialog-max-h);
 }
 /* The box a dialog's content lives in: fixed header, scrolling middle, sticky
    footer, capped so the page behind never gains a scrollbar. One class instead
@@ -761,7 +764,10 @@ dialog > :only-child {
 .dialog-body {
   display: flex;
   flex-direction: column;
-  max-height: 85dvh;
+  /* through the variable, so the `dialog > :only-child` rule above - which
+     outranks this class - lands on the tighter cap too */
+  --dialog-max-h: 85dvh;
+  max-height: var(--dialog-max-h);
 }
 
 /* Detail modal: fullscreen sheet on phones (same cascade context as the

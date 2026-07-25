@@ -36,7 +36,10 @@ describe('Dialog', () => {
     const dialog = dialogOf(container)
     expect(dialog).toHaveClass('w-full', 'p-0', 'max-w-2xl')
     expect(dialog).toHaveAttribute('aria-label', 'Watch bearbeiten')
-    expect(dialog.firstElementChild).toHaveClass('flex', 'flex-col', 't-panel--danger', 'dialog-body')
+    // overflow-y-auto is the scroll container of last resort: without it a
+    // dialog whose content outgrows the screen is simply cut off, since the
+    // dialog element itself is overflow:hidden by design
+    expect(dialog.firstElementChild).toHaveClass('flex', 'flex-col', 'overflow-y-auto', 't-panel--danger', 'dialog-body')
   })
 
   it('reports the close exactly once through the dialog close event', async () => {
