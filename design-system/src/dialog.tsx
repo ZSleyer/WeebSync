@@ -121,7 +121,10 @@ export function Dialog({
           type="button"
           aria-label={closeLabel}
           onClick={() => void guarded()}
-          className="absolute top-1 right-1 z-10 flex h-11 w-11 items-center justify-center text-t-muted hover:text-t-primary"
+          // the sheet scrolls under this button, and a banner image or a line
+          // of text behind a bare glyph makes it unreadable - it carries its
+          // own surface
+          className="absolute top-1 right-1 z-10 flex h-11 w-11 items-center justify-center bg-bg-card/90 text-t-muted hover:text-t-primary"
         >
           <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M18 6 6 18M6 6l12 12" />
