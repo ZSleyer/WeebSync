@@ -187,11 +187,14 @@ export function Checkbox({ label, labelClassName, className, ...rest }: Checkbox
   )
 }
 
-export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {}
+export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+  /** compact field, same step as Input - height still comes from `rows` */
+  size?: 'md' | 'sm'
+}
 
 /** Multi-line input; same border, focus ring and padding as Input. */
-export function Textarea({ className, ...rest }: TextareaProps) {
-  return <textarea {...rest} className={cx('t-input', className)} />
+export function Textarea({ size = 'md', className, ...rest }: TextareaProps) {
+  return <textarea {...rest} className={cx('t-input', size === 'sm' && 't-input--sm', className)} />
 }
 
 export interface FieldProps {
