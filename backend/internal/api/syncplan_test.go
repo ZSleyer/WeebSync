@@ -119,3 +119,26 @@ func TestLocalSeasonsByShow(t *testing.T) {
 		t.Errorf("tvdb:9 = %+v, want one season", got["tvdb:9"])
 	}
 }
+
+// A local row with no resolution and no languages says nothing about the copy
+// it stands for, and every remote copy "improves" it: 1080 beats 0, and any
+// language set is a superset of none. Reporting that as an upgrade is how a
+// complete 1080p series ends up on the list.
+func TestComparable(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		v    UpgradeVariant
+		want bool
+	}{
+		{"knows its resolution", UpgradeVariant{ResRank: 1080}, true},
+		{"knows only its dub", UpgradeVariant{Dub: []string{"Ger"}}, true},
+		{"knows only its sub", UpgradeVariant{Sub: []string{"Ger"}}, true},
+		{"knows nothing", UpgradeVariant{Folder: "/media/Show"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := comparable(tc.v); got != tc.want {
+				t.Errorf("comparable = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

@@ -97,6 +97,18 @@ func missingSyncPlan(siblingDir string, season int, isMovie bool) SyncPlan {
 	}
 }
 
+// comparable reports whether a copy says anything about its own quality. A row
+// with no resolution and no languages carries no information, and comparing
+// against it always finds an improvement - which is how a series that is fully
+// present, in the right seasons, at 1080p ends up listed as needing an upgrade.
+//
+// Such rows come from matching a folder in the local catalog: server 0 has no
+// file index to read a resolution from, so refreshVariant can only write zeroes.
+// The Plex index writes the real per-season rows separately.
+func comparable(v UpgradeVariant) bool {
+	return v.ResRank > 0 || len(v.Dub) > 0 || len(v.Sub) > 0
+}
+
 // UpgradeDims is which quality axes a user wants upgrade suggestions for.
 type UpgradeDims struct {
 	Res bool `json:"res"`
@@ -263,6 +275,14 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		}
 		cur := bestCopy(u.locals)  // your Plex/local copy
 		top := bestCopy(u.remotes) // best remote copy of the SAME season
+		if !comparable(cur) {
+			// nothing is known about this copy, so every remote one "improves"
+			// it: 1080 beats 0, and any language set is a superset of none.
+			// That is not an upgrade, it is a blind spot.
+			slog.Debug("upgrade skipped", "showKey", u.showKey, "season", u.season,
+				"folder", logSafe(cur.Folder), "reason", "local copy has no quality to compare against")
+			continue
+		}
 		impRes := dims.Res && top.ResRank > cur.ResRank
 		impSub := dims.Sub && strictSuperset(top.Sub, cur.Sub)
 		impDub := dims.Dub && strictSuperset(top.Dub, cur.Dub)
