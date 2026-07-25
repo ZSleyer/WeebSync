@@ -154,6 +154,13 @@ const audit = () => {
     if (cs.scrollbarWidth === 'none') continue
     if (scrolls(cs.overflowX) && el.scrollWidth > el.clientWidth + 1)
       scroll.push({ where: el.className?.toString().slice(0, 40) || el.tagName, axis: 'x', overflow: el.scrollWidth - el.clientWidth })
+    // The mirror image, and the one that hides best: a row too narrow for its
+    // children that declares no overflow at all. Nothing scrolls, no bar
+    // appears, and the document can still measure clean - the content just
+    // hangs over the edge of its card, which is how a catalogue tile came to
+    // draw its fourth button outside the panel.
+    else if (cs.overflowX === 'visible' && el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1)
+      scroll.push({ where: el.className?.toString().slice(0, 40) || el.tagName, axis: 'x', overflow: el.scrollWidth - el.clientWidth, hangs: true })
     // a vertical overflow of a few pixels is a layout slip, not real content
     if (scrolls(cs.overflowY)) {
       const over = el.scrollHeight - el.clientHeight
@@ -234,9 +241,21 @@ const audit = () => {
   // admits to being tall, and confirm the scroll actually goes that far.
   let deepest = 0
   let who = null
+  // content inside a scroll container of its own is reachable there, and the
+  // file browsers are built that way: the page stays the height of the screen
+  // and the list scrolls. Measuring their rows against the document would
+  // report every row below the fold as lost.
+  const inScroller = (el) => {
+    for (let p = el.parentElement; p && p !== doc; p = p.parentElement) {
+      const cs = getComputedStyle(p)
+      if (['auto', 'scroll'].includes(cs.overflowY) || ['auto', 'scroll'].includes(cs.overflowX)) return true
+    }
+    return false
+  }
   for (const el of document.querySelectorAll('body *')) {
     const cs = getComputedStyle(el)
     if (cs.display === 'none' || cs.position === 'fixed') continue
+    if (inScroller(el)) continue
     const r = el.getBoundingClientRect()
     if (!r.height) continue
     const b = r.bottom + scrollY
@@ -287,13 +306,32 @@ const run = async (name, browserType) => {
       }, LOGIN)
     }
 
-    for (const route of ROUTES) {
+    // The catalogue is a view, not a route: a plain /remote shows the classic
+    // list, so the tile grid - the densest layout in the app, and the one whose
+    // buttons hung over the card edge - was never in this sweep. Ask the API
+    // for a folder that actually matched a title instead of hardcoding a path
+    // out of somebody's library.
+    const extra = await page.evaluate(async () => {
+      const servers = await (await fetch('/api/servers', { credentials: 'include' })).json()
+      const queue = servers.map((s) => ({ id: s.id, path: '' }))
+      for (let i = 0; i < 8 && queue.length; i++) {
+        const { id, path } = queue.shift()
+        const r = await fetch(`/api/servers/${id}/catalog${path ? `?path=${encodeURIComponent(path)}` : ''}`, { credentials: 'include' })
+        if (!r.ok) continue
+        const items = (await r.json()).items || []
+        if (items.some((it) => it.media)) return `/remote?server=${id}&path=${encodeURIComponent(path.replace(/^\//, ''))}`
+        for (const it of items) queue.push({ id, path: it.entry.path })
+      }
+      return null
+    }).catch(() => null)
+
+    for (const route of [...ROUTES, ...(extra ? [extra] : [])]) {
       errors.length = 0
       // not networkidle: the app keeps an SSE stream open, so it never idles
       await page.goto(BASE + route, { waitUntil: 'load' })
       await page.waitForTimeout(600)
       const r = await page.evaluate(audit)
-      const slug = route.replace(/\//g, '_') || '_root'
+      const slug = route.replace(/[^\w-]+/g, '_') || '_root'
       const file = `${OUT}/${TAG ? TAG + '-' : ''}${name}-${vpName}${slug}.png`
       // a full-page shot is capped at 32767 device px; long lists on the real
       // test data blow past that, so clip instead of failing the whole run
@@ -340,5 +378,5 @@ for (const f of all) {
   }
 }
 console.log(bad === 0
-  ? `\n✓ ${all.length} Seitenläufe (2 Browser x ${Object.keys(VIEWPORTS).length} Viewports x ${ROUTES.length} Routen): keine Befunde`
+  ? `\n✓ ${all.length} Seitenläufe (2 Browser x ${Object.keys(VIEWPORTS).length} Viewports x ${new Set(all.map((r) => r.route)).size} Routen): keine Befunde`
   : `\n${bad}/${all.length} Seitenläufe mit Befunden`)

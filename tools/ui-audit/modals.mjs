@@ -25,11 +25,40 @@ const TRIGGERS = [
     route: '/remote',
     label: 'Katalog',
     setup: async (page) => {
+      // The detail modal only exists where a folder actually matched a title,
+      // and a server's root is usually a shelf of unmatched folders - which is
+      // how the tallest dialog in the app went unaudited while every run still
+      // reported a clean sweep. Ask the API for the first folder that has a
+      // match rather than hardcoding a path out of somebody's library.
+      const target = await page.evaluate(async () => {
+        const servers = await (await fetch('/api/servers', { credentials: 'include' })).json()
+        const queue = servers.map((s) => ({ id: s.id, path: '' }))
+        // every step is a live listing on a real server, so the walk stays on a
+        // short leash and settles for whatever it has found by then
+        for (let i = 0; i < 8 && queue.length; i++) {
+          const { id, path } = queue.shift()
+          const r = await fetch(`/api/servers/${id}/catalog${path ? `?path=${encodeURIComponent(path)}` : ''}`, {
+            credentials: 'include',
+          })
+          if (!r.ok) continue
+          const items = (await r.json()).items || []
+          if (items.some((it) => it.media)) return { id, path }
+          for (const it of items) queue.push({ id, path: it.entry.path })
+        }
+        return null
+      })
+      if (target) {
+        await page.goto(`${BASE}/remote?server=${target.id}&path=${encodeURIComponent(target.path.replace(/^\//, ''))}`)
+        await page.waitForTimeout(2500)
+      }
+      // the view picker is gone once a folder is saved as a catalogue folder,
+      // which is exactly the state a previous run leaves behind
       const view = page.getByRole('combobox', { name: /Ansicht|View/ }).first()
-      if (!(await view.count().catch(() => 0))) return false
-      await view.selectOption({ index: 2 }) // catalogue, persisted
-      await page.waitForTimeout(2500)
-      return true
+      if (await view.count().catch(() => 0)) {
+        await view.selectOption({ index: 2 }) // catalogue, persisted
+        await page.waitForTimeout(2500)
+      }
+      return (await page.getByRole('article').count().catch(() => 0)) > 0
     },
     names: [/Details zu|Details for/, /Match ändern|Change match/, /Syncen|Sync/],
   },
@@ -114,6 +143,18 @@ const auditDialog = () => {
   const shell = []
   if (getComputedStyle(document.documentElement).overflow !== 'hidden')
     shell.push('the page behind the modal is still scrollable')
+
+  // The dialog never scrolls itself, so a dialog taller than its cap owes the
+  // user a scroll container inside - otherwise overflow:hidden cuts the rest
+  // off and there is no gesture that brings it back. Checked here rather than
+  // above because it is the opposite failure: not a stray scrollbar, but a
+  // missing one.
+  if (dOver.y > 2 && !dScrolls) {
+    const inner = [...d.querySelectorAll('*')].some(
+      (e) => vis(e) && ['auto', 'scroll'].includes(getComputedStyle(e).overflowY) && e.scrollHeight - e.clientHeight > 2,
+    )
+    if (!inner) shell.push(`content is ${dOver.y}px taller than the dialog and nothing inside it scrolls`)
+  }
 
   // A sheet-sized dialog covers the phone screen, so it has no backdrop left to
   // click - it owes the user exactly one visible way out.
