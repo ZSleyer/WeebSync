@@ -152,8 +152,11 @@ func (c *Client) Search(ctx context.Context, query string) ([]SearchResult, erro
 
 // Episode carries the numbers needed for the aired-order mapping. The airs*
 // fields place a special (seasonNumber 0) relative to the regular run, so a
-// recap released between two episodes can be filed under season 0.
+// recap released between two episodes can be filed under season 0. ID and Name
+// are only for showing an episode to a human - the mapping ignores them.
 type Episode struct {
+	ID                int    `json:"id"`   // stable episode id, for a per-episode link
+	Name              string `json:"name"` // provider default language unless EpisodesLang asked for another
 	AbsoluteNumber    int    `json:"absoluteNumber"`
 	SeasonNumber      int    `json:"seasonNumber"`
 	Number            int    `json:"number"`
@@ -164,9 +167,66 @@ type Episode struct {
 }
 
 // Episodes returns every episode of a series in the given season type
-// ("official" = aired order), following pagination. The cap is a runaway
-// guard: no real series has 1000 pages of 500 episodes.
+// ("official" = aired order) in TVDB's default language.
 func (c *Client) Episodes(ctx context.Context, seriesID int, seasonType string) ([]Episode, error) {
+	return c.EpisodesLang(ctx, seriesID, seasonType, "")
+}
+
+// EpisodesLang is Episodes with translated episode names: bcp47 "" keeps the
+// provider default, otherwise the localized route is tried first and falls back
+// to the default when the series has no translation - the same cascade
+// SeriesTitle uses, because half a list of empty names is worse than English.
+//
+// Cached for one TTL. An endless series is a dozen paginated requests and the
+// episode list is fetched again every time its modal opens. c.DB is nil in the
+// package tests, which then always talk to the fake server.
+func (c *Client) EpisodesLang(ctx context.Context, seriesID int, seasonType, bcp47 string) ([]Episode, error) {
+	lang := ""
+	if bcp47 != "" {
+		lang = tvdbLang(bcp47)
+	}
+	key := fmt.Sprintf("tvdb:eps:%d:%s:%s", seriesID, seasonType, lang)
+	if c.DB != nil {
+		if payload, ok := c.cached(key); ok {
+			var hit []Episode
+			if json.Unmarshal([]byte(payload), &hit) == nil {
+				return hit, nil
+			}
+		}
+	}
+	out, err := c.episodePages(ctx, seriesID, seasonType, lang)
+	// a series without that translation answers 404; the default list still has
+	// the numbers, which is what every other caller needs
+	if lang != "" && (err != nil || !anyNamed(out)) {
+		if def, derr := c.episodePages(ctx, seriesID, seasonType, ""); derr == nil {
+			out, err = def, nil
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if c.DB != nil && len(out) > 0 {
+		if b, merr := json.Marshal(out); merr == nil {
+			c.store(key, string(b))
+		}
+	}
+	return out, nil
+}
+
+// anyNamed reports whether the list carries episode names at all. A translation
+// route can answer 200 with every name blank, which reads as "no translation".
+func anyNamed(eps []Episode) bool {
+	for _, e := range eps {
+		if e.Name != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// episodePages walks the paginated episode route. The cap is a runaway guard:
+// no real series has 1000 pages of 500 episodes.
+func (c *Client) episodePages(ctx context.Context, seriesID int, seasonType, lang3 string) ([]Episode, error) {
 	var out []Episode
 	for page := 0; page < 1000; page++ {
 		var resp struct {
@@ -178,6 +238,9 @@ func (c *Client) Episodes(ctx context.Context, seriesID int, seasonType string) 
 			} `json:"links"`
 		}
 		path := fmt.Sprintf("/series/%d/episodes/%s?page=%d", seriesID, seasonType, page)
+		if lang3 != "" {
+			path = fmt.Sprintf("/series/%d/episodes/%s/%s?page=%d", seriesID, seasonType, lang3, page)
+		}
 		if err := c.get(ctx, path, &resp); err != nil {
 			return nil, err
 		}
