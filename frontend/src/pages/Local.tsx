@@ -69,9 +69,13 @@ export default function Local() {
 
   // rename/delete buttons, shared by the classic list rows and the catalog
   // cards. Admins only; everyone else just reads.
+  // no margins of its own: the catalog card packs it into a tight button row,
+  // the classic list row asks for the spacing it needs. Passing `my-0 mr-0`
+  // the other way round does not work - Tailwind resolves the conflict by
+  // stylesheet order, not by the order of the class names.
   const actions = (e: Entry, className = '') =>
     user?.isAdmin ? (
-      <span className={`my-1 mr-2 flex shrink-0 gap-1.5 ${className}`}>
+      <span className={`flex shrink-0 gap-1.5 ${className}`}>
         <Button
           size="sm"
           aria-label={t('local.renameItem', { name: e.name })}
@@ -121,7 +125,7 @@ export default function Local() {
             path={path}
             onNavigate={setPath}
             onSelect={() => {}}
-            cardActions={(e) => actions(e, 'my-0 mr-0')}
+            cardActions={(e) => actions(e)}
             onOpenFiles={(p) => {
               setPath(p.replace(/^\//, ''))
               setView('classic')
@@ -134,7 +138,7 @@ export default function Local() {
           path={path}
           onNavigate={setPath}
           emptyHint={t('remote.emptyLocal')}
-          actions={(e) => actions(e)}
+          actions={(e) => actions(e, 'my-1 mr-2')}
         />
         )}
       </Panel>
