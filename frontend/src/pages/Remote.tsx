@@ -644,12 +644,13 @@ export function CatalogGrid({
                 // four icon buttons at the touch size of --ctl-h-sm need 180px,
                 // a catalog tile offers 140: the square minimum has to go here
                 // or the last button hangs over the card's edge. Height keeps
-                // the touch target, width shrinks to its share of the row, and
-                // flex-wrap catches the card that adds a fifth action.
-                <div className="mx-2 mb-2 mt-auto flex flex-wrap gap-1.5 [&>.t-btn]:min-w-0! [&>.t-btn]:px-1!">
+                // the touch target, width drops to the WCAG 2.5.8 floor, and
+                // flex-wrap catches the card that adds a fifth action. Centred
+                // rather than stretched, so the gap left of the row matches the
+                // one on its right whatever the tile's width.
+                <div className="mx-2 mb-2 mt-auto flex flex-wrap justify-center gap-1.5 [&_.t-btn]:min-w-6! [&_.t-btn]:px-1!">
                   <Button
                     size="sm"
-                    className="flex-1"
                     aria-label={t('remote.detailsFor', { name: mediaTitle(g.media) })}
                     title={t('remote.details')}
                     onClick={() => setDetail(g)}
@@ -660,7 +661,6 @@ export function CatalogGrid({
                     <>
                       <Button
                         size="sm"
-                        className="flex-1"
                         aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
                         title={t('remote.showFiles')}
                         onClick={() => onOpenFiles(it.entry.path)}
@@ -670,7 +670,6 @@ export function CatalogGrid({
                       {onSync && (
                         <Button
                           size="sm"
-                          className="flex-1"
                           aria-label={`${t('plex.syncOnce')}: ${it.entry.name}`}
                           title={t('plex.syncOnce')}
                           onClick={() => onSync(it.entry)}
@@ -681,7 +680,6 @@ export function CatalogGrid({
                       {onWatch && (
                         <Button
                           size="sm"
-                          className="flex-1"
                           aria-label={`${t('watch.add')}: ${it.entry.name}`}
                           title={t('watch.add')}
                           onClick={() => onWatch(it.entry)}
@@ -694,12 +692,11 @@ export function CatalogGrid({
                   )}
                 </div>
               ) : (
-                // a 150px card cannot hold an icon button and a labelled one
-                // side by side - the label ended up in a 40px box and broke
-                // across two lines. The icon keeps its natural width, the label
-                // claims a width it can use, and the row wraps rather than the
-                // text inside it.
-                <div className="mx-2 mb-2 mt-auto flex flex-wrap gap-1.5">
+                // "Match ändern" spelled out needs 114px of a 131px tile, so it
+                // claimed a line of its own and pushed the rename/delete pair
+                // onto a third. As an icon it joins the row: same action, same
+                // Replace glyph the detail dialog uses, name in title/aria.
+                <div className="mx-2 mb-2 mt-auto flex flex-wrap justify-center gap-1.5 [&_.t-btn]:min-w-6! [&_.t-btn]:px-1!">
                   <Button
                     size="sm"
                     className="shrink-0"
@@ -710,10 +707,13 @@ export function CatalogGrid({
                     <Files aria-hidden size="1.2em" />
                   </Button>
                   {!g.pending && !!it.source && (
-                    // xs: at the small size the label needs 114px and the tile
-                    // gives it 110. Same box, same touch target, smaller type.
-                    <Button size="xs" className="min-w-24! flex-1" onClick={() => setRematch(it)}>
-                      {t('remote.changeMatch')}
+                    <Button
+                      size="sm"
+                      aria-label={`${t('remote.changeMatch')}: ${it.entry.name}`}
+                      title={t('remote.changeMatch')}
+                      onClick={() => setRematch(it)}
+                    >
+                      <Replace aria-hidden size="1.2em" />
                     </Button>
                   )}
                   {cardActions?.(it.entry)}
