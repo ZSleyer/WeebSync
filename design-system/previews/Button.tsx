@@ -8,11 +8,18 @@ export const Variants = () => (
   </div>
 )
 
+/**
+ * Three steps. "xs" is not a smaller box - it keeps the small button's height,
+ * and therefore its touch target, and only shrinks type and side padding. It
+ * exists for a labelled button inside a card too narrow for the small size,
+ * where the alternative is the label breaking across two lines.
+ */
 export const Sizes = () => (
   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
     <Button>Standard</Button>
     <Button size="sm">Klein</Button>
     <Button size="sm" variant="primary">Klein primär</Button>
+    <Button size="xs">Match ändern</Button>
   </div>
 )
 

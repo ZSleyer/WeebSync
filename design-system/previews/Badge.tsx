@@ -10,6 +10,37 @@ export const Tones = () => (
   </div>
 )
 
+/**
+ * Two size steps. "sm" is the dense one, for chip rows sharing a narrow column
+ * on a phone - only type, tracking and side padding shrink, the 24px box stays
+ * where WCAG 2.5.8 needs it, so a small chip still lines up with a big one.
+ */
+export const Sizes = () => (
+  <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <Badge tone="ok">Nächste: Folge 62</Badge>
+      <Badge tone="warn">31 ausstehend</Badge>
+      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>md</span>
+    </div>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <Badge tone="ok" size="sm">Nächste: Folge 62</Badge>
+      <Badge tone="warn" size="sm">31 ausstehend</Badge>
+      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>sm</span>
+    </div>
+  </div>
+)
+
+/**
+ * A chip that is prose, not a chip: a page subtitle or a status line whose
+ * length is the user's, not the designer's. It is allowed a second line, and
+ * the UI audit skips it when looking for labels that had to wrap.
+ */
+export const Multiline = () => (
+  <div style={{ maxWidth: 260 }}>
+    <Badge tone="ok" multiline>Plex: verbunden als plex@example.com auf sherry</Badge>
+  </div>
+)
+
 export const InContext = () => (
   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 20 }}>
     <span style={{ color: 'var(--text-secondary)' }}>Neben großem Text:</span>

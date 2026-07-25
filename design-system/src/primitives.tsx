@@ -48,8 +48,12 @@ export type ButtonVariant = 'default' | 'primary' | 'danger'
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** visual weight; primary is the one call to action per view */
   variant?: ButtonVariant
-  /** small controls sit at --ctl-h-sm and pair with badges and divider rows */
-  size?: 'md' | 'sm'
+  /**
+   * small controls sit at --ctl-h-sm and pair with badges and divider rows;
+   * xs keeps that box and only shrinks type and padding, for a labelled button
+   * inside a card too narrow for the small size
+   */
+  size?: 'md' | 'sm' | 'xs'
   /** clip the top-right corner - reserved for the primary action */
   cut?: boolean
 }
@@ -64,6 +68,8 @@ export function buttonClass(opts: Pick<ButtonProps, 'variant' | 'size' | 'cut'> 
   return cx(
     't-btn',
     size === 'sm' && 't-btn--sm',
+    // xs is a variant of the small box, not a box of its own
+    size === 'xs' && 't-btn--sm t-btn--xs',
     variant === 'primary' && 't-btn--primary',
     variant === 'danger' && 't-btn--danger',
     cut && 't-cut',
@@ -73,7 +79,7 @@ export function buttonClass(opts: Pick<ButtonProps, 'variant' | 'size' | 'cut'> 
 
 export interface ButtonLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   variant?: ButtonVariant
-  size?: 'md' | 'sm'
+  size?: 'md' | 'sm' | 'xs'
   cut?: boolean
 }
 
@@ -84,7 +90,7 @@ export function ButtonLink({ variant, size, cut, className, ...rest }: ButtonLin
 
 export interface ButtonLabelProps extends LabelHTMLAttributes<HTMLLabelElement> {
   variant?: ButtonVariant
-  size?: 'md' | 'sm'
+  size?: 'md' | 'sm' | 'xs'
   cut?: boolean
 }
 
@@ -119,6 +125,7 @@ export function Button({ variant = 'default', size = 'md', cut, className, ...re
       className={cx(
         't-btn',
         size === 'sm' && 't-btn--sm',
+        size === 'xs' && 't-btn--sm t-btn--xs',
         variant === 'primary' && 't-btn--primary',
         variant === 'danger' && 't-btn--danger',
         cut && 't-cut',
@@ -250,6 +257,18 @@ export type BadgeTone = 'neutral' | 'accent' | 'ok' | 'warn' | 'err'
 
 export interface BadgeProps extends HTMLAttributes<HTMLElement> {
   tone?: BadgeTone
+  /**
+   * "sm" is the dense step, for chip rows that share a narrow column - a media
+   * tile on a phone. The 24px box is unchanged (WCAG 2.5.8); only type size,
+   * tracking and side padding shrink.
+   */
+  size?: 'md' | 'sm'
+  /**
+   * This chip is prose - a page subtitle, or a status line carrying a user and
+   * a server name - so a second line is intended rather than a layout fault.
+   * Chips are single-line by default and the UI audit flags the ones that wrap.
+   */
+  multiline?: boolean
   /** a chip that labels a control has to be a real <label>, a fieldset's a <legend> */
   as?: 'span' | 'label' | 'div' | 'legend' | 'a' | 'h3' | 'h4' | 'button'
   /** only with as="label" */
@@ -261,12 +280,14 @@ export interface BadgeProps extends HTMLAttributes<HTMLElement> {
 }
 
 /** Uppercase micro-label chip. Height is fixed, so chips match across sections. */
-export function Badge({ tone = 'neutral', as: Tag = 'span', className, ...rest }: BadgeProps) {
+export function Badge({ tone = 'neutral', size = 'md', multiline, as: Tag = 'span', className, ...rest }: BadgeProps) {
   return (
     <Tag
       {...rest}
       className={cx(
         't-label',
+        size === 'sm' && 't-label--sm',
+        multiline && 't-label--multiline',
         tone === 'accent' && 't-label--accent',
         tone === 'ok' && 't-label--ok',
         tone === 'warn' && 't-label--warn',
