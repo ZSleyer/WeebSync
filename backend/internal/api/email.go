@@ -73,6 +73,16 @@ func emailLines(lines []string) string {
 	return items.String()
 }
 
+// oneLine makes foreign data safe for the text/plain part: quoted-printable
+// passes line breaks through, so a \r\n in a file name, error note or catalog
+// title would write forged lines into the mail (content spoofing). The HTML
+// part needs no equivalent - html.EscapeString already covers it.
+func oneLine(s string) string {
+	return strings.Join(strings.FieldsFunc(s, func(r rune) bool {
+		return r == '\r' || r == '\n'
+	}), " ")
+}
+
 // emailHTML wraps pre-rendered content in the WeebSync mail layout (inline
 // styles only - email clients ignore stylesheets). manage is the
 // notification-settings URL for the footer ("" hides the link).
@@ -186,7 +196,7 @@ func (s *Server) NotifyEvent(userID int64, category, title, body, url string) {
 	if base := s.baseURL(); base != "" {
 		manage = base + "/settings/notifications"
 	}
-	s.EmailNotify(userID, category, title, body, emailHTML(locale, title, "<p>"+html.EscapeString(body)+"</p>", extra, manage))
+	s.EmailNotify(userID, category, title, oneLine(body), emailHTML(locale, title, "<p>"+html.EscapeString(body)+"</p>", extra, manage))
 }
 
 // EmailNotify emails a single user for a category they opted into, if their
@@ -353,13 +363,13 @@ func (s *Server) renderDigest(locale, intro string, items []digestItem) (text, c
 		gk := fmt.Sprintf("%d|%s", it.serverID, dir)
 		g, ok := groups[gk]
 		if !ok {
-			g = &group{title: path.Base(dir)}
+			g = &group{title: oneLine(path.Base(dir))}
 			// the folder itself, or its parent (season subfolders), may
 			// carry the catalog match with title and cover
 			for _, d := range []string{dir, path.Dir(dir)} {
 				if m := s.watchMedia(it.serverID, d); m != nil {
 					if m.Title.Romaji != "" {
-						g.title = m.Title.Romaji
+						g.title = oneLine(m.Title.Romaji)
 					}
 					g.cover = m.CoverImage.Large
 					g.plexLink = s.plexWebLink(m.Title.Romaji, m.Title.English)
@@ -373,7 +383,7 @@ func (s *Server) renderDigest(locale, intro string, items []digestItem) (text, c
 		if it.note != "" {
 			name += ": " + it.note
 		}
-		g.names = append(g.names, name)
+		g.names = append(g.names, oneLine(name))
 	}
 
 	var t, c strings.Builder
@@ -431,7 +441,8 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 			if rc.locale != "de" {
 				rc.locale = "en"
 			}
-			subject, body := tr(rc.locale, subjectKey), tr(rc.locale, bodyKey, args...)
+			// args come from users/remote servers, so the body can carry CR/LF
+			subject, body := tr(rc.locale, subjectKey), oneLine(tr(rc.locale, bodyKey, args...))
 			htmlBody := emailHTML(rc.locale, subject, emailLines([]string{body}), "", s.baseURL()+"/settings/notifications")
 			if err := s.Mail.Send(rc.email, "WeebSync – "+subject, body, htmlBody); err != nil {
 				slog.Warn("admin notify email", "to", rc.email, "err", err)
