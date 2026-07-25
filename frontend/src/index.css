@@ -149,6 +149,7 @@
   --ctl-h-sm: 26px; /* small + icon buttons */
   --ctl-fs: 14px;
   --ctl-fs-sm: 11px;
+  --ctl-fs-xs: 10px; /* one step below sm - dense chips (.t-label--sm) */
   --ctl-lh: 20px;
   --ctl-lh-sm: 16px;
 }
@@ -254,6 +255,27 @@ body {
   /* one box for every chip: decorative ones then match the interactive ones,
      which need 24px to clear the target-size floor of WCAG 2.5.8 */
   min-height: 1.5rem;
+  /* a chip never widens its panel; a chip that still cannot fit wraps inside
+     its own box instead of pushing the row into a horizontal scroll */
+  max-width: 100%;
+  min-width: 0;
+}
+/* Dense chip: the size step below the default, for the chip rows inside a
+   media tile, where several chips share one narrow column on a phone. The
+   1.5rem box stays - that is the WCAG 2.5.8 floor, not a style choice. */
+.t-label--sm {
+  font-size: var(--ctl-fs-xs);
+  letter-spacing: 0.1em;
+  padding-inline: 4px;
+  gap: 3px;
+}
+/* Prose in a chip - a page subtitle, a status line with a server name. The
+   fixed line box is what makes chips line up, and it is wrong for text that is
+   meant to run over two lines. */
+.t-label--multiline {
+  align-items: flex-start;
+  line-height: 1.4;
+  padding-block: 3px;
 }
 .t-label--accent {
   border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent);
@@ -375,6 +397,16 @@ body {
   min-height: var(--ctl-h-sm);
   min-width: var(--ctl-h-sm);
 }
+/* Dense step below --sm, for a labelled button inside a narrow card - the
+   catalog tiles are ~110px wide and "Match ändern" needs 114px at the small
+   size. Only type and side padding shrink: the box keeps the small button's
+   height, so the touch target stays where WCAG 2.5.8 wants it. */
+.t-btn--xs {
+  font-size: var(--ctl-fs-xs);
+  letter-spacing: 0;
+  padding-inline: 0.4rem;
+}
+
 /* Square icon-only button (help "?", inline actions): same box as t-btn--sm. */
 .t-iconbtn {
   display: inline-flex;
@@ -573,12 +605,25 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
     --ctl-h-sm: 2.222rem;
     --ctl-fs: 0.889rem;
     --ctl-fs-sm: 0.722rem;
+    --ctl-fs-xs: 0.639rem;
     --ctl-lh: 1.333rem;
     --ctl-lh-sm: 1.111rem;
   }
   .t-btn { padding: 0.556rem 0.889rem; }
   .t-btn--sm { padding: 0.333rem 0.667rem; }
   .t-tab { font-size: var(--ctl-fs); min-height: var(--ctl-h); padding: 0.556rem 0.889rem; }
+}
+
+/* ── Narrow viewports: tracking is the first thing to give ──
+   The Tempest chip carries 0.18em of letterspacing, which makes it ~15% wider
+   than its text. On a 393px phone that alone is the difference between a chip
+   on one line and a chip on three, so the tracking shrinks before anything
+   else does. Keyed on width, not on pointer type, so a narrow desktop window
+   and the WCAG 1.4.10 reflow case get the same treatment. */
+@media (max-width: 30rem) {
+  .t-label { letter-spacing: 0.06em; }
+  .t-label--sm { letter-spacing: 0.04em; }
+  .t-btn { letter-spacing: 0; }
 }
 
 /* ── Toolbar: one control row with a single normalized height ── */
@@ -663,6 +708,7 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 
 /* ── Native dialog: Tempest panel + CRT reveal ── */
+
 dialog {
   background: var(--bg-card);
   color: var(--text-primary);
