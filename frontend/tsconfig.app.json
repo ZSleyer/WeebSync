@@ -25,5 +25,8 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "../design-system/src"]
+  /* the previews are type-checked with the app so they cannot drift away from
+     the components they demonstrate - they are never imported, so nothing of
+     them reaches the bundle */
+  "include": ["src", "../design-system/src", "../design-system/previews"]
 }
