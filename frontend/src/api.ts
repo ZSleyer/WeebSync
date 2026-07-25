@@ -158,6 +158,16 @@ export interface Watch {
   category?: 'anime-series' | 'anime-movie' | 'series' | 'movie'
 }
 
+// What a sync did. The counters answer the question a bare "0 queued" leaves
+// open: nothing to do, or something wrong?
+export interface SyncResult {
+  queued: number
+  ids?: number[]
+  skipped?: number // already at the target, same size
+  uploading?: number // still growing on the remote
+  filtered?: number // dropped by the language filter
+}
+
 export interface Airing {
   at: number // unix seconds
   episode: number // local numbering (offset applied)
@@ -377,6 +387,22 @@ export const api = {
   post: <T>(url: string, body?: unknown, headers?: Record<string, string>) => request<T>('POST', url, body, headers),
   put: <T>(url: string, body?: unknown) => request<T>('PUT', url, body),
   del: <T>(url: string, body?: unknown) => request<T>('DELETE', url, body),
+}
+
+// syncOutcome turns a sync result into one sentence. Empty when files were
+// queued: then the queue itself is the answer. Otherwise it names the reason,
+// because "0 queued" alone reads like a failure.
+export function syncOutcome(
+  r: SyncResult,
+  t: (k: string, o?: Record<string, unknown>) => string,
+): string {
+  if (r.queued > 0) return ''
+  const parts: string[] = []
+  if (r.skipped) parts.push(t('remote.syncSkipped', { count: r.skipped }))
+  if (r.uploading) parts.push(t('remote.syncUploading', { count: r.uploading }))
+  if (r.filtered) parts.push(t('remote.syncFiltered', { count: r.filtered }))
+  if (!parts.length) return t('remote.syncNothing')
+  return t('remote.syncNoneBecause', { reasons: parts.join(', ') })
 }
 
 // fmtMissing renders missing episode numbers, appending the original absolute

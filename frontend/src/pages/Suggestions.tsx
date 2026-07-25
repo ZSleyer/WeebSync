@@ -61,6 +61,8 @@ import {
   type UpgradeDims,
   type DismissedItem,
   type SyncPlan,
+  type SyncResult,
+  syncOutcome,
   mediaTitle,
 } from '../api'
 import Collapsible from '../components/Collapsible'
@@ -242,7 +244,11 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
           initial={sync.initial}
           saveLabel={t('suggestions.syncOnce')}
           onSave={async (f) => {
-            const r = await api.post<{ queued: number }>('/api/downloads/sync', { serverId: sync.serverId, ...f })
+            const r = await api.post<SyncResult>('/api/downloads/sync', { serverId: sync.serverId, ...f })
+            // nothing queued: hand the reason back so the dialog stays open and
+            // shows it, instead of closing onto a notice far above the fold
+            const why = syncOutcome(r, t)
+            if (why) return why
             setNotice(t('remote.queued', { count: r.queued }))
           }}
           onClose={() => setSync(null)}
@@ -844,7 +850,11 @@ function UpgradesSection() {
           info={sync.info}
           saveLabel={t('suggestions.syncOnce')}
           onSave={async (f) => {
-            const r = await api.post<{ queued: number }>('/api/downloads/sync', { serverId: sync.serverId, ...f })
+            const r = await api.post<SyncResult>('/api/downloads/sync', { serverId: sync.serverId, ...f })
+            // nothing queued: hand the reason back so the dialog stays open and
+            // shows it, instead of closing onto a notice far above the fold
+            const why = syncOutcome(r, t)
+            if (why) return why
             setNotice(t('remote.queued', { count: r.queued }))
           }}
           onClose={() => setSync(null)}

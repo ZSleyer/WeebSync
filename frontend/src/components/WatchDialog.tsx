@@ -41,7 +41,9 @@ export default function WatchDialog({
   title: string
   serverId: number
   initial: WatchFields
-  onSave: (f: WatchFields) => Promise<void>
+  /** returning a string keeps the dialog open and shows it: a sync that
+   *  queued nothing has something to explain, and closing would hide it */
+  onSave: (f: WatchFields) => Promise<void | string>
   onClose: () => void
   saveLabel?: string // footer button text; defaults to the watch "save" label
   info?: string[] // context lines under the header (e.g. chosen upgrade source vs local quality)
@@ -76,6 +78,8 @@ export default function WatchDialog({
   )
   const [localBrowse, setLocalBrowse] = useState('')
   const [error, setError] = useState('')
+  // a neutral outcome worth reporting, e.g. "already there" - not an error
+  const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   // language codes present in this server's index, for the dub/sub filter
   const [langs, setLangs] = useState<{ dub: string[]; sub: string[] }>({ dub: [], sub: [] })
@@ -128,7 +132,13 @@ export default function WatchDialog({
     setError('')
     try {
       // rename off = keep original names, persist empty rules
-      await onSave(renameOn ? f : { ...f, template: '', pattern: '', replacement: '' })
+      const note = await onSave(renameOn ? f : { ...f, template: '', pattern: '', replacement: '' })
+      if (note) {
+        // nothing happened and there is a reason - say it here rather than
+        // behind a closing dialog, where the user would never scroll to it
+        setNotice(note)
+        return
+      }
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
@@ -367,7 +377,15 @@ export default function WatchDialog({
           )}
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
+        {/* the outcome belongs next to the button that caused it: in the
+            scrollable body it would sit below the fold, which is exactly how
+            the old notice above the page managed to stay unread */}
+        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
+          {notice && (
+            <p className="mr-auto min-w-0 flex-1 text-[11px] text-warn" role="status">
+              {notice}
+            </p>
+          )}
           <Button onClick={cancel}>
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.cancel')}
