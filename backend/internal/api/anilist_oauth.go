@@ -86,9 +86,9 @@ func (s *Server) handleAnilistConnect(w http.ResponseWriter, r *http.Request) {
 	raw := make([]byte, 16)
 	rand.Read(raw)
 	state := hex.EncodeToString(raw)
-	http.SetCookie(w, &http.Cookie{
+	auth.SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_anilist_state", Value: state, Path: "/api/anilist",
-		MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
+		MaxAge: 600,
 	})
 	q := url.Values{
 		"client_id":     {clientID},
@@ -130,9 +130,9 @@ func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	// state is single-use: invalidate the cookie so the callback URL
 	// cannot be replayed within the cookie's lifetime
-	http.SetCookie(w, &http.Cookie{
+	auth.SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_anilist_state", Value: "", Path: "/api/anilist",
-		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
+		MaxAge: -1,
 	})
 	code := r.URL.Query().Get("code")
 	if code == "" {

@@ -140,13 +140,13 @@ func (m *Manager) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
+	SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_oidc_state", Value: state, Path: "/api/auth/oidc",
-		MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
+		MaxAge: 600,
 	})
-	http.SetCookie(w, &http.Cookie{
+	SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_oidc_nonce", Value: nonce, Path: "/api/auth/oidc",
-		MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
+		MaxAge: 600,
 	})
 	http.Redirect(w, r, o.config.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
 }
@@ -175,13 +175,13 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	nonceCookie, nerr := r.Cookie("weebsync_oidc_nonce")
 	// state + nonce are single-use: invalidate both so the callback URL
 	// cannot be replayed within the cookies' lifetime
-	http.SetCookie(w, &http.Cookie{
+	SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_oidc_state", Value: "", Path: "/api/auth/oidc",
-		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
+		MaxAge: -1,
 	})
-	http.SetCookie(w, &http.Cookie{
+	SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_oidc_nonce", Value: "", Path: "/api/auth/oidc",
-		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
+		MaxAge: -1,
 	})
 	// token exchange + JWKS verification also go through the guarded client
 	octx := oidc.ClientContext(r.Context(), netguard.Client(10*time.Second))

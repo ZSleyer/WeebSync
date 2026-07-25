@@ -143,14 +143,11 @@ func CreateSession(d *sql.DB, w http.ResponseWriter, r *http.Request, userID int
 		hashToken(token), userID, expires.UTC().Format(time.RFC3339)); err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     "weebsync_session",
-		Value:    token,
-		Path:     "/",
-		Expires:  expires,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   isHTTPS(r),
+	SetCookie(w, r, &http.Cookie{
+		Name:    "weebsync_session",
+		Value:   token,
+		Path:    "/",
+		Expires: expires,
 	})
 	return nil
 }
@@ -159,9 +156,8 @@ func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie("weebsync_session"); err == nil {
 		d.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(c.Value))
 	}
-	http.SetCookie(w, &http.Cookie{
+	SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_session", Value: "", Path: "/", MaxAge: -1,
-		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
 	})
 }
 

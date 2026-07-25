@@ -52,9 +52,9 @@ func (s *Server) handleTmdbConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	// the approval page redirects back with the token in the query; the
 	// cookie binds the callback to this browser (CSRF)
-	http.SetCookie(w, &http.Cookie{
+	auth.SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_tmdb_rt", Value: token, Path: "/api/tmdb",
-		MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
+		MaxAge: 600,
 	})
 	redirect := requestOrigin(r) + "/api/tmdb/callback"
 	http.Redirect(w, r, "https://www.themoviedb.org/authenticate/"+token+"?redirect_to="+url.QueryEscape(redirect), http.StatusFound)
@@ -82,9 +82,9 @@ func (s *Server) handleTmdbCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request token", http.StatusBadRequest)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
+	auth.SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_tmdb_rt", Value: "", Path: "/api/tmdb",
-		MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: auth.IsHTTPS(r),
+		MaxAge: -1,
 	})
 	if r.URL.Query().Get("denied") == "true" || r.URL.Query().Get("approved") == "false" {
 		http.Redirect(w, r, "/settings", http.StatusFound)
