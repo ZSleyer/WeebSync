@@ -196,7 +196,7 @@ export default function WatchDialog({
 
   return (
     <Dialog onClose={onClose} onRequestClose={mayClose} width="max-w-2xl" aria-label={title}>
-      <form className="flex max-h-[85vh] flex-col" onSubmit={submit}>
+      <form className="dialog-body" onSubmit={submit}>
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
           {info?.map((line, i) => (

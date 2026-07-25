@@ -29,14 +29,14 @@ describe('Dialog', () => {
 
   it('applies the width, the aria label and the body classes', () => {
     const { container } = render(
-      <Dialog onClose={() => {}} width="max-w-2xl" aria-label="Watch bearbeiten" bodyClassName="max-h-[85vh]" danger>
+      <Dialog onClose={() => {}} width="max-w-2xl" aria-label="Watch bearbeiten" bodyClassName="dialog-body" danger>
         Inhalt
       </Dialog>,
     )
     const dialog = dialogOf(container)
     expect(dialog).toHaveClass('w-full', 'p-0', 'max-w-2xl')
     expect(dialog).toHaveAttribute('aria-label', 'Watch bearbeiten')
-    expect(dialog.firstElementChild).toHaveClass('flex', 'flex-col', 't-panel--danger', 'max-h-[85vh]')
+    expect(dialog.firstElementChild).toHaveClass('flex', 'flex-col', 't-panel--danger', 'dialog-body')
   })
 
   it('reports the close exactly once through the dialog close event', async () => {
@@ -131,6 +131,84 @@ describe('Dialog', () => {
     await waitFor(() => expect(onRequestClose).toHaveBeenCalledTimes(1))
     expect(onClose).not.toHaveBeenCalled()
     expect(dialog.open).toBe(true)
+  })
+
+  // ── full-screen sheet on phones ──
+  // jsdom's matchMedia always reports `matches: false`, so the narrow case is
+  // stubbed. Restored per test, since the component reads it on first render.
+  const withNarrowViewport = (matches: boolean) => {
+    const real = window.matchMedia
+    window.matchMedia = ((q: string) =>
+      ({ matches, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
+    return () => {
+      window.matchMedia = real
+    }
+  }
+
+  it('derives the sheet from the width - wide dialogs cover a phone, max-w-md does not', () => {
+    const wide = render(<Dialog onClose={() => {}} width="max-w-2xl">Inhalt</Dialog>)
+    expect(dialogOf(wide.container)).toHaveClass('dialog-sheet')
+    const box = render(<Dialog onClose={() => {}} width="max-w-md">Inhalt</Dialog>)
+    expect(dialogOf(box.container)).not.toHaveClass('dialog-sheet')
+  })
+
+  it('honours an explicit sheet prop over the width default', () => {
+    const { container } = render(<Dialog onClose={() => {}} width="max-w-2xl" sheet={false}>Inhalt</Dialog>)
+    expect(dialogOf(container)).not.toHaveClass('dialog-sheet')
+  })
+
+  it('a sheet on a phone offers a close button instead of a backdrop click', async () => {
+    const restore = withNarrowViewport(true)
+    try {
+      const onClose = vi.fn()
+      const { container } = render(
+        <Dialog onClose={onClose} width="max-w-2xl" closeLabel="Schließen">
+          Inhalt
+        </Dialog>,
+      )
+      const dialog = dialogOf(container)
+      // there is no visible backdrop to aim at, so a click on the dialog box
+      // must not close it - that would fire on any tap next to the content
+      clickBackdrop(dialog)
+      expect(onClose).not.toHaveBeenCalled()
+      expect(dialog.open).toBe(true)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    } finally {
+      restore()
+    }
+  })
+
+  it('routes the sheet close button through the unsaved guard', async () => {
+    const restore = withNarrowViewport(true)
+    try {
+      const onClose = vi.fn()
+      const onRequestClose = vi.fn(() => false)
+      render(
+        <Dialog onClose={onClose} onRequestClose={onRequestClose} width="max-w-2xl" closeLabel="Schließen">
+          Inhalt
+        </Dialog>,
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
+      await waitFor(() => expect(onRequestClose).toHaveBeenCalledTimes(1))
+      expect(onClose).not.toHaveBeenCalled()
+    } finally {
+      restore()
+    }
+  })
+
+  it('keeps the backdrop click on a wide screen, where the backdrop is visible', async () => {
+    const restore = withNarrowViewport(false)
+    try {
+      const onClose = vi.fn()
+      const { container } = render(<Dialog onClose={onClose} width="max-w-2xl">Inhalt</Dialog>)
+      expect(screen.queryByRole('button', { name: 'Schließen' })).toBeNull()
+      clickBackdrop(dialogOf(container))
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    } finally {
+      restore()
+    }
   })
 
   it('leaves Escape to the platform when there is no guard', () => {

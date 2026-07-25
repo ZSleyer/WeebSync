@@ -823,11 +823,10 @@ function SyncDialog({
   return (
     <Dialog
       width="max-w-lg"
-      className="dialog-sheet"
       aria-label={t('remote.syncTitle', { name: entry.name })}
       onClose={onClose}
     >
-      <div className="flex max-h-[85vh] flex-col">
+      <div className="dialog-body">
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{t('remote.syncTitle', { name: entry.name })}</h3>
           <span className="mt-1 block truncate font-mono text-xs text-t-muted" title={entry.path}>
@@ -995,7 +994,6 @@ function DetailDialog({
   return (
     <Dialog
       width="max-w-4xl lg:max-w-6xl"
-      className="dialog-sheet"
       aria-label={t('remote.detailsFor', { name: mediaTitle(m) })}
       onClose={onClose}
     >
