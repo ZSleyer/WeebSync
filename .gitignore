@@ -38,6 +38,9 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+# holds the projectId of a personal claude.ai/design project; the tool
+# rewrites it on the next run
+.design-sync/config.json
 
 # e2e screenshots + report (regenerated per run)
 e2e-shots/
