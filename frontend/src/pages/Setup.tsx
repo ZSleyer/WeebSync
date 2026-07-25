@@ -185,7 +185,7 @@ export default function Setup({
   const wide = step === 'import' || step === 'server' || step === 'storage' || step === 'meta'
 
   return (
-    <main className="t-hatch grid min-h-screen place-items-center p-4">
+    <main className="t-hatch grid min-h-dvh place-items-center p-4">
       <div className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
         <div className="mb-6 text-center">
           <h1 className="font-display text-3xl font-bold tracking-[0.25em]">

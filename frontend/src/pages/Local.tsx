@@ -93,7 +93,7 @@ export default function Local() {
     ) : undefined
 
   return (
-    <div className="flex min-h-[calc(100dvh-8rem)] flex-col lg:h-[calc(100dvh-3rem)]">
+    <div className="flex min-h-0 flex-1 flex-col">
       <header className="mb-4 flex flex-wrap items-center gap-3">
         <div className="mr-auto">
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('local.title')}</h2>

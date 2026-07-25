@@ -152,6 +152,8 @@
   --ctl-fs-xs: 10px; /* one step below sm - dense chips (.t-label--sm) */
   --ctl-lh: 20px;
   --ctl-lh-sm: 16px;
+  /* height of the mobile tab bar - the bar sets it, <main> reserves it */
+  --nav-h: 3.33rem;
 }
 
 /* Root font-size is the master scale: every rem-based Tailwind utility
