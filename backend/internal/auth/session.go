@@ -10,40 +10,108 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
 const sessionTTL = 30 * 24 * time.Hour
 
-// Deployment posture from env, read once at startup:
+// Deployment posture. Both values can come from the environment or from the
+// settings table, and the two have to coexist: a container deployment sets
+// env, a bare install configures the same thing in the UI. Env wins and the
+// UI shows the field locked, the same rule the other env-backed settings
+// follow.
 //
-//	WEEBSYNC_TRUSTED_PROXY - trust X-Forwarded-* (set only behind a proxy that
-//	  overwrites these headers, else a direct client can spoof them).
+//	WEEBSYNC_TRUSTED_PROXY - "true" trusts whatever proxy the request arrives
+//	  from (the historical meaning of this variable), or a comma-separated
+//	  list of proxy IPs/CIDRs to trust.
 //	WEEBSYNC_FORCE_HTTPS - always set Secure on cookies (recommended when a
 //	  reverse proxy terminates TLS, so the app never sees r.TLS).
-var (
-	trustProxy = envBool("WEEBSYNC_TRUSTED_PROXY")
-	forceHTTPS = envBool("WEEBSYNC_FORCE_HTTPS")
-)
-
-func envBool(key string) bool {
-	v := strings.ToLower(os.Getenv(key))
-	return v == "1" || v == "true" || v == "yes"
+type proxyConfig struct {
+	// trust the immediate peer whoever it is; only reachable from env, because
+	// switching it on without a proxy in front lets any client forge its IP
+	trustAll bool
+	// the proxies we recognise, and therefore skip when reading the chain
+	proxies    IPList
+	forceHTTPS bool
 }
 
-// ClientIP returns the caller's IP, honoring X-Forwarded-For only in trusted-
-// proxy mode. Used for per-IP rate limiting.
-func ClientIP(r *http.Request) string {
-	if trustProxy {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			return strings.TrimSpace(strings.Split(xff, ",")[0])
-		}
+var proxyCfg atomic.Pointer[proxyConfig]
+
+// captured once; an empty variable counts as unset, matching envLocked()
+var (
+	envTrustedProxies = os.Getenv("WEEBSYNC_TRUSTED_PROXY")
+	envForceHTTPS     = os.Getenv("WEEBSYNC_FORCE_HTTPS")
+)
+
+func init() { SetProxyConfig("", false) }
+
+// SetProxyConfig applies the stored settings, with the environment winning
+// over both. Called at startup and after every settings save, so a change in
+// the UI takes effect without a restart.
+func SetProxyConfig(trustedProxies string, forceHTTPS bool) {
+	if envTrustedProxies != "" {
+		trustedProxies = envTrustedProxies
 	}
+	if envForceHTTPS != "" {
+		forceHTTPS = truthy(envForceHTTPS)
+	}
+	cfg := &proxyConfig{forceHTTPS: forceHTTPS}
+	if v := strings.TrimSpace(trustedProxies); truthy(v) {
+		cfg.trustAll = true
+	} else {
+		cfg.proxies = ParseIPList(v)
+	}
+	proxyCfg.Store(cfg)
+}
+
+func truthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
+// trustsPeer reports whether a request arriving from ip may set X-Forwarded-*.
+func (c *proxyConfig) trustsPeer(ip string) bool {
+	return c.trustAll || c.proxies.Contains(ip)
+}
+
+// remoteIP is the address the connection actually came from.
+func remoteIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// ClientIP returns the caller's IP for per-IP rate limiting, reading
+// X-Forwarded-For only when the request arrives from a trusted proxy.
+//
+// The chain is walked from the right, skipping the proxies we recognise, and
+// the first address that is not one of ours wins. Taking the leftmost entry -
+// which is what this did before - hands the caller whatever it wrote there:
+// everything left of our own proxy's contribution is client-supplied, so a
+// single forged header was enough to pick an arbitrary rate-limit bucket or
+// to land inside a trusted network. With trustAll there is no list to skip,
+// so the rightmost entry wins - the one address our own peer recorded.
+func ClientIP(r *http.Request) string {
+	remote := remoteIP(r)
+	cfg := proxyCfg.Load()
+	if cfg == nil || !cfg.trustsPeer(remote) {
+		return remote
+	}
+	parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	for i := len(parts) - 1; i >= 0; i-- {
+		p := strings.TrimSpace(parts[i])
+		if p == "" || cfg.proxies.Contains(p) {
+			continue
+		}
+		return p
+	}
+	return remote
 }
 
 type User struct {
@@ -98,7 +166,14 @@ func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) {
 }
 
 func isHTTPS(r *http.Request) bool {
-	return forceHTTPS || r.TLS != nil || (trustProxy && r.Header.Get("X-Forwarded-Proto") == "https")
+	cfg := proxyCfg.Load()
+	if cfg == nil {
+		return r.TLS != nil
+	}
+	// X-Forwarded-Proto is only worth reading from a proxy we trust, for the
+	// same reason X-Forwarded-For is
+	return cfg.forceHTTPS || r.TLS != nil ||
+		(cfg.trustsPeer(remoteIP(r)) && r.Header.Get("X-Forwarded-Proto") == "https")
 }
 
 // IsHTTPS reports whether the request should be treated as HTTPS, honoring the
