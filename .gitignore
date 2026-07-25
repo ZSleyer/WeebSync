@@ -38,3 +38,6 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# e2e screenshots + report (regenerated per run)
+e2e-shots/
