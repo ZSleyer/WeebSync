@@ -103,7 +103,7 @@ export default function Remote() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="page-fill flex min-h-0 flex-1 flex-col">
       {/* controls sit side by side with their labels stacked on top, so the
           selects share one baseline instead of two ragged label+select rows */}
       <header className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-2">

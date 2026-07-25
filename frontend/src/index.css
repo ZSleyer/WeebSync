@@ -716,6 +716,23 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: not-allowed; }
   input[type='checkbox'] { width: 1.5rem; height: 1.5rem; }
 }
 
+/* A page that scrolls its own lists (the file browsers) has to be told how
+   tall it is. <main> is a flex item whose automatic minimum is its content, so
+   it grows past the viewport and the page ends up with a scrollbar of its own
+   beside the list's - two scrollbars for one gesture. Letting it shrink is only
+   right where a page fills the screen by design; every other page still grows
+   <main> and scrolls the document, which is what keeps the last row clear of
+   the tab bar. */
+main:has(.page-fill) {
+  min-height: 0;
+}
+/* and the column around it needs a height, not a minimum: with `min-height`
+   alone the shell simply grows with its content and hands the extra straight
+   back to <main>, so nothing shrinks and the page scrolls after all. */
+.app-shell:has(.page-fill) {
+  height: 100dvh;
+}
+
 /* ── Native dialog: Tempest panel + CRT reveal ── */
 
 /* An open <dialog> makes the rest of the document inert, but inert does not
