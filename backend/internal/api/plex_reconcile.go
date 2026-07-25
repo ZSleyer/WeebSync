@@ -150,10 +150,19 @@ func (s *Server) reconcilePlex(budget int) {
 			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('imdb', ?, ?)`,
 				g.IMDB, h.seriesID)
 		}
+		// Plex's own address for the show. Keeping it beside the other ids makes
+		// the series entry complete - deep link, stream selection and library
+		// lookups all need it - and replaces scanning the guid index for a
+		// show_key string, which failed at every place the two identities
+		// diverged.
+		if rk, err := strconv.Atoi(g.RatingKey); err == nil && rk > 0 {
+			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('plex', ?, ?)`,
+				rk, h.seriesID)
+		}
 		// remember the folder either way: a folder whose title does not resolve
 		// must not be retried on every sweep, and one that did is done
 		s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder)
-		if g.TVDB != 0 || g.TMDB != 0 || g.IMDB != 0 {
+		if g.TVDB != 0 || g.TMDB != 0 || g.IMDB != 0 || g.RatingKey != "" {
 			enriched++
 			// series gained its cross-provider ids from Plex ground truth
 			slog.Debug("plex reconcile enrich", "seriesId", h.seriesID,
