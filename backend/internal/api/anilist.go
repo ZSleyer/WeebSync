@@ -794,12 +794,16 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid folder")
 		return
 	}
-	// ownership check: the server must belong to the user
-	var owned int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned)
-	if owned == 0 {
-		writeErr(w, http.StatusNotFound, "server not found")
-		return
+	// ownership check: the server must belong to the user. The local pseudo
+	// server has no row to own, same as in handleCatalogRematch and the scope
+	// handlers - without this branch correcting a local match 404s.
+	if serverID != localServerID {
+		var owned int
+		s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned)
+		if owned == 0 {
+			writeErr(w, http.StatusNotFound, "server not found")
+			return
+		}
 	}
 	// the scope lives on the parent directory - the folder itself is the entry
 	// that was listed there, and its kind can narrow tv to movie
