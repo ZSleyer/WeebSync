@@ -135,6 +135,41 @@ func (r *Resolver) Resolve(ctx context.Context, s Series, token string) (season,
 	return season, episode, true
 }
 
+// guessSpan is how far past the newest known episode a guess may reach. Beyond
+// that it stops being an extrapolation: a season boundary falls somewhere in
+// between, and that is precisely what the map exists to know.
+const guessSpan = 12
+
+// Guess extrapolates (season, episode) for a token the provider does not list
+// yet, by counting on from the newest episode it does. A show that just aired
+// its next episode is the case this covers - the provider is a few hours
+// behind, and the number is one past what it knows.
+//
+// It is a guess and says so: the caller quarantines the file rather than filing
+// it, and replaces the guess once the provider catches up. Only counts upward -
+// a number below the known range is a recap or a misnamed file, not a new
+// episode, and there is nothing sensible to extrapolate from.
+func (r *Resolver) Guess(s Series, token string) (season, episode int, ok bool) {
+	want, err := strconv.ParseFloat(token, 64)
+	if err != nil || want != float64(int(want)) {
+		return 0, 0, false // specials carry a ".5"; their numbering is not a run
+	}
+	var top float64
+	// CAST to REAL, not INTEGER: token is TEXT and a special's ".5" would
+	// collapse onto the whole number it follows
+	if err := r.DB.QueryRow(`SELECT CAST(token AS REAL), season, episode FROM season_maps
+		WHERE server_id=? AND folder=? AND season > 0
+		ORDER BY CAST(token AS REAL) DESC LIMIT 1`,
+		s.ServerID, s.Folder).Scan(&top, &season, &episode); err != nil {
+		return 0, 0, false
+	}
+	ahead := int(want) - int(top)
+	if ahead <= 0 || ahead > guessSpan {
+		return 0, 0, false
+	}
+	return season, episode + ahead, true
+}
+
 // mayForce reports whether this series may trigger another miss-driven rebuild,
 // and records the attempt.
 func (r *Resolver) mayForce(s Series) bool {
