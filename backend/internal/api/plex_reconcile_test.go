@@ -83,3 +83,31 @@ func TestSeriesProviderAcceptsPlexAndImdb(t *testing.T) {
 		t.Error("an unknown source should still be rejected")
 	}
 }
+
+// The deep link used to come from scanning the guid index for a show_key
+// string, which failed wherever the two identities diverged. Plex's own id now
+// hangs on the series, so any provider id that resolves to it finds the link.
+func TestPlexRatingKeyForFindsItThroughTheSeries(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	s := &Server{DB: d}
+	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'jojo','JoJo')`)
+	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES
+		('anilist',20474,1), ('tvdb',83950,1), ('tvdb',262954,1), ('tmdb:tv',7842,1), ('plex',64259,1)`)
+
+	// whichever id the show_key happens to carry, it leads to the same show
+	for _, key := range []string{"tvdb:83950", "tvdb:262954", "tmdb:7842"} {
+		if got := s.plexRatingKeyFor(key); got != "64259" {
+			t.Errorf("%s -> %q, want 64259", key, got)
+		}
+	}
+	// an id nobody knows, and malformed input, resolve to nothing
+	for _, key := range []string{"tvdb:999999", "fold:jojo", "", "tvdb:"} {
+		if got := s.plexRatingKeyFor(key); got != "" {
+			t.Errorf("%q -> %q, want empty", key, got)
+		}
+	}
+}

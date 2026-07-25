@@ -605,21 +605,55 @@ func (s *Server) plexLinkFor(c *plex.Client, key string) string {
 	return "https://app.plex.tv/desktop/#!/server/" + mid + "/details?key=" + url.QueryEscape("/library/metadata/"+key)
 }
 
-// plexWebLinkByKey resolves the deep link via Plex's own guids: a canonical
-// show_key ("tvdb:123" / "tmdb:123" / "imdb:123") is matched against the guid
-// index, so the link works even when the display title is localized and the
-// title index misses. Falls back to the title lookup, then "".
+// plexWebLinkByKey resolves the deep link from what the series knows about
+// itself: Plex's own ratingKey when reconcilePlex has attached one, otherwise
+// the guid index matched against the show_key string. That string route is the
+// fallback on purpose - it compares a key built by one code path against ids
+// collected by another, and fails at every point where the two diverge (a
+// different tvdb entry for the same show, "imdb:tt123" against "imdb:123", or
+// a "fold:" key that no provider ever issued).
 func (s *Server) plexWebLinkByKey(showKey string, titles ...string) string {
+	c := s.plexClient()
+	if c == nil {
+		return s.plexWebLink(titles...)
+	}
+	if rk := s.plexRatingKeyFor(showKey); rk != "" {
+		if l := s.plexLinkFor(c, rk); l != "" {
+			return l
+		}
+	}
 	if showKey != "" {
-		if c := s.plexClient(); c != nil {
-			if key := guidRatingKey(s.plexGuidIndex(), showKey); key != "" {
-				if l := s.plexLinkFor(c, key); l != "" {
-					return l
-				}
+		if key := guidRatingKey(s.plexGuidIndex(), showKey); key != "" {
+			if l := s.plexLinkFor(c, key); l != "" {
+				return l
 			}
 		}
 	}
 	return s.plexWebLink(titles...)
+}
+
+// plexRatingKeyFor looks up Plex's own id for the series behind a show_key, via
+// the provider row reconcilePlex writes. Empty when the show_key does not
+// resolve to a series, or that series has no plex row yet.
+func (s *Server) plexRatingKeyFor(showKey string) string {
+	src, idStr, ok := strings.Cut(showKey, ":")
+	if !ok {
+		return ""
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		return ""
+	}
+	if src == "tmdb" {
+		src = "tmdb:tv" // show_key drops the kind; tv is what a series carries
+	}
+	var rk int
+	if s.DB.QueryRow(`SELECT p.media_id FROM series_provider p
+		JOIN series_provider q ON q.series_id = p.series_id
+		WHERE p.source = 'plex' AND q.source = ? AND q.media_id = ?`, src, id).Scan(&rk) != nil {
+		return ""
+	}
+	return strconv.Itoa(rk)
 }
 
 // guidRatingKey finds the ratingKey whose Plex guid carries the show_key's
