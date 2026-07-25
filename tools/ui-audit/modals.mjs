@@ -39,7 +39,8 @@ const TRIGGERS = [
 
 const VIEWPORTS = {
   desktop: { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 },
-  mobile: { viewport: { width: 448, height: 998 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  pixel: { viewport: { width: 448, height: 998 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  iphone: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
 }
 
 const auditDialog = () => {
@@ -106,10 +107,29 @@ const auditDialog = () => {
   }
 
   const r = d.getBoundingClientRect()
+
+  // While a modal is open the page behind it must not scroll: the platform
+  // makes the rest of the document inert, but inert does not stop a scroll
+  // gesture, and on a phone that gesture moved the page instead of the dialog.
+  const shell = []
+  if (getComputedStyle(document.documentElement).overflow !== 'hidden')
+    shell.push('the page behind the modal is still scrollable')
+
+  // A sheet-sized dialog covers the phone screen, so it has no backdrop left to
+  // click - it owes the user exactly one visible way out.
+  const sheet = d.classList.contains('dialog-sheet') && matchMedia('(max-width: 40rem)').matches
+  if (sheet) {
+    if (Math.abs(r.width - innerWidth) > 1 || Math.abs(r.height - innerHeight) > 1)
+      shell.push(`sheet does not fill the screen: ${Math.round(r.width)}x${Math.round(r.height)} of ${innerWidth}x${innerHeight}`)
+    const closers = [...d.querySelectorAll('button[aria-label]')].filter((b) => vis(b) && /schließen|close/i.test(b.getAttribute('aria-label')))
+    if (closers.length !== 1) shell.push(`sheet has ${closers.length} close buttons, expected exactly 1`)
+  }
+
   return {
     title: (d.querySelector('h2, h3, [id]')?.textContent || '').trim().slice(0, 40),
     fitsViewport: r.height <= innerHeight + 1,
-    scroll, targets, rows,
+    sheet,
+    scroll, targets, rows, shell,
   }
 }
 
@@ -156,12 +176,21 @@ for (const d of all) {
   if (d.targets.length) p.push(`${d.targets.length}x Zielgröße`)
   if (d.rows.length) p.push(`${d.rows.length}x Höhen in einer Zeile`)
   if (!d.fitsViewport) p.push('höher als der Viewport')
+  if (d.shell?.length) p.push(`${d.shell.length}x Modal-Verhalten`)
   if (p.length) {
     bad++
-    console.log(`✗ ${d.browser}/${d.viewport} ${d.route} "${d.title}": ${p.join(' · ')}`)
+    console.log(`✗ ${d.browser}/${d.viewport} ${d.route} "${d.title}"${d.sheet ? ' [sheet]' : ''}: ${p.join(' · ')}`)
+    for (const s of d.shell || []) console.log(`    Modal ${s}`)
     for (const s of d.scroll) console.log(`    Scroll ${JSON.stringify(s)}`)
     for (const t of d.targets.slice(0, 4)) console.log(`    Ziel ${t}`)
     for (const r of d.rows.slice(0, 4)) console.log(`    Höhe ${r}`)
   }
 }
-console.log(bad === 0 ? `\n✓ ${all.length} Dialoge geprüft: keine Befunde` : `\n${bad}/${all.length} Dialoge mit Befunden`)
+// how many of the runs actually exercised the phone sheet - a silent zero here
+// would mean the sheet checks never ran, not that they passed
+const sheets = all.filter((d) => d.sheet).length
+console.log(
+  bad === 0
+    ? `\n✓ ${all.length} Dialoge geprüft (davon ${sheets} als Vollbild-Sheet): keine Befunde`
+    : `\n${bad}/${all.length} Dialoge mit Befunden (${sheets} als Vollbild-Sheet geprüft)`,
+)

@@ -1,7 +1,8 @@
 // End-to-end pass over the running app: every route, in Chromium and Firefox,
-// desktop and Pixel 8 Pro. Checks what a screenshot cannot - WCAG 2.2 AA text
-// contrast (1.4.3) and target size (2.5.8), console errors, and control heights
-// per family - and leaves one screenshot per route/browser/viewport behind.
+// at desktop, Pixel 8 Pro and iPhone 14. Checks what a screenshot cannot - WCAG
+// 2.2 AA text contrast (1.4.3) and target size (2.5.8), console errors, control
+// heights per family, labels that wrapped, and whether the mobile shell stays
+// pinned - and leaves one screenshot per route/browser/viewport behind.
 //
 //   node .ds-sync/e2e.mjs [--base http://127.0.0.1:8099] [--out ./e2e-shots] [--tag before]
 import { chromium, firefox } from 'playwright'
@@ -32,7 +33,10 @@ const ROUTES = arg('routes', '').split(',').filter(Boolean).length
 const VIEWPORTS = {
   desktop: { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
   // Pixel 8 Pro as Chrome reports it
-  mobile: { viewport: { width: 448, height: 998 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  pixel: { viewport: { width: 448, height: 998 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  // iPhone 14 - the narrower of the two target phones, and therefore the one
+  // that finds the labels which no longer fit on a single line
+  iphone: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
 }
 
 // Runs in the page. Walks every text node for contrast and every interactive
@@ -158,7 +162,102 @@ const audit = () => {
     }
   }
 
-  return { contrast, targets, heights, offenders, scroll, title: document.title }
+  // Labels that had to break across lines to fit. A button or a chip is a
+  // single-line control by design, so a second line means the box is too narrow
+  // for its text - the exact regression the mobile scale-up produced. Counting
+  // box height would lie here: an inline icon has a client rect of its own, and
+  // a stretched flex item is tall without its text wrapping. So the line boxes
+  // of the TEXT NODES are counted instead.
+  const lineCount = (el) => {
+    const tops = new Set()
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      if (!n.nodeValue.trim()) continue
+      const rng = document.createRange()
+      rng.selectNodeContents(n)
+      // quarter-pixel buckets: sub-pixel jitter must not read as a new line
+      for (const r of rng.getClientRects()) if (r.width > 1) tops.add(Math.round(r.top / 4))
+    }
+    return tops.size
+  }
+  const wrapped = []
+  for (const el of document.querySelectorAll('.t-label, .t-btn, .t-tab')) {
+    if (!visible(el)) continue
+    // a chip that is prose, not a chip - a page subtitle or a status line with
+    // a server name in it - says so, and is allowed the second line
+    if (el.classList.contains('t-label--multiline')) continue
+    const n = lineCount(el)
+    if (n < 2) continue
+    // how wide the label would have to be to fit on one line. Measured on a
+    // detached clone, because a wrapped element's scrollWidth equals its
+    // clientWidth and says nothing about what it needed.
+    const clone = el.cloneNode(true)
+    clone.style.cssText = 'position:absolute;left:-9999px;top:0;white-space:nowrap;flex:none;width:auto;min-width:0'
+    el.parentElement.appendChild(clone)
+    const needs = Math.ceil(clone.getBoundingClientRect().width)
+    clone.remove()
+    wrapped.push({ text: (el.textContent || '').trim().slice(0, 45), lines: n, w: Math.round(el.getBoundingClientRect().width), needs })
+  }
+
+  // The mobile shell: the tab bar is pinned to the bottom of the viewport and
+  // the header to the top, before and after a scroll. A page that is barely
+  // taller than the viewport ("phantom overflow") is the other half of the same
+  // bug - it is what makes a phone's URL bar toggle on every gesture.
+  const shell = []
+  // `visible` matters: on desktop both are display:none but keep their
+  // position, and a zero-size rect would read as "pinned 900px too high"
+  const nav = [...document.querySelectorAll('nav')].find((n) => visible(n) && getComputedStyle(n).position === 'fixed')
+  const header = [...document.querySelectorAll('header')].find((h) => visible(h) && getComputedStyle(h).position === 'sticky')
+  const check = (when) => {
+    if (nav) {
+      const b = nav.getBoundingClientRect().bottom
+      if (Math.abs(b - innerHeight) > 1) shell.push({ what: 'tab bar not at the viewport bottom', when, off: Math.round(b - innerHeight) })
+    }
+    if (header) {
+      const t = header.getBoundingClientRect().top
+      if (Math.abs(t) > 1) shell.push({ what: 'header not flush with the top', when, off: Math.round(t) })
+    }
+  }
+  check('at rest')
+  const y0 = scrollY
+  scrollTo(0, 400)
+  check('after scrolling')
+  scrollTo(0, y0)
+  const phantom = doc.scrollHeight - innerHeight
+  if (phantom > 0 && phantom <= 24) shell.push({ what: 'phantom overflow - the page scrolls without content to scroll', off: phantom })
+
+  // The other half of that check, and the one whose absence reads as success:
+  // a page whose content the user cannot reach. A flex child that may shrink
+  // below its content keeps <main> from growing, so the document reports no
+  // overflow at all - zero phantom overflow and zero scrolling look identical
+  // from the outside. Compare the deepest content against what the document
+  // admits to being tall, and confirm the scroll actually goes that far.
+  let deepest = 0
+  let who = null
+  for (const el of document.querySelectorAll('body *')) {
+    const cs = getComputedStyle(el)
+    if (cs.display === 'none' || cs.position === 'fixed') continue
+    const r = el.getBoundingClientRect()
+    if (!r.height) continue
+    const b = r.bottom + scrollY
+    if (b > deepest) {
+      deepest = b
+      who = el.tagName.toLowerCase() + '.' + el.className.toString().slice(0, 40)
+    }
+  }
+  const unreachable = Math.round(deepest - doc.scrollHeight)
+  if (unreachable > 1) shell.push({ what: `content below the scrollable area (${who})`, off: unreachable })
+  if (doc.scrollHeight > innerHeight + 1) {
+    scrollTo(0, doc.scrollHeight)
+    const reached = scrollY
+    scrollTo(0, y0)
+    const short = Math.round(doc.scrollHeight - innerHeight - reached)
+    if (short > 2) shell.push({ what: 'the page stops scrolling before its end', off: short })
+  }
+  if (getComputedStyle(doc).overflow === 'hidden' && !document.querySelector('dialog[open]'))
+    shell.push({ what: 'the page is locked against scrolling with no modal open', off: 0 })
+
+  return { contrast, targets, heights, offenders, scroll, wrapped, shell, title: document.title }
 }
 
 const run = async (name, browserType) => {
@@ -224,6 +323,8 @@ for (const f of all) {
   if (f.targets.length) problems.push(`${f.targets.length}x Zielgröße`)
   if (f.errors.length) problems.push(`${f.errors.length}x Konsolenfehler`)
   if (f.scroll?.length) problems.push(`${f.scroll.length}x Scrollbalken`)
+  if (f.wrapped?.length) problems.push(`${f.wrapped.length}x Label umgebrochen`)
+  if (f.shell?.length) problems.push(`${f.shell.length}x Shell verrutscht`)
   for (const [fam, rows] of Object.entries(f.offenders || {})) problems.push(`${fam}: ${rows.length}x Höhen in einer Zeile uneinheitlich`)
   if (problems.length) {
     bad++
@@ -231,11 +332,13 @@ for (const f of all) {
     for (const c of f.contrast.slice(0, 4)) console.log(`    Kontrast ${c.ratio}:1 ${c.size}px "${c.text}"`)
     for (const t of f.targets.slice(0, 4)) console.log(`    Ziel ${t.w}x${t.h} <${t.tag}> "${t.text}"`)
     for (const sc of (f.scroll || []).slice(0, 4)) console.log(`    Scroll ${sc.axis} +${sc.overflow}px in "${sc.where}"`)
+    for (const w of (f.wrapped || []).slice(0, 6)) console.log(`    Umbruch ${w.lines} Zeilen: ${w.w}px vorhanden, ${w.needs}px nötig "${w.text}"`)
+    for (const s of (f.shell || []).slice(0, 4)) console.log(`    Shell ${s.what}${s.when ? ` (${s.when})` : ''}: ${s.off}px`)
     for (const [fam, rows] of Object.entries(f.offenders || {}))
       for (const r of rows) console.log(`    ${fam} ${r.h}px x${r.n}  ${r.sample}`)
     for (const e of f.errors.slice(0, 3)) console.log(`    ${e}`)
   }
 }
 console.log(bad === 0
-  ? `\n✓ ${all.length} Seitenläufe (2 Browser x 2 Viewports x ${ROUTES.length} Routen): keine Befunde`
+  ? `\n✓ ${all.length} Seitenläufe (2 Browser x ${Object.keys(VIEWPORTS).length} Viewports x ${ROUTES.length} Routen): keine Befunde`
   : `\n${bad}/${all.length} Seitenläufe mit Befunden`)
