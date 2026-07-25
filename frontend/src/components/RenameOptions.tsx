@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Input, Select } from '@weebsync/design-system'
 import { api, type Media } from '../api'
 
 // Every two-column row of the watch dialog - here and in WatchDialog itself -
@@ -151,19 +152,19 @@ export function SeriesPicker({
   return (
     <div className="mt-2 border border-border-subtle p-2">
       <div className="mb-1 flex gap-1">
-        <input
-          className="t-input font-mono"
+        <Input
+          className="font-mono"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), void search(q))}
           aria-label={t('remote.search')}
         />
-        <button type="button" className="t-btn t-btn--sm" onClick={() => void search(q)}>
+        <Button size="sm" onClick={() => void search(q)}>
           {t('remote.search')}
-        </button>
-        <button type="button" className="t-btn t-btn--sm" onClick={onClose} aria-label={t('common.cancel')}>
+        </Button>
+        <Button size="sm" onClick={onClose} aria-label={t('common.cancel')}>
           <X aria-hidden size="1.2em" />
-        </button>
+        </Button>
       </div>
       <div className="max-h-64 overflow-y-auto">
         {results.map((m) => (
@@ -249,8 +250,8 @@ export function TitleSearch({ value, onChange }: { value: string; onChange: (v: 
     >
       <label>
         {t('rename.titleOverride')}
-        <input
-          className="t-input mt-1"
+        <Input
+          className="mt-1"
           value={value}
           placeholder={t('rename.titlePlaceholder')}
           aria-expanded={open}
@@ -307,22 +308,22 @@ export default function RenameOptions({
   return (
     <>
       <div className="flex gap-1" role="group" aria-label={t('rename.mode')}>
-        <button
-          type="button"
+        <Button
+          size="sm"
           aria-pressed={rule.mode === 'template'}
-          className={`t-btn t-btn--sm ${rule.mode === 'template' ? 't-btn--primary' : ''}`}
+          variant={rule.mode === 'template' ? 'primary' : 'default'}
           onClick={() => onChange({ mode: 'template' })}
         >
           {t('rename.template')}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          size="sm"
           aria-pressed={rule.mode === 'regex'}
-          className={`t-btn t-btn--sm ${rule.mode === 'regex' ? 't-btn--primary' : ''}`}
+          variant={rule.mode === 'regex' ? 'primary' : 'default'}
           onClick={() => onChange({ mode: 'regex' })}
         >
           {t('rename.regex')}
-        </button>
+        </Button>
       </div>
 
       {rule.mode === 'template' ? (
@@ -332,9 +333,9 @@ export default function RenameOptions({
               {t('watch.template')}
               <Hint text={`${t('watch.templateHint')} ${t('watch.templatePadHint')}`} />
             </label>
-            <input
+            <Input
               id={`${idPrefix}-template`}
-              className="t-input font-mono"
+              className="font-mono"
               placeholder="{title} - S{season:02}E{episode:02}"
               value={rule.template}
               onChange={(e) => onChange({ template: e.target.value })}
@@ -342,26 +343,24 @@ export default function RenameOptions({
           </div>
           <div className="flex flex-wrap gap-1">
             {PRESETS.map((p) => (
-              <button key={p.key} type="button" className="t-btn t-btn--sm" onClick={() => onChange(p.patch)}>
+              <Button key={p.key} size="sm" onClick={() => onChange(p.patch)}>
                 {t(p.key)}
-              </button>
+              </Button>
             ))}
           </div>
           <div className={ROW_GRID}>
             <label className="text-xs text-t-muted">
               {t('rename.separator')}
-              <span className="t-select-wrap mt-1 block">
-                <select
-                  className="t-select"
-                  value={rule.separator}
-                  onChange={(e) => onChange({ separator: e.target.value })}
-                >
-                  <option value="">{t('rename.sepSpace')}</option>
-                  <option value="_">{t('rename.sepUnderscore')}</option>
-                  <option value=".">{t('rename.sepDot')}</option>
-                  <option value="-">{t('rename.sepDash')}</option>
-                </select>
-              </span>
+              <Select
+                wrapperClassName="mt-1"
+                value={rule.separator}
+                onChange={(e) => onChange({ separator: e.target.value })}
+              >
+                <option value="">{t('rename.sepSpace')}</option>
+                <option value="_">{t('rename.sepUnderscore')}</option>
+                <option value=".">{t('rename.sepDot')}</option>
+                <option value="-">{t('rename.sepDash')}</option>
+              </Select>
             </label>
             <TitleSearch value={rule.titleOverride} onChange={(v) => onChange({ titleOverride: v })} />
           </div>
@@ -370,8 +369,8 @@ export default function RenameOptions({
         <div className={ROW_GRID}>
           <label className="text-xs text-t-muted">
             {t('rename.pattern')}
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               value={rule.pattern}
               placeholder={'\\.S(\\d+)E(\\d+)\\.'}
               onChange={(e) => onChange({ pattern: e.target.value })}
@@ -379,8 +378,8 @@ export default function RenameOptions({
           </label>
           <label className="text-xs text-t-muted">
             {t('rename.replacement')}
-            <input
-              className="t-input mt-1 font-mono"
+            <Input
+              className="mt-1 font-mono"
               value={rule.replacement}
               placeholder=" - S${1}E${2}."
               onChange={(e) => onChange({ replacement: e.target.value })}
@@ -394,10 +393,10 @@ export default function RenameOptions({
           {t('watch.fromEpisode')}
           <Hint text={t('watch.fromEpisodeHint')} />
         </label>
-        <input
+        <Input
           id={`${idPrefix}-fromep`}
           type="number"
-          className="t-input font-mono"
+          className="font-mono"
           value={rule.fromEpisode || ''}
           placeholder="z.B. 26 (Dr. Stone S4E26)"
           onChange={(e) => onChange({ fromEpisode: Number(e.target.value) || 0 })}
@@ -406,26 +405,24 @@ export default function RenameOptions({
 
       {rule.mode === 'template' && (
         <div className="space-y-4 border-t border-border-subtle pt-4">
-          <span className="t-label block">{t('watch.sectionApiRename')}</span>
+          <Badge className="block">{t('watch.sectionApiRename')}</Badge>
           {/* localized provider title as {title} - independent of aired mapping */}
           <label className="block text-xs text-t-muted">
             {t('watch.renameTitleLang')}
             <Hint text={t('watch.titleLangHint')} />
-            <span className="t-select-wrap mt-1 block sm:max-w-xs">
-              <select
-                className="t-select"
-                value={rule.renameTitleLang}
-                onChange={(e) => onChange({ renameTitleLang: e.target.value })}
-              >
-                <option value="">{t('watch.titleLangOff')}</option>
-                <option value="auto">{t('watch.langAuto')}</option>
-                {TITLE_LANGS.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </span>
+            <Select
+              wrapperClassName="mt-1 sm:max-w-xs"
+              value={rule.renameTitleLang}
+              onChange={(e) => onChange({ renameTitleLang: e.target.value })}
+            >
+              <option value="">{t('watch.titleLangOff')}</option>
+              <option value="auto">{t('watch.langAuto')}</option>
+              {TITLE_LANGS.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </Select>
           </label>
 
           {/* endless series: resolve aired-order season/episode */}
@@ -460,35 +457,33 @@ export default function RenameOptions({
                 )}
                 <label className="block text-xs text-t-muted">
                   {t('watch.renameOrdering')}
-                  <span className="t-select-wrap mt-1 block sm:max-w-xs">
-                    <select
-                      className="t-select"
-                      value={rule.renameProvider && rule.renameOrdering ? `${rule.renameProvider}:${rule.renameOrdering}` : ''}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        if (!v) onChange({ renameProvider: '', renameOrdering: '' })
-                        else {
-                          const [p, o] = v.split(':')
-                          onChange({ renameProvider: p, renameOrdering: o })
-                        }
-                      }}
-                    >
-                      <option value="">{t('watch.renameAuto')}</option>
-                      {caps?.tvdbApiKeySet && <option value="tvdb:official">TVDB Aired</option>}
-                      {caps?.tvdbApiKeySet && <option value="tvdb:dvd">TVDB DVD</option>}
-                      {caps?.tvdbApiKeySet && <option value="tvdb:absolute">TVDB Absolut</option>}
-                      {caps?.tmdbApiKeySet && <option value="tmdb:aired">TMDB Aired</option>}
-                    </select>
-                  </span>
+                  <Select
+                    wrapperClassName="mt-1 sm:max-w-xs"
+                    value={rule.renameProvider && rule.renameOrdering ? `${rule.renameProvider}:${rule.renameOrdering}` : ''}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (!v) onChange({ renameProvider: '', renameOrdering: '' })
+                      else {
+                        const [p, o] = v.split(':')
+                        onChange({ renameProvider: p, renameOrdering: o })
+                      }
+                    }}
+                  >
+                    <option value="">{t('watch.renameAuto')}</option>
+                    {caps?.tvdbApiKeySet && <option value="tvdb:official">TVDB Aired</option>}
+                    {caps?.tvdbApiKeySet && <option value="tvdb:dvd">TVDB DVD</option>}
+                    {caps?.tvdbApiKeySet && <option value="tvdb:absolute">TVDB Absolut</option>}
+                    {caps?.tmdbApiKeySet && <option value="tmdb:aired">TMDB Aired</option>}
+                  </Select>
                 </label>
                 {seasonFolder && isSeasonFolder(seasonFolder.name) && (
                   // target is a season folder -> the template would nest
                   // "Season NN/" inside it; offer to move up to the series folder
                   <div className="space-y-1">
                     <p className="text-[11px] text-warn">{t('watch.localIsSeasonFolder', { folder: seasonFolder.name })}</p>
-                    <button type="button" className="t-btn t-btn--sm" onClick={seasonFolder.onUseParent}>
+                    <Button size="sm" onClick={seasonFolder.onUseParent}>
                       {t('watch.useSeriesFolder')}
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -507,7 +502,7 @@ export default function RenameOptions({
                   {rule.renameSeriesId ? (
                     <span className="text-t-primary">{pickedTitle || detected?.seriesTitle || `#${rule.renameSeriesId}`}</span>
                   ) : detected?.ambiguous ? (
-                    <span className="t-label t-label--warn">{t('watch.renameSeriesAmbiguous')}</span>
+                    <Badge tone="warn">{t('watch.renameSeriesAmbiguous')}</Badge>
                   ) : (
                     <span className="text-t-primary">{detected?.seriesTitle || t('watch.renameAuto')}</span>
                   )}
@@ -526,20 +521,20 @@ export default function RenameOptions({
                       <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
                     </a>
                   )}
-                  <button type="button" className="t-btn t-btn--sm ml-2" onClick={() => setPickOpen((v) => !v)}>
+                  <Button size="sm" className="ml-2" onClick={() => setPickOpen((v) => !v)}>
                     {t('watch.renameSeriesPick')}
-                  </button>
+                  </Button>
                   {rule.renameSeriesId !== 0 && (
-                    <button
-                      type="button"
-                      className="t-btn t-btn--sm ml-1"
+                    <Button
+                      size="sm"
+                      className="ml-1"
                       onClick={() => {
                         onChange({ renameSeriesId: 0 })
                         setPickedTitle('')
                       }}
                     >
                       {t('watch.renameAuto')}
-                    </button>
+                    </Button>
                   )}
                   {detected?.seriesOverview && (
                     <p className="mt-1 line-clamp-2 text-[11px] text-t-muted">{detected.seriesOverview}</p>

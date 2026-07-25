@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, ButtonLink, Input, Panel } from '@weebsync/design-system'
 import { api } from '../api'
 import SetupSteps from '../components/SetupSteps'
 import { EnvBadge } from './settings/useSettingsForm'
@@ -157,14 +158,13 @@ export default function Setup({
   const field = (key: keyof typeof oidc, label: string, type = 'text', required = false, hint = '') => (
     <div className="mb-3">
       <span className="mb-1 flex w-fit items-center">
-        <label className="t-label block w-fit" htmlFor={`setup-${key}`}>
+        <Badge as="label" htmlFor={`setup-${key}`} className="block w-fit">
           {label}
-        </label>
+        </Badge>
         <EnvBadge show={envLocked(key)} />
       </span>
-      <input
+      <Input
         id={`setup-${key}`}
-        className="t-input"
         type={type}
         required={required && !envLocked(key)}
         disabled={envLocked(key)}
@@ -191,7 +191,7 @@ export default function Setup({
           <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
             WEEB<span className="text-accent">SYNC</span>
           </h1>
-          <span className="t-label mt-3">{t('setup.title')}</span>
+          <Badge className="mt-3">{t('setup.title')}</Badge>
         </div>
 
         {step !== 'done' && (
@@ -211,27 +211,27 @@ export default function Setup({
         )}
 
         {step === 'account' && (
-          <form className="t-panel animate-fadeIn p-6" onSubmit={createAccount}>
+          <Panel as="form" className="animate-fadeIn p-6" onSubmit={createAccount}>
             {heading(t('setup.step.account'))}
             <p className="mb-4 text-sm text-t-secondary">{t('setup.accountHint')}</p>
-            <label className="t-label mb-1 block w-fit" htmlFor="setup-email">
+            <Badge as="label" htmlFor="setup-email" className="mb-1 block w-fit">
               {t('login.email')}
-            </label>
-            <input
+            </Badge>
+            <Input
               id="setup-email"
-              className="t-input mb-4"
+              className="mb-4"
               type="email"
               autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-            <label className="t-label mb-1 block w-fit" htmlFor="setup-password">
+            <Badge as="label" htmlFor="setup-password" className="mb-1 block w-fit">
               {t('login.password')}
-            </label>
-            <input
+            </Badge>
+            <Input
               id="setup-password"
-              className="t-input mb-4"
+              className="mb-4"
               type="password"
               autoComplete="new-password"
               required
@@ -240,13 +240,12 @@ export default function Setup({
               onChange={(e) => setPassword(e.target.value)}
             />
             {errorBox}
-            <button className="t-btn t-btn--primary t-cut w-full" disabled={busy}>
+            <Button type="submit" variant="primary" cut className="w-full" disabled={busy}>
               {t('login.submitRegister')}
-            </button>
+            </Button>
             <div className="mt-4 border-t border-border-subtle pt-4">
-              <button
-                type="button"
-                className="t-btn w-full"
+              <Button
+                className="w-full"
                 disabled={busy}
                 onClick={() => {
                   setOidcOnly(true)
@@ -254,56 +253,54 @@ export default function Setup({
                 }}
               >
                 {t('setup.noLocalAccount')}
-              </button>
+              </Button>
               <p className="mt-1 text-xs text-t-muted">{t('setup.noLocalAccountHint')}</p>
             </div>
-          </form>
+          </Panel>
         )}
 
         {/* OIDC config stored and the provider answered: the first login through
             it creates the admin account, and the wizard resumes afterwards */}
         {step === 'oidc' && oidcReady && (
-          <div className="t-panel animate-fadeIn p-6 text-center">
+          <Panel className="animate-fadeIn p-6 text-center">
             {heading(t('setup.step.oidc'))}
             <p className="mb-4 text-sm text-t-secondary" role="status">
               {t('setup.oidcReady')}
             </p>
-            <a className="t-btn t-btn--primary t-cut block w-full" href="/api/auth/oidc/login">
+            <ButtonLink variant="primary" cut className="block w-full" href="/api/auth/oidc/login">
               {oidc.oidcProviderName ? t('login.oidcNamed', { name: oidc.oidcProviderName }) : t('login.oidc')}
-            </a>
-          </div>
+            </ButtonLink>
+          </Panel>
         )}
 
         {step === 'oidc' && !oidcReady && (
-          <form className="t-panel animate-fadeIn p-6" onSubmit={saveOidc}>
+          <Panel as="form" className="animate-fadeIn p-6" onSubmit={saveOidc}>
             {heading(t('setup.step.oidc'))}
             <p className="mb-4 text-sm text-t-secondary">{t(oidcOnly ? 'setup.oidcOnlyHint' : 'setup.oidcHint')}</p>
             {field('oidcProviderName', t('settings.oidcProviderName'), 'text', false, t('settings.oidcProviderNameHint'))}
             <div className="mb-3">
               <span className="mb-1 flex w-fit items-center">
-                <label className="t-label block w-fit" htmlFor="setup-oidcIssuer">
+                <Badge as="label" htmlFor="setup-oidcIssuer" className="block w-fit">
                   {t('settings.oidcIssuer')}
-                </label>
+                </Badge>
                 <EnvBadge show={envLocked('oidcIssuer')} />
               </span>
               <div className="flex gap-2">
-                <input
+                <Input
                   id="setup-oidcIssuer"
-                  className="t-input"
                   type="text"
                   required={oidcOnly && !envLocked('oidcIssuer')}
                   disabled={envLocked('oidcIssuer')}
                   value={oidc.oidcIssuer}
                   onChange={(e) => setOidc({ ...oidc, oidcIssuer: e.target.value })}
                 />
-                <button
-                  type="button"
-                  className="t-btn shrink-0"
+                <Button
+                  className="shrink-0"
                   disabled={busy || !oidc.oidcIssuer || envLocked('oidcIssuer')}
                   onClick={discover}
                 >
                   {t('settings.oidcDiscover')}
-                </button>
+                </Button>
               </div>
               {discovered && (
                 <p className="mt-1 text-xs text-t-muted" role="status">
@@ -335,19 +332,18 @@ export default function Setup({
             )}
             {errorBox}
             <div className="flex gap-2">
-              <button
-                type="button"
-                className="t-btn flex-1"
+              <Button
+                className="flex-1"
                 disabled={busy}
                 onClick={() => (oidcOnly ? (setOidcOnly(false), setStep('account')) : saveAuth(false))}
               >
                 {t(oidcOnly ? 'setup.back' : 'setup.skip')}
-              </button>
-              <button className="t-btn t-btn--primary t-cut flex-1" disabled={busy}>
+              </Button>
+              <Button type="submit" variant="primary" cut className="flex-1" disabled={busy}>
                 {t('settings.save')}
-              </button>
+              </Button>
             </div>
-          </form>
+          </Panel>
         )}
 
         {(step === 'import' || step === 'server' || step === 'storage' || step === 'meta') && (
@@ -355,15 +351,15 @@ export default function Setup({
         )}
 
         {step === 'done' && (
-          <div className="t-panel animate-fadeIn p-6 text-center">
+          <Panel className="animate-fadeIn p-6 text-center">
             {heading(t('setup.stepDone'))}
             <p className="mb-4 text-sm text-t-secondary" role="status">
               {t('setup.done')}
             </p>
-            <button className="t-btn t-btn--primary t-cut w-full" onClick={finish}>
+            <Button variant="primary" cut className="w-full" onClick={finish}>
               {t('setup.start')}
-            </button>
-          </div>
+            </Button>
+          </Panel>
         )}
       </div>
     </main>

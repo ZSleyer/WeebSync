@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Input, Panel } from '@weebsync/design-system'
 import { api, type UserAccount } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { useAuth } from '../../hooks'
@@ -58,8 +59,8 @@ export default function Users() {
   })
 
   return (
-    <section className="t-panel mb-4 p-5" aria-label={t('settings.users')}>
-      <span className="t-label t-label--accent">{t('settings.users')}</span>
+    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.users')}>
+      <Badge tone="accent">{t('settings.users')}</Badge>
       {rolesManagedByOidc && (
         <p className="mt-2 text-xs text-t-muted">{t('settings.rolesManagedByOidc')}</p>
       )}
@@ -70,17 +71,18 @@ export default function Users() {
             <span className="min-w-0 basis-full truncate font-mono text-xs text-t-secondary sm:flex-1 sm:basis-auto" title={u.email}>
               {u.email}
             </span>
-            {u.id === meId && <span className="t-label">{t('settings.usersYou')}</span>}
-            {u.isAdmin && <span className="t-label t-label--accent">{t('settings.usersAdmin')}</span>}
-            <button
-              className="t-btn t-btn--sm"
+            {u.id === meId && <Badge>{t('settings.usersYou')}</Badge>}
+            {u.isAdmin && <Badge tone="accent">{t('settings.usersAdmin')}</Badge>}
+            <Button
+              size="sm"
               disabled={rolesManagedByOidc || toggle.isPending}
               onClick={() => toggle.mutate(u)}
             >
               {u.isAdmin ? t('settings.usersRemoveAdmin') : t('settings.usersMakeAdmin')}
-            </button>
-            <button
-              className="t-btn t-btn--sm t-btn--danger"
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
               disabled={u.id === meId || del.isPending}
               onClick={async () => {
                 if (await confirm({ message: t('settings.usersConfirmDelete', { email: u.email }), destructive: true }))
@@ -88,7 +90,7 @@ export default function Users() {
               }}
             >
               {t('servers.delete')}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
@@ -104,8 +106,8 @@ export default function Users() {
       >
         <label className="text-xs text-t-muted">
           {t('login.email')}
-          <input
-            className="t-input mt-1 font-mono"
+          <Input
+            className="mt-1 font-mono"
             type="email"
             required
             autoComplete="off"
@@ -115,8 +117,8 @@ export default function Users() {
         </label>
         <label className="text-xs text-t-muted">
           {t('login.password')}
-          <input
-            className="t-input mt-1 font-mono"
+          <Input
+            className="mt-1 font-mono"
             type="password"
             required
             minLength={10}
@@ -125,9 +127,9 @@ export default function Users() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
-        <button className="t-btn self-end" type="submit" disabled={create.isPending}>
+        <Button className="self-end" type="submit" disabled={create.isPending}>
           {t('settings.usersCreate')}
-        </button>
+        </Button>
       </form>
       )}
       {error && (
@@ -135,6 +137,6 @@ export default function Users() {
           {error}
         </p>
       )}
-    </section>
+    </Panel>
   )
 }

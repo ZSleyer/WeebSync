@@ -12,6 +12,7 @@ const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
+import { Badge, Button, ButtonLink, Cover, Dialog, EmptyState, Input, Panel, Select } from '@weebsync/design-system'
 import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
 import { CatalogViewSelect } from '../components/CatalogViewSelect'
 import { useCatalogView } from '../components/useCatalogView'
@@ -93,11 +94,11 @@ export default function Remote() {
 
   if (servers.length === 0) {
     return (
-      <div className="t-panel p-8 text-center text-t-muted">
+      <EmptyState>
         <Trans i18nKey="remote.noServers">
           Erst unter <Link to="/servers" className="text-accent underline">Server</Link> eine Quelle anlegen.
         </Trans>
-      </div>
+      </EmptyState>
     )
   }
 
@@ -108,34 +109,32 @@ export default function Remote() {
       <header className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-2">
         <div className="mr-auto">
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('remote.title')}</h2>
-          <span className="t-label mt-1">{t('remote.sub')}</span>
+          <Badge className="mt-1">{t('remote.sub')}</Badge>
         </div>
         <div className="flex w-full gap-3 sm:w-auto">
           <label className="flex-1 text-xs text-t-muted sm:flex-none">
             {t('remote.source')}
-            <span className="t-select-wrap mt-1 block sm:w-44">
-              <select className="t-select" value={active} onChange={(e) => setServerId(Number(e.target.value))}>
-                {servers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </span>
+            <Select wrapperClassName="mt-1 sm:w-44" value={active} onChange={(e) => setServerId(Number(e.target.value))}>
+              {servers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
           </label>
           <CatalogViewSelect value={viewValue} onChange={setView} />
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <section className="t-panel flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('remote.remote')}>
+        <Panel as="section" className="flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('remote.remote')}>
           <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            <span className="t-label t-label--accent">{t('remote.remote')}</span>
+            <Badge tone="accent">{t('remote.remote')}</Badge>
             <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">
               {selection ? selection.path : t('remote.noSelection')}
             </span>
-            <input
-              className="t-input w-40 py-1 text-xs sm:w-56"
+            <Input
+              className="w-40 py-1 text-xs sm:w-56"
               type="search"
               placeholder={t('remote.search')}
               aria-label={t('remote.search')}
@@ -187,7 +186,7 @@ export default function Remote() {
               }}
             />
           )}
-        </section>
+        </Panel>
 
       </div>
 
@@ -195,12 +194,12 @@ export default function Remote() {
           remote list keeps the full height. On phones it floats above the
           bottom nav; from lg on it just sits at the end of the page. */}
       {(selection || notice) && (
-        <div
+        <Panel
           role="region"
           aria-label={t('remote.selectionBar')}
           // fixed!/static!: .t-panel is unlayered CSS, its position:relative
           // beats the utilities layer without the important marker
-          className="t-panel fixed! inset-x-4 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 flex flex-wrap items-center gap-2 p-3 lg:static! lg:z-auto lg:mt-4 lg:inset-auto"
+          className="fixed! inset-x-4 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 flex flex-wrap items-center gap-2 p-3 lg:static! lg:z-auto lg:mt-4 lg:inset-auto"
         >
           {selection && (
             <span className="min-w-28 flex-1 truncate text-sm text-t-secondary" title={selection.path}>
@@ -212,26 +211,26 @@ export default function Remote() {
             <span className="flex items-center gap-2 text-xs text-t-secondary" role="status">
               {notice}
               {lastIds.length > 0 && (
-                <button className="t-btn t-btn--sm t-btn--danger" onClick={cancelLast}>
+                <Button size="sm" variant="danger" onClick={cancelLast}>
                   <Undo2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('remote.undoSync')}
-                </button>
+                </Button>
               )}
             </span>
           )}
           {selection && (
             <>
-              <button className="t-btn t-btn--sm" disabled={!selection.isDir} onClick={() => setWatchEntry(selection)}>
+              <Button size="sm" disabled={!selection.isDir} onClick={() => setWatchEntry(selection)}>
                 <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('watch.add')}
-              </button>
-              <button className="t-btn t-btn--primary t-btn--sm t-cut" onClick={() => setSyncEntry(selection)}>
+              </Button>
+              <Button size="sm" variant="primary" cut onClick={() => setSyncEntry(selection)}>
                 <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.syncOpen')}
-              </button>
+              </Button>
             </>
           )}
-        </div>
+        </Panel>
       )}
 
       {syncEntry && (
@@ -490,22 +489,20 @@ export function CatalogGrid({
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-xs text-t-muted">
           {t('remote.scope')}
-          <span className="t-select-wrap w-44">
-            <select className="t-select" value={data?.scope ?? ''} onChange={(e) => setScope(e.target.value)}>
-              <option value="" disabled>
-                {t('remote.scopeNone')}
-              </option>
-              <option value="anime">{t('remote.scopeAnime')}</option>
-              <option value="tv">{t('remote.scopeTv')}</option>
-              <option value="movie">{t('remote.scopeMovie')}</option>
-              {caps?.tvdbApiKeySet && <option value="tvdb">{t('remote.scopeTvdb')}</option>}
-            </select>
-          </span>
+          <Select wrapperClassName="w-44" value={data?.scope ?? ''} onChange={(e) => setScope(e.target.value)}>
+            <option value="" disabled>
+              {t('remote.scopeNone')}
+            </option>
+            <option value="anime">{t('remote.scopeAnime')}</option>
+            <option value="tv">{t('remote.scopeTv')}</option>
+            <option value="movie">{t('remote.scopeMovie')}</option>
+            {caps?.tvdbApiKeySet && <option value="tvdb">{t('remote.scopeTvdb')}</option>}
+          </Select>
         </label>
         {data && data.scope !== '' && (
-          <button className="t-btn t-btn--sm" title={t('remote.scopeClearHint')} onClick={() => setScope('')}>
+          <Button size="sm" title={t('remote.scopeClearHint')} onClick={() => setScope('')}>
             {t('remote.scopeClear')}
-          </button>
+          </Button>
         )}
         {scopeError && (
           <span className="text-xs text-err" role="alert">
@@ -524,13 +521,13 @@ export function CatalogGrid({
           items.length > 0 && (
             <>
               {noMatchCount > 0 && (
-                <button className="t-btn t-btn--sm" onClick={() => triggerRematch(false)}>
+                <Button size="sm" onClick={() => triggerRematch(false)}>
                   {t('remote.retryUnmatched', { count: noMatchCount })}
-                </button>
+                </Button>
               )}
-              <button className="t-btn t-btn--sm" onClick={() => triggerRematch(true)}>
+              <Button size="sm" onClick={() => triggerRematch(true)}>
                 {t('remote.rematchAll')}
-              </button>
+              </Button>
             </>
           )
         )}
@@ -540,9 +537,9 @@ export function CatalogGrid({
       {items.length === 0 && (
         <div className="flex flex-wrap items-center gap-3 p-6">
           <p className="text-sm text-t-muted">{t('remote.noFolders')}</p>
-          <button className="t-btn t-btn--sm" onClick={() => onOpenFiles(path)}>
+          <Button size="sm" onClick={() => onOpenFiles(path)}>
             {t('remote.showFiles')}
-          </button>
+          </Button>
         </div>
       )}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
@@ -554,21 +551,23 @@ export function CatalogGrid({
           const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
           const isSelected = g.items.some((v) => v.entry.path === selected)
           return (
-            <article
+            <Panel
+              as="article"
               key={g.key}
-              className={`t-panel group relative flex flex-col ${isSelected ? 'outline-2 outline-accent' : ''}`}
+              className={`group relative flex flex-col ${isSelected ? 'outline-2 outline-accent' : ''}`}
             >
               {/* rematch tucked away as a pencil over the cover (hover/focus);
                   unmatched folders keep the explicit button below instead */}
               {g.media && !multi && !!it.source && (
-                <button
-                  className="t-btn t-btn--sm absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                <Button
+                  size="sm"
+                  className="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   aria-label={t('remote.changeMatch')}
                   title={t('remote.changeMatch')}
                   onClick={() => setRematch(it)}
                 >
                   <Pencil aria-hidden size="1.2em" />
-                </button>
+                </Button>
               )}
               <button
                 className="text-left"
@@ -580,20 +579,20 @@ export function CatalogGrid({
                 }
               >
                 {g.media?.coverImage?.large ? (
-                  <img
+                  <Cover
+                    size="fill"
                     src={g.media.coverImage.large}
-                    alt=""
                     loading="lazy"
-                    className="aspect-2/3 w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
+                    className="opacity-90 transition-opacity group-hover:opacity-100"
                   />
                 ) : g.pending ? (
-                  <div className="t-hatch grid aspect-2/3 w-full animate-pulse place-items-center text-t-muted">
+                  <Cover size="fill" className="animate-pulse text-t-muted">
                     {t('remote.matching')}
-                  </div>
+                  </Cover>
                 ) : (
-                  <div className="t-hatch grid aspect-2/3 w-full place-items-center text-t-muted">
+                  <Cover size="fill" className="text-t-muted">
                     {it.source ? t('remote.noMatch') : ''}
-                  </div>
+                  </Cover>
                 )}
                 <div className="p-2">
                   <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={mediaTitle(g.media, it.entry.name)}>
@@ -608,15 +607,15 @@ export function CatalogGrid({
                   )}
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {kind && (
-                      <span className={`t-label ${kind === 'movie' ? 't-label--accent' : ''}`}>
+                      <Badge tone={kind === 'movie' ? 'accent' : 'neutral'}>
                         {t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
-                      </span>
+                      </Badge>
                     )}
                     {g.media && (
                       <>
-                        {g.media.seasonYear > 0 && <span className="t-label">{g.media.seasonYear}</span>}
-                        {g.media.episodes > 0 && <span className="t-label">{g.media.episodes} EP</span>}
-                        {g.media.averageScore > 0 && <span className="t-label t-label--accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{g.media.averageScore}</span>}
+                        {g.media.seasonYear > 0 && <Badge>{g.media.seasonYear}</Badge>}
+                        {g.media.episodes > 0 && <Badge>{g.media.episodes} EP</Badge>}
+                        {g.media.averageScore > 0 && <Badge tone="accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{g.media.averageScore}</Badge>}
                       </>
                     )}
                   </div>
@@ -624,16 +623,14 @@ export function CatalogGrid({
                       compares to what the provider lists */}
                   {it.local && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                      <span
-                        className={`t-label ${
-                          g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes
-                            ? 't-label--ok'
-                            : ''
-                        }`}
+                      <Badge
+                        tone={
+                          g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes ? 'ok' : 'neutral'
+                        }
                       >
                         {t('local.videoCount', { count: it.local.videos })}
-                      </span>
-                      <span className="t-label">{fmtBytes(it.local.bytes)}</span>
+                      </Badge>
+                      <Badge>{fmtBytes(it.local.bytes)}</Badge>
                       {it.local.modTime && (
                         <span className="font-mono text-[10px] text-t-faint" title={t('local.lastChange')}>
                           {new Date(it.local.modTime).toLocaleDateString()}
@@ -645,43 +642,47 @@ export function CatalogGrid({
               </button>
               {g.media ? (
                 <div className="mx-2 mb-2 mt-auto flex gap-1.5">
-                  <button
-                    className="t-btn t-btn--sm flex-1"
+                  <Button
+                    size="sm"
+                    className="flex-1"
                     aria-label={t('remote.detailsFor', { name: mediaTitle(g.media) })}
                     title={t('remote.details')}
                     onClick={() => setDetail(g)}
                   >
                     <Info aria-hidden size="1.2em" />
-                  </button>
+                  </Button>
                   {!multi && (
                     <>
-                      <button
-                        className="t-btn t-btn--sm flex-1"
+                      <Button
+                        size="sm"
+                        className="flex-1"
                         aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
                         title={t('remote.showFiles')}
                         onClick={() => onOpenFiles(it.entry.path)}
                       >
                         <Files aria-hidden size="1.2em" />
-                      </button>
+                      </Button>
                       {onSync && (
-                        <button
-                          className="t-btn t-btn--sm flex-1"
+                        <Button
+                          size="sm"
+                          className="flex-1"
                           aria-label={`${t('plex.syncOnce')}: ${it.entry.name}`}
                           title={t('plex.syncOnce')}
                           onClick={() => onSync(it.entry)}
                         >
                           <Download aria-hidden size="1.2em" />
-                        </button>
+                        </Button>
                       )}
                       {onWatch && (
-                        <button
-                          className="t-btn t-btn--sm flex-1"
+                        <Button
+                          size="sm"
+                          className="flex-1"
                           aria-label={`${t('watch.add')}: ${it.entry.name}`}
                           title={t('watch.add')}
                           onClick={() => onWatch(it.entry)}
                         >
                           <Eye aria-hidden size="1.2em" />
-                        </button>
+                        </Button>
                       )}
                       {cardActions?.(it.entry)}
                     </>
@@ -689,23 +690,24 @@ export function CatalogGrid({
                 </div>
               ) : (
                 <div className="mx-2 mb-2 mt-auto flex gap-1.5">
-                  <button
-                    className="t-btn t-btn--sm flex-1"
+                  <Button
+                    size="sm"
+                    className="flex-1"
                     aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
                     title={t('remote.showFiles')}
                     onClick={() => onOpenFiles(it.entry.path)}
                   >
                     <Files aria-hidden size="1.2em" />
-                  </button>
+                  </Button>
                   {!g.pending && !!it.source && (
-                    <button className="t-btn t-btn--sm flex-1" onClick={() => setRematch(it)}>
+                    <Button size="sm" className="flex-1" onClick={() => setRematch(it)}>
                       {t('remote.changeMatch')}
-                    </button>
+                    </Button>
                   )}
                   {cardActions?.(it.entry)}
                 </div>
               )}
-            </article>
+            </Panel>
           )
         })}
       </div>
@@ -790,9 +792,6 @@ function SyncDialog({
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const ref = useRef<HTMLDialogElement>(null)
-  const backdropDown = useRef(false)
-  const confirmed = useRef(false)
   const [browse, setBrowse] = useState(false)
   const [renameOn, setRenameOn] = useState(false)
   const [rule, setRule] = useState<RenameRule>(EMPTY_RULE)
@@ -818,23 +817,15 @@ function SyncDialog({
     enabled: renameOn,
     fileName: entry.isDir ? undefined : entry.name,
   })
-  useEffect(() => {
-    ref.current?.showModal()
-  }, [])
-  // decide in onClose so every exit path (button, Escape, backdrop) is the same
-  const close = (ok: boolean) => {
-    confirmed.current = ok
-    ref.current?.close()
-  }
   const target = entry.isDir && !flat ? [localPath, entry.name].filter(Boolean).join('/') : localPath
+  // mount-to-open: Escape and the backdrop end in onClose, the footer buttons
+  // decide explicitly - the parent unmounts either way
   return (
-    <dialog
-      ref={ref}
-      className="dialog-sheet w-full max-w-lg p-0"
+    <Dialog
+      width="max-w-lg"
+      className="dialog-sheet"
       aria-label={t('remote.syncTitle', { name: entry.name })}
-      onClose={() => (confirmed.current ? onConfirm(renameOn && hasRule ? rule : null) : onClose())}
-      onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
-      onClick={(e) => e.target === ref.current && backdropDown.current && close(false)}
+      onClose={onClose}
     >
       <div className="flex max-h-[85vh] flex-col">
         <header className="border-b border-border-subtle px-5 py-4">
@@ -859,15 +850,16 @@ function SyncDialog({
                 queryKey={['local']}
                 ariaLabel={t('remote.localTarget')}
               />
-              <button
-                type="button"
-                className={`t-btn t-btn--sm shrink-0 ${browse ? 't-btn--primary' : ''}`}
+              <Button
+                size="sm"
+                variant={browse ? 'primary' : 'default'}
+                className="shrink-0"
                 aria-expanded={browse}
                 onClick={() => setBrowse((b) => !b)}
               >
                 <Folder aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('watch.browse')}
-              </button>
+              </Button>
             </div>
             {browse && (
               <div className="mt-2 flex max-h-56 flex-col overflow-hidden border border-border-subtle bg-bg-secondary/40">
@@ -889,7 +881,7 @@ function SyncDialog({
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
             <div className="flex items-center justify-between">
-              <span className="t-label t-label--accent">{t('watch.sectionRename')}</span>
+              <Badge tone="accent">{t('watch.sectionRename')}</Badge>
               <label className="flex items-center gap-2 text-sm text-t-secondary">
                 <input type="checkbox" checked={renameOn} onChange={(e) => setRenameOn(e.target.checked)} />
                 {t('watch.renameToggle')}
@@ -912,7 +904,7 @@ function SyncDialog({
           {renameOn && hasRule && (
             <section className="space-y-2 border-t border-border-subtle pt-4" aria-label={t('rename.preview')}>
               <div className="flex items-center gap-2">
-                <span className="t-label t-label--accent">{t('rename.preview')}</span>
+                <Badge tone="accent">{t('rename.preview')}</Badge>
                 {previewBusy && <Loading />}
               </div>
               {pairs && (
@@ -932,17 +924,22 @@ function SyncDialog({
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          <button type="button" className="t-btn" onClick={() => close(false)}>
+          <Button onClick={onClose}>
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('common.cancel')}
-          </button>
-          <button type="button" className="t-btn t-btn--primary t-cut" disabled={pending} onClick={() => close(true)}>
+          </Button>
+          <Button
+            variant="primary"
+            cut
+            disabled={pending}
+            onClick={() => onConfirm(renameOn && hasRule ? rule : null)}
+          >
             <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {entry.isDir ? t('remote.syncFolder') : t('remote.downloadFile')}
-          </button>
+          </Button>
         </footer>
       </div>
-    </dialog>
+    </Dialog>
   )
 }
 
@@ -984,11 +981,6 @@ function DetailDialog({
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const ref = useRef<HTMLDialogElement>(null)
-  const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
-  useEffect(() => {
-    ref.current?.showModal()
-  }, [])
   const m = group.media!
   const MediaStatusIcon = m.status ? MEDIA_STATUS_ICON[m.status] : undefined
   const source = group.items[0].source
@@ -1001,12 +993,17 @@ function DetailDialog({
   })
 
   return (
-    <dialog ref={ref} className="dialog-sheet w-full max-w-4xl lg:max-w-6xl" aria-label={t('remote.detailsFor', { name: mediaTitle(m) })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
+    <Dialog
+      width="max-w-4xl lg:max-w-6xl"
+      className="dialog-sheet"
+      aria-label={t('remote.detailsFor', { name: mediaTitle(m) })}
+      onClose={onClose}
+    >
       {/* close button stays reachable while the dialog scrolls */}
       <div className="sticky top-2 z-10 h-0 text-right">
-        <button type="button" className="t-btn t-btn--sm mr-2" aria-label={t('remote.close')} onClick={() => ref.current?.close()}>
+        <Button size="sm" className="mr-2" aria-label={t('remote.close')} onClick={onClose}>
           <X aria-hidden size="1.2em" />
-        </button>
+        </Button>
       </div>
       {m.bannerImage && <img src={m.bannerImage} alt="" className="max-h-36 w-full object-cover" />}
       <div className="p-5">
@@ -1020,36 +1017,35 @@ function DetailDialog({
                 <p className="text-sm text-t-muted">{m.title.english}</p>
               )}
             <div className="mt-2 flex flex-wrap gap-1">
-              {m.seasonYear > 0 && <span className="t-label">{m.seasonYear}</span>}
-              {m.format && <span className="t-label">{m.format}</span>}
-              {m.episodes > 0 && <span className="t-label">{m.episodes} EP</span>}
+              {m.seasonYear > 0 && <Badge>{m.seasonYear}</Badge>}
+              {m.format && <Badge>{m.format}</Badge>}
+              {m.episodes > 0 && <Badge>{m.episodes} EP</Badge>}
               {m.status && (
-                <span className="t-label">
+                <Badge>
                   {MediaStatusIcon && <MediaStatusIcon aria-hidden size="1em" />}
                   {t(`remote.status.${m.status}`, m.status)}
-                </span>
+                </Badge>
               )}
-              {m.averageScore > 0 && <span className="t-label t-label--accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{m.averageScore}</span>}
+              {m.averageScore > 0 && <Badge tone="accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{m.averageScore}</Badge>}
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {m.genres?.map((g) => (
-                <span key={g} className="t-label">
-                  {g}
-                </span>
+                <Badge key={g}>{g}</Badge>
               ))}
             </div>
             {(() => {
               const l = mediaLink(source, m.id)
               return (
-                <a
-                  className="t-btn t-btn--sm mt-3 inline-flex items-center gap-1.5"
+                <ButtonLink
+                  size="sm"
+                  className="mt-3 inline-flex items-center gap-1.5"
                   href={l.href}
                   target="_blank"
                   rel="noreferrer"
                 >
                   {l.label} #{m.id}
                   <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
-                </a>
+                </ButtonLink>
               )
             })()}
           </div>
@@ -1082,8 +1078,9 @@ function DetailDialog({
               />
             )}
             {m.trailer?.site === 'dailymotion' && (
-              <a
-                className="t-btn t-btn--sm inline-flex items-center gap-2"
+              <ButtonLink
+                size="sm"
+                className="inline-flex items-center gap-2"
                 href={`https://www.dailymotion.com/video/${m.trailer.id}`}
                 target="_blank"
                 rel="noreferrer"
@@ -1091,7 +1088,7 @@ function DetailDialog({
                 <Play aria-hidden size="1em" className="inline align-[-0.125em]" fill="currentColor" strokeWidth={0} /> {t('remote.trailer')}
                 {m.trailer.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
                 <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
-              </a>
+              </ButtonLink>
             )}
           </section>
         )}
@@ -1114,8 +1111,8 @@ function DetailDialog({
                   )}
                   <div className="min-w-0 flex-1 border border-border-subtle bg-bg-secondary p-3 text-sm text-t-secondary">
                     <p className="mb-1 flex flex-wrap items-center gap-2">
-                      <span className="t-label">{r.user.name}</span>
-                      {r.score > 0 && <span className="t-label t-label--accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{r.score}</span>}
+                      <Badge>{r.user.name}</Badge>
+                      {r.score > 0 && <Badge tone="accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{r.score}</Badge>}
                     </p>
                     <p className="whitespace-pre-line">{r.summary}</p>
                   </div>
@@ -1123,10 +1120,10 @@ function DetailDialog({
               ))}
             </ul>
             {!allReviews && rev.reviews.length > 5 && (
-              <button type="button" className="t-btn t-btn--sm mt-3" onClick={() => setAllReviews(true)}>
+              <Button size="sm" className="mt-3" onClick={() => setAllReviews(true)}>
                 <ChevronDown aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.moreReviews', { count: rev.reviews.length - 5 })}
-              </button>
+              </Button>
             )}
           </section>
         )}
@@ -1143,57 +1140,50 @@ function DetailDialog({
               >
                 {it.entry.name}
               </span>
-              <button className="t-btn t-btn--sm t-btn--primary shrink-0" onClick={() => onSelect(it.entry)}>
+              <Button size="sm" variant="primary" className="shrink-0" onClick={() => onSelect(it.entry)}>
                 <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.select')}
-              </button>
-              <button className="t-btn t-btn--sm shrink-0" title={t('remote.showFiles')} onClick={() => onFiles(it.entry)}>
+              </Button>
+              <Button size="sm" className="shrink-0" title={t('remote.showFiles')} onClick={() => onFiles(it.entry)}>
                 <Files aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.files')}
-              </button>
+              </Button>
               {onSync && (
-                <button className="t-btn t-btn--sm shrink-0" onClick={() => onSync(it.entry)}>
+                <Button size="sm" className="shrink-0" onClick={() => onSync(it.entry)}>
                   <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('plex.syncOnce')}
-                </button>
+                </Button>
               )}
               {onWatch && (
-                <button className="t-btn t-btn--sm shrink-0" onClick={() => onWatch(it.entry)}>
+                <Button size="sm" className="shrink-0" onClick={() => onWatch(it.entry)}>
                   <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('watch.add')}
-                </button>
+                </Button>
               )}
-              <button className="t-btn t-btn--sm shrink-0" onClick={() => onRematch(it)}>
+              <Button size="sm" className="shrink-0" onClick={() => onRematch(it)}>
                 <Replace aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.changeMatch')}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
         <div className="mt-4 flex justify-end">
-          <button className="t-btn" onClick={() => ref.current?.close()}>
+          <Button onClick={onClose}>
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.close')}
-          </button>
+          </Button>
         </div>
       </div>
-    </dialog>
+    </Dialog>
   )
 }
 
 function RematchDialog({ serverId, item, onClose }: { serverId: number; item: CatalogItem; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const ref = useRef<HTMLDialogElement>(null)
-  const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   const [q, setQ] = useState(item.entry.name)
   const [results, setResults] = useState<Media[]>([])
   const [pickError, setPickError] = useState('')
-
-  // real modal: focus trap + Escape via the native dialog
-  useEffect(() => {
-    ref.current?.showModal()
-  }, [])
 
   // search accepts a title, a bare ID or an anilist.co/themoviedb.org link;
   // the metadata source follows the folder's scope
@@ -1254,7 +1244,7 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-lg" aria-label={t('remote.matchFor', { name: item.entry.name })} onClose={onClose} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}>
+    <Dialog width="max-w-lg" aria-label={t('remote.matchFor', { name: item.entry.name })} onClose={onClose}>
       <div className="p-5">
         <h3 className="mb-1 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
         {item.media && (
@@ -1266,18 +1256,17 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
           <label className="sr-only" htmlFor="rematch-q">
             {t('remote.search')}
           </label>
-          <input
+          <Input
             id="rematch-q"
-            className="t-input"
             value={q}
             placeholder={t('remote.searchHint')}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && search()}
           />
-          <button className="t-btn shrink-0" onClick={search}>
+          <Button className="shrink-0" onClick={search}>
             <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.search')}
-          </button>
+          </Button>
         </div>
         <ul className="max-h-72 overflow-y-auto">
           {results.map((m) => (
@@ -1286,7 +1275,7 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
                 className="flex w-full items-center gap-3 border-b border-border-subtle px-2 py-2 text-left hover:bg-bg-hover"
                 onClick={() => pick(m.id)}
               >
-                <img src={m.coverImage.large} alt="" className="h-14 w-10 object-cover" />
+                <Cover src={m.coverImage.large} size="sm" />
                 <span className="min-w-0">
                   <span className="block truncate text-sm">{mediaTitle(m)}</span>
                   <span className="text-xs text-t-muted">
@@ -1303,16 +1292,16 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
           </p>
         )}
         <div className="mt-4 flex justify-between">
-          <button className="t-btn t-btn--danger t-btn--sm" onClick={() => pick(0)}>
+          <Button variant="danger" size="sm" onClick={() => pick(0)}>
             <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.removeMatch')}
-          </button>
-          <button className="t-btn" onClick={() => ref.current?.close()}>
+          </Button>
+          <Button onClick={onClose}>
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.close')}
-          </button>
+          </Button>
         </div>
       </div>
-    </dialog>
+    </Dialog>
   )
 }

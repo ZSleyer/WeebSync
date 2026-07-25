@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Dialog, Input, Panel, Select } from '@weebsync/design-system'
 import { api, fmtBytes, type Media } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import i18n from '../../locales'
@@ -18,8 +19,8 @@ import i18n from '../../locales'
      space runs out the row stacks instead.
    - all numbers render font-mono tabular-nums; stat columns have fixed widths.
    - count badges (matched/unmatched) share a fixed min-width so the pair
-     columnizes across rows, and match t-btn--sm height (24px, 32px on touch)
-     so badge rows and button rows read as one system.
+     columnizes across rows, and match the small-button height (24px, 32px on
+     touch) so badge rows and button rows read as one system.
    - every NumEdit input is w-20 h-6 (t-btn--sm height) with the unit folded
      into the label ("TTL (h)") - nothing ever renders to the right of an
      input, keeping edges flush. */
@@ -29,8 +30,8 @@ const CELL_LEFT = 'col-span-full flex min-w-0 flex-wrap items-center gap-2 md:co
 const CELL_RIGHT = 'col-span-full flex flex-wrap items-center justify-end gap-2 md:col-span-1 md:justify-self-end'
 const NUM = 'text-right font-mono text-xs tabular-nums text-t-muted'
 const NUMEDIT_GRID = 'grid grid-cols-[auto_5rem] items-center gap-x-2 gap-y-1'
-const COUNT_BADGE =
-  't-label min-h-6 min-w-28 shrink-0 justify-center px-2.5 tabular-nums [@media(pointer:coarse)]:min-h-8'
+// extra utilities handed to <Badge>, which supplies the chip base itself
+const COUNT_BADGE = 'min-h-6 min-w-28 shrink-0 justify-center px-2.5 tabular-nums [@media(pointer:coarse)]:min-h-8'
 
 // Pinned contract with the admin endpoints (Workstream A) - keep in sync.
 interface CacheInfo {
@@ -151,16 +152,16 @@ function LogPanel({ level }: { level: LogLevel }) {
       : ''
 
   return (
-    <section className="t-panel mb-4 p-5" aria-label={t('settings.jobs.logs.title')}>
+    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.logs.title')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="t-label t-label--accent">{t('settings.jobs.logs.title')}</span>
+        <Badge tone="accent">{t('settings.jobs.logs.title')}</Badge>
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-xs text-t-muted" htmlFor="log-level">
             {t('settings.jobs.logs.level')}
           </label>
-          <select
+          <Select
             id="log-level"
-            className="t-input t-input--sm"
+            size="sm"
             value={level}
             disabled={setLevel.isPending}
             onChange={(e) => setLevel.mutate(e.target.value as LogLevel)}
@@ -170,30 +171,35 @@ function LogPanel({ level }: { level: LogLevel }) {
                 {l}
               </option>
             ))}
-          </select>
+          </Select>
           <label className="text-xs text-t-muted" htmlFor="log-filter">
             {t('settings.jobs.logs.filter')}
           </label>
-          <select id="log-filter" className="t-input t-input--sm" value={filter} onChange={(e) => setFilter(e.target.value as LogLevel | 'all')}>
+          <Select
+            id="log-filter"
+            size="sm"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as LogLevel | 'all')}
+          >
             <option value="all">{t('settings.jobs.logs.all')}</option>
             {LOG_LEVELS.map((l) => (
               <option key={l} value={l}>
                 {l}
               </option>
             ))}
-          </select>
-          <button type="button" className="t-btn t-btn--sm" onClick={() => setPaused((p) => !p)}>
+          </Select>
+          <Button size="sm" onClick={() => setPaused((p) => !p)}>
             {paused ? (
               <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             ) : (
               <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             )}
             {paused ? t('settings.jobs.logs.resume') : t('settings.jobs.logs.pause')}
-          </button>
-          <button type="button" className="t-btn t-btn--sm" onClick={() => setLines([])}>
+          </Button>
+          <Button size="sm" onClick={() => setLines([])}>
             <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('settings.jobs.logs.clear')}
-          </button>
+          </Button>
         </div>
       </div>
       <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.logs.hint')}</p>
@@ -212,7 +218,7 @@ function LogPanel({ level }: { level: LogLevel }) {
         )}
         <div ref={endRef} />
       </div>
-    </section>
+    </Panel>
   )
 }
 
@@ -329,10 +335,10 @@ function NumEdit({
       {/* text + numeric inputmode instead of type="number": Chrome reports a
           bogus aria-valuemax of 0 for max-less number inputs, which screen
           readers announce as out-of-range */}
-      <input
+      <Input
         id={id}
         key={value}
-        className="t-input h-6 w-20 px-2 py-1 text-right font-mono text-xs tabular-nums"
+        className="h-6 w-20 px-2 py-1 text-right font-mono text-xs tabular-nums"
         type="text"
         inputMode="numeric"
         title={title}
@@ -402,19 +408,20 @@ export default function Jobs() {
       <span className={CELL_LEFT}>
         <span className="min-w-0 truncate text-t-secondary">{scopeLabel(c.scope)}</span>
         {c.stale > 0 && (
-          <span className="t-label t-label--warn shrink-0 tabular-nums">
+          <Badge tone="warn" className="shrink-0 tabular-nums">
             {t('settings.jobs.stale', { count: c.stale })}
-          </span>
+          </Badge>
         )}
       </span>
       <span className={CELL_RIGHT}>
         <span className={`w-16 ${NUM}`}>{fmtNum(c.count)}</span>
         <span className={`w-12 ${NUM}`}>{fmtTtl(c.ttlSec)}</span>
-        <button className="t-btn t-btn--sm" onClick={() => setCacheModal(c)}>
+        <Button size="sm" onClick={() => setCacheModal(c)}>
           {t('settings.jobs.view')}
-        </button>
-        <button
-          className="t-btn t-btn--sm t-btn--danger"
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
           disabled={flush.isPending}
           onClick={async () => {
             if (await confirm({ message: t('settings.jobs.confirmFlush', { scope: scopeLabel(c.scope) }), destructive: true }))
@@ -422,7 +429,7 @@ export default function Jobs() {
           }}
         >
           {t('settings.jobs.flush')}
-        </button>
+        </Button>
       </span>
     </li>
   )
@@ -458,79 +465,79 @@ export default function Jobs() {
         </p>
       )}
 
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.jobs.activity')}>
-        <span className="t-label t-label--accent">{t('settings.jobs.activity')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.activity')}>
+        <Badge tone="accent">{t('settings.jobs.activity')}</Badge>
         <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.hint')}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {idle && <span className="t-label t-label--ok">{t('settings.jobs.idle')}</span>}
+          {idle && <Badge tone="ok">{t('settings.jobs.idle')}</Badge>}
           {data.running.map((job) => (
-            <span key={job} className="t-label font-mono">
+            <Badge key={job} className="font-mono">
               {job}
-            </span>
+            </Badge>
           ))}
           {data.matchQueue > 0 && (
-            <span className="t-label t-label--warn tabular-nums">
+            <Badge tone="warn" className="tabular-nums">
               {t('settings.jobs.queue', { count: data.matchQueue })}
-            </span>
+            </Badge>
           )}
         </div>
         <p className="mt-2 text-xs text-t-muted">
           {t('settings.jobs.watchSummary', { count: data.watch.count, min: data.watch.intervalMin })}
         </p>
-      </section>
+      </Panel>
 
       <LogPanel level={data.logLevel} />
 
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.jobs.anilistCaches')}>
-        <span className="t-label t-label--accent">{t('settings.jobs.anilistCaches')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.anilistCaches')}>
+        <Badge tone="accent">{t('settings.jobs.anilistCaches')}</Badge>
         {/* header rhythm shared by all cache panels: info line, then one
             control row with buttons left and the TTL group right */}
         <p className="mt-3 text-xs text-t-muted">{t('settings.jobs.accounts', { count: data.anilist.accounts })}</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
-            className="t-btn t-btn--sm"
+          <Button
+            size="sm"
             disabled={data.anilist.accounts === 0 || run.isPending}
             onClick={() => run.mutate({ name: 'anilist-suggestions' })}
           >
             {t('settings.jobs.rebuildSuggestions')}
-          </button>
+          </Button>
           {ttlEdit('anilistH', 'ttl-anilist')}
         </div>
         {cacheList(anilistCaches)}
-      </section>
+      </Panel>
 
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.jobs.tmdbCaches')}>
-        <span className="t-label t-label--accent">{t('settings.jobs.tmdbCaches')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.tmdbCaches')}>
+        <Badge tone="accent">{t('settings.jobs.tmdbCaches')}</Badge>
         <div className="mt-3 flex flex-wrap items-center gap-2">{ttlEdit('tmdbH', 'ttl-tmdb')}</div>
         {cacheList(tmdbCaches)}
-      </section>
+      </Panel>
 
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.plex')}>
-        <span className="t-label t-label--accent">{t('settings.plex')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.plex')}>
+        <Badge tone="accent">{t('settings.plex')}</Badge>
         {/* info line: status + last build; control row: button left, TTL right */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className={`t-label ${data.plex.configured ? 't-label--ok' : ''}`}>
+          <Badge tone={data.plex.configured ? 'ok' : 'neutral'}>
             {data.plex.configured ? t('settings.jobs.configured') : t('settings.jobs.notConfigured')}
-          </span>
+          </Badge>
           <span className="font-mono text-xs tabular-nums text-t-muted">
             {t('settings.jobs.suggestionsBuilt')}: {fmtTs(data.plex.suggestionsAt)}
           </span>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
-            className="t-btn t-btn--sm"
+          <Button
+            size="sm"
             disabled={!data.plex.configured || run.isPending}
             onClick={() => run.mutate({ name: 'plex-suggestions' })}
           >
             {t('settings.jobs.rebuild')}
-          </button>
+          </Button>
           {ttlEdit('plexH', 'ttl-plex')}
         </div>
         {cacheList(plexCaches)}
-      </section>
+      </Panel>
 
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.jobs.remoteIndex')}>
-        <span className="t-label t-label--accent">{t('settings.jobs.remoteIndex')}</span>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.remoteIndex')}>
+        <Badge tone="accent">{t('settings.jobs.remoteIndex')}</Badge>
         {data.index.servers.length === 0 ? (
           <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
         ) : (
@@ -547,9 +554,9 @@ export default function Jobs() {
                     {s.name}
                   </span>
                   {s.pendingDirs > 0 && (
-                    <span className="t-label t-label--warn shrink-0 tabular-nums">
+                    <Badge tone="warn" className="shrink-0 tabular-nums">
                       {t('settings.jobs.pending', { count: s.pendingDirs })}
-                    </span>
+                    </Badge>
                   )}
                 </span>
                 <span className={CELL_RIGHT}>
@@ -587,15 +594,18 @@ export default function Jobs() {
                     share its 24px control height - anchored to the input grid,
                     not floating vertically centered beside it */}
                 <span className={`${CELL_RIGHT} md:self-start`}>
-                  <button
-                    className="t-btn t-btn--sm flex-1 md:flex-none"
+                  <Button
+                    size="sm"
+                    className="flex-1 md:flex-none"
                     disabled={run.isPending}
                     onClick={() => run.mutate({ name: 'index-crawl', body: { serverId: s.id } })}
                   >
                     {t('settings.jobs.crawlNow')}
-                  </button>
-                  <button
-                    className="t-btn t-btn--sm t-btn--danger flex-1 md:flex-none"
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    className="flex-1 md:flex-none"
                     disabled={flushIndex.isPending}
                     onClick={async () => {
                       if (await confirm({ message: t('settings.jobs.confirmFlushIndex', { name: s.name }), destructive: true }))
@@ -603,7 +613,7 @@ export default function Jobs() {
                     }}
                   >
                     {t('settings.jobs.flushIndex')}
-                  </button>
+                  </Button>
                 </span>
               </li>
             ))}
@@ -612,13 +622,14 @@ export default function Jobs() {
         <p className="mt-2 text-xs text-t-muted">
           {t('settings.jobs.indexHint')}
         </p>
-      </section>
+      </Panel>
 
-      <section className="t-panel mb-4 p-5" aria-label={t('settings.jobs.matchQuality')}>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.matchQuality')}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="t-label t-label--accent">{t('settings.jobs.matchQuality')}</span>
-          <button
-            className="t-btn t-btn--sm t-btn--danger"
+          <Badge tone="accent">{t('settings.jobs.matchQuality')}</Badge>
+          <Button
+            size="sm"
+            variant="danger"
             disabled={run.isPending}
             onClick={async () => {
               if (await confirm({ message: t('settings.jobs.confirmRematchAllServers'), destructive: true }))
@@ -626,7 +637,7 @@ export default function Jobs() {
             }}
           >
             {t('settings.jobs.rematchAllServers')}
-          </button>
+          </Button>
         </div>
         <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.rematchAllServersHint')}</p>
         {data.matches.length === 0 ? (
@@ -648,32 +659,33 @@ export default function Jobs() {
                   <span className="min-w-0 truncate font-semibold text-t-primary" title={m.name}>
                     {m.name}
                   </span>
-                  <span className="t-label shrink-0">{m.source}</span>
+                  <Badge className="shrink-0">{m.source}</Badge>
                 </span>
                 <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-[auto_auto_auto] md:justify-end">
-                  <span className={`${COUNT_BADGE} t-label--ok md:col-start-2 md:row-start-1`}>
+                  <Badge tone="ok" className={`${COUNT_BADGE} md:col-start-2 md:row-start-1`}>
                     {t('settings.jobs.matched', { n: fmtNum(m.matched) })}
-                  </span>
-                  <span
-                    className={`${COUNT_BADGE} ${m.unmatched > 0 ? 't-label--warn' : ''} md:col-start-3 md:row-start-1`}
+                  </Badge>
+                  <Badge
+                    tone={m.unmatched > 0 ? 'warn' : 'neutral'}
+                    className={`${COUNT_BADGE} md:col-start-3 md:row-start-1`}
                   >
                     {t('settings.jobs.unmatched', { n: fmtNum(m.unmatched) })}
-                  </span>
-                  <button
-                    className="t-btn t-btn--sm md:col-start-1 md:row-start-2"
-                    onClick={() => setMatchModal(m)}
-                  >
+                  </Badge>
+                  <Button size="sm" className="md:col-start-1 md:row-start-2" onClick={() => setMatchModal(m)}>
                     {t('settings.jobs.view')}
-                  </button>
-                  <button
-                    className="t-btn t-btn--sm md:col-start-2 md:row-start-2"
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="md:col-start-2 md:row-start-2"
                     disabled={run.isPending}
                     onClick={() => run.mutate({ name: 'rematch', body: { serverId: m.serverId, all: false } })}
                   >
                     {t('settings.jobs.rematchMissing')}
-                  </button>
-                  <button
-                    className="t-btn t-btn--sm t-btn--danger md:col-start-3 md:row-start-2"
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    className="md:col-start-3 md:row-start-2"
                     disabled={run.isPending}
                     onClick={async () => {
                       if (await confirm({ message: t('settings.jobs.confirmRematchAll', { name: m.name }), destructive: true }))
@@ -681,13 +693,13 @@ export default function Jobs() {
                     }}
                   >
                     {t('settings.jobs.rematchAll')}
-                  </button>
+                  </Button>
                 </div>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
 
       {cacheModal && <CacheEntriesModal cache={cacheModal} onClose={() => setCacheModal(null)} />}
       {matchModal && <MatchesModal stat={matchModal} onClose={() => setMatchModal(null)} />}
@@ -695,9 +707,10 @@ export default function Jobs() {
   )
 }
 
-// Lightweight modal shell in the WatchDialog anatomy: native <dialog>
-// (focus trap + Escape for free, global CSS handles mobile sizing),
-// fixed header, scrollable body, footer.
+// Modal shell of this page: the design system's Dialog (native <dialog>, so
+// focus trap, Escape and the backdrop guard come for free) with the fixed
+// header / scrollable body / footer anatomy. Mount-to-open - the parent renders
+// it conditionally and unmounts it on close.
 function Modal({
   title,
   onClose,
@@ -710,20 +723,8 @@ function Modal({
   children: ReactNode
 }) {
   const { t } = useTranslation()
-  const ref = useRef<HTMLDialogElement>(null)
-  const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
-  useEffect(() => {
-    ref.current?.showModal()
-  }, [])
   return (
-    <dialog
-      ref={ref}
-      className="w-full max-w-2xl p-0"
-      aria-label={title}
-      onClose={onClose}
-      onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
-      onClick={(e) => e.target === ref.current && backdropDown.current && ref.current?.close()}
-    >
+    <Dialog onClose={onClose} width="max-w-2xl" aria-label={title}>
       <div className="flex max-h-[85vh] flex-col">
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
@@ -731,13 +732,13 @@ function Modal({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
         <footer className="flex items-center justify-between gap-2 border-t border-border-subtle px-5 py-3">
           <span>{footer}</span>
-          <button className="t-btn" onClick={() => ref.current?.close()}>
+          <Button onClick={onClose}>
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('remote.close')}
-          </button>
+          </Button>
         </footer>
       </div>
-    </dialog>
+    </Dialog>
   )
 }
 
@@ -746,10 +747,10 @@ function Pager({ offset, total, onOffset }: { offset: number; total: number; onO
   if (total <= PAGE && offset === 0) return null
   return (
     <div className="mt-3 flex items-center justify-between gap-2">
-      <button className="t-btn t-btn--sm" disabled={offset === 0} onClick={() => onOffset(Math.max(0, offset - PAGE))}>
+      <Button size="sm" disabled={offset === 0} onClick={() => onOffset(Math.max(0, offset - PAGE))}>
         <ChevronLeft aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
         {t('settings.jobs.prev')}
-      </button>
+      </Button>
       <span className="font-mono text-xs tabular-nums text-t-muted">
         {t('settings.jobs.pageInfo', {
           from: total === 0 ? 0 : offset + 1,
@@ -757,10 +758,10 @@ function Pager({ offset, total, onOffset }: { offset: number; total: number; onO
           total,
         })}
       </span>
-      <button className="t-btn t-btn--sm" disabled={offset + PAGE >= total} onClick={() => onOffset(offset + PAGE)}>
+      <Button size="sm" disabled={offset + PAGE >= total} onClick={() => onOffset(offset + PAGE)}>
         {t('settings.jobs.next')}
         <ChevronRight aria-hidden size="1em" className="ml-1 inline align-[-0.125em]" />
-      </button>
+      </Button>
     </div>
   )
 }
@@ -799,9 +800,8 @@ function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () =
       <label className="sr-only" htmlFor="cache-entries-q">
         {t('remote.search')}
       </label>
-      <input
+      <Input
         id="cache-entries-q"
-        className="t-input"
         placeholder={t('remote.search')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -816,13 +816,14 @@ function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () =
                 <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={e.key}>
                   {truncMiddle(e.key)}
                 </span>
-                {e.stale && <span className="t-label t-label--warn shrink-0">{t('settings.jobs.staleBadge')}</span>}
+                {e.stale && <Badge tone="warn" className="shrink-0">{t('settings.jobs.staleBadge')}</Badge>}
               </span>
               <span className={CELL_RIGHT}>
                 <span className={`whitespace-nowrap ${NUM}`}>{fmtTs(e.fetchedAt)}</span>
                 <span className={`w-16 ${NUM}`}>{fmtBytes(e.bytes)}</span>
-                <button
-                  className="t-btn t-btn--sm t-btn--danger"
+                <Button
+                  size="sm"
+                  variant="danger"
                   disabled={del.isPending}
                   onClick={async () => {
                     if (await confirm({ message: t('settings.jobs.confirmDeleteEntry', { key: truncMiddle(e.key, 80) }), destructive: true }))
@@ -831,7 +832,7 @@ function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () =
                 >
                   <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('servers.delete')}
-                </button>
+                </Button>
               </span>
             </li>
           ))}
@@ -942,9 +943,10 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
     >
       <div className="mb-2 flex flex-wrap gap-1" role="group" aria-label={t('dash.filterStatus')}>
         {MATCH_FILTERS.map((f) => (
-          <button
+          <Button
             key={f}
-            className={`t-btn t-btn--sm ${filter === f ? 't-btn--primary' : ''}`}
+            size="sm"
+            variant={filter === f ? 'primary' : 'default'}
             aria-pressed={filter === f}
             onClick={() => {
               setFilter(f)
@@ -952,15 +954,14 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
             }}
           >
             {t(`settings.jobs.filter.${f}`)}
-          </button>
+          </Button>
         ))}
       </div>
       <label className="sr-only" htmlFor="matches-q">
         {t('remote.search')}
       </label>
-      <input
+      <Input
         id="matches-q"
-        className="t-input"
         placeholder={t('remote.search')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -976,7 +977,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                   <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={m.folder}>
                     {basename(m.folder)}
                   </span>
-                  {!!m.manual && <span className="t-label shrink-0">{t('settings.jobs.manualBadge')}</span>}
+                  {!!m.manual && <Badge className="shrink-0">{t('settings.jobs.manualBadge')}</Badge>}
                 </span>
                 <span className={CELL_RIGHT}>
                   {m.mediaId ? (
@@ -984,18 +985,20 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                       {m.title}
                     </span>
                   ) : (
-                    <span className="t-label t-label--warn shrink-0">-</span>
+                    <Badge tone="warn" className="shrink-0">-</Badge>
                   )}
-                  <button
-                    className={`t-btn t-btn--sm ${correcting?.folder === m.folder ? 't-btn--primary' : ''}`}
+                  <Button
+                    size="sm"
+                    variant={correcting?.folder === m.folder ? 'primary' : 'default'}
                     aria-expanded={correcting?.folder === m.folder}
                     onClick={() => (correcting?.folder === m.folder ? setCorrecting(null) : startCorrect(m))}
                   >
                     <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('settings.jobs.correct')}
-                  </button>
-                  <button
-                    className="t-btn t-btn--sm t-btn--danger"
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
                     disabled={del.isPending}
                     onClick={async () => {
                       if (await confirm({ message: t('settings.jobs.confirmDeleteMatch', { name: basename(m.folder) }), destructive: true }))
@@ -1004,7 +1007,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                   >
                     <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('servers.delete')}
-                  </button>
+                  </Button>
                 </span>
               </div>
               {correcting?.folder === m.folder && (
@@ -1013,18 +1016,17 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                     <label className="sr-only" htmlFor="correct-q">
                       {t('remote.search')}
                     </label>
-                    <input
+                    <Input
                       id="correct-q"
-                      className="t-input"
                       value={searchQ}
                       placeholder={t('remote.search')}
                       onChange={(e) => setSearchQ(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && search(m)}
                     />
-                    <button className="t-btn t-btn--sm shrink-0" onClick={() => search(m)}>
+                    <Button size="sm" className="shrink-0" onClick={() => search(m)}>
                       <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('remote.search')}
-                    </button>
+                    </Button>
                   </div>
                   {results.length > 0 && (
                     <ul className="mt-1 max-h-48 overflow-y-auto">
@@ -1045,14 +1047,14 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                     </ul>
                   )}
                   <div className="mt-2 flex justify-between">
-                    <button className="t-btn t-btn--sm t-btn--danger" disabled={picking} onClick={() => pick(m, 0)}>
+                    <Button size="sm" variant="danger" disabled={picking} onClick={() => pick(m, 0)}>
                       <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('settings.jobs.noMatch')}
-                    </button>
-                    <button className="t-btn t-btn--sm" onClick={() => setCorrecting(null)}>
+                    </Button>
+                    <Button size="sm" onClick={() => setCorrecting(null)}>
                       <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('servers.cancel')}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Input, Panel } from '@weebsync/design-system'
 import { api } from '../../api'
 import { usePrompt } from '../../components/prompt'
 import { registerCredential } from '../../webauthn'
@@ -15,7 +16,7 @@ export default function Account() {
   return (
     <section className="max-w-xl" aria-label={t('settings.nav.account')}>
       {cfg && cfg.authMode !== 'password' ? (
-        <div className="t-panel p-5 text-sm text-t-muted">{t('account.oidcOnly')}</div>
+        <Panel className="p-5 text-sm text-t-muted">{t('account.oidcOnly')}</Panel>
       ) : (
         <div className="space-y-4">
           <PasskeySection />
@@ -71,36 +72,36 @@ function PasskeySection() {
   }
 
   return (
-    <div className="t-panel p-5" aria-label={t('account.passkeyTitle')}>
-      <span className="t-label t-label--accent">{t('account.passkeyTitle')}</span>
+    <Panel className="p-5" aria-label={t('account.passkeyTitle')}>
+      <Badge tone="accent">{t('account.passkeyTitle')}</Badge>
       <p className="mt-2 text-xs text-t-muted">{t('account.passkeyHint')}</p>
       {creds && creds.length > 0 && (
         <ul className="mt-3 divide-y divide-border-subtle/50">
           {creds.map((c) => (
             <li key={c.id} className="flex items-center gap-2 py-2 text-sm">
               <span className="min-w-0 flex-1 truncate text-t-secondary">{c.name}</span>
-              <span className="t-label">{c.passwordless ? t('account.passkeyKindPasskey') : t('account.passkeyKindKey')}</span>
-              <button className="t-btn t-btn--sm t-btn--danger" disabled={busy} onClick={remove(c.id)}>
+              <Badge>{c.passwordless ? t('account.passkeyKindPasskey') : t('account.passkeyKindKey')}</Badge>
+              <Button size="sm" variant="danger" disabled={busy} onClick={remove(c.id)}>
                 {t('servers.delete')}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className="t-btn t-btn--sm t-btn--primary t-cut" disabled={busy} onClick={add('passkey')}>
+        <Button size="sm" variant="primary" cut disabled={busy} onClick={add('passkey')}>
           {t('account.passkeyAdd')}
-        </button>
-        <button className="t-btn t-btn--sm" disabled={busy} onClick={add('key')}>
+        </Button>
+        <Button size="sm" disabled={busy} onClick={add('key')}>
           {t('account.keyAdd')}
-        </button>
+        </Button>
       </div>
       {error && (
         <p className="mt-3 text-sm text-err" role="alert">
           {error}
         </p>
       )}
-    </div>
+    </Panel>
   )
 }
 
@@ -146,8 +147,8 @@ function TotpSection() {
     })
 
   return (
-    <div className="t-panel p-5" aria-label={t('account.totpTitle')}>
-      <span className="t-label t-label--accent">{t('account.totpTitle')}</span>
+    <Panel className="p-5" aria-label={t('account.totpTitle')}>
+      <Badge tone="accent">{t('account.totpTitle')}</Badge>
       <p className="mt-2 text-xs text-t-muted">{t('account.totpHint')}</p>
 
       {recovery && (
@@ -159,40 +160,40 @@ function TotpSection() {
               <li key={c}>{c}</li>
             ))}
           </ul>
-          <button className="t-btn t-btn--sm mt-3" onClick={() => navigator.clipboard?.writeText(recovery.join('\n'))}>
+          <Button size="sm" className="mt-3" onClick={() => navigator.clipboard?.writeText(recovery.join('\n'))}>
             {t('account.copy')}
-          </button>
-          <button className="t-btn t-btn--sm mt-3 ml-2" onClick={() => setRecovery(null)}>
+          </Button>
+          <Button size="sm" className="mt-3 ml-2" onClick={() => setRecovery(null)}>
             {t('remote.close')}
-          </button>
+          </Button>
         </div>
       )}
 
       {!recovery && data?.enabled && (
         <div className="mt-4">
-          <span className="t-label t-label--ok">{t('account.totpOn')}</span>
+          <Badge tone="ok">{t('account.totpOn')}</Badge>
           <div className="mt-3 flex flex-wrap items-end gap-2">
             <label className="text-xs text-t-muted">
               {t('login.password')}
-              <input
-                className="t-input mt-1"
+              <Input
+                className="mt-1"
                 type="password"
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </label>
-            <button className="t-btn t-btn--sm t-btn--danger" disabled={busy || !password} onClick={disable}>
+            <Button size="sm" variant="danger" disabled={busy || !password} onClick={disable}>
               {t('account.totpDisable')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {!recovery && !data?.enabled && !setup && (
-        <button className="t-btn t-btn--sm t-btn--primary t-cut mt-4" disabled={busy} onClick={start}>
+        <Button size="sm" variant="primary" cut className="mt-4" disabled={busy} onClick={start}>
           {t('account.totpEnable')}
-        </button>
+        </Button>
       )}
 
       {!recovery && setup && (
@@ -203,17 +204,17 @@ function TotpSection() {
           </p>
           <label className="block text-xs text-t-muted">
             {t('account.totpEnterCode')}
-            <input
-              className="t-input mt-1 font-mono tracking-[0.3em]"
+            <Input
+              className="mt-1 font-mono tracking-[0.3em]"
               inputMode="numeric"
               autoComplete="one-time-code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
           </label>
-          <button className="t-btn t-btn--sm t-btn--primary t-cut" disabled={busy || !code} onClick={confirm}>
+          <Button size="sm" variant="primary" cut disabled={busy || !code} onClick={confirm}>
             {t('account.totpConfirm')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -222,6 +223,6 @@ function TotpSection() {
           {error}
         </p>
       )}
-    </div>
+    </Panel>
   )
 }

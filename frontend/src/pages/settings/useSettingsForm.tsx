@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button } from '@weebsync/design-system'
 import { api } from '../../api'
 
 export interface SettingsState {
@@ -136,10 +137,14 @@ export function SaveBar({
   const { t } = useTranslation()
   return (
     <div className="mb-6 flex items-center gap-3">
-      <button className="t-btn t-btn--primary t-cut" onClick={() => save.mutate(form)} disabled={save.isPending}>
+      <Button variant="primary" cut onClick={() => save.mutate(form)} disabled={save.isPending}>
         {t('settings.save')}
-      </button>
-      {saved && <span className="t-label t-label--ok" role="status">{t('settings.saved')}</span>}
+      </Button>
+      {saved && (
+        <Badge tone="ok" role="status">
+          {t('settings.saved')}
+        </Badge>
+      )}
       {save.error && (
         <span className="text-sm text-err" role="alert">
           {save.error.message}

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import { Badge } from '@weebsync/design-system'
 
 // Collapsible wraps a block behind its heading; the heading is the toggle
 // (not persisted). `small` renders the t-label style used for sub-groups
@@ -30,13 +31,15 @@ export default function Collapsible({
       ) : (
         <ChevronRight aria-hidden size="1em" className="shrink-0 text-accent" />
       )}
-      {title} <span className="t-label">{count}</span>
+      {title} <Badge>{count}</Badge>
     </button>
   )
   return (
     <div>
       {small ? (
-        <span className="t-label t-label--accent mb-1 block">{toggle}</span>
+        <Badge tone="accent" className="mb-1 block">
+          {toggle}
+        </Badge>
       ) : (
         <h3 className="mb-2 font-display text-sm font-semibold tracking-wider text-t-secondary">{toggle}</h3>
       )}

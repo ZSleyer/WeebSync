@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Panel } from '@weebsync/design-system'
 import { LOCALES } from '../../locales'
 
 const ACCENTS = ['violet', 'acid', 'crimson', 'cyan', 'blue', 'green', 'pink', 'orange']
@@ -22,28 +23,30 @@ export default function Look() {
   }
 
   return (
-    <section className="t-panel p-5" aria-label={t('settings.look')}>
-      <span className="t-label t-label--accent">{t('settings.look')}</span>
+    <Panel as="section" className="p-5" aria-label={t('settings.look')}>
+      <Badge tone="accent">{t('settings.look')}</Badge>
       <div className="mt-3 grid grid-cols-1 gap-4">
         <div role="group" aria-label={t('settings.language')} className="flex items-center gap-2">
           <span className="w-24 text-xs text-t-muted">{t('settings.language')}</span>
           {LOCALES.map((l) => (
-            <button
+            <Button
               key={l.code}
-              className={`t-btn t-btn--sm ${i18n.language.startsWith(l.code) ? 't-btn--primary' : ''}`}
+              size="sm"
+              variant={i18n.language.startsWith(l.code) ? 'primary' : 'default'}
               aria-pressed={i18n.language.startsWith(l.code)}
               onClick={() => i18n.changeLanguage(l.code)}
             >
               {l.label}
-            </button>
+            </Button>
           ))}
         </div>
         <div role="group" aria-label={t('settings.theme')} className="flex items-center gap-2">
           <span className="w-24 text-xs text-t-muted">{t('settings.theme')}</span>
           {(['dark', 'light'] as const).map((th) => (
-            <button
+            <Button
               key={th}
-              className={`t-btn t-btn--sm ${theme === th ? 't-btn--primary' : ''}`}
+              size="sm"
+              variant={theme === th ? 'primary' : 'default'}
               aria-pressed={theme === th}
               onClick={() => {
                 setTheme(th)
@@ -51,7 +54,7 @@ export default function Look() {
               }}
             >
               {th}
-            </button>
+            </Button>
           ))}
         </div>
         <div role="group" aria-label={t('settings.accent')} className="flex items-center gap-2">
@@ -86,6 +89,6 @@ export default function Look() {
           {t('settings.motion')}
         </label>
       </div>
-    </section>
+    </Panel>
   )
 }

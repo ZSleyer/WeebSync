@@ -1,7 +1,8 @@
 import { Folder, Save, X } from 'lucide-react'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { Badge, Button, Dialog, Field, Input, Select } from '@weebsync/design-system'
 import { api } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
@@ -46,8 +47,6 @@ export default function WatchDialog({
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
-  const ref = useRef<HTMLDialogElement>(null)
-  const backdropDown = useRef(false) // pointerdown started on the backdrop, not mid-drag from a field
   const [f, setF] = useState(initial)
   // TVDB is only offered as a source when a key is set (settings is admin-only;
   // a 403 just leaves the option hidden)
@@ -80,7 +79,6 @@ export default function WatchDialog({
   // language codes present in this server's index, for the dub/sub filter
   const [langs, setLangs] = useState<{ dub: string[]; sub: string[] }>({ dub: [], sub: [] })
   useEffect(() => {
-    ref.current?.showModal()
     api
       .get<{ dub: string[]; sub: string[] }>(`/api/servers/${serverId}/languages`)
       .then(setLangs)
@@ -92,7 +90,8 @@ export default function WatchDialog({
   // unsaved-changes guard: confirm before closing via backdrop / Escape / cancel
   const dirty =
     JSON.stringify(f) !== JSON.stringify(initial) || renameOn !== !!(initial.template || initial.pattern)
-  const guardedClose = async () => {
+  // Dialog asks this before Escape or a backdrop click closes it
+  const mayClose = async () => {
     if (
       dirty &&
       !(await confirm({
@@ -103,8 +102,11 @@ export default function WatchDialog({
         destructive: true,
       }))
     )
-      return
-    ref.current?.close()
+      return false
+    return true
+  }
+  const cancel = async () => {
+    if (await mayClose()) onClose()
   }
   useEffect(() => {
     if (!dirty) return
@@ -120,7 +122,7 @@ export default function WatchDialog({
     try {
       // rename off = keep original names, persist empty rules
       await onSave(renameOn ? f : { ...f, template: '', pattern: '', replacement: '' })
-      ref.current?.close()
+      onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
     } finally {
@@ -151,15 +153,16 @@ export default function WatchDialog({
             queryKey={isRemote ? ['watch-remote', serverId] : ['local']}
             ariaLabel={t(isRemote ? 'watch.remotePath' : 'watch.localPath')}
           />
-          <button
-            type="button"
-            className={`t-btn t-btn--sm shrink-0 ${browse === which ? 't-btn--primary' : ''}`}
+          <Button
+            size="sm"
+            className="shrink-0"
+            variant={browse === which ? 'primary' : 'default'}
             aria-expanded={browse === which}
             onClick={() => setBrowse(browse === which ? null : which)}
           >
             <Folder aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('watch.browse')}
-          </button>
+          </Button>
         </div>
         {browse === which && (
           <div className="mt-2 flex max-h-56 flex-col overflow-hidden border border-border-subtle bg-bg-secondary/40">
@@ -192,7 +195,7 @@ export default function WatchDialog({
   }
 
   return (
-    <dialog ref={ref} className="w-full max-w-2xl p-0" aria-label={title} onClose={onClose} onCancel={(e) => { e.preventDefault(); guardedClose() }} onPointerDown={(e) => (backdropDown.current = e.target === ref.current)} onClick={(e) => e.target === ref.current && backdropDown.current && guardedClose()}>
+    <Dialog onClose={onClose} onRequestClose={mayClose} width="max-w-2xl" aria-label={title}>
       <form className="flex max-h-[85vh] flex-col" onSubmit={submit}>
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
@@ -205,7 +208,7 @@ export default function WatchDialog({
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <section className="space-y-3" aria-label={t('watch.sectionPaths')}>
-            <span className="t-label t-label--accent">{t('watch.sectionPaths')}</span>
+            <Badge tone="accent">{t('watch.sectionPaths')}</Badge>
             {pathRow('remote')}
             {pathRow('local')}
             <label className="flex items-center gap-2 text-sm text-t-secondary">
@@ -215,34 +218,33 @@ export default function WatchDialog({
           </section>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionMeta')}>
-            <span className="t-label t-label--accent">{t('watch.sectionMeta')}</span>
+            <Badge tone="accent">{t('watch.sectionMeta')}</Badge>
             {/* same 50/50 split as every other two-column row in this dialog,
                 so the column edge never shifts between sections */}
             <div className={ROW_GRID}>
-              <label className="t-field text-xs text-t-muted">
-                <span className="block">
-                  {t('watch.mediaSource')}
-                  <Hint text={t('watch.metaHint')} />
-                </span>
-                <span className="t-select-wrap block">
-                  <select
-                    className="t-select"
-                    value={f.mediaSource || 'anilist'}
-                    onChange={(e) => setF({ ...f, mediaSource: e.target.value })}
-                  >
-                    <option value="anilist">AniList (Anime)</option>
-                    <option value="tmdb:tv">TMDB Serie</option>
-                    <option value="tmdb:movie">TMDB Film</option>
-                    {(caps?.tvdbApiKeySet || f.mediaSource === 'tvdb') && <option value="tvdb">TVDB Serie</option>}
-                  </select>
-                </span>
-              </label>
-              <label className="t-field text-xs text-t-muted" htmlFor="watch-mediaid">
-                {t('watch.mediaId')}
-                <input
+              <Field
+                label={
+                  <>
+                    {t('watch.mediaSource')}
+                    <Hint text={t('watch.metaHint')} />
+                  </>
+                }
+              >
+                <Select
+                  value={f.mediaSource || 'anilist'}
+                  onChange={(e) => setF({ ...f, mediaSource: e.target.value })}
+                >
+                  <option value="anilist">AniList (Anime)</option>
+                  <option value="tmdb:tv">TMDB Serie</option>
+                  <option value="tmdb:movie">TMDB Film</option>
+                  {(caps?.tvdbApiKeySet || f.mediaSource === 'tvdb') && <option value="tvdb">TVDB Serie</option>}
+                </Select>
+              </Field>
+              <Field label={t('watch.mediaId')} htmlFor="watch-mediaid">
+                <Input
                   id="watch-mediaid"
                   type="number"
-                  className="t-input font-mono"
+                  className="font-mono"
                   value={f.mediaId || ''}
                   placeholder={
                     f.mediaSource === 'tvdb'
@@ -253,70 +255,66 @@ export default function WatchDialog({
                   }
                   onChange={(e) => setF({ ...f, mediaId: Number(e.target.value) || 0 })}
                 />
-              </label>
+              </Field>
             </div>
           </section>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionFilter')}>
-            <span className="t-label t-label--accent">{t('watch.sectionFilter')}</span>
+            <Badge tone="accent">{t('watch.sectionFilter')}</Badge>
             <div className={ROW_GRID}>
               {(['wantDub', 'wantSub'] as const).map((key) => {
                 const opts = key === 'wantDub' ? langs.dub : langs.sub
                 // include the saved value even if the index no longer lists it
                 const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
                 return (
-                  <label key={key} className="t-field text-xs text-t-muted">
-                    <span className="block">
-                      {t(key === 'wantDub' ? 'watch.wantDub' : 'watch.wantSub')}
-                      {key === 'wantDub' && <Hint text={t('watch.langHint')} />}
-                    </span>
-                    <span className="t-select-wrap block">
-                      <select
-                        className="t-select"
-                        value={f[key]}
-                        onChange={(e) => setF({ ...f, [key]: e.target.value })}
-                      >
-                        <option value="">{t('watch.langAny')}</option>
-                        {all.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
-                    </span>
-                  </label>
+                  <Field
+                    key={key}
+                    label={
+                      <>
+                        {t(key === 'wantDub' ? 'watch.wantDub' : 'watch.wantSub')}
+                        {key === 'wantDub' && <Hint text={t('watch.langHint')} />}
+                      </>
+                    }
+                  >
+                    <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
+                      <option value="">{t('watch.langAny')}</option>
+                      {all.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
                 )
               })}
             </div>
           </section>
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionPlex')}>
-            <span className="t-label t-label--accent">{t('watch.sectionPlex')}</span>
+            <Badge tone="accent">{t('watch.sectionPlex')}</Badge>
             <div className={ROW_GRID}>
               {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
                 const opts = key === 'plexAudioLang' ? langs.dub : langs.sub
                 const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
                 return (
-                  <label key={key} className="t-field text-xs text-t-muted">
-                    <span className="block">
-                      {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
-                      {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
-                    </span>
-                    <span className="t-select-wrap block">
-                      <select
-                        className="t-select"
-                        value={f[key]}
-                        onChange={(e) => setF({ ...f, [key]: e.target.value })}
-                      >
-                        <option value="">{t('watch.plexNoChange')}</option>
-                        {all.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
-                    </span>
-                  </label>
+                  <Field
+                    key={key}
+                    label={
+                      <>
+                        {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
+                        {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
+                      </>
+                    }
+                  >
+                    <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
+                      <option value="">{t('watch.plexNoChange')}</option>
+                      {all.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
                 )
               })}
             </div>
@@ -324,7 +322,7 @@ export default function WatchDialog({
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
             <div className="flex items-center justify-between">
-              <span className="t-label t-label--accent">{t('watch.sectionRename')}</span>
+              <Badge tone="accent">{t('watch.sectionRename')}</Badge>
               <label className="flex items-center gap-2 text-sm text-t-secondary">
                 <input type="checkbox" checked={renameOn} onChange={(e) => setRenameOn(e.target.checked)} />
                 {t('watch.renameToggle')}
@@ -353,7 +351,7 @@ export default function WatchDialog({
           {renameOn && hasRule && (
             <section className="space-y-2 border-t border-border-subtle pt-4" aria-label={t('rename.preview')}>
               <div className="flex items-center gap-2">
-                <span className="t-label t-label--accent">{t('rename.preview')}</span>
+                <Badge tone="accent">{t('rename.preview')}</Badge>
                 {previewBusy && <Loading />}
               </div>
               {pairs && (
@@ -379,16 +377,16 @@ export default function WatchDialog({
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          <button type="button" className="t-btn" onClick={guardedClose}>
+          <Button onClick={cancel}>
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.cancel')}
-          </button>
-          <button className="t-btn t-btn--primary t-cut" disabled={busy}>
+          </Button>
+          <Button type="submit" variant="primary" cut disabled={busy}>
             <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {saveLabel ?? t('settings.save')}
-          </button>
+          </Button>
         </footer>
       </form>
-    </dialog>
+    </Dialog>
   )
 }
