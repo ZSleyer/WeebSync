@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import {
   Badge,
   Button,
@@ -238,6 +238,20 @@ describe('Badge', () => {
       </>,
     )
     expect(screen.getByLabelText('Filter')).toBe(screen.getByRole('textbox'))
+  })
+
+  it('passes type and onClick through on as="button"', () => {
+    const onClick = vi.fn()
+    render(
+      <Badge as="button" type="button" onClick={onClick}>
+        2 Lücken
+      </Badge>,
+    )
+    const chip = screen.getByRole('button', { name: '2 Lücken' })
+    // without an explicit type the chip would submit a surrounding form
+    expect(chip).toHaveAttribute('type', 'button')
+    fireEvent.click(chip)
+    expect(onClick).toHaveBeenCalled()
   })
 
   it('passes href, target and rel through on as="a"', () => {
