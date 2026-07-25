@@ -110,6 +110,37 @@ func (s *Server) storePlexRoots(sections []plex.Section) {
 	}
 }
 
+// plexRescan asks Plex to scan the directory a file was just moved into, so the
+// episode shows up now rather than at the server's next scheduled scan. Best
+// effort by design: the move itself already succeeded, and a library Plex does
+// not own is a normal outcome, not a failure to report.
+func (s *Server) plexRescan(dir string) {
+	title := s.plexLibraryOf(dir)
+	if title == "" {
+		return // not under a known Plex library
+	}
+	c := s.plexClient()
+	if c == nil {
+		return
+	}
+	secs, err := c.Sections()
+	if err != nil {
+		slog.Debug("plex rescan", "dir", logSafe(dir), "err", err)
+		return
+	}
+	for _, sec := range secs {
+		if sec.Title != title {
+			continue
+		}
+		if err := c.Refresh(sec.Key, dir); err != nil {
+			slog.Debug("plex rescan", "dir", logSafe(dir), "section", logSafe(sec.Key), "err", err)
+			return
+		}
+		slog.Info("plex rescan", "dir", logSafe(dir), "library", logSafe(title))
+		return
+	}
+}
+
 // plexLibraryOf returns the Plex library title that owns a local folder (longest
 // matching library root), or "" when unknown (path not under a known library, or
 // not yet detected). Used to group upgrade/incomplete suggestions by library.

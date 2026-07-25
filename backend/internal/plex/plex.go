@@ -112,6 +112,30 @@ func (c *Client) put(path string) error {
 	return nil
 }
 
+// Refresh asks Plex to scan one directory of a section, so a file that was just
+// moved into place shows up now instead of whenever the server next scans by
+// itself. The path must be one Plex knows as part of that library.
+//
+// A refresh answers 200 with an empty body, so this cannot go through get,
+// which insists on decoding JSON.
+func (c *Client) Refresh(sectionKey, dir string) error {
+	q := url.Values{"path": {dir}}
+	req, err := http.NewRequest(http.MethodGet, c.URL+"/library/sections/"+sectionKey+"/refresh?"+q.Encode(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Plex-Token", c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("plex: HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func (c *Client) Sections() ([]Section, error) {
 	var resp struct {
 		MediaContainer struct {
