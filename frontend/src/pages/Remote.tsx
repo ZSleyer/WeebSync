@@ -1256,7 +1256,10 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
   }
 
   return (
-    <Dialog width="max-w-lg" aria-label={t('remote.matchFor', { name: item.entry.name })} onClose={onClose}>
+    // a search field over a list that caps itself at max-h-72: this one is
+    // compact by construction, so it stays a centred box instead of stretching
+    // to a full screen it cannot fill
+    <Dialog width="max-w-lg" sheet={false} aria-label={t('remote.matchFor', { name: item.entry.name })} onClose={onClose}>
       <div className="p-5">
         <h3 className="mb-1 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
         {item.media && (
