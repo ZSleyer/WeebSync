@@ -45,5 +45,13 @@ jobs:
           cache: yarn
           cache-dependency-path: frontend/yarn.lock
       - run: yarn install --frozen-lockfile
+        # the design system has no dependency tree of its own and borrows the
+        # app's, the same link design-system/build.sh makes. Without it tsc
+        # cannot resolve React's types from design-system/src and every prop
+        # degrades to any, which fails the build.
+      - name: link the design system to the app's modules
+        run: ln -sfn "$PWD/node_modules" ../design-system/node_modules
+      - name: test (vitest)
+        run: yarn test
       - name: build (tsc + vite)
         run: yarn build
