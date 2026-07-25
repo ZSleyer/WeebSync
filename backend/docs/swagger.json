@@ -1406,6 +1406,71 @@
                 },
                 "type": "object"
             },
+            "api.WatchEpisode": {
+                "properties": {
+                    "absolute": {
+                        "description": "the provider's absolute number, when it has one",
+                        "type": "integer"
+                    },
+                    "aired": {
+                        "description": "YYYY-MM-DD, \"\" when the provider has no date",
+                        "type": "string"
+                    },
+                    "episode": {
+                        "description": "episode number within that season",
+                        "type": "integer"
+                    },
+                    "have": {
+                        "type": "boolean"
+                    },
+                    "local": {
+                        "description": "local number, only when a {episode-N} template renumbers it",
+                        "type": "integer"
+                    },
+                    "season": {
+                        "description": "the season the local files are filed under",
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.WatchEpisodesResponse": {
+                "properties": {
+                    "episodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.WatchEpisode"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "missing": {
+                        "description": "episodes in the list the folder does not hold",
+                        "type": "integer"
+                    },
+                    "provider": {
+                        "description": "tvdb | tmdb | \"\" when none resolved",
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "seriesId": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "description": "series title at the provider",
+                        "type": "string"
+                    },
+                    "url": {
+                        "description": "series page at the provider",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.WebAuthnBeginResponse": {
                 "properties": {
                     "publicKey": {},
@@ -11145,6 +11210,53 @@
                     }
                 ],
                 "summary": "Trigger watch check",
+                "tags": [
+                    "Watches"
+                ]
+            }
+        },
+        "/api/watches/{id}/episodes": {
+            "get": {
+                "description": "Provider episode list for one watch's series, each episode flagged as present or missing locally. Falls back to the numbers parsed from the local file names when no provider series resolves.",
+                "parameters": [
+                    {
+                        "description": "Watch ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.WatchEpisodesResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Watch episode list",
                 "tags": [
                     "Watches"
                 ]

@@ -309,6 +309,43 @@ func (c *Client) SeasonMap(ctx context.Context, id int) (map[int][2]int, error) 
 	return m, nil
 }
 
+// SeasonEpisode is one episode of a tv season, for showing a season to a human.
+type SeasonEpisode struct {
+	Number  int    `json:"episode_number"`
+	Season  int    `json:"season_number"`
+	Name    string `json:"name"`
+	AirDate string `json:"air_date"`
+}
+
+// Season returns every episode of one tv season, aired and unaired. tvSchedule
+// reads the same endpoint but keeps only future slots and drops the names; this
+// is the whole list. Cached with the other TMDB responses.
+func (c *Client) Season(ctx context.Context, id, season int) ([]SeasonEpisode, error) {
+	key := fmt.Sprintf("tmdb:season:%d:%d", id, season)
+	var out []SeasonEpisode
+	if payload, ok := c.cached(key); ok {
+		if json.Unmarshal([]byte(payload), &out) == nil {
+			return out, nil
+		}
+	}
+	var s struct {
+		Episodes []SeasonEpisode `json:"episodes"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/tv/%d/season/%d", id, season), url.Values{"language": {"de-DE"}}, &s); err != nil {
+		return nil, err
+	}
+	// the season number is on the wrapper, not on every episode
+	for i := range s.Episodes {
+		if s.Episodes[i].Season == 0 {
+			s.Episodes[i].Season = season
+		}
+	}
+	if b, err := json.Marshal(s.Episodes); err == nil {
+		c.store(key, string(b))
+	}
+	return s.Episodes, nil
+}
+
 // tvSchedule fetches the ongoing season's episodes and returns every future
 // release (absolute numbering), so the calendar sees more than the single
 // next_episode_to_air. One extra call, only for RELEASING TV with a scheduled
