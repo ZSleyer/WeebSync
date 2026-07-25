@@ -1,7 +1,7 @@
 import { Check, ChevronLeft, ChevronRight, Pause, Play, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Dialog, Input, Panel, Select } from '@weebsync/design-system'
 import { api, fmtBytes, type Media } from '../../api'

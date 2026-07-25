@@ -11,7 +11,7 @@ const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
 }
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router'
 import { Badge, Button, ButtonLink, Cover, Dialog, EmptyState, Input, Panel, Select } from '@weebsync/design-system'
 import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
 import { CatalogViewSelect } from '../components/CatalogViewSelect'

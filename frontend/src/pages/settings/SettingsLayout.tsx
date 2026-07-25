@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { Activity, ArrowDownUp, Bell, Info, Mail, Palette, Plug, Shield, Upload, UserRound, Users } from 'lucide-react'
-import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Navigate, Outlet, useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge, buttonClass, navItemClass } from '@weebsync/design-system'
 import { useAuth } from '../../hooks'

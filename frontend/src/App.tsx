@@ -19,7 +19,7 @@ import {
   Outlet,
   Route,
   useLocation,
-} from 'react-router-dom'
+} from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button } from '@weebsync/design-system'
