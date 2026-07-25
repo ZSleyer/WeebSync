@@ -217,7 +217,7 @@ func (s *Server) folderUnit(serverID int64, folder string) (showKey string, seas
 			switch {
 			case a.tvdbID != 0:
 				return "tvdb:" + strconv.Itoa(a.tvdbID), unitSeason(a.tvdbSeason, media, base), false
-			case a.tmdbID != 0 && a.tmdbKind == "movie":
+			case a.tmdbID != 0 && a.tmdbKind == "movie" && !s.looksLikeSeries(serverID, folder, base):
 				return "tmdb:" + strconv.Itoa(a.tmdbID), 0, true
 			case a.tmdbID != 0:
 				return "tmdb:" + strconv.Itoa(a.tmdbID), unitSeason(a.tmdbSeason, media, base), false
@@ -228,7 +228,7 @@ func (s *Server) folderUnit(serverID int64, folder string) (showKey string, seas
 		// no Fribb mapping: best-effort fold key + season (won't line up with
 		// Plex's tvdb key, so no false cross matches - just no suggestion)
 		if media != nil {
-			if media.Format == "MOVIE" {
+			if media.Format == "MOVIE" && !s.looksLikeSeries(serverID, folder, base) {
 				return "fold:" + match.FoldKey(match.StripMarkers(mediaTitle(media))), 0, true
 			}
 			return "fold:" + match.FoldKey(match.StripMarkers(mediaTitle(media))), unitSeason(0, media, base), false
@@ -244,6 +244,20 @@ func (s *Server) folderUnit(serverID int64, folder string) (showKey string, seas
 		return "imdb:" + strconv.Itoa(mediaID), match.ParseName(base, "", "").Season, false
 	}
 	return "", 0, false
+}
+
+// looksLikeSeries reports whether a folder holds episodes, and is the veto on
+// calling it a film. A provider's format describes the WORK, not this folder: a
+// MOVIE hit sitting on a folder full of episodes is a mismatch, and believing it
+// files a 24-episode show under "movies" with season 0, where no local season
+// can ever meet it. itemKind is the same file-count signal the catalog listing
+// classifies with, so both agree on what a folder is.
+//
+// Only the anilist paths ask: tmdb:movie already comes from scopeForItem, which
+// derives the movie tag from that very file count, and re-deriving a season
+// there would file a movie id under a tv show key.
+func (s *Server) looksLikeSeries(serverID int64, folder, base string) bool {
+	return s.itemKind(serverID, folder, base) == "series"
 }
 
 // unitSeason resolves an anime folder's season: the Fribb season when known
