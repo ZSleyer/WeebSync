@@ -83,6 +83,10 @@ func adminOnly(next http.Handler) http.Handler {
 func (s *Server) Register(mux *http.ServeMux) {
 	authed := auth.Middleware(s.DB, true)
 
+	// resolve the client IP and the cookie's Secure flag from the stored
+	// settings before the first request arrives; env still wins over them
+	s.applyProxyConfig()
+
 	// auth - login/register are rate-limited per IP against brute-force;
 	// admin-configured trusted networks bypass the limit
 	if s.authLimiter == nil {

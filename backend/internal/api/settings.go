@@ -37,10 +37,31 @@ func validateTrustedNetworks(csv string) error {
 	return nil
 }
 
+// applyProxyConfig pushes the stored deployment posture into the auth package,
+// which resolves the client IP and the cookie's Secure flag from it. Called at
+// startup and after every settings save, so both configuration paths - env for
+// a container, the UI for a bare install - end up in the same place.
+func (s *Server) applyProxyConfig() {
+	auth.SetProxyConfig(db.Setting(s.DB, "trusted_proxies"), truthySetting(db.Setting(s.DB, "force_https")))
+}
+
+// truthySetting reads a boolean setting. The env form of these is a string, so
+// "true" from the UI and WEEBSYNC_FORCE_HTTPS=1 from a container have to mean
+// the same thing.
+func truthySetting(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
 // envSettings maps settings keys to their env override and JSON field name.
 // A set env var wins over the DB value; the UI locks the field.
 var envSettings = []struct{ key, env, field string }{
 	{"base_url", "WEEBSYNC_BASE_URL", "baseUrl"},
+	{"trusted_proxies", "WEEBSYNC_TRUSTED_PROXY", "trustedProxies"},
+	{"force_https", "WEEBSYNC_FORCE_HTTPS", "forceHttps"},
 	{"anilist_client_id", "ANILIST_CLIENT_ID", "anilistClientId"},
 	{"anilist_client_secret", "ANILIST_CLIENT_SECRET", "anilistClientSecret"},
 	{"tmdb_api_key", "TMDB_API_KEY", "tmdbApiKey"},
@@ -101,6 +122,8 @@ type settingsPayload struct {
 	WatchIntervalMin     int64          `json:"watchIntervalMin"` // global auto-sync check interval
 	RegistrationDisabled bool           `json:"registrationDisabled"`
 	TrustedNetworks      string         `json:"trustedNetworks"` // csv of CIDRs/IPs that bypass the login rate limit
+	TrustedProxies       string         `json:"trustedProxies"`  // csv of CIDRs/IPs whose X-Forwarded-* headers are believed
+	ForceHTTPS           bool           `json:"forceHttps"`      // always mark cookies Secure - for a proxy that terminates TLS
 	AuthMode             string         `json:"authMode"`        // password | oidc-only | oidc-auto
 	AnilistClientID      string         `json:"anilistClientId"`
 	AnilistSecretSet     bool           `json:"anilistSecretSet"`
@@ -158,6 +181,8 @@ func (s *Server) settingsState() settingsPayload {
 		WatchIntervalMin:     int64(s.watchInterval()),
 		RegistrationDisabled: auth.RegistrationDisabled(s.DB),
 		TrustedNetworks:      db.Setting(s.DB, "trusted_networks"),
+		TrustedProxies:       db.SettingOrEnv(s.DB, "trusted_proxies", "WEEBSYNC_TRUSTED_PROXY"),
+		ForceHTTPS:           truthySetting(db.SettingOrEnv(s.DB, "force_https", "WEEBSYNC_FORCE_HTTPS")),
 		AuthMode:             auth.AuthMode(s.DB),
 		AnilistClientID:      db.SettingOrEnv(s.DB, "anilist_client_id", "ANILIST_CLIENT_ID"),
 		AnilistSecretSet:     db.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET") != "",
@@ -333,12 +358,24 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// The UI may only name concrete proxies. "trust whatever is in front of
+	// me" stays an env-only decision: switched on without a proxy actually
+	// there, any client could forge its own address.
+	if err := validateTrustedNetworks(in.TrustedProxies); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	setSetting(s.DB, "registration_disabled", strconv.FormatBool(in.RegistrationDisabled))
 	// one-way: the wizard marks itself done, a later save never reopens it
 	if in.OnboardingDone {
 		setSetting(s.DB, "onboarding_done", "true")
 	}
 	setSetting(s.DB, "trusted_networks", strings.TrimSpace(in.TrustedNetworks))
+	setSetting(s.DB, "trusted_proxies", strings.TrimSpace(in.TrustedProxies))
+	setSetting(s.DB, "force_https", strconv.FormatBool(in.ForceHTTPS))
+	// take effect without a restart, and re-read through setSetting so an
+	// env-locked value keeps winning over whatever the form just sent
+	s.applyProxyConfig()
 	setSetting(s.DB, "auth_mode", in.AuthMode)
 	setSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
 	setSetting(s.DB, "oidc_issuer", strings.TrimSpace(in.OidcIssuer))

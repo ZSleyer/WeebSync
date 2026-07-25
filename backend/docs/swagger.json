@@ -2377,6 +2377,10 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "forceHttps": {
+                        "description": "always mark cookies Secure - for a proxy that terminates TLS",
+                        "type": "boolean"
+                    },
                     "globalRateLimit": {
                         "description": "bytes/s, 0 = unlimited",
                         "type": "integer"
@@ -2495,6 +2499,10 @@
                     },
                     "trustedNetworks": {
                         "description": "csv of CIDRs/IPs that bypass the login rate limit",
+                        "type": "string"
+                    },
+                    "trustedProxies": {
+                        "description": "csv of CIDRs/IPs whose X-Forwarded-* headers are believed",
                         "type": "string"
                     },
                     "tvdbApiKey": {
