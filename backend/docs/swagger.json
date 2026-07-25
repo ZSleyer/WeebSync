@@ -565,6 +565,24 @@
                 },
                 "type": "object"
             },
+            "api.LocalSeason": {
+                "properties": {
+                    "folder": {
+                        "description": "local dir, or a \"plex:\" key when it is not a shared mount",
+                        "type": "string"
+                    },
+                    "isMovie": {
+                        "type": "boolean"
+                    },
+                    "resRank": {
+                        "type": "integer"
+                    },
+                    "season": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "api.LocalStat": {
                 "description": "Local: what the folder holds on disk. Only set for the local catalog,\nwhere the question is \"what do I have\", not \"what can I fetch\".",
                 "properties": {
@@ -1111,6 +1129,14 @@
                     },
                     "links": {
                         "$ref": "#/components/schemas/api.ProviderLinks"
+                    },
+                    "localSeasons": {
+                        "description": "every season of this show the library already has, this one included",
+                        "items": {
+                            "$ref": "#/components/schemas/api.LocalSeason"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "options": {
                         "description": "all remote copies",

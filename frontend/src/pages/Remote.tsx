@@ -20,6 +20,7 @@ import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
 import PathInput from '../components/PathInput'
 import FileIcon from '../components/FileIcon'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
+import RenamePreview from '../components/RenamePreview'
 import { useRenamePreview } from '../components/useRenamePreview'
 import { syncTargetDir, useTargetFolder } from '../components/useTargetFolder'
 import WatchDialog from '../components/WatchDialog'
@@ -824,14 +825,17 @@ function SyncDialog({
     retry: false,
     staleTime: 60_000,
   })
-  const { pairs, busy: previewBusy, hasRule } = useRenamePreview({
+  // the preview runs regardless of the rename switch: it is also where the
+  // target comparison is shown, and that matters most when nothing is renamed
+  const { pairs, sizes, busy: previewBusy, hasRule } = useRenamePreview({
     serverId,
     fields: { ...rule, remotePath: entry.path, localPath },
-    enabled: renameOn,
+    enabled: true,
     fileName: entry.isDir ? undefined : entry.name,
+    fileSize: entry.isDir ? undefined : entry.size,
   })
   const target = syncTargetDir(localPath, entry.path, entry.isDir && !flat)
-  const { missing: targetMissing } = useTargetFolder(target)
+  const { entries: targetEntries, missing: targetMissing } = useTargetFolder(target)
   // mount-to-open: Escape and the backdrop end in onClose, the footer buttons
   // decide explicitly - the parent unmounts either way
   return (
@@ -921,26 +925,7 @@ function SyncDialog({
             )}
           </section>
 
-          {renameOn && hasRule && (
-            <section className="space-y-2 border-t border-border-subtle pt-4" aria-label={t('rename.preview')}>
-              <div className="flex items-center gap-2">
-                <Badge tone="accent">{t('rename.preview')}</Badge>
-                {previewBusy && <Loading />}
-              </div>
-              {pairs && (
-                <div className="max-h-40 overflow-y-auto border border-border-subtle">
-                  {pairs.length === 0 && <p className="p-2 text-xs text-t-muted">{t('remote.emptyDir')}</p>}
-                  {pairs.map((p) => (
-                    <p key={p.old} className="border-b border-border-subtle/50 px-2 py-1 font-mono text-[11px]">
-                      <span className="text-t-muted">{p.old}</span>
-                      <span className="text-t-faint"> → </span>
-                      <span className={p.error ? 'text-err' : 'text-accent'}>{p.error ?? p.new}</span>
-                    </p>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
+          {pairs && <RenamePreview pairs={pairs} sizes={sizes} target={targetEntries} busy={previewBusy} />}
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">

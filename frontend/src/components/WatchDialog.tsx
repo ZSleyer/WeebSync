@@ -7,8 +7,8 @@ import { api } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
 import PathInput from './PathInput'
-import Loading from './Loading'
 import RenameOptions, { Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
+import RenamePreview from './RenamePreview'
 import { useRenamePreview } from './useRenamePreview'
 import { syncTargetDir, useTargetFolder } from './useTargetFolder'
 
@@ -86,11 +86,13 @@ export default function WatchDialog({
       .catch(() => {}) // filter is optional; a saved value still shows via its own option below
   }, [serverId])
 
-  const { pairs, busy: previewBusy, hasRule } = useRenamePreview({ serverId, fields: f, enabled: renameOn })
+  // the preview runs regardless of the rename switch: it is also where the
+  // target comparison is shown, and that matters most when nothing is renamed
+  const { pairs, sizes, busy: previewBusy } = useRenamePreview({ serverId, fields: f, enabled: true })
 
   // the folder the files really land in, and whether it is there yet
   const targetDir = syncTargetDir(f.localPath, f.remotePath, f.subfolder)
-  const { missing: targetMissing } = useTargetFolder(targetDir)
+  const { entries: targetEntries, missing: targetMissing } = useTargetFolder(targetDir)
 
   // unsaved-changes guard: confirm before closing via backdrop / Escape / cancel
   const dirty =
@@ -358,26 +360,7 @@ export default function WatchDialog({
             )}
           </section>
 
-          {renameOn && hasRule && (
-            <section className="space-y-2 border-t border-border-subtle pt-4" aria-label={t('rename.preview')}>
-              <div className="flex items-center gap-2">
-                <Badge tone="accent">{t('rename.preview')}</Badge>
-                {previewBusy && <Loading />}
-              </div>
-              {pairs && (
-                <div className="max-h-40 overflow-y-auto border border-border-subtle">
-                  {pairs.length === 0 && <p className="p-2 text-xs text-t-muted">{t('remote.emptyDir')}</p>}
-                  {pairs.map((p) => (
-                    <p key={p.old} className="border-b border-border-subtle/50 px-2 py-1 font-mono text-[11px]">
-                      <span className="text-t-muted">{p.old}</span>
-                      <span className="text-t-faint"> → </span>
-                      <span className={p.error ? 'text-err' : 'text-accent'}>{p.error ?? p.new}</span>
-                    </p>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
+          {pairs && <RenamePreview pairs={pairs} sizes={sizes} target={targetEntries} busy={previewBusy} />}
 
           {error && (
             <p className="border border-err/40 px-3 py-2 text-sm text-err" role="alert">
