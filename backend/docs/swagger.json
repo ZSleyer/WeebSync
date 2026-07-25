@@ -1433,6 +1433,10 @@
                     },
                     "title": {
                         "type": "string"
+                    },
+                    "upcoming": {
+                        "description": "dated in the future, so its absence is not a gap",
+                        "type": "boolean"
                     }
                 },
                 "type": "object"

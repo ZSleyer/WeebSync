@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 )
@@ -21,6 +22,7 @@ type WatchEpisode struct {
 	Title    string `json:"title,omitempty"`
 	Aired    string `json:"aired,omitempty"` // YYYY-MM-DD, "" when the provider has no date
 	Have     bool   `json:"have"`
+	Upcoming bool   `json:"upcoming,omitempty"` // dated in the future, so its absence is not a gap
 }
 
 // WatchEpisodesResponse is one watch's episode list. Episodes is never null:
@@ -373,7 +375,14 @@ func (s *Server) handleWatchEpisodes(w http.ResponseWriter, r *http.Request) {
 	default:
 		resp.Episodes = markBySeason(eps, nums, seasonAlias(seasons, eps, p.Season))
 	}
-	for _, e := range resp.Episodes {
+	// an episode that has not aired yet cannot be missing - counting it would
+	// make every currently running series look half broken
+	today := time.Now().Format("2006-01-02")
+	for i, e := range resp.Episodes {
+		if e.Aired > today {
+			resp.Episodes[i].Upcoming = true
+			continue
+		}
 		if !e.Have {
 			resp.Missing++
 		}

@@ -25,6 +25,7 @@ import {
 } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, type Watch } from '../api'
 import WatchDialog from '../components/WatchDialog'
+import WatchEpisodesModal from '../components/WatchEpisodesModal'
 import { useConfirm } from '../components/confirm'
 import { SkeletonCards } from '../components/Loading'
 
@@ -44,6 +45,8 @@ export default function Watches() {
     refetchInterval: 10_000,
   })
   const [edit, setEdit] = useState<Watch | null>(null)
+  // the watch whose episode list is open; the modal fetches on mount
+  const [gaps, setGaps] = useState<Watch | null>(null)
   const [error, setError] = useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['watches'] })
 
@@ -387,7 +390,17 @@ export default function Watches() {
                             </Badge>
                           )}
                           {(w.missing?.length ?? 0) > 0 && (
-                            <Badge tone="err" size="sm" title={w.missing!.join(', ')}>
+                            // the episode list is this badge's own detail view,
+                            // so the chip is the button that opens it - a span
+                            // with onClick would be unreachable by keyboard
+                            <Badge
+                              as="button"
+                              type="button"
+                              tone="err"
+                              size="sm"
+                              title={w.missing!.join(', ')}
+                              onClick={() => setGaps(w)}
+                            >
                               <TriangleAlert aria-hidden size="1em" />
                               {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
                             </Badge>
@@ -514,6 +527,7 @@ export default function Watches() {
           onClose={() => setEdit(null)}
         />
       )}
+      {gaps && <WatchEpisodesModal watch={gaps} onClose={() => setGaps(null)} />}
     </div>
   )
 }

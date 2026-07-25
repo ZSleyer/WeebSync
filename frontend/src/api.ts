@@ -229,6 +229,31 @@ export interface UpgradeVariant {
   sub: string[]
 }
 
+// One episode as the metadata provider lists it, flagged with whether the
+// watch's local folder holds it. season is the LOCAL one, i.e. what is on disk.
+export interface WatchEpisode {
+  season: number
+  episode: number
+  absolute?: number
+  local?: number // local number, only when a {episode-N} template renumbers it
+  title?: string
+  aired?: string // YYYY-MM-DD
+  have: boolean
+  upcoming?: boolean // dated in the future, so its absence is not a gap
+}
+
+// episodes is never null: without a provider the numbers from the local file
+// names still explain the gap badge, and reason says why the titles are gone.
+export interface WatchEpisodes {
+  provider?: string // tvdb | tmdb
+  seriesId?: number
+  title?: string
+  url?: string
+  reason?: 'no_provider' | 'no_series' | 'provider_error'
+  missing: number
+  episodes: WatchEpisode[]
+}
+
 // One season - or the movie - of a show the library already holds. folder is a
 // local directory, or a "plex:" key when the Plex path is not a shared mount.
 export interface LocalSeason {
