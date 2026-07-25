@@ -223,11 +223,12 @@ func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 	s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ?`, id)
 	s.DB.Exec(`DELETE FROM catalog_scopes WHERE server_id = ?`, id)
 	s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = ?`, id)
-	// drop provider links whose last physical match just vanished, then the
-	// series left with no provider at all (series has real rows, so it cascades)
-	s.DB.Exec(`DELETE FROM series_provider WHERE NOT EXISTS (
-		SELECT 1 FROM catalog_matches m
-		WHERE m.source = series_provider.source AND m.media_id = series_provider.media_id)`)
+	// Provider ids are knowledge about the world, not about this server: which
+	// TVDB id a show has does not change because a server was removed. They used
+	// to be deleted whenever no match referenced them, which also wiped every id
+	// Plex had contributed - those have no match row by definition - and threw
+	// away a cross-provider bridge that takes a full sweep to rebuild. What does
+	// go is a series left without any provider at all.
 	s.DB.Exec(`DELETE FROM series WHERE id NOT IN (SELECT series_id FROM series_provider)`)
 	s.Conns.Evict(id)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

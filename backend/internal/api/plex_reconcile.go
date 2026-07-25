@@ -98,14 +98,17 @@ func (s *Server) reconcilePlex(budget int) {
 	if len(idx) == 0 {
 		return
 	}
-	// folders whose series has no tvdb AND no tmdb provider yet - those are the
-	// ones a Plex id can still enrich
+	// Every matched folder is a candidate, not only those whose series has no
+	// provider id yet. A series can already carry a tvdb id and still be missing
+	// the one Plex knows: Fribb maps the 2012 JoJo season onto tvdb 83950 while
+	// Plex calls the show 262954 - both real entries for the same show. Skipping
+	// on "has any tvdb" is what kept those two apart. INSERT OR IGNORE below
+	// makes a repeat pass free, so the only cost is the title lookup.
 	rows, err := s.DB.Query(`SELECT DISTINCT cm.folder, sp.series_id
 		FROM catalog_matches cm
 		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
 		WHERE cm.media_id != 0
-		  AND NOT EXISTS (SELECT 1 FROM series_provider x
-		                  WHERE x.series_id = sp.series_id AND x.source = 'tvdb')
+		  AND NOT EXISTS (SELECT 1 FROM plex_reconciled r WHERE r.folder = cm.folder)
 		LIMIT ?`, budget)
 	if err != nil {
 		return
@@ -127,6 +130,7 @@ func (s *Server) reconcilePlex(budget int) {
 	for _, h := range hits {
 		g, ok := idx[match.FoldKey(match.GuessTitle(path.Base(h.folder)))]
 		if !ok {
+			s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder)
 			continue
 		}
 		if fy := folderYearOf(path.Base(h.folder)); fy != 0 && g.Year != 0 && absInt(fy-g.Year) > 1 {
@@ -146,6 +150,9 @@ func (s *Server) reconcilePlex(budget int) {
 			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('imdb', ?, ?)`,
 				g.IMDB, h.seriesID)
 		}
+		// remember the folder either way: a folder whose title does not resolve
+		// must not be retried on every sweep, and one that did is done
+		s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder)
 		if g.TVDB != 0 || g.TMDB != 0 || g.IMDB != 0 {
 			enriched++
 			// series gained its cross-provider ids from Plex ground truth
