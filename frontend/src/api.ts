@@ -229,6 +229,15 @@ export interface UpgradeVariant {
   sub: string[]
 }
 
+// One season - or the movie - of a show the library already holds. folder is a
+// local directory, or a "plex:" key when the Plex path is not a shared mount.
+export interface LocalSeason {
+  season: number
+  folder: string
+  resRank: number
+  isMovie?: boolean
+}
+
 export interface UpgradeSuggestion {
   key: string // dismiss key, form "unit:{showKey}:{season}"
   seriesId?: number
@@ -250,6 +259,7 @@ export interface UpgradeSuggestion {
   category: string // anime-movie | anime-tv | movie | tv, for grouping
   library?: string // Plex library title (informational)
   sync?: SyncPlan // where a one-off sync writes (into the existing local season/movie folder)
+  localSeasons?: LocalSeason[] // every season of this show the library already has
 }
 
 export interface UpgradeDims {

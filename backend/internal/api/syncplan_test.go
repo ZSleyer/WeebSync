@@ -1,6 +1,7 @@
 package api
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -90,5 +91,31 @@ func TestParsePlexRootsAndMap(t *testing.T) {
 	// unmapped path stays as-is (shared-mount case)
 	if got := applyPathMap("/media/movies/x.mkv", maps); got != "/media/movies/x.mkv" {
 		t.Fatalf("unmapped changed: %q", got)
+	}
+}
+
+func TestLocalSeasonsByShow(t *testing.T) {
+	units := catUnits{
+		byKey: map[string]*catUnit{
+			"show:1": {showKey: "tvdb:1", season: 1, locals: []UpgradeVariant{
+				{Folder: "/media/Show/Season 01", ResRank: 720},
+				{Folder: "/media/Show/Season 01 alt", ResRank: 1080}, // bestCopy wins
+			}},
+			"show:2": {showKey: "tvdb:1", season: 2, remotes: []UpgradeVariant{{Folder: "/ftp/S02"}}}, // not owned
+			"show:3": {showKey: "tvdb:1", season: 3, locals: []UpgradeVariant{{Folder: "/media/Show/Season 03", ResRank: 1080}}},
+			"other":  {showKey: "tvdb:9", season: 1, locals: []UpgradeVariant{{Folder: "/media/Other", ResRank: 480}}},
+		},
+		order: []string{"show:1", "show:2", "show:3", "other"},
+	}
+	got := localSeasonsByShow(units)
+	want := []LocalSeason{
+		{Season: 1, Folder: "/media/Show/Season 01 alt", ResRank: 1080},
+		{Season: 3, Folder: "/media/Show/Season 03", ResRank: 1080},
+	}
+	if !reflect.DeepEqual(got["tvdb:1"], want) {
+		t.Errorf("tvdb:1 = %+v, want %+v", got["tvdb:1"], want)
+	}
+	if len(got["tvdb:9"]) != 1 {
+		t.Errorf("tvdb:9 = %+v, want one season", got["tvdb:9"])
 	}
 }

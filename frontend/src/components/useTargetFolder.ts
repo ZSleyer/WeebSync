@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ApiError, api, type Entry } from '../api'
+import { ApiError, api, type Entry, type RenamePair } from '../api'
 
 // syncTargetDir is the folder a sync actually writes into: with the subfolder
 // option a directory sync creates a folder named after the remote one, without
@@ -43,4 +43,42 @@ export function useTargetFolder(dir: string, enabled = true) {
     staleTime: 30_000,
   })
   return { entries: data, missing: data === null }
+}
+
+export type TargetStatus = 'new' | 'replaces' | 'same'
+
+// i18n key per status, so every dialog labels the badges identically
+export const TARGET_LABEL: Record<TargetStatus, string> = {
+  new: 'rename.targetNew',
+  replaces: 'rename.targetReplaces',
+  same: 'rename.targetSame',
+}
+
+// classifyTargets marks each preview row against what the target folder holds
+// today, keyed by the row's original name.
+//
+// "same" uses the transfer's own skip rule - same name AND same size, see
+// transfer.alreadyComplete - so the preview never announces a download the sync
+// then silently skips, and never calls an upgrade identical just because the
+// file name matches. Keep the two in step: this is a second copy of that rule.
+//
+// local === null: the folder is not there yet, so everything is new.
+// undefined: unknown, and then nothing is marked at all rather than guessed. A
+// new name carrying a "/" lands in a subfolder this listing does not cover and
+// stays unmarked. An unknown remote size (some FTP listings report 0) counts as
+// "replaces": a warning too many beats a wrong "identical".
+export function classifyTargets(
+  pairs: RenamePair[],
+  sizes: Record<string, number>,
+  local: Entry[] | null | undefined,
+): Record<string, TargetStatus> {
+  if (local === undefined) return {}
+  const have = new Map((local ?? []).filter((e) => !e.isDir).map((e) => [e.name, e.size]))
+  const out: Record<string, TargetStatus> = {}
+  for (const p of pairs) {
+    if (p.new.includes('/')) continue
+    const there = have.get(p.new)
+    out[p.old] = there === undefined ? 'new' : there === sizes[p.old] && there > 0 ? 'same' : 'replaces'
+  }
+  return out
 }

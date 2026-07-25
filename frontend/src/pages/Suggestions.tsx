@@ -54,6 +54,7 @@ import {
   api,
   type SuggestionItem,
   type SuggestionsResponse,
+  type LocalSeason,
   type ProviderLinks,
   type UpgradeSuggestion,
   type UpgradeVariant,
@@ -606,6 +607,35 @@ function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: str
   )
 }
 
+// LocalSeasons lists what the library already holds of this show, so the card
+// answers "and which seasons do I have?" without a trip to Plex. The season of
+// this very suggestion is marked, because that is the one a sync would touch.
+// File names live in the sync dialog's preview, where they carry the
+// new/replaced marks; repeating them here would only bloat the card.
+function LocalSeasons({ seasons, current, isMovie }: { seasons: LocalSeason[]; current: number; isMovie?: boolean }) {
+  const { t } = useTranslation()
+  return (
+    <Collapsible small defaultOpen={false} title={t('suggestions.localSeasons')} count={seasons.length}>
+      <ul className="space-y-1">
+        {seasons.map((ls) => {
+          const here = !isMovie && !ls.isMovie && ls.season === current
+          return (
+            <li key={`${ls.season}-${ls.folder}`} className="flex flex-wrap items-center gap-2 text-[11px]">
+              <Badge tone={here ? 'accent' : 'neutral'} className="shrink-0">
+                {ls.isMovie ? t('suggestions.movie') : t('suggestions.season', { season: ls.season })}
+              </Badge>
+              <span className="min-w-0 flex-1 break-all font-mono text-t-secondary" title={ls.folder}>
+                {ls.folder}
+              </span>
+              <span className="shrink-0 text-t-muted">{fmtRes(ls.resRank)}</span>
+            </li>
+          )
+        })}
+      </ul>
+    </Collapsible>
+  )
+}
+
 function UpgradesSection() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -743,6 +773,11 @@ function UpgradesSection() {
                       })}
                     </ul>
                   </fieldset>
+                )}
+                {(u.localSeasons ?? []).length > 0 && (
+                  <div className="mt-2">
+                    <LocalSeasons seasons={u.localSeasons!} current={u.season} isMovie={u.isMovie} />
+                  </div>
                 )}
                 <div className="mt-2 flex flex-wrap justify-end gap-1.5">
                   {u.sync?.localPath && (

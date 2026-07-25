@@ -183,6 +183,15 @@ type UpgradeVariant struct {
 	Sub        []string `json:"sub"`
 }
 
+// LocalSeason is one season - or the movie - of the same show the library
+// ALREADY holds, so a card can show what is there beside what it proposes.
+type LocalSeason struct {
+	Season  int    `json:"season"`
+	Folder  string `json:"folder"` // local dir, or a "plex:" key when it is not a shared mount
+	ResRank int    `json:"resRank"`
+	IsMovie bool   `json:"isMovie,omitempty"`
+}
+
 // UpgradeSuggestion proposes replacing your LOCAL copy (From, the Plex library)
 // of ONE (show, season) - or a movie - with a better REMOTE copy that already
 // exists (To, the recommended option), naming which axes improve. Options lists
@@ -208,6 +217,8 @@ type UpgradeSuggestion struct {
 	Category    string           `json:"category"`          // anime-movie | anime-tv | movie | tv, for grouping
 	Library     string           `json:"library,omitempty"` // Plex library title (informational)
 	Sync        SyncPlan         `json:"sync"`              // where a one-off sync writes (into the existing local season/movie folder)
+	// every season of this show the library already has, this one included
+	LocalSeasons []LocalSeason `json:"localSeasons,omitempty"`
 }
 
 // handleUpgrades lists, per series, every copy that a sibling copy beats on one
@@ -242,6 +253,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	dims := s.upgradeDimsFor(userID)
 	units := s.loadUnits()
 	enrich := s.unitEnrichIndex()
+	localsByShow := localSeasonsByShow(units)
 
 	out := []UpgradeSuggestion{}
 	for _, key := range units.order {
@@ -271,6 +283,8 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			Category: categorize(e.providers, catMedia, ""),
 			Library:  s.plexLibraryOf(cur.Folder),
 			Sync:     existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
+
+			LocalSeasons: localsByShow[u.showKey],
 		}
 		// a better remote copy exists for a season you own: which axis wins
 		slog.Debug("upgrade found", "showKey", u.showKey, "season", u.season,
@@ -353,6 +367,26 @@ type catUnit struct {
 type catUnits struct {
 	byKey map[string]*catUnit
 	order []string
+}
+
+// localSeasonsByShow collapses the units into "what does the library already
+// hold for this show": the best local copy per season, in season order
+// (units.order is ORDER BY show_key, season). Pure memory - the suggestions
+// build runs in the background and gets cached, so a card decoration must not
+// send it walking the filesystem.
+func localSeasonsByShow(units catUnits) map[string][]LocalSeason {
+	out := map[string][]LocalSeason{}
+	for _, key := range units.order {
+		u := units.byKey[key]
+		if len(u.locals) == 0 {
+			continue
+		}
+		b := bestCopy(u.locals)
+		out[u.showKey] = append(out[u.showKey], LocalSeason{
+			Season: u.season, Folder: b.Folder, ResRank: b.ResRank, IsMovie: u.isMovie,
+		})
+	}
+	return out
 }
 
 // loadUnits reads every quality variant that carries a canonical unit and groups
