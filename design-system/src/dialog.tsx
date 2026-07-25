@@ -23,6 +23,12 @@ export interface DialogProps {
   'aria-labelledby'?: string
   'aria-label'?: string
   className?: string
+  /**
+   * Extra classes for the box inside the dialog. A tall modal needs its own
+   * scroll container - `max-h-[85vh]` here, `overflow-y-auto` on the section
+   * that may grow - so the page behind never gains a scrollbar.
+   */
+  bodyClassName?: string
 }
 
 /**
@@ -37,6 +43,7 @@ export function Dialog({
   danger,
   onRequestClose,
   className,
+  bodyClassName,
   ...aria
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -72,7 +79,7 @@ export function Dialog({
         if (e.target === ref.current && backdropDown.current) void guarded()
       }}
     >
-      <div className={cx('flex flex-col', danger && 't-panel--danger')}>{children}</div>
+      <div className={cx('flex flex-col', danger && 't-panel--danger', bodyClassName)}>{children}</div>
     </dialog>
   )
 }

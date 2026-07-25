@@ -6,6 +6,7 @@ import type {
   LabelHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
+  TextareaHTMLAttributes,
 } from 'react'
 
 // Presentational wrappers around the Tempest classes in styles.css. Deliberately
@@ -171,17 +172,26 @@ export function Select({ size = 'md', className, wrapperClassName, children, ...
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
   /** text next to the box; omit for a bare checkbox in a table cell */
   label?: ReactNode
+  /** extra classes for the label around box and text - colour, truncation */
+  labelClassName?: string
 }
 
-export function Checkbox({ label, className, ...rest }: CheckboxProps) {
+export function Checkbox({ label, labelClassName, className, ...rest }: CheckboxProps) {
   const box = <input type="checkbox" {...rest} className={className} />
   if (!label) return box
   return (
-    <label className="flex items-center gap-2 text-sm">
+    <label className={cx('flex items-center gap-2 text-sm', labelClassName)}>
       {box}
       {label}
     </label>
   )
+}
+
+export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {}
+
+/** Multi-line input; same border, focus ring and padding as Input. */
+export function Textarea({ className, ...rest }: TextareaProps) {
+  return <textarea {...rest} className={cx('t-input', className)} />
 }
 
 export interface FieldProps {
@@ -219,25 +229,38 @@ export function FieldRow({ children, className }: FieldRowProps) {
   return <div className={cx(ROW_GRID, className)}>{children}</div>
 }
 
-export interface PanelProps extends HTMLAttributes<HTMLDivElement> {
+export interface PanelProps extends HTMLAttributes<HTMLElement> {
   /** red corner brackets, for destructive areas */
   danger?: boolean
+  /**
+   * The element to render. A panel is often a form or a labelled section, and
+   * forcing a div there would break the submit or drop the landmark.
+   */
+  as?: 'div' | 'section' | 'form' | 'article' | 'aside' | 'li'
 }
 
-export function Panel({ danger, className, ...rest }: PanelProps) {
-  return <div {...rest} className={cx('t-panel', danger && 't-panel--danger', className)} />
+export function Panel({ as: Tag = 'div', danger, className, ...rest }: PanelProps) {
+  return <Tag {...rest} className={cx('t-panel', danger && 't-panel--danger', className)} />
 }
 
 export type BadgeTone = 'neutral' | 'accent' | 'ok' | 'warn' | 'err'
 
-export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
+export interface BadgeProps extends HTMLAttributes<HTMLElement> {
   tone?: BadgeTone
+  /** a chip that labels a control has to be a real <label>, a fieldset's a <legend> */
+  as?: 'span' | 'label' | 'div' | 'legend' | 'a' | 'h3' | 'h4' | 'button'
+  /** only with as="label" */
+  htmlFor?: string
+  /** only with as="a" - a chip that links out to a provider page */
+  href?: string
+  target?: string
+  rel?: string
 }
 
 /** Uppercase micro-label chip. Height is fixed, so chips match across sections. */
-export function Badge({ tone = 'neutral', className, ...rest }: BadgeProps) {
+export function Badge({ tone = 'neutral', as: Tag = 'span', className, ...rest }: BadgeProps) {
   return (
-    <span
+    <Tag
       {...rest}
       className={cx(
         't-label',

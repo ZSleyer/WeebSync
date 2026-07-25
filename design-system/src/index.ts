@@ -17,6 +17,7 @@ export {
   Surface,
   Tab,
   Tabs,
+  Textarea,
   Toolbar,
 } from './primitives'
 export type {
@@ -37,6 +38,7 @@ export type {
   SurfaceProps,
   TabProps,
   TabsProps,
+  TextareaProps,
   ToolbarProps,
 } from './primitives'
 
@@ -75,3 +77,5 @@ export type {
 
 export { Dialog } from './dialog'
 export type { DialogProps } from './dialog'
+
+export { useMenu } from './useMenu'
