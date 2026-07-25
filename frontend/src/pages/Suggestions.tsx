@@ -619,13 +619,20 @@ function LocalSeasons({ seasons, current, isMovie }: { seasons: LocalSeason[]; c
       <ul className="space-y-1">
         {seasons.map((ls) => {
           const here = !isMovie && !ls.isMovie && ls.season === current
+          // a "plex:ratingKey:sN" folder means the copy is not on a mount we
+          // share, so there is no path to show - only the season and quality
+          const path = ls.folder.startsWith('/') ? ls.folder : ''
           return (
             <li key={`${ls.season}-${ls.folder}`} className="flex flex-wrap items-center gap-2 text-[11px]">
               <Badge tone={here ? 'accent' : 'neutral'} className="shrink-0">
-                {ls.isMovie ? t('suggestions.movie') : t('suggestions.season', { season: ls.season })}
+                {ls.isMovie
+                  ? t('suggestions.movie')
+                  : ls.season === 0
+                    ? t('suggestions.specials') // season 0 is what Plex calls Specials
+                    : t('suggestions.season', { season: ls.season })}
               </Badge>
-              <span className="min-w-0 flex-1 break-all font-mono text-t-secondary" title={ls.folder}>
-                {ls.folder}
+              <span className="min-w-0 flex-1 break-all font-mono text-t-secondary" title={path}>
+                {path}
               </span>
               <span className="shrink-0 text-t-muted">{fmtRes(ls.resRank)}</span>
             </li>

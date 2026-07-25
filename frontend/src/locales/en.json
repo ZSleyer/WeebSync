@@ -819,6 +819,7 @@
     "localPath": "Local path",
     "season": "Season {{season}}",
     "localSeasons": "Already in your library",
+    "specials": "Specials",
     "localPlex": "Local (Plex)",
     "fromLabel": "From",
     "recommended": "Recommended",

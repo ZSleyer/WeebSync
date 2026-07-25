@@ -819,6 +819,7 @@
     "localPath": "Lokaler Speicherpfad",
     "season": "Staffel {{season}}",
     "localSeasons": "Lokal vorhanden",
+    "specials": "Specials",
     "localPlex": "Lokal (Plex)",
     "fromLabel": "Von",
     "recommended": "Empfohlen",
