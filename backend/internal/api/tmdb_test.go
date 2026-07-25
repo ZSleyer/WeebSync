@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -118,5 +119,41 @@ func TestManualMatchSourceFollowsFilmKind(t *testing.T) {
 		if got != want {
 			t.Errorf("stored source for %q = %q, want %q", folder, got, want)
 		}
+	}
+}
+
+// The local library is addressed as server 0, which owns no row in servers. The
+// ownership check used to reject that, so correcting or clearing a match on a
+// local folder answered "server not found" while listing and scoping worked.
+func TestManualMatchOnLocalLibrary(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	s := &Server{DB: d, Tmdb: tmdb.New(d)}
+	mux := http.NewServeMux()
+	s.Register(mux)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	cookie := cookieForUser(t, d, 1)
+	db.SetSetting(d, "tmdb_api_key", "test-key")
+	doReq(mux, "PUT", "/api/servers/0/catalog/scope", `{"path":"/lib","kind":"tv"}`, cookie)
+
+	for _, mediaID := range []int{42, 0} { // set, then "Match entfernen"
+		body := `{"folder":"/lib/Serie","mediaId":` + strconv.Itoa(mediaID) + `}`
+		if rec := doReq(mux, "PUT", "/api/servers/0/catalog/match", body, cookie); rec.Code != http.StatusOK {
+			t.Fatalf("mediaId %d: got %d: %s", mediaID, rec.Code, rec.Body)
+		}
+		var got int
+		d.QueryRow(`SELECT media_id FROM catalog_matches WHERE server_id = 0 AND folder = '/lib/Serie'`).Scan(&got)
+		if got != mediaID {
+			t.Errorf("stored media_id = %d, want %d", got, mediaID)
+		}
+	}
+
+	// a real server id that belongs to nobody must still be rejected
+	if rec := doReq(mux, "PUT", "/api/servers/9/catalog/match",
+		`{"folder":"/lib/Serie","mediaId":42}`, cookie); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown server: got %d, want 404", rec.Code)
 	}
 }
