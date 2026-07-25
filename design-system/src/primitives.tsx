@@ -296,6 +296,12 @@ export interface BadgeProps extends HTMLAttributes<HTMLElement> {
   href?: string
   target?: string
   rel?: string
+  /**
+   * only with as="button" - a chip that opens something. Always pass "button":
+   * the default submit type would post a surrounding form. Not inherited,
+   * because BadgeProps extends HTMLAttributes, not ButtonHTMLAttributes.
+   */
+  type?: 'button'
 }
 
 /** Uppercase micro-label chip. Height is fixed, so chips match across sections. */
