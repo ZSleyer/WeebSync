@@ -447,7 +447,7 @@ export interface ModalProps {
  */
 export function Modal({ title, info, children, footer, className }: ModalProps) {
   return (
-    <div className={cx('flex max-h-[80vh] w-full max-w-lg flex-col bg-bg-card', className)}>
+    <div className={cx('dialog-body w-full max-w-lg bg-bg-card', className)}>
       <header className="border-b border-border-subtle px-5 py-4">
         <h3 className="font-display font-semibold tracking-wider">{title}</h3>
         {info && <p className="mt-1 text-[11px] text-t-secondary">{info}</p>}

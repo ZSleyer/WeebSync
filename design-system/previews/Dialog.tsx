@@ -15,7 +15,7 @@ const entries = Array.from({ length: 12 }, (_, i) => ({
 }))
 
 export const TallModal = () => (
-  <Dialog onClose={() => {}} width="max-w-2xl" aria-label="Cache-Einträge" bodyClassName="max-h-[85vh]">
+  <Dialog onClose={() => {}} width="max-w-2xl" aria-label="Cache-Einträge" bodyClassName="dialog-body">
     <header className="border-b border-border-subtle px-5 py-4">
       <h3 className="font-display font-semibold tracking-wider">Cache-Einträge</h3>
     </header>

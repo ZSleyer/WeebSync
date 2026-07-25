@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 // The native <dialog> mechanics WeebSync repeats in every modal: open it as a
 // modal on mount, close on a backdrop click but not on a drag that merely ended
@@ -6,6 +6,15 @@ import { useEffect, useRef, type ReactNode } from 'react'
 // every exit path behaves the same.
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(' ')
+
+// The width below which a sheet-sized dialog covers the screen. Must match the
+// `dialog.dialog-sheet` media query in the stylesheet.
+const SHEET_MQ = '(max-width: 40rem)'
+
+// Widths small enough to stay a centred box on a phone. Anything wider - the
+// watch editor, the remote browser - fills the screen instead, where a centred
+// box would only be a thin margin around a full-height panel anyway.
+const BOX_WIDTHS = new Set(['max-w-xs', 'max-w-sm', 'max-w-md'])
 
 export interface DialogProps {
   children: ReactNode
@@ -20,13 +29,21 @@ export interface DialogProps {
    * keep it open - the unsaved-changes guard. A promise is awaited.
    */
   onRequestClose?: () => boolean | Promise<boolean>
+  /**
+   * Full-screen sheet on phones instead of a centred box. Defaults to true for
+   * anything wider than `max-w-md`; pass it explicitly to override.
+   */
+  sheet?: boolean
+  /** accessible name for the sheet's close button */
+  closeLabel?: string
   'aria-labelledby'?: string
   'aria-label'?: string
   className?: string
   /**
    * Extra classes for the box inside the dialog. A tall modal needs its own
-   * scroll container - `max-h-[85vh]` here, `overflow-y-auto` on the section
-   * that may grow - so the page behind never gains a scrollbar.
+   * scroll container - `dialog-body` here, `overflow-y-auto` on the section
+   * that may grow - so the page behind never gains a scrollbar. `dialog-body`
+   * also knows how to give up its height cap inside a full-screen sheet.
    */
   bodyClassName?: string
 }
@@ -42,6 +59,8 @@ export function Dialog({
   width = 'max-w-md',
   danger,
   onRequestClose,
+  sheet,
+  closeLabel = 'Schließen',
   className,
   bodyClassName,
   ...aria
@@ -50,9 +69,26 @@ export function Dialog({
   // pointerdown started on the backdrop - a drag that began inside a control
   // and ended on the backdrop must not count as a click outside
   const backdropDown = useRef(false)
+  const asSheet = sheet ?? !BOX_WIDTHS.has(width.split(' ')[0])
+  // Whether the sheet layout is in effect right now. A full-screen sheet has no
+  // visible backdrop to click and so no way out except this button - both the
+  // button and the backdrop handler key off the live match rather than the
+  // prop, so dragging a desktop window across the breakpoint flips both.
+  const [narrow, setNarrow] = useState(
+    () => typeof matchMedia === 'function' && matchMedia(SHEET_MQ).matches,
+  )
+  const isSheet = asSheet && narrow
 
   useEffect(() => {
     ref.current?.showModal()
+  }, [])
+
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return
+    const mq = matchMedia(SHEET_MQ)
+    const on = () => setNarrow(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
   }, [])
 
   const guarded = async () => {
@@ -64,7 +100,7 @@ export function Dialog({
     <dialog
       ref={ref}
       {...aria}
-      className={cx('w-full p-0', width, className)}
+      className={cx('w-full p-0', width, asSheet && 'dialog-sheet', className)}
       onClose={onClose}
       onCancel={
         onRequestClose
@@ -76,9 +112,22 @@ export function Dialog({
       }
       onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
       onClick={(e) => {
+        if (isSheet) return // no backdrop to click - the button is the way out
         if (e.target === ref.current && backdropDown.current) void guarded()
       }}
     >
+      {isSheet && (
+        <button
+          type="button"
+          aria-label={closeLabel}
+          onClick={() => void guarded()}
+          className="absolute top-1 right-1 z-10 flex h-11 w-11 items-center justify-center text-t-muted hover:text-t-primary"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      )}
       <div className={cx('flex flex-col', danger && 't-panel--danger', bodyClassName)}>{children}</div>
     </dialog>
   )

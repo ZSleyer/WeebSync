@@ -163,6 +163,9 @@
    element by hand. */
 html {
   font-size: 17px;
+  /* reserve the scrollbar so locking the page behind a modal (below) does not
+     shift the layout by its width */
+  scrollbar-gutter: stable;
   /* Tailwind's preflight only ships the -webkit- spelling, which Firefox has
      never aliased - without these two its font inflation stays on and scales
      text independently of the layout. */
@@ -711,6 +714,15 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Native dialog: Tempest panel + CRT reveal ── */
 
+/* An open <dialog> makes the rest of the document inert, but inert does not
+   stop scrolling - the page behind kept moving under the modal, and on a phone
+   the touch gesture scrolled it instead of the dialog's own content. One rule
+   instead of the usual JS body-lock, and it cannot leak: the selector is only
+   true while a dialog is actually open. */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
 dialog {
   background: var(--bg-card);
   color: var(--text-primary);
@@ -741,6 +753,17 @@ dialog {
 dialog > :only-child {
   max-height: 100%;
 }
+/* The box a dialog's content lives in: fixed header, scrolling middle, sticky
+   footer, capped so the page behind never gains a scrollbar. One class instead
+   of the `flex max-h-[85dvh] flex-col` every modal used to repeat - the cap has
+   to be liftable from a single place when the dialog turns into a full-screen
+   sheet, and it sits a level too deep for a child selector to reach. */
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  max-height: 85dvh;
+}
+
 /* Detail modal: fullscreen sheet on phones (same cascade context as the
    base dialog rules above, so it wins without !important and the CRT
    reveal transition stays intact) */
@@ -751,6 +774,20 @@ dialog > :only-child {
     max-height: 100dvh;
     max-width: none;
     margin: 0;
+  }
+  /* the wrapper the Dialog component draws and the content box inside it both
+     give up their cap here, or the sheet keeps a dead strip along the bottom.
+     `:not(button)` spares the close button, whose own size utilities a blanket
+     height:100% would beat and stretch down the whole sheet. */
+  dialog.dialog-sheet > :not(button),
+  dialog.dialog-sheet .dialog-body {
+    max-height: 100%;
+    height: 100%;
+  }
+  /* room for the sheet's close button, which floats over the top-right corner
+     of whatever header the dialog's content brings */
+  dialog.dialog-sheet .dialog-body > header {
+    padding-right: 3rem;
   }
 }
 dialog::backdrop {

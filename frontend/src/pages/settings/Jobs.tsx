@@ -725,7 +725,7 @@ function Modal({
   const { t } = useTranslation()
   return (
     <Dialog onClose={onClose} width="max-w-2xl" aria-label={title}>
-      <div className="flex max-h-[85vh] flex-col">
+      <div className="dialog-body">
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
         </header>
