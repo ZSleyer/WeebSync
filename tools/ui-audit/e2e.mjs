@@ -161,6 +161,27 @@ const audit = () => {
     // draw its fourth button outside the panel.
     else if (cs.overflowX === 'visible' && el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1)
       scroll.push({ where: el.className?.toString().slice(0, 40) || el.tagName, axis: 'x', overflow: el.scrollWidth - el.clientWidth, hangs: true })
+    // ...and the same failure one step smaller: a nowrap element whose own text
+    // runs past its border. scrollWidth does not report it - an overflowing
+    // TEXT node adds nothing there - so the width it needs comes from a
+    // detached clone, the same trick the wrap check below uses. This is how a
+    // sidebar entry came to sit flush against its own edge.
+    else if (
+      cs.whiteSpace === 'nowrap' &&
+      cs.overflowX === 'visible' &&
+      el.tagName !== 'OPTION' && // never laid out; a clone of one measures nothing real
+      el.getBoundingClientRect().width > 0 &&
+      [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
+    ) {
+      const clone = el.cloneNode(true)
+      clone.style.cssText += ';position:absolute;left:-9999px;top:0;width:auto;max-width:none;white-space:nowrap'
+      document.body.appendChild(clone)
+      const needs = clone.getBoundingClientRect().width
+      clone.remove()
+      const has = el.getBoundingClientRect().width
+      if (needs > has + 4)
+        scroll.push({ where: el.className?.toString().slice(0, 40) || el.tagName, axis: 'x', overflow: Math.round(needs - has), text: (el.textContent || '').trim().slice(0, 30), hangs: true })
+    }
     // a vertical overflow of a few pixels is a layout slip, not real content
     if (scrolls(cs.overflowY)) {
       const over = el.scrollHeight - el.clientHeight
