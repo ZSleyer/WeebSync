@@ -8,6 +8,9 @@ services:
       # trusted host you fully control.
       - "127.0.0.1:8080:8080"
     environment:
+      # timestamps in the container logs. The zone database is compiled into
+      # the binary, so any IANA name works without installing tzdata.
+      TZ: ${TZ:-UTC}
       # optional: key for credential encryption at rest. If unset, a key is
       # auto-generated at /data/secret.key on first start.
       # WEEBSYNC_SECRET: ${WEEBSYNC_SECRET}
