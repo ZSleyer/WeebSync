@@ -73,11 +73,7 @@ func (s *Server) indexPlexLibrary() {
 					season = 0
 				}
 				q, folder := s.plexLocalQuality(sm, sh.RatingKey, season)
-				s.DB.Exec(`INSERT OR REPLACE INTO catalog_variants
-					(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie, series_id)
-					VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					folder, q.ResRank, strings.Join(q.Dub, ","), strings.Join(q.Sub, ","),
-					now, showKey, season, boolInt(isMovie), seriesID)
+				s.storeVariant(0, folder, q, showKey, season, isMovie, seriesID)
 				units++
 			}
 		}
@@ -223,12 +219,15 @@ func (s *Server) plexLocalQuality(sm plex.ShowMedia, ratingKey string, season in
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			if streams, ok := ffprobeFile(ctx, file); ok {
-				return streamsQuality(streams), folder
+				q := streamsQuality(streams)
+				q.Probed = true
+				return q, folder
 			}
 		}
 	}
-	// fallback: Plex's own metadata
-	q := FolderQuality{ResRank: sm.ResHeight}
+	// fallback: Plex's own metadata. Also measured - Plex analyses the media
+	// itself and reports the container's tracks, not the file name.
+	q := FolderQuality{ResRank: sm.ResHeight, Probed: true}
 	dub, sub := map[string]bool{}, map[string]bool{}
 	for _, l := range sm.Dub {
 		if c := langCode(l); c != "" {

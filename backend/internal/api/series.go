@@ -151,15 +151,18 @@ type FolderQuality struct {
 	ResRank int      // max video height, 0 = unknown
 	Dub     []string // canonical dub language codes, sorted
 	Sub     []string // canonical sub language codes, sorted
+	// Probed records HOW this was established: true when the container streams
+	// were read (ffprobe, or Plex's own media analysis), false when it was
+	// parsed out of the file names. An upgrade comparison needs to know, or a
+	// name that promises more than the file carries beats a measurement.
+	Probed bool
 }
 
-// scanQuality reads a folder's quality from the remote index: the highest
-// resolution and the union of dub/sub language codes across its files. Local
-// folders (server 0) have no remote index, so they return empty for now;
-// remote variants already cover the upgrade comparison.
-//
-// ponytail: local (server 0) quality left empty - add a local file walk here
-// only if upgrades between two local copies ever matter.
+// scanQuality reads a folder's quality: measured from the container streams for
+// a local folder, parsed out of the file names in the remote index for a remote
+// one. Which of the two it was is recorded in Probed, because only the local
+// side can ever be measured and a comparison that does not know that lets a
+// name overrule a measurement.
 func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 	q := FolderQuality{}
 	if serverID == 0 {
@@ -168,12 +171,15 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 		// filenames when ffprobe is unavailable or finds nothing.
 		if abs, err := s.safeLocal(folder); err == nil {
 			if pq, ok := probeQuality(abs); ok {
+				pq.Probed = true
 				return pq
 			}
 			return localFilenameQuality(abs)
 		}
 		return q
 	}
+	// remote: only the crawler's file listing exists, so every value below is a
+	// guess read off a name. Probed stays false.
 	rows, err := s.DB.Query(`SELECT name FROM remote_index
 		WHERE server_id = ? AND (parent = ? OR parent LIKE ?||'/%')`,
 		serverID, folder, folder)
@@ -208,12 +214,24 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 func (s *Server) refreshVariant(serverID int64, folder string) {
 	q := s.scanQuality(serverID, folder)
 	showKey, season, isMovie := s.folderUnit(serverID, folder)
+	s.storeVariant(serverID, folder, q, showKey, season, isMovie, s.seriesIDForFolder(serverID, folder))
+}
+
+// storeVariant is the ONE place a catalog_variants row is written, from the
+// match sweep and from the Plex index alike.
+//
+// It exists because of the trap 027 records and 046 repeats: the row is written
+// with INSERT OR REPLACE, so a column left out of the statement does not keep
+// its value, it silently falls back to its default on the next sweep. With two
+// copies of the column list that is one forgotten edit away; with one, adding a
+// column is one edit.
+func (s *Server) storeVariant(serverID int64, folder string, q FolderQuality, showKey string, season int, isMovie bool, seriesID int64) {
 	s.DB.Exec(`INSERT OR REPLACE INTO catalog_variants
-		(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie, series_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie, series_id, probed)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		serverID, folder, q.ResRank, strings.Join(q.Dub, ","), strings.Join(q.Sub, ","),
 		time.Now().UTC().Format(time.RFC3339), showKey, season, boolInt(isMovie),
-		s.seriesIDForFolder(serverID, folder))
+		seriesID, boolInt(q.Probed))
 }
 
 // seriesIDForFolder resolves the canonical series behind a matched folder: the

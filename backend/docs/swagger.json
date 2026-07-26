@@ -1279,6 +1279,10 @@
                     "folder": {
                         "type": "string"
                     },
+                    "probed": {
+                        "description": "Probed: the quality was MEASURED from the container streams (ffprobe, or\nPlex's own analysis). false = guessed from the file names, which is all a\nremote copy can ever offer. The card shows this so a disputed suggestion\ncan be judged without reading the log.",
+                        "type": "boolean"
+                    },
                     "resRank": {
                         "type": "integer"
                     },

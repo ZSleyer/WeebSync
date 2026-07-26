@@ -110,6 +110,66 @@ func comparable(v UpgradeVariant) bool {
 	return v.ResRank > 0 || len(v.Dub) > 0 || len(v.Sub) > 0
 }
 
+// resTier folds a video height onto the rung it belongs to. The two sides of a
+// comparison arrive at their number by different roads - ffprobe reports what
+// the container says (1088, a mod-16 padded 1080p; 1072; 800), a remote file
+// name states the round marketing figure - and a raw ">" turns that difference
+// into an upgrade. Only a real step counts.
+func resTier(h int) int {
+	switch {
+	case h <= 0:
+		return 0
+	case h < 600:
+		return 480
+	case h < 900:
+		return 720
+	case h < 1300:
+		return 1080
+	case h < 1800:
+		return 1440
+	case h < 3000:
+		return 2160
+	default:
+		return 4320
+	}
+}
+
+// improvements decides which axes a remote copy actually wins, and says in the
+// log why it discarded the ones it did not count.
+//
+// The language axes carry a condition the resolution axis does not: both sides
+// must have been established the same way. A measured local copy against a
+// guessed remote one - the normal case - cannot produce evidence of a language
+// gain in either direction. A release named "GerEngSub" claims languages the
+// container need not carry, and ffprobe drops an audio track that ships without
+// a language tag ("und") from the local set, so the "missing" language is just
+// as likely to be sitting on the disk already. Unprovable is not an upgrade.
+//
+// Resolution stays comparable across the two methods: a name and a container
+// mean the same picture height, so folding both onto a tier is enough.
+func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, season int) (res, sub, dub bool) {
+	discard := func(axis, reason string) {
+		slog.Debug("upgrade axis discarded", "showKey", showKey, "season", season,
+			"axis", axis, "reason", reason,
+			"localProbed", cur.Probed, "remoteProbed", top.Probed,
+			"fromRes", cur.ResRank, "toRes", top.ResRank)
+	}
+	res = dims.Res && resTier(top.ResRank) > resTier(cur.ResRank)
+	if dims.Res && !res && top.ResRank > cur.ResRank {
+		discard("res", "both copies are the same resolution tier")
+	}
+	sameSource := cur.Probed == top.Probed
+	sub = dims.Sub && sameSource && strictSuperset(top.Sub, cur.Sub)
+	if dims.Sub && !sub && !sameSource && strictSuperset(top.Sub, cur.Sub) {
+		discard("sub", "one side is measured and the other guessed from the file names")
+	}
+	dub = dims.Dub && sameSource && strictSuperset(top.Dub, cur.Dub)
+	if dims.Dub && !dub && !sameSource && strictSuperset(top.Dub, cur.Dub) {
+		discard("dub", "one side is measured and the other guessed from the file names")
+	}
+	return res, sub, dub
+}
+
 // alreadyHave reports whether the library already holds, byte for byte, every
 // video file a remote copy offers - the same files under another name.
 //
@@ -311,6 +371,11 @@ type UpgradeVariant struct {
 	ResRank    int      `json:"resRank"`
 	Dub        []string `json:"dub"`
 	Sub        []string `json:"sub"`
+	// Probed: the quality was MEASURED from the container streams (ffprobe, or
+	// Plex's own analysis). false = guessed from the file names, which is all a
+	// remote copy can ever offer. The card shows this so a disputed suggestion
+	// can be judged without reading the log.
+	Probed bool `json:"probed"`
 }
 
 // LocalSeason is one season - or the movie - of the same show the library
@@ -352,8 +417,9 @@ type UpgradeSuggestion struct {
 }
 
 // handleUpgrades lists, per series, every copy that a sibling copy beats on one
-// of the user's enabled axes (higher resolution, or a strict superset of the
-// sub/dub languages). Read-time over catalog_variants; nothing is stored.
+// of the user's enabled axes (a higher resolution tier, or a strict superset of
+// the sub/dub languages established the same way). Read-time over
+// catalog_variants; nothing is stored.
 //
 //	@Summary		Upgrade suggestions
 //	@Description	Better-quality copies (resolution / more sub or dub) of series already present.
@@ -402,9 +468,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 				"folder", logSafe(cur.Folder), "reason", "local copy has no quality to compare against")
 			continue
 		}
-		impRes := dims.Res && top.ResRank > cur.ResRank
-		impSub := dims.Sub && strictSuperset(top.Sub, cur.Sub)
-		impDub := dims.Dub && strictSuperset(top.Dub, cur.Dub)
+		impRes, impSub, impDub := improvements(dims, cur, top, u.showKey, u.season)
 		if !impRes && !impSub && !impDub {
 			continue
 		}
@@ -437,7 +501,8 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		// a better remote copy exists for a season you own: which axis wins
 		slog.Debug("upgrade found", "showKey", u.showKey, "season", u.season,
 			"res", impRes, "sub", impSub, "dub", impDub,
-			"fromRes", cur.ResRank, "toRes", top.ResRank)
+			"fromRes", cur.ResRank, "toRes", top.ResRank,
+			"localProbed", cur.Probed, "remoteProbed", top.Probed)
 		out = append(out, up)
 	}
 	if len(out) > 0 {
@@ -567,7 +632,7 @@ func (s *Server) loadUnits() catUnits {
 	names := s.serverNames()
 	canon := s.showKeyCanon()
 	u := catUnits{byKey: map[string]*catUnit{}}
-	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, is_movie
+	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, is_movie, probed
 		FROM catalog_variants WHERE show_key != '' ORDER BY show_key, season`)
 	if err != nil {
 		return u
@@ -576,8 +641,8 @@ func (s *Server) loadUnits() catUnits {
 	for rows.Next() {
 		var serverID int64
 		var folder, dub, sub, showKey string
-		var res, season, isMovie int
-		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &showKey, &season, &isMovie) != nil {
+		var res, season, isMovie, probed int
+		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &showKey, &season, &isMovie, &probed) != nil {
 			continue
 		}
 		if c := canon[showKey]; c != "" {
@@ -591,7 +656,7 @@ func (s *Server) loadUnits() catUnits {
 			u.order = append(u.order, key)
 		}
 		v := UpgradeVariant{ServerID: serverID, ServerName: names[serverID], Folder: folder,
-			ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub)}
+			ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub), Probed: probed == 1}
 		if serverID == 0 {
 			cu.locals = append(cu.locals, v)
 		} else {
