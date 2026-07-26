@@ -407,16 +407,30 @@ export default function Dashboard() {
                     <Panel className="p-6 text-center text-sm text-t-muted">{t('dash.noMatches')}</Panel>
                   )}
                   <div className="mt-2 flex flex-col gap-2">
-                    {finishedShown.map((d) => (
-                      <HistoryRow
-                        key={d.id}
-                        d={d}
-                        meta={meta}
-                        selected={selected.has(d.id)}
-                        onSelect={(shift) => selectRow(d.id, shift)}
-                        onAction={(verb) => action.mutate({ id: d.id, verb })}
-                      />
-                    ))}
+                    {(() => {
+                      // One unwritable directory fails every episode of a
+                      // season, so the same explanation would repeat down the
+                      // whole list - hundreds of pixels saying one thing. Spell
+                      // a cause out on its first row and let the rest keep the
+                      // short error text they had before.
+                      const explained = new Set<string>()
+                      return finishedShown.map((d) => {
+                        const key = `${d.errorCode} ${dirOf(d.localPath)}`
+                        const first = isFsErrorCode(d.errorCode) && !explained.has(key)
+                        if (first) explained.add(key)
+                        return (
+                          <HistoryRow
+                            key={d.id}
+                            d={d}
+                            meta={meta}
+                            explain={first}
+                            selected={selected.has(d.id)}
+                            onSelect={(shift) => selectRow(d.id, shift)}
+                            onAction={(verb) => action.mutate({ id: d.id, verb })}
+                          />
+                        )
+                      })
+                    })()}
                   </div>
                   {finished.length > finishedShown.length && (
                     <Button size="sm" className="mt-3" onClick={() => setShowAllHistory(true)}>
@@ -781,12 +795,16 @@ function DownloadRow({
 function HistoryRow({
   d,
   meta,
+  explain,
   selected,
   onSelect,
   onAction,
 }: {
   d: Download
   meta?: DownloadMeta
+  // spell this row's failure out in full: set on the first row of each cause,
+  // so one unwritable directory is explained once and not once per episode
+  explain: boolean
   selected: boolean
   onSelect: (shift: boolean) => void
   onAction: (verb: string) => void
@@ -794,7 +812,7 @@ function HistoryRow({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { label, ep, name, group } = downloadLabel(d, meta)
-  const explained = isFsErrorCode(d.errorCode)
+  const explained = explain && isFsErrorCode(d.errorCode)
   return (
     <div className="border border-border-subtle bg-bg-card px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center gap-3">
