@@ -193,12 +193,38 @@ func (c *Client) EpisodesLang(ctx context.Context, seriesID int, seasonType, bcp
 	return c.episodes(ctx, seriesID, seasonType, bcp47, false)
 }
 
+// EpisodesCached answers from the cache alone and never leaves the process. The
+// download queue is polled and must not wait on TVDB for a nice-to-have episode
+// title; a miss tells the caller to warm the cache in the background instead.
+func (c *Client) EpisodesCached(seriesID int, seasonType, bcp47 string) ([]Episode, bool) {
+	if c.DB == nil {
+		return nil, false
+	}
+	lang := ""
+	if bcp47 != "" {
+		lang = tvdbLang(bcp47)
+	}
+	payload, ok := c.cached(episodesKey(seriesID, seasonType, lang))
+	if !ok {
+		return nil, false
+	}
+	var hit []Episode
+	if json.Unmarshal([]byte(payload), &hit) != nil {
+		return nil, false
+	}
+	return hit, true
+}
+
+func episodesKey(seriesID int, seasonType, lang3 string) string {
+	return fmt.Sprintf("tvdb:eps:%d:%s:%s", seriesID, seasonType, lang3)
+}
+
 func (c *Client) episodes(ctx context.Context, seriesID int, seasonType, bcp47 string, fresh bool) ([]Episode, error) {
 	lang := ""
 	if bcp47 != "" {
 		lang = tvdbLang(bcp47)
 	}
-	key := fmt.Sprintf("tvdb:eps:%d:%s:%s", seriesID, seasonType, lang)
+	key := episodesKey(seriesID, seasonType, lang)
 	if c.DB != nil && !fresh {
 		if payload, ok := c.cached(key); ok {
 			var hit []Episode
