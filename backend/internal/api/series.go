@@ -41,15 +41,19 @@ func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual
 }
 
 // linkSeries attaches a (source, media_id) provider hit to a canonical series,
-// creating the series when none matches. The identity is the fold key of the
-// base title (season markers stripped) so every season of a show, and any
-// provider whose title folds equal, land in one series. The year gate keeps
-// remakes apart ("Fruits Basket" 2001 vs 2019).
+// creating the series when none matches. Two things decide, in this order:
 //
-// ponytail: keying by StripMarkers+FoldKey bundles cross-server and any
-// provider whose titles fold equal; it will NOT join AniList romaji to a TMDB
-// english title that differs. The Plex-GUID reconcile pass (reconcilePlex) is
-// the cross-provider join for shows that share a TVDB/TMDB id - upgrade here
+//   - the show-level id (showIdentity): an AniList work that the Fribb mapping
+//     files as season N of a TVDB/TMDB show joins that show. This is what makes
+//     a long-running show one entry - the cours name themselves differently
+//     ("Stardust Crusaders"), so the title fold alone split JoJo into five.
+//   - the fold key of the base title, season markers stripped, for everything
+//     the mapping does not carry. The year gate keeps remakes apart ("Fruits
+//     Basket" 2001 vs 2019).
+//
+// ponytail: keying by StripMarkers+FoldKey will NOT join AniList romaji to a
+// TMDB english title that differs. The Plex-GUID reconcile pass (reconcilePlex)
+// is the cross-provider join for shows that share a TVDB/TMDB id - upgrade here
 // only if that proves insufficient.
 // linkSeries returns (created, title): created is true only when a brand-new
 // series row was inserted (not when the provider joined an existing series or
@@ -81,7 +85,20 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 		return false, title // already bundled
 	}
 
-	seriesID := s.findSeries(key, year)
+	// a season of a known show joins that show, whatever it calls itself. The
+	// show-level id decides before the title fold does, or "Stardust Crusaders"
+	// would start an entry of its own next to "JoJo no Kimyou na Bouken".
+	ref, isSeason := showRef{}, false
+	if source == "anilist" {
+		ref, isSeason = s.showIdentity(mediaID)
+	}
+	var seriesID int64
+	if isSeason {
+		seriesID = s.seriesByProvider(ref.Source, ref.MediaID)
+	}
+	if seriesID == 0 {
+		seriesID = s.findSeries(key, year)
+	}
 	if seriesID == 0 {
 		res, err := s.DB.Exec(`INSERT INTO series (key, title, year) VALUES (?, ?, ?)`, key, title, year)
 		if err != nil {
@@ -92,6 +109,12 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 	}
 	s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
 		source, mediaID, seriesID)
+	if isSeason {
+		s.claimShow(seriesID, ref, title, year)
+		if !created {
+			s.refreshShowTitle(seriesID)
+		}
+	}
 	if created {
 		slog.Debug("series created", "seriesId", seriesID, "title", logSafe(title), "year", year, "source", logSafe(source), "media", mediaID)
 	} else {
