@@ -246,6 +246,16 @@ func TestCacheStoresCoverEveryKey(t *testing.T) {
 	if other != 2 {
 		t.Errorf("cache:other rows: got %d, want 2 (the two unclaimed families)", other)
 	}
+
+	// and a reset really empties the table, unclaimed families included
+	if rec := doReq(mux, "POST", "/api/admin/data/reset", `{"requeue":false}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("reset: %d %s", rec.Code, rec.Body)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM anilist_cache`); n != 0 {
+		var left string
+		s.DB.QueryRow(`SELECT GROUP_CONCAT(key) FROM anilist_cache`).Scan(&left)
+		t.Errorf("anilist_cache after reset: got %d rows, want 0 (left: %s)", n, left)
+	}
 }
 
 // TestCacheKeyFamiliesRouting pins where each key shape the code actually
@@ -379,6 +389,35 @@ func TestAdminDataInventory(t *testing.T) {
 	}
 }
 
+// seedDerived fills one row into every store the reset touches, plus the two
+// decision stores and the remote index it must leave standing.
+func seedDerived(t *testing.T, s *Server) {
+	t.Helper()
+	stmts := []string{
+		`INSERT OR REPLACE INTO anilist_cache (key, payload) VALUES ('search:a', '[]'), ('media:1', '{}')`,
+		`INSERT OR REPLACE INTO remote_index (server_id, path, parent, name, is_dir) VALUES (1, '/r/A', '/r', 'A', 1)`,
+		`INSERT OR REPLACE INTO anime_ids (anilist_id, tvdb_id) VALUES (1, 100)`,
+		`INSERT OR REPLACE INTO season_maps (server_id, folder, token, season, episode) VALUES (1, '/r/A', '1', 1, 1)`,
+		`INSERT OR REPLACE INTO season_maps_meta (server_id, folder, source, updated_at) VALUES (1, '/r/A', 'tvdb', datetime('now'))`,
+		// one automatic and one manual match, the pair the reset has to tell apart
+		`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source)
+			VALUES (1, '/r/A', 1, 0, 'anilist'), (1, '/r/B', 2, 1, 'anilist')`,
+		`INSERT OR REPLACE INTO catalog_scopes (server_id, path, kind) VALUES (1, '/r', 'anime')`,
+		`INSERT OR REPLACE INTO series (id, key, title) VALUES (1, 'a', 'A')`,
+		`INSERT OR REPLACE INTO series_provider (source, media_id, series_id) VALUES ('anilist', 1, 1)`,
+		`INSERT OR REPLACE INTO series_seasons (series_id, season, title) VALUES (1, 1, 'S1')`,
+		`INSERT OR REPLACE INTO series_titles (series_id, source, locale, title) VALUES (1, 'anilist', 'en', 'A')`,
+		`INSERT OR REPLACE INTO catalog_variants (server_id, folder, res_rank) VALUES (1, '/r/A', 1080)`,
+		`INSERT OR REPLACE INTO plex_reconciled (folder) VALUES ('/r/A')`,
+		`INSERT OR REPLACE INTO suggestion_dismissals (user_id, kind, ref_key) VALUES (1, 'suggestion', 'x')`,
+	}
+	for _, q := range stmts {
+		if _, err := s.DB.Exec(q); err != nil {
+			t.Fatalf("seed %q: %v", q, err)
+		}
+	}
+}
+
 func count(t *testing.T, s *Server, query string) int {
 	t.Helper()
 	var n int
@@ -386,4 +425,161 @@ func count(t *testing.T, s *Server, query string) int {
 		t.Fatalf("%s: %v", query, err)
 	}
 	return n
+}
+
+func TestDataStoreDelete(t *testing.T) {
+	mux, s, adminC, _ := setupAdminTest(t)
+	s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'dev', 'sftp', 'example.com', 22, 'u', X'', '/r')`)
+	seedDerived(t, s)
+
+	if rec := doReq(mux, "DELETE", "/api/admin/data/nope", "", adminC); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown store: got %d, want 404", rec.Code)
+	}
+
+	// the row filter bites: the automatic match goes, the manual one stays
+	rec := doReq(mux, "DELETE", "/api/admin/data/catalog-matches", "", adminC)
+	if rec.Code != http.StatusOK || !jsonHas(rec.Body.Bytes(), `"deleted":1`) {
+		t.Fatalf("delete catalog-matches: %d %s", rec.Code, rec.Body)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM catalog_matches WHERE manual = 1`); n != 1 {
+		t.Errorf("manual matches after delete: got %d, want 1", n)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM catalog_matches WHERE manual = 0`); n != 0 {
+		t.Errorf("automatic matches after delete: got %d, want 0", n)
+	}
+	// a neighbouring store is untouched
+	if n := count(t, s, `SELECT COUNT(*) FROM catalog_scopes`); n != 1 {
+		t.Errorf("catalog_scopes after catalog-matches delete: got %d, want 1", n)
+	}
+
+	// a multi-table store empties all of its tables, children first
+	rec = doReq(mux, "DELETE", "/api/admin/data/series", "", adminC)
+	if rec.Code != http.StatusOK || !jsonHas(rec.Body.Bytes(), `"deleted":4`) {
+		t.Fatalf("delete series: %d %s", rec.Code, rec.Body)
+	}
+	for _, table := range []string{"series", "series_provider", "series_seasons", "series_titles"} {
+		if n := count(t, s, `SELECT COUNT(*) FROM `+table); n != 0 {
+			t.Errorf("%s after series delete: got %d, want 0", table, n)
+		}
+	}
+	// and leaves the stores it shares a subject with alone
+	if n := count(t, s, `SELECT COUNT(*) FROM catalog_variants`); n != 1 {
+		t.Errorf("catalog_variants after series delete: got %d, want 1", n)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM remote_index`); n != 1 {
+		t.Errorf("remote_index after series delete: got %d, want 1", n)
+	}
+}
+
+func TestDataReset(t *testing.T) {
+	mux, s, adminC, _ := setupAdminTest(t)
+	s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'dev', 'sftp', 'example.com', 22, 'u', X'', '/r')`)
+	seedDerived(t, s)
+
+	rec := doReq(mux, "POST", "/api/admin/data/reset", `{"requeue":false}`, adminC)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reset: %d %s", rec.Code, rec.Body)
+	}
+	var out dataResetResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+
+	// the derived stack is gone
+	for _, table := range []string{
+		"anilist_cache", "anime_ids", "season_maps", "season_maps_meta",
+		"series", "series_provider", "series_seasons", "series_titles",
+		"catalog_variants", "plex_reconciled", "pending_episodes",
+	} {
+		if n := count(t, s, `SELECT COUNT(*) FROM `+table); n != 0 {
+			t.Errorf("%s after reset: got %d, want 0", table, n)
+		}
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM catalog_matches WHERE manual = 0`); n != 0 {
+		t.Errorf("automatic matches after reset: got %d, want 0", n)
+	}
+
+	// what survives by default: the decisions and the crawler's snapshot
+	if n := count(t, s, `SELECT COUNT(*) FROM catalog_matches WHERE manual = 1`); n != 1 {
+		t.Errorf("manual matches after reset: got %d, want 1", n)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM catalog_scopes`); n != 1 {
+		t.Errorf("catalog_scopes after reset: got %d, want 1", n)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM suggestion_dismissals`); n != 1 {
+		t.Errorf("suggestion_dismissals after reset: got %d, want 1", n)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM remote_index`); n != 1 {
+		t.Errorf("remote_index after reset: got %d, want 1 (a re-crawl is not free)", n)
+	}
+	// the omission has to be visible in the answer, not just in the database
+	kept := strings.Join(out.Kept, ",")
+	for _, name := range []string{"remote-index", "catalog-decisions", "suggestion-dismissals"} {
+		if !strings.Contains(kept, name) {
+			t.Errorf("kept: got %q, want it to name %q", kept, name)
+		}
+	}
+	if _, ok := out.Deleted["remote-index"]; ok {
+		t.Error("reset reported deleting remote-index")
+	}
+	if out.Deleted["series"] != 4 || out.Deleted["catalog-matches"] != 1 {
+		t.Errorf("deleted counts: %+v", out.Deleted)
+	}
+	if out.Queued != 0 {
+		t.Errorf("queued with requeue=false: got %d, want 0", out.Queued)
+	}
+
+	// with the switch the decisions go too
+	seedDerived(t, s)
+	rec = doReq(mux, "POST", "/api/admin/data/reset", `{"includeDecisions":true,"requeue":false}`, adminC)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reset with decisions: %d %s", rec.Code, rec.Body)
+	}
+	out = dataResetResponse{}
+	json.Unmarshal(rec.Body.Bytes(), &out)
+	for _, table := range []string{"catalog_matches", "catalog_scopes", "suggestion_dismissals"} {
+		if n := count(t, s, `SELECT COUNT(*) FROM `+table); n != 0 {
+			t.Errorf("%s after reset with decisions: got %d, want 0", table, n)
+		}
+	}
+	if len(out.Kept) != 1 || out.Kept[0] != "remote-index" {
+		t.Errorf("kept with decisions: got %v, want [remote-index]", out.Kept)
+	}
+	// user data is never in reach of this endpoint
+	if n := count(t, s, `SELECT COUNT(*) FROM servers`); n != 1 {
+		t.Errorf("servers after reset: got %d, want 1", n)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM users`); n != 2 {
+		t.Errorf("users after reset: got %d, want 2", n)
+	}
+}
+
+func TestDataResetRequeues(t *testing.T) {
+	mux, s, adminC, _ := setupAdminTest(t)
+	res, _ := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'dev', 'sftp', 'example.com', 22, 'u', X'', '/r')`)
+	serverID, _ := res.LastInsertId()
+	// two automatic matches (tmdb, so the queued search fails fast without a
+	// key) plus a manual one, which is neither deleted nor re-queued
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES
+		(?, '/r/A', 0, 0, 'tmdb:tv'), (?, '/r/B', 7, 0, 'tmdb:tv'), (?, '/r/C', 9, 1, 'anilist')`,
+		serverID, serverID, serverID)
+
+	// requeue defaults to on, so an empty body must still hand work back
+	rec := doReq(mux, "POST", "/api/admin/data/reset", `{}`, adminC)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reset: %d %s", rec.Code, rec.Body)
+	}
+	var out dataResetResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Queued != 2 {
+		t.Errorf("queued: got %d, want 2 (both automatic rows, not the manual one)", out.Queued)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM catalog_matches WHERE manual = 1`); n != 1 {
+		t.Errorf("manual match after reset: got %d, want 1", n)
+	}
 }
