@@ -489,7 +489,7 @@ const PROVIDER_LABEL: Record<string, string> = {
 
 // ProviderBadges shows which integrations recognise the title; each links to
 // that provider's page when a URL is known.
-function ProviderBadges({ providers, links }: { providers: string[]; links: ProviderLinks }) {
+export function ProviderBadges({ providers, links }: { providers: string[]; links: ProviderLinks }) {
   return (
     <>
       {providers.map((p) => {
