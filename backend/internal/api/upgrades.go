@@ -414,6 +414,7 @@ func localSeasonsByShow(units catUnits) map[string][]LocalSeason {
 // season share, so grouping lines them up. is_movie units are keyed at season 0.
 func (s *Server) loadUnits() catUnits {
 	names := s.serverNames()
+	canon := s.showKeyCanon()
 	u := catUnits{byKey: map[string]*catUnit{}}
 	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, is_movie
 		FROM catalog_variants WHERE show_key != '' ORDER BY show_key, season`)
@@ -427,6 +428,9 @@ func (s *Server) loadUnits() catUnits {
 		var res, season, isMovie int
 		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &showKey, &season, &isMovie) != nil {
 			continue
+		}
+		if c := canon[showKey]; c != "" {
+			showKey = c
 		}
 		key := unitKey(showKey, season)
 		cu := u.byKey[key]
@@ -449,6 +453,43 @@ func (s *Server) loadUnits() catUnits {
 // unitKey / unitSeasonLabel are the shared dismiss-key and season display helpers.
 func unitKey(showKey string, season int) string {
 	return "unit:" + showKey + ":" + strconv.Itoa(season)
+}
+
+// showKeyCanon maps every show_key onto the one that stands for its series, so
+// two spellings of the same show group as one. Both are real ids: Plex names
+// JoJo tvdb:262954, the Fribb mapping files the 1993 OVA as tvdb:83950, and a
+// show the mapping has no tvdb id for gets a tmdb: or fold: key that lines up
+// with neither. The series knows they belong together; this is where the
+// copies find that out.
+//
+// ponytail: grouping stays on show_key rather than moving to series_id, which
+// would need every copy to carry one - the Plex-indexed local rows do not, and
+// a copy without a series would stop meeting its remote counterpart. Folding
+// the keys gets the same shows together without that dependency.
+func (s *Server) showKeyCanon() map[string]string {
+	rows, err := s.DB.Query(`SELECT DISTINCT show_key, series_id FROM catalog_variants
+		WHERE series_id != 0 AND show_key != '' ORDER BY show_key`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	stands := map[int64]string{} // series -> the show_key that speaks for it
+	canon := map[string]string{}
+	for rows.Next() {
+		var showKey string
+		var seriesID int64
+		if rows.Scan(&showKey, &seriesID) != nil {
+			continue
+		}
+		if first, ok := stands[seriesID]; ok {
+			if first != showKey {
+				canon[showKey] = first
+			}
+			continue
+		}
+		stands[seriesID] = showKey
+	}
+	return canon
 }
 
 // bestCopy picks the strongest copy: highest resolution, then most dub, then
