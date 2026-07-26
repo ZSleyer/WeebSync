@@ -63,7 +63,9 @@ const TRIGGERS = [
     names: [/Details zu|Details for/, /Match ändern|Change match/, /Syncen|Sync/],
   },
   { route: '/suggestions', names: [/Ignorierte|Ignored/] },
-  { route: '/settings/jobs', names: [/Treffer|Matches|Cache/] },
+  // the reset dialog is the widest one in the app: it lists every data store as
+  // a chip, and the longest of those labels is what a phone has to fit
+  { route: '/settings/jobs', names: [/Treffer|Matches|Cache/, /Alles neu aufbauen|Rebuild everything/] },
 ]
 
 const VIEWPORTS = {
