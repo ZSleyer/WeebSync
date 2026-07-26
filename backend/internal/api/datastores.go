@@ -59,6 +59,12 @@ type dataStore struct {
 	timeCol   string
 	// keptOnReset marks stores the bulk reset deliberately walks past.
 	keptOnReset bool
+	// stamp is the settings key recording when the job last refilled this store.
+	// A delete has to clear it as well: the job reads the stamp to decide it is
+	// not due yet, so an emptied store with a fresh stamp sits out the whole
+	// interval - a full day for the anime-lists mapping, which is exactly what
+	// a reset on 2026-07-26 left behind.
+	stamp string
 }
 
 // cacheStore is the shorthand for the many anilist_cache rows below: they all
@@ -122,7 +128,8 @@ var dataStores = []dataStore{
 	{name: "remote-index", tables: []string{"remote_index"}, kind: kindDerived,
 		rebuild: "index-crawl", timeCol: "listed_at", keptOnReset: true},
 	// The external anime-lists mapping (AniList id -> TVDB/TMDB/IMDB id).
-	{name: "anime-ids", tables: []string{"anime_ids"}, kind: kindDerived, rebuild: "anime-ids"},
+	{name: "anime-ids", tables: []string{"anime_ids"}, kind: kindDerived, rebuild: "anime-ids",
+		stamp: "anime_ids_at"},
 	// Aired-order season boundaries per watched folder, built on demand from
 	// TVDB/Plex/TMDB the next time a file needs a season number.
 	{name: "season-maps", tables: []string{"season_maps", "season_maps_meta"}, kind: kindDerived,
@@ -137,7 +144,8 @@ var dataStores = []dataStore{
 	// Per-folder quality (resolution, dub/sub languages) behind the upgrade
 	// suggestions.
 	{name: "catalog-variants", tables: []string{"catalog_variants"}, kind: kindDerived,
-		rebuild: "sweep", needs: []string{"catalog-matches", "remote-index"}, timeCol: "computed_at"},
+		rebuild: "sweep", needs: []string{"catalog-matches", "remote-index"}, timeCol: "computed_at",
+		stamp: "plex_indexed_at"},
 	// Which folders the Plex reconciliation has already looked at.
 	{name: "plex-reconciled", tables: []string{"plex_reconciled"}, kind: kindDerived,
 		rebuild: "plex-sweep", needs: []string{"series"}, timeCol: "checked_at"},
@@ -271,6 +279,13 @@ func deleteStore(ctx context.Context, ex execer, st dataStore) (int64, error) {
 		}
 		n, _ := res.RowsAffected()
 		total += n
+	}
+	// the job that refills this store skips a run it believes is not due, so the
+	// stamp goes with the rows. Not counted: it is bookkeeping, not content.
+	if st.stamp != "" {
+		if _, err := ex.ExecContext(ctx, "DELETE FROM settings WHERE key = ?", st.stamp); err != nil {
+			return total, fmt.Errorf("clear %s: %w", st.stamp, err)
+		}
 	}
 	return total, nil
 }

@@ -619,3 +619,42 @@ func TestDataResetWaitsForWriter(t *testing.T) {
 		t.Errorf("anilist_cache after reset: got %d, want 0", n)
 	}
 }
+
+// TestDataResetClearsJobStamps is the regression for a reset that emptied a
+// store and then left it empty: the sweep reads anime_ids_at to decide the
+// anime-lists refresh is not due, so the mapping was gone for a full day while
+// everything that needs it - the Plex bridge, cross-provider bundling - had
+// nothing to work with.
+func TestDataResetClearsJobStamps(t *testing.T) {
+	mux, s, adminC, _ := setupAdminTest(t)
+	s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'dev', 'sftp', 'example.com', 22, 'u', X'', '/r')`)
+	seedDerived(t, s)
+	for _, k := range []string{"anime_ids_at", "plex_indexed_at"} {
+		if err := db.SetSetting(s.DB, k, "2026-07-26T00:00:00Z"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if rec := doReq(mux, "POST", "/api/admin/data/reset", `{"requeue":false}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("reset: %d %s", rec.Code, rec.Body)
+	}
+	for _, k := range []string{"anime_ids_at", "plex_indexed_at"} {
+		if got := db.Setting(s.DB, k); got != "" {
+			t.Errorf("%s after reset: %q, want empty - the job would skip its next run", k, got)
+		}
+	}
+
+	// and the single-store delete clears its own stamp, not a neighbour's
+	db.SetSetting(s.DB, "anime_ids_at", "2026-07-26T00:00:00Z")
+	db.SetSetting(s.DB, "plex_indexed_at", "2026-07-26T00:00:00Z")
+	if rec := doReq(mux, "DELETE", "/api/admin/data/anime-ids", "", adminC); rec.Code != http.StatusOK {
+		t.Fatalf("delete anime-ids: %d %s", rec.Code, rec.Body)
+	}
+	if got := db.Setting(s.DB, "anime_ids_at"); got != "" {
+		t.Errorf("anime_ids_at after delete: %q, want empty", got)
+	}
+	if got := db.Setting(s.DB, "plex_indexed_at"); got == "" {
+		t.Error("delete of anime-ids also cleared plex_indexed_at")
+	}
+}
