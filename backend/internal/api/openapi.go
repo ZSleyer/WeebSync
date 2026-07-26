@@ -30,5 +30,10 @@ func swaggerUIHandler() http.Handler {
 }
 
 // devDocsEnabled reports whether the interactive API docs should be served -
-// dev builds only, never nightly or stable.
-func devDocsEnabled() bool { return version.Channel == "dev" }
+// builds made on a developer's machine only, never anything shipped.
+//
+// The test is the absence of build metadata, not the channel name: CI publishes
+// a per-push :dev image the add-on follows, so "dev" no longer implies "runs on
+// a laptop". Only a local `go run`/`go build` leaves Commit empty, because
+// every pipeline passes it through -ldflags.
+func devDocsEnabled() bool { return version.Commit == "" }
