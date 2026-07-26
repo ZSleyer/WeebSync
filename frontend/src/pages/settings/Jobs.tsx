@@ -209,7 +209,7 @@ function LogPanel({ level }: { level: LogLevel }) {
         ) : (
           shown.map((l, i) => (
             <div key={i} className="whitespace-pre-wrap break-words">
-              <span className="text-t-muted">{l.ts.slice(11, 19)}</span>{' '}
+              <span className="text-t-muted">{fmtLogTime(l.ts)}</span>{' '}
               <span className={`${LOG_COLOR[l.level] ?? ''} font-semibold uppercase`}>{l.level}</span>{' '}
               <span>{l.msg}</span>
               {l.attrs && Object.keys(l.attrs).length > 0 && <span className="text-t-muted"> {fmtAttrs(l.attrs)}</span>}
@@ -258,6 +258,14 @@ function fmtTs(s: string): string {
   if (!s) return '-'
   const d = new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`)
   return Number.isNaN(d.getTime()) ? s : d.toLocaleString(i18n.language)
+}
+
+// The log bus stamps RFC3339 in UTC, so cutting the time out of the string
+// showed UTC rather than the viewer's clock - two hours off in CEST. Same rule
+// as fmtTs: parse, then render in the app language.
+function fmtLogTime(s: string): string {
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? s.slice(11, 19) : d.toLocaleTimeString(i18n.language, { hour12: false })
 }
 
 function fmtNum(n: number): string {
