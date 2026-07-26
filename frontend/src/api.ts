@@ -182,6 +182,48 @@ export interface ProviderLinks {
   plex?: string
 }
 
+// DownloadGroup is one series folder's metadata, shared by every download from
+// it. Kept out of Download because the SSE stream replaces that object per
+// progress tick and would wipe anything added to it.
+export interface DownloadGroup {
+  serverId: number
+  serverName?: string
+  folder: string
+  title?: string // empty when the folder has no catalog match
+  cover?: string
+  overview?: string
+  providers?: string[]
+  links: ProviderLinks
+  watchId?: number
+}
+
+export interface DownloadItemMeta {
+  g: string // group key
+  season?: number
+  episode?: number
+  title?: string // episode title, only when the provider cache is warm
+}
+
+export interface DownloadMeta {
+  groups: Record<string, DownloadGroup>
+  items: Record<string, DownloadItemMeta> // by download id
+}
+
+// downloadLabel is what the queue puts on a download: "Show - S03E05 - Episode"
+// when the metadata knows the series, the bare file name when it does not. One
+// helper because the queue rows and the history rows must not drift apart.
+export function downloadLabel(d: Download, meta?: DownloadMeta) {
+  const item = meta?.items[String(d.id)]
+  const group = item ? meta?.groups[item.g] : undefined
+  const name = d.remotePath.split('/').pop() ?? d.remotePath
+  if (!group?.title || !item?.episode) return { line: name, name, group, item }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  // a file without a season marker keeps its plain number rather than
+  // pretending to be season 1
+  const ep = item.season ? `S${pad(item.season)}E${pad(item.episode)}` : `E${item.episode}`
+  return { line: [group.title, ep, item.title].filter(Boolean).join(' - '), name, group, item }
+}
+
 export interface SuggestionCandidate {
   serverId: number
   serverName: string

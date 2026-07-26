@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { fmtBytes, fmtMissing, fmtSpeed, mediaTitle, syncOutcome } from '../api'
+import {
+  downloadLabel,
+  fmtBytes,
+  fmtMissing,
+  fmtSpeed,
+  mediaTitle,
+  syncOutcome,
+  type Download,
+  type DownloadMeta,
+} from '../api'
 
 // The pure formatters out of api.ts. No fetch, no query client - importing the
 // module only defines functions, so these run without a backend.
@@ -124,5 +133,38 @@ describe('syncOutcome', () => {
 
   it('falls back to a plain answer when nothing explains it', () => {
     expect(syncOutcome({ queued: 0 }, t)).toBe('remote.syncNothing')
+  })
+})
+
+describe('downloadLabel', () => {
+  const dl = (remotePath: string, localPath = remotePath): Download =>
+    ({ id: 1, remotePath, localPath }) as Download
+
+  it('falls back to the file name without metadata', () => {
+    expect(downloadLabel(dl('/lib/Show/e1.mkv')).line).toBe('e1.mkv')
+  })
+
+  it('builds show, episode and title when all three are known', () => {
+    const meta: DownloadMeta = {
+      groups: { g: { serverId: 1, folder: '/lib/Show', title: 'Some Show', links: {} } },
+      items: { '1': { g: 'g', season: 3, episode: 5, title: 'The Reveal' } },
+    }
+    expect(downloadLabel(dl('/lib/Show/e5.mkv'), meta).line).toBe('Some Show - S03E05 - The Reveal')
+  })
+
+  it('keeps a plain number when no season was parsed', () => {
+    const meta: DownloadMeta = {
+      groups: { g: { serverId: 1, folder: '/lib/Show', title: 'Some Show', links: {} } },
+      items: { '1': { g: 'g', episode: 1187 } },
+    }
+    expect(downloadLabel(dl('/lib/Show/e1187.mkv'), meta).line).toBe('Some Show - E1187')
+  })
+
+  it('keeps the file name when the folder has no match', () => {
+    const meta: DownloadMeta = {
+      groups: { g: { serverId: 1, folder: '/lib/Unknown', links: {} } },
+      items: { '1': { g: 'g', season: 1, episode: 2 } },
+    }
+    expect(downloadLabel(dl('/lib/Unknown/e2.mkv'), meta).line).toBe('e2.mkv')
   })
 })

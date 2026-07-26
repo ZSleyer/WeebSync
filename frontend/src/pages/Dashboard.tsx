@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, Pause, Play, RefreshCw, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, FolderOpen, Pause, Play, RefreshCw, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
 
 // icon per download status, shown inside the t-label chips (inline-flex, 4px gap)
 const STATUS_ICON: Record<Download['status'], LucideIcon> = {
@@ -17,6 +17,7 @@ import {
   Badge,
   Button,
   Count,
+  Cover,
   Divider,
   EmptyState,
   Input,
@@ -25,9 +26,10 @@ import {
   Toolbar,
   type BadgeTone,
 } from '@weebsync/design-system'
-import { api, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type Watch } from '../api'
+import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type Watch } from '../api'
 import { useConfirm } from '../components/confirm'
 import { useAuth } from '../hooks'
+import { ProviderBadges } from './Suggestions'
 
 // history-only status filter: the active queue is short and searchable, its
 // three states never need chips
@@ -43,6 +45,24 @@ export default function Dashboard() {
     queryFn: () => api.get('/api/downloads'),
     refetchInterval: 5000,
   })
+  // series metadata lives behind its own key: the list above is patched in
+  // place by the event stream (whole object per progress tick) and polled every
+  // 5s, while a folder's cover and links change about never. The ['downloads']
+  // prefix means every mutation below invalidates this too.
+  const { data: meta } = useQuery<DownloadMeta>({
+    queryKey: ['downloads', 'meta'],
+    queryFn: () => api.get('/api/downloads/meta'),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  })
+  // a download the metadata does not know is newer than the metadata. The
+  // endpoint answers with an item for EVERY download, matched or not, so this
+  // settles after one refetch instead of looping.
+  useEffect(() => {
+    if (meta && downloads.some((d) => !meta.items[String(d.id)])) {
+      qc.invalidateQueries({ queryKey: ['downloads', 'meta'] })
+    }
+  }, [downloads, meta, qc])
   // active queue and history filter independently: searching the queue must
   // not reshuffle the history and vice versa
   const [query, setQuery] = useState('')
@@ -269,6 +289,7 @@ export default function Dashboard() {
                 <DownloadRow
                   key={d.id}
                   d={d}
+                  meta={meta}
                   selected={selected.has(d.id)}
                   onSelect={(shift) => selectRow(d.id, shift)}
                   onAction={(verb) => action.mutate({ id: d.id, verb })}
@@ -386,33 +407,14 @@ export default function Dashboard() {
                   )}
                   <div className="mt-2 flex flex-col gap-2">
                     {finishedShown.map((d) => (
-              <div key={d.id} className="flex items-center gap-3 border border-border-subtle bg-bg-card px-3 py-2 text-sm">
-                <SelectBox
-                  checked={selected.has(d.id)}
-                  name={d.remotePath.split('/').pop() ?? ''}
-                  onSelect={(shift) => selectRow(d.id, shift)}
-                />
-                <StatusChip status={d.status} />
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-secondary" title={d.remotePath}>
-                  {d.remotePath.split('/').pop()}
-                </span>
-                {d.error && <span className="max-w-64 truncate text-xs text-err" title={d.error}>{d.error}</span>}
-                <span className="font-mono text-xs text-t-muted">{fmtBytes(d.size)}</span>
-                {(d.status === 'error' || d.status === 'canceled') && (
-                  <Button size="sm" onClick={() => action.mutate({ id: d.id, verb: 'resume' })}>
-                    <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('dash.retry')}
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="danger"
-                  aria-label={t('dash.remove', { id: d.id })}
-                  onClick={() => action.mutate({ id: d.id, verb: 'delete' })}
-                >
-                  <X aria-hidden size="1.2em" />
-                </Button>
-                      </div>
+                      <HistoryRow
+                        key={d.id}
+                        d={d}
+                        meta={meta}
+                        selected={selected.has(d.id)}
+                        onSelect={(shift) => selectRow(d.id, shift)}
+                        onAction={(verb) => action.mutate({ id: d.id, verb })}
+                      />
                     ))}
                   </div>
                   {finished.length > finishedShown.length && (
@@ -609,27 +611,112 @@ function SelectBox({ checked, name, onSelect }: { checked: boolean; name: string
   )
 }
 
+// dirOf is the folder a path lives in, for the browser deep links.
+const dirOf = (p: string) => p.slice(0, p.lastIndexOf('/')) || '/'
+
+// DetailsToggle is the chevron that opens a download's metadata. Not
+// <Collapsible>: that renders a section heading with a count badge, and these
+// are rows.
+function DetailsToggle({ open, name, onToggle }: { open: boolean; name: string; onToggle: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-label={t('dash.details', { name })}
+      className="t-label min-h-6 min-w-6 cursor-pointer justify-center hover:text-accent"
+      onClick={onToggle}
+    >
+      {open ? <ChevronDown aria-hidden size="1em" /> : <ChevronRight aria-hidden size="1em" />}
+    </button>
+  )
+}
+
+// DownloadDetails is the expanded half of a queue or history row: what the file
+// becomes, where it comes from, where it lands, and the pages that describe it.
+// Shared by both row types so they cannot drift apart.
+function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
+  const { t } = useTranslation()
+  const { group } = downloadLabel(d, meta)
+  const remoteDir = dirOf(d.remotePath)
+  const localDir = dirOf(d.localPath)
+  const remoteBase = d.remotePath.split('/').pop() ?? ''
+  const localBase = d.localPath.split('/').pop() ?? ''
+  const showFolder = group?.folder ?? remoteDir
+  const remoteLink = (path: string) => `/remote?server=${d.serverId}&path=${encodeURIComponent(path)}`
+  return (
+    <dl className="mt-3 grid gap-x-4 gap-y-2 border-t border-border-subtle pt-3 text-xs sm:grid-cols-[max-content_1fr]">
+      {group?.overview && (
+        <>
+          <dt className="t-label">{t('dash.overview')}</dt>
+          <dd className="line-clamp-4 text-t-secondary">{group.overview}</dd>
+        </>
+      )}
+      <dt className="t-label">{t('dash.renamedTo')}</dt>
+      <dd className="min-w-0 break-all font-mono text-t-secondary">
+        {remoteBase === localBase ? (
+          t('dash.noRename')
+        ) : (
+          <>
+            {remoteBase} <ArrowRight aria-hidden size="1em" className="inline align-[-0.125em] text-accent" /> {localBase}
+          </>
+        )}
+      </dd>
+      <dt className="t-label">{t('dash.source')}</dt>
+      <dd className="min-w-0 break-all">
+        {group?.serverName && <span className="mr-2 text-t-muted">{group.serverName}</span>}
+        <Link to={remoteLink(remoteDir)} className="font-mono text-accent underline">
+          {remoteDir}
+        </Link>
+      </dd>
+      <dt className="t-label">{t('dash.target')}</dt>
+      <dd className="min-w-0 break-all">
+        <Link to={`/local?path=${encodeURIComponent(localDir)}`} className="font-mono text-accent underline">
+          {localDir}
+        </Link>
+      </dd>
+      <dt className="t-label">{t('dash.linksLabel')}</dt>
+      <dd className="flex flex-wrap items-center gap-2">
+        <Link to={remoteLink(showFolder)} className="t-label hover:text-accent">
+          <FolderOpen aria-hidden size="1em" />
+          {t('dash.openShow')}
+        </Link>
+        {group?.providers && group.providers.length > 0 && (
+          <ProviderBadges providers={group.providers} links={group.links} />
+        )}
+      </dd>
+    </dl>
+  )
+}
+
 function DownloadRow({
   d,
+  meta,
   selected,
   onSelect,
   onAction,
 }: {
   d: Download
+  meta?: DownloadMeta
   selected: boolean
   onSelect: (shift: boolean) => void
   onAction: (verb: string) => void
 }) {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
   const pct = d.size > 0 ? Math.min(100, (d.transferred / d.size) * 100) : 0
-  const name = d.remotePath.split('/').pop() ?? d.remotePath
+  const { line, name, group } = downloadLabel(d, meta)
   return (
     <Panel className={`p-4 ${selected ? 'bg-bg-hover' : ''}`}>
       <div className="mb-2 flex flex-wrap items-center gap-3">
         <SelectBox checked={selected} name={name} onSelect={onSelect} />
+        {/* only a real poster earns the slot; the hatched placeholder on every
+            unmatched row would be noise */}
+        {group?.cover && <Cover src={group.cover} size="sm" loading="lazy" />}
         <StatusChip status={d.status} />
-        <span className="min-w-0 flex-1 truncate font-mono text-sm text-t-primary" title={d.remotePath}>
-          {name}
+        <span className="min-w-0 flex-1 truncate text-sm text-t-primary" title={d.remotePath}>
+          {line}
+          {line !== name && <span className="block truncate font-mono text-xs text-t-muted">{name}</span>}
         </span>
         <span className="font-mono text-xs text-t-muted">
           {fmtBytes(d.transferred)} / {fmtBytes(d.size)}
@@ -637,6 +724,7 @@ function DownloadRow({
         {d.status === 'running' && d.bytesPerSec != null && (
           <span className="font-mono text-xs text-accent">{fmtSpeed(d.bytesPerSec)}</span>
         )}
+        <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
       </div>
       <div
         className="h-2 w-full bg-bg-secondary"
@@ -651,6 +739,7 @@ function DownloadRow({
           style={{ width: `${pct}%` }}
         />
       </div>
+      {open && <DownloadDetails d={d} meta={meta} />}
       {/* single row from sm upwards: buttons keep their size, the limit
           control stays on the same line instead of wrapping below */}
       <div className="mt-2 flex flex-wrap items-center gap-2 sm:flex-nowrap">
@@ -672,6 +761,52 @@ function DownloadRow({
         <RateLimitInput d={d} />
       </div>
     </Panel>
+  )
+}
+
+// HistoryRow is a finished download: one compact line, expandable to the same
+// details as a queue row. Worth expanding here too - the file exists now, so the
+// link into the local browser actually leads somewhere.
+function HistoryRow({
+  d,
+  meta,
+  selected,
+  onSelect,
+  onAction,
+}: {
+  d: Download
+  meta?: DownloadMeta
+  selected: boolean
+  onSelect: (shift: boolean) => void
+  onAction: (verb: string) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const { line, name, group } = downloadLabel(d, meta)
+  return (
+    <div className="border border-border-subtle bg-bg-card px-3 py-2 text-sm">
+      <div className="flex items-center gap-3">
+        <SelectBox checked={selected} name={name} onSelect={onSelect} />
+        {group?.cover && <Cover src={group.cover} size="sm" loading="lazy" />}
+        <StatusChip status={d.status} />
+        <span className="min-w-0 flex-1 truncate text-xs text-t-secondary" title={d.remotePath}>
+          {line}
+        </span>
+        {d.error && <span className="max-w-64 truncate text-xs text-err" title={d.error}>{d.error}</span>}
+        <span className="font-mono text-xs text-t-muted">{fmtBytes(d.size)}</span>
+        {(d.status === 'error' || d.status === 'canceled') && (
+          <Button size="sm" onClick={() => onAction('resume')}>
+            <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('dash.retry')}
+          </Button>
+        )}
+        <Button size="sm" variant="danger" aria-label={t('dash.remove', { id: d.id })} onClick={() => onAction('delete')}>
+          <X aria-hidden size="1.2em" />
+        </Button>
+        <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
+      </div>
+      {open && <DownloadDetails d={d} meta={meta} />}
+    </div>
   )
 }
 
