@@ -147,3 +147,30 @@ func TestSharedTitlePrefix(t *testing.T) {
 		}
 	}
 }
+
+// Both spellings of a show are real ids - Plex says tvdb:262954, the Fribb
+// mapping files the 1993 OVA as tvdb:83950 - and copies under either must meet.
+func TestShowKeyCanonFoldsSpellingsOfOneSeries(t *testing.T) {
+	s := mergeTestServer(t)
+	s.DB.Exec(`INSERT INTO series (id, key, title, year) VALUES (1,'jojo','JoJo',2014), (2,'other','Other',2020)`)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season, series_id, res_rank) VALUES
+		(0,'/media/anime/JoJo/Season_03','tvdb:262954',3,1,1080),
+		(1,'/ftp/JoJo S3','tvdb:83950',3,1,2160),
+		(1,'/ftp/Other','tmdb:999',1,2,1080)`)
+
+	canon := s.showKeyCanon()
+	if canon["tvdb:83950"] != "tvdb:262954" {
+		t.Errorf("canon = %v, want the second spelling folded onto the first", canon)
+	}
+	if _, ok := canon["tmdb:999"]; ok {
+		t.Error("a series with one spelling needs no entry")
+	}
+
+	// and the two copies now land in one unit, which is what makes the remote
+	// one an upgrade for the local one at all
+	u := s.loadUnits()
+	cu := u.byKey[unitKey("tvdb:262954", 3)]
+	if cu == nil || len(cu.locals) != 1 || len(cu.remotes) != 1 {
+		t.Fatalf("unit = %+v, want one local and one remote copy", cu)
+	}
+}

@@ -82,6 +82,9 @@ func (s *Server) mergeSeries(from, into int64) {
 		`UPDATE OR IGNORE series_titles SET series_id = ? WHERE series_id = ?`,
 		`UPDATE OR IGNORE series_seasons SET series_id = ? WHERE series_id = ?`,
 		`UPDATE catalog_variants SET series_id = ? WHERE series_id = ?`,
+		// an ignore list entry names the series it hid; the show it merged
+		// into is the same thing under a new id
+		`UPDATE OR IGNORE suggestion_dismissals SET ref_key = 'series:' || ? WHERE ref_key = 'series:' || ?`,
 	} {
 		if _, err := tx.Exec(q, into, from); err != nil {
 			return
