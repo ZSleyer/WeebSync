@@ -905,5 +905,20 @@
     "doneCount": "Imported {{imported}} sync rules, skipped {{skipped}}.",
     "upstreamNote": "This means BastianGanze's separate Node project, not an older version of this app:",
     "legacyWarnConditional": "The old template used a conditional block (a fork's extension). The special-case branch was dropped, only the ordinary one remains - please check the result."
+  },
+  "fsError": {
+    "identity": "WeebSync writes as UID {{uid}}/GID {{gid}}.",
+    "permission_denied": {
+      "what": "No write permission on {{path}}.",
+      "fix": "Grant that UID write access to the directory, or start the container with a matching user: setting."
+    },
+    "disk_full": {
+      "what": "No space left on {{path}}.",
+      "fix": "Free up space on the target drive, or pick a different target."
+    },
+    "read_only": {
+      "what": "{{path}} is mounted read-only.",
+      "fix": "Mount the directory writable, in Docker without :ro, and restart the container."
+    }
   }
 }

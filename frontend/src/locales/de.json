@@ -905,5 +905,20 @@
     "doneCount": "{{imported}} Sync-Regeln importiert, {{skipped}} übersprungen.",
     "upstreamNote": "Gemeint ist das eigenständige Node-Projekt von BastianGanze, nicht eine ältere Version dieser App:",
     "legacyWarnConditional": "Das alte Template nutzte einen bedingten Block (Erweiterung eines Forks). Der Sonderfall-Zweig wurde entfernt, nur der Normalfall bleibt - Ergebnis bitte prüfen."
+  },
+  "fsError": {
+    "identity": "WeebSync schreibt als UID {{uid}}/GID {{gid}}.",
+    "permission_denied": {
+      "what": "Keine Schreibrechte auf {{path}}.",
+      "fix": "Gib dem Verzeichnis Schreibrechte für diese UID oder starte den Container mit passender user:-Angabe."
+    },
+    "disk_full": {
+      "what": "Kein Speicherplatz mehr auf {{path}}.",
+      "fix": "Gib auf dem Ziellaufwerk Platz frei oder wähle ein anderes Ziel."
+    },
+    "read_only": {
+      "what": "{{path}} ist schreibgeschützt eingehängt.",
+      "fix": "Binde das Verzeichnis mit Schreibrechten ein, in Docker also ohne :ro, und starte den Container neu."
+    }
   }
 }

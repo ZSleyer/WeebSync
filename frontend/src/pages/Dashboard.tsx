@@ -28,6 +28,7 @@ import {
 } from '@weebsync/design-system'
 import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type Watch } from '../api'
 import { useConfirm } from '../components/confirm'
+import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth } from '../hooks'
 import { ProviderBadges } from './Suggestions'
 
@@ -793,6 +794,7 @@ function HistoryRow({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { label, ep, name, group } = downloadLabel(d, meta)
+  const explained = isFsErrorCode(d.errorCode)
   return (
     <div className="border border-border-subtle bg-bg-card px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center gap-3">
@@ -804,7 +806,9 @@ function HistoryRow({
         <span className="min-w-0 basis-full truncate text-xs text-t-secondary sm:flex-1 sm:basis-auto" title={d.remotePath}>
           {label}
         </span>
-        {d.error && <span className="max-w-64 truncate text-xs text-err" title={d.error}>{d.error}</span>}
+        {/* an explained failure gets its own full-width row below; only an
+            unclassified one still has to make do with a truncated string */}
+        {d.error && !explained && <span className="max-w-64 truncate text-xs text-err" title={d.error}>{d.error}</span>}
         <span className="font-mono text-xs text-t-muted">{fmtBytes(d.size)}</span>
         {(d.status === 'error' || d.status === 'canceled') && (
           <Button size="sm" onClick={() => onAction('resume')}>
@@ -817,6 +821,7 @@ function HistoryRow({
         </Button>
         <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
       </div>
+      {explained && <FsErrorNote code={d.errorCode!} dir={dirOf(d.localPath)} className="mt-2" />}
       {open && <DownloadDetails d={d} meta={meta} />}
     </div>
   )
