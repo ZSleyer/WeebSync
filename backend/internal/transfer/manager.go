@@ -489,6 +489,8 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		}
 	}
 
+	// one writability probe per target directory, shared by every file in it
+	probed := map[string]string{}
 	for _, j := range jobs {
 		local, lerr := ResolveLocal(m.roots(), j.localRel)
 		if lerr != nil {
@@ -523,6 +525,16 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		if existing > 0 {
 			continue
 		}
+		// skip a file whose last attempt failed for a reason that still holds. A
+		// watch checks every interval, so an unwritable target used to be queued
+		// again and again: the queue and the log filled with identical hopeless
+		// entries, while the one thing that had to change - the permissions on
+		// the target - was never said out loud. The probe is what lifts the
+		// block: the moment the directory accepts a write the file becomes a
+		// candidate again, without the user retrying every download by hand.
+		if m.blocked(userID, serverID, j.remote, filepath.Dir(local), probed) {
+			continue
+		}
 		ins, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size)
 			VALUES (?, ?, ?, ?, ?)`, userID, serverID, j.remote, local, j.size)
 		if ierr == nil {
@@ -533,6 +545,25 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 	}
 	m.Wake()
 	return res, nil
+}
+
+// blocked reports whether the last attempt at remotePath failed for a reason no
+// retry can fix and that reason still holds. probed caches the per-directory
+// answer for the duration of one Enqueue, so a season folder costs one probe.
+func (m *Manager) blocked(userID, serverID int64, remotePath, dir string, probed map[string]string) bool {
+	var code string
+	m.DB.QueryRow(`SELECT error_code FROM downloads
+		WHERE user_id = ? AND server_id = ? AND remote_path = ? AND status = 'error'
+		ORDER BY id DESC LIMIT 1`, userID, serverID, remotePath).Scan(&code)
+	if RetryableCode(code) {
+		return false
+	}
+	still, ok := probed[dir]
+	if !ok {
+		still, _ = CheckWritable(dir)
+		probed[dir] = still
+	}
+	return still != ""
 }
 
 // Shutdown cancels all active downloads, requeues them (resume picks up the
@@ -679,16 +710,33 @@ func classifyError(err error) string {
 	return ""
 }
 
-// RetryableCode reports whether a failure with this error code is worth
-// queuing again on its own. A permission, space or read-only failure repeats
-// forever until a human changes something on the host, so re-queuing it only
-// buries the real problem under identical entries.
+// RetryableCode reports whether a failure with this error code is worth queuing
+// again on its own. Permission, space and read-only failures are not: they last
+// until a human changes something on the host, and repeating them only buries
+// the real problem under identical entries. An unclassified failure (a dropped
+// connection, a short read) is retryable - those clear up by themselves.
 func RetryableCode(code string) bool {
-	switch code {
-	case ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly:
-		return false
+	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly}, code)
+}
+
+// CheckWritable reports whether a file can be created in dir, as the classified
+// reason why not ("" when it can). It writes and removes a probe file rather
+// than reading the mode bits: an ACL, a read-only mount or a full device all
+// deny a write the bits appear to allow, and those are exactly the failures
+// worth naming. A missing directory is created, which is what the first
+// transfer into it would do anyway.
+func CheckWritable(dir string) (string, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return classifyError(err), err
 	}
-	return true
+	f, err := os.CreateTemp(dir, ".weebsync-probe-*")
+	if err != nil {
+		return classifyError(err), err
+	}
+	name := f.Name()
+	f.Close()
+	os.Remove(name)
+	return "", nil
 }
 
 func (m *Manager) setStatus(id int64, status, errMsg, errCode string) {
