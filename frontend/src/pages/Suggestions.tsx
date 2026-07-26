@@ -555,33 +555,86 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
 
 // ── Upgrades ──
 
+// A copy also carries HOW its quality was established: probed = the container
+// streams were read, otherwise it was parsed out of the file name. Only a local
+// copy can ever be measured; a copy on a remote server is a name and nothing
+// more. Declared here rather than widened in api.ts because it is the upgrade
+// card that has to reason about it.
+type QualitySource = UpgradeVariant & { probed?: boolean }
+
 function fmtRes(r: number): string {
   if (!r) return '?'
   if (r >= 2160) return '4K'
   return `${r}p`
 }
 
+// resTier mirrors the backend's resTier: a measured height folds onto the rung
+// it belongs to, so a padded 1088 (mod-16 1080p) is not shown as beaten by the
+// round 1080 a file name states. Keep the two in step.
+function resTier(h: number): number {
+  if (h <= 0) return 0
+  if (h < 600) return 480
+  if (h < 900) return 720
+  if (h < 1300) return 1080
+  if (h < 1800) return 1440
+  if (h < 3000) return 2160
+  return 4320
+}
+
+const addedLangs = (a: string[], b: string[]) => (b ?? []).filter((x) => !(a ?? []).includes(x))
+
+// sameSource: were both copies' qualities established the same way? A measured
+// local copy against a name-parsed remote one cannot prove a language gain in
+// either direction, so the comparison drops those axes - exactly as the backend
+// does, or the card would promise what the list does not deliver.
+const sameSource = (a: QualitySource, b: QualitySource) => !!a.probed === !!b.probed
+
 // variantDiff spells out what v would improve over the local copy on the
 // user's enabled axes: resolution step and added dub/sub languages. Empty
 // means this copy is no improvement.
 function variantDiff(
-  from: UpgradeVariant,
-  v: UpgradeVariant,
+  from: QualitySource,
+  v: QualitySource,
   dims: UpgradeDims | undefined,
   t: (k: string, o?: Record<string, unknown>) => string,
 ): string[] {
   const out: string[] = []
-  const added = (a: string[], b: string[]) => (b ?? []).filter((x) => !(a ?? []).includes(x))
-  if ((dims?.res ?? true) && v.resRank > from.resRank) out.push(`${fmtRes(from.resRank)} → ${fmtRes(v.resRank)}`)
+  if ((dims?.res ?? true) && resTier(v.resRank) > resTier(from.resRank)) {
+    out.push(`${fmtRes(from.resRank)} → ${fmtRes(v.resRank)}`)
+  }
+  if (!sameSource(from, v)) return out
   if (dims?.dub ?? true) {
-    const d = added(from.dub, v.dub)
+    const d = addedLangs(from.dub, v.dub)
     if (d.length) out.push(`${t('suggestions.upDub')} +${d.join(',')}`)
   }
   if (dims?.sub ?? true) {
-    const s = added(from.sub, v.sub)
+    const s = addedLangs(from.sub, v.sub)
     if (s.length) out.push(`${t('suggestions.upSub')} +${s.join(',')}`)
   }
   return out
+}
+
+// sourceLabel names how one copy's quality was established, for the card.
+function sourceLabel(v: QualitySource, t: (k: string) => string): string {
+  return t(v.probed ? 'suggestions.basisMeasured' : 'suggestions.basisGuessed')
+}
+
+// axesWon lists the axes on which v actually beats the local copy, by the same
+// rules the backend applied. Empty when the user picked an option that is no
+// improvement at all.
+function axesWon(
+  from: QualitySource,
+  v: QualitySource,
+  dims: UpgradeDims | undefined,
+  t: (k: string, o?: Record<string, unknown>) => string,
+): string {
+  const out: string[] = []
+  if ((dims?.res ?? true) && resTier(v.resRank) > resTier(from.resRank)) out.push(t('suggestions.axis_res'))
+  if (sameSource(from, v)) {
+    if ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length) out.push(t('suggestions.axis_sub'))
+    if ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length) out.push(t('suggestions.axis_dub'))
+  }
+  return out.length ? out.join(', ') : t('suggestions.basisNoAxis')
 }
 
 // variantQuality renders a copy's make-up: resolution and its dub/sub codes.
@@ -593,9 +646,11 @@ function variantQuality(v: UpgradeVariant): string {
 }
 
 // VariantBox shows one copy: where it lives (Local (Plex) when the server name
-// is empty, else the server name) plus its full path, and its quality make-up.
-// accent frames the recommended copy.
-function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: string; muted?: boolean; accent?: boolean }) {
+// is empty, else the server name) plus its full path, its quality make-up, and
+// how that make-up was established - measured from the file, or read off its
+// name. That last line is what makes a disputed recommendation readable from
+// the card instead of from the log.
+function VariantBox({ v, label, muted, accent }: { v: QualitySource; label: string; muted?: boolean; accent?: boolean }) {
   const { t } = useTranslation()
   return (
     <div className={`min-w-0 ${accent ? 'border border-accent p-1.5' : ''} ${muted ? 'text-t-muted' : ''}`}>
@@ -609,6 +664,9 @@ function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: str
         {v.folder}
       </div>
       <div className="mt-0.5 text-[11px]">{variantQuality(v)}</div>
+      <div className="mt-0.5 text-[11px] text-t-muted">
+        {t('suggestions.basisQuality', { how: sourceLabel(v, t) })}
+      </div>
     </div>
   )
 }
@@ -662,7 +720,7 @@ function UpgradesSection() {
   const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields; info: string[] } | null>(null)
   const [notice, setNotice] = useState('')
   // per-card chosen sync source among the remote copies; default = recommended
-  const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
+  const [choice, setChoice] = useState<Record<string, QualitySource>>({})
 
   const toggle = async (key: keyof UpgradeDims) => {
     if (!dims) return
@@ -698,9 +756,9 @@ function UpgradesSection() {
         (() => {
           const render = (u: UpgradeSuggestion, i: number) => {
           const seasonLabel = u.isMovie ? t('suggestions.movie') : u.season > 0 ? t('suggestions.season', { season: u.season }) : ''
-          const chosen = choice[u.key] ?? u.to
+          const chosen: QualitySource = choice[u.key] ?? u.to
           const isChosen = (v: UpgradeVariant) => v.serverId === chosen.serverId && v.folder === chosen.folder
-          const options = u.options ?? []
+          const options: QualitySource[] = u.options ?? []
           const syncInfo = [
             t('watch.infoSource', { server: chosen.serverName || t('suggestions.localPlex'), quality: variantQuality(chosen) }),
             t('watch.infoLocal', { quality: variantQuality(u.from) }),
@@ -747,6 +805,10 @@ function UpgradesSection() {
                     accent
                   />
                 </div>
+                <p className="mt-2 text-[11px] text-t-secondary">
+                  {t('suggestions.basis', { axes: axesWon(u.from, chosen, dims, t) })}
+                  {!sameSource(u.from, chosen) && ` ${t('suggestions.basisLangSkipped')}`}
+                </p>
                 {options.length > 0 && (
                   <fieldset className="mt-2 min-w-0 border-0 p-0">
                     <legend className="t-label">{t('suggestions.chooseVersion')}</legend>
