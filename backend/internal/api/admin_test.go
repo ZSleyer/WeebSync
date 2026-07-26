@@ -212,8 +212,11 @@ func TestAdminTTLConfig(t *testing.T) {
 	if !jsonHas(rec.Body.Bytes(), `"ttl":{"anilistH":24,"tmdbH":24,"plexH":6}`) {
 		t.Errorf("default ttl info: %s", rec.Body)
 	}
-	if !jsonHas(rec.Body.Bytes(), `"scope":"anilist-search","count":1,`) || !jsonHas(rec.Body.Bytes(), `"ttlSec":86400,"stale":0`) {
-		t.Errorf("default anilist-search stat: %s", rec.Body)
+	// the per-scope numbers moved to the data store inventory
+	stats := doReq(mux, "GET", "/api/admin/data", "", adminC)
+	if !jsonHas(stats.Body.Bytes(), `"name":"cache:anilist-search"`) ||
+		!jsonHas(stats.Body.Bytes(), `"ttlSec":86400,"stale":0`) {
+		t.Errorf("default anilist-search stat: %s", stats.Body)
 	}
 
 	if rec := doReq(mux, "PUT", "/api/admin/ttl", `{"anilistH":1,"tmdbH":48,"plexH":12}`, adminC); rec.Code != http.StatusOK {
@@ -224,8 +227,9 @@ func TestAdminTTLConfig(t *testing.T) {
 		t.Errorf("ttl info after set: %s", rec.Body)
 	}
 	// effective TTL flows into the scope stat and the stale computation
-	if !jsonHas(rec.Body.Bytes(), `"ttlSec":3600,"stale":1`) {
-		t.Errorf("anilist-search stat with 1h ttl: %s", rec.Body)
+	stats = doReq(mux, "GET", "/api/admin/data", "", adminC)
+	if !jsonHas(stats.Body.Bytes(), `"ttlSec":3600,"stale":1`) {
+		t.Errorf("anilist-search stat with 1h ttl: %s", stats.Body)
 	}
 	// and into the entries listing
 	rec = doReq(mux, "GET", "/api/admin/cache/anilist-search/entries", "", adminC)

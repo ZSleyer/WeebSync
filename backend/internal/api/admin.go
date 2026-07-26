@@ -102,22 +102,9 @@ type adminMatchStat struct {
 	Manual    int    `json:"manual"`
 }
 
-// adminCacheStat is the per-scope cache summary this endpoint has always
-// carried. Superseded by /api/admin/data, which reports the same numbers for
-// every store rather than only the caches; kept until the UI has moved over.
-type adminCacheStat struct {
-	Scope  string `json:"scope"`
-	Count  int    `json:"count"`
-	Oldest string `json:"oldest"`
-	Newest string `json:"newest"`
-	TTLSec int    `json:"ttlSec"`
-	Stale  int    `json:"stale"` // rows older than the scope's TTL
-}
-
 type adminJobsResponse struct {
 	Running    []string         `json:"running"`
 	MatchQueue int              `json:"matchQueue"`
-	Caches     []adminCacheStat `json:"caches"`
 	TTL        adminTTLInfo     `json:"ttl"`
 	Plex       adminPlexInfo    `json:"plex"`
 	Anilist    adminAnilistInfo `json:"anilist"`
@@ -159,7 +146,7 @@ type adminWatchInfo struct {
 // handleAdminJobs reports the state of all background machinery.
 //
 // @Summary      Background jobs status
-// @Description  Reports the state of all background machinery: running jobs, match queue, cache stats, effective TTLs, Plex/AniList/index/watch info and per-server match stats (admin only). The full data store inventory lives in /api/admin/data.
+// @Description  Reports the state of all background machinery: running jobs, match queue, effective TTLs, Plex/AniList/index/watch info and per-server match stats (admin only). Cache and data store sizes live in /api/admin/data.
 // @Tags         Admin
 // @Produce      json
 // @Success      200  {object}  adminJobsResponse
@@ -171,7 +158,6 @@ type adminWatchInfo struct {
 func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	out := adminJobsResponse{
 		Running: []string{},
-		Caches:  []adminCacheStat{},
 		Index: adminIndexInfo{
 			TickSec:    int(crawlTick / time.Second),
 			RecheckSec: int(crawlRecheck / time.Second),
@@ -183,24 +169,6 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	out.Running = append(out.Running, running...)
 	out.MatchQueue = matchQueue
 
-	// the cache summary now reads off the registry rather than a second list of
-	// its own; /api/admin/data reports the same numbers for every store
-	for _, st := range dataStores {
-		if st.kind != kindCache {
-			continue
-		}
-		where, args := st.filter()
-		stat := adminCacheStat{
-			Scope:  strings.TrimPrefix(st.name, "cache:"),
-			TTLSec: int(s.scopeTTL(st) / time.Second),
-		}
-		s.DB.QueryRow(`SELECT COUNT(*), COALESCE(MIN(fetched_at),''), COALESCE(MAX(fetched_at),''),
-			COALESCE(SUM(datetime(fetched_at) <= datetime('now', ?)),0)
-			FROM anilist_cache WHERE `+where,
-			append([]any{fmt.Sprintf("-%d seconds", stat.TTLSec)}, args...)...).
-			Scan(&stat.Count, &stat.Oldest, &stat.Newest, &stat.Stale)
-		out.Caches = append(out.Caches, stat)
-	}
 	out.TTL = adminTTLInfo{
 		AnilistH: int(s.ttlSetting("ttl_anilist_h", 24*time.Hour) / time.Hour),
 		TmdbH:    int(s.ttlSetting("ttl_tmdb_h", 24*time.Hour) / time.Hour),
@@ -365,8 +333,8 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 
 // rematchAll is the sledgehammer: re-queue automatic matches on every server
 // plus the local filesystem (id 0). Used to force old matches onto the new
-// series structure when the self-healing sweep is too slow. Returns the total
-// queued.
+// series structure when the self-healing sweep is too slow, and by the data
+// reset to refill what it just emptied. Returns the total queued.
 func (s *Server) rematchAll(all bool) int {
 	var ids []int64
 	rows, err := s.DB.Query(`SELECT id FROM servers`)
@@ -412,9 +380,8 @@ type catalogMatch struct {
 	source   string
 }
 
-// automaticMatches reads the match rows selected by cond. Split out from
-// rematchServer because the data reset has to take its list before it empties
-// the table, not after.
+// automaticMatches reads the match rows selected by cond (which must never
+// include manual rows - those are nobody's to re-run).
 func (s *Server) automaticMatches(cond string, args ...any) []catalogMatch {
 	rows, err := s.DB.Query(`SELECT server_id, folder, source FROM catalog_matches WHERE `+cond, args...)
 	if err != nil {

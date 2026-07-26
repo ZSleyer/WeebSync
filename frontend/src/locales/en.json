@@ -616,7 +616,6 @@
       "newest": "newest",
       "ttl": "TTL",
       "flush": "Flush",
-      "confirmFlush": "Flush the \"{{scope}}\" cache? Entries are re-fetched on demand.",
       "rebuild": "Rebuild now",
       "rebuildSuggestions": "Rebuild suggestions",
       "accounts": "Linked AniList accounts: {{count}}",
@@ -657,20 +656,161 @@
       "batch": "Batch",
       "batchHint": "Folders per run",
       "zeroDefault": "0 = default",
-      "scopes": {
-        "anilist-search": "AniList search",
-        "anilist-media": "AniList media",
-        "anilist-relations": "AniList relations",
-        "anilist-userlist": "AniList watchlist",
-        "tmdb-search": "TMDB search",
-        "tmdb-media": "TMDB media",
-        "tmdb-collections": "TMDB collections",
-        "plex": "Plex library"
-      },
       "plex": "Plex cache",
       "rematchAllServers": "Rematch everything (all servers)",
       "rematchAllServersHint": "Re-queues every automatic match on all servers — uses many API requests.",
-      "confirmRematchAllServers": "Really re-queue every automatic match on ALL servers? This can take a while and use many API requests."
+      "confirmRematchAllServers": "Really re-queue every automatic match on ALL servers? This can take a while and use many API requests.",
+      "data": {
+        "title": "Data stores",
+        "hint": "Everything the app works out for itself and can rebuild at any time. Your servers, auto-syncs and downloads are deliberately not on this list.",
+        "rowCount": "{{n}} rows",
+        "rebuiltBy": "Rebuilt by",
+        "needs": "needs",
+        "confirmDelete": "Delete the \"{{store}}\" store? Whatever does not come back on its own is gone afterwards.",
+        "kind": {
+          "cache": "cache",
+          "derived": "derived",
+          "decision": "decision"
+        },
+        "rebuild": {
+          "onDemand": "on demand",
+          "index-crawl": "crawler",
+          "anime-ids": "daily list refresh",
+          "rematch-all": "Rematch everything",
+          "sweep": "background sweep",
+          "plex-sweep": "Plex pass of the sweep",
+          "watch-check": "next auto-sync check"
+        },
+        "reset": {
+          "button": "Rebuild everything",
+          "title": "Rebuild everything",
+          "intro": "Every derived data store is emptied in one go and worked out again afterwards. Use this when series are folded together wrongly or matched to the wrong title and fixing them one by one is no longer enough.",
+          "willDelete": "Will be deleted ({{count}} rows)",
+          "willKeep": "Will be kept",
+          "keepIndexWhy": "The file index is kept on purpose. Without it every server would have to be crawled from scratch before anything could be matched again. You can still delete it on its own.",
+          "willRun": "Runs afterwards",
+          "willRunWhat": "Every server and the local library is matched again, bypassing the caches. This takes a while and causes a lot of requests to AniList, TMDB and TVDB. Progress shows up under \"Active jobs\" at the top.",
+          "includeDecisions": "Delete my own decisions as well",
+          "includeDecisionsCost": "This throws away the matches you set by hand, the marks for which directories are searched at all, and every suggestion you dismissed. Nobody can restore those.",
+          "noBackup": "No backup is taken. Back the database up yourself first.",
+          "confirm": "Rebuild now",
+          "done": "{{n}} rows deleted.",
+          "doneQueued": "{{n}} folders are being matched again.",
+          "doneKept": "Left untouched: {{stores}}"
+        },
+        "stores": {
+          "cache": {
+            "anilist-search": {
+              "name": "AniList search",
+              "desc": "Answers to title searches on AniList."
+            },
+            "anilist-media": {
+              "name": "AniList media",
+              "desc": "Per-series details from AniList: title, format, episode count, cover."
+            },
+            "anilist-relations": {
+              "name": "AniList relations",
+              "desc": "How seasons, films and specials relate on AniList. The basis for bundling them."
+            },
+            "anilist-reviews": {
+              "name": "AniList reviews",
+              "desc": "Community reviews of individual series, as the detail view shows them. Includes what older format versions left behind."
+            },
+            "anilist-trending": {
+              "name": "AniList trending",
+              "desc": "The current AniList trending chart for the suggestions page."
+            },
+            "anilist-userlist": {
+              "name": "AniList watchlist",
+              "desc": "A copy of your AniList lists. Refreshes hourly anyway."
+            },
+            "tmdb-search": {
+              "name": "TMDB search",
+              "desc": "Answers to title searches on TMDB, for shows and films outside the anime catalogue."
+            },
+            "tmdb-media": {
+              "name": "TMDB media",
+              "desc": "Per-title details for shows and films from TMDB, plus translated titles and the episode count of each season."
+            },
+            "tmdb-collections": {
+              "name": "TMDB collections",
+              "desc": "Film collections on TMDB, so films that belong together show up as one series."
+            },
+            "tmdb-reviews": {
+              "name": "TMDB reviews",
+              "desc": "Reviews of shows and films from TMDB."
+            },
+            "tmdb-trending": {
+              "name": "TMDB trending",
+              "desc": "The current TMDB trending charts for shows and films."
+            },
+            "tmdb-userlist": {
+              "name": "TMDB watchlist",
+              "desc": "A copy of your TMDB watchlist. Refreshes hourly anyway."
+            },
+            "tvdb": {
+              "name": "TVDB data",
+              "desc": "Everything that comes from TVDB: series, translated titles and the episode lists the season mapping is built from."
+            },
+            "plex": {
+              "name": "Plex library",
+              "desc": "A copy of your Plex library plus the precomputed suggestions. Rebuilding takes a few minutes on a large library."
+            },
+            "langprobe": {
+              "name": "Language detection",
+              "desc": "The real audio and subtitle languages, read out of the file header. The most expensive store on this page: filling it pulls several megabytes off the server per file and analyses them, which is why it is kept for a month."
+            },
+            "suggestions": {
+              "name": "Suggestions page",
+              "desc": "The fully assembled suggestions page per user, so it is there the moment you open it. The background sweep rebuilds it within half an hour."
+            },
+            "other": {
+              "name": "Remaining cache entries",
+              "desc": "Everything in the cache that none of the stores above claims. The net: a new kind of answer lands here instead of sitting around unnoticed. If it stays filled, a row of its own is missing above."
+            }
+          },
+          "remote-index": {
+            "name": "Server file index",
+            "desc": "A picture of the directories on every configured server. Nothing can be matched without it, and depending on the server the crawler needs hours to read it all back in."
+          },
+          "anime-ids": {
+            "name": "Anime id mapping",
+            "desc": "The public list that links the AniList, TVDB, TMDB and IMDb ids of the same series. Downloaded once a day."
+          },
+          "season-maps": {
+            "name": "Season mappings",
+            "desc": "Turns running episode numbers into season and episode, which cannot be computed for endless shows. Fetched again per series the next time a file is filed."
+          },
+          "catalog-matches": {
+            "name": "Automatic matches",
+            "desc": "Which folder belongs to which series, as far as the app decided that itself. Your own corrections are kept separately and are not touched. Working these out again costs a lot of provider requests."
+          },
+          "series": {
+            "name": "Series identity",
+            "desc": "The identity of a series folded together across providers and servers, with season titles and translations. This is where a series that was merged wrongly stays wrong. Rebuilt from the matches."
+          },
+          "catalog-variants": {
+            "name": "Quality details",
+            "desc": "Resolution plus audio and subtitle languages per folder, the basis of the upgrade suggestions. Recomputed gradually in the background."
+          },
+          "plex-reconciled": {
+            "name": "Plex reconciliation",
+            "desc": "A note of which folders have already been reconciled with Plex. Deleting it means going through all of them again, with as many Plex requests."
+          },
+          "pending-episodes": {
+            "name": "Waiting episodes",
+            "desc": "Files already downloaded whose episode number the provider did not know yet. Deleting also forgets that the file was fetched, so the next check downloads it again."
+          },
+          "catalog-decisions": {
+            "name": "Your own matches",
+            "desc": "The matches you set by hand and the marks for which directories are searched at all. None of this can be restored automatically."
+          },
+          "suggestion-dismissals": {
+            "name": "Dismissed suggestions",
+            "desc": "Suggestions and upgrades you clicked away. They come back once this is deleted."
+          }
+        }
+      }
     },
     "rolesManagedByOidc": "Admin roles are managed by your OIDC provider and cannot be changed here.",
     "apiTokenTitle": "API token",
