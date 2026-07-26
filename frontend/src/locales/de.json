@@ -868,7 +868,13 @@
     "statusCOMPLETED": "abgeschlossen",
     "syncOnce": "Einmal synchronisieren",
     "chooseVersion": "Version wählen",
-    "chosenVersion": "Gewählt"
+    "chosenVersion": "Gewählt",
+    "basis": "Grundlage: {{axes}}",
+    "basisQuality": "Qualität {{how}}",
+    "basisMeasured": "aus der Datei gemessen",
+    "basisGuessed": "aus dem Dateinamen gelesen",
+    "basisNoAxis": "kein messbarer Gewinn",
+    "basisLangSkipped": "Die beiden Seiten sind unterschiedlich ermittelt, deshalb bleiben die Sprachen außen vor."
   },
   "legacy": {
     "title": "Import aus dem alten weebsync",
