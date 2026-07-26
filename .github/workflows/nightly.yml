@@ -1,8 +1,9 @@
 name: nightly
 
 # Nightly image of the latest main, plus on-demand via the Actions "Run
-# workflow" button. Replaces the old per-push :dev image so the HA add-on (which
-# tracks :nightly) updates at most once a day instead of on every push.
+# workflow" button. Runs alongside the per-push :dev image in ci.yml: :dev is
+# the fast lane the add-on follows while a change is being worked on, :nightly
+# the slow one for anyone who wants at most one update a day.
 on:
   schedule:
     - cron: "0 3 * * *"
@@ -80,7 +81,10 @@ jobs:
         with:
           packages: weebsync
           keep-n-tagged: 3
-          exclude-tags: "nightly,latest,v*"
+          # :dev is a live channel like :nightly - the add-on follows it, so it
+          # must survive the prune. Its per-commit dev-<sha> tags are exactly
+          # what should be swept up, which is why only the bare tag is excluded.
+          exclude-tags: "nightly,dev,latest,v*"
           delete-untagged: true
           delete-ghost-images: true
           delete-partial-images: true
