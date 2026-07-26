@@ -170,6 +170,34 @@ func TestSmartDue(t *testing.T) {
 	}
 }
 
+func TestNextCheckAt(t *testing.T) {
+	now := time.Now().UTC()
+	last := now.Add(-10 * time.Minute)
+	stamp := last.Format("2006-01-02 15:04:05")
+	// the stamp has second precision, so compare against the truncated value
+	lastSec := last.Truncate(time.Second)
+	cases := []struct {
+		name      string
+		lastCheck string
+		waiting   bool
+		airingAt  int64
+		want      int64
+	}{
+		{"not waiting: one interval after the last check", stamp, false, 0, lastSec.Add(30 * time.Minute).Unix()},
+		{"not waiting: an airing slot does not move it", stamp, false, now.Add(2 * time.Hour).Unix(), lastSec.Add(30 * time.Minute).Unix()},
+		{"waiting: skips ahead to the airing slot", stamp, true, now.Add(2 * time.Hour).Unix(), now.Add(2 * time.Hour).Unix()},
+		{"waiting: an airing already past keeps the interval", stamp, true, now.Add(-2 * time.Hour).Unix(), lastSec.Add(30 * time.Minute).Unix()},
+		{"waiting: a far airing is capped by the stale re-check", stamp, true, now.Add(200 * time.Hour).Unix(), lastSec.Add(staleRecheck).Unix()},
+		{"waiting without an airing (finished title): stale re-check", stamp, true, 0, lastSec.Add(staleRecheck).Unix()},
+		{"never checked: overdue now", "", false, 0, now.Unix()},
+	}
+	for _, c := range cases {
+		if got := nextCheckAt(c.lastCheck, 30*time.Minute, c.waiting, c.airingAt, now); got != c.want {
+			t.Errorf("%s: got %d, want %d (%+d s)", c.name, got, c.want, got-c.want)
+		}
+	}
+}
+
 func TestWatchNameFn(t *testing.T) {
 	var srv Server // aired mapping off → resolver/DB never touched
 	fn := srv.watchNameFn(Watch{Mode: "template", Template: "{title} - S{season:02}E{episode:02}", TitleOverride: "My Show"})

@@ -1392,6 +1392,10 @@
                         "description": "unix seconds of its release",
                         "type": "integer"
                     },
+                    "nextCheck": {
+                        "description": "unix seconds of the next scheduled check, mirroring WatchLoop's due rule",
+                        "type": "integer"
+                    },
                     "nextEpisode": {
                         "description": "upcoming episode number (offset-adjusted, local numbering)",
                         "type": "integer"
