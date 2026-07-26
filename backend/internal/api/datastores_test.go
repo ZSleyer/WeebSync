@@ -1,12 +1,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
 )
@@ -581,5 +583,39 @@ func TestDataResetRequeues(t *testing.T) {
 	}
 	if n := count(t, s, `SELECT COUNT(*) FROM catalog_matches WHERE manual = 1`); n != 1 {
 		t.Errorf("manual match after reset: got %d, want 1", n)
+	}
+}
+
+// TestDataResetWaitsForWriter is the regression for the "db error" a reset gave
+// on a busy instance: the pool's busy_timeout is 5 s, the sweep and the
+// anime-ids refresh write in transactions that can outlast it, and BEGIN
+// IMMEDIATE then failed with SQLITE_BUSY instead of waiting its turn.
+func TestDataResetWaitsForWriter(t *testing.T) {
+	mux, s, adminC, _ := setupAdminTest(t)
+	s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'dev', 'sftp', 'example.com', 22, 'u', X'', '/r')`)
+	seedDerived(t, s)
+
+	ctx := context.Background()
+	hold, err := s.DB.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hold.Close()
+	if _, err := hold.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		t.Fatal(err)
+	}
+	// longer than the pool's 5 s, short enough to stay a test
+	go func() {
+		time.Sleep(6 * time.Second)
+		hold.ExecContext(ctx, "ROLLBACK")
+	}()
+
+	rec := doReq(mux, "POST", "/api/admin/data/reset", `{"requeue":false}`, adminC)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reset behind a slow writer: %d %s", rec.Code, rec.Body)
+	}
+	if n := count(t, s, `SELECT COUNT(*) FROM anilist_cache`); n != 0 {
+		t.Errorf("anilist_cache after reset: got %d, want 0", n)
 	}
 }
