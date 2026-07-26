@@ -125,6 +125,7 @@ func TestSmartDue(t *testing.T) {
 		}{AiringAt: at.Unix(), Episode: ep}
 		return m
 	}
+	finished := func(eps int) *anilist.Media { return &anilist.Media{Status: "FINISHED", Episodes: eps} }
 	cases := []struct {
 		name        string
 		intervalDue bool
@@ -156,9 +157,14 @@ func TestSmartDue(t *testing.T) {
 		{"lang backlog, aired mid-wait: check", true, airing(1172, now.Add(2*time.Hour)), 148, 0, 0, 1, true, true},
 		{"lang backlog, caught up before release: check", true, airing(5, now.Add(2*time.Hour)), 4, 0, 0, 2, false, true},
 		{"lang backlog, interval not reached: still wait", false, airing(5, now.Add(2*time.Hour)), 4, 0, 0, 2, false, false},
+		// finished title, nothing left to air: only the 12h stale re-check looks
+		// for upgrades, so the plain interval is skipped
+		{"finished and fully local: wait", true, finished(12), 12, 0, 0, 0, false, false},
+		{"finished, episode missing: check", true, finished(12), 11, 0, 0, 0, false, true},
+		{"finished and fully local, lang backlog: check", true, finished(12), 12, 0, 0, 1, false, true},
 	}
 	for _, c := range cases {
-		if got := smartDue(c.intervalDue, c.media, c.have, c.offset, c.fromEpisode, c.filtered, c.aired, now); got != c.want {
+		if got := smartDue(c.intervalDue, c.media, c.have, c.offset, c.fromEpisode, c.filtered, c.aired, watchComplete(c.media, c.have), now); got != c.want {
 			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
 		}
 	}

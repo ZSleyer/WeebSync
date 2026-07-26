@@ -180,7 +180,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 					minEp = 0
 				}
 				have := s.countVideos(local, minEp)
-				if stale || smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.filtered, c.aired, now) {
+				if stale || smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.filtered, c.aired, watchComplete(media, have), now) {
 					slog.Debug("watch due", "id", c.id, "stale", stale,
 						"have", have, "fromEpisode", c.fromEpisode, "aired", c.aired, "filtered", c.filtered)
 					s.runWatch(c.id)
@@ -214,6 +214,13 @@ func watchOffset(template string) int {
 // event, so a waiting watch would otherwise never see them.
 const staleRecheck = 12 * time.Hour
 
+// watchComplete reports a finished title whose episodes are all local. haveEps
+// is already scoped to this part (from_episode), so it compares directly
+// against the linked entry's episode count.
+func watchComplete(media *anilist.Media, haveEps int) bool {
+	return media != nil && media.Status == "FINISHED" && media.Episodes > 0 && haveEps >= media.Episodes
+}
+
 // smartDue decides whether a watch should check now. Without an AniList
 // airing schedule the plain interval rule applies. With one, a watch that
 // already holds every aired episode stays idle until the next episode's
@@ -227,7 +234,7 @@ const staleRecheck = 12 * time.Hour
 // the watch must keep scanning on the plain interval; the aired branch would
 // otherwise go back to sleep as soon as NextAiring rolls to the following
 // episode, missing the late release entirely.
-func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset, fromEpisode, filtered int, aired bool, now time.Time) bool {
+func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset, fromEpisode, filtered int, aired, complete bool, now time.Time) bool {
 	if !intervalDue {
 		return false
 	}
@@ -235,7 +242,10 @@ func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset, fromEpiso
 		return true
 	}
 	if media == nil || media.NextAiring == nil {
-		return true
+		// no schedule at all: keep the plain interval, we cannot know better.
+		// A finished title that is fully local is the exception - nothing new
+		// can air, so only the 12h stale re-check has to look for upgrades.
+		return !complete
 	}
 	if aired {
 		// endless aired-mapping watch: the local file count spans many seasons
@@ -887,10 +897,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
 		offset := watchOffset(it.Template)
 		it.Offset = offset
-		// LocalFiles is already scoped to this part (from_episode), so it
-		// compares directly against the linked entry's episode count.
-		it.Complete = it.Media != nil && it.Media.Status == "FINISHED" && it.Media.Episodes > 0 &&
-			it.LocalFiles >= it.Media.Episodes && it.Active == 0
+		it.Complete = watchComplete(it.Media, it.LocalFiles) && it.Active == 0
 		if it.Media != nil {
 			it.MediaID = it.Media.ID
 			it.SeenEpisodes = progress[it.Media.ID]
@@ -905,7 +912,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 				it.NextEpisodeAbs = it.Media.NextAiring.Episode // show absolute in parens
 			}
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
-			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, it.LangWaiting, it.AiredMapping, time.Now())
+			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, it.LangWaiting, it.AiredMapping, watchComplete(it.Media, it.LocalFiles), time.Now())
 			// aired per AniList but not yet local - the source release can lag
 			// the original broadcast; auto-sync keeps checking and grabs them
 			start := it.FromEpisode
