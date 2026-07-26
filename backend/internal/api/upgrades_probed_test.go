@@ -28,22 +28,36 @@ func TestImprovements(t *testing.T) {
 		return UpgradeVariant{ResRank: res, Dub: dub, Sub: sub}
 	}
 	cases := []struct {
-		name             string
-		cur, top         UpgradeVariant
-		dims             UpgradeDims
-		wRes, wSub, wDub bool
+		name                     string
+		cur, top                 UpgradeVariant
+		dims                     UpgradeDims
+		wRes, wSub, wDub, wUnver bool
 	}{
 		{
-			name: "guessed name beats a measured container: not provable",
+			// the case this app's watch rules live on: a dub arriving late on
+			// the server. It is reported, and marked as unconfirmed.
+			name: "guessed name against a measured container: reported, unverified",
 			cur:  measured(1080, nil, []string{"Ger"}),
 			top:  guessed(1080, []string{"Ger", "Jap"}, []string{"Eng", "Ger"}),
-			dims: all,
+			dims: all, wSub: true, wDub: true, wUnver: true,
 		},
 		{
 			name: "both guessed: the language sets mean the same thing",
 			cur:  guessed(1080, nil, []string{"Ger"}),
 			top:  guessed(1080, nil, []string{"Eng", "Ger"}),
 			dims: all, wSub: true,
+		},
+		{
+			name: "both measured: a language gain is evidence, not a claim",
+			cur:  measured(1080, []string{"Jap"}, nil),
+			top:  measured(1080, []string{"Ger", "Jap"}, nil),
+			dims: all, wDub: true,
+		},
+		{
+			name: "no language gain: mixed sources alone mark nothing",
+			cur:  measured(1080, nil, []string{"Ger"}),
+			top:  guessed(2160, nil, []string{"Ger"}),
+			dims: all, wRes: true,
 		},
 		{
 			name: "padded 1088 against a round 1080 is no step",
@@ -53,8 +67,8 @@ func TestImprovements(t *testing.T) {
 		},
 		{
 			name: "a real step still counts, whatever the sources",
-			cur:  measured(1088, nil, []string{"Ger"}),
-			top:  guessed(2160, nil, []string{"Eng", "Ger"}),
+			cur:  measured(1088, nil, nil),
+			top:  guessed(2160, nil, nil),
 			dims: all, wRes: true,
 		},
 		{
@@ -63,22 +77,31 @@ func TestImprovements(t *testing.T) {
 			top:  measured(2160, nil, nil),
 			dims: UpgradeDims{Sub: true, Dub: true},
 		},
+		{
+			// the mark follows the axes the user actually asked for: with the
+			// language axes off there is no finding left to qualify
+			name: "language axes off: nothing to mark",
+			cur:  measured(1080, nil, []string{"Ger"}),
+			top:  guessed(1080, nil, []string{"Eng", "Ger"}),
+			dims: UpgradeDims{Res: true},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			res, sub, dub := improvements(c.dims, c.cur, c.top, "tvdb:1", 1)
-			if res != c.wRes || sub != c.wSub || dub != c.wDub {
-				t.Errorf("improvements = res:%v sub:%v dub:%v, want res:%v sub:%v dub:%v",
-					res, sub, dub, c.wRes, c.wSub, c.wDub)
+			res, sub, dub, unver := improvements(c.dims, c.cur, c.top, "tvdb:1", 1)
+			if res != c.wRes || sub != c.wSub || dub != c.wDub || unver != c.wUnver {
+				t.Errorf("improvements = res:%v sub:%v dub:%v unverified:%v, want res:%v sub:%v dub:%v unverified:%v",
+					res, sub, dub, unver, c.wRes, c.wSub, c.wDub, c.wUnver)
 			}
 		})
 	}
 }
 
 // A measured local copy against a remote one whose quality is read off its file
-// names: the language difference is an artefact of the two methods, so nothing
-// is suggested until the resolution really steps up.
-func TestBuildUpgradesIgnoresGuessedLanguageGain(t *testing.T) {
+// names. The dub the server has and the library appears to lack is exactly what
+// this app's watch rules are built around, so it is reported - and marked as
+// something the two sides cannot confirm between them.
+func TestBuildUpgradesMarksUnverifiableLanguageGain(t *testing.T) {
 	s, _ := sizeTestServer(t)
 	// ffprobe read the container: 1088 lines, one audio track without a
 	// language tag (dropped as "und"), German subtitles
@@ -88,25 +111,43 @@ func TestBuildUpgradesIgnoresGuessedLanguageGain(t *testing.T) {
 	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, probed)
 		VALUES (1, '/seed/Show [1080p][GerEngSub][GerJapDub]', 1080, 'Ger,Jap', 'Eng,Ger', 'tvdb:9', 1, 0)`)
 
-	if got := s.buildUpgrades(1); len(got) != 0 {
-		t.Fatalf("guessed language gain suggested as an upgrade: %+v", got[0])
-	}
-
-	// a real resolution step is still reported - and only on that axis
-	s.DB.Exec(`UPDATE catalog_variants SET res_rank = 2160 WHERE server_id = 1`)
 	got := s.buildUpgrades(1)
 	if len(got) != 1 {
-		t.Fatalf("want 1 suggestion for the 4K copy, got %d", len(got))
+		t.Fatalf("want the language suggestion, got %d", len(got))
 	}
-	if !got[0].ImprovesRes {
-		t.Error("the resolution step should be reported")
+	if !got[0].ImprovesSub || !got[0].ImprovesDub {
+		t.Errorf("both language axes should be reported: sub=%v dub=%v", got[0].ImprovesSub, got[0].ImprovesDub)
 	}
-	if got[0].ImprovesSub || got[0].ImprovesDub {
-		t.Errorf("language axes must stay off: sub=%v dub=%v", got[0].ImprovesSub, got[0].ImprovesDub)
+	if got[0].ImprovesRes {
+		t.Error("a padded 1088 is not beaten by a round 1080")
+	}
+	if !got[0].LanguageUnverified {
+		t.Error("a measured local copy against a name-derived remote one is not confirmable")
 	}
 	if !got[0].From.Probed || got[0].To.Probed {
 		t.Errorf("the card must carry how each side was established: from=%v to=%v",
 			got[0].From.Probed, got[0].To.Probed)
+	}
+}
+
+// Same shape, but both sides established the same way: the language gain is
+// evidence and carries no mark.
+func TestBuildUpgradesLeavesASettledLanguageGainUnmarked(t *testing.T) {
+	s, _ := sizeTestServer(t)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, probed)
+		VALUES (0, '/lib/Show/Season 01', 1080, 'Jap', 'Ger', 'tvdb:11', 1, 0)`)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, probed)
+		VALUES (1, '/seed/Show [GerJapDub]', 1080, 'Ger,Jap', 'Ger', 'tvdb:11', 1, 0)`)
+
+	got := s.buildUpgrades(1)
+	if len(got) != 1 {
+		t.Fatalf("want the dub suggestion, got %d", len(got))
+	}
+	if !got[0].ImprovesDub {
+		t.Error("the added dub language should be reported")
+	}
+	if got[0].LanguageUnverified {
+		t.Error("both sides were established the same way, so nothing is unconfirmed")
 	}
 }
 

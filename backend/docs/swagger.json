@@ -1215,6 +1215,10 @@
                         "description": "dismiss key: unit:{showKey}:{season}",
                         "type": "string"
                     },
+                    "languageUnverified": {
+                        "description": "LanguageUnverified: the sub/dub gain above is claimed by one side's file\nnames against the other side's measured container, so it cannot be\nconfirmed from here - the local copy may already carry the track without\na language tag. The finding stands, the card says it is unconfirmed.",
+                        "type": "boolean"
+                    },
                     "library": {
                         "description": "Plex library title (informational)",
                         "type": "string"

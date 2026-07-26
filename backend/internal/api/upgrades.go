@@ -134,40 +134,44 @@ func resTier(h int) int {
 	}
 }
 
-// improvements decides which axes a remote copy actually wins, and says in the
-// log why it discarded the ones it did not count.
+// improvements decides which axes a remote copy wins, and how far each verdict
+// can be trusted. unverified marks a language gain the two sides cannot settle
+// between them: it is reported, not dropped.
 //
-// The language axes carry a condition the resolution axis does not: both sides
-// must have been established the same way. A measured local copy against a
-// guessed remote one - the normal case - cannot produce evidence of a language
-// gain in either direction. A release named "GerEngSub" claims languages the
-// container need not carry, and ffprobe drops an audio track that ships without
-// a language tag ("und") from the local set, so the "missing" language is just
-// as likely to be sitting on the disk already. Unprovable is not an upgrade.
+// The language axes are the weak ones. A measured local copy against a remote
+// one read off its file names produces differences that belong to the two
+// methods rather than to the files: a release named "GerEngSub" claims tracks
+// the container need not carry, and ffprobe reports an untagged audio track as
+// "und", which drops it out of the local set although it is sitting on the disk.
 //
-// Resolution stays comparable across the two methods: a name and a container
-// mean the same picture height, so folding both onto a tier is enough.
-func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, season int) (res, sub, dub bool) {
-	discard := func(axis, reason string) {
-		slog.Debug("upgrade axis discarded", "showKey", showKey, "season", season,
-			"axis", axis, "reason", reason,
-			"localProbed", cur.Probed, "remoteProbed", top.Probed,
-			"fromRes", cur.ResRank, "toRes", top.ResRank)
-	}
+// That is a reason to qualify the finding, not to suppress it. Remote copies are
+// ALWAYS name-derived and local ones almost always measured, so a rule that
+// wants both sides established the same way switches the language axes off
+// permanently - including every real "the server has a German dub you do not
+// have", which is the case this app's watch rules are built around
+// (want_dub/want_sub, langWaiting, the late-arriving dub in smartDue). Losing
+// those costs far more than the noise it saves. The caller marks the suggestion
+// and lets the person reading the card decide.
+//
+// Resolution needs no such caveat: a name and a container mean the same picture
+// height, so folding both onto a tier is enough.
+func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, season int) (res, sub, dub, unverified bool) {
 	res = dims.Res && resTier(top.ResRank) > resTier(cur.ResRank)
 	if dims.Res && !res && top.ResRank > cur.ResRank {
-		discard("res", "both copies are the same resolution tier")
+		slog.Debug("upgrade axis discarded", "showKey", showKey, "season", season,
+			"axis", "res", "reason", "both copies are the same resolution tier",
+			"fromRes", cur.ResRank, "toRes", top.ResRank)
 	}
-	sameSource := cur.Probed == top.Probed
-	sub = dims.Sub && sameSource && strictSuperset(top.Sub, cur.Sub)
-	if dims.Sub && !sub && !sameSource && strictSuperset(top.Sub, cur.Sub) {
-		discard("sub", "one side is measured and the other guessed from the file names")
+	sub = dims.Sub && strictSuperset(top.Sub, cur.Sub)
+	dub = dims.Dub && strictSuperset(top.Dub, cur.Dub)
+	unverified = (sub || dub) && cur.Probed != top.Probed
+	if unverified {
+		slog.Debug("upgrade language gain unverified", "showKey", showKey, "season", season,
+			"sub", sub, "dub", dub,
+			"reason", "one side is measured and the other guessed from the file names",
+			"localProbed", cur.Probed, "remoteProbed", top.Probed)
 	}
-	dub = dims.Dub && sameSource && strictSuperset(top.Dub, cur.Dub)
-	if dims.Dub && !dub && !sameSource && strictSuperset(top.Dub, cur.Dub) {
-		discard("dub", "one side is measured and the other guessed from the file names")
-	}
-	return res, sub, dub
+	return res, sub, dub, unverified
 }
 
 // alreadyHave reports whether the library already holds, byte for byte, every
@@ -404,22 +408,27 @@ type UpgradeSuggestion struct {
 	ImprovesRes bool             `json:"improvesRes"`
 	ImprovesSub bool             `json:"improvesSub"`
 	ImprovesDub bool             `json:"improvesDub"`
-	Providers   []string         `json:"providers"`
-	Links       ProviderLinks    `json:"links"`
-	Cover       string           `json:"cover,omitempty"`
-	Format      string           `json:"format,omitempty"` // MOVIE | TV | OVA ...
-	Episodes    int              `json:"episodes,omitempty"`
-	Category    string           `json:"category"`          // anime-movie | anime-tv | movie | tv, for grouping
-	Library     string           `json:"library,omitempty"` // Plex library title (informational)
-	Sync        SyncPlan         `json:"sync"`              // where a one-off sync writes (into the existing local season/movie folder)
+	// LanguageUnverified: the sub/dub gain above is claimed by one side's file
+	// names against the other side's measured container, so it cannot be
+	// confirmed from here - the local copy may already carry the track without
+	// a language tag. The finding stands, the card says it is unconfirmed.
+	LanguageUnverified bool          `json:"languageUnverified,omitempty"`
+	Providers          []string      `json:"providers"`
+	Links              ProviderLinks `json:"links"`
+	Cover              string        `json:"cover,omitempty"`
+	Format             string        `json:"format,omitempty"` // MOVIE | TV | OVA ...
+	Episodes           int           `json:"episodes,omitempty"`
+	Category           string        `json:"category"`          // anime-movie | anime-tv | movie | tv, for grouping
+	Library            string        `json:"library,omitempty"` // Plex library title (informational)
+	Sync               SyncPlan      `json:"sync"`              // where a one-off sync writes (into the existing local season/movie folder)
 	// every season of this show the library already has, this one included
 	LocalSeasons []LocalSeason `json:"localSeasons,omitempty"`
 }
 
 // handleUpgrades lists, per series, every copy that a sibling copy beats on one
 // of the user's enabled axes (a higher resolution tier, or a strict superset of
-// the sub/dub languages established the same way). Read-time over
-// catalog_variants; nothing is stored.
+// the sub/dub languages - flagged languageUnverified when the two sides were
+// established differently). Read-time over catalog_variants; nothing is stored.
 //
 //	@Summary		Upgrade suggestions
 //	@Description	Better-quality copies (resolution / more sub or dub) of series already present.
@@ -468,7 +477,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 				"folder", logSafe(cur.Folder), "reason", "local copy has no quality to compare against")
 			continue
 		}
-		impRes, impSub, impDub := improvements(dims, cur, top, u.showKey, u.season)
+		impRes, impSub, impDub, langUnverified := improvements(dims, cur, top, u.showKey, u.season)
 		if !impRes && !impSub && !impDub {
 			continue
 		}
@@ -490,7 +499,8 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			Key: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
 			Title: unitTitle(e.title, e.exact, top.Folder), From: cur, To: top, Options: u.remotes,
 			ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub,
-			Providers: e.providers, Links: e.links,
+			LanguageUnverified: langUnverified,
+			Providers:          e.providers, Links: e.links,
 			Cover: e.cover, Format: e.format, Episodes: e.episodes,
 			Category: categorize(e.providers, catMedia, "", e.kind),
 			Library:  s.plexLibraryOf(cur.Folder),
@@ -500,7 +510,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		}
 		// a better remote copy exists for a season you own: which axis wins
 		slog.Debug("upgrade found", "showKey", u.showKey, "season", u.season,
-			"res", impRes, "sub", impSub, "dub", impDub,
+			"res", impRes, "sub", impSub, "dub", impDub, "langUnverified", langUnverified,
 			"fromRes", cur.ResRank, "toRes", top.ResRank,
 			"localProbed", cur.Probed, "remoteProbed", top.Probed)
 		out = append(out, up)

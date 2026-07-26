@@ -874,7 +874,8 @@
     "basisMeasured": "measured from the file",
     "basisGuessed": "read from the file name",
     "basisNoAxis": "no measurable gain",
-    "basisLangSkipped": "The two sides were established differently, so the languages are left out."
+    "langUnverified": "languages unconfirmed",
+    "basisLangUnverified": "The language gain comes from the source's file name and is unconfirmed: your local copy may already carry the track, just without a language tag."
   },
   "legacy": {
     "title": "Import from the old weebsync",

@@ -584,10 +584,16 @@ function resTier(h: number): number {
 const addedLangs = (a: string[], b: string[]) => (b ?? []).filter((x) => !(a ?? []).includes(x))
 
 // sameSource: were both copies' qualities established the same way? A measured
-// local copy against a name-parsed remote one cannot prove a language gain in
-// either direction, so the comparison drops those axes - exactly as the backend
-// does, or the card would promise what the list does not deliver.
+// local copy against a name-parsed remote one cannot settle a language
+// difference between them - the name may promise a track the container does not
+// carry, and an untagged local track drops out of the measured set although it
+// is there. The gain is still shown; it is shown as unconfirmed.
 const sameSource = (a: QualitySource, b: QualitySource) => !!a.probed === !!b.probed
+
+// langGain: does v add a sub or dub language on an axis the user asked for?
+const langGain = (from: QualitySource, v: QualitySource, dims: UpgradeDims | undefined) =>
+  ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length > 0) ||
+  ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length > 0)
 
 // variantDiff spells out what v would improve over the local copy on the
 // user's enabled axes: resolution step and added dub/sub languages. Empty
@@ -602,7 +608,6 @@ function variantDiff(
   if ((dims?.res ?? true) && resTier(v.resRank) > resTier(from.resRank)) {
     out.push(`${fmtRes(from.resRank)} → ${fmtRes(v.resRank)}`)
   }
-  if (!sameSource(from, v)) return out
   if (dims?.dub ?? true) {
     const d = addedLangs(from.dub, v.dub)
     if (d.length) out.push(`${t('suggestions.upDub')} +${d.join(',')}`)
@@ -630,10 +635,8 @@ function axesWon(
 ): string {
   const out: string[] = []
   if ((dims?.res ?? true) && resTier(v.resRank) > resTier(from.resRank)) out.push(t('suggestions.axis_res'))
-  if (sameSource(from, v)) {
-    if ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length) out.push(t('suggestions.axis_sub'))
-    if ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length) out.push(t('suggestions.axis_dub'))
-  }
+  if ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length) out.push(t('suggestions.axis_sub'))
+  if ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length) out.push(t('suggestions.axis_dub'))
   return out.length ? out.join(', ') : t('suggestions.basisNoAxis')
 }
 
@@ -759,6 +762,11 @@ function UpgradesSection() {
           const chosen: QualitySource = choice[u.key] ?? u.to
           const isChosen = (v: UpgradeVariant) => v.serverId === chosen.serverId && v.folder === chosen.folder
           const options: QualitySource[] = u.options ?? []
+          // a language gain the two copies cannot settle between them: shown,
+          // and shown as unconfirmed. Recomputed rather than read off
+          // u.languageUnverified, because the user may have picked another
+          // option than the recommended one.
+          const langUnconfirmed = !sameSource(u.from, chosen) && langGain(u.from, chosen, dims)
           const syncInfo = [
             t('watch.infoSource', { server: chosen.serverName || t('suggestions.localPlex'), quality: variantQuality(chosen) }),
             t('watch.infoLocal', { quality: variantQuality(u.from) }),
@@ -778,6 +786,7 @@ function UpgradesSection() {
                         {d}
                       </Badge>
                     ))}
+                    {langUnconfirmed && <Badge tone="warn">{t('suggestions.langUnverified')}</Badge>}
                   </div>
                 </div>
                 <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -807,7 +816,7 @@ function UpgradesSection() {
                 </div>
                 <p className="mt-2 text-[11px] text-t-secondary">
                   {t('suggestions.basis', { axes: axesWon(u.from, chosen, dims, t) })}
-                  {!sameSource(u.from, chosen) && ` ${t('suggestions.basisLangSkipped')}`}
+                  {langUnconfirmed && ` ${t('suggestions.basisLangUnverified')}`}
                 </p>
                 {options.length > 0 && (
                   <fieldset className="mt-2 min-w-0 border-0 p-0">
