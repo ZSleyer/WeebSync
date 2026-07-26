@@ -57,6 +57,7 @@ type Watch struct {
 	PlexSubLang     string `json:"plexSubLang"`     // after sync, select this subtitle language in Plex; "" = don't touch
 	IntervalMin     int    `json:"intervalMin"`     // global setting, echoed for the UI
 	LastCheck       string `json:"lastCheck"`
+	NextCheck       int64  `json:"nextCheck"`     // unix seconds of the next scheduled check, mirroring WatchLoop's due rule
 	LastResult      string `json:"lastResult"`    // error text of the last check, "" on success
 	LastQueued      int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
 	LastUploading   int    `json:"lastUploading"` // files still uploading remotely at the last check
@@ -213,6 +214,30 @@ func watchOffset(template string) int {
 // files, better encodes) of already-synced episodes appear without any airing
 // event, so a waiting watch would otherwise never see them.
 const staleRecheck = 12 * time.Hour
+
+// nextCheckAt is when WatchLoop will look at this watch again: one interval
+// after the last check, unless the watch is waiting. A waiting watch skips the
+// interval entirely, so what ends the wait decides - its next airing slot, or,
+// when the title has no schedule left at all (finished and fully local),
+// nothing but the staleRecheck scan for upgrades of already-synced episodes.
+// An unparseable or empty last_check means the watch is overdue right now.
+func nextCheckAt(lastCheck string, interval time.Duration, waiting bool, airingAt int64, now time.Time) int64 {
+	last, err := time.Parse("2006-01-02 15:04:05", lastCheck)
+	if err != nil {
+		return now.Unix()
+	}
+	at := last.Add(interval)
+	if waiting {
+		at = last.Add(staleRecheck)
+		if slot := time.Unix(airingAt, 0); airingAt > 0 && slot.Before(at) {
+			at = slot
+			if lo := last.Add(interval); at.Before(lo) {
+				at = lo // the release is out, but the interval still has to be due
+			}
+		}
+	}
+	return at.Unix()
+}
 
 // watchComplete reports a finished title whose episodes are all local. haveEps
 // is already scoped to this part (from_episode), so it compares directly
@@ -912,7 +937,6 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 				it.NextEpisodeAbs = it.Media.NextAiring.Episode // show absolute in parens
 			}
 			it.NextAiringAt = it.Media.NextAiring.AiringAt
-			it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, it.LangWaiting, it.AiredMapping, watchComplete(it.Media, it.LocalFiles), time.Now())
 			// aired per AniList but not yet local - the source release can lag
 			// the original broadcast; auto-sync keeps checking and grabs them
 			start := it.FromEpisode
@@ -926,12 +950,16 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 				it.Behind = aired - it.LocalFiles
 			}
 		}
+		// outside the airing branch: a watch also waits when its title is
+		// finished and fully local, and that one has no NextAiring at all
+		now := time.Now()
+		it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, it.LangWaiting, it.AiredMapping, watchComplete(it.Media, it.LocalFiles), now)
+		it.NextCheck = nextCheckAt(it.LastCheck, time.Duration(interval)*time.Minute, it.Waiting, it.NextAiringAt, now)
 		if it.Media != nil {
 			it.Category = watchCategory(it.MediaSource, it.Media)
-			now := time.Now().Unix()
 			start := it.FromEpisode
 			for _, a := range it.Media.FutureAirings() {
-				if a.AiringAt <= now || a.Episode+offset < start {
+				if a.AiringAt <= now.Unix() || a.Episode+offset < start {
 					continue // already aired, or belongs to an earlier part of a shared folder
 				}
 				air := Airing{At: a.AiringAt, Episode: a.Episode + offset}
