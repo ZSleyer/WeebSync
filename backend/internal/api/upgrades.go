@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -107,6 +108,123 @@ func missingSyncPlan(siblingDir string, season int, isMovie bool) SyncPlan {
 // The Plex index writes the real per-season rows separately.
 func comparable(v UpgradeVariant) bool {
 	return v.ResRank > 0 || len(v.Dub) > 0 || len(v.Sub) > 0
+}
+
+// alreadyHave reports whether the library already holds, byte for byte, every
+// video file a remote copy offers - the same files under another name.
+//
+// This is the one signal that survives the asymmetry between the two sides of a
+// suggestion. The local quality is MEASURED (ffprobe reads the container), the
+// remote quality is GUESSED from file names, and a name that promises more than
+// the container carries turns an identical copy into an "upgrade". The file size
+// does not care what a release is called.
+//
+// Compared EXACTLY, no tolerance: that is precisely what makes it usable. An
+// equal byte count means an equal file, and a re-encode - the only thing a real
+// upgrade can be - never reproduces the source's size, so it always shows up as
+// a size the library does not have.
+//
+// Either side empty means "unknown" (a mount that is not there, a folder the
+// crawler has not reached yet), and the caller falls back to the quality
+// comparison instead of silently swallowing a suggestion.
+func alreadyHave(local, remote map[int64]bool) bool {
+	if len(local) == 0 || len(remote) == 0 {
+		return false
+	}
+	for size := range remote {
+		if !local[size] {
+			return false // brings a file the library does not have
+		}
+	}
+	return true
+}
+
+// sizeIndex reads the video-file sizes of the copies a suggestions build looks
+// at, and remembers each one: a copy is measured at most once per build, however
+// many suggestions ask about it.
+type sizeIndex struct {
+	s  *Server
+	by map[string]map[int64]bool
+}
+
+func (s *Server) newSizeIndex() *sizeIndex { return &sizeIndex{s: s, by: map[string]map[int64]bool{}} }
+
+func (x *sizeIndex) of(v UpgradeVariant) map[int64]bool {
+	key := strconv.FormatInt(v.ServerID, 10) + "|" + v.Folder
+	if sizes, ok := x.by[key]; ok {
+		return sizes
+	}
+	sizes := x.s.copySizes(v.ServerID, v.Folder)
+	x.by[key] = sizes
+	return sizes
+}
+
+// union merges the sizes of several copies - every local copy of one show, so
+// "is it already there" can look past the season a unit was filed under.
+func (x *sizeIndex) union(vs []UpgradeVariant) map[int64]bool {
+	out := map[int64]bool{}
+	for _, v := range vs {
+		for size := range x.of(v) {
+			out[size] = true
+		}
+	}
+	return out
+}
+
+// anyAlreadyHave reports whether any of these remote copies is already on disk.
+func (x *sizeIndex) anyAlreadyHave(local map[int64]bool, remotes []UpgradeVariant) bool {
+	for _, r := range remotes {
+		if alreadyHave(local, x.of(r)) {
+			return true
+		}
+	}
+	return false
+}
+
+// copySizes reads the byte sizes of the video files one copy holds: os.Stat via
+// a directory walk for a local copy (server 0), the crawler's remote_index
+// snapshot for a remote one.
+//
+// The remote side deliberately reads the snapshot and never dials the server: a
+// suggestions build must not depend on a reachable host, and the index is what
+// the crawler already paid for. A folder it has not reached yet returns nothing,
+// which alreadyHave reads as "unknown".
+func (s *Server) copySizes(serverID int64, folder string) map[int64]bool {
+	out := map[int64]bool{}
+	if serverID == 0 {
+		abs, err := s.safeLocal(folder)
+		if err != nil {
+			return out // a "plex:..." key, or a path outside the allowed roots
+		}
+		filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
+				return nil
+			}
+			if fi, ferr := d.Info(); ferr == nil && fi.Size() > 0 {
+				out[fi.Size()] = true
+			}
+			return nil
+		})
+		return out
+	}
+	rows, err := s.DB.Query(`SELECT name, size FROM remote_index
+		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR parent LIKE ?||'/%')`,
+		serverID, folder, folder)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		var size int64
+		if rows.Scan(&name, &size) != nil {
+			continue
+		}
+		if size > 0 && videoExt[strings.ToLower(filepath.Ext(name))] {
+			out[size] = true
+		}
+	}
+	return out
 }
 
 // UpgradeDims is which quality axes a user wants upgrade suggestions for.
@@ -266,6 +384,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	units := s.loadUnits()
 	enrich := s.unitEnrichIndex()
 	localsByShow := localSeasonsByShow(units)
+	sizes := s.newSizeIndex()
 
 	out := []UpgradeSuggestion{}
 	for _, key := range units.order {
@@ -287,6 +406,15 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		impSub := dims.Sub && strictSuperset(top.Sub, cur.Sub)
 		impDub := dims.Dub && strictSuperset(top.Dub, cur.Dub)
 		if !impRes && !impSub && !impDub {
+			continue
+		}
+		// The names say "better" - but is it another file at all? Sizes settle
+		// it. Deliberately AFTER the quality gate and not before: only a copy
+		// that is about to be recommended pays for the walk, so the check costs
+		// one directory listing per suggestion instead of one per owned season.
+		if alreadyHave(sizes.union(u.locals), sizes.of(top)) {
+			slog.Debug("upgrade skipped", "showKey", u.showKey, "season", u.season,
+				"folder", logSafe(top.Folder), "reason", "remote copy holds the same files, only named differently")
 			continue
 		}
 		e := enrich.of(u.showKey, u.season)
@@ -334,13 +462,27 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 	// target is a sibling of an owned one (Show/Season NN) and a missing movie
 	// lands in its own subfolder under the movie library.
 	ownedDir := map[string]string{}
+	localsOfShow := map[string][]UpgradeVariant{}
 	for _, key := range units.order {
 		u := units.byKey[key]
+		localsOfShow[u.showKey] = append(localsOfShow[u.showKey], u.locals...)
 		for _, l := range u.locals {
 			if strings.HasPrefix(l.Folder, "/") && ownedDir[u.showKey] == "" {
 				ownedDir[u.showKey] = l.Folder
 			}
 		}
+	}
+	// what the show's local copies actually hold, read once per show and only
+	// for a show that is about to be called incomplete
+	sizes := s.newSizeIndex()
+	onDisk := map[string]map[int64]bool{}
+	sizesOfShow := func(showKey string) map[int64]bool {
+		if v, ok := onDisk[showKey]; ok {
+			return v
+		}
+		v := sizes.union(localsOfShow[showKey])
+		onDisk[showKey] = v
+		return v
 	}
 	for _, key := range units.order {
 		u := units.byKey[key]
@@ -349,6 +491,15 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		}
 		e := enrich.of(u.showKey, u.season)
 		if e.title == "" {
+			continue
+		}
+		// a season whose files are already on disk is not missing, whatever
+		// season the mapping filed it under: the local copies of THIS SHOW are
+		// searched, not just the ones that landed on this unit's season number.
+		// That is exactly the case a wrong season mapping produces.
+		if sizes.anyAlreadyHave(sizesOfShow(u.showKey), u.remotes) {
+			slog.Debug("incomplete skipped", "showKey", u.showKey, "season", u.season,
+				"reason", "the library already holds these files under another season")
 			continue
 		}
 		cands := make([]plexCandidate, 0, len(u.remotes))
