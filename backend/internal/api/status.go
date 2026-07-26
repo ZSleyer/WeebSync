@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"path"
 	"syscall"
 )
@@ -18,11 +19,23 @@ type statusRunning struct {
 }
 
 type statusFinished struct {
-	ID         int64  `json:"id"`
-	Name       string `json:"name"`
-	Status     string `json:"status"`
-	Error      string `json:"error,omitempty"`
+	ID     int64  `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+	// ErrorCode is the classified reason (see transfer.classifyError); empty
+	// for a success or an unrecognized failure.
+	ErrorCode  string `json:"errorCode,omitempty"`
 	FinishedAt string `json:"finishedAt"`
+}
+
+// statusContainer is the identity the process writes files as. A permission
+// failure on a mounted media directory is only actionable once the user knows
+// which UID to grant write access to, and nothing inside the container can be
+// inferred from the outside.
+type statusContainer struct {
+	UID int `json:"uid"`
+	GID int `json:"gid"`
 }
 
 type statusWatch struct {
@@ -50,6 +63,7 @@ type StatusResponse struct {
 	LastFinished []statusFinished `json:"lastFinished"`
 	Watches      []statusWatch    `json:"watches"`
 	Disk         statusDisk       `json:"disk"`
+	Container    statusContainer  `json:"container"`
 }
 
 // handleStatus is the aggregate machine-readable status (Home Assistant etc.):
@@ -101,7 +115,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	// updated_at is stamped exactly when a download reaches done/error, so it
 	// doubles as finishedAt - HA detects "new finish" by watching the newest entry
-	rows, err = s.DB.Query(`SELECT id, remote_path, status, error, updated_at FROM downloads
+	rows, err = s.DB.Query(`SELECT id, remote_path, status, error, error_code, updated_at FROM downloads
 		WHERE status IN ('done','error') ORDER BY updated_at DESC, id DESC LIMIT 10`)
 	if err != nil {
 		dbErr(w)
@@ -110,7 +124,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var f statusFinished
 		var remote string
-		if rows.Scan(&f.ID, &remote, &f.Status, &f.Error, &f.FinishedAt) != nil {
+		if rows.Scan(&f.ID, &remote, &f.Status, &f.Error, &f.ErrorCode, &f.FinishedAt) != nil {
 			continue
 		}
 		f.Name = path.Base(remote)
@@ -145,6 +159,10 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		out.Watches = append(out.Watches, wch)
 	}
 	rows.Close()
+
+	// who the process writes as: the missing half of every "permission denied"
+	// on a bind-mounted media directory
+	out.Container.UID, out.Container.GID = os.Getuid(), os.Getgid()
 
 	// best effort - a failed statfs must not break the endpoint
 	out.Disk.Path = s.DownloadRoot

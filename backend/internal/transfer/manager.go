@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path"
@@ -17,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/remote"
@@ -36,6 +38,9 @@ type Download struct {
 	Transferred int64  `json:"transferred"`
 	Status      string `json:"status"`
 	Error       string `json:"error,omitempty"`
+	// ErrorCode classifies Error into a stable machine-readable reason
+	// (see classifyError); empty when the failure is not one we recognize.
+	ErrorCode   string `json:"errorCode,omitempty"`
 	RateLimit   int64  `json:"rateLimit"`
 	BytesPerSec int64  `json:"bytesPerSec,omitempty"`
 	CreatedAt   string `json:"createdAt"`
@@ -231,7 +236,7 @@ func (m *Manager) startDownload(id int64) {
 	m.active[id] = r
 	m.mu.Unlock()
 
-	m.setStatus(id, "running", "")
+	m.setStatus(id, "running", "", "")
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
@@ -243,17 +248,18 @@ func (m *Manager) startDownload(id int64) {
 		m.mu.Unlock()
 		switch {
 		case err == nil:
-			m.setStatus(id, "done", "")
+			m.setStatus(id, "done", "", "")
 		case paused:
-			m.setStatus(id, "paused", "")
+			m.setStatus(id, "paused", "", "")
 		case stopping && ctx.Err() != nil:
 			// graceful shutdown: back to the queue, resumes from .part on restart
-			m.setStatus(id, "queued", "")
+			m.setStatus(id, "queued", "", "")
 		case ctx.Err() != nil:
-			m.setStatus(id, "canceled", "")
+			m.setStatus(id, "canceled", "", "")
 		default:
-			slog.Warn("download failed", "id", id, "err", err)
-			m.setStatus(id, "error", err.Error())
+			code := classifyError(err)
+			slog.Warn("download failed", "id", id, "code", code, "err", err)
+			m.setStatus(id, "error", err.Error(), code)
 		}
 		m.Wake()
 	}()
@@ -614,9 +620,9 @@ func (m *Manager) RunningRates() map[int64]int64 {
 
 func (m *Manager) get(id int64) (*Download, error) {
 	var d Download
-	err := m.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, rate_limit, created_at
+	err := m.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, created_at
 		FROM downloads WHERE id = ?`, id).
-		Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size, &d.Transferred, &d.Status, &d.Error, &d.RateLimit, &d.CreatedAt)
+		Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size, &d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.CreatedAt)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -641,8 +647,52 @@ func (m *Manager) execRetry(what, query string, args ...any) {
 	slog.Warn("db write failed", "op", what, "err", err)
 }
 
-func (m *Manager) setStatus(id int64, status, errMsg string) {
-	m.execRetry("setStatus", `UPDATE downloads SET status = ?, error = ?, updated_at = datetime('now') WHERE id = ?`, status, errMsg, id)
+// Error codes stored in downloads.error_code. They name a cause the user can
+// act on; anything else stays empty and only carries its raw text.
+const (
+	ErrCodePermissionDenied = "permission_denied" // no write permission on the target
+	ErrCodeDiskFull         = "disk_full"         // no space left on the target device
+	ErrCodeReadOnly         = "read_only"         // target mounted read-only
+)
+
+// classifyError maps a transfer failure onto one of the error codes above.
+//
+// Matching goes exclusively through errors.Is: the message text of an
+// *fs.PathError is produced by the kernel and the Go runtime, differs between
+// platforms and wrappers, and would silently stop matching the day either
+// rewords it. errors.Is walks the wrap chain instead, so a target wrapped in
+// several layers still classifies.
+//
+// An unrecognized error yields "": the raw text is all we know, and inventing
+// a code for it would make the UI explain a cause it cannot know.
+func classifyError(err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, fs.ErrPermission):
+		return ErrCodePermissionDenied
+	case errors.Is(err, syscall.ENOSPC):
+		return ErrCodeDiskFull
+	case errors.Is(err, syscall.EROFS):
+		return ErrCodeReadOnly
+	}
+	return ""
+}
+
+// RetryableCode reports whether a failure with this error code is worth
+// queuing again on its own. A permission, space or read-only failure repeats
+// forever until a human changes something on the host, so re-queuing it only
+// buries the real problem under identical entries.
+func RetryableCode(code string) bool {
+	switch code {
+	case ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly:
+		return false
+	}
+	return true
+}
+
+func (m *Manager) setStatus(id int64, status, errMsg, errCode string) {
+	m.execRetry("setStatus", `UPDATE downloads SET status = ?, error = ?, error_code = ?, updated_at = datetime('now') WHERE id = ?`, status, errMsg, errCode, id)
 	if d, err := m.get(id); err == nil {
 		m.publish(d)
 		if m.OnFinished != nil && (status == "done" || status == "error") {
@@ -652,7 +702,7 @@ func (m *Manager) setStatus(id int64, status, errMsg string) {
 }
 
 func (m *Manager) setStatusOwned(userID, id int64, status string, from []string) error {
-	q := `UPDATE downloads SET status = ?, error = '', updated_at = datetime('now')
+	q := `UPDATE downloads SET status = ?, error = '', error_code = '', updated_at = datetime('now')
 		WHERE id = ? AND user_id = ? AND status IN (`
 	args := []any{status, id, userID}
 	for i, f := range from {
