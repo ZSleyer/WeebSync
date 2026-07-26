@@ -123,12 +123,13 @@ func TestBuildUpgradesSkipsSizeIdenticalCopy(t *testing.T) {
 		"[Group] Some Show - 01 (1080p) [GerEngSub].mkv": 1500,
 		"[Group] Some Show - 02 (1080p) [GerEngSub].mkv": 1600,
 	})
-	// local: measured, one audio track without a language tag -> no dub codes
-	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, show_key, season)
-		VALUES (0, ?, 1080, '', 'Ger', 'tvdb:1', 1)`, local)
-	// remote: guessed from the names -> the group tag hands it two sub languages
-	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, show_key, season)
-		VALUES (1, ?, 1080, '', 'Eng,Ger', 'tvdb:1', 1)`, remote)
+	// Both sides guessed from their file names, so the language comparison is
+	// on equal footing and fires: the size is the only thing that can tell
+	// these two copies apart, which is exactly what this test is about.
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, probed)
+		VALUES (0, ?, 1080, '', 'Ger', 'tvdb:1', 1, 0)`, local)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, probed)
+		VALUES (1, ?, 1080, '', 'Eng,Ger', 'tvdb:1', 1, 0)`, remote)
 
 	if got := s.buildUpgrades(1); len(got) != 0 {
 		t.Fatalf("size-identical copy suggested as an upgrade: %+v", got[0])

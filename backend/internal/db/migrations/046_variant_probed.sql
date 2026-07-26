@@ -1,0 +1,27 @@
+-- How a variant's quality was established: 1 = MEASURED (the container streams
+-- were read - ffprobe locally, Plex's own media analysis for a library copy),
+-- 0 = GUESSED from the file names.
+--
+-- The two sides of an upgrade comparison never had the same footing. A local
+-- copy is measured; a remote one only exists as rows in remote_index, so its
+-- resolution and languages are parsed out of the file names. Both directions
+-- then lie: a release named "GerEngSub" claims two subtitle languages the
+-- container may not carry, while ffprobe reports an untagged audio track as
+-- "und" and it drops out of the local set entirely. The difference that comes
+-- out of that is an artefact of the two methods, not of the files - and it was
+-- reported as an upgrade.
+--
+-- Without this column the comparison cannot tell how much its own inputs are
+-- worth. With it, a language "gain" only counts when both sides were
+-- established the same way.
+--
+-- Trap, same as the one 027 records: catalog_variants rows are written with
+-- INSERT OR REPLACE (refreshVariant, indexPlexLibrary). Every writer must name
+-- this column, or the value falls back to the default on the next sweep.
+ALTER TABLE catalog_variants ADD COLUMN probed INTEGER NOT NULL DEFAULT 0;
+
+-- Existing rows keep probed = 0: nothing recorded how they were built, and
+-- claiming they were measured would be a guess of its own. Until the next pass
+-- rewrites them - indexPlexLibrary re-indexes the local rows hourly, the sweep
+-- refreshes the remote ones on their recheck interval - both sides read as
+-- "guessed", which is the behaviour that was already in place.
