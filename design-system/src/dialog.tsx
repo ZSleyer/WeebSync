@@ -136,7 +136,12 @@ export function Dialog({
           last resort: content taller than the dialog would otherwise be clipped
           with no way to reach it. Modals that scroll a section of their own
           (`dialog-body`) never reach this overflow. */}
-      <div className={cx('flex flex-col overflow-y-auto', danger && 't-panel--danger', bodyClassName)}>
+      {/* overflow-x-hidden is not redundant beside overflow-y-auto: a box that
+          scrolls in one axis computes the other to auto, so a body a couple of
+          pixels too wide - a chip row, a long slug, a font whose metrics differ
+          from the one it was measured against - lets the reader drag the whole
+          sheet sideways. A dialog never scrolls horizontally. */}
+      <div className={cx('flex flex-col overflow-y-auto overflow-x-hidden', danger && 't-panel--danger', bodyClassName)}>
         {children}
       </div>
     </dialog>

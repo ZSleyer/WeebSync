@@ -463,7 +463,12 @@ export function Modal({ title, info, children, footer, className }: ModalProps) 
         <h3 className="font-display font-semibold tracking-wider">{title}</h3>
         {info && <p className="mt-1 text-[11px] text-t-secondary">{info}</p>}
       </header>
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">{children}</div>
+      {/* overflow-x-hidden is not redundant next to overflow-y-auto: a box that
+          scrolls in one axis computes the other one to auto, so a body a few
+          pixels too wide - a chip row, a long word, a font whose metrics differ
+          from the one measured against - turns the whole dialog into something
+          the reader can drag sideways. Vertical stays scrollable. */}
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overflow-x-hidden px-5 py-4">{children}</div>
       {footer && (
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">{footer}</footer>
       )}
