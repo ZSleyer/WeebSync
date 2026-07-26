@@ -259,7 +259,7 @@ func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate
 	}
 	providers, links := s.providerBadgesLinks(refs, title, "")
 	return SugItem{
-		RefKey: refKey, SeriesID: seriesID, Category: categorize(providers, m, source),
+		RefKey: refKey, SeriesID: seriesID, Category: categorize(providers, m, source, s.seriesKindOf(seriesID)),
 		Title: title, Year: m.SeasonYear, Cover: m.CoverImage.Large, Media: m,
 		Providers: providers, Links: links, Candidates: cands, PlexFolder: plexFolder,
 	}
@@ -304,12 +304,18 @@ func (s *Server) providerBadgesLinks(refs []providerRef, title, showKey string) 
 // categorize sorts a suggestion into anime-movie|anime-tv|movie|tv. Anime when
 // any provider is AniList or TVDB (TVDB is anime-only in this setup); live when
 // only TMDB. Movie by the media format or a :movie source.
-func categorize(providers []string, m anilist.Media, source string) string {
-	// anime is decided by the providers (AniList/TVDB), not by an empty source:
-	// the upgrade/incomplete builders pass source "" and rely on the badges, so
-	// a "" must NOT force anime (that put live-action TMDB shows under Anime).
-	anime := slices.Contains(providers, "anilist") || slices.Contains(providers, "tvdb") ||
-		source == "anilist" || source == "tvdb"
+func categorize(providers []string, m anilist.Media, source, kind string) string {
+	// The series says what it is when the sweep has decided (see
+	// deriveSeriesKind). The guess below is the fallback for rows not decided
+	// yet, and it reads a tvdb provider as anime - which only held while a tvdb
+	// id could reach a series through the anime mapping alone. Since the Plex
+	// bridge attaches one to every show it recognises, that guess overreaches;
+	// the stored kind is what settles it.
+	anime := kind == kindAnime
+	if kind == "" {
+		anime = slices.Contains(providers, "anilist") || slices.Contains(providers, "tvdb") ||
+			source == "anilist" || source == "tvdb"
+	}
 	movie := m.Format == "MOVIE" || strings.HasSuffix(source, ":movie")
 	base := "tv"
 	if movie {

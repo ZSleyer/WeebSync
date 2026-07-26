@@ -300,7 +300,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub,
 			Providers: e.providers, Links: e.links,
 			Cover: e.cover, Format: e.format, Episodes: e.episodes,
-			Category: categorize(e.providers, catMedia, ""),
+			Category: categorize(e.providers, catMedia, "", e.kind),
 			Library:  s.plexLibraryOf(cur.Folder),
 			Sync:     existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
 
@@ -365,7 +365,7 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		media.Title.Preferred = title
 		acc.add(SugItem{
 			RefKey: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
-			Category: categorize(e.providers, media, ""),
+			Category: categorize(e.providers, media, "", e.kind),
 			Title:    title, Cover: e.cover, Media: media,
 			Providers: e.providers, Links: e.links, Candidates: cands,
 			Library: s.plexLibraryOf(ownedDir[u.showKey]),
@@ -482,6 +482,7 @@ type unitInfo struct {
 	genres    []string
 	media     anilist.Media // full resolved media, so cards carry episodes/score/etc
 	exact     bool          // true when the media matched this exact (show_key, season)
+	kind      string        // anime | live_action | "" (undecided), from the series row
 	providers []string
 	links     ProviderLinks
 }
@@ -492,7 +493,8 @@ type unitInfo struct {
 // Fribb anime mapping (which bridges an AniList id to its tvdb/tmdb show_key).
 type unitEnrich struct {
 	refsByKey     map[string][]providerRef // show_key -> all provider hits
-	seriesByKey   map[string]int64         // show_key -> series id
+	seriesByKey   map[string]int64
+	kindByKey     map[string]string        // show_key -> anime | live_action
 	mediaBySeason map[string]anilist.Media // "show_key|season" -> per-season media
 	srcBySeason   map[string]string        // "show_key|season" -> that media's provider source
 	s             *Server
@@ -500,13 +502,14 @@ type unitEnrich struct {
 
 func (s *Server) unitEnrichIndex() *unitEnrich {
 	e := &unitEnrich{
-		refsByKey: map[string][]providerRef{}, seriesByKey: map[string]int64{},
+		refsByKey: map[string][]providerRef{}, seriesByKey: map[string]int64{}, kindByKey: map[string]string{},
 		mediaBySeason: map[string]anilist.Media{}, srcBySeason: map[string]string{}, s: s,
 	}
 	// Drive off catalog_matches, not series_provider: a variant's show_key is
 	// derived straight from its match, so an orphan match (not yet bundled into a
 	// series) still resolves a title/cover here. bySrc backfills the series id.
 	bySrc, _ := s.seriesProviderMaps()
+	kinds := s.seriesKinds()
 	rows, err := s.DB.Query(`SELECT DISTINCT source, media_id FROM catalog_matches WHERE media_id != 0`)
 	if err != nil {
 		return e
@@ -555,6 +558,9 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 		e.refsByKey[showKey] = append(e.refsByKey[showKey], providerRef{source, mediaID})
 		if seriesID != 0 {
 			e.seriesByKey[showKey] = seriesID
+			if k := kinds[seriesID]; k != "" {
+				e.kindByKey[showKey] = k
+			}
 		}
 		if media != nil {
 			e.mediaBySeason[showKey+"|"+strconv.Itoa(season)] = *media
@@ -578,7 +584,7 @@ func (e *unitEnrich) of(showKey string, season int) unitInfo {
 	} else if m := e.s.seriesMedia(refs); m != nil {
 		media = m // source unknown -> treat like AniList (English-first)
 	}
-	info := unitInfo{seriesID: e.seriesByKey[showKey], exact: exact}
+	info := unitInfo{seriesID: e.seriesByKey[showKey], kind: e.kindByKey[showKey], exact: exact}
 	if media != nil {
 		info.title = displayTitle(*media, src)
 		info.cover, info.format, info.episodes = media.CoverImage.Large, media.Format, media.Episodes
