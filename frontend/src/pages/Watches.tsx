@@ -1,5 +1,23 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpDown, CalendarDays, Check, Clock, Download, Eye, FolderClock, List, Pencil, PenLine, RefreshCw, Trash2, TriangleAlert, Upload, type LucideIcon } from 'lucide-react'
+import {
+  ArrowUpDown,
+  CalendarDays,
+  Check,
+  Clock,
+  Download,
+  Eye,
+  FolderClock,
+  History,
+  List,
+  Pencil,
+  PenLine,
+  RefreshCw,
+  Timer,
+  Trash2,
+  TriangleAlert,
+  Upload,
+  type LucideIcon,
+} from 'lucide-react'
 
 // icon per status group divider (syncing / idle / waiting / complete)
 const GROUP_ICON: Record<string, LucideIcon> = {
@@ -88,11 +106,6 @@ export default function Watches() {
     const min = Math.max(0, Math.round((Date.now() - Date.parse(dt.replace(' ', 'T') + 'Z')) / 60_000))
     return t('watch.minAgo', { count: min })
   }
-  const next = (w: Watch) => {
-    if (!w.lastCheck) return ''
-    const min = Math.round((Date.parse(w.lastCheck.replace(' ', 'T') + 'Z') + w.intervalMin * 60_000 - Date.now()) / 60_000)
-    return t('watch.nextIn', { count: Math.max(0, min) })
-  }
   // AniList airingAt is an absolute unix time; render in the viewer's zone
   // (or a named zone like Asia/Tokyo for the JST hover)
   const airFmt = (ts: number, tz?: string) =>
@@ -117,6 +130,9 @@ export default function Watches() {
     if (m > 0) return withSec ? t('watch.inMinutesS', { m, s }) : t('watch.inMinutes', { m })
     return withSec ? t('watch.inSeconds', { s }) : t('watch.inMinutes', { m })
   }
+  // the backend owns the schedule (interval, smart sync, 12h stale re-check),
+  // so this only formats what it sends
+  const untilCheck = (ts: number) => (ts * 1000 <= Date.now() ? t('watch.checkDue') : countdown(ts))
   const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
   // calendar: flatten every scheduled future release the provider knows into
   // per-day events - not just each watch's single next airing, so it reaches as
@@ -155,8 +171,7 @@ export default function Watches() {
     { v: 'name', k: 'watch.sortName' },
     { v: 'season', k: 'watch.sortSeason' },
   ] as const
-  const nextTs = (w: Watch) =>
-    w.nextAiringAt ? w.nextAiringAt * 1000 : w.lastCheck ? Date.parse(w.lastCheck.replace(' ', 'T') + 'Z') + w.intervalMin * 60_000 : 0
+  const nextTs = (w: Watch) => (w.nextAiringAt ? w.nextAiringAt * 1000 : w.nextCheck * 1000)
   const nameOf = (w: Watch) => (w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')).toLowerCase()
   const seasonOf = (w: Watch) => Number(w.template.match(/S(\d+)E/i)?.[1] ?? 0)
   const sorted = [...watches].sort((a, b) => {
@@ -350,17 +365,24 @@ export default function Watches() {
                           {w.serverName}:{w.remotePath} → {w.localPath}
                         </>
                       }
-                      meta={
-                        <>
-                          {t('watch.lastCheck')}: {ago(w.lastCheck)}
-                          {w.lastResult
-                            ? ` (${w.lastResult})`
-                            : w.lastQueued >= 0 && ` (${t('watch.lastQueued', { count: w.lastQueued })})`}
-                        </>
-                      }
+                      // the error text stays plain text rather than a chip
+                      // title: it is the one status that has to be readable in
+                      // full, and it can be a whole sentence long
+                      meta={w.lastResult ? <span className="text-err">{w.lastResult}</span> : undefined}
                       badges={
                         <>
-                          {w.nextAiringAt ? (
+                          {/* the two schedule chips lead the row: every watch
+                              carries them, so the row starts the same everywhere */}
+                          <Badge size="sm" tone={w.lastResult ? 'err' : undefined}>
+                            <History aria-hidden size="1em" />
+                            {t('watch.chipLast', { when: ago(w.lastCheck) })}
+                            {!w.lastResult && w.lastQueued >= 0 && ` · ${t('watch.lastQueued', { count: w.lastQueued })}`}
+                          </Badge>
+                          <Badge size="sm">
+                            <Timer aria-hidden size="1em" />
+                            {t('watch.chipNext', { when: untilCheck(w.nextCheck) })}
+                          </Badge>
+                          {!!w.nextAiringAt && (
                             // two chips, not one: episode and airing time in a
                             // single chip came to ~400px, which no phone column
                             // can hold - split, each one fits on its own line
@@ -378,10 +400,6 @@ export default function Watches() {
                                 {airFmt(w.nextAiringAt)}
                               </Badge>
                             </>
-                          ) : (
-                            // the only non-chip child, so it carries the muted
-                            // colour the surrounding row used to supply
-                            w.lastCheck && <span className="text-t-muted">{next(w)}</span>
                           )}
                           {(w.behind ?? 0) > 0 && (
                             <Badge tone="warn" size="sm">

@@ -140,6 +140,7 @@ export interface Watch {
   offset?: number
   intervalMin: number
   lastCheck: string
+  nextCheck: number // unix seconds of the next scheduled check
   lastResult: string // error text of the last check, '' on success
   lastQueued: number // files queued at the last check, -1 = none yet
   lastUploading: number
