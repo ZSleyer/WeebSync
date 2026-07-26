@@ -292,6 +292,83 @@
                 },
                 "type": "object"
             },
+            "api.DownloadGroup": {
+                "properties": {
+                    "cover": {
+                        "description": "provider poster url, loaded straight by the browser",
+                        "type": "string"
+                    },
+                    "folder": {
+                        "description": "remote show folder, the parent of a season subfolder",
+                        "type": "string"
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/api.ProviderLinks"
+                    },
+                    "overview": {
+                        "description": "series description, tags stripped",
+                        "type": "string"
+                    },
+                    "providers": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "serverId": {
+                        "type": "integer"
+                    },
+                    "serverName": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "description": "empty when the folder has no catalog match",
+                        "type": "string"
+                    },
+                    "watchId": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "api.DownloadItemMeta": {
+                "properties": {
+                    "episode": {
+                        "type": "integer"
+                    },
+                    "g": {
+                        "type": "string"
+                    },
+                    "season": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "description": "episode title, only when the provider cache is warm",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.DownloadMetaResponse": {
+                "properties": {
+                    "groups": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/api.DownloadGroup"
+                        },
+                        "description": "key \"<serverId>|<showFolder>\"",
+                        "type": "object"
+                    },
+                    "items": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/api.DownloadItemMeta"
+                        },
+                        "description": "key: download id",
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
             "api.DownloadsBulkRequest": {
                 "properties": {
                     "action": {
@@ -6788,6 +6865,52 @@
                     }
                 ],
                 "summary": "Cancel downloads",
+                "tags": [
+                    "Downloads"
+                ]
+            }
+        },
+        "/api/downloads/meta": {
+            "get": {
+                "description": "Series metadata for the authenticated user's downloads (same window as GET /api/downloads): one group per remote series folder with cover, description and provider links, plus one item per download with its season/episode and, when the provider cache is warm, the episode title. Kept apart from the download list because that one is polled and patched by the event stream.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.DownloadMetaResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Download metadata",
                 "tags": [
                     "Downloads"
                 ]
