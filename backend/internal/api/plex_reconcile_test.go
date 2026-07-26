@@ -111,3 +111,28 @@ func TestPlexRatingKeyForFindsItThroughTheSeries(t *testing.T) {
 		}
 	}
 }
+
+// A tvdb id used to mean anime, because one could only reach a series through
+// the Fribb mapping. The Plex bridge now attaches one to every show it knows,
+// so that signal would file live action under anime.
+func TestDeriveSeriesKind(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		refs  []providerRef
+		fribb bool
+		want  string
+	}{
+		{"anilist lists it", []providerRef{{"anilist", 20474}}, false, kindAnime},
+		{"the anime mapping knows it", []providerRef{{"tmdb:tv", 42}}, true, kindAnime},
+		{"tvdb alone decides nothing", []providerRef{{"tvdb", 262954}}, false, kindLive},
+		{"tvdb plus tmdb is still live action", []providerRef{{"tvdb", 121361}, {"tmdb:tv", 1399}}, false, kindLive},
+		{"anilist wins over the others", []providerRef{{"tvdb", 262954}, {"anilist", 20474}}, false, kindAnime},
+		{"nothing to go on", nil, false, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := deriveSeriesKind(tc.refs, tc.fribb); got != tc.want {
+				t.Errorf("deriveSeriesKind = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

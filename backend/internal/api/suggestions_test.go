@@ -13,19 +13,27 @@ func TestCategorize(t *testing.T) {
 		providers []string
 		format    string
 		source    string
+		kind      string
 		want      string
 	}{
-		{[]string{"anilist", "tvdb"}, "TV", "anilist", "anime-tv"},
-		{[]string{"anilist"}, "MOVIE", "anilist", "anime-movie"},
-		{[]string{"tmdb"}, "TV", "tmdb:tv", "tv"},
-		{[]string{"tmdb"}, "MOVIE", "tmdb:movie", "movie"},
-		{[]string{"tvdb"}, "TV", "tvdb", "anime-tv"},
-		{[]string{"anilist"}, "OVA", "anilist", "anime-tv"}, // non-movie anime -> tv
-		{[]string{"tmdb", "plex"}, "TV", "tmdb:tv", "tv"},   // plex badge doesn't make it anime
+		// undecided: the old guess from the badges still applies
+		{[]string{"anilist", "tvdb"}, "TV", "anilist", "", "anime-tv"},
+		{[]string{"anilist"}, "MOVIE", "anilist", "", "anime-movie"},
+		{[]string{"tmdb"}, "TV", "tmdb:tv", "", "tv"},
+		{[]string{"tmdb"}, "MOVIE", "tmdb:movie", "", "movie"},
+		{[]string{"tvdb"}, "TV", "tvdb", "", "anime-tv"},
+		{[]string{"anilist"}, "OVA", "anilist", "", "anime-tv"}, // non-movie anime -> tv
+		{[]string{"tmdb", "plex"}, "TV", "tmdb:tv", "", "tv"},   // plex badge doesn't make it anime
+		// decided: the series settles it, whatever the badges say. This is the
+		// case the Plex bridge creates - it hands a tvdb id to live action too.
+		{[]string{"tvdb", "plex"}, "TV", "", kindLive, "tv"},
+		{[]string{"tvdb"}, "TV", "tvdb", kindLive, "tv"},
+		{[]string{"tmdb"}, "TV", "tmdb:tv", kindAnime, "anime-tv"},
+		{[]string{"tmdb"}, "MOVIE", "tmdb:movie", kindAnime, "anime-movie"},
 	}
 	for _, c := range cases {
-		if got := categorize(c.providers, mediaFmt(c.format), c.source); got != c.want {
-			t.Errorf("categorize(%v,%s,%s)=%s want %s", c.providers, c.format, c.source, got, c.want)
+		if got := categorize(c.providers, mediaFmt(c.format), c.source, c.kind); got != c.want {
+			t.Errorf("categorize(%v,%s,%s,%s)=%s want %s", c.providers, c.format, c.source, c.kind, got, c.want)
 		}
 	}
 }

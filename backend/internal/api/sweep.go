@@ -85,6 +85,9 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// pull every provider's title translations for new/stale series
 			// (budgeted; new bundles have an empty stamp and are picked up first)
 			s.refreshSeriesTitles(ctx, titlesBudget)
+			// decide what the newly bundled series are, so categorize reads
+			// instead of guessing from provider badges
+			s.refreshSeriesKinds(200)
 			// keep each user's aggregated suggestion blob warm so the page loads
 			// instantly instead of assembling on the first request
 			s.warmSuggestions()
