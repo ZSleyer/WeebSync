@@ -3,9 +3,10 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Dialog, Field, Input, Select } from '@weebsync/design-system'
-import { api } from '../api'
+import { api, ApiError } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
+import { FsErrorNote, isFsErrorCode } from './FsErrorNote'
 import PathInput from './PathInput'
 import RenameOptions, { Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
 import RenamePreview from './RenamePreview'
@@ -78,6 +79,9 @@ export default function WatchDialog({
   )
   const [localBrowse, setLocalBrowse] = useState('')
   const [error, setError] = useState('')
+  // a save refused because the target cannot be written: explained in full
+  // rather than as a Go error string, same as on the dashboard
+  const [fsError, setFsError] = useState<{ code: string; dir: string } | null>(null)
   // a neutral outcome worth reporting, e.g. "already there" - not an error
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -130,6 +134,7 @@ export default function WatchDialog({
     e.preventDefault()
     setBusy(true)
     setError('')
+    setFsError(null)
     try {
       // rename off = keep original names, persist empty rules
       const note = await onSave(renameOn ? f : { ...f, template: '', pattern: '', replacement: '' })
@@ -141,7 +146,14 @@ export default function WatchDialog({
       }
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('app.error'))
+      // the backend classifies an unwritable target; anything else keeps the
+      // plain message, because there is nothing more to say about it
+      const body = err instanceof ApiError ? (err.data as { errorCode?: string; path?: string } | undefined) : undefined
+      if (isFsErrorCode(body?.errorCode)) {
+        setFsError({ code: body!.errorCode!, dir: body?.path ?? '' })
+      } else {
+        setError(err instanceof Error ? err.message : t('app.error'))
+      }
     } finally {
       setBusy(false)
     }
@@ -370,6 +382,7 @@ export default function WatchDialog({
 
           {pairs && <RenamePreview pairs={pairs} sizes={sizes} target={targetEntries} busy={previewBusy} />}
 
+          {fsError && <FsErrorNote code={fsError.code} dir={fsError.dir} />}
           {error && (
             <p className="border border-err/40 px-3 py-2 text-sm text-err" role="alert">
               {error}

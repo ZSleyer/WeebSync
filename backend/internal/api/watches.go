@@ -1096,16 +1096,45 @@ func missingEpisodes(nums map[int]bool) []int {
 	return missing
 }
 
+// WriteCheckError is the error body of a save rejected because the local target
+// cannot be written. It carries the same classification the downloads use, so
+// the dialog can explain the failure at once instead of the user discovering it
+// minutes later as a failed download with a raw Go error on it.
+// The two extra fields are absent on an ordinary 400, which carries a bare
+// error message.
+type WriteCheckError struct {
+	Error     string `json:"error"`
+	ErrorCode string `json:"errorCode,omitempty"` // permission_denied | disk_full | read_only
+	Path      string `json:"path,omitempty"`      // the directory that refused the write
+}
+
+// rejectUnwritable probes the watch's local target and, if it cannot be written,
+// answers with the classification. Only a classified failure is a rejection: an
+// unresolvable root or a plain I/O error says nothing the user could act on, and
+// blocking the save on it would trade a clear problem for a mysterious one.
+func (s *Server) rejectUnwritable(w http.ResponseWriter, localPath string) bool {
+	abs, err := s.safeLocal(localPath)
+	if err != nil {
+		return false // already validated by the caller
+	}
+	code, cerr := transfer.CheckWritable(abs)
+	if code == "" {
+		return false
+	}
+	writeJSON(w, http.StatusBadRequest, WriteCheckError{Error: cerr.Error(), ErrorCode: code, Path: abs})
+	return true
+}
+
 // handleWatchCreate registers a new watch and triggers a first sync.
 //
 // @Summary      Create watch
-// @Description  Registers a new persistent watch on a remote folder, optionally linking media metadata, and kicks off a first sync immediately.
+// @Description  Registers a new persistent watch on a remote folder, optionally linking media metadata, and kicks off a first sync immediately. The local target is probed for writability and the watch is rejected when it cannot be written.
 // @Tags         Watches
 // @Accept       json
 // @Produce      json
 // @Param        body  body  Watch  true  "Watch definition (serverId and remotePath required)"
 // @Success      201  {object}  WatchCreateResponse
-// @Failure      400  {object}  ErrorResponse
+// @Failure      400  {object}  WriteCheckError  "invalid input; errorCode and path are set when the local target refused a write"
 // @Failure      404  {object}  ErrorResponse
 // @Failure      409  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
@@ -1138,6 +1167,11 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
+	// a target the container cannot write is worth catching here: otherwise the
+	// watch saves fine and only its downloads fail, minutes later, out of sight
+	if s.rejectUnwritable(w, in.LocalPath) {
+		return
+	}
 	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub, plex_audio_lang, plex_sub_lang)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.PlexAudioLang, in.PlexSubLang)
@@ -1154,14 +1188,14 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 // handleWatchUpdate edits an existing watch; a path change re-checks the folder.
 //
 // @Summary      Update watch
-// @Description  Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check.
+// @Description  Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written.
 // @Tags         Watches
 // @Accept       json
 // @Produce      json
 // @Param        id    path  int     true  "Watch ID"
 // @Param        body  body  object  true  "Watch fields to update (remotePath required)"
 // @Success      200  {object}  OkResponse
-// @Failure      400  {object}  ErrorResponse
+// @Failure      400  {object}  WriteCheckError  "invalid input; errorCode and path are set when the local target refused a write"
 // @Failure      404  {object}  ErrorResponse
 // @Failure      409  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
@@ -1216,6 +1250,10 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	if err := s.DB.QueryRow(`SELECT server_id, remote_path, local_path FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
 		Scan(&serverID, &oldRemote, &oldLocal); err != nil {
 		writeErr(w, http.StatusNotFound, "watch not found")
+		return
+	}
+	// same as on create: say so now, not through a failed download later
+	if s.rejectUnwritable(w, in.LocalPath) {
 		return
 	}
 	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?, plex_audio_lang = ?, plex_sub_lang = ?

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,6 +115,78 @@ func TestWatchCheckDoesNotRequeueHopelessDownload(t *testing.T) {
 	s.runWatch(watchID)
 	if n := countDownloads(t, s); n != 1 {
 		t.Errorf("after a manual retry: %d downloads, want the same single row", n)
+	}
+}
+
+// Saving a watch onto a target the container cannot write must fail at the
+// dialog, with the same classification a failed download carries. Saved
+// silently, the watch would look fine and only its downloads would fail, out of
+// sight, minutes later.
+func TestWatchSaveRejectsUnwritableTarget(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: mode bits do not deny access")
+	}
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+
+	root := t.TempDir()
+	locked := filepath.Join(root, "locked")
+	if err := os.Mkdir(locked, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(locked, 0o700) })
+
+	offline := func(userID, serverID int64) (remote.Client, string, error) {
+		return nil, "", errors.New("offline")
+	}
+	s := &Server{DB: d, DownloadRoot: root, Anilist: anilist.New(d),
+		Transfers: transfer.NewManager(d, offline, root)}
+	mux := http.NewServeMux()
+	s.Register(mux)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	cookie := cookieForUser(t, d, 1)
+
+	rec := doReq(mux, "POST", "/api/watches", `{"serverId":1,"remotePath":"/x/Show","localPath":"locked/Show"}`, cookie)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("create on an unwritable target: got %d, want 400: %s", rec.Code, rec.Body)
+	}
+	var out WriteCheckError
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.ErrorCode != transfer.ErrCodePermissionDenied {
+		t.Errorf("errorCode = %q, want %q (body %s)", out.ErrorCode, transfer.ErrCodePermissionDenied, rec.Body)
+	}
+	if out.Path != filepath.Join(locked, "Show") {
+		t.Errorf("path = %q, want the resolved target directory", out.Path)
+	}
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM watches`).Scan(&n)
+	if n != 0 {
+		t.Errorf("rejected watch was stored anyway (%d rows)", n)
+	}
+
+	// a writable target saves, and so does an update onto another writable one
+	if rec := doReq(mux, "POST", "/api/watches", `{"serverId":1,"remotePath":"/x/Show","localPath":"anime"}`, cookie); rec.Code != http.StatusCreated {
+		t.Fatalf("create on a writable target: got %d: %s", rec.Code, rec.Body)
+	}
+	if rec := doReq(mux, "PUT", "/api/watches/1", `{"remotePath":"/x/Show","localPath":"anime2"}`, cookie); rec.Code != http.StatusOK {
+		t.Errorf("update onto a writable target: got %d: %s", rec.Code, rec.Body)
+	}
+	// ... but an update onto the locked one is refused the same way
+	rec = doReq(mux, "PUT", "/api/watches/1", `{"remotePath":"/x/Show","localPath":"locked/Show"}`, cookie)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("update onto an unwritable target: got %d, want 400: %s", rec.Code, rec.Body)
+	}
+	var stored string
+	d.QueryRow(`SELECT local_path FROM watches WHERE id = 1`).Scan(&stored)
+	if stored != "anime2" {
+		t.Errorf("rejected update changed the stored target to %q", stored)
 	}
 }
 
