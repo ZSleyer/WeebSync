@@ -955,6 +955,9 @@
             },
             "api.StatusResponse": {
                 "properties": {
+                    "container": {
+                        "$ref": "#/components/schemas/api.statusContainer"
+                    },
                     "disk": {
                         "$ref": "#/components/schemas/api.statusDisk"
                     },
@@ -2711,6 +2714,17 @@
                 },
                 "type": "object"
             },
+            "api.statusContainer": {
+                "properties": {
+                    "gid": {
+                        "type": "integer"
+                    },
+                    "uid": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "api.statusDisk": {
                 "properties": {
                     "freeBytes": {
@@ -2731,6 +2745,10 @@
             "api.statusFinished": {
                 "properties": {
                     "error": {
+                        "type": "string"
+                    },
+                    "errorCode": {
+                        "description": "ErrorCode is the classified reason (see transfer.classifyError); empty\nfor a success or an unrecognized failure.",
                         "type": "string"
                     },
                     "finishedAt": {
@@ -3022,6 +3040,10 @@
                         "type": "string"
                     },
                     "error": {
+                        "type": "string"
+                    },
+                    "errorCode": {
+                        "description": "ErrorCode classifies Error into a stable machine-readable reason\n(see classifyError); empty when the failure is not one we recognize.",
                         "type": "string"
                     },
                     "id": {

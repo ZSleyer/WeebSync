@@ -32,6 +32,25 @@ export interface Entry {
   modTime: string
 }
 
+// Filesystem failures the backend classifies. Anything it did not recognize
+// arrives as '' and stays a raw error string.
+export type FsErrorCode = 'permission_denied' | 'disk_full' | 'read_only'
+
+export const FS_ERROR_CODES: readonly string[] = ['permission_denied', 'disk_full', 'read_only']
+
+// Identity the container writes files as. A "permission denied" on a mounted
+// media directory is only fixable once the user knows which UID to grant.
+export interface ContainerIdentity {
+  uid: number
+  gid: number
+}
+
+// The slice of GET /api/status the UI reads. The endpoint is admin-gated, so a
+// non-admin session gets a 403 and the UI has to stay useful without it.
+export interface SystemStatus {
+  container: ContainerIdentity
+}
+
 export interface Download {
   id: number
   userId: number
@@ -42,6 +61,9 @@ export interface Download {
   transferred: number
   status: 'queued' | 'running' | 'paused' | 'done' | 'error' | 'canceled'
   error?: string
+  // classified reason behind `error`, when the backend recognized one. `error`
+  // keeps the raw text; this is what the UI is allowed to branch on.
+  errorCode?: FsErrorCode | string
   rateLimit: number
   bytesPerSec?: number
   createdAt: string
