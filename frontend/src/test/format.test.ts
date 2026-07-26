@@ -141,7 +141,7 @@ describe('downloadLabel', () => {
     ({ id: 1, remotePath, localPath }) as Download
 
   it('falls back to the file name without metadata', () => {
-    expect(downloadLabel(dl('/lib/Show/e1.mkv')).line).toBe('e1.mkv')
+    expect(downloadLabel(dl('/lib/Show/e1.mkv'))).toMatchObject({ label: 'e1.mkv', ep: '' })
   })
 
   it('builds show, episode and title when all three are known', () => {
@@ -149,7 +149,10 @@ describe('downloadLabel', () => {
       groups: { g: { serverId: 1, folder: '/lib/Show', title: 'Some Show', links: {} } },
       items: { '1': { g: 'g', season: 3, episode: 5, title: 'The Reveal' } },
     }
-    expect(downloadLabel(dl('/lib/Show/e5.mkv'), meta).line).toBe('Some Show - S03E05 - The Reveal')
+    expect(downloadLabel(dl('/lib/Show/e5.mkv'), meta)).toMatchObject({
+      label: 'Some Show - The Reveal',
+      ep: 'S03E05',
+    })
   })
 
   it('keeps a plain number when no season was parsed', () => {
@@ -157,7 +160,7 @@ describe('downloadLabel', () => {
       groups: { g: { serverId: 1, folder: '/lib/Show', title: 'Some Show', links: {} } },
       items: { '1': { g: 'g', episode: 1187 } },
     }
-    expect(downloadLabel(dl('/lib/Show/e1187.mkv'), meta).line).toBe('Some Show - E1187')
+    expect(downloadLabel(dl('/lib/Show/e1187.mkv'), meta)).toMatchObject({ label: 'Some Show', ep: 'E1187' })
   })
 
   it('keeps the file name when the folder has no match', () => {
@@ -165,6 +168,6 @@ describe('downloadLabel', () => {
       groups: { g: { serverId: 1, folder: '/lib/Unknown', links: {} } },
       items: { '1': { g: 'g', season: 1, episode: 2 } },
     }
-    expect(downloadLabel(dl('/lib/Unknown/e2.mkv'), meta).line).toBe('e2.mkv')
+    expect(downloadLabel(dl('/lib/Unknown/e2.mkv'), meta)).toMatchObject({ label: 'e2.mkv', ep: '' })
   })
 })
