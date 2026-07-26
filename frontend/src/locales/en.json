@@ -391,6 +391,7 @@
     "noRename": "No rename",
     "never": "never",
     "minAgo": "{{count}} min ago",
+    "chipEp": "Ep. {{n}}",
     "chipLast": "Last {{when}}",
     "chipNext": "Check {{when}}",
     "checkDue": "due",
