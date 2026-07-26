@@ -261,8 +261,11 @@ body {
      which need 24px to clear the target-size floor of WCAG 2.5.8 */
   min-height: 1.5rem;
   /* a chip never widens its panel; a chip that still cannot fit wraps inside
-     its own box instead of pushing the row into a horizontal scroll */
+     its own box instead of pushing the row into a horizontal scroll. max-width
+     alone only clips - a single long token (a slug, a path, an uppercase label
+     whose letter-spacing pushes it past the box) needs somewhere to break. */
   max-width: 100%;
+  overflow-wrap: anywhere;
   /* but it is not the item that gives way either: a chip is content-sized, and
      letting it shrink in a flex row squeezed the box below its own word, which
      then hung over the border with nothing to clip it. The flexible item in
