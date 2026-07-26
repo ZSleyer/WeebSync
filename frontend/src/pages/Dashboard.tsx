@@ -743,23 +743,30 @@ function DownloadRow({
         />
       </div>
       {open && <DownloadDetails d={d} meta={meta} />}
-      {/* single row from sm upwards: buttons keep their size, the limit
-          control stays on the same line instead of wrapping below */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 sm:flex-nowrap">
+      {/* one row at every width. On a phone the buttons drop their captions and
+          keep the icon, which is what leaves the limit control room to stay on
+          the line instead of claiming one of its own */}
+      <div className="mt-2 flex flex-nowrap items-center gap-2">
         {d.status === 'running' || d.status === 'queued' ? (
-          <Button size="sm" className="shrink-0" onClick={() => onAction('pause')}>
-            <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('dash.pause')}
+          <Button size="sm" className="shrink-0" aria-label={t('dash.pause')} onClick={() => onAction('pause')}>
+            <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+            <span className="hidden sm:inline">{t('dash.pause')}</span>
           </Button>
         ) : (
-          <Button size="sm" className="shrink-0" onClick={() => onAction('resume')}>
-            <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('dash.resume')}
+          <Button size="sm" className="shrink-0" aria-label={t('dash.resume')} onClick={() => onAction('resume')}>
+            <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+            <span className="hidden sm:inline">{t('dash.resume')}</span>
           </Button>
         )}
-        <Button size="sm" variant="danger" className="shrink-0" onClick={() => onAction('cancel')}>
-          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('dash.cancel')}
+        <Button
+          size="sm"
+          variant="danger"
+          className="shrink-0"
+          aria-label={t('dash.cancel')}
+          onClick={() => onAction('cancel')}
+        >
+          <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+          <span className="hidden sm:inline">{t('dash.cancel')}</span>
         </Button>
         <RateLimitInput d={d} />
       </div>
@@ -837,12 +844,15 @@ function LimitInput({ label, bytes, onSave }: { label: string; bytes: number; on
   }
   return (
     // one line at every width: three stacked rows for a control nobody sets
-    // twice is a lot of phone screen. The number field is what gives - it holds
-    // four digits at w-16, and a limit longer than that still scrolls inside it
-    <label className="ml-auto flex flex-nowrap items-center gap-2 text-xs text-t-muted">
-      <span className="shrink-0">{label}</span>
+    // twice is a lot of phone screen. The caption goes screen-reader-only on a
+    // phone rather than away, so the field keeps its accessible name
+    <label className="ml-auto flex min-w-0 flex-nowrap items-center gap-2 text-xs text-t-muted">
+      <span className="sr-only shrink-0 sm:not-sr-only">{label}</span>
+      {/* the width needs the bang: .t-input sets width:100% unlayered, which
+          beats a plain w-14 utility and lets the field eat the whole row */}
       <Input
-        className="w-16 min-w-0 py-1 font-mono text-xs sm:w-24"
+        size="sm"
+        className="w-14! shrink-0 font-mono sm:w-24!"
         type="number"
         min={0}
         step="any"
@@ -853,7 +863,7 @@ function LimitInput({ label, bytes, onSave }: { label: string; bytes: number; on
         onKeyDown={(e) => e.key === 'Enter' && save()}
       />
       <Select
-        className="py-1 text-xs"
+        size="sm"
         wrapperClassName="shrink-0"
         aria-label={t('dash.limitUnit')}
         value={unit}
