@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Pencil, X } from 'lucide-react'
+import { useSearchParams } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Panel } from '@weebsync/design-system'
@@ -21,7 +22,10 @@ export default function Local() {
   const qc = useQueryClient()
   const confirm = useConfirm()
   const prompt = usePrompt()
-  const [path, setPath] = useState('')
+  const [params] = useSearchParams()
+  // read once on mount, like the remote browser: the dashboard queue links
+  // straight to the folder a download landed in
+  const [path, setPath] = useState((params.get('path') ?? '').replace(/^\//, ''))
   const [error, setError] = useState('')
   // same three folder modes as the remote browser (default classic; a folder
   // saved as "dauerhaft" reopens in the catalog), addressed as source id 0
