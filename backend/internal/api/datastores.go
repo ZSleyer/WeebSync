@@ -407,7 +407,7 @@ func (s *Server) handleAdminDataDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	n, err := deleteStore(r.Context(), s.DB, st)
 	if err != nil {
-		dbErr(w)
+		dbErrDetail(w, "delete "+st.name, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, deletedResponse{Deleted: n})
@@ -494,26 +494,26 @@ func (s *Server) handleAdminDataReset(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	conn, err := s.DB.Conn(ctx)
 	if err != nil {
-		dbErr(w)
+		dbErrDetail(w, "reset conn", err)
 		return
 	}
 	defer conn.Close()
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		dbErr(w)
+		dbErrDetail(w, "reset commit", err)
 		return
 	}
 	for _, st := range wipe {
 		n, derr := deleteStore(ctx, conn, st)
 		if derr != nil {
 			conn.ExecContext(ctx, "ROLLBACK")
-			dbErr(w)
+			dbErrDetail(w, "reset "+st.name, derr)
 			return
 		}
 		out.Deleted[st.name] = n
 	}
 	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
 		conn.ExecContext(ctx, "ROLLBACK")
-		dbErr(w)
+		dbErrDetail(w, "reset begin", err)
 		return
 	}
 

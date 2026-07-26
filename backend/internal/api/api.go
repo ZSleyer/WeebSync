@@ -303,6 +303,16 @@ func dbErr(w http.ResponseWriter) {
 	writeErr(w, http.StatusInternalServerError, "db error")
 }
 
+// dbErrDetail names the step that failed, logs the driver's message and hands
+// it to the caller. Admin-only routes use this: a bare "db error" left an
+// operator with a failed maintenance run and nothing at all to act on, neither
+// in the page nor in the log.
+func dbErrDetail(w http.ResponseWriter, op string, err error) {
+	op = logSafe(op)
+	slog.Error("db "+op, "err", err)
+	writeErr(w, http.StatusInternalServerError, op+": "+logSafe(err.Error()))
+}
+
 // pathID parses the {id} path segment. Invalid input yields 0, which no
 // row ever matches, so handlers fall through to their "not found" path.
 func pathID(r *http.Request) int64 {
