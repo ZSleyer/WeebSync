@@ -18,40 +18,10 @@ import (
 )
 
 // Admin job/cache introspection and triggers: one status endpoint for the
-// background machinery (match queue, caches, crawler, watches) plus manual
-// job runs and cache flushes. All routes are admin-only and cross-user by
-// design - caches and the remote index are shared infrastructure.
-
-// cacheScopes maps the public scope names to their key prefix in the shared
-// anilist_cache KV table and the TTL the owning client applies on reads -
-// the default, made configurable by the given settings key ("" = fixed).
-// "tmdb:coll" covers both tmdb:coll-of:<movie> and tmdb:collection:<id>.
-type cacheScope struct {
-	name    string
-	prefix  string
-	setting string
-	ttl     time.Duration
-}
-
-var cacheScopes = []cacheScope{
-	{"anilist-search", "search:", "ttl_anilist_h", 24 * time.Hour},
-	{"anilist-media", "media:", "ttl_anilist_h", 24 * time.Hour},
-	{"anilist-relations", "rel2:", "ttl_anilist_h", 24 * time.Hour},
-	{"anilist-userlist", "alist:", "", time.Hour},
-	{"tmdb-search", "tmdb:search:", "ttl_tmdb_h", 24 * time.Hour},
-	{"tmdb-media", "tmdb:media:", "ttl_tmdb_h", 24 * time.Hour},
-	{"tmdb-collections", "tmdb:coll", "ttl_tmdb_h", 24 * time.Hour},
-	{"plex", "plex:", "ttl_plex_h", 6 * time.Hour},
-}
-
-func cacheScopeFor(name string) (cacheScope, bool) {
-	for _, sc := range cacheScopes {
-		if sc.name == name {
-			return sc, true
-		}
-	}
-	return cacheScope{}, false
-}
+// background machinery (match queue, crawler, watches) plus manual job runs.
+// All routes are admin-only and cross-user by design - caches and the remote
+// index are shared infrastructure. What lives where is described once, in
+// datastores.go; this file only reads and triggers.
 
 // ttlSetting reads an hours setting, falling back to def when unset/zero.
 func (s *Server) ttlSetting(key string, def time.Duration) time.Duration {
@@ -61,12 +31,12 @@ func (s *Server) ttlSetting(key string, def time.Duration) time.Duration {
 	return def
 }
 
-// scopeTTL is a scope's effective TTL with the admin override applied.
-func (s *Server) scopeTTL(sc cacheScope) time.Duration {
-	if sc.setting == "" {
-		return sc.ttl
+// scopeTTL is a cache store's effective TTL with the admin override applied.
+func (s *Server) scopeTTL(st dataStore) time.Duration {
+	if st.setting == "" {
+		return st.ttl
 	}
-	return s.ttlSetting(sc.setting, sc.ttl)
+	return s.ttlSetting(st.setting, st.ttl)
 }
 
 // escapeLike escapes LIKE wildcards so user input matches literally
@@ -111,15 +81,6 @@ func (s *Server) jobsSnapshot() (keys []string, matchQueue int) {
 	return
 }
 
-type adminCacheStat struct {
-	Scope  string `json:"scope"`
-	Count  int    `json:"count"`
-	Oldest string `json:"oldest"`
-	Newest string `json:"newest"`
-	TTLSec int    `json:"ttlSec"`
-	Stale  int    `json:"stale"` // rows older than the scope's TTL
-}
-
 type adminIndexServer struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
@@ -139,6 +100,18 @@ type adminMatchStat struct {
 	Matched   int    `json:"matched"`
 	Unmatched int    `json:"unmatched"` // automatic "no match" rows
 	Manual    int    `json:"manual"`
+}
+
+// adminCacheStat is the per-scope cache summary this endpoint has always
+// carried. Superseded by /api/admin/data, which reports the same numbers for
+// every store rather than only the caches; kept until the UI has moved over.
+type adminCacheStat struct {
+	Scope  string `json:"scope"`
+	Count  int    `json:"count"`
+	Oldest string `json:"oldest"`
+	Newest string `json:"newest"`
+	TTLSec int    `json:"ttlSec"`
+	Stale  int    `json:"stale"` // rows older than the scope's TTL
 }
 
 type adminJobsResponse struct {
@@ -186,7 +159,7 @@ type adminWatchInfo struct {
 // handleAdminJobs reports the state of all background machinery.
 //
 // @Summary      Background jobs status
-// @Description  Reports the state of all background machinery: running jobs, match queue, cache stats, effective TTLs, Plex/AniList/index/watch info and per-server match stats (admin only).
+// @Description  Reports the state of all background machinery: running jobs, match queue, cache stats, effective TTLs, Plex/AniList/index/watch info and per-server match stats (admin only). The full data store inventory lives in /api/admin/data.
 // @Tags         Admin
 // @Produce      json
 // @Success      200  {object}  adminJobsResponse
@@ -210,15 +183,23 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	out.Running = append(out.Running, running...)
 	out.MatchQueue = matchQueue
 
-	for _, sc := range cacheScopes {
-		ttl := s.scopeTTL(sc)
-		st := adminCacheStat{Scope: sc.name, TTLSec: int(ttl / time.Second)}
+	// the cache summary now reads off the registry rather than a second list of
+	// its own; /api/admin/data reports the same numbers for every store
+	for _, st := range dataStores {
+		if st.kind != kindCache {
+			continue
+		}
+		where, args := st.filter()
+		stat := adminCacheStat{
+			Scope:  strings.TrimPrefix(st.name, "cache:"),
+			TTLSec: int(s.scopeTTL(st) / time.Second),
+		}
 		s.DB.QueryRow(`SELECT COUNT(*), COALESCE(MIN(fetched_at),''), COALESCE(MAX(fetched_at),''),
 			COALESCE(SUM(datetime(fetched_at) <= datetime('now', ?)),0)
-			FROM anilist_cache WHERE key LIKE ? || '%'`,
-			fmt.Sprintf("-%d seconds", int(ttl/time.Second)), sc.prefix).
-			Scan(&st.Count, &st.Oldest, &st.Newest, &st.Stale)
-		out.Caches = append(out.Caches, st)
+			FROM anilist_cache WHERE `+where,
+			append([]any{fmt.Sprintf("-%d seconds", stat.TTLSec)}, args...)...).
+			Scan(&stat.Count, &stat.Oldest, &stat.Newest, &stat.Stale)
+		out.Caches = append(out.Caches, stat)
 	}
 	out.TTL = adminTTLInfo{
 		AnilistH: int(s.ttlSetting("ttl_anilist_h", 24*time.Hour) / time.Hour),
@@ -459,12 +440,13 @@ type deletedResponse struct {
 // @Security     CookieAuth
 // @Router       /api/admin/cache/{scope} [delete]
 func (s *Server) handleAdminCacheFlush(w http.ResponseWriter, r *http.Request) {
-	sc, ok := cacheScopeFor(r.PathValue("scope"))
+	st, ok := cacheStoreFor(r.PathValue("scope"))
 	if !ok {
 		writeErr(w, http.StatusNotFound, "unknown scope")
 		return
 	}
-	res, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE ? || '%'`, sc.prefix)
+	where, args := st.filter()
+	res, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE `+where, args...)
 	if err != nil {
 		dbErr(w)
 		return
@@ -505,14 +487,15 @@ type adminCacheEntriesResponse struct {
 // @Security     CookieAuth
 // @Router       /api/admin/cache/{scope}/entries [get]
 func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request) {
-	sc, ok := cacheScopeFor(r.PathValue("scope"))
+	st, ok := cacheStoreFor(r.PathValue("scope"))
 	if !ok {
 		writeErr(w, http.StatusNotFound, "unknown scope")
 		return
 	}
 	offset, limit := pageParams(r)
-	where := `key LIKE ? || '%'`
-	args := []any{sc.prefix}
+	// the store owns its row condition, so a multi-prefix scope and the
+	// catch-all (defined by exclusion) page exactly what they report
+	where, args := st.filter()
 	if q := r.URL.Query().Get("q"); q != "" {
 		where += ` AND key LIKE '%' || ? || '%' ESCAPE '\'`
 		args = append(args, escapeLike(q))
@@ -525,7 +508,7 @@ func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request)
 	rows, err := s.DB.Query(`SELECT key, fetched_at, LENGTH(payload),
 		COALESCE(datetime(fetched_at) <= datetime('now', ?), 0)
 		FROM anilist_cache WHERE `+where+` ORDER BY fetched_at DESC LIMIT ? OFFSET ?`,
-		append([]any{fmt.Sprintf("-%d seconds", int(s.scopeTTL(sc)/time.Second))}, append(args, limit, offset)...)...)
+		append([]any{fmt.Sprintf("-%d seconds", int(s.scopeTTL(st)/time.Second))}, append(args, limit, offset)...)...)
 	if err != nil {
 		dbErr(w)
 		return
@@ -541,15 +524,16 @@ func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request)
 }
 
 // handleAdminCacheEntryDelete deletes exactly one cache row. The key must
-// carry the scope's prefix so a scoped delete cannot remove foreign keys.
+// belong to the scope so a scoped delete cannot remove foreign keys - for the
+// catch-all scope that means it must match no other scope's prefix.
 // DELETE /api/admin/cache/{scope}/entries?key=<full key>
 //
 // @Summary      Delete cache entry
-// @Description  Deletes exactly one cache row (admin only). The key must carry the scope's prefix.
+// @Description  Deletes exactly one cache row (admin only). The key must belong to the scope; for the catch-all scope that means no other scope claims it.
 // @Tags         Admin
 // @Produce      json
 // @Param        scope  path      string  true  "cache scope"
-// @Param        key    query     string  true  "full cache key (must match the scope prefix)"
+// @Param        key    query     string  true  "full cache key (must belong to the scope)"
 // @Success      200  {object}  deletedResponse
 // @Failure      400  {object}  ErrorResponse
 // @Failure      401  {object}  ErrorResponse
@@ -559,14 +543,14 @@ func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request)
 // @Security     CookieAuth
 // @Router       /api/admin/cache/{scope}/entries [delete]
 func (s *Server) handleAdminCacheEntryDelete(w http.ResponseWriter, r *http.Request) {
-	sc, ok := cacheScopeFor(r.PathValue("scope"))
+	st, ok := cacheStoreFor(r.PathValue("scope"))
 	if !ok {
 		writeErr(w, http.StatusNotFound, "unknown scope")
 		return
 	}
 	key := r.URL.Query().Get("key")
-	if key == "" || !strings.HasPrefix(key, sc.prefix) {
-		writeErr(w, http.StatusBadRequest, "key must match the scope prefix")
+	if key == "" || !st.ownsKey(key) {
+		writeErr(w, http.StatusBadRequest, "key does not belong to this scope")
 		return
 	}
 	res, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, key)

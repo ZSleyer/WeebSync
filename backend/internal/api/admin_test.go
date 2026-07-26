@@ -38,6 +38,7 @@ func TestAdminRoutesGuard(t *testing.T) {
 
 	routes := []struct{ method, path, body string }{
 		{"GET", "/api/admin/jobs", ""},
+		{"GET", "/api/admin/data", ""},
 		{"POST", "/api/admin/jobs/plex-suggestions/run", ""},
 		{"DELETE", "/api/admin/cache/plex", ""},
 		{"DELETE", "/api/admin/index/1", ""},
