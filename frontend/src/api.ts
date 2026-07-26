@@ -209,19 +209,22 @@ export interface DownloadMeta {
   items: Record<string, DownloadItemMeta> // by download id
 }
 
-// downloadLabel is what the queue puts on a download: "Show - S03E05 - Episode"
-// when the metadata knows the series, the bare file name when it does not. One
-// helper because the queue rows and the history rows must not drift apart.
+// downloadLabel is what the queue puts on a download: the series and episode
+// title when the metadata knows the folder, the bare file name when it does not.
+// The episode marker comes back separately so a row can keep it out of the part
+// that truncates - a long series title would otherwise eat exactly the piece
+// that says which episode this is. One helper because the queue rows and the
+// history rows must not drift apart.
 export function downloadLabel(d: Download, meta?: DownloadMeta) {
   const item = meta?.items[String(d.id)]
   const group = item ? meta?.groups[item.g] : undefined
   const name = d.remotePath.split('/').pop() ?? d.remotePath
-  if (!group?.title || !item?.episode) return { line: name, name, group, item }
+  if (!group?.title || !item?.episode) return { label: name, ep: '', name, group, item }
   const pad = (n: number) => String(n).padStart(2, '0')
   // a file without a season marker keeps its plain number rather than
   // pretending to be season 1
   const ep = item.season ? `S${pad(item.season)}E${pad(item.episode)}` : `E${item.episode}`
-  return { line: [group.title, ep, item.title].filter(Boolean).join(' - '), name, group, item }
+  return { label: [group.title, item.title].filter(Boolean).join(' - '), ep, name, group, item }
 }
 
 export interface SuggestionCandidate {

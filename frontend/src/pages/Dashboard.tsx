@@ -705,7 +705,7 @@ function DownloadRow({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const pct = d.size > 0 ? Math.min(100, (d.transferred / d.size) * 100) : 0
-  const { line, name, group } = downloadLabel(d, meta)
+  const { label, ep, name, group } = downloadLabel(d, meta)
   return (
     <Panel className={`p-4 ${selected ? 'bg-bg-hover' : ''}`}>
       <div className="mb-2 flex flex-wrap items-center gap-3">
@@ -714,9 +714,12 @@ function DownloadRow({
             unmatched row would be noise */}
         {group?.cover && <Cover src={group.cover} size="sm" loading="lazy" />}
         <StatusChip status={d.status} />
-        <span className="min-w-0 flex-1 truncate text-sm text-t-primary" title={d.remotePath}>
-          {line}
-          {line !== name && <span className="block truncate font-mono text-xs text-t-muted">{name}</span>}
+        {ep && <Badge tone="accent">{ep}</Badge>}
+        {/* own line on a phone: cover, status chip and episode badge leave the
+            title a few characters otherwise */}
+        <span className="min-w-0 basis-full truncate text-sm text-t-primary sm:flex-1 sm:basis-auto" title={d.remotePath}>
+          {label}
+          {label !== name && <span className="block truncate font-mono text-xs text-t-muted">{name}</span>}
         </span>
         <span className="font-mono text-xs text-t-muted">
           {fmtBytes(d.transferred)} / {fmtBytes(d.size)}
@@ -782,15 +785,17 @@ function HistoryRow({
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const { line, name, group } = downloadLabel(d, meta)
+  const { label, ep, name, group } = downloadLabel(d, meta)
   return (
     <div className="border border-border-subtle bg-bg-card px-3 py-2 text-sm">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <SelectBox checked={selected} name={name} onSelect={onSelect} />
         {group?.cover && <Cover src={group.cover} size="sm" loading="lazy" />}
         <StatusChip status={d.status} />
-        <span className="min-w-0 flex-1 truncate text-xs text-t-secondary" title={d.remotePath}>
-          {line}
+        {ep && <Badge tone="accent">{ep}</Badge>}
+        {/* own line on a phone, same reason as the queue row */}
+        <span className="min-w-0 basis-full truncate text-xs text-t-secondary sm:flex-1 sm:basis-auto" title={d.remotePath}>
+          {label}
         </span>
         {d.error && <span className="max-w-64 truncate text-xs text-err" title={d.error}>{d.error}</span>}
         <span className="font-mono text-xs text-t-muted">{fmtBytes(d.size)}</span>
@@ -831,12 +836,13 @@ function LimitInput({ label, bytes, onSave }: { label: string; bytes: number; on
     }
   }
   return (
-    // wraps at the phone width, where the caption plus a number field plus a
-    // unit select need 404px of a 357px row and nowrap has nothing to clip it
-    <label className="ml-auto flex flex-wrap items-center gap-2 text-xs text-t-muted">
-      {label}
+    // one line at every width: three stacked rows for a control nobody sets
+    // twice is a lot of phone screen. The number field is what gives - it holds
+    // four digits at w-16, and a limit longer than that still scrolls inside it
+    <label className="ml-auto flex flex-nowrap items-center gap-2 text-xs text-t-muted">
+      <span className="shrink-0">{label}</span>
       <Input
-        className="w-24 py-1 font-mono text-xs"
+        className="w-16 min-w-0 py-1 font-mono text-xs sm:w-24"
         type="number"
         min={0}
         step="any"
