@@ -265,11 +265,11 @@ func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate
 	}
 }
 
-// providerBadgesLinks turns provider hits into the badge set and per-integration
-// title links. A Plex web link is added when the title is in a Plex library;
-// showKey ("tvdb:123"...) makes that lookup id-based (reliable for localized
-// titles), "" falls back to the title index alone.
-func (s *Server) providerBadgesLinks(refs []providerRef, title, showKey string) ([]string, ProviderLinks) {
+// providerLinks turns provider hits into the badge set and per-integration title
+// links. Pure and free of IO, split out from providerBadgesLinks so a polled
+// view can build links without the Plex lookup below, which walks the whole
+// library on a cold guid cache.
+func providerLinks(refs []providerRef) (map[string]bool, ProviderLinks) {
 	set := map[string]bool{}
 	var l ProviderLinks
 	for _, r := range refs {
@@ -294,6 +294,15 @@ func (s *Server) providerBadgesLinks(refs []providerRef, title, showKey string) 
 			l.Imdb = fmt.Sprintf("https://www.imdb.com/title/tt%d", r.MediaID)
 		}
 	}
+	return set, l
+}
+
+// providerBadgesLinks turns provider hits into the badge set and per-integration
+// title links. A Plex web link is added when the title is in a Plex library;
+// showKey ("tvdb:123"...) makes that lookup id-based (reliable for localized
+// titles), "" falls back to the title index alone.
+func (s *Server) providerBadgesLinks(refs []providerRef, title, showKey string) ([]string, ProviderLinks) {
+	set, l := providerLinks(refs)
 	if pl := s.plexWebLinkByKey(showKey, title); pl != "" {
 		set["plex"] = true
 		l.Plex = pl
