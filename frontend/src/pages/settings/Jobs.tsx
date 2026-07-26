@@ -817,7 +817,7 @@ function Modal({
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-4">{children}</div>
         <footer className="flex items-center justify-between gap-2 border-t border-border-subtle px-5 py-3">
           <span>{footer}</span>
           <Button onClick={onClose}>

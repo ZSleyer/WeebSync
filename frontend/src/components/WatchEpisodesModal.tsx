@@ -81,7 +81,7 @@ export default function WatchEpisodesModal({ watch, onClose }: { watch: Watch; o
           </p>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-4">
           {isLoading && <Loading />}
           {isError && <p className="text-sm text-err">{t('watch.gaps.error')}</p>}
           {/* the reason sits above the list, not under it: a list without
