@@ -59,3 +59,23 @@ func TestSugAccDedup(t *testing.T) {
 		t.Errorf("dismissed item should be hidden, got %d", n)
 	}
 }
+
+// providerLinks is the pure half of providerBadgesLinks; the queue view relies
+// on it staying free of the Plex library walk.
+func TestProviderLinks(t *testing.T) {
+	set, l := providerLinks([]providerRef{
+		{"anilist", 42}, {"tmdb:tv", 100}, {"tvdb", 200}, {"imdb", 300},
+	})
+	for _, want := range []string{"anilist", "tmdb", "tvdb", "imdb"} {
+		if !set[want] {
+			t.Errorf("badge %q missing from %v", want, keysSorted(set))
+		}
+	}
+	if set["plex"] {
+		t.Error("providerLinks must not add a plex badge: that needs a server lookup")
+	}
+	if l.Anilist != "https://anilist.co/anime/42" || l.Tmdb != "https://www.themoviedb.org/tv/100" ||
+		l.Tvdb != "https://thetvdb.com/dereferrer/series/200" || l.Imdb != "https://www.imdb.com/title/tt300" {
+		t.Errorf("links = %+v", l)
+	}
+}
