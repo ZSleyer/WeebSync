@@ -117,6 +117,10 @@ export default function Watches() {
       minute: '2-digit',
       ...(tz ? { timeZone: tz } : {}),
     })
+  // the same date inside a chip, which shares its line with the episode number:
+  // the locale separators are what pushes it past the phone column, and a chip
+  // has no prose to hold together without them
+  const airFmtChip = (ts: number) => airFmt(ts).replace(/,/g, '')
   // withSec = tick down to the second (for airings happening today)
   const countdown = (ts: number, withSec = false) => {
     const ms = ts * 1000 - Date.now()
@@ -371,35 +375,20 @@ export default function Watches() {
                       meta={w.lastResult ? <span className="text-err">{w.lastResult}</span> : undefined}
                       badges={
                         <>
-                          {/* the two schedule chips lead the row: every watch
-                              carries them, so the row starts the same everywhere */}
-                          <Badge size="sm" tone={w.lastResult ? 'err' : undefined}>
-                            <History aria-hidden size="1em" />
-                            {t('watch.chipLast', { when: ago(w.lastCheck) })}
-                            {!w.lastResult && w.lastQueued >= 0 && ` · ${t('watch.lastQueued', { count: w.lastQueued })}`}
-                          </Badge>
-                          <Badge size="sm">
-                            <Timer aria-hidden size="1em" />
-                            {t('watch.chipNext', { when: untilCheck(w.nextCheck) })}
-                          </Badge>
+                          {/* the upcoming episode leads the row: it is what the
+                              page is watched for. Number and date share one chip
+                              so they cannot end up on separate lines. */}
                           {!!w.nextAiringAt && (
-                            // two chips, not one: episode and airing time in a
-                            // single chip came to ~400px, which no phone column
-                            // can hold - split, each one fits on its own line
-                            <>
-                              <Badge tone={w.behind ? 'warn' : 'ok'} size="sm">
-                                <CalendarDays aria-hidden size="1em" />
-                                {t('watch.nextEp', { n: w.nextEpisode })}
-                                {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''}
-                              </Badge>
-                              <Badge
-                                tone={w.behind ? 'warn' : 'ok'}
-                                size="sm"
-                                title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}
-                              >
-                                {airFmt(w.nextAiringAt)}
-                              </Badge>
-                            </>
+                            <Badge
+                              tone={w.behind ? 'warn' : 'ok'}
+                              size="sm"
+                              title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}
+                            >
+                              <CalendarDays aria-hidden size="1em" />
+                              {t('watch.chipEp', { n: w.nextEpisode })}
+                              {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''}
+                              {` · ${airFmtChip(w.nextAiringAt)}`}
+                            </Badge>
                           )}
                           {(w.behind ?? 0) > 0 && (
                             <Badge tone="warn" size="sm">
@@ -446,6 +435,12 @@ export default function Watches() {
                               {t('watch.uploading')}
                             </Badge>
                           )}
+                          {w.active > 0 && (
+                            <Badge tone="accent" size="sm">
+                              <Download aria-hidden size="1em" />
+                              {t('watch.active', { count: w.active })}
+                            </Badge>
+                          )}
                           {(w.seenEpisodes ?? 0) > 0 && (
                             <Badge size="sm">
                               <Eye aria-hidden size="1em" />
@@ -458,12 +453,17 @@ export default function Watches() {
                               {t('watch.renamed')}
                             </Badge>
                           )}
-                          {w.active > 0 && (
-                            <Badge tone="accent" size="sm">
-                              <Download aria-hidden size="1em" />
-                              {t('watch.active', { count: w.active })}
-                            </Badge>
-                          )}
+                          {/* the schedule closes the row: the same two chips on
+                              every watch, so the tail reads the same everywhere */}
+                          <Badge size="sm" tone={w.lastResult ? 'err' : undefined}>
+                            <History aria-hidden size="1em" />
+                            {t('watch.chipLast', { when: ago(w.lastCheck) })}
+                            {!w.lastResult && w.lastQueued >= 0 && ` · ${t('watch.lastQueued', { count: w.lastQueued })}`}
+                          </Badge>
+                          <Badge size="sm">
+                            <Timer aria-hidden size="1em" />
+                            {t('watch.chipNext', { when: untilCheck(w.nextCheck) })}
+                          </Badge>
                         </>
                       }
                       status={

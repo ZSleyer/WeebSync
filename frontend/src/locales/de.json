@@ -391,6 +391,7 @@
     "noRename": "Kein Rename",
     "never": "noch nie",
     "minAgo": "vor {{count}} min",
+    "chipEp": "Folge {{n}}",
     "chipLast": "Zuletzt {{when}}",
     "chipNext": "Abgleich {{when}}",
     "checkDue": "steht an",
