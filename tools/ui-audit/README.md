@@ -19,15 +19,23 @@ one that finds labels which no longer fit on a single line.
 A chip that is prose rather than a chip - a page subtitle, a status line
 carrying a user name - opts out of the wrap check with `<Badge multiline>`.
 
-Both need `playwright` (1.61.0 matches the cached chromium-1228 and
-firefox-1532 builds) and a logged-in session. Install it here once:
+Both need `playwright` and a logged-in session. The version is pinned exactly in
+`package.json` and locked in `yarn.lock`, because each release expects browser
+builds of its own - 1.62.0 wants chromium-1234 and firefox-1538. Install both
+here once:
 
-    cd tools/ui-audit && yarn install
+    cd tools/ui-audit && yarn install && npx playwright install chromium firefox
 
 Then run the passes from the repo root:
 
     WS_TOKEN=<raw session token> node tools/ui-audit/e2e.mjs --base http://127.0.0.1:8080
     WS_TOKEN=<raw session token> node tools/ui-audit/modals.mjs --base http://127.0.0.1:8080
+
+**Point `--base` at an instance that actually serves the frontend.** The backend
+does not embed it; without `WEEBSYNC_WEB` pointing at a built `frontend/dist`
+every route answers 404, and both passes then report a clean bill of health for
+pages they never saw. `curl -o /dev/null -w '%{http_code}' <base>/` returning 200
+is the check worth doing before believing a green run.
 
 `WS_TOKEN` is the raw token whose SHA-256 sits in the `sessions` table - the
 way in when the instance is OIDC-only. Without it both fall back to a password
