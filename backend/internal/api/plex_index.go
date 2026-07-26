@@ -56,6 +56,10 @@ func (s *Server) indexPlexLibrary() {
 				}
 			}
 			showKey := showKeyFor(sh, sec.Provider)
+			// the same show the catalog knows, reached from the other side: any
+			// of Plex's ids leads to the series a match already bundled. 0 until
+			// reconcilePlex has attached them, and show_key carries until then.
+			seriesID := s.seriesIDForPlexShow(sh)
 			if showKey == "" {
 				continue // Plex knows no id we can bridge on
 			}
@@ -70,10 +74,10 @@ func (s *Server) indexPlexLibrary() {
 				}
 				q, folder := s.plexLocalQuality(sm, sh.RatingKey, season)
 				s.DB.Exec(`INSERT OR REPLACE INTO catalog_variants
-					(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie)
-					VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie, series_id)
+					VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					folder, q.ResRank, strings.Join(q.Dub, ","), strings.Join(q.Sub, ","),
-					now, showKey, season, boolInt(isMovie))
+					now, showKey, season, boolInt(isMovie), seriesID)
 				units++
 			}
 		}
@@ -272,4 +276,35 @@ func streamsQuality(streams []probeStream) FolderQuality {
 	}
 	q.Dub, q.Sub = keysSorted(dub), keysSorted(sub)
 	return q
+}
+
+// seriesIDForPlexShow resolves the canonical series behind a Plex show through
+// any id Plex reports. Plex's own ratingKey is tried first: reconcilePlex writes
+// it, and it is the one id that cannot belong to a different show.
+func (s *Server) seriesIDForPlexShow(sh plex.Show) int64 {
+	type ref struct {
+		source string
+		id     int
+	}
+	refs := []ref{}
+	if rk, err := strconv.Atoi(sh.RatingKey); err == nil && rk > 0 {
+		refs = append(refs, ref{"plex", rk})
+	}
+	if sh.TVDBID != 0 {
+		refs = append(refs, ref{"tvdb", sh.TVDBID})
+	}
+	if sh.TMDBID != 0 {
+		refs = append(refs, ref{"tmdb:tv", sh.TMDBID}, ref{"tmdb:movie", sh.TMDBID})
+	}
+	if sh.IMDBID != 0 {
+		refs = append(refs, ref{"imdb", sh.IMDBID})
+	}
+	for _, r := range refs {
+		var id int64
+		if s.DB.QueryRow(`SELECT series_id FROM series_provider WHERE source = ? AND media_id = ?`,
+			r.source, r.id).Scan(&id) == nil && id != 0 {
+			return id
+		}
+	}
+	return 0
 }

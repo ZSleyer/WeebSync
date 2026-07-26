@@ -186,10 +186,23 @@ func (s *Server) refreshVariant(serverID int64, folder string) {
 	q := s.scanQuality(serverID, folder)
 	showKey, season, isMovie := s.folderUnit(serverID, folder)
 	s.DB.Exec(`INSERT OR REPLACE INTO catalog_variants
-		(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie, series_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		serverID, folder, q.ResRank, strings.Join(q.Dub, ","), strings.Join(q.Sub, ","),
-		time.Now().UTC().Format(time.RFC3339), showKey, season, boolInt(isMovie))
+		time.Now().UTC().Format(time.RFC3339), showKey, season, boolInt(isMovie),
+		s.seriesIDForFolder(serverID, folder))
+}
+
+// seriesIDForFolder resolves the canonical series behind a matched folder: the
+// match names a provider hit, and linkSeries has already hung that hit on a
+// series (same persistMatch call). 0 when the match has not been bundled yet -
+// the sweep's relinkOrphans catches up, and show_key carries until then.
+func (s *Server) seriesIDForFolder(serverID int64, folder string) int64 {
+	var id int64
+	s.DB.QueryRow(`SELECT sp.series_id FROM catalog_matches cm
+		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
+		WHERE cm.server_id = ? AND cm.folder = ?`, serverID, folder).Scan(&id)
+	return id
 }
 
 // folderUnit derives the canonical (show_key, season, is_movie) of a matched
