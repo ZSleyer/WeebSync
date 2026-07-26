@@ -874,7 +874,8 @@
     "basisMeasured": "aus der Datei gemessen",
     "basisGuessed": "aus dem Dateinamen gelesen",
     "basisNoAxis": "kein messbarer Gewinn",
-    "basisLangSkipped": "Die beiden Seiten sind unterschiedlich ermittelt, deshalb bleiben die Sprachen außen vor."
+    "langUnverified": "Sprachen unbestätigt",
+    "basisLangUnverified": "Der Sprachgewinn stammt aus dem Dateinamen der Quelle und ist nicht bestätigt: deine lokale Kopie kann die Spur bereits enthalten, nur ohne Sprachkennung."
   },
   "legacy": {
     "title": "Import aus dem alten weebsync",
