@@ -1,9 +1,9 @@
-import { Check, ChevronLeft, ChevronRight, Pause, Play, Search, Trash2, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Pause, Play, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Dialog, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Checkbox, Dialog, Input, Panel, Select } from '@weebsync/design-system'
 import { api, fmtBytes, type Media } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import i18n from '../../locales'
@@ -34,13 +34,35 @@ const NUMEDIT_GRID = 'grid grid-cols-[auto_5rem] items-center gap-x-2 gap-y-1'
 const COUNT_BADGE = 'min-h-6 min-w-28 shrink-0 justify-center px-2.5 tabular-nums [@media(pointer:coarse)]:min-h-8'
 
 // Pinned contract with the admin endpoints (Workstream A) - keep in sync.
-interface CacheInfo {
-  scope: string
-  count: number
+
+// One rebuildable body of data, as /api/admin/data reports it. The backend
+// sends slugs only; every word on screen comes from settings.jobs.data.* here,
+// so the page stays bilingual.
+type StoreKind = 'cache' | 'derived' | 'decision'
+
+interface DataStore {
+  name: string // "cache:plex", "series", ...
+  kind: StoreKind
+  tables: string[]
+  rows: number
+  bytes: number // cache stores only, 0 elsewhere
   oldest: string // SQLite UTC "2026-07-15 20:32:40", may be ""
   newest: string
-  ttlSec: number
-  stale: number
+  ttlSec: number // cache stores only
+  stale: number // cache stores only: rows past their TTL
+  rebuild: string // job/mechanism slug, "" = on demand
+  needs: string[] // store slugs that have to be filled first
+  keptOnReset: boolean
+}
+
+interface AdminData {
+  stores: DataStore[]
+}
+
+interface ResetResult {
+  deleted: Record<string, number>
+  kept: string[]
+  queued: number
 }
 
 interface IndexServer {
@@ -73,7 +95,6 @@ interface TtlConfig {
 interface AdminJobs {
   running: string[]
   matchQueue: number
-  caches: CacheInfo[]
   plex: { configured: boolean; suggestionsAt: string; ttlSec: number }
   anilist: { accounts: number }
   index: { tickSec: number; recheckSec: number; servers: IndexServer[] }
@@ -251,6 +272,28 @@ const PAGE = 50
 const TTL_DEFAULTS: TtlConfig = { anilistH: 24, tmdbH: 24, plexH: 6 }
 const INDEX_DEFAULTS = { intervalMin: 5, batch: 20 }
 
+const KIND_TONE: Record<StoreKind, 'neutral' | 'accent' | 'warn'> = {
+  cache: 'neutral',
+  derived: 'accent',
+  decision: 'warn', // the one kind nothing rebuilds - the badge says so
+}
+
+// Store slugs carry a colon ("cache:plex"), which i18next reads as a namespace
+// separator. Swapping it for a dot nests the texts instead, so the locale files
+// group the cache scopes under one object.
+const storeKey = (name: string) => name.replace(':', '.')
+
+type TFunc = (key: string, opts?: Record<string, unknown>) => string
+
+const storeLabel = (t: TFunc, name: string) =>
+  t(`settings.jobs.data.stores.${storeKey(name)}.name`, { defaultValue: name })
+const storeDesc = (t: TFunc, name: string) =>
+  t(`settings.jobs.data.stores.${storeKey(name)}.desc`, { defaultValue: '' })
+// "" from the backend means nothing schedules this - it refills when something
+// needs it, which is worth saying out loud rather than leaving blank.
+const rebuildLabel = (t: TFunc, slug: string) =>
+  slug ? t(`settings.jobs.data.rebuild.${slug}`, { defaultValue: slug }) : t('settings.jobs.data.rebuild.onDemand')
+
 // SQLite stores UTC without a timezone marker - tack on Z for local display.
 // Dates and numbers follow the app language, not the browser locale, so the
 // page stays consistent when UI language and OS locale differ.
@@ -367,11 +410,18 @@ export default function Jobs() {
   const confirm = useConfirm()
   const qc = useQueryClient()
   const [error, setError] = useState('')
-  const [cacheModal, setCacheModal] = useState<CacheInfo | null>(null)
+  const [cacheModal, setCacheModal] = useState<DataStore | null>(null)
   const [matchModal, setMatchModal] = useState<MatchStat | null>(null)
+  const [resetOpen, setResetOpen] = useState(false)
   const { data } = useQuery<AdminJobs>({
     queryKey: ['adminJobs'],
     queryFn: () => api.get('/api/admin/jobs'),
+    refetchInterval: 5000,
+  })
+  // same 5s beat as the job status, so a running rebuild is watchable
+  const { data: inventory } = useQuery<AdminData>({
+    queryKey: ['adminData'],
+    queryFn: () => api.get('/api/admin/data'),
     refetchInterval: 5000,
   })
 
@@ -379,6 +429,7 @@ export default function Jobs() {
     onSuccess: () => {
       setError('')
       qc.invalidateQueries({ queryKey: ['adminJobs'] })
+      qc.invalidateQueries({ queryKey: ['adminData'] })
     },
     onError: (e: Error) => setError(e.message),
   }
@@ -387,7 +438,7 @@ export default function Jobs() {
     ...opts,
   })
   const flush = useMutation({
-    mutationFn: (scope: string) => api.del(`/api/admin/cache/${scope}`),
+    mutationFn: (name: string) => api.del(`/api/admin/data/${encodeURIComponent(name)}`),
     ...opts,
   })
   const flushIndex = useMutation({
@@ -408,45 +459,59 @@ export default function Jobs() {
 
   const ttl = data.ttl ?? TTL_DEFAULTS
   const commitTtl = (patch: Partial<TtlConfig>) => setTtl.mutate({ ...ttl, ...patch })
-  const scopeLabel = (scope: string) => t(`settings.jobs.scopes.${scope}`, { defaultValue: scope })
-  const cacheRow = (c: CacheInfo) => (
-    <li key={c.scope} className={`${ROW_GRID} py-1.5`}>
+  const storeRow = (s: DataStore) => (
+    <li key={s.name} className={`${ROW_GRID} gap-y-2 py-3`}>
       {/* stale badge lives in the label cell so rows with and without it
           keep identical stat/button geometry */}
       <span className={CELL_LEFT}>
-        <span className="min-w-0 truncate text-t-secondary">{scopeLabel(c.scope)}</span>
-        {c.stale > 0 && (
+        <span className="min-w-0 truncate font-semibold text-t-primary">{storeLabel(t, s.name)}</span>
+        <Badge tone={KIND_TONE[s.kind]} className="shrink-0">
+          {t(`settings.jobs.data.kind.${s.kind}`)}
+        </Badge>
+        {s.stale > 0 && (
           <Badge tone="warn" className="shrink-0 tabular-nums">
-            {t('settings.jobs.stale', { count: c.stale })}
+            {t('settings.jobs.stale', { count: s.stale })}
           </Badge>
         )}
       </span>
       <span className={CELL_RIGHT}>
-        <span className={`w-16 ${NUM}`}>{fmtNum(c.count)}</span>
-        <span className={`w-12 ${NUM}`}>{fmtTtl(c.ttlSec)}</span>
-        <Button size="sm" onClick={() => setCacheModal(c)}>
-          {t('settings.jobs.view')}
-        </Button>
+        <span className={`w-20 ${NUM}`}>{t('settings.jobs.data.rowCount', { n: fmtNum(s.rows) })}</span>
+        {/* size and TTL are cache-only facts, but the columns render either way
+            so the numbers stay in one line down the list */}
+        <span className={`w-16 ${NUM}`}>{s.kind === 'cache' ? fmtBytes(s.bytes) : ''}</span>
+        <span className={`w-12 ${NUM}`}>{s.kind === 'cache' ? fmtTtl(s.ttlSec) : ''}</span>
+        {s.kind === 'cache' && (
+          <Button size="sm" onClick={() => setCacheModal(s)}>
+            {t('settings.jobs.view')}
+          </Button>
+        )}
         <Button
           size="sm"
           variant="danger"
           disabled={flush.isPending}
           onClick={async () => {
-            if (await confirm({ message: t('settings.jobs.confirmFlush', { scope: scopeLabel(c.scope) }), destructive: true }))
-              flush.mutate(c.scope)
+            if (
+              await confirm({
+                message: t('settings.jobs.data.confirmDelete', { store: storeLabel(t, s.name) }),
+                destructive: true,
+              })
+            )
+              flush.mutate(s.name)
           }}
         >
           {t('settings.jobs.flush')}
         </Button>
       </span>
+      <p className="col-span-full text-xs text-t-muted">
+        {storeDesc(t, s.name)}{' '}
+        <span className="text-t-secondary">
+          {t('settings.jobs.data.rebuiltBy')}: {rebuildLabel(t, s.rebuild)}
+          {s.needs.length > 0 &&
+            ` · ${t('settings.jobs.data.needs')}: ${s.needs.map((n) => storeLabel(t, n)).join(', ')}`}
+        </span>
+      </p>
     </li>
   )
-  const cacheList = (caches: CacheInfo[]) =>
-    caches.length === 0 ? (
-      <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
-    ) : (
-      <ul className="mt-2">{caches.map(cacheRow)}</ul>
-    )
   // ml-auto is the single mechanism keeping every TTL group right-anchored,
   // including when a narrow control row wraps it onto its own line
   const ttlEdit = (key: keyof TtlConfig, id: string) => (
@@ -460,9 +525,7 @@ export default function Jobs() {
     </span>
   )
 
-  const anilistCaches = data.caches.filter((c) => c.scope.startsWith('anilist-'))
-  const tmdbCaches = data.caches.filter((c) => c.scope.startsWith('tmdb-'))
-  const plexCaches = data.caches.filter((c) => c.scope === 'plex')
+  const stores = inventory?.stores ?? []
   const idle = data.running.length === 0
 
   return (
@@ -511,13 +574,11 @@ export default function Jobs() {
           </Button>
           {ttlEdit('anilistH', 'ttl-anilist')}
         </div>
-        {cacheList(anilistCaches)}
       </Panel>
 
       <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.tmdbCaches')}>
         <Badge tone="accent">{t('settings.jobs.tmdbCaches')}</Badge>
         <div className="mt-3 flex flex-wrap items-center gap-2">{ttlEdit('tmdbH', 'ttl-tmdb')}</div>
-        {cacheList(tmdbCaches)}
       </Panel>
 
       <Panel as="section" className="mb-4 p-5" aria-label={t('settings.plex')}>
@@ -541,7 +602,25 @@ export default function Jobs() {
           </Button>
           {ttlEdit('plexH', 'ttl-plex')}
         </div>
-        {cacheList(plexCaches)}
+      </Panel>
+
+      {/* The inventory: everything the app can rebuild, in one list. Before it
+          existed only the AniList cache was reachable from here, so a wrongly
+          folded series identity survived every reset the page offered. */}
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.data.title')}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Badge tone="accent">{t('settings.jobs.data.title')}</Badge>
+          <Button size="sm" variant="danger" disabled={stores.length === 0} onClick={() => setResetOpen(true)}>
+            <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('settings.jobs.data.reset.button')}
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.data.hint')}</p>
+        {stores.length === 0 ? (
+          <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
+        ) : (
+          <ul className="mt-2">{stores.map(storeRow)}</ul>
+        )}
       </Panel>
 
       <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.remoteIndex')}>
@@ -709,8 +788,9 @@ export default function Jobs() {
         )}
       </Panel>
 
-      {cacheModal && <CacheEntriesModal cache={cacheModal} onClose={() => setCacheModal(null)} />}
+      {cacheModal && <CacheEntriesModal store={cacheModal} onClose={() => setCacheModal(null)} />}
       {matchModal && <MatchesModal stat={matchModal} onClose={() => setMatchModal(null)} />}
+      {resetOpen && <ResetModal stores={stores} onClose={() => setResetOpen(false)} />}
     </>
   )
 }
@@ -774,7 +854,10 @@ function Pager({ offset, total, onOffset }: { offset: number; total: number; onO
   )
 }
 
-function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () => void }) {
+// The key-level view of one cache store. Addressed by the short scope name the
+// entry endpoints still use ("plex"), which is the store slug without its
+// "cache:" prefix.
+function CacheEntriesModal({ store, onClose }: { store: DataStore; onClose: () => void }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
   const qc = useQueryClient()
@@ -782,28 +865,29 @@ function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () =
   const [offset, setOffset] = useState(0)
   const dq = useDebounced(q, () => setOffset(0))
   const [error, setError] = useState('')
-  const scopeLabel = t(`settings.jobs.scopes.${cache.scope}`, { defaultValue: cache.scope })
+  const scope = store.name.replace(/^cache:/, '')
+  const label = storeLabel(t, store.name)
 
   const { data } = useQuery<CacheEntriesResp>({
-    queryKey: ['adminCacheEntries', cache.scope, dq, offset],
+    queryKey: ['adminCacheEntries', scope, dq, offset],
     queryFn: () =>
-      api.get(`/api/admin/cache/${cache.scope}/entries?q=${encodeURIComponent(dq)}&offset=${offset}&limit=${PAGE}`),
+      api.get(`/api/admin/cache/${scope}/entries?q=${encodeURIComponent(dq)}&offset=${offset}&limit=${PAGE}`),
   })
   const del = useMutation({
-    mutationFn: (key: string) => api.del(`/api/admin/cache/${cache.scope}/entries?key=${encodeURIComponent(key)}`),
+    mutationFn: (key: string) => api.del(`/api/admin/cache/${scope}/entries?key=${encodeURIComponent(key)}`),
     onSuccess: () => {
       setError('')
-      qc.invalidateQueries({ queryKey: ['adminCacheEntries', cache.scope] })
-      qc.invalidateQueries({ queryKey: ['adminJobs'] })
+      qc.invalidateQueries({ queryKey: ['adminCacheEntries', scope] })
+      qc.invalidateQueries({ queryKey: ['adminData'] })
     },
     onError: (e: Error) => setError(e.message),
   })
 
   return (
-    <Modal title={t('settings.jobs.cacheEntriesTitle', { scope: scopeLabel })} onClose={onClose}>
+    <Modal title={t('settings.jobs.cacheEntriesTitle', { scope: label })} onClose={onClose}>
       <p className="mb-2 font-mono text-xs tabular-nums text-t-muted">
-        {t('settings.jobs.oldest')}: {fmtTs(cache.oldest)} · {t('settings.jobs.newest')}: {fmtTs(cache.newest)} ·{' '}
-        {t('settings.jobs.ttl')} {fmtTtl(cache.ttlSec)}
+        {t('settings.jobs.oldest')}: {fmtTs(store.oldest)} · {t('settings.jobs.newest')}: {fmtTs(store.newest)} ·{' '}
+        {t('settings.jobs.ttl')} {fmtTtl(store.ttlSec)}
       </p>
       <label className="sr-only" htmlFor="cache-entries-q">
         {t('remote.search')}
@@ -847,6 +931,112 @@ function CacheEntriesModal({ cache, onClose }: { cache: CacheInfo; onClose: () =
         </ul>
       )}
       <Pager offset={offset} total={data?.total ?? 0} onOffset={setOffset} />
+      {error && (
+        <p className="mt-2 text-xs text-err" role="alert">
+          {error}
+        </p>
+      )}
+    </Modal>
+  )
+}
+
+// The "rebuild everything" dialog. It never asks a bare "are you sure": it
+// names what goes, what stays and what runs afterwards, because the operator's
+// complaint was that the existing buttons never said which of those they meant.
+// Built on the page's Modal (a native <dialog>: focus trap, Escape, backdrop).
+function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => void }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [includeDecisions, setIncludeDecisions] = useState(false)
+  const [result, setResult] = useState<ResetResult | null>(null)
+  const [error, setError] = useState('')
+
+  // mirrors the server's rule exactly, so the preview cannot drift from the act
+  const goes = (s: DataStore) => !s.keptOnReset || (s.kind === 'decision' && includeDecisions)
+  const doomed = stores.filter(goes)
+  const kept = stores.filter((s) => !goes(s))
+  const doomedRows = doomed.reduce((n, s) => n + s.rows, 0)
+
+  const reset = useMutation({
+    mutationFn: () => api.post<ResetResult>('/api/admin/data/reset', { includeDecisions, requeue: true }),
+    onSuccess: (res) => {
+      setError('')
+      setResult(res)
+      // the numbers must fall immediately and then grow back while watching
+      qc.invalidateQueries({ queryKey: ['adminData'] })
+      qc.invalidateQueries({ queryKey: ['adminJobs'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const list = (items: DataStore[]) => (
+    <ul className="mt-1 flex flex-wrap gap-1">
+      {items.map((s) => (
+        <li key={s.name}>
+          <Badge tone={KIND_TONE[s.kind]} className="tabular-nums">
+            {storeLabel(t, s.name)} · {fmtNum(s.rows)}
+          </Badge>
+        </li>
+      ))}
+    </ul>
+  )
+
+  return (
+    <Modal
+      title={t('settings.jobs.data.reset.title')}
+      onClose={onClose}
+      footer={
+        result ? null : (
+          <Button variant="danger" cut disabled={reset.isPending} onClick={() => reset.mutate()}>
+            <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('settings.jobs.data.reset.confirm')}
+          </Button>
+        )
+      }
+    >
+      {result ? (
+        <div className="text-sm text-t-secondary">
+          <p>{t('settings.jobs.data.reset.done', { n: fmtNum(Object.values(result.deleted).reduce((a, b) => a + b, 0)) })}</p>
+          <p className="mt-2">{t('settings.jobs.data.reset.doneQueued', { n: fmtNum(result.queued) })}</p>
+          <p className="mt-2 text-xs text-t-muted">
+            {t('settings.jobs.data.reset.doneKept', {
+              stores: result.kept.map((n) => storeLabel(t, n)).join(', '),
+            })}
+          </p>
+        </div>
+      ) : (
+        <div className="text-sm text-t-secondary">
+          <p>{t('settings.jobs.data.reset.intro')}</p>
+
+          <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
+            {t('settings.jobs.data.reset.willDelete', { count: doomedRows })}
+          </h4>
+          {list(doomed)}
+
+          <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
+            {t('settings.jobs.data.reset.willKeep')}
+          </h4>
+          {list(kept)}
+          <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.keepIndexWhy')}</p>
+
+          <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
+            {t('settings.jobs.data.reset.willRun')}
+          </h4>
+          <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.willRunWhat')}</p>
+
+          <div className="mt-4 border border-border-subtle bg-bg-secondary/40 p-3">
+            <Checkbox
+              checked={includeDecisions}
+              onChange={(e) => setIncludeDecisions(e.target.checked)}
+              label={t('settings.jobs.data.reset.includeDecisions')}
+              labelClassName="text-t-primary"
+            />
+            <p className="mt-1 text-xs text-warn">{t('settings.jobs.data.reset.includeDecisionsCost')}</p>
+          </div>
+
+          <p className="mt-4 text-xs text-t-muted">{t('settings.jobs.data.reset.noBackup')}</p>
+        </div>
+      )}
       {error && (
         <p className="mt-2 text-xs text-err" role="alert">
           {error}

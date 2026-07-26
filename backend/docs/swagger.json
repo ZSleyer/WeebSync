@@ -1668,30 +1668,6 @@
                 },
                 "type": "object"
             },
-            "api.adminCacheStat": {
-                "properties": {
-                    "count": {
-                        "type": "integer"
-                    },
-                    "newest": {
-                        "type": "string"
-                    },
-                    "oldest": {
-                        "type": "string"
-                    },
-                    "scope": {
-                        "type": "string"
-                    },
-                    "stale": {
-                        "description": "rows older than the scope's TTL",
-                        "type": "integer"
-                    },
-                    "ttlSec": {
-                        "type": "integer"
-                    }
-                },
-                "type": "object"
-            },
             "api.adminDataResponse": {
                 "properties": {
                     "stores": {
@@ -1816,13 +1792,6 @@
                 "properties": {
                     "anilist": {
                         "$ref": "#/components/schemas/api.adminAnilistInfo"
-                    },
-                    "caches": {
-                        "items": {
-                            "$ref": "#/components/schemas/api.adminCacheStat"
-                        },
-                        "type": "array",
-                        "uniqueItems": false
                     },
                     "index": {
                         "$ref": "#/components/schemas/api.adminIndexInfo"
@@ -3817,7 +3786,7 @@
         },
         "/api/admin/jobs": {
             "get": {
-                "description": "Reports the state of all background machinery: running jobs, match queue, cache stats, effective TTLs, Plex/AniList/index/watch info and per-server match stats (admin only). The full data store inventory lives in /api/admin/data.",
+                "description": "Reports the state of all background machinery: running jobs, match queue, effective TTLs, Plex/AniList/index/watch info and per-server match stats (admin only). Cache and data store sizes live in /api/admin/data.",
                 "responses": {
                     "200": {
                         "content": {

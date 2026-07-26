@@ -616,7 +616,6 @@
       "newest": "neuester",
       "ttl": "TTL",
       "flush": "Leeren",
-      "confirmFlush": "Cache \"{{scope}}\" leeren? Einträge werden bei Bedarf neu geladen.",
       "rebuild": "Jetzt neu aufbauen",
       "rebuildSuggestions": "Vorschläge neu aufbauen",
       "accounts": "Verknüpfte AniList-Konten: {{count}}",
@@ -657,20 +656,161 @@
       "batch": "Umfang",
       "batchHint": "Ordner pro Lauf",
       "zeroDefault": "0 = Standard",
-      "scopes": {
-        "anilist-search": "AniList-Suche",
-        "anilist-media": "AniList-Medien",
-        "anilist-relations": "AniList-Relationen",
-        "anilist-userlist": "AniList-Watchlist",
-        "tmdb-search": "TMDB-Suche",
-        "tmdb-media": "TMDB-Medien",
-        "tmdb-collections": "TMDB-Sammlungen",
-        "plex": "Plex-Bibliothek"
-      },
       "plex": "Plex-Cache",
       "rematchAllServers": "Alles neu matchen (alle Server)",
       "rematchAllServersHint": "Zieht alle automatischen Matches aller Server neu — nutzt viele API-Anfragen.",
-      "confirmRematchAllServers": "Wirklich alle automatischen Matches auf ALLEN Servern neu ziehen? Das kann dauern und viele API-Anfragen verursachen."
+      "confirmRematchAllServers": "Wirklich alle automatischen Matches auf ALLEN Servern neu ziehen? Das kann dauern und viele API-Anfragen verursachen.",
+      "data": {
+        "title": "Datenbestände",
+        "hint": "Alles, was die App selbst errechnet und jederzeit neu aufbauen kann. Deine Server, Auto-Syncs und Downloads stehen hier bewusst nicht.",
+        "rowCount": "{{n}} Zeilen",
+        "rebuiltBy": "Neuaufbau",
+        "needs": "braucht",
+        "confirmDelete": "Bestand \"{{store}}\" löschen? Was sich nicht von selbst neu aufbaut, ist danach weg.",
+        "kind": {
+          "cache": "Cache",
+          "derived": "abgeleitet",
+          "decision": "Entscheidung"
+        },
+        "rebuild": {
+          "onDemand": "bei Bedarf",
+          "index-crawl": "Crawler",
+          "anime-ids": "täglicher Listen-Abgleich",
+          "rematch-all": "Alles neu matchen",
+          "sweep": "Hintergrund-Sweep",
+          "plex-sweep": "Plex-Abgleich im Sweep",
+          "watch-check": "nächste Auto-Sync-Prüfung"
+        },
+        "reset": {
+          "button": "Alles neu aufbauen",
+          "title": "Alles neu aufbauen",
+          "intro": "Alle abgeleiteten Daten werden in einem Zug gelöscht und danach neu ermittelt. Nutze das, wenn Serien falsch zusammengefasst oder falsch zugeordnet sind und einzelne Korrekturen nicht mehr reichen.",
+          "willDelete": "Wird gelöscht ({{count}} Zeilen)",
+          "willKeep": "Bleibt stehen",
+          "keepIndexWhy": "Der Datei-Index bleibt absichtlich erhalten. Ohne ihn müsste jeder Server erst komplett neu durchsucht werden, bevor überhaupt wieder etwas zugeordnet werden kann. Einzeln löschen geht weiterhin.",
+          "willRun": "Läuft danach an",
+          "willRunWhat": "Für jeden Server und die lokale Bibliothek wird die Zuordnung neu gesucht, unter Umgehung der Caches. Das dauert und verursacht viele Anfragen bei AniList, TMDB und TVDB. Den Fortschritt zeigt oben \"Aktive Aufgaben\".",
+          "includeDecisions": "Auch meine eigenen Entscheidungen löschen",
+          "includeDecisionsCost": "Damit gehen von Hand gesetzte Zuordnungen, die Markierungen der durchsuchten Verzeichnisse und alle ausgeblendeten Vorschläge verloren. Das kann niemand wiederherstellen.",
+          "noBackup": "Es wird keine Sicherung angelegt. Sichere die Datenbank vorher selbst.",
+          "confirm": "Jetzt neu aufbauen",
+          "done": "{{n}} Zeilen gelöscht.",
+          "doneQueued": "{{n}} Ordner werden neu zugeordnet.",
+          "doneKept": "Unangetastet geblieben: {{stores}}"
+        },
+        "stores": {
+          "cache": {
+            "anilist-search": {
+              "name": "AniList-Suche",
+              "desc": "Antworten auf Titelsuchen bei AniList."
+            },
+            "anilist-media": {
+              "name": "AniList-Medien",
+              "desc": "Stammdaten einzelner Serien von AniList: Titel, Format, Episodenzahl, Cover."
+            },
+            "anilist-relations": {
+              "name": "AniList-Relationen",
+              "desc": "Wie Staffeln, Filme und Specials bei AniList zusammenhängen. Grundlage fürs Bündeln."
+            },
+            "anilist-reviews": {
+              "name": "AniList-Rezensionen",
+              "desc": "Community-Rezensionen zu einzelnen Serien, wie sie die Detailansicht zeigt. Enthält auch die Reste älterer Format-Stände."
+            },
+            "anilist-trending": {
+              "name": "AniList-Trends",
+              "desc": "Die aktuelle Trendliste von AniList für die Vorschlagsseite."
+            },
+            "anilist-userlist": {
+              "name": "AniList-Watchlist",
+              "desc": "Kopie deiner AniList-Listen. Erneuert sich ohnehin stündlich."
+            },
+            "tmdb-search": {
+              "name": "TMDB-Suche",
+              "desc": "Antworten auf Titelsuchen bei TMDB, für Serien und Filme außerhalb des Anime-Katalogs."
+            },
+            "tmdb-media": {
+              "name": "TMDB-Medien",
+              "desc": "Stammdaten einzelner Serien und Filme von TMDB, dazu übersetzte Titel und die Folgenzahl je Staffel."
+            },
+            "tmdb-collections": {
+              "name": "TMDB-Sammlungen",
+              "desc": "Film-Reihen bei TMDB, damit zusammengehörige Filme als eine Reihe erscheinen."
+            },
+            "tmdb-reviews": {
+              "name": "TMDB-Rezensionen",
+              "desc": "Rezensionen zu Serien und Filmen von TMDB."
+            },
+            "tmdb-trending": {
+              "name": "TMDB-Trends",
+              "desc": "Die aktuellen Trendlisten von TMDB für Serien und Filme."
+            },
+            "tmdb-userlist": {
+              "name": "TMDB-Merkliste",
+              "desc": "Kopie deiner TMDB-Merkliste. Erneuert sich ohnehin stündlich."
+            },
+            "tvdb": {
+              "name": "TVDB-Daten",
+              "desc": "Alles, was von TVDB kommt: Serien, übersetzte Titel und die Folgenlisten, aus denen die Staffel-Zuordnung gebaut wird."
+            },
+            "plex": {
+              "name": "Plex-Bibliothek",
+              "desc": "Abzug deiner Plex-Bibliothek samt vorberechneter Vorschläge. Der Neuaufbau dauert je nach Bibliotheksgröße einige Minuten."
+            },
+            "langprobe": {
+              "name": "Sprach-Erkennung",
+              "desc": "Die tatsächlichen Ton- und Untertitelsprachen, ausgelesen aus dem Dateikopf. Der teuerste Bestand hier: für jede Datei werden dafür mehrere Megabyte vom Server geholt und analysiert. Deshalb wird er einen Monat lang behalten."
+            },
+            "suggestions": {
+              "name": "Vorschlagsseite",
+              "desc": "Die fertig zusammengestellte Vorschlagsseite je Benutzer, damit sie beim Öffnen sofort da ist. Baut der Hintergrund-Sweep binnen einer halben Stunde neu."
+            },
+            "other": {
+              "name": "Übrige Cache-Einträge",
+              "desc": "Alles im Cache, was keiner der Bestände darüber beansprucht. Der Auffang: neue Antwortarten landen hier, statt still liegen zu bleiben. Ist er dauerhaft gefüllt, fehlt oben eine eigene Zeile dafür."
+            }
+          },
+          "remote-index": {
+            "name": "Datei-Index der Server",
+            "desc": "Verzeichnisabbild aller eingerichteten Server. Ohne ihn kann nichts zugeordnet werden, und der Crawler braucht je nach Servergröße Stunden, um alles neu einzulesen."
+          },
+          "anime-ids": {
+            "name": "Anime-ID-Zuordnung",
+            "desc": "Öffentliche Liste, die AniList-, TVDB-, TMDB- und IMDb-IDs derselben Serie verknüpft. Wird einmal täglich neu geladen."
+          },
+          "season-maps": {
+            "name": "Staffel-Zuordnungen",
+            "desc": "Rechnet fortlaufende Folgennummern in Staffel und Folge um, was bei Endlos-Serien nicht ausrechenbar ist. Wird pro Serie neu geholt, sobald wieder eine Datei einsortiert wird."
+          },
+          "catalog-matches": {
+            "name": "Automatische Zuordnungen",
+            "desc": "Welcher Ordner zu welcher Serie gehört, soweit die App das selbst entschieden hat. Deine eigenen Korrekturen liegen getrennt davon und bleiben unberührt. Neu zu ermitteln kostet viele Anfragen bei den Anbietern."
+          },
+          "series": {
+            "name": "Serien-Identität",
+            "desc": "Die über alle Anbieter und Server hinweg zusammengefasste Identität einer Serie, mit Staffeltiteln und Übersetzungen. Hier steckt eine einmal falsch zusammengefasste Serie fest. Baut sich aus den Zuordnungen wieder auf."
+          },
+          "catalog-variants": {
+            "name": "Qualitätsmerkmale",
+            "desc": "Auflösung sowie Ton- und Untertitelsprachen je Ordner, die Grundlage der Upgrade-Vorschläge. Wird nach und nach im Hintergrund neu berechnet."
+          },
+          "plex-reconciled": {
+            "name": "Plex-Abgleich",
+            "desc": "Merkzettel, welche Ordner bereits mit Plex abgeglichen wurden. Löschen bedeutet, alles noch einmal abzugleichen, mit entsprechend vielen Plex-Anfragen."
+          },
+          "pending-episodes": {
+            "name": "Wartende Folgen",
+            "desc": "Bereits geladene Dateien, deren Folgennummer der Anbieter noch nicht kannte. Löschen vergisst auch, dass die Datei schon geholt wurde: die nächste Prüfung lädt sie erneut."
+          },
+          "catalog-decisions": {
+            "name": "Deine Zuordnungen",
+            "desc": "Von Hand gesetzte Zuordnungen und die Markierungen, welche Verzeichnisse überhaupt durchsucht werden. Nichts davon lässt sich automatisch wiederherstellen."
+          },
+          "suggestion-dismissals": {
+            "name": "Ausgeblendete Vorschläge",
+            "desc": "Vorschläge und Upgrades, die du weggeklickt hast. Nach dem Löschen tauchen sie wieder auf."
+          }
+        }
+      }
     },
     "rolesManagedByOidc": "Admin-Rollen werden vom OIDC-Provider verwaltet und können hier nicht geändert werden.",
     "apiTokenTitle": "API-Token",
