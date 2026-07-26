@@ -2139,6 +2139,43 @@
                 },
                 "type": "object"
             },
+            "api.dataResetRequest": {
+                "properties": {
+                    "includeDecisions": {
+                        "description": "IncludeDecisions also drops the manual matches, the scope marks and the\ndismissed suggestions. Off by default: nothing rebuilds those.",
+                        "type": "boolean"
+                    },
+                    "requeue": {
+                        "description": "Requeue re-runs the automatic match on every server afterwards.\nAbsent means true - a reset that leaves the catalog empty is not useful.",
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "api.dataResetResponse": {
+                "properties": {
+                    "deleted": {
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "description": "Deleted maps store slug to the number of rows removed.",
+                        "type": "object"
+                    },
+                    "kept": {
+                        "description": "Kept lists the store slugs the reset deliberately left alone.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "queued": {
+                        "description": "Queued is how many folders were handed back to the matcher.",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "api.deletedResponse": {
                 "properties": {
                     "deleted": {
@@ -3194,83 +3231,6 @@
         "url": ""
     },
     "paths": {
-        "/api/admin/cache/{scope}": {
-            "delete": {
-                "description": "Deletes every cache row of one scope (admin only).",
-                "parameters": [
-                    {
-                        "description": "cache scope",
-                        "in": "path",
-                        "name": "scope",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/api.deletedResponse"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    },
-                    "401": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
-                                }
-                            }
-                        },
-                        "description": "Unauthorized"
-                    },
-                    "403": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
-                                }
-                            }
-                        },
-                        "description": "Forbidden"
-                    },
-                    "404": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
-                                }
-                            }
-                        },
-                        "description": "Not Found"
-                    },
-                    "500": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
-                                }
-                            }
-                        },
-                        "description": "Internal Server Error"
-                    }
-                },
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "summary": "Flush cache scope",
-                "tags": [
-                    "Admin"
-                ]
-            }
-        },
         "/api/admin/cache/{scope}/entries": {
             "delete": {
                 "description": "Deletes exactly one cache row (admin only). The key must belong to the scope; for the catch-all scope that means no other scope claims it.",
@@ -3517,6 +3477,178 @@
                     }
                 ],
                 "summary": "Inventory rebuildable data stores",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
+        "/api/admin/data/reset": {
+            "post": {
+                "description": "Empties every cache and derived data store in a single transaction and, unless requeue is false, re-runs the automatic match on every server afterwards (admin only). The remote index is kept: it is only a snapshot of the servers' directories, and dropping it would force a full re-crawl before anything could be matched at all - it stays individually deletable and is named under \"kept\". Recorded decisions (manual matches, scope marks, dismissed suggestions) survive unless includeDecisions is set. Takes no backup; back the database up first.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.dataResetRequest",
+                                        "summary": "request",
+                                        "description": "reset options"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "reset options"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.dataResetResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Reset derived data",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
+        "/api/admin/data/{name}": {
+            "delete": {
+                "description": "Empties one rebuildable data store: every table it consists of, in the registry's delete order, honouring its row filter (admin only). Decision stores can be deleted here too - this endpoint asks no questions, the confirmation belongs in the UI.",
+                "parameters": [
+                    {
+                        "description": "data store slug",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.deletedResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Delete a data store",
                 "tags": [
                     "Admin"
                 ]

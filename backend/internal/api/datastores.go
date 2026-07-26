@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -242,6 +244,37 @@ func (st dataStore) timeSource() (table, col string) {
 	return st.tables[0], st.timeCol
 }
 
+// execer is what deleteStore needs: *sql.DB, *sql.Tx and *sql.Conn all fit.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// deleteStore empties one store, table by table in the registry's order, and
+// reports how many rows went. The order is explicit on purpose: series_provider
+// hangs off series with ON DELETE CASCADE, but foreign keys are a per-connection
+// pragma in SQLite, so leaning on the cascade would leave orphans wherever it is
+// off. Table names come from the registry, never from a request, so
+// interpolating them carries no injection risk.
+func deleteStore(ctx context.Context, ex execer, st dataStore) (int64, error) {
+	where, args := st.filter()
+	var total int64
+	for i, table := range st.tables {
+		q := "DELETE FROM " + table
+		var a []any
+		if i == 0 && where != "" { // the filter belongs to the first table only
+			q += " WHERE " + where
+			a = args
+		}
+		res, err := ex.ExecContext(ctx, q, a...)
+		if err != nil {
+			return total, fmt.Errorf("delete %s: %w", table, err)
+		}
+		n, _ := res.RowsAffected()
+		total += n
+	}
+	return total, nil
+}
+
 // adminDataStore is one inventory row: what the store is, how much of it there
 // is, and what puts it back. Slugs only - the frontend owns the prose, so the
 // page can stay bilingual.
@@ -349,4 +382,145 @@ func (s *Server) storeStat(st dataStore) adminDataStore {
 			FROM anilist_cache`+cond, a...).Scan(&out.Bytes, &out.Stale)
 	}
 	return out
+}
+
+// handleAdminDataDelete empties exactly one data store.
+// DELETE /api/admin/data/{name}
+//
+// @Summary      Delete a data store
+// @Description  Empties one rebuildable data store: every table it consists of, in the registry's delete order, honouring its row filter (admin only). Decision stores can be deleted here too - this endpoint asks no questions, the confirmation belongs in the UI.
+// @Tags         Admin
+// @Produce      json
+// @Param        name  path  string  true  "data store slug"
+// @Success      200  {object}  deletedResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/data/{name} [delete]
+func (s *Server) handleAdminDataDelete(w http.ResponseWriter, r *http.Request) {
+	st, ok := dataStoreFor(r.PathValue("name"))
+	if !ok {
+		writeErr(w, http.StatusNotFound, "unknown data store")
+		return
+	}
+	n, err := deleteStore(r.Context(), s.DB, st)
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, deletedResponse{Deleted: n})
+}
+
+// dataResetRequest configures the bulk reset.
+type dataResetRequest struct {
+	// IncludeDecisions also drops the manual matches, the scope marks and the
+	// dismissed suggestions. Off by default: nothing rebuilds those.
+	IncludeDecisions bool `json:"includeDecisions"`
+	// Requeue re-runs the automatic match on every server afterwards.
+	// Absent means true - a reset that leaves the catalog empty is not useful.
+	Requeue *bool `json:"requeue"`
+}
+
+// dataResetResponse reports what the reset removed, what it left standing and
+// how much rebuilding it queued.
+type dataResetResponse struct {
+	// Deleted maps store slug to the number of rows removed.
+	Deleted map[string]int64 `json:"deleted"`
+	// Kept lists the store slugs the reset deliberately left alone.
+	Kept []string `json:"kept"`
+	// Queued is how many folders were handed back to the matcher.
+	Queued int `json:"queued"`
+}
+
+// handleAdminDataReset drops the derived stack in one transaction and re-queues
+// the matcher.
+// POST /api/admin/data/reset {"includeDecisions":false,"requeue":true}
+//
+// @Summary      Reset derived data
+// @Description  Empties every cache and derived data store in a single transaction and, unless requeue is false, re-runs the automatic match on every server afterwards (admin only). The remote index is kept: it is only a snapshot of the servers' directories, and dropping it would force a full re-crawl before anything could be matched at all - it stays individually deletable and is named under "kept". Recorded decisions (manual matches, scope marks, dismissed suggestions) survive unless includeDecisions is set. Takes no backup; back the database up first.
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dataResetRequest  false  "reset options"
+// @Success      200  {object}  dataResetResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/admin/data/reset [post]
+func (s *Server) handleAdminDataReset(w http.ResponseWriter, r *http.Request) {
+	in := dataResetRequest{}
+	if r.ContentLength > 0 && !readJSON(w, r, &in) {
+		return
+	}
+	requeue := in.Requeue == nil || *in.Requeue
+
+	out := dataResetResponse{Deleted: map[string]int64{}, Kept: []string{}}
+	var wipe []dataStore
+	for _, st := range dataStores {
+		// keptOnReset covers both reasons to skip a store: the remote index is
+		// a directory snapshot nobody needs to lose, and a decision is nobody's
+		// to throw away without being asked.
+		if st.keptOnReset && (st.kind != kindDecision || !in.IncludeDecisions) {
+			out.Kept = append(out.Kept, st.name)
+			continue
+		}
+		wipe = append(wipe, st)
+	}
+
+	// Take the requeue list first. rematchAll reads catalog_matches to decide
+	// what to search again, so calling it after the wipe would find nothing and
+	// leave the catalog to the sweep - which only picks up folders under a scope
+	// mark, and only 30 per server per half hour.
+	var requeueList []catalogMatch
+	if requeue {
+		// with includeDecisions the manual rows are being thrown away too, so
+		// their folders need a fresh search as much as the automatic ones
+		cond := "manual = 0"
+		if in.IncludeDecisions {
+			cond = "1 = 1"
+		}
+		requeueList = s.automaticMatches(cond)
+	}
+
+	// One transaction: a reset that dies halfway leaves exactly the half-state
+	// it was meant to get rid of. BEGIN IMMEDIATE on a pinned connection - the
+	// pool would otherwise scatter the statements across connections, and a
+	// deferred transaction only takes its write lock on the first write.
+	ctx := r.Context()
+	conn, err := s.DB.Conn(ctx)
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		dbErr(w)
+		return
+	}
+	for _, st := range wipe {
+		n, derr := deleteStore(ctx, conn, st)
+		if derr != nil {
+			conn.ExecContext(ctx, "ROLLBACK")
+			dbErr(w)
+			return
+		}
+		out.Deleted[st.name] = n
+	}
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+		conn.ExecContext(ctx, "ROLLBACK")
+		dbErr(w)
+		return
+	}
+
+	// Queue only after the commit: the match worker writes back into
+	// catalog_matches, and anything it wrote while the transaction was open
+	// would have been deleted again.
+	s.queueMatches(requeueList)
+	out.Queued = len(requeueList)
+	writeJSON(w, http.StatusOK, out)
 }

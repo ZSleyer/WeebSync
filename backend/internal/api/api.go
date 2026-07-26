@@ -261,8 +261,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/admin/jobs", authed(adminOnly(http.HandlerFunc(s.handleAdminJobs))))
 	mux.Handle("POST /api/admin/jobs/{name}/run", authed(adminOnly(http.HandlerFunc(s.handleAdminJobRun))))
 	mux.Handle("GET /api/admin/data", authed(adminOnly(http.HandlerFunc(s.handleAdminData))))
-	mux.Handle("DELETE /api/admin/cache/{scope}", authed(adminOnly(http.HandlerFunc(s.handleAdminCacheFlush))))
+	mux.Handle("POST /api/admin/data/reset", authed(adminOnly(http.HandlerFunc(s.handleAdminDataReset))))
+	mux.Handle("DELETE /api/admin/data/{name}", authed(adminOnly(http.HandlerFunc(s.handleAdminDataDelete))))
 	mux.Handle("DELETE /api/admin/index/{id}", authed(adminOnly(http.HandlerFunc(s.handleAdminIndexFlush))))
+	// the cache scopes keep their key-level views; the scope-wide flush is
+	// /api/admin/data/{name} now
 	mux.Handle("GET /api/admin/cache/{scope}/entries", authed(adminOnly(http.HandlerFunc(s.handleAdminCacheEntries))))
 	mux.Handle("DELETE /api/admin/cache/{scope}/entries", authed(adminOnly(http.HandlerFunc(s.handleAdminCacheEntryDelete))))
 	mux.Handle("GET /api/admin/matches", authed(adminOnly(http.HandlerFunc(s.handleAdminMatches))))

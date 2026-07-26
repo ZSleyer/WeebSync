@@ -39,8 +39,9 @@ func TestAdminRoutesGuard(t *testing.T) {
 	routes := []struct{ method, path, body string }{
 		{"GET", "/api/admin/jobs", ""},
 		{"GET", "/api/admin/data", ""},
+		{"POST", "/api/admin/data/reset", `{"requeue":false}`},
 		{"POST", "/api/admin/jobs/plex-suggestions/run", ""},
-		{"DELETE", "/api/admin/cache/plex", ""},
+		{"DELETE", "/api/admin/data/cache:plex", ""},
 		{"DELETE", "/api/admin/index/1", ""},
 		{"GET", "/api/admin/cache/plex/entries", ""},
 		{"DELETE", "/api/admin/cache/plex/entries?key=plex:x", ""},
@@ -65,7 +66,7 @@ func TestAdminCacheFlushScoped(t *testing.T) {
 	for _, key := range []string{"search:foo", "search:bar", "media:1", "tmdb:search:tv:foo|0"} {
 		s.DB.Exec(`INSERT INTO anilist_cache (key, payload) VALUES (?, '[]')`, key)
 	}
-	rec := doReq(mux, "DELETE", "/api/admin/cache/anilist-search", "", adminC)
+	rec := doReq(mux, "DELETE", "/api/admin/data/cache:anilist-search", "", adminC)
 	if rec.Code != http.StatusOK || !jsonHas(rec.Body.Bytes(), `"deleted":2`) {
 		t.Fatalf("flush anilist-search: %d %s", rec.Code, rec.Body)
 	}
@@ -82,7 +83,7 @@ func TestAdminCacheFlushScoped(t *testing.T) {
 	if n := count("tmdb:search:"); n != 1 {
 		t.Errorf("tmdb-search rows: got %d, want 1", n)
 	}
-	if rec := doReq(mux, "DELETE", "/api/admin/cache/nope", "", adminC); rec.Code != http.StatusNotFound {
+	if rec := doReq(mux, "DELETE", "/api/admin/data/cache:nope", "", adminC); rec.Code != http.StatusNotFound {
 		t.Errorf("unknown scope: got %d, want 404", rec.Code)
 	}
 }

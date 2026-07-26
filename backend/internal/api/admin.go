@@ -356,29 +356,34 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: s.rematchServer(in.ServerID, in.All)})
 
 	case "rematch-all":
-		// the sledgehammer: re-queue automatic matches on every server plus the
-		// local filesystem (id 0). Used to force old matches onto the new series
-		// structure when the self-healing sweep is too slow.
-		var ids []int64
-		rows, err := s.DB.Query(`SELECT id FROM servers`)
-		if err == nil {
-			for rows.Next() {
-				var id int64
-				rows.Scan(&id)
-				ids = append(ids, id)
-			}
-			rows.Close()
-		}
-		ids = append(ids, localServerID)
-		total := 0
-		for _, id := range ids {
-			total += s.rematchServer(id, in.All)
-		}
-		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: total})
+		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: s.rematchAll(in.All)})
 
 	default:
 		writeErr(w, http.StatusNotFound, "unknown job")
 	}
+}
+
+// rematchAll is the sledgehammer: re-queue automatic matches on every server
+// plus the local filesystem (id 0). Used to force old matches onto the new
+// series structure when the self-healing sweep is too slow. Returns the total
+// queued.
+func (s *Server) rematchAll(all bool) int {
+	var ids []int64
+	rows, err := s.DB.Query(`SELECT id FROM servers`)
+	if err == nil {
+		for rows.Next() {
+			var id int64
+			rows.Scan(&id)
+			ids = append(ids, id)
+		}
+		rows.Close()
+	}
+	ids = append(ids, localServerID)
+	total := 0
+	for _, id := range ids {
+		total += s.rematchServer(id, all)
+	}
+	return total
 }
 
 // rematchServer re-queues a server's automatic matches with a forced (cache-
@@ -391,68 +396,59 @@ func (s *Server) rematchServer(serverID int64, all bool) int {
 	if all {
 		cond = ""
 	}
-	rows, err := s.DB.Query(`SELECT folder, source FROM catalog_matches
-		WHERE server_id = ? AND manual = 0 `+cond, serverID)
+	matches := s.automaticMatches(`server_id = ? AND manual = 0 `+cond, serverID)
+	s.queueMatches(matches)
+	for _, m := range matches {
+		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
+			m.serverID, m.folder)
+	}
+	return len(matches)
+}
+
+// catalogMatch is one folder waiting to be searched again.
+type catalogMatch struct {
+	serverID int64
+	folder   string
+	source   string
+}
+
+// automaticMatches reads the match rows selected by cond. Split out from
+// rematchServer because the data reset has to take its list before it empties
+// the table, not after.
+func (s *Server) automaticMatches(cond string, args ...any) []catalogMatch {
+	rows, err := s.DB.Query(`SELECT server_id, folder, source FROM catalog_matches WHERE `+cond, args...)
 	if err != nil {
-		return 0
+		return nil
 	}
-	type match struct{ folder, source string }
-	var matches []match
+	defer rows.Close()
+	var out []catalogMatch
 	for rows.Next() {
-		var m match
-		rows.Scan(&m.folder, &m.source)
-		matches = append(matches, m)
+		var m catalogMatch
+		if rows.Scan(&m.serverID, &m.folder, &m.source) == nil {
+			out = append(out, m)
+		}
 	}
-	rows.Close()
+	return out
+}
+
+// queueMatches fires one forced (cache-bypassing) search per folder, routed to
+// the client that owns the row's metadata source.
+func (s *Server) queueMatches(matches []catalogMatch) {
 	for _, m := range matches {
 		switch m.source {
 		case "tmdb:tv", "tmdb:movie":
-			s.queueTmdbMatch(serverID, m.folder, path.Base(m.folder), strings.TrimPrefix(m.source, "tmdb:"), true)
+			s.queueTmdbMatch(m.serverID, m.folder, path.Base(m.folder), strings.TrimPrefix(m.source, "tmdb:"), true)
 		case "tvdb":
-			s.queueTvdbMatch(serverID, m.folder, path.Base(m.folder), true)
+			s.queueTvdbMatch(m.serverID, m.folder, path.Base(m.folder), true)
 		default: // anilist
-			s.queueMatch(serverID, m.folder, path.Base(m.folder), true)
+			s.queueMatch(m.serverID, m.folder, path.Base(m.folder), true)
 		}
-		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
-			serverID, m.folder)
 	}
-	return len(matches)
 }
 
 // deletedResponse reports how many rows a delete affected.
 type deletedResponse struct {
 	Deleted int64 `json:"deleted"`
-}
-
-// handleAdminCacheFlush deletes all cache rows of one scope.
-// DELETE /api/admin/cache/{scope}
-//
-// @Summary      Flush cache scope
-// @Description  Deletes every cache row of one scope (admin only).
-// @Tags         Admin
-// @Produce      json
-// @Param        scope  path  string  true  "cache scope"
-// @Success      200  {object}  deletedResponse
-// @Failure      401  {object}  ErrorResponse
-// @Failure      403  {object}  ErrorResponse
-// @Failure      404  {object}  ErrorResponse
-// @Failure      500  {object}  ErrorResponse
-// @Security     CookieAuth
-// @Router       /api/admin/cache/{scope} [delete]
-func (s *Server) handleAdminCacheFlush(w http.ResponseWriter, r *http.Request) {
-	st, ok := cacheStoreFor(r.PathValue("scope"))
-	if !ok {
-		writeErr(w, http.StatusNotFound, "unknown scope")
-		return
-	}
-	where, args := st.filter()
-	res, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE `+where, args...)
-	if err != nil {
-		dbErr(w)
-		return
-	}
-	n, _ := res.RowsAffected()
-	writeJSON(w, http.StatusOK, deletedResponse{Deleted: n})
 }
 
 type adminCacheEntry struct {
