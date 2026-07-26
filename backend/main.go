@@ -14,6 +14,13 @@ import (
 	"syscall"
 	"time"
 
+	// The zone database travels inside the binary. Go only consults it when the
+	// host has none, so a distro install is unaffected - but a container image
+	// without tzdata (ours is a plain alpine, and the Home Assistant add-on
+	// wraps it again) would otherwise silently ignore TZ and stamp every log
+	// line in UTC. ~400 KB for a setting that behaves the same everywhere.
+	_ "time/tzdata"
+
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/api"
 	"github.com/ch4d1/weebsync/internal/auth"
