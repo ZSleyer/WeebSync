@@ -498,8 +498,15 @@ func (s *Server) handleAdminDataReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
+	// Wait for the background jobs instead of failing at them. The pool's 5 s
+	// (internal/db.Open) is sized for the request path; a sweep or an anime-ids
+	// refresh holding the write lock for longer than that used to end this whole
+	// operation with SQLITE_BUSY. Per connection, so it goes back to the pool's
+	// value before anyone else gets this connection.
+	conn.ExecContext(ctx, "PRAGMA busy_timeout = 30000")
+	defer conn.ExecContext(context.WithoutCancel(ctx), "PRAGMA busy_timeout = 5000")
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		dbErrDetail(w, "reset commit", err)
+		dbErrDetail(w, "reset begin", err)
 		return
 	}
 	for _, st := range wipe {
@@ -513,7 +520,7 @@ func (s *Server) handleAdminDataReset(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
 		conn.ExecContext(ctx, "ROLLBACK")
-		dbErrDetail(w, "reset begin", err)
+		dbErrDetail(w, "reset commit", err)
 		return
 	}
 
