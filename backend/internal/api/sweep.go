@@ -88,6 +88,10 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// decide what the newly bundled series are, so categorize reads
 			// instead of guessing from provider badges
 			s.refreshSeriesKinds(200)
+			// fold the cours of a show into one entry, keeping their names as
+			// season titles - the pass over what was bundled by title alone,
+			// before the show level existed
+			s.mergeShowSeries(200)
 			// keep each user's aggregated suggestion blob warm so the page loads
 			// instantly instead of assembling on the first request
 			s.warmSuggestions()
