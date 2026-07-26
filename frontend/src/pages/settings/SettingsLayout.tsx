@@ -51,20 +51,28 @@ export default function SettingsLayout() {
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        {/* phone: wrapping chip tabs - every section visible at once, one tap */}
+        {/* phone: chip tabs - every section visible at once, one tap. A grid,
+            not a wrapping row: the labels differ enough in length that free
+            wrapping left a ragged block with single entries stranded on their
+            own line. The column count follows the longest label
+            ("Benachrichtigungen"): two up to md, because the coarse-pointer
+            root font grows with the viewport and eats the room a third column
+            would need - at 640px it already clips. */}
         <nav aria-label={t('settings.navLabel')} className="flex flex-col gap-3 lg:hidden">
           {groups.map((g) => (
             <div key={g.label}>
               <Badge className="mb-1.5">{t(g.label)}</Badge>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3">
                 {g.items.map((i) => (
                   <NavLink
                     key={i.to}
                     to={i.to}
-                    className={({ isActive }) => buttonClass({ size: 'sm', variant: isActive ? 'primary' : 'default' })}
+                    className={({ isActive }) =>
+                      `${buttonClass({ size: 'sm', variant: isActive ? 'primary' : 'default' })} min-w-0!`
+                    }
                   >
-                    <i.icon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t(i.key)}
+                    <i.icon aria-hidden size="1em" className="mr-1 inline shrink-0 align-[-0.125em]" />
+                    <span className="truncate">{t(i.key)}</span>
                   </NavLink>
                 ))}
               </div>
