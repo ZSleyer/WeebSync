@@ -57,6 +57,15 @@ jobs:
             REPO=${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # Poke the HA add-on so it picks the new digest up right away instead of
+      # waiting for its own poll. No-op on the add-on side if the digest is
+      # unchanged, so a spurious dispatch costs nothing.
+      - if: steps.fresh.outputs.skip != 'true'
+        name: Notify add-on repo
+        continue-on-error: true # the add-on's cron still catches it
+        env:
+          GH_TOKEN: ${{ secrets.ADDON_DISPATCH_TOKEN }}
+        run: gh api repos/ZSleyer/WeebSync-Addon/dispatches -f event_type=upstream-image
 
   # Prune old nightlies: keep the 3 newest tagged nightlies, drop everything
   # else including orphaned multi-arch children. Release tags stay untouched.

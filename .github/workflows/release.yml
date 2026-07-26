@@ -49,3 +49,10 @@ jobs:
             CHANNEL=stable
             COMMIT=${{ github.sha }}
             REPO=${{ github.repository }}
+      # Poke the HA add-on so it picks the new digest up right away. No-op on
+      # the add-on side unless it tracks a tag this release moved.
+      - name: Notify add-on repo
+        continue-on-error: true # the add-on's cron still catches it
+        env:
+          GH_TOKEN: ${{ secrets.ADDON_DISPATCH_TOKEN }}
+        run: gh api repos/ZSleyer/WeebSync-Addon/dispatches -f event_type=upstream-image
