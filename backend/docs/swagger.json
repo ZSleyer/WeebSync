@@ -1604,6 +1604,22 @@
                 },
                 "type": "object"
             },
+            "api.WriteCheckError": {
+                "properties": {
+                    "error": {
+                        "type": "string"
+                    },
+                    "errorCode": {
+                        "description": "permission_denied | disk_full | read_only",
+                        "type": "string"
+                    },
+                    "path": {
+                        "description": "the directory that refused the write",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.adminAnilistInfo": {
                 "properties": {
                     "accounts": {
@@ -11101,7 +11117,7 @@
                 ]
             },
             "post": {
-                "description": "Registers a new persistent watch on a remote folder, optionally linking media metadata, and kicks off a first sync immediately.",
+                "description": "Registers a new persistent watch on a remote folder, optionally linking media metadata, and kicks off a first sync immediately. The local target is probed for writability and the watch is rejected when it cannot be written.",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -11137,11 +11153,11 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                    "$ref": "#/components/schemas/api.WriteCheckError"
                                 }
                             }
                         },
-                        "description": "Bad Request"
+                        "description": "invalid input; errorCode and path are set when the local target refused a write"
                     },
                     "404": {
                         "content": {
@@ -11242,7 +11258,7 @@
                 ]
             },
             "put": {
-                "description": "Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check.",
+                "description": "Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written.",
                 "parameters": [
                     {
                         "description": "Watch ID",
@@ -11286,11 +11302,11 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                    "$ref": "#/components/schemas/api.WriteCheckError"
                                 }
                             }
                         },
-                        "description": "Bad Request"
+                        "description": "invalid input; errorCode and path are set when the local target refused a write"
                     },
                     "404": {
                         "content": {
