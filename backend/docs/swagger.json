@@ -1692,6 +1692,76 @@
                 },
                 "type": "object"
             },
+            "api.adminDataResponse": {
+                "properties": {
+                    "stores": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.adminDataStore"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.adminDataStore": {
+                "properties": {
+                    "bytes": {
+                        "description": "Bytes is the stored payload size; cache stores only, 0 elsewhere (an\nestimate for the other tables would be a guess dressed up as a number).",
+                        "type": "integer"
+                    },
+                    "keptOnReset": {
+                        "description": "KeptOnReset marks the stores a default reset walks past.",
+                        "type": "boolean"
+                    },
+                    "kind": {
+                        "example": "derived",
+                        "type": "string"
+                    },
+                    "name": {
+                        "example": "catalog-matches",
+                        "type": "string"
+                    },
+                    "needs": {
+                        "description": "Needs lists the stores that must be filled before this one can be.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "newest": {
+                        "type": "string"
+                    },
+                    "oldest": {
+                        "description": "Oldest/Newest are SQLite UTC stamps, \"\" when the store has no time column.",
+                        "type": "string"
+                    },
+                    "rebuild": {
+                        "description": "Rebuild is the job/mechanism slug that refills the store, \"\" = on demand.",
+                        "example": "rematch-all",
+                        "type": "string"
+                    },
+                    "rows": {
+                        "type": "integer"
+                    },
+                    "stale": {
+                        "type": "integer"
+                    },
+                    "tables": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "ttlSec": {
+                        "description": "TTLSec and Stale are cache stores only (0 elsewhere).",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "api.adminIndexInfo": {
                 "properties": {
                     "recheckSec": {
@@ -3203,7 +3273,7 @@
         },
         "/api/admin/cache/{scope}/entries": {
             "delete": {
-                "description": "Deletes exactly one cache row (admin only). The key must carry the scope's prefix.",
+                "description": "Deletes exactly one cache row (admin only). The key must belong to the scope; for the catch-all scope that means no other scope claims it.",
                 "parameters": [
                     {
                         "description": "cache scope",
@@ -3215,7 +3285,7 @@
                         }
                     },
                     {
-                        "description": "full cache key (must match the scope prefix)",
+                        "description": "full cache key (must belong to the scope)",
                         "in": "query",
                         "name": "key",
                         "required": true,
@@ -3396,6 +3466,62 @@
                 ]
             }
         },
+        "/api/admin/data": {
+            "get": {
+                "description": "Reports every rebuildable body of data in the database (caches, derived structures, recorded decisions) with row counts, size, age span, what rebuilds it and what it depends on (admin only). Names are stable slugs; the UI supplies the prose.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.adminDataResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Inventory rebuildable data stores",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
         "/api/admin/index/{id}": {
             "delete": {
                 "description": "Drops one server's remote index (admin only); the crawler rebuilds it from the root. Catalog matches are untouched.",
@@ -3559,7 +3685,7 @@
         },
         "/api/admin/jobs": {
             "get": {
-                "description": "Reports the state of all background machinery: running jobs, match queue, cache stats, effective TTLs, Plex/AniList/index/watch info and per-server match stats (admin only).",
+                "description": "Reports the state of all background machinery: running jobs, match queue, cache stats, effective TTLs, Plex/AniList/index/watch info and per-server match stats (admin only). The full data store inventory lives in /api/admin/data.",
                 "responses": {
                     "200": {
                         "content": {

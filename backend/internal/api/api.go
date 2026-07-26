@@ -260,6 +260,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// admin: background jobs and cache maintenance
 	mux.Handle("GET /api/admin/jobs", authed(adminOnly(http.HandlerFunc(s.handleAdminJobs))))
 	mux.Handle("POST /api/admin/jobs/{name}/run", authed(adminOnly(http.HandlerFunc(s.handleAdminJobRun))))
+	mux.Handle("GET /api/admin/data", authed(adminOnly(http.HandlerFunc(s.handleAdminData))))
 	mux.Handle("DELETE /api/admin/cache/{scope}", authed(adminOnly(http.HandlerFunc(s.handleAdminCacheFlush))))
 	mux.Handle("DELETE /api/admin/index/{id}", authed(adminOnly(http.HandlerFunc(s.handleAdminIndexFlush))))
 	mux.Handle("GET /api/admin/cache/{scope}/entries", authed(adminOnly(http.HandlerFunc(s.handleAdminCacheEntries))))
