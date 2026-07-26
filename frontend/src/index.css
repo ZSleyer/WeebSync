@@ -446,16 +446,17 @@ a.t-label:hover {
 }
 
 /* Tabs: segmented bar in the Tempest style - display font, accent
-   underline marks the active tab. On phones the bar scrolls horizontally
-   instead of wrapping into ragged rows. */
+   underline marks the active tab.
+   The bar wraps rather than scrolling sideways. Scrolling hid the scrollbar
+   too (by design), so a phone showed a tab cut off mid-word with nothing to
+   say more existed - at 393px "Unvollständig" simply vanished past the edge.
+   Wrapped, every tab is on screen and reachable with one tap. */
 .t-tabs {
   display: flex;
+  flex-wrap: wrap;
   border: 1px solid var(--border-subtle);
   background: var(--bg-secondary);
-  overflow-x: auto;
-  scrollbar-width: none;
 }
-.t-tabs::-webkit-scrollbar { display: none; }
 .t-tab {
   flex-shrink: 0;
   display: inline-flex;
@@ -479,34 +480,6 @@ a.t-label:hover {
   color: var(--accent-blue);
   background: var(--bg-card);
   border-bottom-color: var(--accent-blue);
-}
-/* chevron scroll hint over the fading edge of an overflowing tab bar */
-.t-tabs-more {
-  position: absolute;
-  top: 1px;
-  bottom: 1px;
-  width: 56px;
-  display: flex;
-  align-items: center;
-  border: 0;
-  cursor: pointer;
-  color: var(--accent-blue);
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1;
-}
-.t-tabs-more--r {
-  right: 1px;
-  justify-content: flex-end;
-  padding-right: 12px;
-  background: linear-gradient(to right, transparent, var(--bg-secondary) 70%);
-}
-.t-tabs-more--l {
-  left: 1px;
-  justify-content: flex-start;
-  padding-left: 12px;
-  background: linear-gradient(to left, transparent, var(--bg-secondary) 70%);
 }
 
 /* One field of a multi-column row: label on top, control pinned to the bottom,
