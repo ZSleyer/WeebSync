@@ -22,13 +22,28 @@ import (
 // library not scanned) instead of retrying forever.
 const plexStreamGiveUp = 3 * 24 * time.Hour
 
-// pickStream returns the id of the first stream of typ (2 audio, 3 subtitle)
+// pickStream returns the id of the BEST stream of typ (2 audio, 3 subtitle)
 // matching the wanted app language code ("Ger", "Jap"); 0 = no preference or
 // not present in this file.
+//
+// The language is what the user asked for, but it is not enough to identify a
+// track. A file routinely carries two German subtitle tracks - one forced, for
+// the foreign dialogue and signs you want ON TOP of a German dub, and one full,
+// which is the one someone asking for German subtitles means. Taking the first
+// language match returned whichever the muxer happened to write first, and
+// forced tracks are conventionally written first. Same class of trap on the
+// audio side, where a commentary or an audio-description track sits next to the
+// real one under the same language.
+//
+// A worse track is still better than none: an accessibility or forced track is
+// picked when it is the only one in that language, because leaving Plex on its
+// own default ignores the preference entirely.
 func pickStream(streams []plex.EpisodeStream, typ int, want string) int64 {
 	if want == "" {
 		return 0
 	}
+	var bestID int64
+	bestRank := -1
 	for _, st := range streams {
 		if st.Type != typ {
 			continue
@@ -37,11 +52,41 @@ func pickStream(streams []plex.EpisodeStream, typ int, want string) int64 {
 		if lang == "" {
 			lang = st.Language
 		}
-		if langCode(lang) == canonCode(want) {
-			return st.ID
+		if langCode(lang) != canonCode(want) {
+			continue
+		}
+		if r := streamRank(st); r > bestRank {
+			bestRank, bestID = r, st.ID
 		}
 	}
-	return 0
+	return bestID
+}
+
+// streamRank scores how well a track serves someone who asked for its language,
+// highest wins. Ties keep the first track, which is the file's own order.
+//
+// ponytail: the title is read as a second source for "forced" because a muxer
+// that names a track "Forced" often leaves the container flag unset, and Plex
+// passes that flag through rather than inferring it. Only that one word is
+// matched - "Signs", "Songs" and their combinations are the same idea but are
+// also legitimate names for a full track, and a false positive here demotes the
+// track the user actually wanted.
+func streamRank(st plex.EpisodeStream) int {
+	forced := st.Forced || strings.Contains(strings.ToLower(st.Title), "forced")
+	switch {
+	case forced:
+		return 0 // covers foreign dialogue only, never a full translation
+	case st.VisualImpaired || st.HearingImpaired:
+		return 1 // complete, but written for an audience this user did not ask to join
+	case isCommentary(st.Title):
+		return 2 // the right language, an entirely different soundtrack
+	}
+	return 3
+}
+
+func isCommentary(title string) bool {
+	t := strings.ToLower(title)
+	return strings.Contains(t, "commentary") || strings.Contains(t, "kommentar")
 }
 
 // watchEpisodeParts locates the watch's show in Plex and returns its episode

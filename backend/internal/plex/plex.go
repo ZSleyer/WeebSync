@@ -553,11 +553,34 @@ func (c *Client) SeasonMedia(ratingKey string) (map[int]ShowMedia, error) {
 
 // EpisodeStream is one audio/subtitle stream of an episode's file, with the
 // id needed to select it.
+//
+// The flags matter as much as the language: a file routinely carries two German
+// subtitle tracks, one forced (foreign dialogue and signs only) and one full,
+// and a language match alone cannot tell them apart.
 type EpisodeStream struct {
 	ID       int64
 	Type     int // 2 audio, 3 subtitle
 	LangCode string
 	Language string
+	// Forced: subtitles for foreign dialogue and signs only, meant to run
+	// alongside a dub rather than to replace it.
+	Forced bool
+	// HearingImpaired (SDH) / VisualImpaired (audio description): usable, but
+	// never what someone who just asked for "German" meant.
+	HearingImpaired bool
+	VisualImpaired  bool
+	Title           string // free-text track name, e.g. "Forced", "Commentary"
+}
+
+// plexFlag decodes Plex's boolean-ish stream flags. PMS writes them as 1 and
+// omits them when false, but builds differ and some send a real JSON boolean or
+// a quoted digit; a strict bool would fail the whole payload on those.
+type plexFlag bool
+
+func (f *plexFlag) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), `"`)
+	*f = s == "1" || s == "true"
+	return nil
 }
 
 // EpisodePart is one episode's media part: its Plex-side file path plus every
@@ -581,10 +604,15 @@ type episodePartsPayload struct {
 					ID     int64  `json:"id"`
 					File   string `json:"file"`
 					Stream []struct {
-						ID         int64  `json:"id"`
-						StreamType int    `json:"streamType"`
-						Language   string `json:"language"`
-						LangCode   string `json:"languageCode"`
+						ID              int64    `json:"id"`
+						StreamType      int      `json:"streamType"`
+						Language        string   `json:"language"`
+						LangCode        string   `json:"languageCode"`
+						Forced          plexFlag `json:"forced"`
+						HearingImpaired plexFlag `json:"hearingImpaired"`
+						VisualImpaired  plexFlag `json:"visualImpaired"`
+						Title           string   `json:"title"`
+						DisplayTitle    string   `json:"displayTitle"`
 					} `json:"Stream"`
 				} `json:"Part"`
 			} `json:"Media"`
@@ -599,8 +627,17 @@ func (p episodePartsPayload) parts() []EpisodePart {
 			for _, pt := range m.Part {
 				part := EpisodePart{RatingKey: ep.RatingKey, PartID: pt.ID, File: pt.File}
 				for _, st := range pt.Stream {
+					// title falls back to displayTitle: a file that carries no
+					// track name of its own still gets one from Plex, and that
+					// is where a "(Forced)" a container flag never set shows up
+					title := st.Title
+					if title == "" {
+						title = st.DisplayTitle
+					}
 					part.Streams = append(part.Streams, EpisodeStream{
 						ID: st.ID, Type: st.StreamType, LangCode: st.LangCode, Language: st.Language,
+						Forced: bool(st.Forced), HearingImpaired: bool(st.HearingImpaired),
+						VisualImpaired: bool(st.VisualImpaired), Title: title,
 					})
 				}
 				out = append(out, part)
