@@ -11,10 +11,6 @@ func testServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/library/sections", func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-Plex-Token") != "test-token" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
 		w.Write([]byte(`{"MediaContainer":{"Directory":[
 			{"key":"1","type":"show","title":"Anime","agent":"tv.plex.agents.series","Location":[{"path":"/media/anime"}]},
 			{"key":"2","type":"movie","title":"Movies","agent":"tv.plex.agents.movie","Location":[{"path":"/media/movies"}]}]}}`))
@@ -63,7 +59,14 @@ func testServer(t *testing.T) *httptest.Server {
 			 "Location":[{"path":"/media/plex/series/Example_Show"}],
 			 "Guid":[{"id":"imdb://tt1234"},{"id":"tvdb://295"},{"id":"tmdb://30983"}]}]}}`))
 	})
-	return httptest.NewServer(mux)
+	// a real PMS checks the token on every route, not just one
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Plex-Token") != "test-token" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	}))
 }
 
 func TestClient(t *testing.T) {
@@ -123,8 +126,9 @@ func TestClient(t *testing.T) {
 		t.Errorf("set streams: %v", err)
 	}
 
+	// Sections is memoised, so ask something that goes to the server every time
 	c.Token = "wrong"
-	if _, err := c.Sections(); err == nil {
+	if _, err := c.Shows("1"); err == nil {
 		t.Error("expected auth error")
 	}
 }

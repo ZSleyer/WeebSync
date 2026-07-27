@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/netguard"
@@ -18,6 +19,9 @@ type Client struct {
 	URL   string // e.g. https://plex.example.com
 	Token string
 	HTTP  *http.Client
+
+	mu       sync.Mutex
+	sections []Section // memoised library listing, see Sections
 }
 
 func New(baseURL, token string) *Client {
@@ -136,7 +140,16 @@ func (c *Client) Refresh(sectionKey, dir string) error {
 	return nil
 }
 
+// Sections lists the libraries. Memoised for the lifetime of the client: one
+// lookup asks several times over (LibraryForPath, the folder walk, the title
+// scan) and each round costs a preferences request per show library on top.
+// A client is built per request, so this never outlives one.
 func (c *Client) Sections() ([]Section, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.sections != nil {
+		return c.sections, nil
+	}
 	var resp struct {
 		MediaContainer struct {
 			Directory []rawSection `json:"Directory"`
@@ -160,6 +173,7 @@ func (c *Client) Sections() ([]Section, error) {
 		}
 		out = append(out, sec)
 	}
+	c.sections = out
 	return out, nil
 }
 
@@ -252,10 +266,23 @@ func (c *Client) ShowKeyForPath(p string) (string, bool) {
 		if err != nil || len(nodes) == 0 {
 			return "", false // not scanned yet, or nothing in it
 		}
+		// A folder holding episodes of two shows says nothing about which one
+		// it is - and the answer is trusted enough to merge series on, so an
+		// ambiguous folder must yield nothing at all.
+		// ponytail: unanimity is only checked where the episodes are; a tree
+		// with a different show per subfolder would need every branch walked.
+		key := ""
 		for _, n := range nodes {
 			if n.GrandparentRatingKey == "" {
 				continue
 			}
+			if key != "" && key != n.GrandparentRatingKey {
+				return "", false
+			}
+			key = n.GrandparentRatingKey
+		}
+		if key != "" {
+			return key, true
 		}
 		node = nodes[0].Key // still directories: descend into the first one
 	}
@@ -266,23 +293,10 @@ func (c *Client) ShowKeyForPath(p string) (string, bool) {
 // the component below it. A section can hold several mounts.
 func longestRoot(lib Section, p string) string {
 	best := ""
-		// A folder holding episodes of two shows says nothing about which one
-		// it is - and the answer is trusted enough to merge series on, so an
-		// ambiguous folder must yield nothing at all.
-		// ponytail: unanimity is only checked where the episodes are; a tree
-		// with a different show per subfolder would need every branch walked.
-		key := ""
 	for _, root := range lib.Locations {
 		if (p == root || strings.HasPrefix(p, root+"/")) && len(root) > len(best) {
 			best = root
 		}
-			if key != "" && key != n.GrandparentRatingKey {
-				return "", false
-			}
-			key = n.GrandparentRatingKey
-		}
-		if key != "" {
-			return key, true
 	}
 	return best
 }
