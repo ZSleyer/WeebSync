@@ -627,14 +627,23 @@ func (s *Server) plexWebLinkByKey(showKey string, titles ...string) string {
 // under a new key, leaving the stored row pointing at whatever occupies the old
 // slot today. The stored row therefore only carries when Plex is unreachable
 // and the index comes back empty.
+// A stored row the library contradicts is dropped on the spot. Nothing else
+// ever invalidates it, so a wrong binding - a renumbered show, or a title match
+// that once landed on the wrong item - would otherwise stand forever.
 func (s *Server) plexRatingKeyResolve(showKey string) string {
 	if showKey == "" {
 		return ""
 	}
-	if live := guidRatingKey(s.plexGuidIndex(), showKey); live != "" {
-		return live
+	stored := s.plexRatingKeyFor(showKey)
+	live := guidRatingKey(s.plexGuidIndex(), showKey)
+	if live == "" {
+		return stored // Plex unreachable: a stale address still beats none
 	}
-	return s.plexRatingKeyFor(showKey)
+	if stored != "" && stored != live {
+		s.DB.Exec(`DELETE FROM series_provider WHERE source = 'plex' AND media_id = ?`, stored)
+		slog.Info("plex ratingKey reissued", "showKey", logSafe(showKey), "was", stored, "now", live)
+	}
+	return live
 }
 
 // plexRatingKeyFor looks up Plex's own id for the series behind a show_key, via

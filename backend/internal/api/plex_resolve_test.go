@@ -32,6 +32,12 @@ func TestPlexRatingKeyResolvePrefersTheLiveGuid(t *testing.T) {
 	if got := s.plexRatingKeyResolve("tvdb:305089"); got != "62755" {
 		t.Errorf("resolve = %q, want the live 62755 rather than the stored 58605", got)
 	}
+	// and the contradicted row is gone, so it cannot mislead the next caller
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE source = 'plex' AND media_id = 58605`).Scan(&n)
+	if n != 0 {
+		t.Error("the stored ratingKey the library contradicts is still there")
+	}
 }
 
 // Plex unreachable means an empty index, and an empty index must not erase what
