@@ -490,7 +490,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 				"folder", logSafe(top.Folder), "reason", "remote copy holds the same files, only named differently")
 			continue
 		}
-		e := enrich.of(u.showKey, u.season)
+		e := enrich.of(u.showKey, u.season, u.isMovie)
 		catMedia := anilist.Media{Format: e.format, Genres: e.genres}
 		if u.isMovie {
 			catMedia.Format = "MOVIE"
@@ -506,7 +506,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			Library:  s.plexLibraryOf(cur.Folder),
 			Sync:     existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
 
-			LocalSeasons: localsByShow[u.showKey],
+			LocalSeasons: localsByShow[showScope(u.showKey, u.isMovie)],
 		}
 		// a better remote copy exists for a season you own: which axis wins
 		slog.Debug("upgrade found", "showKey", u.showKey, "season", u.season,
@@ -536,14 +536,21 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 	// remember a real local season/movie dir per show_key, so a missing season's
 	// target is a sibling of an owned one (Show/Season NN) and a missing movie
 	// lands in its own subfolder under the movie library.
+	//
+	// Ownership is asked PER FORM (showScope). Owning the series tmdb:550 says
+	// nothing about the film tmdb:550, which is a different work under a
+	// show_key that happens to spell the same - and answering with the series'
+	// folder is how a film ended up listed as a missing part of a show, with a
+	// sync plan pointing into the series library.
 	ownedDir := map[string]string{}
 	localsOfShow := map[string][]UpgradeVariant{}
 	for _, key := range units.order {
 		u := units.byKey[key]
-		localsOfShow[u.showKey] = append(localsOfShow[u.showKey], u.locals...)
+		sc := showScope(u.showKey, u.isMovie)
+		localsOfShow[sc] = append(localsOfShow[sc], u.locals...)
 		for _, l := range u.locals {
-			if strings.HasPrefix(l.Folder, "/") && ownedDir[u.showKey] == "" {
-				ownedDir[u.showKey] = l.Folder
+			if strings.HasPrefix(l.Folder, "/") && ownedDir[sc] == "" {
+				ownedDir[sc] = l.Folder
 			}
 		}
 	}
@@ -551,20 +558,21 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 	// for a show that is about to be called incomplete
 	sizes := s.newSizeIndex()
 	onDisk := map[string]map[int64]bool{}
-	sizesOfShow := func(showKey string) map[int64]bool {
-		if v, ok := onDisk[showKey]; ok {
+	sizesOfShow := func(scope string) map[int64]bool {
+		if v, ok := onDisk[scope]; ok {
 			return v
 		}
-		v := sizes.union(localsOfShow[showKey])
-		onDisk[showKey] = v
+		v := sizes.union(localsOfShow[scope])
+		onDisk[scope] = v
 		return v
 	}
 	for _, key := range units.order {
 		u := units.byKey[key]
-		if len(u.locals) > 0 || len(u.remotes) == 0 || ownedDir[u.showKey] == "" {
+		sc := showScope(u.showKey, u.isMovie)
+		if len(u.locals) > 0 || len(u.remotes) == 0 || ownedDir[sc] == "" {
 			continue // owned this unit already, nothing remote, or show not owned locally
 		}
-		e := enrich.of(u.showKey, u.season)
+		e := enrich.of(u.showKey, u.season, u.isMovie)
 		if e.title == "" {
 			continue
 		}
@@ -572,7 +580,7 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		// season the mapping filed it under: the local copies of THIS SHOW are
 		// searched, not just the ones that landed on this unit's season number.
 		// That is exactly the case a wrong season mapping produces.
-		if sizes.anyAlreadyHave(sizesOfShow(u.showKey), u.remotes) {
+		if sizes.anyAlreadyHave(sizesOfShow(sc), u.remotes) {
 			slog.Debug("incomplete skipped", "showKey", u.showKey, "season", u.season,
 				"reason", "the library already holds these files under another season")
 			continue
@@ -594,8 +602,8 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 			Category: categorize(e.providers, media, "", e.kind),
 			Title:    title, Cover: e.cover, Media: media,
 			Providers: e.providers, Links: e.links, Candidates: cands,
-			Library: s.plexLibraryOf(ownedDir[u.showKey]),
-			Sync:    missingSyncPlan(ownedDir[u.showKey], u.season, u.isMovie),
+			Library: s.plexLibraryOf(ownedDir[sc]),
+			Sync:    missingSyncPlan(ownedDir[sc], u.season, u.isMovie),
 		})
 	}
 }
@@ -606,6 +614,10 @@ type catUnit struct {
 	showKey string
 	season  int
 	isMovie bool
+	// libKind: the kind of the Plex library the LOCAL copies came from
+	// (kindAnime or ""). Only server-0 rows carry one; it decorates, it never
+	// decides - see the note on categorize in buildUpgrades.
+	libKind string
 	locals  []UpgradeVariant
 	remotes []UpgradeVariant
 }
@@ -628,7 +640,7 @@ func localSeasonsByShow(units catUnits) map[string][]LocalSeason {
 			continue
 		}
 		b := bestCopy(u.locals)
-		out[u.showKey] = append(out[u.showKey], LocalSeason{
+		out[showScope(u.showKey, u.isMovie)] = append(out[showScope(u.showKey, u.isMovie)], LocalSeason{
 			Season: u.season, Folder: b.Folder, ResRank: b.ResRank, IsMovie: u.isMovie,
 		})
 	}
@@ -636,13 +648,22 @@ func localSeasonsByShow(units catUnits) map[string][]LocalSeason {
 }
 
 // loadUnits reads every quality variant that carries a canonical unit and groups
-// them by (show_key, season) - the SAME key a local and a remote copy of one
-// season share, so grouping lines them up. is_movie units are keyed at season 0.
+// them by (show_key, season, is_movie) - the SAME key a local and a remote copy
+// of one season share, so grouping lines them up. is_movie units are keyed at
+// season 0.
+//
+// The form belongs in the key. Without it a film and a season met in one unit
+// and were treated as copies of each other, because season 0 is where BOTH a
+// film and several kinds of season land: a Plex specials season (parent index
+// 0), a tv folder whose name carries no season marker, and TMDB, whose film and
+// series ids are separate spaces that the show_key spells the same way. Whoever
+// created the bucket decided its form and every other row's is_movie was
+// dropped, so a series could be offered a film as "the better copy" of itself.
 func (s *Server) loadUnits() catUnits {
 	names := s.serverNames()
 	canon := s.showKeyCanon()
 	u := catUnits{byKey: map[string]*catUnit{}}
-	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, is_movie, probed
+	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, is_movie, probed, lib_kind
 		FROM catalog_variants WHERE show_key != '' ORDER BY show_key, season`)
 	if err != nil {
 		return u
@@ -650,20 +671,24 @@ func (s *Server) loadUnits() catUnits {
 	defer rows.Close()
 	for rows.Next() {
 		var serverID int64
-		var folder, dub, sub, showKey string
+		var folder, dub, sub, showKey, libKind string
 		var res, season, isMovie, probed int
-		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &showKey, &season, &isMovie, &probed) != nil {
+		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &showKey, &season, &isMovie, &probed, &libKind) != nil {
 			continue
 		}
-		if c := canon[showKey]; c != "" {
+		movie := isMovie == 1
+		if c := canon[showScope(showKey, movie)]; c != "" {
 			showKey = c
 		}
-		key := unitKey(showKey, season)
+		key := unitKey(showKey, season, movie)
 		cu := u.byKey[key]
 		if cu == nil {
-			cu = &catUnit{showKey: showKey, season: season, isMovie: isMovie == 1}
+			cu = &catUnit{showKey: showKey, season: season, isMovie: movie}
 			u.byKey[key] = cu
 			u.order = append(u.order, key)
+		}
+		if libKind != "" && cu.libKind == "" {
+			cu.libKind = libKind
 		}
 		v := UpgradeVariant{ServerID: serverID, ServerName: names[serverID], Folder: folder,
 			ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub), Probed: probed == 1}
@@ -677,8 +702,25 @@ func (s *Server) loadUnits() catUnits {
 }
 
 // unitKey / unitSeasonLabel are the shared dismiss-key and season display helpers.
-func unitKey(showKey string, season int) string {
-	return "unit:" + showKey + ":" + strconv.Itoa(season)
+// A film carries the ":m" suffix: the key is also the React key and the radio
+// group name of the card, and a film and a season-0 series sharing one string
+// makes picking a version in one card clear the other's selection.
+func unitKey(showKey string, season int, isMovie bool) string {
+	k := "unit:" + showKey + ":" + strconv.Itoa(season)
+	if isMovie {
+		k += ":m"
+	}
+	return k
+}
+
+// showScope names one show IN ONE FORM. Everything that asks "what does the
+// library already hold for this show" has to ask it per form, or owning a
+// series makes an unrelated film of the same id a missing part of it.
+func showScope(showKey string, isMovie bool) string {
+	if isMovie {
+		return showKey + "|m"
+	}
+	return showKey
 }
 
 // showKeyCanon maps every show_key onto the one that stands for its series, so
@@ -693,27 +735,36 @@ func unitKey(showKey string, season int) string {
 // a copy without a series would stop meeting its remote counterpart. Folding
 // the keys gets the same shows together without that dependency.
 func (s *Server) showKeyCanon() map[string]string {
-	rows, err := s.DB.Query(`SELECT DISTINCT show_key, series_id FROM catalog_variants
+	rows, err := s.DB.Query(`SELECT DISTINCT show_key, series_id, is_movie FROM catalog_variants
 		WHERE series_id != 0 AND show_key != '' ORDER BY show_key`)
 	if err != nil {
 		return nil
 	}
 	defer rows.Close()
-	stands := map[int64]string{} // series -> the show_key that speaks for it
-	canon := map[string]string{}
+	stands := map[string]string{} // (series, form) -> the show_key that speaks for it
+	canon := map[string]string{}  // showScope(key, form) -> that key
 	for rows.Next() {
 		var showKey string
 		var seriesID int64
-		if rows.Scan(&showKey, &seriesID) != nil {
+		var isMovie int
+		if rows.Scan(&showKey, &seriesID, &isMovie) != nil {
 			continue
 		}
-		if first, ok := stands[seriesID]; ok {
+		// A series bundles a show with its films, so folding by series alone
+		// hands every season of the show the film's key - and both sides are
+		// then the same unit again, one layer above the one loadUnits guards.
+		// Fold per (series, form), and key the result per form too: a single
+		// show_key can appear under both (TMDB spells a film id and a series id
+		// the same way), and a bare-key map would rewrite it to whichever form
+		// was read last.
+		form := strconv.Itoa(isMovie)
+		if first, ok := stands[strconv.FormatInt(seriesID, 10)+"|"+form]; ok {
 			if first != showKey {
-				canon[showKey] = first
+				canon[showScope(showKey, isMovie == 1)] = first
 			}
 			continue
 		}
-		stands[seriesID] = showKey
+		stands[strconv.FormatInt(seriesID, 10)+"|"+form] = showKey
 	}
 	return canon
 }
@@ -790,6 +841,7 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 		}
 		seriesID := bySrc[source+"|"+strconv.Itoa(mediaID)]
 		showKey, season := "", -1 // -1 = spans all seasons (one id per show)
+		movie := false
 		var media *anilist.Media
 		switch source {
 		case "anilist":
@@ -802,14 +854,14 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 			case a.tvdbID != 0:
 				showKey, season = "tvdb:"+strconv.Itoa(a.tvdbID), unitSeason(a.tvdbSeason, media, "")
 			case a.tmdbID != 0 && a.tmdbKind == "movie":
-				showKey, season = "tmdb:"+strconv.Itoa(a.tmdbID), 0
+				showKey, movie = "tmdb:"+strconv.Itoa(a.tmdbID), true
 			case a.tmdbID != 0:
 				showKey, season = "tmdb:"+strconv.Itoa(a.tmdbID), unitSeason(a.tmdbSeason, media, "")
 			case a.imdbID != "":
 				showKey, season = "imdb:"+a.imdbID, unitSeason(0, media, "")
 			}
 		case "tmdb:movie":
-			showKey, season = "tmdb:"+strconv.Itoa(mediaID), 0
+			showKey, movie = "tmdb:"+strconv.Itoa(mediaID), true
 			media, _ = s.sourceMedia(source, mediaID)
 		case "tmdb:tv":
 			showKey = "tmdb:" + strconv.Itoa(mediaID)
@@ -830,23 +882,42 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 			}
 		}
 		if media != nil {
-			e.mediaBySeason[showKey+"|"+strconv.Itoa(season)] = *media
-			e.srcBySeason[showKey+"|"+strconv.Itoa(season)] = source
+			e.mediaBySeason[showKey+enrichSlot(season, movie)] = *media
+			e.srcBySeason[showKey+enrichSlot(season, movie)] = source
 		}
 	}
 	return e
 }
 
+// enrichSlot names the media shelf a provider hit goes on. A film gets its own
+// shelf rather than season 0: films used to be filed there, which is also where
+// a specials season and a season-less tv folder land, so a season could be
+// decorated with a film's title, cover and Format=MOVIE and then be sorted into
+// the films block.
+func enrichSlot(season int, isMovie bool) string {
+	if isMovie {
+		return "|m"
+	}
+	return "|" + strconv.Itoa(season)
+}
+
 // of resolves the display context for one unit, preferring the season-specific
 // media, then the show-wide media, then anything the show_key's providers offer.
-func (e *unitEnrich) of(showKey string, season int) unitInfo {
+// A film only ever reads the film shelf and a season never does.
+//
+// ponytail: refsByKey stays keyed by show_key alone, so a film and a series that
+// collide on one TMDB number still pool their provider badges. Splitting the
+// tmdb: prefix per namespace would fix that and drag plexRatingKeyFor,
+// attachPlexIdentity and four test files along; a stray badge is the price.
+func (e *unitEnrich) of(showKey string, season int, isMovie bool) unitInfo {
 	refs := e.refsByKey[showKey]
 	var media *anilist.Media
 	var src string
 	exact := false
-	if m, ok := e.mediaBySeason[showKey+"|"+strconv.Itoa(season)]; ok {
-		media, src, exact = &m, e.srcBySeason[showKey+"|"+strconv.Itoa(season)], true // this exact season
-	} else if m, ok := e.mediaBySeason[showKey+"|-1"]; ok {
+	slot := enrichSlot(season, isMovie)
+	if m, ok := e.mediaBySeason[showKey+slot]; ok {
+		media, src, exact = &m, e.srcBySeason[showKey+slot], true // this exact season
+	} else if m, ok := e.mediaBySeason[showKey+"|-1"]; ok && !isMovie {
 		media, src = &m, e.srcBySeason[showKey+"|-1"]
 	} else if m := e.s.seriesMedia(refs); m != nil {
 		media = m // source unknown -> treat like AniList (English-first)
@@ -857,6 +928,13 @@ func (e *unitEnrich) of(showKey string, season int) unitInfo {
 		info.cover, info.format, info.episodes = media.CoverImage.Large, media.Format, media.Episodes
 		info.genres = media.Genres
 		info.media = *media
+	}
+	// belt and braces on top of the shelf split: a season that fell back to a
+	// show-wide or series-wide media must not inherit a MOVIE format from it,
+	// or categorize files the season under the films.
+	if !isMovie && !exact && info.format == "MOVIE" {
+		info.format = ""
+		info.media.Format = ""
 	}
 	// a stored multi-locale title (series_titles, de→en→x-jat) beats a
 	// show-wide/mismatched media title or a folder-derived guess; an exact

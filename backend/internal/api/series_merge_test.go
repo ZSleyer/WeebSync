@@ -169,8 +169,24 @@ func TestShowKeyCanonFoldsSpellingsOfOneSeries(t *testing.T) {
 	// and the two copies now land in one unit, which is what makes the remote
 	// one an upgrade for the local one at all
 	u := s.loadUnits()
-	cu := u.byKey[unitKey("tvdb:262954", 3)]
+	cu := u.byKey[unitKey("tvdb:262954", 3, false)]
 	if cu == nil || len(cu.locals) != 1 || len(cu.remotes) != 1 {
 		t.Fatalf("unit = %+v, want one local and one remote copy", cu)
+	}
+}
+
+// A series bundles a show with its films, so folding by series alone hands every
+// season of the show the film's key - and the two are one unit again, one layer
+// above the one loadUnits guards.
+func TestShowKeyCanonKeepsAFilmOutOfItsSeries(t *testing.T) {
+	s := mergeTestServer(t)
+	s.DB.Exec(`INSERT INTO series (id, key, title, year) VALUES (1,'show','Show',2014)`)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season, is_movie, series_id, res_rank) VALUES
+		(0,'/media/anime/Show/Season_01','tvdb:100',1,0,1,1080),
+		(1,'/ftp/Show The Film','tmdb:200',0,1,1,2160)`)
+
+	canon := s.showKeyCanon()
+	if len(canon) != 0 {
+		t.Errorf("canon = %v, want no entry between a film and a season of the same series", canon)
 	}
 }
