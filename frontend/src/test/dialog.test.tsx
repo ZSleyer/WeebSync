@@ -214,6 +214,28 @@ describe('Dialog', () => {
     }
   })
 
+  it('stays open when a dialog opened from inside it closes', async () => {
+    // close/cancel do not bubble natively, but React walks them up its own tree
+    const onOuter = vi.fn()
+    const onInner = vi.fn()
+    const { container } = render(
+      <Dialog onClose={onOuter} onRequestClose={() => false} width="max-w-2xl">
+        <Dialog onClose={onInner}>Auswahl</Dialog>
+      </Dialog>,
+    )
+    const [outer, inner] = [...container.querySelectorAll('dialog')]
+    inner.close()
+
+    await waitFor(() => expect(onInner).toHaveBeenCalledTimes(1))
+    expect(onOuter).not.toHaveBeenCalled()
+    expect(outer.open).toBe(true)
+
+    // and the outer one's own Escape still reaches its guard
+    const cancel = new Event('cancel', { cancelable: true })
+    fireEvent(outer, cancel)
+    expect(cancel.defaultPrevented).toBe(true)
+  })
+
   it('leaves Escape to the platform when there is no guard', () => {
     // without onRequestClose no onCancel handler is attached at all, so the
     // browser's own Escape handling closes the dialog and onClose reports it
