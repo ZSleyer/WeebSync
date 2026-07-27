@@ -668,14 +668,20 @@ func (c *Client) PartStreams(episodeRatingKey string) ([]EpisodePart, error) {
 	return resp.parts(), nil
 }
 
+// StreamLeave means "do not touch this dimension" in a SetStreams call. It is
+// not 0, because Plex gives 0 its own meaning: subtitleStreamID=0 turns
+// subtitles OFF, which is a choice someone can make on purpose and has to be
+// expressible separately from making no choice at all.
+const StreamLeave = int64(-1)
+
 // SetStreams selects a part's audio and/or subtitle stream for the token's
-// account (0 = leave that dimension untouched).
+// account. StreamLeave omits that dimension from the request; 0 clears it.
 func (c *Client) SetStreams(partID, audioStreamID, subtitleStreamID int64) error {
 	q := url.Values{"allParts": {"1"}}
-	if audioStreamID != 0 {
+	if audioStreamID >= 0 {
 		q.Set("audioStreamID", strconv.FormatInt(audioStreamID, 10))
 	}
-	if subtitleStreamID != 0 {
+	if subtitleStreamID >= 0 {
 		q.Set("subtitleStreamID", strconv.FormatInt(subtitleStreamID, 10))
 	}
 	return c.put("/library/parts/" + strconv.FormatInt(partID, 10) + "?" + q.Encode())
