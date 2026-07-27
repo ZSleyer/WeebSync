@@ -674,8 +674,18 @@ func (s *Server) plexRatingKeyFor(showKey string) string {
 }
 
 // guidRatingKey finds the ratingKey whose Plex guid carries the show_key's
-// provider id. ponytail: linear scan, the index holds one entry per library show.
+// provider id.
 func guidRatingKey(idx map[string]plexGuid, showKey string) string {
+	g, _ := guidForShowKey(idx, showKey)
+	return g.RatingKey
+}
+
+// guidForShowKey finds the Plex show whose guid carries the show_key's provider
+// id. ponytail: linear scan, the index holds one entry per library show.
+func guidForShowKey(idx map[string]plexGuid, showKey string) (plexGuid, bool) {
+	if showKey == "" {
+		return plexGuid{}, false
+	}
 	for _, g := range idx {
 		if g.RatingKey == "" {
 			continue
@@ -683,10 +693,40 @@ func guidRatingKey(idx map[string]plexGuid, showKey string) string {
 		if (g.TVDB != 0 && showKey == "tvdb:"+strconv.Itoa(g.TVDB)) ||
 			(g.TMDB != 0 && showKey == "tmdb:"+strconv.Itoa(g.TMDB)) ||
 			(g.IMDB != 0 && showKey == "imdb:"+strconv.Itoa(g.IMDB)) {
-			return g.RatingKey
+			return g, true
 		}
 	}
-	return ""
+	return plexGuid{}, false
+}
+
+// attachPlexIdentity hangs the provider identity of one Plex show on a series,
+// and folds in whatever series already claims those ids so a show ends up as one
+// entry no matter which catalog first named it.
+//
+// exact says the binding is the folder Plex itself scanned rather than a folded
+// title. Only then may a conflicting id be merged: a merge cannot be undone, and
+// the title route demonstrably lands on the wrong show - it once bound a series
+// to an unrelated film whose title folded to the same key.
+func (s *Server) attachPlexIdentity(seriesID int64, g plexGuid, exact bool) {
+	rk, _ := strconv.Atoi(g.RatingKey)
+	// imdb only ever comes from Plex (suggestion badge, extra dedup axis); the
+	// plex row is its own address, needed for deep links and stream selection
+	for _, r := range []providerRef{{"tvdb", g.TVDB}, {"tmdb:tv", g.TMDB}, {"imdb", g.IMDB}, {"plex", rk}} {
+		if r.MediaID <= 0 {
+			continue
+		}
+		if other := s.seriesByProvider(r.Source, r.MediaID); other != 0 && other != seriesID {
+			if !exact {
+				// INSERT OR IGNORE would drop this silently; say so instead
+				slog.Debug("plex identity claimed elsewhere", "seriesId", seriesID,
+					"other", other, "source", r.Source, "mediaId", r.MediaID)
+				continue
+			}
+			s.mergeSeries(other, seriesID)
+		}
+		s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
+			r.Source, r.MediaID, seriesID)
+	}
 }
 
 // plexFolderNames maps media ids to the Plex folder basename of the same

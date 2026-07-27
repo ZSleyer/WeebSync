@@ -572,6 +572,7 @@ func (s *Server) plexShowForWatch(w Watch, title string) (sh *plex.Show, ord ple
 	target := s.watchTarget(w)
 	if rk, ok := c.ShowKeyForPath(target); ok {
 		if sh, ord, ok := plexShowByKey(c, rk); ok {
+			s.rememberPlexShow(w, sh)
 			return sh, ord, "path", true
 		}
 	}
@@ -580,6 +581,19 @@ func (s *Server) plexShowForWatch(w Watch, title string) (sh *plex.Show, ord ple
 		return nil, plex.Ordering{}, "", false
 	}
 	return sh, ord, "title", true
+}
+
+// rememberPlexShow records what the folder walk found, so the next lookup is a
+// db read and the series gains every id Plex holds for the show. The binding is
+// the scanned folder itself, so it is allowed to unite series those ids name.
+func (s *Server) rememberPlexShow(w Watch, sh *plex.Show) {
+	seriesID := s.seriesIDForFolder(w.ServerID, w.RemotePath)
+	if seriesID == 0 {
+		return // folder not bundled yet; the sweep's relinkOrphans catches up
+	}
+	s.attachPlexIdentity(seriesID, plexGuid{
+		TVDB: sh.TVDBID, TMDB: sh.TMDBID, IMDB: sh.IMDBID, Year: sh.Year, RatingKey: sh.RatingKey,
+	}, true)
 }
 
 // plexShowByKey fetches the show behind a ratingKey with its ordering settings.
