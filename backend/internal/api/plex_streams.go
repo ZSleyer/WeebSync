@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"path"
 	"strings"
@@ -22,27 +23,54 @@ import (
 // library not scanned) instead of retrying forever.
 const plexStreamGiveUp = 3 * 24 * time.Hour
 
-// pickStream returns the id of the BEST stream of typ (2 audio, 3 subtitle)
-// matching the wanted app language code ("Ger", "Jap"); 0 = no preference or
-// not present in this file.
+// plexStreamMissGiveUp bounds the OTHER kind of waiting: the episode was found
+// and set, but the file does not carry a language that was asked for. That is
+// worth looking at again for a while, because a dub re-release overwrites the
+// same path and Plex re-analyses it afterwards - and not worth looking at
+// forever, because most of the time the release simply never had the track.
+const plexStreamMissGiveUp = 2 * time.Hour
+
+// subOff is the stored subtitle preference that means "turn subtitles off",
+// as opposed to "" which means "leave whatever Plex picked". Both are real
+// choices and neither can stand in for the other.
+const subOff = "off"
+
+// subChoice reads the stored subtitle preference. The forced variant is part of
+// the choice, not something derived from the audio: a dub viewer usually wants
+// signs only, a language learner wants the full text under the same dub, and
+// there is no way to tell those two people apart from the languages alone.
 //
-// The language is what the user asked for, but it is not enough to identify a
-// track. A file routinely carries two German subtitle tracks - one forced, for
-// the foreign dialogue and signs you want ON TOP of a German dub, and one full,
-// which is the one someone asking for German subtitles means. Taking the first
-// language match returned whichever the muxer happened to write first, and
-// forced tracks are conventionally written first. Same class of trap on the
-// audio side, where a commentary or an audio-description track sits next to the
-// real one under the same language.
-//
-// A worse track is still better than none: an accessibility or forced track is
-// picked when it is the only one in that language, because leaving Plex on its
-// own default ignores the preference entirely.
-func pickStream(streams []plex.EpisodeStream, typ int, want string) int64 {
-	if want == "" {
-		return 0
+//	""           leave Plex alone
+//	"off"        no subtitles
+//	"Ger"        the full German track
+//	"Ger:forced" the forced German track
+func subChoice(pref string) (code string, forced, off bool) {
+	if pref == subOff {
+		return "", false, true
 	}
-	var bestID int64
+	code, variant, _ := strings.Cut(pref, ":")
+	return code, variant == "forced", false
+}
+
+// pickStream returns the id of the BEST stream of typ (2 audio, 3 subtitle)
+// matching the wanted app language code ("Ger", "Jap"), and whether that track
+// is the variant that was asked for. id 0 = no preference, or the language is
+// not in this file.
+//
+// The language alone does not identify a track. A file routinely carries two
+// German subtitle tracks - one forced, for the foreign dialogue and signs you
+// want on top of a German dub, and one full - and next to them can sit an SDH
+// track; on the audio side a commentary or an audio-description track wears the
+// same language as the real one. Taking the first language match returned
+// whichever the muxer wrote first, and forced tracks are conventionally first.
+//
+// exact=false is not a failure, it is a substitution: the language is there but
+// only in a variant nobody asked for, which is worth telling the user about
+// while still being better than leaving Plex on its own default.
+func pickStream(streams []plex.EpisodeStream, typ int, want string, wantForced bool) (id int64, exact bool) {
+	if want == "" {
+		return 0, false
+	}
 	bestRank := -1
 	for _, st := range streams {
 		if st.Type != typ {
@@ -55,45 +83,79 @@ func pickStream(streams []plex.EpisodeStream, typ int, want string) int64 {
 		if langCode(lang) != canonCode(want) {
 			continue
 		}
-		if r := streamRank(st); r > bestRank {
-			bestRank, bestID = r, st.ID
+		if r := streamRank(st, wantForced); r > bestRank {
+			bestRank, id = r, st.ID
 		}
 	}
-	return bestID
+	return id, bestRank == idealRank(wantForced)
 }
 
-// streamRank scores how well a track serves someone who asked for its language,
-// highest wins. Ties keep the first track, which is the file's own order.
-//
-// The container flag decides. The title is only consulted when the flag is
-// unset, because a muxer that names a track "Forced" often leaves the flag out
-// and Plex passes it through rather than inferring it.
-//
-// ponytail: only that one word is matched. "Signs", "Songs" and their
-// combinations mean the same thing but are also legitimate names for a full
-// track, and a false positive here demotes exactly the track the user wanted.
-func streamRank(st plex.EpisodeStream) int {
-	switch {
-	case st.Forced || titleSaysForced(st.Title):
-		return 0 // covers foreign dialogue only, never a full translation
-	case st.VisualImpaired || st.HearingImpaired:
-		return 1 // complete, but written for an audience this user did not ask to join
-	case isCommentary(st.Title):
-		return 2 // the right language, an entirely different soundtrack
+// Track ranks, highest wins. rankWanted is whichever of forced/plain the caller
+// asked for, so the same scale serves both directions.
+const (
+	rankForced     = 0 // covers foreign dialogue only, never a full translation
+	rankImpaired   = 1 // complete, but written for an audience this user did not ask to join
+	rankCommentary = 2 // the right language, an entirely different soundtrack
+	rankPlain      = 3
+	rankWanted     = 4
+)
+
+func idealRank(wantForced bool) int {
+	if wantForced {
+		return rankWanted
 	}
-	return 3
+	return rankPlain
+}
+
+// streamRank scores how well a track serves the request, ties keeping the first
+// track, which is the file's own order.
+//
+// The container flag decides what a track is. The title is only consulted when
+// the flag is unset, because a muxer that names a track "Forced" often leaves
+// the flag out and Plex passes it through rather than inferring it.
+func streamRank(st plex.EpisodeStream, wantForced bool) int {
+	switch {
+	case st.Forced || titleSaysForced(st.Title, wantForced):
+		if wantForced {
+			return rankWanted
+		}
+		return rankForced
+	case st.VisualImpaired || st.HearingImpaired:
+		return rankImpaired
+	case isCommentary(st.Title):
+		return rankCommentary
+	}
+	// A full track. What was asked for when forced was not, and the fallback
+	// when it was: signs-only exists in some files and not in others.
+	return rankPlain
 }
 
 // titleSaysForced reads a track name for the forced marker, minus the names
-// that carry the word in order to deny it: "Non-Forced" and "nicht forced" are
-// how a full track sitting next to a forced one is often labelled, and reading
-// those as forced demotes the very track they were named to identify.
-func titleSaysForced(title string) bool {
+// that carry the word in order to deny it: "Non-Forced" and "nicht erzwungen"
+// are how a full track sitting next to a forced one is often labelled, and
+// reading those as forced demotes the very track they were named to identify.
+//
+// ponytail: "signs" and "schilder" are the dominant labels for an unflagged
+// signs-only track, but they are also plausible names for a full one - so they
+// only count when forced is what we are looking for. In that direction a false
+// positive costs nothing (we are already choosing among tracks of the wanted
+// language, and forced is the goal); in the other it would demote the track the
+// user actually asked for.
+func titleSaysForced(title string, loose bool) bool {
 	t := strings.ToLower(title)
-	for _, neg := range []string{"non-forced", "nonforced", "non forced", "not forced", "nicht forced", "no forced"} {
+	for _, neg := range []string{"non-forced", "nonforced", "non forced", "not forced",
+		"nicht forced", "no forced", "nicht erzwungen", "keine erzwungenen"} {
 		t = strings.ReplaceAll(t, neg, "")
 	}
-	return strings.Contains(t, "forced")
+	for _, marker := range []string{"forced", "erzwungen", "forciert"} {
+		if strings.Contains(t, marker) {
+			return true
+		}
+	}
+	if loose {
+		return strings.Contains(t, "signs") || strings.Contains(t, "schilder")
+	}
+	return false
 }
 
 func isCommentary(title string) bool {
@@ -119,16 +181,62 @@ func (s *Server) watchEpisodeParts(c *plex.Client, w Watch) (map[string]plex.Epi
 	return byFile, true
 }
 
-// applyStreams selects the preferred streams on one episode part. done=false
-// only on a Plex error (retry); a missing wanted language is final - the file
-// is what it is, waiting will not grow it a track. Leaf listings often omit
-// streams (PMS ignores includeStreams there), so they are fetched per episode.
-func applyStreams(c *plex.Client, p plex.EpisodePart, audioLang, subLang string) (done bool) {
+// planStreams turns the watch's preference into the two stream ids to send, and
+// names what the file could not deliver ("", "audio", "sub", "audio,sub").
+//
+// A miss is not the same as a failure to apply: the dimension that WAS resolved
+// is still set. It says the file does not (yet) hold what was asked for, which
+// is the thing worth telling the user and the thing worth looking at again once
+// a re-release has overwritten the file.
+func planStreams(streams []plex.EpisodeStream, audioLang, subPref string) (audioID, subID int64, miss string) {
+	audioID, subID = plex.StreamLeave, plex.StreamLeave
+	addMiss := func(what string) {
+		if miss != "" {
+			miss += ","
+		}
+		miss += what
+	}
+	if audioLang != "" {
+		// audio has no forced variant, so an exact miss here means the language
+		// is only present as commentary or audio description
+		if id, exact := pickStream(streams, 2, audioLang, false); id != 0 {
+			audioID = id
+			if !exact {
+				addMiss("audio")
+			}
+		} else {
+			addMiss("audio")
+		}
+	}
+	switch code, forced, off := subChoice(subPref); {
+	case off:
+		subID = 0 // Plex reads 0 as "no subtitles"
+	case code != "":
+		if id, exact := pickStream(streams, 3, code, forced); id != 0 {
+			subID = id
+			if !exact {
+				addMiss("sub") // the language is there, the variant is not
+			}
+		} else {
+			addMiss("sub")
+		}
+	}
+	return audioID, subID, miss
+}
+
+// applyStreams selects the preferred streams on one episode part. ok=false means
+// Plex trouble and is worth another tick; miss names what the file lacks, which
+// is worth another tick too - a dub re-release overwrites the same path and Plex
+// re-analyses it later, so the tracks a file has can change under us.
+//
+// Leaf listings often omit streams (PMS ignores includeStreams there), so they
+// are fetched per episode.
+func applyStreams(c *plex.Client, p plex.EpisodePart, audioLang, subPref string) (miss string, ok bool) {
 	streams := p.Streams
 	if len(streams) == 0 {
 		detail, err := c.PartStreams(p.RatingKey)
 		if err != nil {
-			return false
+			return "", false
 		}
 		for _, dp := range detail {
 			if dp.PartID == p.PartID {
@@ -136,19 +244,25 @@ func applyStreams(c *plex.Client, p plex.EpisodePart, audioLang, subLang string)
 			}
 		}
 	}
-	audioID := pickStream(streams, 2, audioLang)
-	subID := pickStream(streams, 3, subLang)
-	if audioID == 0 && subID == 0 {
-		return true
+	if len(streams) == 0 {
+		return "", false // no part matched: Plex is mid-analysis, look again
 	}
-	return c.SetStreams(p.PartID, audioID, subID) == nil
+	audioID, subID, miss := planStreams(streams, audioLang, subPref)
+	if audioID < 0 && subID < 0 {
+		return miss, true // nothing resolved, nothing to send
+	}
+	return miss, c.SetStreams(p.PartID, audioID, subID) == nil
 }
 
 // processPlexStreamQueue drains plex_stream_queue from the sweep: finished
 // downloads whose episode Plex has indexed get their streams selected; dead
 // downloads and expired entries are dropped, everything else retries next tick.
 func (s *Server) processPlexStreamQueue() {
-	rows, err := s.DB.Query(`SELECT q.download_id, q.watch_id, q.created_at, IFNULL(d.local_path, ''), IFNULL(d.status, '')
+	// the give-up clock hangs off the download's own timestamp, not off the
+	// moment it was queued: updated_at moves while the transfer runs and stops
+	// at completion, so a slow download can no longer expire before its first
+	// attempt, and a retry window is measured from when the file actually landed
+	rows, err := s.DB.Query(`SELECT q.download_id, q.watch_id, IFNULL(d.updated_at, q.created_at), IFNULL(d.local_path, ''), IFNULL(d.status, '')
 		FROM plex_stream_queue q LEFT JOIN downloads d ON d.id = q.download_id`)
 	if err != nil {
 		return
@@ -156,27 +270,28 @@ func (s *Server) processPlexStreamQueue() {
 	type item struct {
 		downloadID int64
 		localPath  string
+		age        time.Duration
 	}
 	pending := map[int64][]item{} // watch id -> done downloads awaiting Plex
 	var drop []int64
 	for rows.Next() {
 		var dlID, watchID int64
-		var createdAt, localPath, status string
-		if rows.Scan(&dlID, &watchID, &createdAt, &localPath, &status) != nil {
+		var stamp, localPath, status string
+		if rows.Scan(&dlID, &watchID, &stamp, &localPath, &status) != nil {
 			continue
 		}
-		expired := true // unparseable timestamp counts as expired
-		if t, err := time.Parse(sqliteTime, createdAt); err == nil {
-			expired = time.Since(t) > plexStreamGiveUp
+		age := time.Duration(math.MaxInt64) // unparseable timestamp counts as expired
+		if t, err := time.Parse(sqliteTime, stamp); err == nil {
+			age = time.Since(t)
 		}
 		switch {
 		case status == "" || status == "error" || status == "canceled":
 			drop = append(drop, dlID) // download gone or dead: nothing to select
-		case expired:
+		case age > plexStreamGiveUp:
 			slog.Warn("plex stream selection expired", "download", dlID, "watch", watchID)
 			drop = append(drop, dlID)
 		case status == "done":
-			pending[watchID] = append(pending[watchID], item{dlID, localPath})
+			pending[watchID] = append(pending[watchID], item{dlID, localPath, age})
 		}
 		// queued/running/paused: not our turn yet
 	}
@@ -204,21 +319,64 @@ func (s *Server) processPlexStreamQueue() {
 		if !ok {
 			continue // show not (yet) in Plex, retry next tick
 		}
+		seen, verdict := false, ""
+		nudge := map[string]bool{} // directories worth asking Plex to re-scan
 		for _, it := range items {
 			abs, err := s.safeLocal(it.localPath)
 			if err != nil {
+				slog.Warn("plex stream selection dropped", "download", it.downloadID,
+					"watch", watchID, "reason", "local path outside the allowed roots")
 				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
 				continue
 			}
 			p, found := byFile[abs]
 			if !found {
+				nudge[path.Dir(abs)] = true
 				continue // not indexed yet, retry
 			}
-			if applyStreams(c, p, w.PlexAudioLang, w.PlexSubLang) {
+			miss, ok := applyStreams(c, p, w.PlexAudioLang, w.PlexSubLang)
+			if !ok {
+				continue // Plex trouble, retry next tick
+			}
+			seen = true
+			if miss != "" && verdict == "" {
+				verdict = miss
+			}
+			switch {
+			case miss == "":
 				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
+			case it.age > plexStreamMissGiveUp:
+				// the file is what it is: stop looking, but keep the verdict on
+				// the watch so it stays visible after the queue row is gone
+				slog.Warn("plex stream language missing", "download", it.downloadID, "watch", watchID,
+					"audio", w.PlexAudioLang, "sub", w.PlexSubLang, "miss", miss)
+				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
+			default:
+				nudge[path.Dir(abs)] = true // a re-release may have replaced it
 			}
 		}
+		// One scan request per directory per drain, not per episode: the point
+		// is to shorten the wait for Plex's own schedule, and it is best effort.
+		// ponytail: no backoff, so a directory that stays missing is asked once
+		// every sweep tick until the give-up window closes. An attempts column
+		// on plex_stream_queue is the upgrade path if that ever shows up.
+		for dir := range nudge {
+			s.plexRescan(dir)
+		}
+		if seen {
+			s.setPlexStreamMiss(watchID, verdict)
+		}
 	}
+}
+
+// setPlexStreamMiss records what the preference could not deliver, writing only
+// on a change so the common case costs one read.
+func (s *Server) setPlexStreamMiss(watchID int64, miss string) {
+	var cur string
+	if s.DB.QueryRow(`SELECT plex_stream_miss FROM watches WHERE id = ?`, watchID).Scan(&cur) != nil || cur == miss {
+		return
+	}
+	s.DB.Exec(`UPDATE watches SET plex_stream_miss = ? WHERE id = ?`, miss, watchID)
 }
 
 // handleWatchPlexStreams applies the watch's Plex playback preference to every
@@ -247,7 +405,17 @@ func (s *Server) handleWatchPlexStreams(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusBadRequest, "no Plex stream preference set")
 		return
 	}
-	s.runJob(fmt.Sprintf("plex:streams:%d", id), func(context.Context) {
+	s.applyPlexStreamsJob(wt)
+	writeJSON(w, http.StatusAccepted, WatchCheckResponse{Status: "applying"})
+}
+
+// applyPlexStreamsJob runs the retroactive pass in the background: every episode
+// of the show already in the library gets the watch's preference. Fired from the
+// button, from a preference change (the queue only ever covers downloads that
+// come AFTER it), and once per install for the watches that predate the verdict
+// column.
+func (s *Server) applyPlexStreamsJob(wt Watch) {
+	s.runJob(fmt.Sprintf("plex:streams:%d", wt.ID), func(context.Context) {
 		c := s.plexClient()
 		if c == nil {
 			return
@@ -264,16 +432,31 @@ func (s *Server) handleWatchPlexStreams(w http.ResponseWriter, r *http.Request) 
 				"remote", logSafe(wt.RemotePath), "local", logSafe(abs), "showKey", logSafe(showKey))
 			return
 		}
-		n := 0
+		applied, missed, verdict, seen := 0, 0, "", false
 		for file, p := range byFile {
 			if file != abs && !strings.HasPrefix(file, abs+"/") {
 				continue
 			}
-			if applyStreams(c, p, wt.PlexAudioLang, wt.PlexSubLang) {
-				n++
+			miss, ok := applyStreams(c, p, wt.PlexAudioLang, wt.PlexSubLang)
+			if !ok {
+				continue
+			}
+			seen = true
+			if miss == "" {
+				applied++
+				continue
+			}
+			missed++
+			if verdict == "" {
+				verdict = miss
 			}
 		}
-		slog.Info("plex stream preference applied", "watch", wt.ID, "episodes", n)
+		if seen {
+			s.setPlexStreamMiss(wt.ID, verdict)
+		}
+		// applied counts episodes that got everything asked for. The old count
+		// included episodes where nothing was selected at all, which made the
+		// line read like proof that the preference had worked.
+		slog.Info("plex stream preference applied", "watch", wt.ID, "episodes", applied, "missing", missed)
 	})
-	writeJSON(w, http.StatusAccepted, WatchCheckResponse{Status: "applying"})
 }
