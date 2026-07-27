@@ -53,6 +53,18 @@ func TestPickStreamPrefersTheFullTrackOverForced(t *testing.T) {
 	}
 }
 
+// The container flag decides, whatever the track is called: a forced track
+// named plainly "Deutsch" must still lose to the full one.
+func TestPickStreamTrustsTheFlagOverTheTitle(t *testing.T) {
+	streams := []plex.EpisodeStream{
+		{ID: 1, Type: 3, LangCode: "deu", Forced: true, Title: "Deutsch"},
+		{ID: 2, Type: 3, LangCode: "deu", Title: "Deutsch"},
+	}
+	if got := pickStream(streams, 3, "Ger"); got != 2 {
+		t.Errorf("subtitle = %d, want the track whose forced flag is unset (2)", got)
+	}
+}
+
 // A muxer that names a track "Forced" often leaves the container flag unset,
 // and Plex passes the flag through rather than inferring it.
 func TestPickStreamReadsForcedFromTheTitle(t *testing.T) {
@@ -62,6 +74,20 @@ func TestPickStreamReadsForcedFromTheTitle(t *testing.T) {
 	}
 	if got := pickStream(streams, 3, "Ger"); got != 2 {
 		t.Errorf("subtitle = %d, want the track without the forced marker (2)", got)
+	}
+}
+
+// A full track is often labelled by what it is NOT, right next to the forced
+// one. Reading that as forced demotes the track the label exists to identify.
+func TestPickStreamIgnoresANegatedForcedTitle(t *testing.T) {
+	for _, name := range []string{"German (Non-Forced)", "Deutsch nicht forced", "German, not forced"} {
+		streams := []plex.EpisodeStream{
+			{ID: 1, Type: 3, LangCode: "deu", Title: "German (Forced)"},
+			{ID: 2, Type: 3, LangCode: "deu", Title: name},
+		}
+		if got := pickStream(streams, 3, "Ger"); got != 2 {
+			t.Errorf("%q: subtitle = %d, want the full track (2)", name, got)
+		}
 	}
 }
 
