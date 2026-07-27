@@ -182,3 +182,42 @@ func TestAgentProvider(t *testing.T) {
 		}
 	}
 }
+
+// A forced subtitle track is signs and foreign dialogue, not a translation.
+// Counting it as "this copy has German subtitles" is what made a remote copy
+// with real German subtitles look like no improvement, so the upgrade was never
+// offered. Audio has no such variant and always counts.
+func TestMediaStreamCountsAs(t *testing.T) {
+	cases := []struct {
+		name string
+		st   mediaStream
+		want string
+	}{
+		{"a full subtitle track", mediaStream{StreamType: 3, LangCode: "deu"}, "deu"},
+		{"a flagged forced subtitle", mediaStream{StreamType: 3, LangCode: "deu", Forced: true}, ""},
+		{"forced only in the title", mediaStream{StreamType: 3, LangCode: "deu", Title: "German (Forced)"}, ""},
+		{"forced only in Plex's display title", mediaStream{StreamType: 3, LangCode: "deu", DisplayTitle: "Deutsch (Erzwungen)"}, ""},
+		{"a full track labelled as not forced", mediaStream{StreamType: 3, LangCode: "deu", Title: "German (Non-Forced)"}, "deu"},
+		{"an audio track named forced still counts", mediaStream{StreamType: 2, LangCode: "deu", Title: "Forced"}, "deu"},
+		{"languageCode wins over language", mediaStream{StreamType: 2, LangCode: "jpn", Language: "Japanese"}, "jpn"},
+		{"language stands in when the code is absent", mediaStream{StreamType: 2, Language: "Japanese"}, "Japanese"},
+	}
+	for _, c := range cases {
+		if got := c.st.countsAs(); got != c.want {
+			t.Errorf("%s: countsAs = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestForcedTitle(t *testing.T) {
+	for _, s := range []string{"Forced", "German (Forced)", "Deutsch (Erzwungen)", "Deutsch forciert"} {
+		if !ForcedTitle(s) {
+			t.Errorf("ForcedTitle(%q) = false, want true", s)
+		}
+	}
+	for _, s := range []string{"", "German", "German (Non-Forced)", "Deutsch nicht erzwungen", "German, not forced", "Signs & Songs"} {
+		if ForcedTitle(s) {
+			t.Errorf("ForcedTitle(%q) = true, want false", s)
+		}
+	}
+}

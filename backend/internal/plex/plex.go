@@ -408,6 +408,66 @@ func resHeight(v string) int {
 	return n
 }
 
+// mediaStream is one stream as the quality read needs it: the language, and the
+// flags that decide whether it counts as having that language at all.
+type mediaStream struct {
+	StreamType   int      `json:"streamType"` // 1 video, 2 audio, 3 subtitle
+	Language     string   `json:"language"`
+	LangCode     string   `json:"languageCode"`
+	Forced       plexFlag `json:"forced"`
+	Title        string   `json:"title"`
+	DisplayTitle string   `json:"displayTitle"`
+}
+
+// countsAs returns the language this stream contributes to the library's set,
+// or "" when it contributes none.
+//
+// A forced subtitle track is not a translation, it is signs and foreign
+// dialogue. Counting it as "this copy has German subtitles" is what made a
+// remote copy with real German subtitles look like no improvement at all, so
+// the upgrade was never offered. The same word that identifies the track for
+// playback identifies it here.
+func (st mediaStream) countsAs() string {
+	if st.StreamType == 3 && (bool(st.Forced) || ForcedTitle(st.title())) {
+		return ""
+	}
+	if st.LangCode != "" {
+		return st.LangCode
+	}
+	return st.Language
+}
+
+// title falls back to displayTitle, which is where a "(Forced)" that the
+// container never flagged shows up: Plex writes it, the muxer did not.
+func (st mediaStream) title() string {
+	if st.Title != "" {
+		return st.Title
+	}
+	return st.DisplayTitle
+}
+
+// ForcedTitle reports whether a track NAME marks it as forced, minus the names
+// that carry the word in order to deny it: "Non-Forced" and "nicht erzwungen"
+// are how a full track sitting next to a forced one is often labelled, and
+// reading those as forced is a false positive in the expensive direction - it
+// removes a language the copy really has.
+//
+// It lives here rather than with the caller because it describes a property of
+// the stream, and both the playback selection and the quality read need it.
+func ForcedTitle(title string) bool {
+	t := strings.ToLower(title)
+	for _, neg := range []string{"non-forced", "nonforced", "non forced", "not forced",
+		"nicht forced", "no forced", "nicht erzwungen", "keine erzwungenen"} {
+		t = strings.ReplaceAll(t, neg, "")
+	}
+	for _, marker := range []string{"forced", "erzwungen", "forciert"} {
+		if strings.Contains(t, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // ShowMedia reads a show's local quality from its episodes (allLeaves, with
 // streams): the max resolution seen, one file path, and the union of audio/
 // subtitle languages. Best effort over the first episodes.
@@ -418,12 +478,8 @@ func (c *Client) ShowMedia(ratingKey string) (ShowMedia, error) {
 				Media []struct {
 					VideoResolution string `json:"videoResolution"`
 					Part            []struct {
-						File   string `json:"file"`
-						Stream []struct {
-							StreamType int    `json:"streamType"` // 1 video, 2 audio, 3 subtitle
-							Language   string `json:"language"`
-							LangCode   string `json:"languageCode"`
-						} `json:"Stream"`
+						File   string        `json:"file"`
+						Stream []mediaStream `json:"Stream"`
 					} `json:"Part"`
 				} `json:"Media"`
 			} `json:"Metadata"`
@@ -447,10 +503,7 @@ func (c *Client) ShowMedia(ratingKey string) (ShowMedia, error) {
 					out.File = p.File
 				}
 				for _, st := range p.Stream {
-					lang := st.LangCode
-					if lang == "" {
-						lang = st.Language
-					}
+					lang := st.countsAs()
 					if lang == "" {
 						continue
 					}
@@ -485,12 +538,8 @@ func (c *Client) SeasonMedia(ratingKey string) (map[int]ShowMedia, error) {
 				Media       []struct {
 					VideoResolution string `json:"videoResolution"`
 					Part            []struct {
-						File   string `json:"file"`
-						Stream []struct {
-							StreamType int    `json:"streamType"`
-							Language   string `json:"language"`
-							LangCode   string `json:"languageCode"`
-						} `json:"Stream"`
+						File   string        `json:"file"`
+						Stream []mediaStream `json:"Stream"`
 					} `json:"Part"`
 				} `json:"Media"`
 			} `json:"Metadata"`
@@ -522,10 +571,7 @@ func (c *Client) SeasonMedia(ratingKey string) (map[int]ShowMedia, error) {
 					m0.File = p.File
 				}
 				for _, st := range p.Stream {
-					lang := st.LangCode
-					if lang == "" {
-						lang = st.Language
-					}
+					lang := st.countsAs()
 					if lang == "" {
 						continue
 					}

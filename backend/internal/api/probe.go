@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/plex"
 	"github.com/ch4d1/weebsync/internal/rename"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -103,10 +104,14 @@ func ffprobeFile(ctx context.Context, file string, extra ...string) ([]probeStre
 	}
 	var probed struct {
 		Streams []struct {
-			CodecType string `json:"codec_type"`
-			Height    int    `json:"height"`
-			Tags      struct {
+			CodecType   string `json:"codec_type"`
+			Height      int    `json:"height"`
+			Disposition struct {
+				Forced int `json:"forced"`
+			} `json:"disposition"`
+			Tags struct {
 				Language string `json:"language"`
+				Title    string `json:"title"`
 			} `json:"tags"`
 		} `json:"streams"`
 	}
@@ -115,6 +120,14 @@ func ffprobeFile(ctx context.Context, file string, extra ...string) ([]probeStre
 	}
 	out2 := make([]probeStream, 0, len(probed.Streams))
 	for _, st := range probed.Streams {
+		// A forced subtitle track carries signs and foreign dialogue, not a
+		// translation, so it must not count as "this copy has that language" -
+		// that is what made a remote copy with real subtitles look like no
+		// improvement. The disposition is the container's own answer; the title
+		// covers the muxers that never set it.
+		if st.CodecType == "subtitle" && (st.Disposition.Forced == 1 || plex.ForcedTitle(st.Tags.Title)) {
+			continue
+		}
 		out2 = append(out2, probeStream{st.CodecType, st.Height, st.Tags.Language})
 	}
 	return out2, true
