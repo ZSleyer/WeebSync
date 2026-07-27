@@ -94,6 +94,8 @@ export default function Integrations() {
                 onChange={(v) => set('plexSections', v)}
                 sources={form.plexSectionSources}
                 onSources={(v) => set('plexSectionSources', v)}
+                anime={form.plexSectionAnime}
+                onAnime={(v) => set('plexSectionAnime', v)}
                 tvdb={form.tvdbApiKeySet}
                 libraries={form.plexLibraries}
               />
@@ -124,6 +126,7 @@ interface PlexSection {
   key: string
   type: string
   title: string
+  agent?: string // Plex scanner agent, e.g. tv.plex.agents.series | com.plexapp.agents.hama
   provider?: string // catalog Plex uses for this library: tvdb | tmdb | ''
   ordering?: string // raw showOrdering value, shown as a tooltip
 }
@@ -139,6 +142,8 @@ function PlexSections({
   onChange,
   sources,
   onSources,
+  anime,
+  onAnime,
   tvdb,
   libraries,
 }: {
@@ -146,6 +151,8 @@ function PlexSections({
   onChange: (v: string) => void
   sources: string
   onSources: (v: string) => void
+  anime: string
+  onAnime: (v: string) => void
   tvdb: boolean
   libraries?: { title: string; roots: string[] }[] // auto-detected local mounts per library
 }) {
@@ -175,19 +182,42 @@ function PlexSections({
   const sourceOf = (s: PlexSection) => srcMap.get(s.key) ?? defaultSource(s)
   const writeSources = (map: Map<string, string>) =>
     onSources([...map.entries()].map(([k, v]) => `${k}:${v}`).join(','))
+
+  // Which libraries hold anime. Asked explicitly because nothing else answers
+  // it reliably: Plex has never heard of AniList, so an anime library is
+  // normally scanned and ordered by TVDB like any other. Mirrors sectionKind in
+  // the backend - the title and the AniDB-backed legacy agents only preselect.
+  const animeMap = new Map(
+    anime
+      .split(',')
+      .map((kv) => kv.trim())
+      .filter((kv) => kv.includes(':'))
+      .map((kv) => [kv.slice(0, kv.indexOf(':')), kv.slice(kv.indexOf(':') + 1)] as [string, string]),
+  )
+  const defaultAnime = (s: PlexSection) => {
+    const agent = (s.agent ?? '').toLowerCase()
+    return s.title.toLowerCase().includes('anime') || agent.includes('hama') || agent.includes('anidb')
+  }
+  const isAnime = (s: PlexSection) => (animeMap.has(s.key) ? animeMap.get(s.key) === '1' : defaultAnime(s))
+  const writeAnime = (map: Map<string, string>) =>
+    onAnime([...map.entries()].map(([k, v]) => `${k}:${v}`).join(','))
   const toggle = (s: PlexSection) => {
     const next = new Set(selected)
     const nextSrc = new Map(srcMap)
+    const nextAnime = new Map(animeMap)
     if (next.has(s.key)) {
       next.delete(s.key)
       nextSrc.delete(s.key)
+      nextAnime.delete(s.key)
     } else {
       next.add(s.key)
       // store the preselection explicitly so the backend never guesses
       nextSrc.set(s.key, defaultSource(s))
+      nextAnime.set(s.key, defaultAnime(s) ? '1' : '0')
     }
     onChange([...next].join(','))
     writeSources(nextSrc)
+    writeAnime(nextAnime)
   }
   if (error)
     return (
@@ -246,6 +276,18 @@ function PlexSections({
                     {t('settings.plexAiredMapping')}
                   </label>
                 )}
+                <label className="flex items-center gap-1.5 text-t-secondary">
+                  <input
+                    type="checkbox"
+                    checked={isAnime(s)}
+                    onChange={(e) => {
+                      const nextAnime = new Map(animeMap)
+                      nextAnime.set(s.key, e.target.checked ? '1' : '0')
+                      writeAnime(nextAnime)
+                    }}
+                  />
+                  {t('settings.plexSectionAnime')}
+                </label>
               </>
             )}
             {/* auto-detected local mounts for this library, straight under it */}
