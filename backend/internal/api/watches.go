@@ -54,15 +54,18 @@ type Watch struct {
 	WantDub         string `json:"wantDub"`         // sync only files tagged with this dub language code (e.g. "Ger"); "" = any
 	WantSub         string `json:"wantSub"`         // sync only files tagged with this sub language code; "" = any
 	PlexAudioLang   string `json:"plexAudioLang"`   // after sync, select this audio language in Plex; "" = don't touch
-	PlexSubLang     string `json:"plexSubLang"`     // after sync, select this subtitle language in Plex; "" = don't touch
-	IntervalMin     int    `json:"intervalMin"`     // global setting, echoed for the UI
-	LastCheck       string `json:"lastCheck"`
-	NextCheck       int64  `json:"nextCheck"`     // unix seconds of the next scheduled check, mirroring WatchLoop's due rule
-	LastResult      string `json:"lastResult"`    // error text of the last check, "" on success
-	LastQueued      int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
-	LastUploading   int    `json:"lastUploading"` // files still uploading remotely at the last check
-	LangWaiting     int    `json:"langWaiting"`   // videos on the remote skipped by the dub/sub filter, target not yet local
-	CreatedAt       string `json:"createdAt"`
+	PlexSubLang     string `json:"plexSubLang"`     // after sync, select subtitles in Plex: "" = don't touch, "off" = none, "Ger" = full, "Ger:forced" = forced
+	// PlexStreamMiss: what the preference could not deliver on this watch's
+	// files, a CSV of "audio" and "sub"; "" = everything asked for was there.
+	PlexStreamMiss string `json:"plexStreamMiss,omitempty"`
+	IntervalMin    int    `json:"intervalMin"` // global setting, echoed for the UI
+	LastCheck      string `json:"lastCheck"`
+	NextCheck      int64  `json:"nextCheck"`     // unix seconds of the next scheduled check, mirroring WatchLoop's due rule
+	LastResult     string `json:"lastResult"`    // error text of the last check, "" on success
+	LastQueued     int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
+	LastUploading  int    `json:"lastUploading"` // files still uploading remotely at the last check
+	LangWaiting    int    `json:"langWaiting"`   // videos on the remote skipped by the dub/sub filter, target not yet local
+	CreatedAt      string `json:"createdAt"`
 
 	// enriched for the overview
 	Media          *anilist.Media `json:"media,omitempty"`
@@ -961,7 +964,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.plex_audio_lang, w.plex_sub_lang, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -974,7 +977,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var it Watch
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
-			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub, &it.PlexAudioLang, &it.PlexSubLang,
+			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub, &it.PlexAudioLang, &it.PlexSubLang, &it.PlexStreamMiss,
 			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &it.CreatedAt); err != nil {
 			dbErr(w)
 			return
@@ -1322,10 +1325,10 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
-	var oldRemote, oldLocal string
+	var oldRemote, oldLocal, oldAudio, oldSub string
 	var serverID int64
-	if err := s.DB.QueryRow(`SELECT server_id, remote_path, local_path FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
-		Scan(&serverID, &oldRemote, &oldLocal); err != nil {
+	if err := s.DB.QueryRow(`SELECT server_id, remote_path, local_path, plex_audio_lang, plex_sub_lang FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
+		Scan(&serverID, &oldRemote, &oldLocal, &oldAudio, &oldSub); err != nil {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
@@ -1342,6 +1345,18 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	s.linkMedia(serverID, in.RemotePath, in.MediaID, in.MediaSource)
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
 		go s.runWatch(id) // paths changed: check the new folder right away
+	}
+	// The queue only ever covers downloads that come AFTER the preference was
+	// set, so changing it used to do nothing at all to the episodes already in
+	// the library. Apply it to them now, and drop the old verdict: it describes
+	// a question nobody is asking anymore.
+	if in.PlexAudioLang != oldAudio || in.PlexSubLang != oldSub {
+		s.DB.Exec(`UPDATE watches SET plex_stream_miss = '' WHERE id = ?`, id)
+		if in.PlexAudioLang != "" || in.PlexSubLang != "" {
+			wt := Watch{ID: id, ServerID: serverID, RemotePath: in.RemotePath, LocalPath: in.LocalPath,
+				Subfolder: in.Subfolder, PlexAudioLang: in.PlexAudioLang, PlexSubLang: in.PlexSubLang}
+			s.applyPlexStreamsJob(wt)
+		}
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
