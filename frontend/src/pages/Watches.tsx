@@ -8,6 +8,7 @@ import {
   Eye,
   FolderClock,
   History,
+  Languages,
   List,
   Pencil,
   PenLine,
@@ -426,6 +427,20 @@ export default function Watches() {
                               {t('watch.langWaiting', {
                                 count: w.langWaiting,
                                 lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
+                              })}
+                            </Badge>
+                          )}
+                          {w.plexStreamMiss && (
+                            // the one setting that used to fail in total silence:
+                            // a language the files do not carry left Plex on its
+                            // own default and said nothing
+                            <Badge tone="warn" size="sm" title={t('watch.plexMissHint')}>
+                              <Languages aria-hidden size="1em" />
+                              {t('watch.plexMiss', {
+                                what: w.plexStreamMiss
+                                  .split(',')
+                                  .map((d) => t(d === 'audio' ? 'watch.plexAudio' : 'watch.plexSub'))
+                                  .join(', '),
                               })}
                             </Badge>
                           )}

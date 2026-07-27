@@ -155,7 +155,8 @@ export interface Watch {
   wantDub: string
   wantSub: string
   plexAudioLang: string
-  plexSubLang: string
+  plexSubLang: string // "" = leave Plex alone, "off" = none, "Ger" = full, "Ger:forced" = forced
+  plexStreamMiss?: string // what the files could not deliver: csv of "audio", "sub"
   langWaiting: number
   missing?: number[]
   unsorted?: number // episodes waiting in the collecting folder for the provider
@@ -471,6 +472,24 @@ export function syncOutcome(
   if (r.filtered) parts.push(t('remote.syncFiltered', { count: r.filtered }))
   if (!parts.length) return t('remote.syncNothing')
   return t('remote.syncNoneBecause', { reasons: parts.join(', ') })
+}
+
+// plexStreamOptions builds the values for a Plex language dropdown. Subtitles
+// get both variants per language, because the forced track carries signs and
+// foreign dialogue only and the full one carries everything: which of the two
+// someone wants is a decision, not something derivable from the audio. Audio has
+// no such split.
+export function plexStreamOptions(codes: string[], subtitles: boolean): string[] {
+  if (!subtitles) return codes
+  return codes.flatMap((c) => [c, `${c}:forced`])
+}
+
+// plexStreamLabel renders a stored preference value. "Ger:forced" reads as
+// "Ger (forced)"; everything else is its own label.
+export function plexStreamLabel(value: string, t: (k: string) => string): string {
+  const [code, variant] = value.split(':')
+  if (variant !== 'forced') return value
+  return `${code} (${t('watch.plexSubForced')})`
 }
 
 // fmtMissing renders missing episode numbers, appending the original absolute

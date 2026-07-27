@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Dialog, Field, Input, Select } from '@weebsync/design-system'
-import { api, ApiError } from '../api'
+import { api, ApiError, plexStreamLabel, plexStreamOptions } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
 import { FsErrorNote, isFsErrorCode } from './FsErrorNote'
@@ -349,7 +349,12 @@ export default function WatchDialog({
             )}
             <div className={ROW_GRID}>
               {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
-                const opts = key === 'plexAudioLang' ? langs.dub : langs.sub
+                // Subtitles carry a second dimension the language cannot express:
+                // the forced track holds signs and foreign dialogue only. Both
+                // variants are offered per language and neither is derived from
+                // the audio - watching a dub with full subtitles and watching the
+                // original with signs only are both things people do on purpose.
+                const opts = plexStreamOptions(key === 'plexAudioLang' ? langs.dub : langs.sub, key === 'plexSubLang')
                 const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
                 return (
                   <Field
@@ -363,9 +368,10 @@ export default function WatchDialog({
                   >
                     <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
                       <option value="">{t('watch.plexNoChange')}</option>
+                      {key === 'plexSubLang' && <option value="off">{t('watch.plexSubOff')}</option>}
                       {all.map((c) => (
                         <option key={c} value={c}>
-                          {c}
+                          {plexStreamLabel(c, t)}
                         </option>
                       ))}
                     </Select>
