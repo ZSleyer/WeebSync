@@ -6,6 +6,12 @@ import (
 	"github.com/ch4d1/weebsync/internal/plex"
 )
 
+// pickID drops the exactness flag where a test only cares which track won.
+func pickID(streams []plex.EpisodeStream, typ int, want string, wantForced bool) int64 {
+	id, _ := pickStream(streams, typ, want, wantForced)
+	return id
+}
+
 func TestPickStream(t *testing.T) {
 	streams := []plex.EpisodeStream{
 		{ID: 1, Type: 1}, // video, never picked
@@ -29,7 +35,7 @@ func TestPickStream(t *testing.T) {
 		{3, "Jap", 0}, // wrong type must not match the Jap dub
 	}
 	for _, c := range cases {
-		if got := pickStream(streams, c.typ, c.want); got != c.id {
+		if got := pickID(streams, c.typ, c.want, false); got != c.id {
 			t.Errorf("pickStream(type %d, %q) = %d, want %d", c.typ, c.want, got, c.id)
 		}
 	}
@@ -45,11 +51,24 @@ func TestPickStreamPrefersTheFullTrackOverForced(t *testing.T) {
 		{ID: 3, Type: 3, LangCode: "deu", Forced: true, Title: "Forced"},
 		{ID: 4, Type: 3, LangCode: "deu", Title: "Vollständig"},
 	}
-	if got := pickStream(streams, 3, "Ger"); got != 4 {
+	if got := pickID(streams, 3, "Ger", false); got != 4 {
 		t.Errorf("subtitle = %d, want the full German track (4)", got)
 	}
-	if got := pickStream(streams, 2, "Jap"); got != 2 {
+	if got := pickID(streams, 2, "Jap", false); got != 2 {
 		t.Errorf("audio = %d, want 2", got)
+	}
+}
+
+// The other direction, which is a choice and not a derivation: someone watching
+// the German dub asks for the forced track and must get it, out of the same file.
+func TestPickStreamPicksForcedWhenAskedFor(t *testing.T) {
+	streams := []plex.EpisodeStream{
+		{ID: 1, Type: 3, LangCode: "deu", Title: "Vollständig"},
+		{ID: 2, Type: 3, LangCode: "deu", Forced: true},
+	}
+	id, exact := pickStream(streams, 3, "Ger", true)
+	if id != 2 || !exact {
+		t.Errorf("subtitle = %d (exact %v), want the forced German track (2)", id, exact)
 	}
 }
 
@@ -60,7 +79,7 @@ func TestPickStreamTrustsTheFlagOverTheTitle(t *testing.T) {
 		{ID: 1, Type: 3, LangCode: "deu", Forced: true, Title: "Deutsch"},
 		{ID: 2, Type: 3, LangCode: "deu", Title: "Deutsch"},
 	}
-	if got := pickStream(streams, 3, "Ger"); got != 2 {
+	if got := pickID(streams, 3, "Ger", false); got != 2 {
 		t.Errorf("subtitle = %d, want the track whose forced flag is unset (2)", got)
 	}
 }
@@ -68,41 +87,76 @@ func TestPickStreamTrustsTheFlagOverTheTitle(t *testing.T) {
 // A muxer that names a track "Forced" often leaves the container flag unset,
 // and Plex passes the flag through rather than inferring it.
 func TestPickStreamReadsForcedFromTheTitle(t *testing.T) {
-	streams := []plex.EpisodeStream{
-		{ID: 1, Type: 3, LangCode: "deu", Title: "German (Forced)"},
-		{ID: 2, Type: 3, LangCode: "deu", Title: "German"},
-	}
-	if got := pickStream(streams, 3, "Ger"); got != 2 {
-		t.Errorf("subtitle = %d, want the track without the forced marker (2)", got)
+	for _, name := range []string{"German (Forced)", "Deutsch (Erzwungen)", "Deutsch forciert"} {
+		streams := []plex.EpisodeStream{
+			{ID: 1, Type: 3, LangCode: "deu", Title: name},
+			{ID: 2, Type: 3, LangCode: "deu", Title: "German"},
+		}
+		if got := pickID(streams, 3, "Ger", false); got != 2 {
+			t.Errorf("%q: subtitle = %d, want the track without the forced marker (2)", name, got)
+		}
+		if got := pickID(streams, 3, "Ger", true); got != 1 {
+			t.Errorf("%q: forced subtitle = %d, want the marked track (1)", name, got)
+		}
 	}
 }
 
 // A full track is often labelled by what it is NOT, right next to the forced
 // one. Reading that as forced demotes the track the label exists to identify.
 func TestPickStreamIgnoresANegatedForcedTitle(t *testing.T) {
-	for _, name := range []string{"German (Non-Forced)", "Deutsch nicht forced", "German, not forced"} {
+	for _, name := range []string{"German (Non-Forced)", "Deutsch nicht forced", "German, not forced", "Deutsch nicht erzwungen"} {
 		streams := []plex.EpisodeStream{
 			{ID: 1, Type: 3, LangCode: "deu", Title: "German (Forced)"},
 			{ID: 2, Type: 3, LangCode: "deu", Title: name},
 		}
-		if got := pickStream(streams, 3, "Ger"); got != 2 {
+		if got := pickID(streams, 3, "Ger", false); got != 2 {
 			t.Errorf("%q: subtitle = %d, want the full track (2)", name, got)
 		}
 	}
 }
 
+// "Signs" is the dominant name for an unflagged signs-only track, but also a
+// plausible name for a full one - so it counts only when forced is the goal,
+// where a false positive costs nothing. Pins both halves of that asymmetry,
+// including the ceiling: asking for the FULL track, an unflagged "Signs" track
+// is indistinguishable from a real one and file order decides. Flagging the
+// track forced in the container is what resolves it, and that is on the muxer.
+func TestPickStreamReadsSignsOnlyWhenForcedIsWanted(t *testing.T) {
+	streams := []plex.EpisodeStream{
+		{ID: 1, Type: 3, LangCode: "deu", Title: "Signs & Songs"},
+		{ID: 2, Type: 3, LangCode: "deu", Title: "Deutsch"},
+	}
+	if got := pickID(streams, 3, "Ger", true); got != 1 {
+		t.Errorf("forced subtitle = %d, want the signs track (1)", got)
+	}
+	if got := pickID(streams, 3, "Ger", false); got != 1 {
+		t.Errorf("full subtitle = %d: an unflagged signs track is not detectable here, "+
+			"so the first German track wins (1). Change this only together with the ceiling above", got)
+	}
+	// with the flag set, the same file resolves cleanly in both directions
+	streams[0].Forced = true
+	if got := pickID(streams, 3, "Ger", false); got != 2 {
+		t.Errorf("full subtitle = %d, want the plain track (2) once the flag is set", got)
+	}
+}
+
 // Ranking decides between tracks, it does not veto them: the preference is
 // worth nothing if a file that only has a forced track keeps Plex's own default.
+// The substitution is reported through exact, not by refusing to select.
 func TestPickStreamFallsBackToTheOnlyTrackThereIs(t *testing.T) {
 	only := []plex.EpisodeStream{{ID: 7, Type: 3, LangCode: "deu", Forced: true}}
-	if got := pickStream(only, 3, "Ger"); got != 7 {
-		t.Errorf("subtitle = %d, want the forced track as a last resort (7)", got)
+	id, exact := pickStream(only, 3, "Ger", false)
+	if id != 7 {
+		t.Errorf("subtitle = %d, want the forced track as a last resort (7)", id)
+	}
+	if exact {
+		t.Error("a forced track standing in for a full one is not what was asked for")
 	}
 	sdh := []plex.EpisodeStream{
 		{ID: 8, Type: 3, LangCode: "deu", Forced: true},
 		{ID: 9, Type: 3, LangCode: "deu", HearingImpaired: true},
 	}
-	if got := pickStream(sdh, 3, "Ger"); got != 9 {
+	if got := pickID(sdh, 3, "Ger", false); got != 9 {
 		t.Errorf("subtitle = %d, want SDH over forced (9): it is a full translation", got)
 	}
 }
@@ -115,7 +169,76 @@ func TestPickStreamSkipsCommentaryAndDescription(t *testing.T) {
 		{ID: 2, Type: 2, LangCode: "deu", Title: "Regie-Kommentar"},
 		{ID: 3, Type: 2, LangCode: "deu", Title: "Stereo"},
 	}
-	if got := pickStream(streams, 2, "Ger"); got != 3 {
+	if got := pickID(streams, 2, "Ger", false); got != 3 {
 		t.Errorf("audio = %d, want the plain German track (3)", got)
+	}
+}
+
+func TestSubChoice(t *testing.T) {
+	cases := []struct {
+		pref   string
+		code   string
+		forced bool
+		off    bool
+	}{
+		{"", "", false, false},
+		{"off", "", false, true},
+		{"Ger", "Ger", false, false},
+		{"Ger:forced", "Ger", true, false},
+	}
+	for _, c := range cases {
+		code, forced, off := subChoice(c.pref)
+		if code != c.code || forced != c.forced || off != c.off {
+			t.Errorf("subChoice(%q) = (%q, %v, %v), want (%q, %v, %v)", c.pref, code, forced, off, c.code, c.forced, c.off)
+		}
+	}
+}
+
+// The four combinations the preference has to be able to express, plus what it
+// says about a file that cannot deliver them. StreamLeave means the dimension
+// is left exactly as Plex had it, which is not the same as turning it off.
+func TestPlanStreams(t *testing.T) {
+	streams := []plex.EpisodeStream{
+		{ID: 1, Type: 2, LangCode: "jpn"},
+		{ID: 2, Type: 2, LangCode: "deu"},
+		{ID: 3, Type: 3, LangCode: "deu", Forced: true},
+		{ID: 4, Type: 3, LangCode: "deu"},
+	}
+	cases := []struct {
+		name         string
+		audio, sub   string
+		wantA, wantS int64
+		miss         string
+	}{
+		{"japanese with full german subs", "Jap", "Ger", 1, 4, ""},
+		{"japanese without any subtitles", "Jap", "off", 1, 0, ""},
+		{"german dub with forced subs", "Ger", "Ger:forced", 2, 3, ""},
+		{"german dub with full subs", "Ger", "Ger", 2, 4, ""},
+		{"subtitles only, audio untouched", "", "Ger", plex.StreamLeave, 4, ""},
+		{"audio only, subtitles untouched", "Jap", "", 1, plex.StreamLeave, ""},
+		{"a language the file does not have", "Fre", "Ita", plex.StreamLeave, plex.StreamLeave, "audio,sub"},
+	}
+	for _, c := range cases {
+		a, sb, miss := planStreams(streams, c.audio, c.sub)
+		if a != c.wantA || sb != c.wantS || miss != c.miss {
+			t.Errorf("%s: planStreams = (%d, %d, %q), want (%d, %d, %q)",
+				c.name, a, sb, miss, c.wantA, c.wantS, c.miss)
+		}
+	}
+}
+
+// A file that has the language but only in the wrong variant is a substitution,
+// not a failure: the track is selected AND the miss is reported, so the retry
+// keeps looking and the watch says what is off.
+func TestPlanStreamsReportsAWrongVariantAsMissing(t *testing.T) {
+	onlyFull := []plex.EpisodeStream{{ID: 1, Type: 3, LangCode: "deu"}}
+	_, subID, miss := planStreams(onlyFull, "", "Ger:forced")
+	if subID != 1 || miss != "sub" {
+		t.Errorf("planStreams = (%d, %q), want the full track selected (1) and reported as missing", subID, miss)
+	}
+	onlyForced := []plex.EpisodeStream{{ID: 2, Type: 3, LangCode: "deu", Forced: true}}
+	_, subID, miss = planStreams(onlyForced, "", "Ger")
+	if subID != 2 || miss != "sub" {
+		t.Errorf("planStreams = (%d, %q), want the forced track selected (2) and reported as missing", subID, miss)
 	}
 }
