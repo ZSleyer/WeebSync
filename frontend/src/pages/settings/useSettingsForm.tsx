@@ -28,6 +28,7 @@ export interface SettingsState {
   plexToken?: string
   plexSections: string
   plexSectionSources: string
+  plexSectionAnime: string // csv of key:0|1 - does this library hold anime
   plexRoots: string
   plexLibRoots: string // read-only: auto-detected from Plex library locations (flat)
   plexLibraries?: { title: string; roots: string[] }[] // read-only: grouped by library

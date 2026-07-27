@@ -402,6 +402,7 @@ function SugCard({
                 {it.media.averageScore}
               </Badge>
             )}
+            {it.library && <Badge aria-label={t('suggestions.library', { name: it.library })}>{it.library}</Badge>}
           </>
         }
         actionsPlacement="inline"
@@ -804,6 +805,7 @@ function UpgradesSection() {
                       {t('suggestions.episodes', { count: u.episodes })}
                     </span>
                   ) : null}
+                  {u.library && <Badge aria-label={t('suggestions.library', { name: u.library })}>{u.library}</Badge>}
                 </p>
                 <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
                   <VariantBox v={u.from} label={t('suggestions.fromLabel')} muted />

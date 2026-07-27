@@ -278,7 +278,7 @@ export interface SuggestionItem {
   need?: number // incomplete: episodes through the sequel
   sequel?: Media
   plexFolder?: string
-  library?: string // incomplete: Plex library title, for grouping
+  library?: string // incomplete: the Plex library this came from, shown on the card
   sync?: SyncPlan // incomplete: where a one-off sync creates the season/movie folder
 }
 
@@ -343,7 +343,7 @@ export interface LocalSeason {
 }
 
 export interface UpgradeSuggestion {
-  key: string // dismiss key, form "unit:{showKey}:{season}"
+  key: string // dismiss key, form "unit:{showKey}:{season}", films carry a ":m" suffix
   seriesId?: number
   showKey: string
   season: number // 0 = movie/base
@@ -361,7 +361,7 @@ export interface UpgradeSuggestion {
   format?: string // MOVIE | TV | ...
   episodes?: number
   category: string // anime-movie | anime-tv | movie | tv, for grouping
-  library?: string // Plex library title (informational)
+  library?: string // the Plex library this copy lives in, shown on the card
   sync?: SyncPlan // where a one-off sync writes (into the existing local season/movie folder)
   localSeasons?: LocalSeason[] // every season of this show the library already has
 }
