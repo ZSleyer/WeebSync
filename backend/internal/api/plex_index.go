@@ -36,6 +36,7 @@ func (s *Server) indexPlexLibrary() {
 		return
 	}
 	s.storePlexRoots(sections) // auto-detect the local mounts Plex reports
+	srcOf, animeOf := s.sectionSources(), s.sectionAnime()
 	now := time.Now().UTC().Format(time.RFC3339)
 	units := 0
 	for _, sec := range sections {
@@ -43,6 +44,12 @@ func (s *Server) indexPlexLibrary() {
 			continue
 		}
 		isMovie := sec.Type == "movie"
+		// The library's kind is written into the row here, at index time, which
+		// is the only moment it is known for certain. Recovering it later from
+		// the folder path cannot work: a copy Plex holds on a disk this
+		// instance has no mount for is stored under a pseudo folder and has no
+		// path to match a library root against.
+		libKind := sectionKind(sec, animeOf[sec.Key], srcOf[sec.Key])
 		shows, err := c.Shows(sec.Key)
 		if err != nil {
 			continue
@@ -59,7 +66,7 @@ func (s *Server) indexPlexLibrary() {
 			// the same show the catalog knows, reached from the other side: any
 			// of Plex's ids leads to the series a match already bundled. 0 until
 			// reconcilePlex has attached them, and show_key carries until then.
-			seriesID := s.seriesIDForPlexShow(sh)
+			seriesID := s.seriesIDForPlexShow(sh, isMovie)
 			if showKey == "" {
 				continue // Plex knows no id we can bridge on
 			}
@@ -73,7 +80,7 @@ func (s *Server) indexPlexLibrary() {
 					season = 0
 				}
 				q, folder := s.plexLocalQuality(sm, sh.RatingKey, season)
-				s.storeVariant(0, folder, q, showKey, season, isMovie, seriesID)
+				s.storeVariant(0, folder, q, showKey, season, isMovie, seriesID, libKind)
 				units++
 			}
 		}
@@ -280,7 +287,14 @@ func streamsQuality(streams []probeStream) FolderQuality {
 // seriesIDForPlexShow resolves the canonical series behind a Plex show through
 // any id Plex reports. Plex's own ratingKey is tried first: reconcilePlex writes
 // it, and it is the one id that cannot belong to a different show.
-func (s *Server) seriesIDForPlexShow(sh plex.Show) int64 {
+//
+// TMDB keeps films and series in two separate id spaces, so the same number is
+// two unrelated works. isMovie says which of the two this show is, and that
+// namespace is asked first. The other one stays as a LAST resort rather than
+// being dropped: attachPlexIdentity files every Plex guid under tmdb:tv to this
+// day, films included, so removing it outright would strand the series bundles
+// that already exist.
+func (s *Server) seriesIDForPlexShow(sh plex.Show, isMovie bool) int64 {
 	type ref struct {
 		source string
 		id     int
@@ -293,7 +307,11 @@ func (s *Server) seriesIDForPlexShow(sh plex.Show) int64 {
 		refs = append(refs, ref{"tvdb", sh.TVDBID})
 	}
 	if sh.TMDBID != 0 {
-		refs = append(refs, ref{"tmdb:tv", sh.TMDBID}, ref{"tmdb:movie", sh.TMDBID})
+		if isMovie {
+			refs = append(refs, ref{"tmdb:movie", sh.TMDBID}, ref{"tmdb:tv", sh.TMDBID})
+		} else {
+			refs = append(refs, ref{"tmdb:tv", sh.TMDBID}, ref{"tmdb:movie", sh.TMDBID})
+		}
 	}
 	if sh.IMDBID != 0 {
 		refs = append(refs, ref{"imdb", sh.IMDBID})

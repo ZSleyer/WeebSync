@@ -2795,6 +2795,10 @@
                         "description": "csv of key:source (anilist|tmdb); missing key = by library title",
                         "type": "string"
                     },
+                    "plexSectionAnime": {
+                        "description": "csv of key:0|1 - does this library hold anime; missing key = guessed from title/agent",
+                        "type": "string"
+                    },
                     "plexSections": {
                         "description": "csv of section keys, empty = all show/movie sections",
                         "type": "string"

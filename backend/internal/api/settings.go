@@ -138,6 +138,7 @@ type settingsPayload struct {
 	PlexToken            string         `json:"plexToken,omitempty"` // write-only
 	PlexSections         string         `json:"plexSections"`        // csv of section keys, empty = all show/movie sections
 	PlexSectionSources   string         `json:"plexSectionSources"`  // csv of key:source (anilist|tmdb); missing key = by library title
+	PlexSectionAnime     string         `json:"plexSectionAnime"`    // csv of key:0|1 - does this library hold anime; missing key = guessed from title/agent
 	PlexRoots            string         `json:"plexRoots"`           // manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)
 	PlexLibRoots         string         `json:"plexLibRoots"`        // read-only: mounts auto-detected from Plex's reported library locations (flat)
 	PlexLibraries        []LibraryRoots `json:"plexLibraries"`       // read-only: detected mounts grouped by their Plex library
@@ -193,6 +194,7 @@ func (s *Server) settingsState() settingsPayload {
 		PlexTokenSet:         db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
 		PlexSections:         db.Setting(s.DB, "plex_sections"),
 		PlexSectionSources:   db.Setting(s.DB, "plex_section_sources"),
+		PlexSectionAnime:     db.Setting(s.DB, "plex_section_anime"),
 		PlexRoots:            db.Setting(s.DB, "plex_roots"),
 		PlexLibRoots:         db.Setting(s.DB, "plex_lib_roots"),
 		PlexLibraries:        plexLibraries(db.Setting(s.DB, "plex_lib_map")),
@@ -386,7 +388,15 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	setSetting(s.DB, "oidc_user_values", in.OidcUserValues)
 	setSetting(s.DB, "plex_url", strings.TrimSpace(in.PlexURL))
 	setSetting(s.DB, "plex_sections", in.PlexSections)
+	// both of these decide what indexPlexLibrary writes onto every local row, so
+	// a change has to reach the rows rather than wait out the hourly gate: clear
+	// the stamp and the next sweep tick re-indexes.
+	if in.PlexSectionSources != db.Setting(s.DB, "plex_section_sources") ||
+		in.PlexSectionAnime != db.Setting(s.DB, "plex_section_anime") {
+		setSetting(s.DB, "plex_indexed_at", "")
+	}
 	setSetting(s.DB, "plex_section_sources", in.PlexSectionSources)
+	setSetting(s.DB, "plex_section_anime", in.PlexSectionAnime)
 	setSetting(s.DB, "plex_roots", normalizeRoots(in.PlexRoots))
 	// the Plex roots widen the local-path allowlist (ffprobe + one-off sync into
 	// the library); refresh the transfer manager's copy so downloads there pass,

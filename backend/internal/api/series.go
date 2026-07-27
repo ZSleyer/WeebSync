@@ -214,7 +214,9 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 func (s *Server) refreshVariant(serverID int64, folder string) {
 	q := s.scanQuality(serverID, folder)
 	showKey, season, isMovie := s.folderUnit(serverID, folder)
-	s.storeVariant(serverID, folder, q, showKey, season, isMovie, s.seriesIDForFolder(serverID, folder))
+	// libKind stays empty: a remote copy lives in no Plex library, so there is
+	// no library whose kind it could inherit.
+	s.storeVariant(serverID, folder, q, showKey, season, isMovie, s.seriesIDForFolder(serverID, folder), "")
 }
 
 // storeVariant is the ONE place a catalog_variants row is written, from the
@@ -225,13 +227,19 @@ func (s *Server) refreshVariant(serverID int64, folder string) {
 // its value, it silently falls back to its default on the next sweep. With two
 // copies of the column list that is one forgotten edit away; with one, adding a
 // column is one edit.
-func (s *Server) storeVariant(serverID int64, folder string, q FolderQuality, showKey string, season int, isMovie bool, seriesID int64) {
+//
+// ponytail: the row records the library's KIND, not which library it was - so
+// two libraries of the same type and kind ("Anime" and "Serien", "Filme" and
+// "Filme 4K") still collapse into one unit and a sync follows whichever local
+// copy bestCopy picked. Store the section key here if per-library separation
+// ever needs to be exact.
+func (s *Server) storeVariant(serverID int64, folder string, q FolderQuality, showKey string, season int, isMovie bool, seriesID int64, libKind string) {
 	s.DB.Exec(`INSERT OR REPLACE INTO catalog_variants
-		(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie, series_id, probed)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie, series_id, probed, lib_kind)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		serverID, folder, q.ResRank, strings.Join(q.Dub, ","), strings.Join(q.Sub, ","),
 		time.Now().UTC().Format(time.RFC3339), showKey, season, boolInt(isMovie),
-		seriesID, boolInt(q.Probed))
+		seriesID, boolInt(q.Probed), libKind)
 }
 
 // seriesIDForFolder resolves the canonical series behind a matched folder: the
