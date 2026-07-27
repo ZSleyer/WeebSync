@@ -1,6 +1,7 @@
 package api
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -123,5 +124,48 @@ func TestGuidRatingKey(t *testing.T) {
 		if got := guidRatingKey(idx, c.showKey); got != c.want {
 			t.Errorf("%s: got %q, want %q", c.showKey, got, c.want)
 		}
+	}
+}
+
+// The sequel candidate search is a title match over the crawler index, which on
+// its own offers a film for a series and a series for a film. A folder the
+// sweep has already classified as the other form is dropped; a folder it has
+// never classified still passes, because an empty candidate list reads as "not
+// available" everywhere and failing closed would quietly empty the bucket.
+func TestRemoteCandidatesSkipsAKnownFilm(t *testing.T) {
+	s, _ := sizeTestServer(t)
+	dirs := []string{"/seed/Test Show S01", "/seed/Test Show The Film", "/seed/Test Show unclassified"}
+	for _, d := range dirs {
+		addRemoteFiles(t, s, 1, d, nil)
+	}
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, show_key, season, is_movie)
+		VALUES (1, '/seed/Test Show S01', 1080, 'tvdb:1', 1, 0)`)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, show_key, season, is_movie)
+		VALUES (1, '/seed/Test Show The Film', 1080, 'tvdb:2', 0, 1)`)
+
+	paths := func(m anilist.Media) []string {
+		var out []string
+		for _, c := range s.remoteCandidates(1, m) {
+			out = append(out, c.Path)
+		}
+		return out
+	}
+
+	got := paths(media(1, 12, "TV", "FINISHED"))
+	if len(got) != 2 || slices.Contains(got, "/seed/Test Show The Film") {
+		t.Errorf("a series was offered the film: %v", got)
+	}
+	if !slices.Contains(got, "/seed/Test Show unclassified") {
+		t.Errorf("an unclassified folder was dropped: %v", got)
+	}
+
+	got = paths(media(2, 1, "MOVIE", "FINISHED"))
+	if len(got) != 2 || slices.Contains(got, "/seed/Test Show S01") {
+		t.Errorf("a film was offered the season: %v", got)
+	}
+
+	// a format that does not say what it is filters nothing
+	if got := paths(media(3, 4, "OVA", "FINISHED")); len(got) != 3 {
+		t.Errorf("an OVA must not be filtered by form: %v", got)
 	}
 }

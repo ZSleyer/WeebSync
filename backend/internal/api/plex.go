@@ -252,7 +252,27 @@ func (s *Server) handlePlexSuggestions(w http.ResponseWriter, r *http.Request) {
 
 // remoteCandidates searches the requesting user's remote index for folders
 // matching the sequel title (romaji, then english), max 3.
+//
+// A title search alone offers a film for a series and a series for a film, so a
+// folder the sweep has ALREADY classified as the other form is dropped. Only
+// that: a folder with no variant row still passes, because remote_index carries
+// no type of its own and an empty candidate list reads as "not available" to
+// every caller - failing closed would quietly empty the watchlist instead.
+//
+// ponytail: the form gate is one-directional and only for a format that says
+// unambiguously what it is. OVA/ONA/SPECIAL and an empty format filter nothing;
+// guessing "not a film" for them would drop every film folder from an OVA's
+// candidates. There is deliberately no anime gate here either - deriveSeriesKind
+// calls an anime matched only through tvdb/tmdb live_action, so it would delete
+// real candidates.
 func (s *Server) remoteCandidates(userID int64, m anilist.Media) []plexCandidate {
+	wrongForm := -1 // is_movie value this media can never be; -1 = do not filter
+	switch m.Format {
+	case "MOVIE":
+		wrongForm = 0
+	case "TV", "TV_SHORT":
+		wrongForm = 1
+	}
 	out := []plexCandidate{}
 	seen := map[string]bool{}
 	for _, title := range []string{m.Title.Romaji, m.Title.English} {
@@ -268,6 +288,13 @@ func (s *Server) remoteCandidates(userID int64, m anilist.Media) []plexCandidate
 		for _, wd := range words {
 			q.WriteString(` AND i.name LIKE '%' || ? || '%' COLLATE NOCASE`)
 			args = append(args, wd)
+		}
+		if wrongForm >= 0 {
+			// hits the catalog_variants primary key (server_id, folder)
+			q.WriteString(` AND NOT EXISTS (SELECT 1 FROM catalog_variants cv
+				WHERE cv.server_id = i.server_id AND cv.folder = i.path
+				  AND cv.show_key != '' AND cv.is_movie = ?)`)
+			args = append(args, wrongForm)
 		}
 		q.WriteString(` LIMIT 3`)
 		rows, err := s.DB.Query(q.String(), args...)
