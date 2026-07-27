@@ -5,6 +5,8 @@ import {
   fmtMissing,
   fmtSpeed,
   mediaTitle,
+  plexStreamLabel,
+  plexStreamOptions,
   syncOutcome,
   type Download,
   type DownloadMeta,
@@ -169,5 +171,27 @@ describe('downloadLabel', () => {
       items: { '1': { g: 'g', season: 1, episode: 2 } },
     }
     expect(downloadLabel(dl('/lib/Unknown/e2.mkv'), meta)).toMatchObject({ label: 'e2.mkv', ep: '' })
+  })
+})
+
+// Subtitles carry a variant the language cannot express, so each language is
+// offered twice. Audio has no such split and must stay a plain list.
+describe('plexStreamOptions', () => {
+  it('offers both subtitle variants per language', () => {
+    expect(plexStreamOptions(['Ger', 'Eng'], true)).toEqual(['Ger', 'Ger:forced', 'Eng', 'Eng:forced'])
+  })
+  it('leaves audio alone', () => {
+    expect(plexStreamOptions(['Ger', 'Jap'], false)).toEqual(['Ger', 'Jap'])
+  })
+})
+
+describe('plexStreamLabel', () => {
+  const t = (k: string) => (k === 'watch.plexSubForced' ? 'forced' : k)
+  it('names the forced variant', () => {
+    expect(plexStreamLabel('Ger:forced', t)).toBe('Ger (forced)')
+  })
+  it('leaves a plain code as it is', () => {
+    expect(plexStreamLabel('Ger', t)).toBe('Ger')
+    expect(plexStreamLabel('off', t)).toBe('off')
   })
 })
