@@ -104,7 +104,7 @@ func (s *Server) reconcilePlex(budget int) {
 	// Plex calls the show 262954 - both real entries for the same show. Skipping
 	// on "has any tvdb" is what kept those two apart. INSERT OR IGNORE below
 	// makes a repeat pass free, so the only cost is the title lookup.
-	rows, err := s.DB.Query(`SELECT DISTINCT cm.folder, sp.series_id
+	rows, err := s.DB.Query(`SELECT DISTINCT cm.server_id, cm.folder, sp.series_id
 		FROM catalog_matches cm
 		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
 		WHERE cm.media_id != 0
@@ -114,13 +114,14 @@ func (s *Server) reconcilePlex(budget int) {
 		return
 	}
 	type hit struct {
+		serverID int64
 		folder   string
 		seriesID int64
 	}
 	var hits []hit
 	for rows.Next() {
 		var h hit
-		if rows.Scan(&h.folder, &h.seriesID) == nil {
+		if rows.Scan(&h.serverID, &h.folder, &h.seriesID) == nil {
 			hits = append(hits, h)
 		}
 	}
@@ -129,36 +130,23 @@ func (s *Server) reconcilePlex(budget int) {
 	enriched := 0
 	for _, h := range hits {
 		g, ok := idx[match.FoldKey(match.GuessTitle(path.Base(h.folder)))]
+		switch {
+		case ok:
+			if fy := folderYearOf(path.Base(h.folder)); fy != 0 && g.Year != 0 && absInt(fy-g.Year) > 1 {
+				continue // same folded title, different show (remake vs original)
+			}
+		default:
+			// the folder title folds to nothing Plex knows - but the series it is
+			// matched to may already carry an id Plex publishes for its own shows.
+			// That is the same identity from the other end, and it needs no title.
+			showKey, _, _ := s.folderUnit(h.serverID, h.folder)
+			g, ok = guidForShowKey(idx, showKey)
+		}
 		if !ok {
 			s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder)
 			continue
 		}
-		if fy := folderYearOf(path.Base(h.folder)); fy != 0 && g.Year != 0 && absInt(fy-g.Year) > 1 {
-			continue // same folded title, different show (remake vs original)
-		}
-		if g.TVDB != 0 {
-			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('tvdb', ?, ?)`,
-				g.TVDB, h.seriesID)
-		}
-		if g.TMDB != 0 {
-			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('tmdb:tv', ?, ?)`,
-				g.TMDB, h.seriesID)
-		}
-		// imdb id only comes from Plex; attach it in the same pass (used for the
-		// suggestion imdb badge/link, and as an extra dedup axis)
-		if g.IMDB != 0 {
-			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('imdb', ?, ?)`,
-				g.IMDB, h.seriesID)
-		}
-		// Plex's own address for the show. Keeping it beside the other ids makes
-		// the series entry complete - deep link, stream selection and library
-		// lookups all need it - and replaces scanning the guid index for a
-		// show_key string, which failed at every place the two identities
-		// diverged.
-		if rk, err := strconv.Atoi(g.RatingKey); err == nil && rk > 0 {
-			s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES ('plex', ?, ?)`,
-				rk, h.seriesID)
-		}
+		s.attachPlexIdentity(h.seriesID, g, false)
 		// remember the folder either way: a folder whose title does not resolve
 		// must not be retried on every sweep, and one that did is done
 		s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder)
