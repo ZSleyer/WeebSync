@@ -171,7 +171,7 @@ func (s *Server) downloadGroup(userID int64, d dlMetaRow, folder string, bySrc m
 	// deliberately NOT providerBadgesLinks: its Plex branch falls back to the
 	// guid index, which walks the whole library on a cold cache. This endpoint
 	// is polled, so only the id lookup (one query) is affordable.
-	if rk := s.plexRatingKeyFor(showKey); rk != "" {
+	if rk, _ := s.plexRatingKeyFor(showKey); rk != "" {
 		if c := s.plexClient(); c != nil {
 			if l := s.plexLinkFor(c, rk); l != "" {
 				set["plex"], links.Plex = true, l

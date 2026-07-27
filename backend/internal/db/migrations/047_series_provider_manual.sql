@@ -1,0 +1,13 @@
+-- A hand-picked Plex link outranks anything reconcile guessed.
+--
+-- series_provider is filled with INSERT OR IGNORE from several passes, so a row
+-- carries no record of where it came from. That is fine while every writer is a
+-- heuristic, but the resolution now drops a stored plex row the library
+-- contradicts - which would quietly undo the one binding a person made on
+-- purpose. The flag is what keeps hands off it.
+--
+-- Deliberately a column and not a table of its own: series.id is re-issued when
+-- the series datastore is rebuilt, so a separate table would survive the reset
+-- and then point at a different show. Here the link dies with its series, which
+-- loses the choice but never corrupts it.
+ALTER TABLE series_provider ADD COLUMN manual INTEGER NOT NULL DEFAULT 0;

@@ -634,13 +634,16 @@ func (s *Server) plexRatingKeyResolve(showKey string) string {
 	if showKey == "" {
 		return ""
 	}
-	stored := s.plexRatingKeyFor(showKey)
+	stored, manual := s.plexRatingKeyFor(showKey)
+	if manual {
+		return stored // a person decided this; nothing here overrules it
+	}
 	live := guidRatingKey(s.plexGuidIndex(), showKey)
 	if live == "" {
 		return stored // Plex unreachable: a stale address still beats none
 	}
 	if stored != "" && stored != live {
-		s.DB.Exec(`DELETE FROM series_provider WHERE source = 'plex' AND media_id = ?`, stored)
+		s.DB.Exec(`DELETE FROM series_provider WHERE source = 'plex' AND media_id = ? AND manual = 0`, stored)
 		slog.Info("plex ratingKey reissued", "showKey", logSafe(showKey), "was", stored, "now", live)
 	}
 	return live
@@ -649,28 +652,30 @@ func (s *Server) plexRatingKeyResolve(showKey string) string {
 // plexRatingKeyFor looks up Plex's own id for the series behind a show_key, via
 // the provider row reconcilePlex writes. Empty when the show_key does not
 // resolve to a series, or that series has no plex row yet.
-func (s *Server) plexRatingKeyFor(showKey string) string {
+// manual reports whether that row was set by hand, which puts it beyond the
+// reach of every automatic pass.
+func (s *Server) plexRatingKeyFor(showKey string) (rk string, manual bool) {
 	src, idStr, ok := strings.Cut(showKey, ":")
 	if !ok {
-		return ""
+		return "", false
 	}
 	id, err := strconv.Atoi(idStr)
 	if err != nil || id <= 0 {
-		return ""
+		return "", false
 	}
 	if src == "tmdb" {
 		src = "tmdb:tv" // show_key drops the kind; tv is what a series carries
 	}
-	var rk int
+	var key int
 	// a series can end up with two plex rows (library rebuilt, show split and
-	// re-added); pick deterministically instead of whatever sqlite hands back
-	if s.DB.QueryRow(`SELECT p.media_id FROM series_provider p
+	// re-added); the hand-picked one wins, otherwise pick deterministically
+	if s.DB.QueryRow(`SELECT p.media_id, p.manual FROM series_provider p
 		JOIN series_provider q ON q.series_id = p.series_id
 		WHERE p.source = 'plex' AND q.source = ? AND q.media_id = ?
-		ORDER BY p.media_id`, src, id).Scan(&rk) != nil {
-		return ""
+		ORDER BY p.manual DESC, p.media_id`, src, id).Scan(&key, &manual) != nil {
+		return "", false
 	}
-	return strconv.Itoa(rk)
+	return strconv.Itoa(key), manual
 }
 
 // guidRatingKey finds the ratingKey whose Plex guid carries the show_key's
