@@ -606,30 +606,35 @@ func (s *Server) plexLinkFor(c *plex.Client, key string) string {
 }
 
 // plexWebLinkByKey resolves the deep link from what the series knows about
-// itself: Plex's own ratingKey when reconcilePlex has attached one, otherwise
-// the guid index matched against the show_key string. That string route is the
-// fallback on purpose - it compares a key built by one code path against ids
-// collected by another, and fails at every point where the two diverge (a
-// different tvdb entry for the same show, "imdb:tt123" against "imdb:123", or
-// a "fold:" key that no provider ever issued).
+// itself, falling back to the title index only when the series has no provider
+// id Plex shares.
 func (s *Server) plexWebLinkByKey(showKey string, titles ...string) string {
 	c := s.plexClient()
 	if c == nil {
 		return s.plexWebLink(titles...)
 	}
-	if rk := s.plexRatingKeyFor(showKey); rk != "" {
+	if rk := s.plexRatingKeyResolve(showKey); rk != "" {
 		if l := s.plexLinkFor(c, rk); l != "" {
 			return l
 		}
 	}
-	if showKey != "" {
-		if key := guidRatingKey(s.plexGuidIndex(), showKey); key != "" {
-			if l := s.plexLinkFor(c, key); l != "" {
-				return l
-			}
-		}
-	}
 	return s.plexWebLink(titles...)
+}
+
+// plexRatingKeyResolve gives the series' CURRENT address in Plex. The live guid
+// index outranks the stored provider row, because a ratingKey is a row id in
+// Plex's own metadata db, not an identity: rebuild an item and it comes back
+// under a new key, leaving the stored row pointing at whatever occupies the old
+// slot today. The stored row therefore only carries when Plex is unreachable
+// and the index comes back empty.
+func (s *Server) plexRatingKeyResolve(showKey string) string {
+	if showKey == "" {
+		return ""
+	}
+	if live := guidRatingKey(s.plexGuidIndex(), showKey); live != "" {
+		return live
+	}
+	return s.plexRatingKeyFor(showKey)
 }
 
 // plexRatingKeyFor looks up Plex's own id for the series behind a show_key, via
@@ -648,9 +653,12 @@ func (s *Server) plexRatingKeyFor(showKey string) string {
 		src = "tmdb:tv" // show_key drops the kind; tv is what a series carries
 	}
 	var rk int
+	// a series can end up with two plex rows (library rebuilt, show split and
+	// re-added); pick deterministically instead of whatever sqlite hands back
 	if s.DB.QueryRow(`SELECT p.media_id FROM series_provider p
 		JOIN series_provider q ON q.series_id = p.series_id
-		WHERE p.source = 'plex' AND q.source = ? AND q.media_id = ?`, src, id).Scan(&rk) != nil {
+		WHERE p.source = 'plex' AND q.source = ? AND q.media_id = ?
+		ORDER BY p.media_id`, src, id).Scan(&rk) != nil {
 		return ""
 	}
 	return strconv.Itoa(rk)

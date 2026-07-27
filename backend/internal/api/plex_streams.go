@@ -47,11 +47,7 @@ func pickStream(streams []plex.EpisodeStream, typ int, want string) int64 {
 // watchEpisodeParts locates the watch's show in Plex and returns its episode
 // parts keyed by the LOCAL file path (Plex paths mapped through plex_roots).
 func (s *Server) watchEpisodeParts(c *plex.Client, w Watch) (map[string]plex.EpisodePart, bool) {
-	local := w.LocalPath
-	if w.Subfolder {
-		local = path.Join(w.LocalPath, path.Base(w.RemotePath))
-	}
-	sh, _, ok := s.plexShowFor(match.GuessTitle(path.Base(w.RemotePath)), local)
+	sh, _, _, ok := s.plexShowForWatch(w, match.GuessTitle(path.Base(w.RemotePath)))
 	if !ok {
 		return nil, false
 	}
@@ -199,18 +195,16 @@ func (s *Server) handleWatchPlexStreams(w http.ResponseWriter, r *http.Request) 
 		if c == nil {
 			return
 		}
+		// every episode under the watch's local folder, not just synced ones
+		abs := s.watchTarget(wt)
 		byFile, ok := s.watchEpisodeParts(c, wt)
 		if !ok {
-			slog.Warn("plex stream apply: show not found in Plex", "watch", wt.ID, "remote", wt.RemotePath)
-			return
-		}
-		// every episode under the watch's local folder, not just synced ones
-		local := wt.LocalPath
-		if wt.Subfolder {
-			local = path.Join(wt.LocalPath, path.Base(wt.RemotePath))
-		}
-		abs, err := s.safeLocal(local)
-		if err != nil {
+			// the show could not be resolved at all, or Plex refused the episode
+			// listing - either way nothing is selected. The local target is what
+			// tells the two apart, so log it beside the source folder.
+			showKey, _, _ := s.folderUnit(wt.ServerID, wt.RemotePath)
+			slog.Warn("plex show not resolved", "watch", wt.ID,
+				"remote", logSafe(wt.RemotePath), "local", logSafe(abs), "showKey", logSafe(showKey))
 			return
 		}
 		n := 0
