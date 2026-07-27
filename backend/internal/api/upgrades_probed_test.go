@@ -157,8 +157,8 @@ func TestBuildUpgradesLeavesASettledLanguageGainUnmarked(t *testing.T) {
 func TestStoreVariantRoundTripsProbed(t *testing.T) {
 	s, _ := sizeTestServer(t)
 	q := FolderQuality{ResRank: 1080, Dub: []string{"Ger"}, Sub: []string{"Ger"}, Probed: true}
-	s.storeVariant(0, "/lib/Show/Season 01", q, "tvdb:3", 1, false, 0)
-	s.storeVariant(1, "/seed/Show", FolderQuality{ResRank: 1080}, "tvdb:3", 1, false, 0)
+	s.storeVariant(0, "/lib/Show/Season 01", q, "tvdb:3", 1, false, 0, kindAnime)
+	s.storeVariant(1, "/seed/Show", FolderQuality{ResRank: 1080}, "tvdb:3", 1, false, 0, "")
 
 	u := s.loadUnits().byKey[unitKey("tvdb:3", 1)]
 	if u == nil || len(u.locals) != 1 || len(u.remotes) != 1 {
@@ -172,7 +172,7 @@ func TestStoreVariantRoundTripsProbed(t *testing.T) {
 	}
 
 	// rewriting the row must not silently lose it either
-	s.storeVariant(0, "/lib/Show/Season 01", q, "tvdb:3", 1, false, 0)
+	s.storeVariant(0, "/lib/Show/Season 01", q, "tvdb:3", 1, false, 0, kindAnime)
 	if !s.loadUnits().byKey[unitKey("tvdb:3", 1)].locals[0].Probed {
 		t.Error("probed reset on the second write")
 	}

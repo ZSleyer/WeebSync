@@ -130,6 +130,55 @@ func DefaultSectionSource(sec plex.Section) string {
 	return "tmdb"
 }
 
+// sectionKind records POSITIVE anime evidence for a Plex library and nothing
+// else: kindAnime, or "" for undecided. It is never "this is not anime".
+//
+// The metadata source is not the signal it looks like. Plex has never heard of
+// AniList, an anime library is normally scanned and ordered by TVDB, and the
+// user picks that source accordingly - so reading "source == anilist" as the
+// anime marker would miss most anime libraries. Hence the explicit per-library
+// choice (plex_section_anime) decides, and only where the user has not made one
+// do the title, the AniDB-backed legacy agents and the source stand in for it.
+//
+// A tvdb- or tmdb-ordered library stays undecided on purpose. Claiming
+// live_action there is what would delete an anime film's suggestions out of a
+// library the user simply called "Filme".
+func sectionKind(sec plex.Section, explicit, src string) string {
+	switch explicit {
+	case "1":
+		return kindAnime
+	case "0":
+		return ""
+	}
+	if src == "" {
+		src = DefaultSectionSource(sec)
+	}
+	agent := strings.ToLower(sec.Agent)
+	if strings.HasPrefix(src, "anilist") ||
+		strings.Contains(strings.ToLower(sec.Title), "anime") ||
+		strings.Contains(agent, "hama") || strings.Contains(agent, "anidb") {
+		return kindAnime
+	}
+	return ""
+}
+
+// sectionSources / sectionAnime read the two per-library settings into
+// section-key maps. Both store "key:value" pairs and a missing key means "not
+// chosen", which is why the maps are handed around instead of a resolved value:
+// only the reader knows what the fallback for its section is.
+func (s *Server) sectionSources() map[string]string { return s.sectionSetting("plex_section_sources") }
+func (s *Server) sectionAnime() map[string]string   { return s.sectionSetting("plex_section_anime") }
+
+func (s *Server) sectionSetting(key string) map[string]string {
+	out := map[string]string{}
+	for kv := range strings.SplitSeq(db.Setting(s.DB, key), ",") {
+		if k, v, ok := strings.Cut(strings.TrimSpace(kv), ":"); ok && k != "" {
+			out[k] = v
+		}
+	}
+	return out
+}
+
 type plexSuggestion struct {
 	ShowTitle string        `json:"showTitle"`
 	Year      int           `json:"year"`
