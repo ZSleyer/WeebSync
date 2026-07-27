@@ -1467,8 +1467,12 @@
                         "description": "after sync, select this audio language in Plex; \"\" = don't touch",
                         "type": "string"
                     },
+                    "plexStreamMiss": {
+                        "description": "PlexStreamMiss: what the preference could not deliver on this watch's\nfiles, a CSV of \"audio\" and \"sub\"; \"\" = everything asked for was there.",
+                        "type": "string"
+                    },
                     "plexSubLang": {
-                        "description": "after sync, select this subtitle language in Plex; \"\" = don't touch",
+                        "description": "after sync, select subtitles in Plex: \"\" = don't touch, \"off\" = none, \"Ger\" = full, \"Ger:forced\" = forced",
                         "type": "string"
                     },
                     "remotePath": {

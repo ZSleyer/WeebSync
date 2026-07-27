@@ -78,6 +78,7 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			}
 			// select preferred Plex audio/sub streams on freshly indexed
 			// episodes of watches with a playback preference (no-op when empty)
+			s.backfillPlexStreams()
 			s.processPlexStreamQueue()
 			// file the episodes that were collected because the provider did
 			// not know their number yet, once it does
@@ -303,6 +304,44 @@ func (s *Server) ClearStaleSuggestionCache() {
 	// native title); drop it so the sequels re-resolve with the fixed titles.
 	s.DB.Exec(`DELETE FROM anilist_cache WHERE key = 'plex:suggestions:v3'`)
 	db.SetSetting(s.DB, "sugg_fmt", suggestionFormat)
+}
+
+// backfillPlexStreams applies the Plex playback preference once to the episodes
+// that predate the verdict column, so what a watch is missing is known for the
+// whole library instead of only for what has been downloaded since.
+//
+// Until now the preference reached exactly the downloads queued after it was
+// set: every episode that was already there when the preference was saved was
+// never touched, and nothing recorded that. One pass per watch, once per
+// install, then the flag makes it a single settings read forever after.
+func (s *Server) backfillPlexStreams() {
+	if db.Setting(s.DB, "plex_streams_backfilled") == "1" {
+		return
+	}
+	if s.plexClient() == nil {
+		return // no Plex yet: try again next tick, the flag stays unset
+	}
+	rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, plex_audio_lang, plex_sub_lang
+		FROM watches WHERE plex_audio_lang != '' OR plex_sub_lang != ''`)
+	if err != nil {
+		return
+	}
+	var todo []Watch
+	for rows.Next() {
+		var wt Watch
+		if rows.Scan(&wt.ID, &wt.ServerID, &wt.RemotePath, &wt.LocalPath, &wt.Subfolder,
+			&wt.PlexAudioLang, &wt.PlexSubLang) == nil {
+			todo = append(todo, wt)
+		}
+	}
+	rows.Close()
+	for _, wt := range todo {
+		s.applyPlexStreamsJob(wt)
+	}
+	db.SetSetting(s.DB, "plex_streams_backfilled", "1")
+	if len(todo) > 0 {
+		slog.Info("plex stream preference backfill queued", "watches", len(todo))
+	}
 }
 
 // BackfillUnits re-derives the canonical unit (show_key/season/is_movie) on

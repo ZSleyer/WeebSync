@@ -1,0 +1,15 @@
+-- What the Plex playback preference could not deliver on this watch:
+-- '' = nothing missing, else a CSV of the dimensions ('audio', 'sub').
+--
+-- The preference was the one setting in the app that could fail completely
+-- silently. A wanted language that is not in the file returned the same "done"
+-- as a successful selection, the queue row was deleted on the first attempt,
+-- nothing was logged and no surface anywhere mentioned it - so a watch set to
+-- Japanese audio on a German-only release simply kept Plex's own default and
+-- never said so.
+--
+-- Recording it on the watch rather than per episode is deliberate: the answer
+-- is a property of what the release carries, it is the same for every episode
+-- of the watch, and the watch row is where the button that re-applies the
+-- preference already lives.
+ALTER TABLE watches ADD COLUMN plex_stream_miss TEXT NOT NULL DEFAULT '';
