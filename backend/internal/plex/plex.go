@@ -199,6 +199,93 @@ func (c *Client) LibraryForPath(p string) (Section, bool) {
 	return best, bestLen >= 0
 }
 
+// folderNode is one entry of the by-folder view: either a directory (title +
+// the key that drills into it) or an episode, which names its show.
+type folderNode struct {
+	Title                string `json:"title"`
+	Key                  string `json:"key"`
+	GrandparentRatingKey string `json:"grandparentRatingKey"`
+}
+
+// folderDepth bounds the descent below the addressed folder. A show holds
+// seasons which hold episodes, so two levels is the real shape; four leaves
+// room for a library that nests deeper without turning a wrong path into a
+// crawl of the whole section.
+const folderDepth = 4
+
+// ShowKeyForPath resolves a library folder to the show Plex filed it under,
+// walking the by-folder view (Plex's own view of the directories it scanned)
+// and reading the first episode's grandparentRatingKey.
+//
+// This is the route that survives naming: the folder is what Plex actually
+// scanned, while its title may be a localisation the source never carries -
+// "Yomi no Tsugai" is filed as "Das Band der Unterwelt". Costs one request per
+// path component plus one per level of descent.
+func (c *Client) ShowKeyForPath(p string) (string, bool) {
+	lib, ok := c.LibraryForPath(p)
+	if !ok {
+		return "", false
+	}
+	node := "/library/sections/" + url.PathEscape(lib.Key) + "/folder"
+	for _, comp := range strings.Split(strings.Trim(strings.TrimPrefix(p, longestRoot(lib, p)), "/"), "/") {
+		if comp == "" {
+			continue
+		}
+		nodes, err := c.folderChildren(node)
+		if err != nil {
+			return "", false
+		}
+		next := ""
+		for _, n := range nodes {
+			if n.Title == comp {
+				next = n.Key
+				break
+			}
+		}
+		if next == "" {
+			return "", false // Plex has not scanned this folder (yet)
+		}
+		node = next
+	}
+	for range folderDepth {
+		nodes, err := c.folderChildren(node)
+		if err != nil || len(nodes) == 0 {
+			return "", false
+		}
+		for _, n := range nodes {
+			if n.GrandparentRatingKey != "" {
+				return n.GrandparentRatingKey, true
+			}
+		}
+		node = nodes[0].Key // still directories: descend into the first one
+	}
+	return "", false
+}
+
+// longestRoot returns the library location that owns p, so the walk starts at
+// the component below it. A section can hold several mounts.
+func longestRoot(lib Section, p string) string {
+	best := ""
+	for _, root := range lib.Locations {
+		if (p == root || strings.HasPrefix(p, root+"/")) && len(root) > len(best) {
+			best = root
+		}
+	}
+	return best
+}
+
+func (c *Client) folderChildren(path string) ([]folderNode, error) {
+	var resp struct {
+		MediaContainer struct {
+			Metadata []folderNode `json:"Metadata"`
+		} `json:"MediaContainer"`
+	}
+	if err := c.get(path, &resp); err != nil {
+		return nil, err
+	}
+	return resp.MediaContainer.Metadata, nil
+}
+
 type rawShow struct {
 	Show
 	Location []struct {
