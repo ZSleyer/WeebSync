@@ -496,7 +496,7 @@ func (s *Server) watchSeries(w Watch) airmap.Series {
 
 	// Plex is the authority for what provider/order/language this show uses
 	lang := ""
-	if sh, ord, ok := s.plexShowFor(ser.Title, w.LocalPath); ok {
+	if sh, ord, _, ok := s.plexShowForWatch(w, ser.Title); ok {
 		if sh.TVDBID != 0 {
 			ser.TVDBID = sh.TVDBID
 		}
@@ -544,6 +544,48 @@ func (s *Server) renameProvider(explicit string) string {
 		return "tvdb"
 	}
 	return "tmdb"
+}
+
+// plexShowForWatch locates the Plex show a watch feeds, identity first: the
+// series the folder is matched to already carries the tvdb/tmdb ids Plex indexes
+// its own library by, so that route needs no title at all. Guessing the title
+// from the source folder is the last resort and is usually wrong - Plex names a
+// show in the library language ("Yomi no Tsugai" is "Das Band der Unterwelt"
+// there) while the source folder romanises it and appends the season.
+//
+// how names the route that won ("series" | "title"), for the logs. ok=false means
+// unresolved: the caller must leave the library alone rather than act on a guess.
+func (s *Server) plexShowForWatch(w Watch, title string) (sh *plex.Show, ord plex.Ordering, how string, ok bool) {
+	c := s.plexClient()
+	if c == nil {
+		return nil, plex.Ordering{}, "", false
+	}
+	if showKey, _, _ := s.folderUnit(w.ServerID, w.RemotePath); showKey != "" {
+		if rk := s.plexRatingKeyResolve(showKey); rk != "" {
+			if detail, err := c.ShowDetail(rk); err == nil {
+				ord, _ := c.ShowPreferences(rk)
+				return detail, ord, "series", true
+			}
+		}
+	}
+	sh, ord, ok = s.plexShowFor(title, s.watchTarget(w))
+	if !ok {
+		return nil, plex.Ordering{}, "", false
+	}
+	return sh, ord, "title", true
+}
+
+// watchTarget is the folder a watch writes into, absolute. Plex reports absolute
+// library roots, so a stored relative path matches nothing until it is resolved.
+func (s *Server) watchTarget(w Watch) string {
+	local := w.LocalPath
+	if w.Subfolder && w.RemotePath != "" {
+		local = path.Join(w.LocalPath, path.Base(w.RemotePath))
+	}
+	if abs, err := s.safeLocal(local); err == nil {
+		return abs
+	}
+	return local
 }
 
 // plexShowFor locates the Plex show matching a title (optionally scoped to the
@@ -744,7 +786,11 @@ func (s *Server) handleRenameProfile(w http.ResponseWriter, r *http.Request) {
 	title := path.Base(r.URL.Query().Get("path"))
 	var resp renameProfileResponse
 
-	sh, ord, plexOK := s.plexShowFor(title, r.URL.Query().Get("local"))
+	sh, ord, _, plexOK := s.plexShowForWatch(Watch{
+		ServerID:   serverID,
+		RemotePath: r.URL.Query().Get("path"),
+		LocalPath:  r.URL.Query().Get("local"),
+	}, title)
 	if plexOK {
 		resp.Detected = true
 		resp.Provider, resp.Ordering, resp.Language, resp.ShowTitle = ord.Provider, ord.Order, ord.Language, sh.Title
