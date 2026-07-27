@@ -804,6 +804,47 @@
                 },
                 "type": "object"
             },
+            "api.PlexShowRef": {
+                "properties": {
+                    "library": {
+                        "example": "Animeserien",
+                        "type": "string"
+                    },
+                    "ratingKey": {
+                        "example": "62755",
+                        "type": "string"
+                    },
+                    "title": {
+                        "example": "Re:ZERO - Starting Life in Another World",
+                        "type": "string"
+                    },
+                    "year": {
+                        "example": 2016,
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "api.PlexShowResponse": {
+                "properties": {
+                    "candidates": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.PlexShowRef"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "show": {
+                        "$ref": "#/components/schemas/api.PlexShowRef"
+                    },
+                    "source": {
+                        "description": "Source names the route that resolved it: manual (set by hand), series (the\nids the series carries), path (the folder Plex scanned), title (guessed),\nnone (unresolved - nothing is changed in the library).",
+                        "example": "series",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.PlexWatchItem": {
                 "properties": {
                     "title": {
@@ -2330,6 +2371,15 @@
                         "type": "string"
                     },
                     "version": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.plexShowLinkRequest": {
+                "properties": {
+                    "ratingKey": {
+                        "example": "62755",
                         "type": "string"
                     }
                 },
@@ -11677,6 +11727,159 @@
                     }
                 ],
                 "summary": "Watch episode list",
+                "tags": [
+                    "Watches"
+                ]
+            }
+        },
+        "/api/watches/{id}/plex-show": {
+            "get": {
+                "description": "The Plex show the watch's series resolves to, the route that found it, and the library's shows as alternatives. Filter the candidates with q.",
+                "parameters": [
+                    {
+                        "description": "Watch ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Filter candidates by title",
+                        "in": "query",
+                        "name": "q",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.PlexShowResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Plex show behind a watch",
+                "tags": [
+                    "Watches"
+                ]
+            },
+            "put": {
+                "description": "Sets the Plex show for the series behind this watch, outranking every automatic lookup. An empty ratingKey removes the binding. The choice applies to every watch of the same series.",
+                "parameters": [
+                    {
+                        "description": "Watch ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.plexShowLinkRequest",
+                                        "summary": "body",
+                                        "description": "Show to bind"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Show to bind",
+                    "required": true
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Bind a watch's series to a Plex show",
                 "tags": [
                     "Watches"
                 ]
