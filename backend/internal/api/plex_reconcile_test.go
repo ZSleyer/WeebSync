@@ -100,13 +100,13 @@ func TestPlexRatingKeyForFindsItThroughTheSeries(t *testing.T) {
 
 	// whichever id the show_key happens to carry, it leads to the same show
 	for _, key := range []string{"tvdb:83950", "tvdb:262954", "tmdb:7842"} {
-		if got := s.plexRatingKeyFor(key); got != "64259" {
+		if got, _ := s.plexRatingKeyFor(key); got != "64259" {
 			t.Errorf("%s -> %q, want 64259", key, got)
 		}
 	}
 	// an id nobody knows, and malformed input, resolve to nothing
 	for _, key := range []string{"tvdb:999999", "fold:jojo", "", "tvdb:"} {
-		if got := s.plexRatingKeyFor(key); got != "" {
+		if got, _ := s.plexRatingKeyFor(key); got != "" {
 			t.Errorf("%q -> %q, want empty", key, got)
 		}
 	}

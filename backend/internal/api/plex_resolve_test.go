@@ -40,6 +40,28 @@ func TestPlexRatingKeyResolvePrefersTheLiveGuid(t *testing.T) {
 	}
 }
 
+// The automatic passes correct each other; a person's choice they do not touch.
+func TestPlexRatingKeyResolveKeepsAManualLink(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	s := &Server{DB: d}
+	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'rezero','Re:ZERO')`)
+	d.Exec(`INSERT INTO series_provider (source, media_id, series_id, manual) VALUES ('tvdb',305089,1,0), ('plex',58605,1,1)`)
+	seedGuidIndex(t, s, `{"rezero":{"tvdb":305089,"ratingKey":"62755"}}`)
+
+	if got := s.plexRatingKeyResolve("tvdb:305089"); got != "58605" {
+		t.Errorf("resolve = %q, want the hand-picked 58605", got)
+	}
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE source = 'plex' AND media_id = 58605`).Scan(&n)
+	if n != 1 {
+		t.Error("the hand-picked link was deleted by the self-healing pass")
+	}
+}
+
 // Plex unreachable means an empty index, and an empty index must not erase what
 // we already knew - a stale address still beats no address.
 func TestPlexRatingKeyResolveFallsBackWhenPlexIsSilent(t *testing.T) {
