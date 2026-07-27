@@ -33,7 +33,9 @@ func testServer(t *testing.T) *httptest.Server {
 					{"id":1,"streamType":1},
 					{"id":2,"streamType":2,"language":"German","languageCode":"deu"},
 					{"id":3,"streamType":2,"language":"Japanese","languageCode":"jpn"},
-					{"id":4,"streamType":3,"language":"German","languageCode":"deu"}]}]}]}]}}`))
+					{"id":4,"streamType":3,"language":"German","languageCode":"deu","forced":1,"displayTitle":"German (Forced)"},
+					{"id":5,"streamType":3,"language":"German","languageCode":"deu","hearingImpaired":true,"title":"German SDH"},
+					{"id":6,"streamType":3,"language":"German","languageCode":"deu"}]}]}]}]}}`))
 	})
 	mux.HandleFunc("/library/parts/501", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
@@ -119,8 +121,24 @@ func TestClient(t *testing.T) {
 		t.Fatalf("part: %+v", p)
 	}
 	detail, err := c.PartStreams("100")
-	if err != nil || len(detail) != 1 || detail[0].PartID != 501 || len(detail[0].Streams) != 4 {
+	if err != nil || len(detail) != 1 || detail[0].PartID != 501 || len(detail[0].Streams) != 6 {
 		t.Fatalf("part streams: %+v %v", detail, err)
+	}
+	// the flags are what tells three German subtitle tracks apart. PMS writes
+	// them as 1 and omits them when false, but builds differ and some send a
+	// real JSON boolean, so both must decode.
+	byID := map[int64]EpisodeStream{}
+	for _, st := range detail[0].Streams {
+		byID[st.ID] = st
+	}
+	if st := byID[4]; !st.Forced || st.Title != "German (Forced)" {
+		t.Errorf("forced stream: %+v (title falls back to displayTitle)", st)
+	}
+	if st := byID[5]; !st.HearingImpaired || st.Forced {
+		t.Errorf("SDH stream: %+v (hearingImpaired sent as a JSON boolean)", st)
+	}
+	if st := byID[6]; st.Forced || st.HearingImpaired || st.VisualImpaired {
+		t.Errorf("plain stream carries a flag it was never sent: %+v", st)
 	}
 	if err := c.SetStreams(501, 3, 4); err != nil {
 		t.Errorf("set streams: %v", err)
