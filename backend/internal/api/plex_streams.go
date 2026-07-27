@@ -65,16 +65,16 @@ func pickStream(streams []plex.EpisodeStream, typ int, want string) int64 {
 // streamRank scores how well a track serves someone who asked for its language,
 // highest wins. Ties keep the first track, which is the file's own order.
 //
-// ponytail: the title is read as a second source for "forced" because a muxer
-// that names a track "Forced" often leaves the container flag unset, and Plex
-// passes that flag through rather than inferring it. Only that one word is
-// matched - "Signs", "Songs" and their combinations are the same idea but are
-// also legitimate names for a full track, and a false positive here demotes the
-// track the user actually wanted.
+// The container flag decides. The title is only consulted when the flag is
+// unset, because a muxer that names a track "Forced" often leaves the flag out
+// and Plex passes it through rather than inferring it.
+//
+// ponytail: only that one word is matched. "Signs", "Songs" and their
+// combinations mean the same thing but are also legitimate names for a full
+// track, and a false positive here demotes exactly the track the user wanted.
 func streamRank(st plex.EpisodeStream) int {
-	forced := st.Forced || strings.Contains(strings.ToLower(st.Title), "forced")
 	switch {
-	case forced:
+	case st.Forced || titleSaysForced(st.Title):
 		return 0 // covers foreign dialogue only, never a full translation
 	case st.VisualImpaired || st.HearingImpaired:
 		return 1 // complete, but written for an audience this user did not ask to join
@@ -82,6 +82,18 @@ func streamRank(st plex.EpisodeStream) int {
 		return 2 // the right language, an entirely different soundtrack
 	}
 	return 3
+}
+
+// titleSaysForced reads a track name for the forced marker, minus the names
+// that carry the word in order to deny it: "Non-Forced" and "nicht forced" are
+// how a full track sitting next to a forced one is often labelled, and reading
+// those as forced demotes the very track they were named to identify.
+func titleSaysForced(title string) bool {
+	t := strings.ToLower(title)
+	for _, neg := range []string{"non-forced", "nonforced", "non forced", "not forced", "nicht forced", "no forced"} {
+		t = strings.ReplaceAll(t, neg, "")
+	}
+	return strings.Contains(t, "forced")
 }
 
 func isCommentary(title string) bool {
