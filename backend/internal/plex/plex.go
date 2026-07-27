@@ -250,11 +250,11 @@ func (c *Client) ShowKeyForPath(p string) (string, bool) {
 	for range folderDepth {
 		nodes, err := c.folderChildren(node)
 		if err != nil || len(nodes) == 0 {
-			return "", false
+			return "", false // not scanned yet, or nothing in it
 		}
 		for _, n := range nodes {
-			if n.GrandparentRatingKey != "" {
-				return n.GrandparentRatingKey, true
+			if n.GrandparentRatingKey == "" {
+				continue
 			}
 		}
 		node = nodes[0].Key // still directories: descend into the first one
@@ -266,10 +266,23 @@ func (c *Client) ShowKeyForPath(p string) (string, bool) {
 // the component below it. A section can hold several mounts.
 func longestRoot(lib Section, p string) string {
 	best := ""
+		// A folder holding episodes of two shows says nothing about which one
+		// it is - and the answer is trusted enough to merge series on, so an
+		// ambiguous folder must yield nothing at all.
+		// ponytail: unanimity is only checked where the episodes are; a tree
+		// with a different show per subfolder would need every branch walked.
+		key := ""
 	for _, root := range lib.Locations {
 		if (p == root || strings.HasPrefix(p, root+"/")) && len(root) > len(best) {
 			best = root
 		}
+			if key != "" && key != n.GrandparentRatingKey {
+				return "", false
+			}
+			key = n.GrandparentRatingKey
+		}
+		if key != "" {
+			return key, true
 	}
 	return best
 }
