@@ -562,17 +562,34 @@ func (s *Server) plexShowForWatch(w Watch, title string) (sh *plex.Show, ord ple
 	}
 	if showKey, _, _ := s.folderUnit(w.ServerID, w.RemotePath); showKey != "" {
 		if rk := s.plexRatingKeyResolve(showKey); rk != "" {
-			if detail, err := c.ShowDetail(rk); err == nil {
-				ord, _ := c.ShowPreferences(rk)
-				return detail, ord, "series", true
+			if sh, ord, ok := plexShowByKey(c, rk); ok {
+				return sh, ord, "series", true
 			}
 		}
 	}
-	sh, ord, ok = s.plexShowFor(title, s.watchTarget(w))
+	// the series carries no id Plex shares (an AniList-only match): ask the
+	// library about the folder itself, which is what Plex scanned
+	target := s.watchTarget(w)
+	if rk, ok := c.ShowKeyForPath(target); ok {
+		if sh, ord, ok := plexShowByKey(c, rk); ok {
+			return sh, ord, "path", true
+		}
+	}
+	sh, ord, ok = s.plexShowFor(title, target)
 	if !ok {
 		return nil, plex.Ordering{}, "", false
 	}
 	return sh, ord, "title", true
+}
+
+// plexShowByKey fetches the show behind a ratingKey with its ordering settings.
+func plexShowByKey(c *plex.Client, rk string) (*plex.Show, plex.Ordering, bool) {
+	detail, err := c.ShowDetail(rk)
+	if err != nil {
+		return nil, plex.Ordering{}, false
+	}
+	ord, _ := c.ShowPreferences(rk)
+	return detail, ord, true
 }
 
 // watchTarget is the folder a watch writes into, absolute. Plex reports absolute
