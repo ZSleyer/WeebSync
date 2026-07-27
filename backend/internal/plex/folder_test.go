@@ -18,12 +18,18 @@ func folderServer(t *testing.T) *httptest.Server {
 		"/library/sections/3/prefs": `{"MediaContainer":{"Setting":[]}}`,
 		"/library/sections/3/folder": `{"MediaContainer":{"Metadata":[
 			{"title":"Another_Show","key":"/library/sections/3/folder?parent=1"},
-			{"title":"Daemons_of_the_Shadow_Realm","key":"/library/sections/3/folder?parent=2"}]}}`,
+			{"title":"Daemons_of_the_Shadow_Realm","key":"/library/sections/3/folder?parent=2"},
+			{"title":"Sammelordner","key":"/library/sections/3/folder?parent=9"}]}}`,
 		"/library/sections/3/folder?parent=2": `{"MediaContainer":{"Metadata":[
 			{"title":"Season_01","key":"/library/sections/3/folder?parent=3"},
 			{"title":"Season_02","key":"/library/sections/3/folder?parent=4"}]}}`,
 		"/library/sections/3/folder?parent=3": `{"MediaContainer":{"Metadata":[
-			{"ratingKey":"71900","grandparentRatingKey":"71812","title":"Folge 1"}]}}`,
+			{"ratingKey":"71900","grandparentRatingKey":"71812","title":"Folge 1"},
+			{"ratingKey":"71901","grandparentRatingKey":"71812","title":"Folge 2"}]}}`,
+		// a collecting folder holding episodes of two different shows
+		"/library/sections/3/folder?parent=9": `{"MediaContainer":{"Metadata":[
+			{"ratingKey":"71900","grandparentRatingKey":"71812","title":"Folge 1"},
+			{"ratingKey":"80001","grandparentRatingKey":"67107","title":"Folge 1"}]}}`,
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, ok := routes[r.URL.RequestURI()]
@@ -63,6 +69,9 @@ func TestShowKeyForPathGivesUp(t *testing.T) {
 		{"folder Plex has not scanned", "/media/disk/anime/Not_Scanned_Yet"},
 		{"season that does not exist", "/media/disk/anime/Daemons_of_the_Shadow_Realm/Season_09"},
 		{"no episode below it", "/media/disk/anime/Daemons_of_the_Shadow_Realm/Season_02"},
+		// the answer is trusted enough to merge series on, so two shows in one
+		// folder must yield nothing rather than whichever came first
+		{"two shows in the same folder", "/media/disk/anime/Sammelordner"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got, ok := c.ShowKeyForPath(tc.path); ok {
