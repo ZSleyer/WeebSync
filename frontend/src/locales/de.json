@@ -415,7 +415,22 @@
     "plexHint": "Stellt nach dem Sync die Standard-Audio-/Untertitelspur der neuen Folge in Plex um (für das verbundene Plex-Konto), sobald Plex die Datei indexiert hat. Unabhängig vom Download-Filter oben: Beispiel JapDub + GerSub bei einer GerJapDub-Datei.",
     "plexApplyAll": "Plex-Spuren anwenden",
     "plexApplyAllHint": "Wendet die Audio/Untertitel-Einstellung einmalig auf alle bereits vorhandenen Folgen dieser Serie in Plex an.",
-    "plexApplyQueued": "Anwendung auf vorhandene Folgen gestartet."
+    "plexApplyQueued": "Anwendung auf vorhandene Folgen gestartet.",
+    "plexShow": "Plex-Serie",
+    "plexShowUnresolved": "nicht zugeordnet",
+    "plexShowChange": "Ändern",
+    "plexShowPick": "Plex-Serie zuordnen",
+    "plexShowScope": "Die Zuordnung gilt für die Serie, also für alle Überwachungen dieser Serie, und hat Vorrang vor jeder automatischen Erkennung.",
+    "plexShowSearch": "Serie suchen",
+    "plexShowNone": "Keine passende Serie in Plex.",
+    "plexShowClear": "Zuordnung entfernen",
+    "plexShowSource": {
+      "manual": "von Hand gesetzt",
+      "series": "über die Serien-IDs erkannt",
+      "path": "über den Bibliotheks-Ordner erkannt",
+      "title": "über den Titel geraten",
+      "none": "nicht auflösbar, es wird nichts geändert"
+    }
   },
   "rename": {
     "title": "UMBENENNEN",

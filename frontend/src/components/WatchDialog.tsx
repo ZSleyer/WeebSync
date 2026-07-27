@@ -8,6 +8,7 @@ import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
 import { FsErrorNote, isFsErrorCode } from './FsErrorNote'
 import PathInput from './PathInput'
+import PlexShowDialog, { usePlexShow } from './PlexShowDialog'
 import RenameOptions, { Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
 import RenamePreview from './RenamePreview'
 import { useRenamePreview } from './useRenamePreview'
@@ -33,6 +34,7 @@ export interface WatchFields extends RenameRule {
 export default function WatchDialog({
   title,
   serverId,
+  watchId,
   initial,
   onSave,
   onClose,
@@ -41,6 +43,9 @@ export default function WatchDialog({
 }: {
   title: string
   serverId: number
+  /** id of the watch being edited; absent while creating one, which is when
+   *  the Plex show binding has no series to hang on yet */
+  watchId?: number
   initial: WatchFields
   /** returning a string keeps the dialog open and shows it: a sync that
    *  queued nothing has something to explain, and closing would hide it */
@@ -71,6 +76,9 @@ export default function WatchDialog({
     retry: false,
     staleTime: 60_000,
   })
+  // which Plex show the track selection acts on, and the picker that overrides it
+  const { data: plexShow, refetch: refetchPlexShow } = usePlexShow(watchId)
+  const [pickShow, setPickShow] = useState(false)
   const [renameOn, setRenameOn] = useState(!!(initial.template || initial.pattern))
   const [browse, setBrowse] = useState<'remote' | 'local' | null>(null)
   // remote picker starts at the parent of the current watch folder
@@ -324,6 +332,21 @@ export default function WatchDialog({
 
           <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionPlex')}>
             <Badge tone="accent">{t('watch.sectionPlex')}</Badge>
+            {/* which show the track selection acts on. Only on an existing
+                watch: the binding hangs on its series, which a watch that is
+                not saved yet does not have. */}
+            {watchId && plexShow && (
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-t-secondary">
+                <span>
+                  {t('watch.plexShow')}:{' '}
+                  <span className="text-t-primary">{plexShow.show?.title || t('watch.plexShowUnresolved')}</span>
+                </span>
+                <span className="text-xs text-t-muted">{t(`watch.plexShowSource.${plexShow.source}`)}</span>
+                <Button size="sm" onClick={() => setPickShow(true)}>
+                  {t('watch.plexShowChange')}
+                </Button>
+              </p>
+            )}
             <div className={ROW_GRID}>
               {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
                 const opts = key === 'plexAudioLang' ? langs.dub : langs.sub
@@ -409,6 +432,14 @@ export default function WatchDialog({
           </Button>
         </footer>
       </form>
+      {pickShow && watchId && plexShow && (
+        <PlexShowDialog
+          watchId={watchId}
+          state={plexShow}
+          onDone={refetchPlexShow}
+          onClose={() => setPickShow(false)}
+        />
+      )}
     </Dialog>
   )
 }

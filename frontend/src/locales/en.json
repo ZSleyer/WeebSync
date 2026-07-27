@@ -415,7 +415,22 @@
     "plexHint": "After a sync, selects the new episode’s default audio/subtitle track in Plex (for the linked Plex account) once Plex has indexed the file. Independent of the download filter above: e.g. JapDub + GerSub on a GerJapDub file.",
     "plexApplyAll": "Apply Plex tracks",
     "plexApplyAllHint": "Applies the audio/subtitle preference once to every episode of this show already in Plex.",
-    "plexApplyQueued": "Applying to existing episodes started."
+    "plexApplyQueued": "Applying to existing episodes started.",
+    "plexShow": "Plex show",
+    "plexShowUnresolved": "not bound",
+    "plexShowChange": "Change",
+    "plexShowPick": "Bind a Plex show",
+    "plexShowScope": "The binding belongs to the series, so it applies to every watch of that series and outranks any automatic lookup.",
+    "plexShowSearch": "Search shows",
+    "plexShowNone": "No matching show in Plex.",
+    "plexShowClear": "Remove binding",
+    "plexShowSource": {
+      "manual": "set by hand",
+      "series": "found via the series ids",
+      "path": "found via the library folder",
+      "title": "guessed from the title",
+      "none": "unresolved, nothing is changed"
+    }
   },
   "rename": {
     "title": "RENAME",

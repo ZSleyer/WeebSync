@@ -523,6 +523,7 @@ export default function Watches() {
         <WatchDialog
           title={t('watch.editTitle')}
           serverId={edit.serverId}
+          watchId={edit.id}
           initial={{
             remotePath: edit.remotePath,
             localPath: edit.localPath,
