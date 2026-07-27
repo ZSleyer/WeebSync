@@ -130,10 +130,8 @@ func streamRank(st plex.EpisodeStream, wantForced bool) int {
 	return rankPlain
 }
 
-// titleSaysForced reads a track name for the forced marker, minus the names
-// that carry the word in order to deny it: "Non-Forced" and "nicht erzwungen"
-// are how a full track sitting next to a forced one is often labelled, and
-// reading those as forced demotes the very track they were named to identify.
+// titleSaysForced is plex.ForcedTitle plus the markers that are only safe to
+// read in one direction.
 //
 // ponytail: "signs" and "schilder" are the dominant labels for an unflagged
 // signs-only track, but they are also plausible names for a full one - so they
@@ -142,20 +140,14 @@ func streamRank(st plex.EpisodeStream, wantForced bool) int {
 // language, and forced is the goal); in the other it would demote the track the
 // user actually asked for.
 func titleSaysForced(title string, loose bool) bool {
+	if plex.ForcedTitle(title) {
+		return true
+	}
+	if !loose {
+		return false
+	}
 	t := strings.ToLower(title)
-	for _, neg := range []string{"non-forced", "nonforced", "non forced", "not forced",
-		"nicht forced", "no forced", "nicht erzwungen", "keine erzwungenen"} {
-		t = strings.ReplaceAll(t, neg, "")
-	}
-	for _, marker := range []string{"forced", "erzwungen", "forciert"} {
-		if strings.Contains(t, marker) {
-			return true
-		}
-	}
-	if loose {
-		return strings.Contains(t, "signs") || strings.Contains(t, "schilder")
-	}
-	return false
+	return strings.Contains(t, "signs") || strings.Contains(t, "schilder")
 }
 
 func isCommentary(title string) bool {
