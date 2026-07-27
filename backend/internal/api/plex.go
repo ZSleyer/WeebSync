@@ -183,8 +183,9 @@ type plexSuggestion struct {
 	ShowTitle string        `json:"showTitle"`
 	Year      int           `json:"year"`
 	LeafCount int           `json:"leafCount"`
-	Folder    string        `json:"folder"`  // Plex storage folder of the show
-	Library   string        `json:"library"` // Plex library (section) title, for grouping
+	Folder    string        `json:"folder"`         // Plex storage folder of the show
+	Library   string        `json:"library"`        // Plex library (section) title, for grouping
+	Kind      string        `json:"kind,omitempty"` // that library's kind: "anime" or "" (undecided), for categorising
 	Sequel    anilist.Media `json:"sequel"`
 	ChainNeed int           `json:"chainNeed"`        // episodes through the sequel
 	Source    string        `json:"source,omitempty"` // "" = anilist, else tmdb:tv | tmdb:movie | tvdb
@@ -373,12 +374,7 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 	// per-section metadata source: explicit key:source entries from the
 	// settings; a section without an entry falls back to its library title
 	// ("anime" in the name → AniList, otherwise TMDB)
-	srcOf := map[string]string{}
-	for kv := range strings.SplitSeq(db.Setting(s.DB, "plex_section_sources"), ",") {
-		if k, v, ok := strings.Cut(strings.TrimSpace(kv), ":"); ok && k != "" {
-			srcOf[k] = v
-		}
-	}
+	srcOf, animeOf := s.sectionSources(), s.sectionAnime()
 	sourceOf := func(sec plex.Section) string {
 		v, ok := srcOf[sec.Key]
 		if !ok {
@@ -396,9 +392,10 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		return v
 	}
 
-	var shows []plex.Show        // anime → AniList matching
-	isMovie := map[string]bool{} // ratingKey → item lives in a movie library
-	libOf := map[string]string{} // ratingKey → library (section) title, for grouping
+	var shows []plex.Show            // anime → AniList matching
+	isMovie := map[string]bool{}     // ratingKey → item lives in a movie library
+	libOf := map[string]string{}     // ratingKey → library (section) title, for grouping
+	kindOfLib := map[string]string{} // library title → its kind, stamped on every suggestion below
 	// ratingKey → the library wants TVDB aired mapping alongside AniList
 	airedLib := map[string]bool{}
 	var liveTV, liveMovies, tvdbShows []plex.Show
@@ -414,6 +411,7 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		for _, sh := range list {
 			libOf[sh.RatingKey] = sec.Title
 		}
+		kindOfLib[sec.Title] = sectionKind(sec, animeOf[sec.Key], srcOf[sec.Key])
 		src := sourceOf(sec)
 		if src == sourceAnilistTvdb {
 			for _, sh := range list {
@@ -460,14 +458,20 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 			}
 			sh := shows[start+i]
 			pick := list[0]
-			// a movie title often also matches its parent TV series -
-			// prefer the first MOVIE-format result for movie libraries
-			if isMovie[sh.RatingKey] {
-				for _, m := range list {
-					if m.Format == "MOVIE" {
-						pick = m
-						break
-					}
+			// The two directions of the same mistake. A film's title usually
+			// also matches its parent series, and a series' title usually also
+			// matches the film that was cut from it - so each library keeps the
+			// first hit whose format it can actually hold. Rooting a series on a
+			// film matters twice over: the chain then walks film sequels, and
+			// the episode arithmetic counts the film as one episode.
+			want := func(m anilist.Media) bool { return m.Format == "MOVIE" }
+			if !isMovie[sh.RatingKey] {
+				want = func(m anilist.Media) bool { return m.Format != "MOVIE" }
+			}
+			for _, m := range list {
+				if want(m) {
+					pick = m
+					break
 				}
 			}
 			matched[sh.RatingKey] = pick
@@ -551,6 +555,13 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		} else {
 			slog.Warn("plex tvdb sections skipped: no TVDB key configured")
 		}
+	}
+
+	// stamp the library's kind on every suggestion, whichever builder made it.
+	// Keyed by the library title the builders already carry, so their three
+	// signatures stay as they are.
+	for i := range suggestions {
+		suggestions[i].Kind = kindOfLib[suggestions[i].Library]
 	}
 
 	payload, _ := json.Marshal(suggestions)

@@ -79,3 +79,23 @@ func TestAddMissingUnitsNeedsALocalCopyOfTheSameForm(t *testing.T) {
 		t.Errorf("wrong item: %+v", got[0])
 	}
 }
+
+// The library's kind stands in while the sweep has not decided the series' own,
+// so an anime library's cards land in the anime block instead of next to the
+// live-action ones. Fallback only: it never suppresses anything.
+func TestLibKindFallsBackIntoCategory(t *testing.T) {
+	s, root := sizeTestServer(t)
+	local := filepath.Join(root, "Anime", "Some Show", "Season 01")
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, show_key, season, is_movie, lib_kind)
+		VALUES (0, ?, 720, 'tvdb:9', 1, 0, ?)`, local, kindAnime)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, show_key, season, is_movie)
+		VALUES (1, '/seed/Some Show S01 [2160p]', 2160, 'tvdb:9', 1, 0)`)
+
+	got := s.buildUpgrades(1)
+	if len(got) != 1 {
+		t.Fatalf("want 1 upgrade, got %d", len(got))
+	}
+	if got[0].Category != "anime-tv" {
+		t.Errorf("category = %q, want anime-tv from the library the copy lives in", got[0].Category)
+	}
+}

@@ -239,7 +239,11 @@ func dedupIncomplete(items []SugItem) []SugItem {
 // buildItem turns a raw provider suggestion into a deduplicated SugItem: it
 // resolves the series bundle (for the ignore key + provider union), the badges
 // and links, and the category.
-func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate, plexFolder string, bySrc map[string]int64, bySeries map[int64][]providerRef) SugItem {
+//
+// fallbackKind stands in for the series kind while the sweep has not decided one
+// (the Plex library the suggestion came from knows whether it holds anime). ""
+// where the caller has nothing to offer; the stored kind always wins.
+func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate, plexFolder string, bySrc map[string]int64, bySeries map[int64][]providerRef, fallbackKind string) SugItem {
 	title := displayTitle(m, source) // localized display title
 	m.Title.Preferred = title        // carry it on the media for the frontend
 	// the fold key stays on the romanized title so it matches linkSeries' bundling
@@ -258,8 +262,12 @@ func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate
 		refs = []providerRef{{source, m.ID}}
 	}
 	providers, links := s.providerBadgesLinks(refs, title, "")
+	kind := s.seriesKindOf(seriesID)
+	if kind == "" {
+		kind = fallbackKind
+	}
 	return SugItem{
-		RefKey: refKey, SeriesID: seriesID, Category: categorize(providers, m, source, s.seriesKindOf(seriesID)),
+		RefKey: refKey, SeriesID: seriesID, Category: categorize(providers, m, source, kind),
 		Title: title, Year: m.SeasonYear, Cover: m.CoverImage.Large, Media: m,
 		Providers: providers, Links: links, Candidates: cands, PlexFolder: plexFolder,
 	}
@@ -430,13 +438,13 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	// ── Trending: AniList + TMDB discovery charts ──
 	tr := newAcc()
 	for _, a := range s.anilistTrending(ctx, userID) {
-		tr.add(s.buildItem(a.Media, "anilist", a.Candidates, a.PlexFolder, bySrc, bySeries))
+		tr.add(s.buildItem(a.Media, "anilist", a.Candidates, a.PlexFolder, bySrc, bySeries, ""))
 	}
 	if s.Tmdb.Enabled() {
 		for _, kind := range []string{"tv", "movie"} {
 			if list, err := s.Tmdb.Trending(ctx, kind); err == nil {
 				for _, t := range s.tmdbSuggestList(userID, kind, list, true) {
-					tr.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries))
+					tr.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries, ""))
 				}
 			}
 		}
@@ -457,7 +465,7 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 					s.cacheSet(ck, string(payload))
 				}
 				for _, t := range s.tmdbSuggestList(userID, kind, medias, false) {
-					wl.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries))
+					wl.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries, ""))
 				}
 			}
 		}
@@ -521,7 +529,7 @@ func (s *Server) addAnilistWatchlist(userID int64, acc *sugAcc, bySrc map[string
 		if len(cands) == 0 {
 			continue
 		}
-		it := s.buildItem(e.Media, "anilist", cands, "", bySrc, bySeries)
+		it := s.buildItem(e.Media, "anilist", cands, "", bySrc, bySeries, "")
 		it.Status, it.Progress = e.Status, e.Progress
 		acc.add(it)
 	}
@@ -582,7 +590,7 @@ func (s *Server) plexWatchlistItems(userID int64, bySrc map[string]int64, bySeri
 		default:
 			continue // nothing to key on
 		}
-		out = append(out, s.buildItem(media, source, nil, "", bySrc, bySeries))
+		out = append(out, s.buildItem(media, source, nil, "", bySrc, bySeries, ""))
 	}
 	return out
 }
@@ -608,8 +616,12 @@ func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64
 		if source == "" {
 			source = "anilist"
 		}
-		it := s.buildItem(ps.Sequel, source, s.remoteCandidates(userID, ps.Sequel), "", bySrc, bySeries)
+		it := s.buildItem(ps.Sequel, source, s.remoteCandidates(userID, ps.Sequel), "", bySrc, bySeries, ps.Kind)
 		it.Have, it.Need = ps.LeafCount, ps.ChainNeed
+		// the library the show sits in - buildPlexSuggestions knows it, and
+		// without this the sequel half of "incomplete" arrives unscoped while
+		// the missing-unit half carries one
+		it.Library = ps.Library
 		seq := ps.Sequel
 		seq.Title.Preferred = displayTitle(seq, source) // same localized title as the card
 		it.Sequel = &seq

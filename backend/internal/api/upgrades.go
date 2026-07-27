@@ -495,6 +495,26 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		if u.isMovie {
 			catMedia.Format = "MOVIE"
 		}
+		// The series decides its own kind once the sweep has looked at it; the
+		// library's kind only fills in until then, so an anime library's cards
+		// sit in the anime block instead of next to the live-action ones. It is
+		// a fallback and never a veto - local and remote are the SAME work here
+		// (they met on show_key and season), so a kind disagreement means one
+		// derivation is wrong, not that the pairing is.
+		kind := e.kind
+		if kind == "" {
+			kind = u.libKind
+		}
+		// the local folder names the library; a copy Plex holds on an unmounted
+		// disk has no path to name it with, so a sibling season stands in
+		lib := s.plexLibraryOf(cur.Folder)
+		if lib == "" {
+			for _, l := range localsByShow[showScope(u.showKey, u.isMovie)] {
+				if lib = s.plexLibraryOf(l.Folder); lib != "" {
+					break
+				}
+			}
+		}
 		up := UpgradeSuggestion{
 			Key: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
 			Title: unitTitle(e.title, e.exact, top.Folder), From: cur, To: top, Options: u.remotes,
@@ -502,8 +522,8 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			LanguageUnverified: langUnverified,
 			Providers:          e.providers, Links: e.links,
 			Cover: e.cover, Format: e.format, Episodes: e.episodes,
-			Category: categorize(e.providers, catMedia, "", e.kind),
-			Library:  s.plexLibraryOf(cur.Folder),
+			Category: categorize(e.providers, catMedia, "", kind),
+			Library:  lib,
 			Sync:     existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
 
 			LocalSeasons: localsByShow[showScope(u.showKey, u.isMovie)],
@@ -543,11 +563,15 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 	// folder is how a film ended up listed as a missing part of a show, with a
 	// sync plan pointing into the series library.
 	ownedDir := map[string]string{}
+	ownedKind := map[string]string{}
 	localsOfShow := map[string][]UpgradeVariant{}
 	for _, key := range units.order {
 		u := units.byKey[key]
 		sc := showScope(u.showKey, u.isMovie)
 		localsOfShow[sc] = append(localsOfShow[sc], u.locals...)
+		if len(u.locals) > 0 && ownedKind[sc] == "" {
+			ownedKind[sc] = u.libKind
+		}
 		for _, l := range u.locals {
 			if strings.HasPrefix(l.Folder, "/") && ownedDir[sc] == "" {
 				ownedDir[sc] = l.Folder
@@ -597,9 +621,15 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		media.Genres = e.genres
 		media.Title.Romaji = title
 		media.Title.Preferred = title
+		// the unit that is MISSING has no local copy of its own, so the kind
+		// fallback comes from the sibling that made the show count as owned
+		kind := e.kind
+		if kind == "" {
+			kind = ownedKind[sc]
+		}
 		acc.add(SugItem{
 			RefKey: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
-			Category: categorize(e.providers, media, "", e.kind),
+			Category: categorize(e.providers, media, "", kind),
 			Title:    title, Cover: e.cover, Media: media,
 			Providers: e.providers, Links: e.links, Candidates: cands,
 			Library: s.plexLibraryOf(ownedDir[sc]),

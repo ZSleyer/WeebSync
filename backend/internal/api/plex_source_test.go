@@ -32,3 +32,30 @@ func TestDefaultSectionSource(t *testing.T) {
 		}
 	}
 }
+
+// Anime evidence is positive only, and the user's own answer outranks every
+// guess: Plex does not know AniList, so an anime library is normally scanned by
+// TVDB and the source says nothing about it either way.
+func TestSectionKind(t *testing.T) {
+	cases := []struct {
+		name     string
+		sec      plex.Section
+		explicit string
+		src      string
+		want     string
+	}{
+		{"explicit yes beats a plain title", plex.Section{Type: "show", Title: "Serien", Provider: "tvdb"}, "1", "tvdb", kindAnime},
+		{"explicit no beats every guess", plex.Section{Type: "show", Title: "Animeserien", Provider: "tvdb"}, "0", "anilist", ""},
+		{"the legacy AniDB agent", plex.Section{Type: "show", Title: "Serien JP", Agent: "com.plexapp.agents.hama"}, "", "", kindAnime},
+		{"the title says so", plex.Section{Type: "show", Title: "Animeserien", Provider: "tvdb"}, "", "tvdb", kindAnime},
+		{"an anime film library", plex.Section{Type: "movie", Title: "Animefilme", Provider: "tmdb"}, "", "", kindAnime},
+		{"a chosen AniList source", plex.Section{Type: "show", Title: "JP", Provider: "tvdb"}, "", "anilist+tvdb", kindAnime},
+		{"a plain film library stays undecided", plex.Section{Type: "movie", Title: "Filme", Provider: "tmdb"}, "", "", ""},
+		{"a plain show library stays undecided", plex.Section{Type: "show", Title: "Serien", Provider: "tvdb"}, "", "tvdb", ""},
+	}
+	for _, c := range cases {
+		if got := sectionKind(c.sec, c.explicit, c.src); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
