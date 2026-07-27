@@ -101,10 +101,14 @@ export function Dialog({
       ref={ref}
       {...aria}
       className={cx('w-full p-0', width, asSheet && 'dialog-sheet', className)}
-      onClose={onClose}
+      // close and cancel do not bubble natively, but React walks them up its own
+      // tree - so a dialog opened from inside another one would close both, past
+      // the outer guard and its unsaved changes. Only own events count.
+      onClose={(e) => e.target === ref.current && onClose()}
       onCancel={
         onRequestClose
           ? (e) => {
+              if (e.target !== ref.current) return
               e.preventDefault() // Escape goes through the same guard
               void guarded()
             }
