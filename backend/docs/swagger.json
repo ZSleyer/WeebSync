@@ -2406,6 +2406,10 @@
                         "description": "Plex storage folder of the show",
                         "type": "string"
                     },
+                    "kind": {
+                        "description": "that library's kind: \"anime\" or \"\" (undecided), for categorising",
+                        "type": "string"
+                    },
                     "leafCount": {
                         "type": "integer"
                     },
@@ -2791,12 +2795,12 @@
                         "description": "manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)",
                         "type": "string"
                     },
-                    "plexSectionSources": {
-                        "description": "csv of key:source (anilist|tmdb); missing key = by library title",
-                        "type": "string"
-                    },
                     "plexSectionAnime": {
                         "description": "csv of key:0|1 - does this library hold anime; missing key = guessed from title/agent",
+                        "type": "string"
+                    },
+                    "plexSectionSources": {
+                        "description": "csv of key:source (anilist|tmdb); missing key = by library title",
                         "type": "string"
                     },
                     "plexSections": {
