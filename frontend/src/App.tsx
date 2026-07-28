@@ -22,7 +22,7 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button } from '@weebsync/design-system'
+import { AppBar, AppShell, Badge, Button, TabBar } from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents } from './hooks'
 import Loading from './components/Loading'
@@ -237,102 +237,96 @@ function Shell({ email }: { email: string }) {
     </NavLink>
   )
 
-  // min-h-dvh, not min-h-screen: on phones 100vh is the *large* viewport (URL
-  // bar hidden), so even a short page overflowed by the toolbar height and every
-  // scroll gesture toggled the toolbar - which is what made the header drift off
-  // the top edge and the fixed tab bar look unpinned.
-  return (
-    <div className="app-shell t-hatch flex min-h-dvh flex-col lg:flex-row">
-      <RouteTitle />
-      {/* desktop sidebar */}
-      <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
-        <div className="border-b border-border-subtle px-4 py-5">
-          <h1 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
-            WEEB<span className="text-accent">SYNC</span>
-          </h1>
-          <Badge className="mt-2">{t('app.tagline')}</Badge>
-        </div>
-        <nav className="flex-1 py-3" aria-label={t('nav.main')}>
-          {NAV.map((n) => navLink(n, false))}
-        </nav>
-        <div className="border-t border-border-subtle p-4">
-          <p className="mb-2 truncate font-mono text-xs text-t-muted" title={email}>
-            {email}
-          </p>
-          <Button size="sm" className="w-full" onClick={logout}>
-            <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('app.logout')}
-          </Button>
-        </div>
-      </aside>
-
-      {/* mobile top bar - sticky so it cannot drift off the top edge, and
-          padded past the status bar for the installed PWA (viewport-fit=cover
-          puts the page under it; in a browser tab the inset is 0) */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border-subtle bg-bg-secondary px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden">
-        <h1 className="font-display text-base font-bold tracking-[0.2em] text-t-primary">
+  const sidebar = (
+    <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
+      <div className="border-b border-border-subtle px-4 py-5">
+        <h1 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
           WEEB<span className="text-accent">SYNC</span>
         </h1>
-        <Button size="sm" onClick={logout}>
+        <Badge className="mt-2">{t('app.tagline')}</Badge>
+      </div>
+      <nav className="flex-1 py-3" aria-label={t('nav.main')}>
+        {NAV.map((n) => navLink(n, false))}
+      </nav>
+      <div className="border-t border-border-subtle p-4">
+        <p className="mb-2 truncate font-mono text-xs text-t-muted" title={email}>
+          {email}
+        </p>
+        <Button size="sm" className="w-full" onClick={logout}>
           <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('app.logout')}
         </Button>
-      </header>
+      </div>
+    </aside>
+  )
 
-      {/* the bottom padding has to clear the tab bar, whose height rides the
-          rem scale - a fixed pb-20 was short of it once the root font grew */}
-      {/* a flex column, so a page that wants the rest of the screen (the file
-          browsers) says `flex-1` instead of subtracting the header and the
-          padding by hand - the hand-computed value was 19px off, and those 19px
-          were exactly the phantom scroll that toggles a phone's URL bar */}
-      <main
-        className="flex min-w-0 flex-1 flex-col overflow-x-clip p-4 pb-[calc(var(--nav-h)+env(safe-area-inset-bottom)+1rem)] lg:p-6 lg:pb-6"
-        key={location.pathname}
-      >
-        <RouteTransition cls={transitionClass}>
-          <Outlet />
-        </RouteTransition>
-      </main>
+  const bar = (
+    <AppBar>
+      <h1 className="font-display text-base font-bold tracking-[0.2em] text-t-primary">
+        WEEB<span className="text-accent">SYNC</span>
+      </h1>
+      <Button size="sm" onClick={logout}>
+        <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+        {t('app.logout')}
+      </Button>
+    </AppBar>
+  )
 
-      {/* mobile bottom nav: primary tabs + "more" sheet */}
-      {moreOpen && <div className="fixed inset-0 z-40 lg:hidden" aria-hidden onClick={() => setMoreOpen(false)} />}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-border-subtle bg-bg-secondary pb-[env(safe-area-inset-bottom)] lg:hidden"
-        aria-label={t('nav.main')}
-      >
-        {moreOpen && (
-          <div id="nav-more" className="border-b border-border-subtle">
-            {NAV_MORE.map((n) => (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                className={({ isActive }) =>
-                  `flex min-h-14 items-center gap-3 px-5 font-display text-sm ${
-                    isActive ? 'text-accent' : 'text-t-secondary'
-                  }`
-                }
-              >
-                <n.icon aria-hidden size="1.25em" className="shrink-0" />
-                {t(n.key)}
-              </NavLink>
-            ))}
-          </div>
-        )}
-        <div className="flex">
-          {NAV_PRIMARY.map((n) => navLink(n, true))}
-          <button
-            className={`flex min-h-[var(--nav-h)] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
-              moreOpen || moreActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
-            }`}
-            aria-expanded={moreOpen}
-            aria-controls="nav-more"
-            onClick={() => setMoreOpen((o) => !o)}
-          >
-            <Ellipsis aria-hidden size="1.25em" className="shrink-0" />
-            <span className="max-w-full truncate whitespace-nowrap">{t('nav.more')}</span>
-          </button>
+  // the phone's tab bar: primary tabs + "more" sheet
+  const tabs = (
+    <TabBar aria-label={t('nav.main')}>
+      {moreOpen && (
+        <div id="nav-more" className="border-b border-border-subtle">
+          {NAV_MORE.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              className={({ isActive }) =>
+                `flex min-h-14 items-center gap-3 px-5 font-display text-sm ${
+                  isActive ? 'text-accent' : 'text-t-secondary'
+                }`
+              }
+            >
+              <n.icon aria-hidden size="1.25em" className="shrink-0" />
+              {t(n.key)}
+            </NavLink>
+          ))}
         </div>
-      </nav>
-    </div>
+      )}
+      <div className="flex">
+        {NAV_PRIMARY.map((n) => navLink(n, true))}
+        <button
+          className={`flex min-h-[var(--nav-h)] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
+            moreOpen || moreActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
+          }`}
+          aria-expanded={moreOpen}
+          aria-controls="nav-more"
+          onClick={() => setMoreOpen((o) => !o)}
+        >
+          <Ellipsis aria-hidden size="1.25em" className="shrink-0" />
+          <span className="max-w-full truncate whitespace-nowrap">{t('nav.more')}</span>
+        </button>
+      </div>
+    </TabBar>
+  )
+
+  return (
+    <AppShell
+      sidebar={sidebar}
+      bar={bar}
+      tabs={tabs}
+      mainKey={location.pathname}
+      before={
+        <>
+          <RouteTitle />
+          {/* closes the "more" sheet on a tap anywhere else */}
+          {moreOpen && <div className="fixed inset-0 z-40 lg:hidden" aria-hidden onClick={() => setMoreOpen(false)} />}
+        </>
+      }
+    >
+      <RouteTransition cls={transitionClass}>
+        <Outlet />
+      </RouteTransition>
+    </AppShell>
   )
 }

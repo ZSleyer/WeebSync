@@ -164,8 +164,14 @@
 html {
   font-size: 17px;
   /* reserve the scrollbar so locking the page behind a modal (below) does not
-     shift the layout by its width */
-  scrollbar-gutter: stable;
+     shift the layout by its width. Desktop only: on a phone the document never
+     scrolls (the shell is a fixed-height column, <main> is the scroller), so
+     the gutter reserved a strip nothing could ever use - and since a fixed
+     element is laid out against that narrowed box, the tab bar and the header
+     ended up a scrollbar's width short of the right edge. */
+  @media (width >= 64rem) {
+    scrollbar-gutter: stable;
+  }
   /* Tailwind's preflight only ships the -webkit- spelling, which Firefox has
      never aliased - without these two its font inflation stays on and scales
      text independently of the layout. */
@@ -765,15 +771,13 @@ main:has(.page-fill) {
   height: 100dvh;
 }
 
-/* On a phone the shell itself never scrolls - <main> does. A scrolling
-   *document* is what drives a mobile browser's dynamic toolbar, and while that
-   toolbar animates the browser does not re-resolve `position: fixed`: the tab
-   bar keeps the offset the collapsed toolbar left behind and floats a toolbar's
-   height above the real bottom edge (Firefox for Android, plain tab - the
-   installed PWA has no toolbar, which is why it looked right there). Scrolling
-   an inner box leaves the toolbar alone, so the viewport keeps one size and
-   both the header and the fixed tab bar stay where they were put. The cost is
-   that the URL bar no longer hides on scroll.
+/* On a phone the shell itself never scrolls - <main> does. The shell is one
+   dynamic viewport tall and its rows (header, <main>, tab bar) are laid out
+   inside that box, so nothing depends on `position: fixed` resolving against
+   the visual viewport - which is the part Firefox for Android gets wrong while
+   its URL bar slides away, and what left the tab bar floating a toolbar's
+   height above the real bottom edge. Scrolling an inner box also keeps the
+   document still, so the page cannot ride up and down with the toolbar.
    `min-height: 0` is the part that makes it scroll at all: <main> is a column
    flex item, so its automatic minimum is its content and it would otherwise
    push its overflow past the clipped shell instead of scrolling. */
@@ -789,10 +793,10 @@ main:has(.page-fill) {
   /* `flex-1` on the route wrapper means `flex: 1 1 0%`, which caps it at the
      height of the scroller - a taller page then spills out of the wrapper as
      pure overflow, and overflow of a *child* never picks up the scroller's end
-     padding, so the last row ended up under the tab bar. Growing from the
-     content instead (`flex: 1 0 auto`) keeps the wrapper as tall as its page,
-     and <main>'s bottom padding lands after it. A page that fills the screen by
-     design keeps the cap - that is the whole point of `.page-fill`. */
+     padding, so the last row sat flush against the bottom edge. Growing from
+     the content instead (`flex: 1 0 auto`) keeps the wrapper as tall as its
+     page, and <main>'s bottom padding lands after it. A page that fills the
+     screen by design keeps the cap - that is the whole point of `.page-fill`. */
   .app-shell > main:not(:has(.page-fill)) > * {
     flex: 1 0 auto;
   }
