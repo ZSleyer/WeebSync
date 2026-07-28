@@ -232,6 +232,19 @@ const audit = () => {
   // taller than the viewport ("phantom overflow") is the other half of the same
   // bug - it is what makes a phone's URL bar toggle on every gesture.
   const shell = []
+  // Which box actually scrolls: on a phone the document does not - the shell is
+  // a fixed-height, clipped column and <main> is the scroller (that is what
+  // keeps the browser's dynamic toolbar out of the layout). Every check below
+  // has to ask that box, or it measures a document that can never move and
+  // passes for the wrong reason.
+  const scroller = (() => {
+    const m = document.querySelector('.app-shell > main')
+    return m && ['auto', 'scroll'].includes(getComputedStyle(m).overflowY) ? m : null
+  })()
+  const getTop = () => (scroller ? scroller.scrollTop : scrollY)
+  const setTop = (v) => (scroller ? (scroller.scrollTop = v) : scrollTo(0, v))
+  const scrollH = () => (scroller ? scroller.scrollHeight : doc.scrollHeight)
+  const clientH = () => (scroller ? scroller.clientHeight : innerHeight)
   // `visible` matters: on desktop both are display:none but keep their
   // position, and a zero-size rect would read as "pinned 900px too high"
   const nav = [...document.querySelectorAll('nav')].find((n) => visible(n) && getComputedStyle(n).position === 'fixed')
@@ -247,12 +260,38 @@ const audit = () => {
     }
   }
   check('at rest')
-  const y0 = scrollY
-  scrollTo(0, 400)
+  const y0 = getTop()
+  setTop(400)
   check('after scrolling')
-  scrollTo(0, y0)
-  const phantom = doc.scrollHeight - innerHeight
+  setTop(y0)
+  const phantom = scrollH() - clientH()
   if (phantom > 0 && phantom <= 24) shell.push({ what: 'phantom overflow - the page scrolls without content to scroll', off: phantom })
+  // The shell clips sideways on a phone, so content too wide for the screen no
+  // longer announces itself as a document scrollbar - it is simply cut off.
+  // Ask the boxes that do the clipping what they are hiding.
+  for (const box of [document.querySelector('.app-shell'), scroller]) {
+    if (!box) continue
+    const cs = getComputedStyle(box)
+    if (!['hidden', 'clip'].includes(cs.overflowX)) continue
+    const right = box.getBoundingClientRect().right
+    let out = 0, who2 = null
+    for (const el of box.querySelectorAll('*')) {
+      if (!visible(el)) continue
+      const ecs = getComputedStyle(el)
+      if (ecs.position === 'fixed') continue
+      // a box that scrolls sideways on purpose keeps its content reachable, and
+      // a box that clips on its own (a `truncate` title cutting its year off
+      // with an ellipsis) has already dealt with the overflow - in neither case
+      // is the shell the one hiding something
+      let handled = false
+      for (let p = el.parentElement; p && p !== box; p = p.parentElement)
+        if (getComputedStyle(p).overflowX !== 'visible') { handled = true; break }
+      if (handled) continue
+      const over = Math.round(el.getBoundingClientRect().right - right)
+      if (over > out) { out = over; who2 = el.tagName.toLowerCase() + '.' + el.className.toString().slice(0, 40) }
+    }
+    if (out > 1) shell.push({ what: `content cut off at the right edge (${who2})`, off: out })
+  }
 
   // The other half of that check, and the one whose absence reads as success:
   // a page whose content the user cannot reach. A flex child that may shrink
@@ -266,35 +305,41 @@ const audit = () => {
   // file browsers are built that way: the page stays the height of the screen
   // and the list scrolls. Measuring their rows against the document would
   // report every row below the fold as lost.
+  // the shell's own scroller is the frame of reference here, not "a scroll
+  // container of its own" - stopping the walk there is what keeps the check
+  // from excusing the whole page as reachable
   const inScroller = (el) => {
-    for (let p = el.parentElement; p && p !== doc; p = p.parentElement) {
+    for (let p = el.parentElement; p && p !== doc && p !== scroller; p = p.parentElement) {
       const cs = getComputedStyle(p)
       if (['auto', 'scroll'].includes(cs.overflowY) || ['auto', 'scroll'].includes(cs.overflowX)) return true
     }
     return false
   }
+  const originTop = scroller ? scroller.getBoundingClientRect().top : 0
   for (const el of document.querySelectorAll('body *')) {
     const cs = getComputedStyle(el)
     if (cs.display === 'none' || cs.position === 'fixed') continue
+    if (scroller && !scroller.contains(el)) continue
     if (inScroller(el)) continue
     const r = el.getBoundingClientRect()
     if (!r.height) continue
-    const b = r.bottom + scrollY
+    const b = r.bottom - originTop + getTop()
     if (b > deepest) {
       deepest = b
       who = el.tagName.toLowerCase() + '.' + el.className.toString().slice(0, 40)
     }
   }
-  const unreachable = Math.round(deepest - doc.scrollHeight)
+  const unreachable = Math.round(deepest - scrollH())
   if (unreachable > 1) shell.push({ what: `content below the scrollable area (${who})`, off: unreachable })
-  if (doc.scrollHeight > innerHeight + 1) {
-    scrollTo(0, doc.scrollHeight)
-    const reached = scrollY
-    scrollTo(0, y0)
-    const short = Math.round(doc.scrollHeight - innerHeight - reached)
+  if (scrollH() > clientH() + 1) {
+    setTop(scrollH())
+    const reached = getTop()
+    setTop(y0)
+    const short = Math.round(scrollH() - clientH() - reached)
     if (short > 2) shell.push({ what: 'the page stops scrolling before its end', off: short })
   }
-  if (getComputedStyle(doc).overflow === 'hidden' && !document.querySelector('dialog[open]'))
+  const locked = (el) => getComputedStyle(el).overflowY === 'hidden'
+  if ((locked(doc) || (scroller && locked(scroller))) && !document.querySelector('dialog[open]'))
     shell.push({ what: 'the page is locked against scrolling with no modal open', off: 0 })
 
   return { contrast, targets, heights, offenders, scroll, wrapped, shell, title: document.title }
