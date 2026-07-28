@@ -245,10 +245,14 @@ const audit = () => {
   const setTop = (v) => (scroller ? (scroller.scrollTop = v) : scrollTo(0, v))
   const scrollH = () => (scroller ? scroller.scrollHeight : doc.scrollHeight)
   const clientH = () => (scroller ? scroller.clientHeight : innerHeight)
+  // The shell's own two bars, found by where they sit in the tree rather than
+  // by how they are positioned: they used to be `fixed` and `sticky`, and a
+  // check keyed on that would have gone quietly blind the moment they became
+  // ordinary rows of the shell - which is exactly the change that fixed them.
   // `visible` matters: on desktop both are display:none but keep their
   // position, and a zero-size rect would read as "pinned 900px too high"
-  const nav = [...document.querySelectorAll('nav')].find((n) => visible(n) && getComputedStyle(n).position === 'fixed')
-  const header = [...document.querySelectorAll('header')].find((h) => visible(h) && getComputedStyle(h).position === 'sticky')
+  const nav = [...document.querySelectorAll('.app-shell > nav')].find(visible)
+  const header = [...document.querySelectorAll('.app-shell > header')].find(visible)
   const check = (when) => {
     if (nav) {
       const b = nav.getBoundingClientRect().bottom
@@ -385,7 +389,10 @@ const run = async (name, browserType) => {
     // out of somebody's library.
     const extra = await page.evaluate(async () => {
       const servers = await (await fetch('/api/servers', { credentials: 'include' })).json()
-      const queue = servers.map((s) => ({ id: s.id, path: '' }))
+      // local first: every step below is a live listing, and this sweep runs six
+      // browser contexts at once - a remote box would see six parallel walks
+      const local = servers.filter((s) => /^(localhost|127\.|\[?::1)/.test(s.host))
+      const queue = (local.length ? local : servers).map((s) => ({ id: s.id, path: '' }))
       for (let i = 0; i < 8 && queue.length; i++) {
         const { id, path } = queue.shift()
         const r = await fetch(`/api/servers/${id}/catalog${path ? `?path=${encodeURIComponent(path)}` : ''}`, { credentials: 'include' })
