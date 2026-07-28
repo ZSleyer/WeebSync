@@ -154,6 +154,28 @@
   --ctl-lh-sm: 16px;
   /* height of the mobile tab bar - the bar sets it, <main> reserves it */
   --nav-h: 3.33rem;
+  /* System-bar insets. Both engines report a bottom inset in a browser tab on a
+     Pixel 8 Pro, but only one of them means it: with the padding removed,
+     Chrome's gesture pill lands on top of the tab labels (its page really is
+     drawn edge to edge), while Firefox's tab bar still ends above the pill -
+     there the reported 28.8px are a band of dead space.
+     `safe-area-max-inset-bottom` sorts them apart without sniffing: Chrome 135+
+     ships it (and recommends it, because it does not jitter while the chin
+     animates), Firefox does not, so the fallback chain lands on the plain inset
+     - which is what iOS needs for its home indicator. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
+}
+
+/* ...except that Firefox then still gets the phantom band through the fallback.
+   An installed window does draw under the system bars, so only the tab case is
+   corrected. */
+@supports (-moz-appearance: none) {
+  @media not all and (display-mode: standalone) {
+    :root {
+      --safe-b: 0px;
+    }
+  }
 }
 
 /* Root font-size is the master scale: every rem-based Tailwind utility
