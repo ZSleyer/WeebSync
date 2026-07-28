@@ -5,8 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0d1117" />
+    <!-- interactive-widget: without it only the visual viewport shrinks when the
+         on-screen keyboard opens, so the layout - and the tab bar with it -
+         stays behind the keyboard. Chrome 108+, Firefox 132+, ignored elsewhere. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <!-- the bars, not the page: this tints the browser's own chrome, and the
+         seam is invisible only if it matches what we draw against it (--bg-secondary) -->
+    <meta name="theme-color" content="#131922" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
