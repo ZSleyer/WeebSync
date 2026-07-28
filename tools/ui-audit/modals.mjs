@@ -19,8 +19,26 @@ const TOKEN = process.env.WS_TOKEN || ''
 // reaches it.
 const TRIGGERS = [
   { route: '/servers', names: [/Server hinzufügen|Add server/, /Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
-  { route: '/watches', names: [/Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
-  { route: '/remote', names: [/Details|^Detail/] },
+  { route: '/watches', names: [/Bearbeiten|^Edit$/, /Löschen|^Delete$/, /fehlt$|Lücken:|gaps:|missing$/] },
+  {
+    // nested: the Plex picker only exists inside the watch dialog, so the
+    // parent has to be open before the trigger is on the page at all
+    route: '/watches',
+    label: 'Plex-Serie',
+    setup: async (page) => {
+      const edit = page.getByRole('button', { name: /Bearbeiten|^Edit$/ }).first()
+      if (!(await edit.count().catch(() => 0))) return false
+      await edit.click({ timeout: 3000 }).catch(() => {})
+      await page.waitForTimeout(900)
+      return (await page.getByRole('button', { name: /^Ändern$|^Change$/ }).count().catch(() => 0)) > 0
+    },
+    names: [/^Ändern$|^Change$/],
+  },
+  // the app's prompt() replacement - a dialog of its own, and the only one
+  // reached from a per-row action rather than a page-level button
+  { route: '/local', label: 'Prompt', names: [/umbenennen$|^Rename /] },
+  // /remote itself has no dialog of its own - the file list is a view, not a
+  // modal, and every modal on that route lives in the catalogue below
   {
     route: '/remote',
     label: 'Katalog',
@@ -32,7 +50,11 @@ const TRIGGERS = [
       // match rather than hardcoding a path out of somebody's library.
       const target = await page.evaluate(async () => {
         const servers = await (await fetch('/api/servers', { credentials: 'include' })).json()
-        const queue = servers.map((s) => ({ id: s.id, path: '' }))
+        // local first: every step below is a live listing, and this audit runs
+        // six browser contexts at once - a remote box would see six parallel
+        // walks. A local test server answers all of them without complaining.
+        const local = servers.filter((s) => /^(localhost|127\.|\[?::1)/.test(s.host))
+        const queue = (local.length ? local : servers).map((s) => ({ id: s.id, path: '' }))
         // every step is a live listing on a real server, so the walk stays on a
         // short leash and settles for whatever it has found by then
         for (let i = 0; i < 8 && queue.length; i++) {
@@ -65,7 +87,9 @@ const TRIGGERS = [
   { route: '/suggestions', names: [/Ignorierte|Ignored/] },
   // the reset dialog is the widest one in the app: it lists every data store as
   // a chip, and the longest of those labels is what a phone has to fit
-  { route: '/settings/jobs', names: [/Treffer|Matches|Cache/, /Alles neu aufbauen|Rebuild everything/] },
+  // `Ansehen` opens the cache viewer (a list dialog), `Index leeren` the
+  // confirm box, and the reset dialog is the widest one in the app
+  { route: '/settings/jobs', names: [/^Ansehen$|^View$/, /^Index leeren$|^Flush index$/, /Alles neu aufbauen|Rebuild everything/] },
 ]
 
 const VIEWPORTS = {
@@ -75,7 +99,9 @@ const VIEWPORTS = {
 }
 
 const auditDialog = () => {
-  const d = document.querySelector('dialog[open]')
+  // the *last* one open, not the first: a dialog can open a dialog (the Plex
+  // picker inside the watch dialog), and the one on top is the one under test
+  const d = [...document.querySelectorAll('dialog[open]')].pop()
   if (!d) return null
   const vis = (e) => {
     const cs = getComputedStyle(e)
@@ -100,6 +126,28 @@ const auditDialog = () => {
     if (['auto', 'scroll'].includes(cs.overflowX) && ox > 1) scroll.push({ where: name(e), x: ox })
     if (['auto', 'scroll'].includes(cs.overflowY) && oy > 1 && oy <= 8) scroll.push({ where: name(e), y: oy })
   }
+
+  // Sideways is the failure a scrollbar check cannot see here: the dialog is
+  // `overflow: hidden`, so anything too wide is neither scrollable nor visible -
+  // it is cut off at the edge, and on the narrowest phone that is where a label
+  // or a button row gives out first. Measure the boxes against the dialog
+  // instead of asking it for a scroll width it will never report.
+  const dr = d.getBoundingClientRect()
+  if (dr.right > innerWidth + 1 || dr.left < -1)
+    scroll.push({ where: `dialog steht ${Math.round(Math.max(dr.right - innerWidth, -dr.left))}px über dem Viewport`, x: Math.round(Math.max(dr.right - innerWidth, -dr.left)) })
+  let out = 0, widest = null
+  for (const e of d.querySelectorAll('*')) {
+    if (!vis(e)) continue
+    if (getComputedStyle(e).position === 'fixed') continue
+    // content inside a box that scrolls sideways on purpose stays reachable
+    let reachable = false
+    for (let p = e.parentElement; p && p !== d; p = p.parentElement)
+      if (['auto', 'scroll'].includes(getComputedStyle(p).overflowX)) { reachable = true; break }
+    if (reachable) continue
+    const over = Math.round(e.getBoundingClientRect().right - dr.right)
+    if (over > out) { out = over; widest = name(e) }
+  }
+  if (out > 1) scroll.push({ where: `${widest} ragt ${out}px über den Dialog hinaus`, x: out })
 
   // target size 2.5.8
   const targets = []
@@ -143,8 +191,15 @@ const auditDialog = () => {
   // makes the rest of the document inert, but inert does not stop a scroll
   // gesture, and on a phone that gesture moved the page instead of the dialog.
   const shell = []
+  // On a phone the box behind the modal is <main>, not the document - the shell
+  // scrolls there, so locking `html` alone would leave the gesture working.
+  const behind = document.querySelector('.app-shell > main')
+  const scrolls = (e) => ['auto', 'scroll'].includes(getComputedStyle(e).overflowY) && e.scrollHeight - e.clientHeight > 1
   if (getComputedStyle(document.documentElement).overflow !== 'hidden')
     shell.push('the page behind the modal is still scrollable')
+  if (behind && scrolls(behind)) shell.push('<main> behind the modal is still scrollable')
+  if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)
+    shell.push(`the page behind the modal scrolls sideways by ${document.documentElement.scrollWidth - document.documentElement.clientWidth}px`)
 
   // The dialog never scrolls itself, so a dialog taller than its cap owes the
   // user a scroll container inside - otherwise overflow:hidden cuts the rest
@@ -200,7 +255,10 @@ const run = async (browserName, type) => {
     const page = await ctx.newPage()
     for (const { route, names, setup, label } of TRIGGERS) {
       await page.goto(BASE + route, { waitUntil: 'load' })
-      await page.waitForTimeout(700)
+      // long enough for the list requests behind a route to land: a row action
+      // that is not on the page yet reads exactly like a dialog that does not
+      // exist, and that is the failure mode this whole script exists to catch
+      await page.waitForTimeout(1500)
       if (setup && !(await setup(page))) continue
       for (const re of names) {
         const btn = page.getByRole('button', { name: re }).first()
@@ -244,8 +302,27 @@ for (const d of all) {
 // how many of the runs actually exercised the phone sheet - a silent zero here
 // would mean the sheet checks never ran, not that they passed
 const sheets = all.filter((d) => d.sheet).length
+// ...and which dialog was reached where. A trigger that silently never fired -
+// a row action that needs data, a nested dialog whose parent did not open -
+// leaves a gap here instead of passing as a clean run.
+const cover = new Map()
+for (const d of all) {
+  const k = `${d.route} ${d.trigger}`
+  if (!cover.has(k)) cover.set(k, [])
+  cover.get(k).push(`${d.browser[0]}/${d.viewport}`)
+}
+console.log('\nAbdeckung:')
+for (const [k, where] of cover) console.log(`  ${where.length}x ${k} — ${where.join(' ')}`)
+// a trigger nobody ever hit is a finding, not a pass: a renamed button (the
+// English label drifting away from the German one, say) would otherwise turn
+// the whole dialog invisible to this script and still report a clean run
+const never = []
+for (const { route, names, label } of TRIGGERS)
+  for (const re of names) if (!cover.has(`${label ? `${route} (${label})` : route} ${String(re)}`)) never.push(`${route} ${re}`)
+for (const n of never) console.log(`✗ Trigger nie ausgelöst: ${n}`)
 console.log(
-  bad === 0
+  bad === 0 && !never.length
     ? `\n✓ ${all.length} Dialoge geprüft (davon ${sheets} als Vollbild-Sheet): keine Befunde`
-    : `\n${bad}/${all.length} Dialoge mit Befunden (${sheets} als Vollbild-Sheet geprüft)`,
+    : `\n${bad}/${all.length} Dialoge mit Befunden, ${never.length} Trigger tot (${sheets} als Vollbild-Sheet geprüft)`,
 )
+if (bad || never.length) process.exitCode = 1

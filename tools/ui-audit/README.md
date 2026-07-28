@@ -37,6 +37,19 @@ every route answers 404, and both passes then report a clean bill of health for
 pages they never saw. `curl -o /dev/null -w '%{http_code}' <base>/` returning 200
 is the check worth doing before believing a green run.
 
+Half of these dialogs only exist where there is data behind them, so `modals.mjs`
+prints which trigger fired where and **fails on a trigger that never fired
+anywhere** - a renamed button (the English label drifting away from the German
+one) would otherwise make a whole dialog invisible and still report a clean run.
+What the run needs to reach all of them:
+
+- a backend started with the `WEEBSYNC_SECRET` its stored server credentials
+  were encrypted with, otherwise every listing answers `decrypt failed` and the
+  catalogue stays empty,
+- a reachable server with a folder that matched a title (the catalogue dialogs),
+- a watch whose local folder has a gap in its episode numbers, e.g. `S01E01`,
+  `S01E02`, `S01E04` (the episode-list dialog behind the gap badge).
+
 `WS_TOKEN` is the raw token whose SHA-256 sits in the `sessions` table - the
 way in when the instance is OIDC-only. Without it both fall back to a password
 login. `--routes /a,/b` limits `e2e.mjs` to a subset, `--out` and `--tag` steer
