@@ -765,6 +765,44 @@ main:has(.page-fill) {
   height: 100dvh;
 }
 
+/* On a phone the shell itself never scrolls - <main> does. A scrolling
+   *document* is what drives a mobile browser's dynamic toolbar, and while that
+   toolbar animates the browser does not re-resolve `position: fixed`: the tab
+   bar keeps the offset the collapsed toolbar left behind and floats a toolbar's
+   height above the real bottom edge (Firefox for Android, plain tab - the
+   installed PWA has no toolbar, which is why it looked right there). Scrolling
+   an inner box leaves the toolbar alone, so the viewport keeps one size and
+   both the header and the fixed tab bar stay where they were put. The cost is
+   that the URL bar no longer hides on scroll.
+   `min-height: 0` is the part that makes it scroll at all: <main> is a column
+   flex item, so its automatic minimum is its content and it would otherwise
+   push its overflow past the clipped shell instead of scrolling. */
+@media (width < 64rem) {
+  .app-shell {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .app-shell > main {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  /* `flex-1` on the route wrapper means `flex: 1 1 0%`, which caps it at the
+     height of the scroller - a taller page then spills out of the wrapper as
+     pure overflow, and overflow of a *child* never picks up the scroller's end
+     padding, so the last row ended up under the tab bar. Growing from the
+     content instead (`flex: 1 0 auto`) keeps the wrapper as tall as its page,
+     and <main>'s bottom padding lands after it. A page that fills the screen by
+     design keeps the cap - that is the whole point of `.page-fill`. */
+  .app-shell > main:not(:has(.page-fill)) > * {
+    flex: 1 0 auto;
+  }
+  /* the modal lock below works by freezing the scroller behind the dialog -
+     on a phone that is <main>, not the document */
+  html:has(dialog[open]) .app-shell > main {
+    overflow: hidden;
+  }
+}
+
 /* ── Native dialog: Tempest panel + CRT reveal ── */
 
 /* An open <dialog> makes the rest of the document inert, but inert does not
