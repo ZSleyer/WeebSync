@@ -193,15 +193,15 @@ export default function Remote() {
       </div>
 
       {/* action bar: appears with a selection (or a pending notice) so the long
-          remote list keeps the full height. On phones it floats above the
-          bottom nav; from lg on it just sits at the end of the page. */}
+          remote list keeps the full height. It sits at the end of the page on
+          every size - it used to be pinned above the phone's tab bar with a
+          hardcoded offset, which stopped being a place once the bar became a
+          row of the shell rather than a fixed overlay. */}
       {(selection || notice) && (
         <Panel
           role="region"
           aria-label={t('remote.selectionBar')}
-          // fixed!/static!: .t-panel is unlayered CSS, its position:relative
-          // beats the utilities layer without the important marker
-          className="fixed! inset-x-4 bottom-[calc(60px+env(safe-area-inset-bottom))] z-40 flex flex-wrap items-center gap-2 p-3 lg:static! lg:z-auto lg:mt-4 lg:inset-auto"
+          className="mt-4 flex flex-wrap items-center gap-2 p-3"
         >
           {selection && (
             <span className="min-w-28 flex-1 truncate text-sm text-t-secondary" title={selection.path}>
