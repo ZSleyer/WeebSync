@@ -114,6 +114,21 @@ export function Dialog({
             }
           : undefined
       }
+      // Firefox does not fire `cancel` when Escape is pressed while a text
+      // field inside the dialog has focus: the field claims the key for its own
+      // revert-the-value behaviour and marks the event handled. The watch
+      // dialog autofocuses a field, so Escape did nothing there at all. Closing
+      // from keydown works in every browser - and it deliberately does not skip
+      // an already-handled event, because "handled" is exactly what Firefox
+      // says here. `preventDefault` keeps the browsers that would also fire
+      // `cancel` from running the guard a second time.
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return
+        // a dialog opened from inside another one: only the top one closes
+        if ((e.target as HTMLElement).closest('dialog') !== ref.current) return
+        e.preventDefault()
+        void guarded()
+      }}
       onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
       onClick={(e) => {
         if (isSheet) return // no backdrop to click - the button is the way out
