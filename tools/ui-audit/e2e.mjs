@@ -264,8 +264,6 @@ const audit = () => {
   setTop(400)
   check('after scrolling')
   setTop(y0)
-  const phantom = scrollH() - clientH()
-  if (phantom > 0 && phantom <= 24) shell.push({ what: 'phantom overflow - the page scrolls without content to scroll', off: phantom })
   // The shell clips sideways on a phone, so content too wide for the screen no
   // longer announces itself as a document scrollbar - it is simply cut off.
   // Ask the boxes that do the clipping what they are hiding.
@@ -331,6 +329,14 @@ const audit = () => {
   }
   const unreachable = Math.round(deepest - scrollH())
   if (unreachable > 1) shell.push({ what: `content below the scrollable area (${who})`, off: unreachable })
+  // The mirror image: a scroll range nothing occupies. What the range is made
+  // of is the deepest box plus the end padding the scroller reserves, so a page
+  // twelve pixels taller than the screen does not count - that is a page. The
+  // old "small overflow means phantom" rule called it one, and firefox's font
+  // metrics were enough to put a settings page under the threshold.
+  const padEnd = parseFloat(getComputedStyle(scroller || doc).paddingBottom) || 0
+  const phantom = Math.round(scrollH() - Math.max(deepest + padEnd, clientH()))
+  if (phantom > 1) shell.push({ what: 'phantom overflow - the page scrolls without content to scroll', off: phantom })
   if (scrollH() > clientH() + 1) {
     setTop(scrollH())
     const reached = getTop()

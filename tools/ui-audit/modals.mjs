@@ -262,8 +262,12 @@ const run = async (browserName, type) => {
       if (setup && !(await setup(page))) continue
       for (const re of names) {
         const btn = page.getByRole('button', { name: re }).first()
-        if (!(await btn.count().catch(() => 0))) continue
+        // wait for the control rather than for a round number of milliseconds:
+        // a row action that the list has not rendered yet is indistinguishable
+        // from one that does not exist, and the coverage report below would
+        // blame the trigger for what was only a slow request
         try {
+          await btn.waitFor({ state: 'visible', timeout: 5000 })
           await btn.click({ timeout: 3000 })
         } catch {
           continue
