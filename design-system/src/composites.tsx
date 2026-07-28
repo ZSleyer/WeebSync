@@ -495,3 +495,93 @@ export function EmptyState({ label, children, className }: EmptyStateProps) {
     </Panel>
   )
 }
+
+export interface AppShellProps {
+  /** the desktop sidebar; the app hides it below `lg` itself */
+  sidebar?: ReactNode
+  /** the phone's top bar - see `AppBar` */
+  bar?: ReactNode
+  /** the phone's bottom tab bar - see `TabBar` */
+  tabs?: ReactNode
+  /** remounts <main> when it changes; the app keys it on the route */
+  mainKey?: string
+  /** anything that has to live inside the shell but outside <main> */
+  before?: ReactNode
+  children: ReactNode
+  className?: string
+}
+
+/**
+ * The application frame: sidebar or top bar, the scrolling <main>, and the
+ * phone's tab bar as the last row.
+ *
+ * The bars are ordinary rows, not `fixed` overlays. A fixed element is
+ * positioned against the visual viewport, and Firefox for Android does not
+ * re-resolve that while its URL bar slides away - the tab bar kept the offset
+ * the collapsed toolbar left behind and floated above the real bottom edge.
+ * Below `lg` the stylesheet gives `.app-shell` one dynamic viewport of height
+ * and makes <main> the scroller, so the rows sit where the box ends.
+ */
+export function AppShell({ sidebar, bar, tabs, mainKey, before, children, className }: AppShellProps) {
+  return (
+    <div className={cx('app-shell t-hatch flex min-h-dvh flex-col lg:flex-row', className)}>
+      {before}
+      {sidebar}
+      {bar}
+      {/* a flex column, so a page that wants the rest of the screen (the file
+          browsers) says `flex-1` instead of subtracting the bars by hand - the
+          hand-computed value was 19px off, and those 19px were exactly the
+          phantom scroll that toggles a phone's URL bar */}
+      <main key={mainKey} className="flex min-w-0 flex-1 flex-col overflow-x-clip p-4 lg:p-6">
+        {children}
+      </main>
+      {tabs}
+    </div>
+  )
+}
+
+export interface AppBarProps extends HTMLAttributes<HTMLElement> {
+  children: ReactNode
+}
+
+/**
+ * The phone's top bar. Padded past the status bar for the installed PWA
+ * (`viewport-fit=cover` puts the page under it; in a browser tab the inset is
+ * 0). Not sticky: it is the shell's first row and the shell does not scroll.
+ */
+export function AppBar({ children, className, ...rest }: AppBarProps) {
+  return (
+    <header
+      {...rest}
+      className={cx(
+        'flex items-center justify-between border-b border-border-subtle bg-bg-secondary px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden',
+        className,
+      )}
+    >
+      {children}
+    </header>
+  )
+}
+
+export interface TabBarProps extends HTMLAttributes<HTMLElement> {
+  children: ReactNode
+}
+
+/**
+ * The phone's bottom tab bar: the shell's last row, padded past the gesture
+ * area. Its entries are `NavItem`s with `variant="bottomTab"`; a sheet that
+ * opens above them is just markup placed before them.
+ */
+export function TabBar({ children, className, ...rest }: TabBarProps) {
+  return (
+    <nav
+      {...rest}
+      className={cx(
+        'z-50 shrink-0 border-t border-border-subtle bg-bg-secondary pb-[env(safe-area-inset-bottom)] lg:hidden',
+        className,
+      )}
+    >
+      {children}
+    </nav>
+  )
+}

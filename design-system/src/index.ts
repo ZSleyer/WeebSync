@@ -45,6 +45,8 @@ export type {
 } from './primitives'
 
 export {
+  AppBar,
+  AppShell,
   Breadcrumb,
   CalendarDay,
   CalendarEntry,
@@ -59,8 +61,11 @@ export {
   NavItem,
   navItemClass,
   SuggestionCard,
+  TabBar,
 } from './composites'
 export type {
+  AppBarProps,
+  AppShellProps,
   BreadcrumbProps,
   CalendarDayProps,
   CalendarEntryProps,
@@ -75,6 +80,7 @@ export type {
   NavItemProps,
   NavVariant,
   SuggestionCardProps,
+  TabBarProps,
 } from './composites'
 
 export { Dialog } from './dialog'
