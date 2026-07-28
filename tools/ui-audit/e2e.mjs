@@ -295,6 +295,28 @@ const audit = () => {
     if (out > 1) shell.push({ what: `content cut off at the right edge (${who2})`, off: out })
   }
 
+  // Where <main> is the scroller, the document must not scroll at all - one
+  // gesture cannot drive two scrollers, and whatever moves the document takes
+  // the header and the tab bar with it. A single absolutely positioned box
+  // whose nearest positioned ancestor is the document is enough to cause it:
+  // the shell cannot clip what it does not contain, and the box's static
+  // position, measured deep inside the scrolling content, stretches the page
+  // to reach it. Name the culprit rather than just the symptom.
+  if (scroller && doc.scrollHeight > doc.clientHeight + 1) {
+    let who3 = null
+    let low = doc.clientHeight
+    for (const el of document.querySelectorAll('body *')) {
+      const cs = getComputedStyle(el)
+      if (cs.position !== 'absolute' && cs.position !== 'fixed') continue
+      const b = el.getBoundingClientRect().bottom + scrollY
+      if (b > low) { low = b; who3 = el.tagName.toLowerCase() + '.' + el.className.toString().slice(0, 40) }
+    }
+    shell.push({
+      what: `the document scrolls behind the shell${who3 ? ` (${who3} escapes it)` : ''}`,
+      off: doc.scrollHeight - doc.clientHeight,
+    })
+  }
+
   // The other half of that check, and the one whose absence reads as success:
   // a page whose content the user cannot reach. A flex child that may shrink
   // below its content keeps <main> from growing, so the document reports no
