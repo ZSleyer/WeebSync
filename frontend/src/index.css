@@ -793,6 +793,18 @@ main:has(.page-fill) {
   height: 100dvh;
 }
 
+/* The frame of reference for anything absolutely positioned inside the app.
+   Without it the nearest positioned ancestor of a stray `position: absolute`
+   box is the document itself, and two things follow: the shell's `overflow`
+   cannot clip it, and its static position - measured deep inside the scrolling
+   content - stretches the DOCUMENT to reach it. That is how a one-pixel
+   `sr-only` label on the dashboard made the page scroll 71px behind a shell
+   that is exactly one viewport tall: the header slid away, the tab bar left a
+   gap, and a second scrollbar appeared next to <main>'s own. */
+.app-shell {
+  position: relative;
+}
+
 /* On a phone the shell itself never scrolls - <main> does. The shell is one
    dynamic viewport tall and its rows (header, <main>, tab bar) are laid out
    inside that box, so nothing depends on `position: fixed` resolving against
