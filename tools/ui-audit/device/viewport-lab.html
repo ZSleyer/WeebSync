@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Shell lab - WeebSync</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ground: #0d0f14;
+        --panel: #151922;
+        --line: #262c3a;
+        --ink: #e6e9f0;
+        --muted: #8a92a6;
+        --accent: #a78bfa;
+        --warn: #f0b429;
+        --ok: #4ade80;
+        --bar-h: 3.4rem;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+
+      .bar-top {
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        padding: 0.6rem 1rem;
+        padding-top: calc(0.6rem + env(safe-area-inset-top));
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+      }
+      .bar-top b { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; margin-right: auto; }
+      a.mode {
+        border: 1px solid var(--line);
+        color: var(--muted);
+        text-decoration: none;
+        padding: 0.3rem 0.6rem;
+        font: 600 0.8rem ui-monospace, monospace;
+      }
+      a.mode[aria-current='true'] { border-color: var(--accent); color: var(--accent); }
+
+      .bar-bottom {
+        background: var(--panel);
+        border-top: 2px solid var(--accent);
+        padding: 0.5rem 1rem;
+        padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+        font: 0.8rem/1.35 ui-monospace, monospace;
+        min-height: var(--bar-h);
+      }
+      .bar-bottom span { color: var(--warn); }
+      .bar-bottom .ok { color: var(--ok); }
+      /* the run labels itself, because reading the numbers off the screen by
+         selecting them would scroll the page and change what is measured */
+      .bar-bottom b { color: var(--accent); letter-spacing: 0.08em; }
+
+      p, li { margin: 0 0 0.6rem; }
+      .content { padding: 1rem; }
+      .row { border-bottom: 1px solid var(--line); padding: 0.55rem 0; font-variant-numeric: tabular-nums; }
+      .note { color: var(--muted); font-size: 0.85rem; }
+
+      /* ── A: inner scroller, shell = 100dvh (was gerade ausgeliefert ist) ── */
+      body.a .shell { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+      body.a .content { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+      /* B: document scrolls, bars sticky/fixed, shell at least svh */
+      body.b .shell { min-height: 100svh; }
+      body.b .bar-top { position: sticky; top: 0; z-index: 2; }
+      body.b .bar-bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; }
+      body.b .content { padding-bottom: calc(var(--bar-h) + env(safe-area-inset-bottom) + 1rem); }
+
+      /* C: like B, but the bottom bar sticks instead of floating */
+      body.c .shell { min-height: 100svh; display: flex; flex-direction: column; }
+      body.c .bar-top { position: sticky; top: 0; z-index: 2; }
+      body.c .content { flex: 1 0 auto; }
+      body.c .bar-bottom { position: sticky; bottom: 0; z-index: 2; }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="bar-top">
+        <b>Shell lab</b>
+        <a class="mode" href="?m=a">A</a>
+        <a class="mode" href="?m=b">B</a>
+        <a class="mode" href="?m=c">C</a>
+      </div>
+
+      <div class="content">
+        <p id="what"></p>
+        <p class="note">
+          Scroll up and down hard enough for the URL bar to retract and come back. The bottom
+          bar keeps reporting how far its own bottom edge is from the visible edge, and remembers
+          the worst reading. Then compare A, B and C.
+        </p>
+        <div id="rows"></div>
+      </div>
+
+      <div class="bar-bottom">
+        <div><b id="who">–</b> · distance to the visible edge: <span id="now">–</span></div>
+        <div>worst: <span id="worst">–</span> · visible: <span id="seen">–</span> · doc scrolls: <span id="scr">–</span></div>
+      </div>
+    </div>
+
+    <script>
+      const m = (new URLSearchParams(location.search).get('m') || 'a').toLowerCase()
+      document.body.className = ['a', 'b', 'c'].includes(m) ? m : 'a'
+      for (const a of document.querySelectorAll('a.mode'))
+        a.setAttribute('aria-current', a.getAttribute('href') === '?m=' + document.body.className)
+      document.getElementById('what').textContent = {
+        a: 'A - inner scroller, shell = 100dvh, the bars are rows. This is what ships today.',
+        b: 'B - the document scrolls, header sticky, footer fixed, shell at least 100svh. The pattern the literature recommends.',
+        c: 'C - like B, but the footer sticks instead of floating.',
+      }[document.body.className]
+
+      // enough rows that every mode really scrolls
+      document.getElementById('rows').innerHTML = Array.from(
+        { length: 40 },
+        (_, i) => '<div class="row">Row ' + String(i + 1).padStart(2, '0') + '</div>',
+      ).join('')
+
+      const ua = navigator.userAgent
+      const browser = /Firefox|FxiOS/.test(ua)
+        ? 'FIREFOX'
+        : /Edg\//.test(ua)
+          ? 'EDGE'
+          : /Chrome|CriOS/.test(ua)
+            ? 'CHROME'
+            : /Safari/.test(ua)
+              ? 'SAFARI'
+              : 'BROWSER?'
+      document.getElementById('who').textContent = browser + ' - VARIANT ' + document.body.className.toUpperCase()
+      document.title = browser + ' ' + document.body.className.toUpperCase() + ' - Shell lab'
+
+      const bar = document.querySelector('.bar-bottom')
+      let worst = 0, minSeen = Infinity, maxSeen = -Infinity
+
+      function tick() {
+        const vv = window.visualViewport
+        // the visible bottom edge in the same coordinates getBoundingClientRect
+        // speaks: for a fixed element those are layout-viewport coordinates, so
+        // the visual viewport's own offset has to come back in
+        const visibleBottom = vv ? vv.offsetTop + vv.height : innerHeight
+        const gap = Math.round(visibleBottom - bar.getBoundingClientRect().bottom)
+        if (Math.abs(gap) > Math.abs(worst)) worst = gap
+        const h = Math.round(vv ? vv.height : innerHeight)
+        minSeen = Math.min(minSeen, h)
+        maxSeen = Math.max(maxSeen, h)
+
+        const now = document.getElementById('now')
+        now.textContent = gap === 0 ? 'flush' : gap + ' px'
+        now.className = gap === 0 ? 'ok' : ''
+        const w = document.getElementById('worst')
+        w.textContent = worst === 0 ? 'flush' : worst + ' px'
+        w.className = worst === 0 ? 'ok' : ''
+        document.getElementById('seen').textContent = minSeen + '…' + maxSeen
+        const d = document.documentElement
+        const s = document.getElementById('scr')
+        const scrolls = d.scrollHeight > d.clientHeight + 1
+        s.textContent = scrolls ? 'yes' : 'no'
+        s.className = scrolls ? '' : 'ok'
+      }
+
+      tick()
+      addEventListener('resize', tick)
+      addEventListener('scroll', tick, { passive: true })
+      document.querySelector('.content').addEventListener('scroll', tick, { passive: true })
+      if (window.visualViewport) {
+        visualViewport.addEventListener('resize', tick)
+        visualViewport.addEventListener('scroll', tick)
+      }
+      setInterval(tick, 200)
+    </script>
+  </body>
+</html>

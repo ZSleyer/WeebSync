@@ -54,3 +54,24 @@ What the run needs to reach all of them:
 way in when the instance is OIDC-only. Without it both fall back to a password
 login. `--routes /a,/b` limits `e2e.mjs` to a subset, `--out` and `--tag` steer
 where the screenshots land.
+
+## On a real device
+
+`device/` holds two standalone pages for the questions the emulators cannot
+answer - neither Chrome's device toolbar nor Firefox's responsive mode has a
+dynamic browser toolbar or safe-area insets, so both report `dvh == svh == lvh`
+and zero insets, and a layout that only breaks on a phone passes here.
+
+- `viewport-probe.html` prints `dvh`/`svh`/`lvh`, the visual viewport, the
+  safe-area insets and whether the document scrolls, keeping the extremes seen
+  over the whole session (a screenshot taken after the toolbar settled shows
+  nothing).
+- `viewport-lab.html?m=a|b|c` renders the same page in three shell layouts -
+  inner scroller with `100dvh`, document scroller with a `fixed` bar, document
+  scroller with a `sticky` bar - and reports how far the bottom bar drifted from
+  the visible edge. It labels the browser itself, because reading the numbers by
+  selecting them scrolls the page and changes what is measured.
+
+To use them, copy the file into `frontend/public/`, start the dev server with
+`--host`, open the port for the LAN, and call it from the phone. They are not in
+`public/` by default: they would ship to production for nobody's benefit.
