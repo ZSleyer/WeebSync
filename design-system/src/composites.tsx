@@ -545,16 +545,17 @@ export interface AppBarProps extends HTMLAttributes<HTMLElement> {
 }
 
 /**
- * The phone's top bar. Padded past the status bar for the installed PWA
- * (`viewport-fit=cover` puts the page under it; in a browser tab the inset is
- * 0). Not sticky: it is the shell's first row and the shell does not scroll.
+ * The phone's top bar. Padded past the status bar via `--safe-t`, which is the
+ * real inset only in an installed window - a browser tab reports one but keeps
+ * the strip out of the viewport, so honouring it there just wastes a band.
+ * Not sticky: it is the shell's first row and the shell does not scroll.
  */
 export function AppBar({ children, className, ...rest }: AppBarProps) {
   return (
     <header
       {...rest}
       className={cx(
-        'flex items-center justify-between border-b border-border-subtle bg-bg-secondary px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden',
+        'flex items-center justify-between border-b border-border-subtle bg-bg-secondary px-4 py-3 pt-[calc(0.75rem+var(--safe-t))] lg:hidden',
         className,
       )}
     >
@@ -577,7 +578,7 @@ export function TabBar({ children, className, ...rest }: TabBarProps) {
     <nav
       {...rest}
       className={cx(
-        'z-50 shrink-0 border-t border-border-subtle bg-bg-secondary pb-[env(safe-area-inset-bottom)] lg:hidden',
+        'z-50 shrink-0 border-t border-border-subtle bg-bg-secondary pb-[var(--safe-b)] lg:hidden',
         className,
       )}
     >
