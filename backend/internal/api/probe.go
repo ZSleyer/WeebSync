@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/ch4d1/weebsync/internal/plex"
 	"github.com/ch4d1/weebsync/internal/rename"
@@ -49,9 +50,27 @@ var iso639 = map[string]string{
 // realLangs is for.
 const undLang = "Und"
 
+// notALanguage are the tags that name no single language. Reading one as a
+// language invents one: "gem" (Germanic languages) became "Gem" and sat in a
+// copy's subtitle set next to the real "Ger", where nothing could ever match it.
+//
+// They are unreadable rather than absent, so langOrUnd turns them into the
+// undLang hole - the honest answer, since a family code really does leave the
+// language of that track unknown.
+//
+// ponytail: only the collective codes that have actually turned up. ISO 639-2
+// has some fifty family codes (sla, roa, cel, ine ...); add them if one appears.
+var notALanguage = map[string]bool{
+	"und": true, // undetermined
+	"mul": true, // multiple languages
+	"mis": true, // uncoded
+	"zxx": true, // no linguistic content
+	"gem": true, // Germanic languages - a family, not a language
+}
+
 func langCode(tag string) string {
 	t := strings.ToLower(strings.TrimSpace(tag))
-	if t == "" || t == "und" {
+	if t == "" || notALanguage[t] {
 		return ""
 	}
 	if c, ok := iso639[t]; ok {
@@ -181,6 +200,37 @@ func probeFiles(videos []string) (q FolderQuality, ok bool) {
 	return q, true
 }
 
+// signsWords name a subtitle track that carries signs, on-screen text and song
+// lyrics rather than a translation of the dialogue.
+var signsWords = map[string]bool{
+	"type": true, "types": true, "typeset": true, "typesetting": true,
+	"signs": true, "schilder": true,
+}
+
+// signsOnlyTitle reports whether a subtitle track's name says it is signs and
+// typesetting. Such a track belongs with the forced ones: it is not a
+// translation, so a copy carrying it does not "have subtitles in that language".
+// A German release commonly ships a full track next to a "Type" one, and
+// counting the second made the copy look like it offered a language twice.
+//
+// This lives here and NOT in plex.ForcedTitle, which the playback selection also
+// uses. There the same words are read only when a forced track is what was asked
+// for, because "Signs" is a plausible name for a full track too and demoting one
+// would take away the track the user wanted. Here the asymmetry runs the other
+// way: the expensive mistake is claiming a translation the copy does not have.
+// "Songs" alone is deliberately absent - on its own it is too weak, and the
+// usual "Signs & Songs" is caught by the first word.
+func signsOnlyTitle(title string) bool {
+	for _, w := range strings.FieldsFunc(strings.ToLower(title), func(r rune) bool {
+		return !unicode.IsLetter(r)
+	}) {
+		if signsWords[w] {
+			return true
+		}
+	}
+	return false
+}
+
 // sidecarLang reads what a subtitle file sitting next to a video announces:
 // the language, and whether it is a forced track.
 //
@@ -275,7 +325,7 @@ func ffprobeFile(ctx context.Context, file string, extra ...string) ([]probeStre
 		// that is what made a remote copy with real subtitles look like no
 		// improvement. The disposition is the container's own answer; the title
 		// covers the muxers that never set it.
-		if st.CodecType == "subtitle" && (st.Disposition.Forced == 1 || plex.ForcedTitle(st.Tags.Title)) {
+		if st.CodecType == "subtitle" && (st.Disposition.Forced == 1 || plex.ForcedTitle(st.Tags.Title) || signsOnlyTitle(st.Tags.Title)) {
 			continue
 		}
 		out2 = append(out2, probeStream{st.CodecType, st.Height, st.Tags.Language})
