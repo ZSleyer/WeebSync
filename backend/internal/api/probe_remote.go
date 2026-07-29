@@ -68,19 +68,19 @@ func (s *Server) probeRemoteLang(userID, serverID int64, remotePath string) (dub
 	// a truncated container needs ffprobe to scan further before giving up
 	streams, sok := ffprobeFile(ctx, tmp.Name(), "-analyzeduration", "20M", "-probesize", "20M")
 	if !sok {
+		// undLang for the same reason as streamsQuality, and it has to be the same
+		// rule on both sides: a local copy that records a hole can only ever be
+		// improved on by a remote copy that records one too, or the comparison
+		// refuses every real gain instead of only the guessed ones.
 		return nil, nil, false
 	}
 	dub, sub = map[string]bool{}, map[string]bool{}
 	for _, st := range streams {
-		c := langCode(st.Lang)
-		if c == "" {
-			continue
-		}
 		switch st.CodecType {
 		case "audio":
-			dub[c] = true
+			dub[langOrUnd(st.Lang)] = true
 		case "subtitle":
-			sub[c] = true
+			sub[langOrUnd(st.Lang)] = true
 		}
 	}
 	v := struct {

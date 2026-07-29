@@ -32,6 +32,22 @@ var iso639 = map[string]string{
 	"hin": "Hin", "hi": "Hin",
 }
 
+// undLang marks a track whose language could not be read: an audio or subtitle
+// stream the muxer left untagged, or tagged "und".
+//
+// It exists because dropping such a track is what makes a complete local copy
+// look like it is missing a language. ffprobe reports an untagged German dub as
+// "und", langCode turns that into "", and the stream used to vanish - so the
+// local set said "no German" about a file that has it, and every remote copy
+// whose NAME claims German looked like an upgrade.
+//
+// Recorded as a language of its own, the hole stays visible: strictSuperset can
+// no longer find the remote set to be a strict superset, because no name-derived
+// set ever contains Und. The gain is refused until something can actually read
+// the track. Everything that counts languages has to ignore it - that is what
+// realLangs is for.
+const undLang = "Und"
+
 func langCode(tag string) string {
 	t := strings.ToLower(strings.TrimSpace(tag))
 	if t == "" || t == "und" {
