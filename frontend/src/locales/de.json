@@ -418,7 +418,7 @@
     "plexMissHint": "Die gewählte Sprache oder Variante gibt es in diesen Dateien nicht, deshalb bleibt Plex dort bei seiner eigenen Wahl. Ein späteres Release mit der Spur wird automatisch nachgezogen; sonst hilft der Knopf \"Plex-Spuren anwenden\".",
     "plexHint": "Stellt nach dem Sync die Standard-Audio-/Untertitelspur der neuen Folge in Plex um (für das verbundene Plex-Konto), sobald Plex die Datei indexiert hat. Unabhängig vom Download-Filter oben: Beispiel JapDub + GerSub bei einer GerJapDub-Datei. Bei Untertiteln wählst du die Variante selbst: \"forced\" zeigt nur Schilder und fremdsprachige Dialoge, ohne Zusatz die vollen Untertitel.",
     "plexApplyAll": "Plex-Spuren anwenden",
-    "plexApplyAllHint": "Wendet die Audio/Untertitel-Einstellung einmalig auf alle bereits vorhandenen Folgen dieser Serie in Plex an.",
+    "plexApplyAllHint": "Wendet die Audio/Untertitel-Einstellung einmalig auf die Folgen an, die dieser Watch verfolgt und die in Plex vorliegen.",
     "plexApplyQueued": "Anwendung auf vorhandene Folgen gestartet.",
     "plexShow": "Plex-Serie",
     "plexShowUnresolved": "nicht zugeordnet",

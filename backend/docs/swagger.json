@@ -11899,7 +11899,7 @@
         },
         "/api/watches/{id}/plex-streams": {
             "post": {
-                "description": "Selects the watch's preferred audio/subtitle streams on every episode of the show Plex already has. Runs in the background.",
+                "description": "Selects the watch's preferred audio/subtitle streams on the episodes this watch tracks and Plex already has. Runs in the background.",
                 "parameters": [
                     {
                         "description": "Watch ID",
