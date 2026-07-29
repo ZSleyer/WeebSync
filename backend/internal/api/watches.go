@@ -309,14 +309,29 @@ func (s *Server) watchMedia(serverID int64, remotePath string) *anilist.Media {
 	return m
 }
 
-// runWatch checks one watch now: stamps last_check first (self-reset), then
-// enqueues missing/changed files through the normal transfer queue.
-func (s *Server) runWatch(id int64) {
+// loadWatch reads one watch with everything that decides what its files are
+// called.
+//
+// The rename fields are not optional extras. Anything that has to work out
+// which EPISODE a remote file becomes - the sync itself, and the Plex stream
+// pass that has to know which episodes a watch covers - reads a wrong answer
+// without them rather than an error: watchNameFn sees an empty template, reports
+// "no rename configured", and the caller silently falls back to a raw remote
+// name that carries an absolute number and no season. That is why there is one
+// loader and not a column list per call site.
+func (s *Server) loadWatch(id int64) (Watch, bool) {
 	var w Watch
 	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub, plex_audio_lang, plex_sub_lang
 		FROM watches WHERE id = ?`, id).
 		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder, &w.AiredMapping, &w.RenameProvider, &w.RenameOrdering, &w.RenameTitleLang, &w.RenameSeriesID, &w.WantDub, &w.WantSub, &w.PlexAudioLang, &w.PlexSubLang)
-	if err != nil {
+	return w, err == nil
+}
+
+// runWatch checks one watch now: stamps last_check first (self-reset), then
+// enqueues missing/changed files through the normal transfer queue.
+func (s *Server) runWatch(id int64) {
+	w, ok := s.loadWatch(id)
+	if !ok {
 		return
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
@@ -1352,9 +1367,10 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	// a question nobody is asking anymore.
 	if in.PlexAudioLang != oldAudio || in.PlexSubLang != oldSub {
 		s.DB.Exec(`UPDATE watches SET plex_stream_miss = '' WHERE id = ?`, id)
-		if in.PlexAudioLang != "" || in.PlexSubLang != "" {
-			wt := Watch{ID: id, ServerID: serverID, RemotePath: in.RemotePath, LocalPath: in.LocalPath,
-				Subfolder: in.Subfolder, PlexAudioLang: in.PlexAudioLang, PlexSubLang: in.PlexSubLang}
+		// re-read rather than assemble from the request: the pass has to know
+		// how this watch names its files, and a literal built here would carry
+		// no rename at all
+		if wt, ok := s.loadWatch(id); ok && (wt.PlexAudioLang != "" || wt.PlexSubLang != "") {
 			s.applyPlexStreamsJob(wt)
 		}
 	}

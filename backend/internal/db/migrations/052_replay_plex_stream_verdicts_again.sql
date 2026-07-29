@@ -1,0 +1,19 @@
+-- Run the retroactive Plex stream pass once more, because the run 051 asked for
+-- could not see what the watches cover.
+--
+-- 051 dropped the one-shot flag so backfillPlexStreams would reach a verdict per
+-- watch under the narrowed scoping. That pass ran and set the flag again - but
+-- it built each Watch from a seven-column read that left out mode, template and
+-- aired_mapping. Working out which episodes a watch covers means resolving a
+-- remote file name to an episode number, and that is the watch's own rename:
+-- without those fields watchNameFn reports "no rename configured", the raw name
+-- of a streaming rip ("Meitantei Conan E1208 [1080p]") carries an absolute
+-- number and no season, nothing parses, and the set comes out empty. An empty
+-- set is a legal answer - it means "this watch tracks nothing yet" - so the pass
+-- skipped those watches instead of failing, and said so only in a log line.
+--
+-- Every caller now reads the watch through loadWatch, so the pass sees the same
+-- naming the sync uses. Clearing the flag lets it try again with that in hand.
+-- The verdicts themselves are already empty from 051 and stay that way until the
+-- pass reaches a real one.
+DELETE FROM settings WHERE key = 'plex_streams_backfilled';

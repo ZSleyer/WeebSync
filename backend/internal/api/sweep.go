@@ -321,20 +321,26 @@ func (s *Server) backfillPlexStreams() {
 	if s.plexClient() == nil {
 		return // no Plex yet: try again next tick, the flag stays unset
 	}
-	rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, plex_audio_lang, plex_sub_lang
-		FROM watches WHERE plex_audio_lang != '' OR plex_sub_lang != ''`)
+	rows, err := s.DB.Query(`SELECT id FROM watches WHERE plex_audio_lang != '' OR plex_sub_lang != ''`)
 	if err != nil {
 		return
 	}
-	var todo []Watch
+	var ids []int64
 	for rows.Next() {
-		var wt Watch
-		if rows.Scan(&wt.ID, &wt.ServerID, &wt.RemotePath, &wt.LocalPath, &wt.Subfolder,
-			&wt.PlexAudioLang, &wt.PlexSubLang) == nil {
-			todo = append(todo, wt)
+		var id int64
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
 		}
 	}
 	rows.Close()
+	// through loadWatch, so the pass knows how this watch names its files - it
+	// has to resolve a remote name to an episode number to know what it covers
+	var todo []Watch
+	for _, id := range ids {
+		if wt, ok := s.loadWatch(id); ok {
+			todo = append(todo, wt)
+		}
+	}
 	for _, wt := range todo {
 		s.applyPlexStreamsJob(wt)
 	}

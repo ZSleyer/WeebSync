@@ -291,3 +291,35 @@ func TestTrackedEpisodesCoversTheWatchOnly(t *testing.T) {
 		t.Error("a failed download must not count as present")
 	}
 }
+
+// The regression this pins: a release named the way a streaming rip is named
+// carries an absolute number and no season ("Meitantei Conan E1208 [1080p]"),
+// so the tracked set only comes out right if the watch's own rename resolves it
+// first. Load a watch without its rename fields and watchNameFn reports "no
+// rename configured", the raw name yields no episode, the set comes out empty
+// and the whole pass is skipped - silently, because an empty set is a legal
+// answer. loadWatch is what keeps that from happening.
+func TestTrackedEpisodesResolvesAnAbsoluteNumber(t *testing.T) {
+	s, _ := pendingFixture(t)
+	s.DB.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir)
+		VALUES (1, '/ftp/Conan/Meitantei Conan E1207 [1080p][AAC][JapDub][GerEngSub][Web-DL].mkv',
+		        '/ftp/Conan', 'Meitantei Conan E1207 [1080p][AAC][JapDub][GerEngSub][Web-DL].mkv', 0)`)
+
+	w, ok := s.loadWatch(1)
+	if !ok {
+		t.Fatal("watch not loaded")
+	}
+	if w.Template == "" || !w.AiredMapping {
+		t.Fatalf("loadWatch dropped the rename fields: template=%q aired=%v", w.Template, w.AiredMapping)
+	}
+	if got := s.trackedEpisodes(w); !got[epKey(34, 21)] {
+		t.Errorf("tracked = %v, want E1207 resolved to S34E21", got)
+	}
+
+	// and the shape of the bug itself: the same watch minus its rename fields
+	// finds nothing, which is what made the pass skip an endless series
+	partial := Watch{ID: w.ID, ServerID: w.ServerID, RemotePath: w.RemotePath, LocalPath: w.LocalPath}
+	if len(s.trackedEpisodes(partial)) != 0 {
+		t.Error("a raw streaming-rip name should carry no season, so this guard has stopped guarding")
+	}
+}
