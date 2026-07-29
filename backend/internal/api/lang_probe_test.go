@@ -91,8 +91,8 @@ func TestProbeLoopSkipsWhatItAlreadyMeasured(t *testing.T) {
 	var a, b int
 	s.DB.QueryRow(`SELECT probed FROM catalog_variants WHERE folder = '/seed/A'`).Scan(&a)
 	s.DB.QueryRow(`SELECT probed FROM catalog_variants WHERE folder = '/seed/B'`).Scan(&b)
-	if a != int(probeNone) {
-		t.Errorf("the cached folder was opened again (probed=%d), so the loop still spends its budget on work it has done", a)
+	if a != int(probeMeasured) {
+		t.Errorf("the cached folder came out probed=%d: it must be written straight from the cache, not opened again nor left waiting for the sweep", a)
 	}
 	if b != int(probeFailed) {
 		t.Errorf("the unmeasured folder was never reached (probed=%d), so the loop is not advancing", b)
