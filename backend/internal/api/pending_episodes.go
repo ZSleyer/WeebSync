@@ -116,10 +116,11 @@ func (s *Server) processPendingEpisodes(ctx context.Context) {
 		var w Watch
 		if s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator,
 				title_override, pattern, replacement, subfolder, aired_mapping, rename_provider,
-				rename_ordering, rename_title_lang, rename_series_id FROM watches WHERE id = ?`, e.watchID).
+				rename_ordering, rename_title_lang, rename_series_id, plex_audio_lang, plex_sub_lang
+				FROM watches WHERE id = ?`, e.watchID).
 			Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator,
 				&w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder, &w.AiredMapping, &w.RenameProvider,
-				&w.RenameOrdering, &w.RenameTitleLang, &w.RenameSeriesID) != nil {
+				&w.RenameOrdering, &w.RenameTitleLang, &w.RenameSeriesID, &w.PlexAudioLang, &w.PlexSubLang) != nil {
 			continue
 		}
 		season, ep, ok := s.airResolver().Resolve(ctx, s.watchSeries(w), e.token)
@@ -186,5 +187,13 @@ func (s *Server) filePendingEpisode(downloadID int64, w Watch, from string, seas
 	// keep the history pointing at the file that exists
 	s.DB.Exec(`UPDATE downloads SET local_path = ? WHERE id = ?`, dst, downloadID)
 	s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID)
+	// The collecting folder sits inside the watch target, so Plex had already
+	// indexed this file under its old name and the stream pass had already run
+	// on it - successfully, which is why its queue row is gone. The move makes
+	// Plex re-analyse it as a different part and the selection is lost with it,
+	// so ask for the preference again.
+	if w.PlexAudioLang != "" || w.PlexSubLang != "" {
+		s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, watch_id) VALUES (?, ?)`, downloadID, w.ID)
+	}
 	s.plexRescan(filepath.Dir(dst))
 }

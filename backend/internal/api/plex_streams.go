@@ -325,8 +325,12 @@ func (s *Server) processPlexStreamQueue() {
 	// the give-up clock hangs off the download's own timestamp, not off the
 	// moment it was queued: updated_at moves while the transfer runs and stops
 	// at completion, so a slow download can no longer expire before its first
-	// attempt, and a retry window is measured from when the file actually landed
-	rows, err := s.DB.Query(`SELECT q.download_id, q.watch_id, IFNULL(d.updated_at, q.created_at), IFNULL(d.local_path, ''), IFNULL(d.status, '')
+	// attempt, and a retry window is measured from when the file actually landed.
+	//
+	// The queue timestamp still wins when it is the later of the two: a filed
+	// pending episode is re-queued long after its download finished, and reading
+	// only updated_at would expire that row before its first attempt.
+	rows, err := s.DB.Query(`SELECT q.download_id, q.watch_id, MAX(IFNULL(d.updated_at, q.created_at), q.created_at), IFNULL(d.local_path, ''), IFNULL(d.status, '')
 		FROM plex_stream_queue q LEFT JOIN downloads d ON d.id = q.download_id`)
 	if err != nil {
 		return
