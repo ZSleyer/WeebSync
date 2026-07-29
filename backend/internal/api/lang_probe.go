@@ -175,11 +175,9 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 			continue // the crawler has not listed a video there yet
 		}
 		if _, _, hit := s.cachedRemoteLang(c.serverID, rep); hit {
-			// measured already; the row simply has not been rewritten yet. Keep
-			// the stamp cleared so the next sweep takes it, and move on to a
-			// folder that has never been opened.
-			s.DB.Exec(`UPDATE catalog_variants SET computed_at = '' WHERE server_id = ? AND folder = ?`,
-				c.serverID, c.folder)
+			// measured already, the row just never caught up - rewrite it now
+			// and move on to a folder that has never been opened
+			s.refreshVariant(c.serverID, c.folder)
 			continue
 		}
 		opened++
@@ -199,15 +197,12 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 				"reason", "the container would not answer - unreadable header, or the host is not reachable")
 			continue
 		}
-		// The measurement is in the probe cache now, but scanQuality only reads
-		// it when the row is recomputed - and that is gated on computed_at being
-		// older than variantRecheck. Left alone, a folder measured minutes after
-		// its last refresh would keep its guessed languages for another twelve
-		// hours, which is the whole waiting time the gate was meant to end.
-		// An empty stamp sorts before any cutoff, so refreshStaleVariants takes
-		// it on the next sweep.
-		s.DB.Exec(`UPDATE catalog_variants SET computed_at = '' WHERE server_id = ? AND folder = ?`,
-			c.serverID, c.folder)
+		// Rewrite the row here rather than leaving it to the sweep. The
+		// measurement is in the cache, and scanQuality reads it from there
+		// without dialing anything, so this costs a query - while waiting for
+		// the sweep costs up to a full sweepInterval per server, which is thirty
+		// minutes and makes the short pace above pointless.
+		s.refreshVariant(c.serverID, c.folder)
 		slog.Info("remote languages measured", "server", c.serverID, "folder", logSafe(c.folder))
 	}
 }
