@@ -107,7 +107,20 @@ func missingSyncPlan(siblingDir string, season int, isMovie bool) SyncPlan {
 // file index to read a resolution from, so refreshVariant can only write zeroes.
 // The Plex index writes the real per-season rows separately.
 func comparable(v UpgradeVariant) bool {
-	return v.ResRank > 0 || len(v.Dub) > 0 || len(v.Sub) > 0
+	return v.ResRank > 0 || realLangs(v.Dub) > 0 || realLangs(v.Sub) > 0
+}
+
+// realLangs counts the languages a set actually names. undLang is a recorded
+// hole, not a language, so it must not make a copy look like it says something
+// about itself - nor like it holds one language more than it does.
+func realLangs(codes []string) int {
+	n := 0
+	for _, c := range codes {
+		if c != undLang {
+			n++
+		}
+	}
+	return n
 }
 
 // resTier folds a video height onto the rung it belongs to. The two sides of a
@@ -809,8 +822,12 @@ func bestCopy(vs []UpgradeVariant) UpgradeVariant {
 			if cur.ResRank > best.ResRank {
 				best = cur
 			}
-		case len(cur.Dub) != len(best.Dub):
-			if len(cur.Dub) > len(best.Dub) {
+		case realLangs(cur.Dub) != realLangs(best.Dub):
+			if realLangs(cur.Dub) > realLangs(best.Dub) {
+				best = cur
+			}
+		case realLangs(cur.Sub) != realLangs(best.Sub):
+			if realLangs(cur.Sub) > realLangs(best.Sub) {
 				best = cur
 			}
 		case len(cur.Sub) > len(best.Sub):
