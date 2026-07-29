@@ -375,9 +375,8 @@ func (s *Server) processPlexStreamQueue() {
 		return // Plex unconfigured: keep entries, the give-up window bounds them
 	}
 	for watchID, items := range pending {
-		var w Watch
-		if s.DB.QueryRow(`SELECT id, server_id, remote_path, local_path, subfolder, plex_audio_lang, plex_sub_lang FROM watches WHERE id = ?`, watchID).
-			Scan(&w.ID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Subfolder, &w.PlexAudioLang, &w.PlexSubLang) != nil {
+		w, ok := s.loadWatch(watchID)
+		if !ok {
 			for _, it := range items { // watch deleted: queue is orphaned
 				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
 			}
@@ -463,9 +462,8 @@ func (s *Server) setPlexStreamMiss(watchID int64, miss string) {
 func (s *Server) handleWatchPlexStreams(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
-	var wt Watch
-	if s.DB.QueryRow(`SELECT id, server_id, remote_path, local_path, subfolder, plex_audio_lang, plex_sub_lang FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
-		Scan(&wt.ID, &wt.ServerID, &wt.RemotePath, &wt.LocalPath, &wt.Subfolder, &wt.PlexAudioLang, &wt.PlexSubLang) != nil {
+	wt, ok := s.loadWatch(id)
+	if !ok || wt.UserID != u.ID {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
