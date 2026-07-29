@@ -58,7 +58,16 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 	// a remote variant with no measurement yet, whose unit the library also
 	// holds - "probed = 0" is the never-looked state, 2 means we looked and the
 	// container would not answer, and re-opening those every ten minutes is how
-	// an unreadable mp4 turns into a permanent download
+	// an unreadable mp4 turns into a permanent download.
+	//
+	// Ordered by folder, which does not move. Ordering by computed_at looks
+	// natural - oldest first - but a measured folder has its stamp cleared to
+	// hand it to the next sweep, so it sorts to the FRONT and the loop keeps
+	// picking the same handful for as long as the sweep takes to catch up.
+	//
+	// More rows are read than may be probed, because a candidate that is already
+	// in the probe cache costs nothing and must not eat the budget: it is only
+	// waiting for its row to be rewritten. The budget counts real openings.
 	rows, err := s.DB.Query(`SELECT v.server_id, v.folder, sv.user_id
 		FROM catalog_variants v
 		JOIN servers sv ON sv.id = v.server_id
@@ -66,7 +75,7 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 		  AND EXISTS (SELECT 1 FROM catalog_variants l
 		              WHERE l.server_id = 0 AND l.show_key = v.show_key
 		                AND l.season = v.season AND l.is_movie = v.is_movie)
-		ORDER BY v.computed_at LIMIT ?`, budget)
+		ORDER BY v.folder LIMIT ?`, budget*20)
 	if err != nil {
 		return
 	}
@@ -79,14 +88,24 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 	}
 	rows.Close()
 
+	opened := 0
 	for _, c := range todo {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || opened >= budget {
 			return
 		}
 		rep := s.representativeRemote(c.serverID, c.folder)
 		if rep == "" {
 			continue // the crawler has not listed a video there yet
 		}
+		if _, _, hit := s.cachedRemoteLang(c.serverID, rep); hit {
+			// measured already; the row simply has not been rewritten yet. Keep
+			// the stamp cleared so the next sweep takes it, and move on to a
+			// folder that has never been opened.
+			s.DB.Exec(`UPDATE catalog_variants SET computed_at = '' WHERE server_id = ? AND folder = ?`,
+				c.serverID, c.folder)
+			continue
+		}
+		opened++
 		_, _, ok := s.probeRemoteLang(c.userID, c.serverID, rep)
 		if !ok {
 			// The container would not answer: an mp4 with its moov atom at the
