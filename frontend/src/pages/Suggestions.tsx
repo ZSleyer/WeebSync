@@ -556,13 +556,6 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
 
 // ── Upgrades ──
 
-// A copy also carries HOW its quality was established: probed = the container
-// streams were read, otherwise it was parsed out of the file name. Only a local
-// copy can ever be measured; a copy on a remote server is a name and nothing
-// more. Declared here rather than widened in api.ts because it is the upgrade
-// card that has to reason about it.
-type QualitySource = UpgradeVariant & { probed?: boolean }
-
 function fmtRes(r: number): string {
   if (!r) return '?'
   if (r >= 2160) return '4K'
@@ -582,26 +575,38 @@ function resTier(h: number): number {
   return 4320
 }
 
-const addedLangs = (a: string[], b: string[]) => (b ?? []).filter((x) => !(a ?? []).includes(x))
+// "Und" is the backend's marker for a track whose language could not be read.
+// It is a recorded hole, not a language, so it is never shown as one.
+const UNREADABLE = 'Und'
+const realLangs = (xs: string[]) => (xs ?? []).filter((x) => x !== UNREADABLE)
+
+const addedLangs = (a: string[], b: string[]) => realLangs(b).filter((x) => !(a ?? []).includes(x))
 
 // sameSource: were both copies' qualities established the same way? A measured
-// local copy against a name-parsed remote one cannot settle a language
-// difference between them - the name may promise a track the container does not
-// carry, and an untagged local track drops out of the measured set although it
-// is there. The gain is still shown; it is shown as unconfirmed.
-const sameSource = (a: QualitySource, b: QualitySource) => !!a.probed === !!b.probed
+// copy against a name-parsed one cannot settle a language difference between
+// them - the name may promise a track the container does not carry. The backend
+// only lets such a gain through when the container refused to be read at all, in
+// which case the gain is shown as unconfirmed.
+const sameSource = (a: UpgradeVariant, b: UpgradeVariant) => a.probed === b.probed
 
 // langGain: does v add a sub or dub language on an axis the user asked for?
-const langGain = (from: QualitySource, v: QualitySource, dims: UpgradeDims | undefined) =>
+const langGain = (from: UpgradeVariant, v: UpgradeVariant, dims: UpgradeDims | undefined) =>
   ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length > 0) ||
   ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length > 0)
+
+// burnedIn: languages this copy advertises but cannot hand over as a track.
+const burnedIn = (v: UpgradeVariant) => realLangs(v.sub).filter((x) => !(v.soft ?? []).includes(x))
+
+// softGain: does v offer as a real track what the local copy only burns into
+// the picture?
+const softGain = (from: UpgradeVariant, v: UpgradeVariant) => addedLangs(from.soft, v.soft).length > 0
 
 // variantDiff spells out what v would improve over the local copy on the
 // user's enabled axes: resolution step and added dub/sub languages. Empty
 // means this copy is no improvement.
 function variantDiff(
-  from: QualitySource,
-  v: QualitySource,
+  from: UpgradeVariant,
+  v: UpgradeVariant,
   dims: UpgradeDims | undefined,
   t: (k: string, o?: Record<string, unknown>) => string,
 ): string[] {
@@ -617,20 +622,26 @@ function variantDiff(
     const s = addedLangs(from.sub, v.sub)
     if (s.length) out.push(`${t('suggestions.upSub')} +${s.join(',')}`)
   }
+  if (dims?.soft ?? true) {
+    const s = addedLangs(from.soft, v.soft)
+    if (s.length) out.push(`${t('suggestions.upSoft')} ${s.join(',')}`)
+  }
   return out
 }
 
 // sourceLabel names how one copy's quality was established, for the card.
-function sourceLabel(v: QualitySource, t: (k: string) => string): string {
-  return t(v.probed ? 'suggestions.basisMeasured' : 'suggestions.basisGuessed')
+function sourceLabel(v: UpgradeVariant, t: (k: string) => string): string {
+  if (v.probed === 1) return t('suggestions.basisMeasured')
+  if (v.probed === 2) return t('suggestions.basisUnreadable')
+  return t('suggestions.basisGuessed')
 }
 
 // axesWon lists the axes on which v actually beats the local copy, by the same
 // rules the backend applied. Empty when the user picked an option that is no
 // improvement at all.
 function axesWon(
-  from: QualitySource,
-  v: QualitySource,
+  from: UpgradeVariant,
+  v: UpgradeVariant,
   dims: UpgradeDims | undefined,
   t: (k: string, o?: Record<string, unknown>) => string,
 ): string {
@@ -638,14 +649,24 @@ function axesWon(
   if ((dims?.res ?? true) && resTier(v.resRank) > resTier(from.resRank)) out.push(t('suggestions.axis_res'))
   if ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length) out.push(t('suggestions.axis_sub'))
   if ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length) out.push(t('suggestions.axis_dub'))
+  if ((dims?.soft ?? true) && softGain(from, v)) out.push(t('suggestions.axis_soft'))
   return out.length ? out.join(', ') : t('suggestions.basisNoAxis')
 }
 
-// variantQuality renders a copy's make-up: resolution and its dub/sub codes.
-function variantQuality(v: UpgradeVariant): string {
+// variantQuality renders a copy's make-up: resolution, its dub/sub codes, and
+// which of the subtitle languages are burned into the picture rather than
+// offered as a track. "Und" never appears - it marks a track whose language
+// could not be read, which is a hole in the account and not a language.
+function variantQuality(v: UpgradeVariant, t: (k: string) => string): string {
   const parts = [fmtRes(v.resRank)]
-  if ((v.dub ?? []).length) parts.push(`Dub ${v.dub.join(',')}`)
-  if ((v.sub ?? []).length) parts.push(`Sub ${v.sub.join(',')}`)
+  const dub = realLangs(v.dub)
+  const sub = realLangs(v.sub)
+  const hard = burnedIn(v)
+  if (dub.length) parts.push(`Dub ${dub.join(',')}`)
+  if (sub.length) {
+    const shown = sub.map((c) => (hard.includes(c) ? `${c} (${t('suggestions.subBurned')})` : c))
+    parts.push(`Sub ${shown.join(',')}`)
+  }
   return parts.join(' · ')
 }
 
@@ -654,7 +675,7 @@ function variantQuality(v: UpgradeVariant): string {
 // how that make-up was established - measured from the file, or read off its
 // name. That last line is what makes a disputed recommendation readable from
 // the card instead of from the log.
-function VariantBox({ v, label, muted, accent }: { v: QualitySource; label: string; muted?: boolean; accent?: boolean }) {
+function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: string; muted?: boolean; accent?: boolean }) {
   const { t } = useTranslation()
   return (
     <div className={`min-w-0 ${accent ? 'border border-accent p-1.5' : ''} ${muted ? 'text-t-muted' : ''}`}>
@@ -667,7 +688,7 @@ function VariantBox({ v, label, muted, accent }: { v: QualitySource; label: stri
       <div className="mt-0.5 break-all font-mono text-[11px]" title={v.folder}>
         {v.folder}
       </div>
-      <div className="mt-0.5 text-[11px]">{variantQuality(v)}</div>
+      <div className="mt-0.5 text-[11px]">{variantQuality(v, t)}</div>
       <div className="mt-0.5 text-[11px] text-t-muted">
         {t('suggestions.basisQuality', { how: sourceLabel(v, t) })}
       </div>
@@ -724,7 +745,7 @@ function UpgradesSection() {
   const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields; info: string[] } | null>(null)
   const [notice, setNotice] = useState('')
   // per-card chosen sync source among the remote copies; default = recommended
-  const [choice, setChoice] = useState<Record<string, QualitySource>>({})
+  const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
 
   const toggle = async (key: keyof UpgradeDims) => {
     if (!dims) return
@@ -746,7 +767,7 @@ function UpgradesSection() {
         <Panel className="px-3 py-2.5">
           <span className="text-sm text-t-secondary">{t('suggestions.upgradeWhat')}</span>
           <div className="mt-2 flex flex-wrap gap-4">
-            {(['res', 'sub', 'dub'] as const).map((k) => (
+            {(['res', 'sub', 'dub', 'soft'] as const).map((k) => (
               <Checkbox key={k} checked={dims[k]} onChange={() => toggle(k)} label={t(`suggestions.upgradeWhat_${k}`)} />
             ))}
           </div>
@@ -760,17 +781,17 @@ function UpgradesSection() {
         (() => {
           const render = (u: UpgradeSuggestion, i: number) => {
           const seasonLabel = u.isMovie ? t('suggestions.movie') : u.season > 0 ? t('suggestions.season', { season: u.season }) : ''
-          const chosen: QualitySource = choice[u.key] ?? u.to
+          const chosen: UpgradeVariant = choice[u.key] ?? u.to
           const isChosen = (v: UpgradeVariant) => v.serverId === chosen.serverId && v.folder === chosen.folder
-          const options: QualitySource[] = u.options ?? []
+          const options: UpgradeVariant[] = u.options ?? []
           // a language gain the two copies cannot settle between them: shown,
           // and shown as unconfirmed. Recomputed rather than read off
           // u.languageUnverified, because the user may have picked another
           // option than the recommended one.
           const langUnconfirmed = !sameSource(u.from, chosen) && langGain(u.from, chosen, dims)
           const syncInfo = [
-            t('watch.infoSource', { server: chosen.serverName || t('suggestions.localPlex'), quality: variantQuality(chosen) }),
-            t('watch.infoLocal', { quality: variantQuality(u.from) }),
+            t('watch.infoSource', { server: chosen.serverName || t('suggestions.localPlex'), quality: variantQuality(chosen, t) }),
+            t('watch.infoLocal', { quality: variantQuality(u.from, t) }),
           ]
           return (
             // handwritten instead of SuggestionCard: the heading row pairs the
@@ -846,7 +867,7 @@ function UpgradesSection() {
                                 {o.folder}
                               </span>
                               <span className="flex shrink-0 flex-wrap items-center gap-1 text-[11px] text-t-muted">
-                                {variantQuality(o)}
+                                {variantQuality(o, t)}
                                 {diff.map((d, k) => (
                                   <Badge key={k} tone="accent">
                                     {d}

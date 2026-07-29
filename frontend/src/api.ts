@@ -307,6 +307,12 @@ export interface UpgradeVariant {
   resRank: number // max video height, 0 = unknown
   dub: string[]
   sub: string[]
+  // the subset of sub that is a SELECTABLE track (subtitle stream or sidecar
+  // file). A language in sub but not in soft is burned into the picture.
+  soft: string[]
+  // how the languages were established: 0 nothing measured yet, 1 read from the
+  // container, 2 measured and the container would not answer
+  probed: number
 }
 
 // One episode as the metadata provider lists it, flagged with whether the
@@ -356,6 +362,10 @@ export interface UpgradeSuggestion {
   improvesRes: boolean
   improvesSub: boolean
   improvesDub: boolean
+  improvesSoft: boolean // same language, but selectable instead of burned in
+  // the sub/dub gain rests on file names because the container would not
+  // answer, so it cannot be confirmed from here
+  languageUnverified?: boolean
   providers: string[]
   links: ProviderLinks
   cover?: string
@@ -371,6 +381,7 @@ export interface UpgradeDims {
   res: boolean
   sub: boolean
   dub: boolean
+  soft: boolean
 }
 
 export interface DismissedItem {
