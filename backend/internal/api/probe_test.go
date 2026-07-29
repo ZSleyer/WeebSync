@@ -137,3 +137,38 @@ func TestHardsubShowsUpAsAMissingSoftTrack(t *testing.T) {
 		t.Error("two burned-in copies are not an upgrade over each other")
 	}
 }
+
+// A collective ISO code names a family, not a language. "gem" (Germanic
+// languages) used to become the invented language "Gem" and sat in a copy's
+// subtitle set beside the real "Ger", where nothing could ever match it. It is
+// unreadable, which is a hole, not a language.
+func TestCollectiveCodesAreNotLanguages(t *testing.T) {
+	for _, tag := range []string{"gem", "mul", "mis", "zxx", "und"} {
+		if got := langCode(tag); got != "" {
+			t.Errorf("langCode(%q) = %q, want it read as unreadable", tag, got)
+		}
+		if got := langOrUnd(tag); got != undLang {
+			t.Errorf("langOrUnd(%q) = %q, want the hole", tag, got)
+		}
+	}
+	if got := langCode("ger"); got != "Ger" {
+		t.Errorf("a real language must still resolve: %q", got)
+	}
+}
+
+// A track named for typesetting carries signs and on-screen text, not a
+// translation, so it must not make a copy look like it offers that language -
+// the same reasoning that already drops forced tracks. The observed release
+// ships a German "Full" track next to a "Type" one tagged "gem".
+func TestSignsOnlyTitle(t *testing.T) {
+	for _, in := range []string{"Type", "Typeset", "Typesetting", "Signs", "Signs & Songs", "Schilder"} {
+		if !signsOnlyTitle(in) {
+			t.Errorf("signsOnlyTitle(%q) = false, want it treated as signs", in)
+		}
+	}
+	for _, in := range []string{"Full", "Deutsch Full", "Vollständig", "", "Songs"} {
+		if signsOnlyTitle(in) {
+			t.Errorf("signsOnlyTitle(%q) = true, want a translation track kept", in)
+		}
+	}
+}
