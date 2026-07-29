@@ -54,6 +54,12 @@ type Server struct {
 	// series rows for the same fold key (see linkSeries)
 	seriesMu sync.Mutex
 
+	// remote folders a suggestion build held back for want of a measured
+	// language, so LangProbeLoop can open those before the rest of the
+	// catalogue (see wantProbe)
+	probeWantMu sync.Mutex
+	probeWant   map[wantedProbe]bool
+
 	// per-IP brute-force limiter on the auth endpoints; admin-inspectable
 	authLimiter *ipLimiter
 

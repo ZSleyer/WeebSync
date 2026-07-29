@@ -71,3 +71,31 @@ func TestProbeLoopSkipsWhatItAlreadyMeasured(t *testing.T) {
 		t.Errorf("the unmeasured folder was never reached (probed=%d), so the loop is not advancing", b)
 	}
 }
+
+// A build that holds a language gain back marks the copy behind it, so the loop
+// opens that one before working through the rest of the catalogue. Without it
+// the answer to a card someone has open arrives whenever the background pace
+// happens to reach it, which for a full catalogue is a night away.
+func TestHeldBackSuggestionJumpsTheProbeQueue(t *testing.T) {
+	s, _ := sizeTestServer(t)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, computed_at, show_key, season, is_movie, series_id, probed, lib_kind)
+		VALUES (0, '/lib/Show', 1080, 'Jap', '', '', '2026-01-01T00:00:00Z', 'tvdb:1', 1, 0, 0, 1, '')`)
+	// a remote copy whose NAME claims a dub the local copy lacks, never measured
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, computed_at, show_key, season, is_movie, series_id, probed, lib_kind)
+		VALUES (1, '/seed/Show [GerJapDub]', 1080, 'Ger,Jap', '', '', '2026-01-01T00:00:00Z', 'tvdb:1', 1, 0, 0, 0, '')`)
+
+	if s.wantedProbesPending() {
+		t.Fatal("nothing has been asked for yet")
+	}
+	s.buildUpgrades(1)
+	if !s.wantedProbesPending() {
+		t.Fatal("a held-back language gain did not ask for its copy to be measured")
+	}
+	want := s.takeWantedProbes()
+	if len(want) != 1 || want[0].folder != "/seed/Show [GerJapDub]" {
+		t.Errorf("priority set = %+v, want the remote copy the card is waiting on", want)
+	}
+	if s.wantedProbesPending() {
+		t.Error("taking the set must empty it, or the loop keeps re-reading the same entries")
+	}
+}

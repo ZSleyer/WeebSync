@@ -582,6 +582,13 @@ const realLangs = (xs: string[]) => (xs ?? []).filter((x) => x !== UNREADABLE)
 
 const addedLangs = (a: string[], b: string[]) => realLangs(b).filter((x) => !(a ?? []).includes(x))
 
+// measured: were this copy's tracks actually read? probed 0 means nobody has
+// opened the file yet, so everything it says about its languages comes from its
+// name. The backend refuses to call that an upgrade, and neither may the card -
+// it decides which badges a card shows entirely on its own, so without this the
+// gain reappears here after being dropped there.
+const measured = (v: UpgradeVariant) => v.probed !== 0
+
 // sameSource: were both copies' qualities established the same way? A measured
 // copy against a name-parsed one cannot settle a language difference between
 // them - the name may promise a track the container does not carry. The backend
@@ -591,8 +598,9 @@ const sameSource = (a: UpgradeVariant, b: UpgradeVariant) => a.probed === b.prob
 
 // langGain: does v add a sub or dub language on an axis the user asked for?
 const langGain = (from: UpgradeVariant, v: UpgradeVariant, dims: UpgradeDims | undefined) =>
-  ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length > 0) ||
-  ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length > 0)
+  measured(v) &&
+  (((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length > 0) ||
+    ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length > 0))
 
 // burnedIn: languages this copy advertises but cannot hand over as a track.
 const burnedIn = (v: UpgradeVariant) => realLangs(v.sub).filter((x) => !(v.soft ?? []).includes(x))
@@ -613,6 +621,13 @@ function variantDiff(
   const out: string[] = []
   if ((dims?.res ?? true) && resTier(v.resRank) > resTier(from.resRank)) {
     out.push(`${fmtRes(from.resRank)} → ${fmtRes(v.resRank)}`)
+  }
+  if (!measured(v)) {
+    // nothing was read from this file, so it has nothing to say about its
+    // languages yet. The probe loop takes it next; until then the card offers
+    // only what a name and a container height can honestly establish.
+    if (out.length === 0) out.push(t('suggestions.upLangPending'))
+    return out
   }
   if (dims?.dub ?? true) {
     const d = addedLangs(from.dub, v.dub)
@@ -647,9 +662,11 @@ function axesWon(
 ): string {
   const out: string[] = []
   if ((dims?.res ?? true) && resTier(v.resRank) > resTier(from.resRank)) out.push(t('suggestions.axis_res'))
-  if ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length) out.push(t('suggestions.axis_sub'))
-  if ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length) out.push(t('suggestions.axis_dub'))
-  if ((dims?.soft ?? true) && softGain(from, v)) out.push(t('suggestions.axis_soft'))
+  if (measured(v)) {
+    if ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length) out.push(t('suggestions.axis_sub'))
+    if ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length) out.push(t('suggestions.axis_dub'))
+    if ((dims?.soft ?? true) && softGain(from, v)) out.push(t('suggestions.axis_soft'))
+  }
   return out.length ? out.join(', ') : t('suggestions.basisNoAxis')
 }
 
