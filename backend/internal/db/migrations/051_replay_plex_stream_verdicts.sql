@@ -1,0 +1,23 @@
+-- Recompute what a Plex playback preference could not deliver, now that the
+-- question is asked about a smaller set of episodes.
+--
+-- watches.plex_stream_miss (049) is a STORED verdict, not a live check: a pass
+-- writes it and it stands until another pass overwrites it. Every verdict on
+-- record was reached by walking the show's whole Plex listing, because that is
+-- what the retroactive pass used to do. For an endless series that is every
+-- episode ever aired - around 1200 for One Piece - and setPlexStreamMiss keeps
+-- the FIRST miss it meets, so one ancient episode from some other source was
+-- enough to mark the whole watch as missing a subtitle language that every
+-- episode it actually syncs carries.
+--
+-- The pass now only touches the episodes a watch tracks, so those verdicts were
+-- answers to a question nobody asks any more. Clearing them alone would only
+-- hide the badge, so the one-shot flag goes with them: backfillPlexStreams runs
+-- once more and re-reaches a verdict per watch under the new scoping. It calls
+-- applyPlexStreamsJob for every watch that has a preference, which is now cheap
+-- - tens of episodes instead of a thousand.
+--
+-- An empty verdict means "nothing known to be missing", which is the honest
+-- state between here and that pass.
+UPDATE watches SET plex_stream_miss = '' WHERE plex_stream_miss != '';
+DELETE FROM settings WHERE key = 'plex_streams_backfilled';

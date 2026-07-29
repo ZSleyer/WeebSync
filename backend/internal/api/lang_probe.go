@@ -103,6 +103,15 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 				"reason", "the container would not answer - unreadable header, or the host is not reachable")
 			continue
 		}
+		// The measurement is in the probe cache now, but scanQuality only reads
+		// it when the row is recomputed - and that is gated on computed_at being
+		// older than variantRecheck. Left alone, a folder measured minutes after
+		// its last refresh would keep its guessed languages for another twelve
+		// hours, which is the whole waiting time the gate was meant to end.
+		// An empty stamp sorts before any cutoff, so refreshStaleVariants takes
+		// it on the next sweep.
+		s.DB.Exec(`UPDATE catalog_variants SET computed_at = '' WHERE server_id = ? AND folder = ?`,
+			c.serverID, c.folder)
 		slog.Info("remote languages measured", "server", c.serverID, "folder", logSafe(c.folder))
 	}
 }
