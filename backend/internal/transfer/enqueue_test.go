@@ -115,3 +115,101 @@ func TestEnqueueSkipsNonRetryableFailure(t *testing.T) {
 		t.Errorf("after fixing the permissions: %d rows, want 2", n)
 	}
 }
+
+// multiClient lists a fixed set of files in one directory.
+type multiClient struct {
+	dir     string
+	entries []remote.Entry
+}
+
+func (c *multiClient) List(p string) ([]remote.Entry, error) {
+	if p != c.dir {
+		return nil, errors.New("no such directory")
+	}
+	return c.entries, nil
+}
+
+func (c *multiClient) Open(p string, offset int64) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("")), nil
+}
+func (c *multiClient) Size(p string) (int64, error) { return 0, nil }
+func (c *multiClient) Close() error                 { return nil }
+
+// Two releases of one episode rename to the same local file. Only the better
+// one may be fetched: queuing both made every check find the target holding the
+// other variant's size, so a watch re-downloaded the episode every interval and
+// the file on disk was whichever release had been checked last.
+func TestEnqueuePicksBestVariantPerTarget(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+
+	const (
+		jap = "Youjo Senki II E01 [1080p][AAC][JapDub][GerEngSub][Web-DL].mkv"
+		ger = "Youjo Senki II E01 [1080p][AAC][GerJapDub][GerEngSub][Web-DL].mkv"
+	)
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "Show"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dial := func(userID, serverID int64) (remote.Client, string, error) {
+		return &multiClient{dir: "/x/Show", entries: []remote.Entry{
+			{Name: jap, Path: "/x/Show/" + jap, Size: 100},
+			{Name: ger, Path: "/x/Show/" + ger, Size: 200},
+		}}, "", nil
+	}
+	m := NewManager(d, dial, root)
+	// the watch's rename rule: both releases become the same episode file
+	nameFn := func(string) string { return "Tanya - S02E01.mkv" }
+	target := filepath.Join(root, "Show", "Tanya - S02E01.mkv")
+
+	res, err := m.Enqueue(1, 1, "/x/Show", "Show", nameFn, nil, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.IDs) != 1 {
+		t.Fatalf("queued %d files, want 1", len(res.IDs))
+	}
+	var queued string
+	d.QueryRow(`SELECT remote_path FROM downloads WHERE id = ?`, res.IDs[0]).Scan(&queued)
+	if queued != "/x/Show/"+ger {
+		t.Errorf("queued %q, want the GerJapDub release", queued)
+	}
+
+	// that download lands: the next check must leave it alone instead of
+	// replacing it with the other variant
+	d.Exec(`UPDATE downloads SET status = 'done'`)
+	if err := os.WriteFile(target, make([]byte, 200), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err = m.Enqueue(1, 1, "/x/Show", "Show", nameFn, nil, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.IDs) != 0 {
+		t.Fatalf("re-queued %d files, want 0", len(res.IDs))
+	}
+
+	// the weaker release is on disk (it was there first): the better one
+	// replaces it, once
+	if err := os.WriteFile(target, make([]byte, 100), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err = m.Enqueue(1, 1, "/x/Show", "Show", nameFn, nil, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.IDs) != 1 {
+		t.Fatalf("queued %d files for the upgrade, want 1", len(res.IDs))
+	}
+	d.QueryRow(`SELECT remote_path FROM downloads WHERE id = ?`, res.IDs[0]).Scan(&queued)
+	if queued != "/x/Show/"+ger {
+		t.Errorf("upgrade queued %q, want the GerJapDub release", queued)
+	}
+}
