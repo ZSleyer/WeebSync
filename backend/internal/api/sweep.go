@@ -287,7 +287,7 @@ func (s *Server) BackfillSeries() {
 // suggestionFormat is bumped whenever the shape/content of the cached suggestion
 // blob changes (e.g. localized titles), so a deploy drops stale blobs once
 // instead of waiting out the 30-minute TTL.
-const suggestionFormat = "libscope-v9"
+const suggestionFormat = "libscope-v10"
 
 // ClearStaleSuggestionCache drops the cached per-user suggestion blobs once when
 // the suggestion format version changed since the last boot. Cheap no-op after

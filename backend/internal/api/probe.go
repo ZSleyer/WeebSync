@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -63,39 +64,172 @@ func langCode(tag string) string {
 }
 
 // probeQuality reads the true resolution and audio/subtitle languages of a local
-// folder by running ffprobe on one representative video file. Filenames often
-// lack the tokens (especially locally), so the container streams are the honest
-// source. Returns ok=false when ffprobe is unavailable or no video is found, so
-// the caller can fall back to filename parsing.
-//
-// ponytail: probes a single (the first) video file per folder - representative
-// for a season folder; a mixed-quality folder would only reflect that one file.
+// folder by running ffprobe over a few representative video files. Filenames
+// often lack the tokens (especially locally), so the container streams are the
+// honest source. Returns ok=false when ffprobe is unavailable or nothing in the
+// folder would answer, so the caller can fall back to filename parsing.
 func probeQuality(dir string) (q FolderQuality, ok bool) {
 	if _, err := exec.LookPath("ffprobe"); err != nil {
 		return q, false
 	}
-	var video string
+	var videos, names []string
 	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
 		if transfer.VideoExt[strings.ToLower(filepath.Ext(p))] {
-			video = p
-			return filepath.SkipAll
+			videos = append(videos, p)
 		}
+		names = append(names, d.Name())
 		return nil
 	})
-	if video == "" {
+	if len(videos) == 0 {
 		return q, false
 	}
+	q, ok = probeFiles(videos)
+	if !ok {
+		return q, false
+	}
+	// the subtitle files beside the video are the other half of the answer, and
+	// the walk has already seen them
+	sc, any := sidecarSubs(names)
+	q = withSidecars(q, sc, any)
+	// what the names claim on top of that: a language the release advertises
+	// and the container does not carry is a burned-in subtitle, and the only
+	// way to see it is to compare the two
+	q.Sub = keysSorted(unionSets(toSet(q.Sub), nameSubClaims(names)))
+	return q, true
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	streams, sok := ffprobeFile(ctx, video)
-	if !sok {
-		return q, false
+// withSidecars folds a folder's sidecar subtitles into a measured quality: they
+// are subtitles the copy has (Sub) AND subtitles it can hand over as a track
+// (Soft). An unlabelled one names no language but still proves the copy is not
+// hardsubbed, so it records the hole rather than nothing.
+func withSidecars(q FolderQuality, sc map[string]bool, any bool) FolderQuality {
+	soft := toSet(q.Sub) // every subtitle STREAM is selectable by definition
+	for c := range sc {
+		soft[c] = true
 	}
-	return streamsQuality(streams), true
+	if any && len(sc) == 0 {
+		soft[undLang] = true
+	}
+	q.Sub, q.Soft = keysSorted(soft), keysSorted(soft)
+	return q
+}
+
+// nameSubClaims is what the file names in a folder advertise as subtitles.
+func nameSubClaims(names []string) map[string]bool {
+	claims := map[string]bool{}
+	for _, n := range names {
+		_, st := rename.LangTags(n)
+		for _, c := range rename.Codes(st) {
+			claims[canonCode(c)] = true
+		}
+	}
+	return claims
+}
+
+func unionSets(a, b map[string]bool) map[string]bool {
+	for k := range b {
+		a[k] = true
+	}
+	return a
+}
+
+// probeFiles measures a folder from a sample of its video files and merges what
+// they report.
+//
+// It reads more than one file because a season is not uniform: the German dub
+// commonly arrives late, so the language sits on the later episodes and not on
+// the first - and reading only the first is what reported a season as missing a
+// track it holds. First, middle and last cover that shape at three ffprobe calls
+// per folder.
+//
+// ponytail: three files per folder. A folder that mixes releases still reflects
+// only what those three carry; the upgrade path is every file behind a
+// (path, size, mtime) memo.
+func probeFiles(videos []string) (q FolderQuality, ok bool) {
+	slices.Sort(videos)
+	pick := map[int]bool{0: true, len(videos) / 2: true, len(videos) - 1: true}
+	dub, sub := map[string]bool{}, map[string]bool{}
+	for i := range videos {
+		if !pick[i] {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		streams, sok := ffprobeFile(ctx, videos[i])
+		cancel()
+		if !sok {
+			continue
+		}
+		ok = true
+		fq := streamsQuality(streams)
+		if fq.ResRank > q.ResRank {
+			q.ResRank = fq.ResRank
+		}
+		for _, c := range fq.Dub {
+			dub[c] = true
+		}
+		for _, c := range fq.Sub {
+			sub[c] = true
+		}
+	}
+	if !ok {
+		return FolderQuality{}, false
+	}
+	q.Dub, q.Sub = keysSorted(dub), keysSorted(sub)
+	return q, true
+}
+
+// sidecarLang reads what a subtitle file sitting next to a video announces:
+// the language, and whether it is a forced track.
+//
+// The convention is a dot-separated suffix chain - "Show - 01.ger.ass",
+// "Show - 01.de.forced.srt". Only a segment the iso639 table knows counts:
+// langCode falls back to title-casing any three letters it is handed, so
+// running it over an arbitrary part of a title would invent languages. An
+// unknown segment is skipped instead of guessed at, which leaves the file
+// untagged - and untagged is a state the caller handles.
+func sidecarLang(name string) (code string, forced bool) {
+	base := strings.TrimSuffix(name, filepath.Ext(name))
+	parts := strings.Split(base, ".")
+	for _, p := range parts[1:] { // never the stem itself
+		p = strings.TrimSpace(p)
+		if plex.ForcedTitle(p) {
+			forced = true
+			continue
+		}
+		if c, ok := iso639[strings.ToLower(p)]; ok && code == "" {
+			code = c
+		}
+	}
+	return code, forced
+}
+
+// sidecarSubs folds a folder's file names into the subtitle languages its
+// sidecar files offer, and whether any sidecar exists at all.
+//
+// The second answer matters on its own: a sidecar nobody labelled - which is
+// exactly what this app's own rename produces, it keeps only the extension -
+// names no language, but it is still proof that the copy carries selectable
+// subtitles. Without it such a folder would read like a release with the
+// subtitles burned into the picture.
+func sidecarSubs(names []string) (langs map[string]bool, any bool) {
+	langs = map[string]bool{}
+	for _, n := range names {
+		if !transfer.SubExt[strings.ToLower(filepath.Ext(n))] {
+			continue
+		}
+		code, forced := sidecarLang(n)
+		if forced {
+			continue // signs and foreign dialogue, not a translation
+		}
+		any = true
+		if code != "" {
+			langs[code] = true
+		}
+	}
+	return langs, any
 }
 
 // probeStream is one ffprobe stream, flattened to what we care about.
@@ -151,14 +285,20 @@ func ffprobeFile(ctx context.Context, file string, extra ...string) ([]probeStre
 
 // localFilenameQuality is the ffprobe-less fallback: walk the folder and read
 // quality from the file names, same tokenizers as the remote path uses.
+//
+// An axis no file name says anything about ends up as undLang rather than
+// empty. Empty would read as "this copy has no subtitles", which a file name
+// cannot establish - it only ever states what a release advertises.
 func localFilenameQuality(dir string) FolderQuality {
 	q := FolderQuality{}
+	var names []string
 	dub, sub := map[string]bool{}, map[string]bool{}
 	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
 		name := d.Name()
+		names = append(names, name)
 		if r := rename.Resolution(name); r > q.ResRank {
 			q.ResRank = r
 		}
@@ -171,6 +311,20 @@ func localFilenameQuality(dir string) FolderQuality {
 		}
 		return nil
 	})
-	q.Dub, q.Sub = keysSorted(dub), keysSorted(sub)
+	// a sidecar is readable without ffprobe, so it is the one selectable
+	// subtitle this branch can still establish
+	soft, any := sidecarSubs(names)
+	if any && len(soft) == 0 {
+		soft[undLang] = true
+	}
+	if len(dub) == 0 {
+		dub[undLang] = true
+	}
+	if len(sub) == 0 && len(soft) == 0 {
+		sub[undLang] = true
+	}
+	q.Dub = keysSorted(dub)
+	q.Sub = keysSorted(unionSets(sub, soft))
+	q.Soft = keysSorted(soft)
 	return q
 }

@@ -102,7 +102,7 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "hash error")
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash) VALUES (?, ?)`, c.Email, hash)
+	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, upgrade_dims) VALUES (?, ?, 'res,sub,dub,soft')`, c.Email, hash)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "email already registered")
 		return

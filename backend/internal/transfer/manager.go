@@ -380,6 +380,14 @@ var ErrNotFound = fmt.Errorf("download not found")
 // completeness checks).
 var VideoExt = map[string]bool{".mkv": true, ".mp4": true, ".avi": true, ".ts": true, ".m2ts": true, ".webm": true, ".mov": true}
 
+// SubExt lists file extensions treated as a subtitle sitting beside a video.
+// Such a file is a real, selectable subtitle track - the thing a release with
+// burned-in subtitles cannot offer - so the quality scan counts it.
+//
+// ".idx" is deliberately absent: it is only the index half of a VobSub pair and
+// names no language the ".sub" beside it does not.
+var SubExt = map[string]bool{".ass": true, ".ssa": true, ".srt": true, ".sub": true, ".vtt": true}
+
 // alreadyComplete reports whether the final file is already present at the
 // exact remote size, so a queued download can be skipped instead of refetched
 // over a good file (stale queue from a check that ran while the disk was

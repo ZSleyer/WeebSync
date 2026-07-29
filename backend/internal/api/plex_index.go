@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -223,23 +222,23 @@ func (s *Server) plexLocalQuality(sm plex.ShowMedia, ratingKey string, season in
 	if file != "" && underLocalRoot(s.localRoots(), file) {
 		if _, err := os.Stat(file); err == nil {
 			folder = filepath.Dir(file)
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer cancel()
-			if streams, ok := ffprobeFile(ctx, file); ok {
-				q := streamsQuality(streams)
-				q.Probed = true
+			// the whole season folder, not just the one episode Plex named: a
+			// dub that arrived late sits on the later files, and this is the
+			// branch the upgrade cards actually compare against
+			if q, ok := probeQuality(folder); ok {
+				q.Probed = probeMeasured
 				return q, folder
 			}
 		}
 	}
 	// fallback: Plex's own metadata. Also measured - Plex analyses the media
 	// itself and reports the container's tracks, not the file name.
-	q := FolderQuality{ResRank: sm.ResHeight, Probed: true}
+	q := FolderQuality{ResRank: sm.ResHeight, Probed: probeMeasured}
+	dub, sub := map[string]bool{}, map[string]bool{}
 	// same rule as streamsQuality: a track Plex reports without a readable
 	// language is a hole, not an absence. Plex drops a stream that carries no
 	// language at all (countsAs), so only its own "und" reaches us - which is
 	// the case ffprobe would report the same way.
-	dub, sub := map[string]bool{}, map[string]bool{}
 	for _, l := range sm.Dub {
 		dub[langOrUnd(l)] = true
 	}
@@ -260,12 +259,13 @@ func underLocalRoot(roots []string, p string) bool {
 	return false
 }
 
+// streamsQuality aggregates ffprobe streams into a FolderQuality.
+//
 // A stream whose language cannot be read counts as undLang rather than being
 // dropped: the track is on the disk, and forgetting it is what let a remote name
 // claim a language the local copy already has. Forced subtitle streams are
 // dropped upstream in ffprobeFile and never reach here - a forced track is not a
 // translation, so it must not leave a hole either.
-// streamsQuality aggregates ffprobe streams into a FolderQuality.
 func streamsQuality(streams []probeStream) FolderQuality {
 	q := FolderQuality{}
 	dub, sub := map[string]bool{}, map[string]bool{}

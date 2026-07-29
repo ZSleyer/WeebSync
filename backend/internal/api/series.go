@@ -145,17 +145,34 @@ func (s *Server) findSeries(key string, year int) int64 {
 	return 0
 }
 
+// probeState records HOW a copy's languages were established. It is three
+// states rather than a flag because "we have not looked yet" and "we looked and
+// the container would not answer" call for opposite decisions: the first is
+// worth waiting for, the second is as good as the evidence will ever get.
+type probeState int
+
+const (
+	probeNone     probeState = 0 // parsed out of the file names, nothing measured
+	probeMeasured probeState = 1 // container streams read (ffprobe, or Plex's own analysis)
+	probeFailed   probeState = 2 // measuring was attempted and impossible: no ffprobe, unreadable container, host down
+)
+
 // FolderQuality is the resolution and language make-up of one physical folder,
 // aggregated over its files (season subfolders included).
 type FolderQuality struct {
 	ResRank int      // max video height, 0 = unknown
 	Dub     []string // canonical dub language codes, sorted
 	Sub     []string // canonical sub language codes, sorted
-	// Probed records HOW this was established: true when the container streams
-	// were read (ffprobe, or Plex's own media analysis), false when it was
-	// parsed out of the file names. An upgrade comparison needs to know, or a
-	// name that promises more than the file carries beats a measurement.
-	Probed bool
+	// Soft is the subset of Sub that is actually SELECTABLE: a subtitle stream
+	// in the container, or a subtitle file lying next to the video. A language
+	// that appears in Sub but not here is one the release advertises and cannot
+	// hand over as a track - burned into the picture, in other words - and a
+	// copy that offers the same language as a real track is an upgrade over it.
+	Soft []string
+	// Probed records how the languages above were established. An upgrade
+	// comparison needs to know, or a name that promises more than the file
+	// carries beats a measurement.
+	Probed probeState
 }
 
 // scanQuality reads a folder's quality: measured from the container streams for
@@ -171,28 +188,36 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 		// filenames when ffprobe is unavailable or finds nothing.
 		if abs, err := s.safeLocal(folder); err == nil {
 			if pq, ok := probeQuality(abs); ok {
-				pq.Probed = true
+				pq.Probed = probeMeasured
 				return pq
 			}
-			return localFilenameQuality(abs)
+			// ffprobe is missing, or no file in the folder would answer: the
+			// names are all that is left, and the attempt is recorded so the
+			// comparison does not keep waiting for a measurement that will not
+			// come
+			fq := localFilenameQuality(abs)
+			fq.Probed = probeFailed
+			return fq
 		}
 		return q
 	}
 	// remote: only the crawler's file listing exists, so every value below is a
-	// guess read off a name. Probed stays false.
+	// guess read off a name. Probed stays probeNone.
 	rows, err := s.DB.Query(`SELECT name FROM remote_index
-		WHERE server_id = ? AND (parent = ? OR parent LIKE ?||'/%')`,
+		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR parent LIKE ?||'/%')`,
 		serverID, folder, folder)
 	if err != nil {
 		return q
 	}
 	defer rows.Close()
+	var names []string
 	dubSet, subSet := map[string]bool{}, map[string]bool{}
 	for rows.Next() {
 		var name string
 		if rows.Scan(&name) != nil {
 			continue
 		}
+		names = append(names, name)
 		if r := rename.Resolution(name); r > q.ResRank {
 			q.ResRank = r
 		}
@@ -204,7 +229,30 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 			subSet[canonCode(c)] = true
 		}
 	}
-	q.Dub, q.Sub = keysSorted(dubSet), keysSorted(subSet)
+	// a subtitle file in the listing is the one selectable subtitle a remote
+	// copy can prove without being opened, and it costs nothing to read
+	soft, any := sidecarSubs(names)
+	if any && len(soft) == 0 {
+		soft[undLang] = true
+	}
+	// If LangProbeLoop has already opened this folder's representative file, its
+	// tracks are on record and beat every guess above. Read from the cache only:
+	// this runs on the sweep, which must not dial a server, and a folder nobody
+	// has measured yet simply keeps its guess and is picked up later.
+	if rep := s.representativeRemote(serverID, folder); rep != "" {
+		if pd, ps, hit := s.cachedRemoteLang(serverID, rep); hit {
+			measuredSoft := unionSets(ps, soft) // every stream and sidecar is a real track
+			q.Dub = keysSorted(pd)
+			q.Soft = keysSorted(measuredSoft)
+			// what the names advertise on top of that is the burned-in half
+			q.Sub = keysSorted(unionSets(subSet, measuredSoft))
+			q.Probed = probeMeasured
+			return q
+		}
+	}
+	q.Dub = keysSorted(dubSet)
+	q.Sub = keysSorted(unionSets(subSet, soft))
+	q.Soft = keysSorted(soft)
 	return q
 }
 
@@ -235,11 +283,12 @@ func (s *Server) refreshVariant(serverID int64, folder string) {
 // ever needs to be exact.
 func (s *Server) storeVariant(serverID int64, folder string, q FolderQuality, showKey string, season int, isMovie bool, seriesID int64, libKind string) {
 	s.DB.Exec(`INSERT OR REPLACE INTO catalog_variants
-		(server_id, folder, res_rank, dub_codes, sub_codes, computed_at, show_key, season, is_movie, series_id, probed, lib_kind)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, computed_at, show_key, season, is_movie, series_id, probed, lib_kind)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		serverID, folder, q.ResRank, strings.Join(q.Dub, ","), strings.Join(q.Sub, ","),
+		strings.Join(q.Soft, ","),
 		time.Now().UTC().Format(time.RFC3339), showKey, season, boolInt(isMovie),
-		seriesID, boolInt(q.Probed), libKind)
+		seriesID, int(q.Probed), libKind)
 }
 
 // seriesIDForFolder resolves the canonical series behind a matched folder: the

@@ -148,27 +148,35 @@ func resTier(h int) int {
 }
 
 // improvements decides which axes a remote copy wins, and how far each verdict
-// can be trusted. unverified marks a language gain the two sides cannot settle
-// between them: it is reported, not dropped.
+// can be trusted.
 //
-// The language axes are the weak ones. A measured local copy against a remote
-// one read off its file names produces differences that belong to the two
-// methods rather than to the files: a release named "GerEngSub" claims tracks
-// the container need not carry, and ffprobe reports an untagged audio track as
-// "und", which drops it out of the local set although it is sitting on the disk.
+// The language axes are the weak ones, because the two sides used to be
+// established by different means: a release named "GerEngSub" claims tracks the
+// container need not carry, and it was compared against a local copy whose
+// tracks had actually been read. A difference produced that way belongs to the
+// methods, not to the files.
 //
-// That is a reason to qualify the finding, not to suppress it. Remote copies are
-// ALWAYS name-derived and local ones almost always measured, so a rule that
-// wants both sides established the same way switches the language axes off
-// permanently - including every real "the server has a German dub you do not
-// have", which is the case this app's watch rules are built around
-// (want_dub/want_sub, langWaiting, the late-arriving dub in smartDue). Losing
-// those costs far more than the noise it saves. The caller marks the suggestion
-// and lets the person reading the card decide.
+// This used to be reported anyway and merely marked, because remote copies were
+// ALWAYS name-derived and suppressing the mismatch would have switched the
+// language axes off for good - including every real "the server has a German dub
+// you do not have", the case this app's watch rules are built around. That is no
+// longer the trade: a remote copy CAN be measured now (probeRemoteLang reads the
+// header over the connection the sync already uses), so the gate costs a wait
+// rather than the finding.
 //
-// Resolution needs no such caveat: a name and a container mean the same picture
-// height, so folding both onto a tier is enough.
-func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, season int) (res, sub, dub, unverified bool) {
+//   - remote never measured: hold the language gain back. The probe loop will
+//     get to it and the card appears on the next build.
+//   - remote measured, and impossible to measure: report it. A container that
+//     will not answer leaves the name as the best evidence there is, which is
+//     what unverified says.
+//
+// The soft axis needs no such rule: a name can never establish that a subtitle
+// is a selectable track, so a copy that was not measured carries an empty Soft
+// set and cannot win the axis by accident.
+//
+// Resolution needs no caveat either: a name and a container mean the same
+// picture height, so folding both onto a tier is enough.
+func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, season int) (res, sub, dub, soft, unverified bool) {
 	res = dims.Res && resTier(top.ResRank) > resTier(cur.ResRank)
 	if dims.Res && !res && top.ResRank > cur.ResRank {
 		slog.Debug("upgrade axis discarded", "showKey", showKey, "season", season,
@@ -177,14 +185,22 @@ func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, sea
 	}
 	sub = dims.Sub && strictSuperset(top.Sub, cur.Sub)
 	dub = dims.Dub && strictSuperset(top.Dub, cur.Dub)
+	soft = dims.Soft && strictSuperset(top.Soft, cur.Soft)
+	if (sub || dub) && top.Probed == probeNone {
+		slog.Debug("upgrade language gain held back", "showKey", showKey, "season", season,
+			"sub", sub, "dub", dub,
+			"reason", "the remote copy has not been measured yet, so the gain is only a claim its name makes",
+			"folder", logSafe(top.Folder))
+		sub, dub = false, false
+	}
 	unverified = (sub || dub) && cur.Probed != top.Probed
 	if unverified {
 		slog.Debug("upgrade language gain unverified", "showKey", showKey, "season", season,
 			"sub", sub, "dub", dub,
-			"reason", "one side is measured and the other guessed from the file names",
+			"reason", "one side could not be measured, so its file names are the best evidence there is",
 			"localProbed", cur.Probed, "remoteProbed", top.Probed)
 	}
-	return res, sub, dub, unverified
+	return res, sub, dub, soft, unverified
 }
 
 // alreadyHave reports whether the library already holds, byte for byte, every
@@ -309,11 +325,16 @@ type UpgradeDims struct {
 	Res bool `json:"res"`
 	Sub bool `json:"sub"`
 	Dub bool `json:"dub"`
+	// Soft: the same language, but as a selectable track instead of burned into
+	// the picture. Its own axis because it is its own decision - someone who
+	// already reads the German signs may not care, and someone who wants to turn
+	// them off cares about nothing else.
+	Soft bool `json:"soft"`
 }
 
 // upgradeDimsFor reads a user's enabled upgrade axes from users.upgrade_dims
-// (CSV, default "res,sub,dub"). An empty column means the default was cleared,
-// i.e. nothing.
+// (CSV, default "res,sub,dub,soft"). An empty column means the default was
+// cleared, i.e. nothing.
 func (s *Server) upgradeDimsFor(userID int64) UpgradeDims {
 	var csv string
 	s.DB.QueryRow(`SELECT upgrade_dims FROM users WHERE id = ?`, userID).Scan(&csv)
@@ -321,7 +342,7 @@ func (s *Server) upgradeDimsFor(userID int64) UpgradeDims {
 	for _, p := range strings.Split(csv, ",") {
 		set[strings.TrimSpace(p)] = true
 	}
-	return UpgradeDims{Res: set["res"], Sub: set["sub"], Dub: set["dub"]}
+	return UpgradeDims{Res: set["res"], Sub: set["sub"], Dub: set["dub"], Soft: set["soft"]}
 }
 
 // handleUpgradeDimsGet returns the user's upgrade axes.
@@ -388,11 +409,15 @@ type UpgradeVariant struct {
 	ResRank    int      `json:"resRank"`
 	Dub        []string `json:"dub"`
 	Sub        []string `json:"sub"`
-	// Probed: the quality was MEASURED from the container streams (ffprobe, or
-	// Plex's own analysis). false = guessed from the file names, which is all a
-	// remote copy can ever offer. The card shows this so a disputed suggestion
+	// Soft is the subset of Sub the copy can hand over as a selectable track
+	// (subtitle stream or sidecar file). A language in Sub but not in Soft is
+	// burned into the picture, and the card says so.
+	Soft []string `json:"soft"`
+	// Probed: how the languages above were established - 0 nothing measured yet,
+	// 1 read from the container streams, 2 measuring was attempted and the
+	// container would not answer. The card shows this so a disputed suggestion
 	// can be judged without reading the log.
-	Probed bool `json:"probed"`
+	Probed probeState `json:"probed"`
 }
 
 // LocalSeason is one season - or the movie - of the same show the library
@@ -421,10 +446,13 @@ type UpgradeSuggestion struct {
 	ImprovesRes bool             `json:"improvesRes"`
 	ImprovesSub bool             `json:"improvesSub"`
 	ImprovesDub bool             `json:"improvesDub"`
-	// LanguageUnverified: the sub/dub gain above is claimed by one side's file
-	// names against the other side's measured container, so it cannot be
-	// confirmed from here - the local copy may already carry the track without
-	// a language tag. The finding stands, the card says it is unconfirmed.
+	// ImprovesSoft: the remote copy offers a subtitle language as a SELECTABLE
+	// track that the local one only shows burned into the picture.
+	ImprovesSoft bool `json:"improvesSoft"`
+	// LanguageUnverified: the sub/dub gain above rests on one side's file names
+	// because its container would not answer, so it cannot be confirmed from
+	// here - the local copy may already carry the track without a language tag.
+	// The finding stands, the card says it is unconfirmed.
 	LanguageUnverified bool          `json:"languageUnverified,omitempty"`
 	Providers          []string      `json:"providers"`
 	Links              ProviderLinks `json:"links"`
@@ -490,8 +518,8 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 				"folder", logSafe(cur.Folder), "reason", "local copy has no quality to compare against")
 			continue
 		}
-		impRes, impSub, impDub, langUnverified := improvements(dims, cur, top, u.showKey, u.season)
-		if !impRes && !impSub && !impDub {
+		impRes, impSub, impDub, impSoft, langUnverified := improvements(dims, cur, top, u.showKey, u.season)
+		if !impRes && !impSub && !impDub && !impSoft {
 			continue
 		}
 		// The names say "better" - but is it another file at all? Sizes settle
@@ -531,7 +559,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		up := UpgradeSuggestion{
 			Key: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
 			Title: unitTitle(e.title, e.exact, top.Folder), From: cur, To: top, Options: u.remotes,
-			ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub,
+			ImprovesRes: impRes, ImprovesSub: impSub, ImprovesDub: impDub, ImprovesSoft: impSoft,
 			LanguageUnverified: langUnverified,
 			Providers:          e.providers, Links: e.links,
 			Cover: e.cover, Format: e.format, Episodes: e.episodes,
@@ -543,7 +571,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		}
 		// a better remote copy exists for a season you own: which axis wins
 		slog.Debug("upgrade found", "showKey", u.showKey, "season", u.season,
-			"res", impRes, "sub", impSub, "dub", impDub, "langUnverified", langUnverified,
+			"res", impRes, "sub", impSub, "dub", impDub, "soft", impSoft, "langUnverified", langUnverified,
 			"fromRes", cur.ResRank, "toRes", top.ResRank,
 			"localProbed", cur.Probed, "remoteProbed", top.Probed)
 		out = append(out, up)
@@ -706,7 +734,7 @@ func (s *Server) loadUnits() catUnits {
 	names := s.serverNames()
 	canon := s.showKeyCanon()
 	u := catUnits{byKey: map[string]*catUnit{}}
-	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, is_movie, probed, lib_kind
+	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, show_key, season, is_movie, probed, lib_kind
 		FROM catalog_variants WHERE show_key != '' ORDER BY show_key, season`)
 	if err != nil {
 		return u
@@ -714,9 +742,9 @@ func (s *Server) loadUnits() catUnits {
 	defer rows.Close()
 	for rows.Next() {
 		var serverID int64
-		var folder, dub, sub, showKey, libKind string
+		var folder, dub, sub, soft, showKey, libKind string
 		var res, season, isMovie, probed int
-		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &showKey, &season, &isMovie, &probed, &libKind) != nil {
+		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &soft, &showKey, &season, &isMovie, &probed, &libKind) != nil {
 			continue
 		}
 		movie := isMovie == 1
@@ -734,7 +762,7 @@ func (s *Server) loadUnits() catUnits {
 			cu.libKind = libKind
 		}
 		v := UpgradeVariant{ServerID: serverID, ServerName: names[serverID], Folder: folder,
-			ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub), Probed: probed == 1}
+			ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub), Soft: splitCSV(soft), Probed: probeState(probed)}
 		if serverID == 0 {
 			cu.locals = append(cu.locals, v)
 		} else {
@@ -830,7 +858,8 @@ func bestCopy(vs []UpgradeVariant) UpgradeVariant {
 			if realLangs(cur.Sub) > realLangs(best.Sub) {
 				best = cur
 			}
-		case len(cur.Sub) > len(best.Sub):
+		case realLangs(cur.Soft) > realLangs(best.Soft):
+			// same languages on both, but one of them can be switched off
 			best = cur
 		}
 	}
