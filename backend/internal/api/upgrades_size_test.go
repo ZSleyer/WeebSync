@@ -20,7 +20,7 @@ func sizeTestServer(t *testing.T) (*Server, string) {
 	}
 	t.Cleanup(func() { d.Close() })
 	s := &Server{DB: d, DownloadRoot: root, LocalRoots: []string{root}, Anilist: anilist.New(d)}
-	d.Exec(`INSERT INTO users (id, email, upgrade_dims) VALUES (1,'u@e.test','res,sub,dub')`)
+	d.Exec(`INSERT INTO users (id, email, upgrade_dims) VALUES (1,'u@e.test','res,sub,dub,soft')`)
 	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)
 		VALUES (1,1,'seedbox','sftp','h',22,'u',x'00')`)
 	return s, root
@@ -123,13 +123,13 @@ func TestBuildUpgradesSkipsSizeIdenticalCopy(t *testing.T) {
 		"[Group] Some Show - 01 (1080p) [GerEngSub].mkv": 1500,
 		"[Group] Some Show - 02 (1080p) [GerEngSub].mkv": 1600,
 	})
-	// Both sides guessed from their file names, so the language comparison is
-	// on equal footing and fires: the size is the only thing that can tell
-	// these two copies apart, which is exactly what this test is about.
-	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, probed)
-		VALUES (0, ?, 1080, '', 'Ger', 'tvdb:1', 1, 0)`, local)
-	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, show_key, season, probed)
-		VALUES (1, ?, 1080, '', 'Eng,Ger', 'tvdb:1', 1, 0)`, remote)
+	// Both sides measured, so the language comparison passes the evidence gate
+	// and fires: the size is the only thing left that can tell these two copies
+	// apart, which is exactly what this test is about.
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, show_key, season, probed)
+		VALUES (0, ?, 1080, '', 'Ger', 'Ger', 'tvdb:1', 1, 1)`, local)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, show_key, season, probed)
+		VALUES (1, ?, 1080, '', 'Eng,Ger', 'Eng,Ger', 'tvdb:1', 1, 1)`, remote)
 
 	if got := s.buildUpgrades(1); len(got) != 0 {
 		t.Fatalf("size-identical copy suggested as an upgrade: %+v", got[0])

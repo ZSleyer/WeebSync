@@ -1215,6 +1215,10 @@
                     "res": {
                         "type": "boolean"
                     },
+                    "soft": {
+                        "description": "Soft: the same language, but as a selectable track instead of burned into\nthe picture. Its own axis because it is its own decision - someone who\nalready reads the German signs may not care, and someone who wants to turn\nthem off cares about nothing else.",
+                        "type": "boolean"
+                    },
                     "sub": {
                         "type": "boolean"
                     }
@@ -1246,6 +1250,10 @@
                     "improvesRes": {
                         "type": "boolean"
                     },
+                    "improvesSoft": {
+                        "description": "ImprovesSoft: the remote copy offers a subtitle language as a SELECTABLE\ntrack that the local one only shows burned into the picture.",
+                        "type": "boolean"
+                    },
                     "improvesSub": {
                         "type": "boolean"
                     },
@@ -1257,7 +1265,7 @@
                         "type": "string"
                     },
                     "languageUnverified": {
-                        "description": "LanguageUnverified: the sub/dub gain above is claimed by one side's file\nnames against the other side's measured container, so it cannot be\nconfirmed from here - the local copy may already carry the track without\na language tag. The finding stands, the card says it is unconfirmed.",
+                        "description": "LanguageUnverified: the sub/dub gain above rests on one side's file names\nbecause its container would not answer, so it cannot be confirmed from\nhere - the local copy may already carry the track without a language tag.\nThe finding stands, the card says it is unconfirmed.",
                         "type": "boolean"
                     },
                     "library": {
@@ -1325,8 +1333,7 @@
                         "type": "string"
                     },
                     "probed": {
-                        "description": "Probed: the quality was MEASURED from the container streams (ffprobe, or\nPlex's own analysis). false = guessed from the file names, which is all a\nremote copy can ever offer. The card shows this so a disputed suggestion\ncan be judged without reading the log.",
-                        "type": "boolean"
+                        "$ref": "#/components/schemas/api.probeState"
                     },
                     "resRank": {
                         "type": "integer"
@@ -1337,6 +1344,14 @@
                     "serverName": {
                         "description": "\"\" = local filesystem",
                         "type": "string"
+                    },
+                    "soft": {
+                        "description": "Soft is the subset of Sub the copy can hand over as a selectable track\n(subtitle stream or sidecar file). A language in Sub but not in Soft is\nburned into the picture, and the card says so.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "sub": {
                         "items": {
@@ -2459,6 +2474,25 @@
                     }
                 },
                 "type": "object"
+            },
+            "api.probeState": {
+                "description": "Probed: how the languages above were established - 0 nothing measured yet,\n1 read from the container streams, 2 measuring was attempted and the\ncontainer would not answer. The card shows this so a disputed suggestion\ncan be judged without reading the log.",
+                "enum": [
+                    0,
+                    1,
+                    2
+                ],
+                "type": "integer",
+                "x-enum-comments": {
+                    "probeFailed": "measuring was attempted and impossible: no ffprobe, unreadable container, host down",
+                    "probeMeasured": "container streams read (ffprobe, or Plex's own analysis)",
+                    "probeNone": "parsed out of the file names, nothing measured"
+                },
+                "x-enum-varnames": [
+                    "probeNone",
+                    "probeMeasured",
+                    "probeFailed"
+                ]
             },
             "api.pushSubInput": {
                 "properties": {

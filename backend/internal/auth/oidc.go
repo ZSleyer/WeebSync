@@ -330,7 +330,7 @@ func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool, gated bool) (int
 		}
 	}
 	// first user always becomes admin (an install must never be adminless)
-	res, err := d.Exec(`INSERT INTO users (email, is_admin) VALUES (?, (SELECT COUNT(*) = 0 FROM users) OR ?)`,
+	res, err := d.Exec(`INSERT INTO users (email, is_admin, upgrade_dims) VALUES (?, (SELECT COUNT(*) = 0 FROM users) OR ?, 'res,sub,dub,soft')`,
 		email, admin != nil && *admin)
 	if err != nil {
 		return 0, err

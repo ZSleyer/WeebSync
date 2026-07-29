@@ -28,13 +28,10 @@ const probeHeaderBytes = 12 << 20 // 12 MiB
 // never re-probes the same file. ok=false on any failure (no ffprobe, moov at
 // EOF, dial error), letting the caller fall back to filename matching.
 func (s *Server) probeRemoteLang(userID, serverID int64, remotePath string) (dub, sub map[string]bool, ok bool) {
-	key := fmt.Sprintf("langprobe:%d:%s", serverID, remotePath)
-	if p, hit := s.cacheGet(key, 720*time.Hour); hit {
-		var v struct{ Dub, Sub []string }
-		if json.Unmarshal([]byte(p), &v) == nil {
-			return toSet(v.Dub), toSet(v.Sub), true
-		}
+	if dub, sub, ok = s.cachedRemoteLang(serverID, remotePath); ok {
+		return dub, sub, true
 	}
+	key := langProbeKey(serverID, remotePath)
 	ext := strings.ToLower(filepath.Ext(remotePath))
 	if !transfer.VideoExt[ext] {
 		return nil, nil, false
@@ -68,13 +65,13 @@ func (s *Server) probeRemoteLang(userID, serverID int64, remotePath string) (dub
 	// a truncated container needs ffprobe to scan further before giving up
 	streams, sok := ffprobeFile(ctx, tmp.Name(), "-analyzeduration", "20M", "-probesize", "20M")
 	if !sok {
-		// undLang for the same reason as streamsQuality, and it has to be the same
-		// rule on both sides: a local copy that records a hole can only ever be
-		// improved on by a remote copy that records one too, or the comparison
-		// refuses every real gain instead of only the guessed ones.
 		return nil, nil, false
 	}
 	dub, sub = map[string]bool{}, map[string]bool{}
+	// undLang for the same reason as streamsQuality, and it has to be the same
+	// rule on both sides: a local copy that records a hole can only ever be
+	// improved on by a remote copy that records one too, or the comparison
+	// refuses every real gain instead of only the guessed ones.
 	for _, st := range streams {
 		switch st.CodecType {
 		case "audio":
@@ -91,6 +88,61 @@ func (s *Server) probeRemoteLang(userID, serverID int64, remotePath string) (dub
 		s.cacheSet(key, string(b))
 	}
 	return dub, sub, true
+}
+
+// representativeRemote picks the one file of a remote folder that stands in for
+// it when its languages are measured. "" when the crawler has seen no video
+// there yet.
+//
+// The choice has to be DETERMINISTIC, because the loop that makes the
+// measurement and the scan that reads it back must land on the same file, and
+// they run minutes apart from different code. The lowest path is the first
+// episode - and the cheapest thing SQLite can answer.
+//
+// ponytail: one file per folder, so a season whose dub arrives mid-run reads as
+// the first episode's languages. Same shortcut the local side takes, and the
+// upgrade path is the same: sample more of them.
+func (s *Server) representativeRemote(serverID int64, folder string) string {
+	rows, err := s.DB.Query(`SELECT path, name FROM remote_index
+		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR parent LIKE ?||'/%')
+		ORDER BY path`, serverID, folder, folder)
+	if err != nil {
+		return ""
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p, name string
+		if rows.Scan(&p, &name) != nil {
+			continue
+		}
+		if transfer.VideoExt[strings.ToLower(filepath.Ext(name))] {
+			return p
+		}
+	}
+	return ""
+}
+
+func langProbeKey(serverID int64, remotePath string) string {
+	return fmt.Sprintf("langprobe:%d:%s", serverID, remotePath)
+}
+
+// cachedRemoteLang answers from the probe cache alone and never dials.
+//
+// It exists so a read path can use a measurement without paying for one: the
+// quality scan and the suggestions build must not depend on a reachable host,
+// and they run far too often to pull a header per folder. Whoever wants the
+// measurement made asks LangProbeLoop for it and reads the answer here on the
+// next pass.
+func (s *Server) cachedRemoteLang(serverID int64, remotePath string) (dub, sub map[string]bool, ok bool) {
+	p, hit := s.cacheGet(langProbeKey(serverID, remotePath), 720*time.Hour)
+	if !hit {
+		return nil, nil, false
+	}
+	var v struct{ Dub, Sub []string }
+	if json.Unmarshal([]byte(p), &v) != nil {
+		return nil, nil, false
+	}
+	return toSet(v.Dub), toSet(v.Sub), true
 }
 
 func toSet(xs []string) map[string]bool {
