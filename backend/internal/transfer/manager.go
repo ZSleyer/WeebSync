@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/remote"
+	"github.com/ch4d1/weebsync/internal/rename"
 	"golang.org/x/time/rate"
 )
 
@@ -499,6 +500,16 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 
 	// one writability probe per target directory, shared by every file in it
 	probed := map[string]string{}
+
+	// Two releases of the same episode - a JapDub and the GerJapDub that follows
+	// days later - rename to the SAME local file. Fetching both is what made a
+	// watch re-download an episode on every check: whichever variant sat at the
+	// target, the other one was missing by size, so the two took turns
+	// overwriting each other every interval, forever. Only the best variant per
+	// target stays a candidate, so what ends up on disk is the better release
+	// rather than the one checked last.
+	best := map[string]*job{}
+	var targets []string
 	for _, j := range jobs {
 		local, lerr := ResolveLocal(m.roots(), j.localRel)
 		if lerr != nil {
@@ -515,6 +526,24 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 			}
 			continue
 		}
+		cur, seen := best[local]
+		if !seen {
+			jc := j
+			best[local] = &jc
+			targets = append(targets, local)
+			continue
+		}
+		win, lose := j, *cur
+		if !betterVariant(path.Base(j.remote), j.size, path.Base(cur.remote), cur.size) {
+			win, lose = lose, j
+		}
+		*cur = win
+		slog.Debug("variant dropped", "reason", "another release renames to the same file",
+			"kept", logSafe(path.Base(win.remote)), "dropped", logSafe(path.Base(lose.remote)))
+	}
+
+	for _, local := range targets {
+		j := *best[local]
 		// sync: skip files that already exist with the right size. Counted, so
 		// the caller can say "already there" instead of a bare "0 queued"
 		if fi, err := os.Stat(local); err == nil && fi.Size() == j.size {
@@ -553,6 +582,36 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 	}
 	m.Wake()
 	return res, nil
+}
+
+// betterVariant reports whether one release wins over another as the source for
+// the local file both of them rename to: higher resolution first, then the more
+// complete dub, then the more complete sub, and a larger file as the last word.
+//
+// Both sides are judged by their names alone. That is weaker evidence than the
+// measured tracks the upgrade suggestions compare, and deliberately so: this
+// decision has to be made for every file of every check, before anything is
+// downloaded, and it only has to order two releases of one episode against each
+// other - not to state what either of them really carries. A tie leaves the
+// first one found in place, so a check that changes nothing keeps its answer.
+func betterVariant(name string, size int64, thanName string, thanSize int64) bool {
+	if a, b := rename.Resolution(name), rename.Resolution(thanName); a != b {
+		return a > b
+	}
+	dub, sub := rename.LangTags(name)
+	thanDub, thanSub := rename.LangTags(thanName)
+	if a, b := len(rename.Codes(dub)), len(rename.Codes(thanDub)); a != b {
+		return a > b
+	}
+	if a, b := len(rename.Codes(sub)), len(rename.Codes(thanSub)); a != b {
+		return a > b
+	}
+	return size > thanSize
+}
+
+// logSafe strips CR/LF so a remote file name cannot forge log lines.
+func logSafe(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
 }
 
 // blocked reports whether the last attempt at remotePath failed for a reason no
