@@ -36,6 +36,33 @@ func TestClearedStampMakesAVariantStale(t *testing.T) {
 	}
 }
 
+// Being stale is not enough - it has to be taken FIRST. A real catalogue has
+// thousands of folders past the recheck window at any moment and the sweep only
+// rewrites a few dozen per pass, so an unordered pick left a just-measured
+// folder waiting days among them. On the live install 13 cleared stamps were
+// competing with 4306 stale folders for 30 slots.
+func TestClearedStampIsRefreshedBeforeMerelyStaleOnes(t *testing.T) {
+	s, _ := sizeTestServer(t)
+	for _, f := range []string{"/seed/Old1", "/seed/Old2", "/seed/Measured", "/seed/Old3"} {
+		s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)
+			VALUES (1, ?, 42, 0, 'anilist')`, f)
+		stamp := "2020-01-01T00:00:00Z" // long past the recheck window
+		if f == "/seed/Measured" {
+			stamp = "" // just measured, asking to be rewritten next
+		}
+		s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, computed_at, show_key, season, is_movie, series_id, probed, lib_kind)
+			VALUES (1, ?, 1080, '', '', '', ?, 'tvdb:1', 1, 0, 0, 0, '')`, f, stamp)
+	}
+
+	s.refreshStaleVariants(1, 1) // room for exactly one
+
+	var got string
+	s.DB.QueryRow(`SELECT computed_at FROM catalog_variants WHERE folder = '/seed/Measured'`).Scan(&got)
+	if got == "" {
+		t.Error("the cleared stamp lost its slot to a merely stale folder, so a measurement waits for an arbitrary turn")
+	}
+}
+
 // The stall this pins: a measured folder gets its computed_at cleared so the
 // next sweep rewrites its row, and until that happens the row still reads
 // probed = 0 - so it stays a candidate. Ordered by computed_at, an empty stamp

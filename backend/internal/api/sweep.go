@@ -163,10 +163,18 @@ func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
 // missing or stale, capped by budget.
 func (s *Server) refreshStaleVariants(serverID int64, budget int) {
 	cutoff := time.Now().UTC().Add(-variantRecheck).Format(time.RFC3339)
+	// Oldest first, and a folder with no variant at all (NULL sorts first in
+	// SQLite) before any of them. Without an order this was rowid order, i.e.
+	// arbitrary: on a real catalogue thousands of folders are past the recheck
+	// window at any moment, so a specific one waited days for its turn. That
+	// matters because a stamp is now cleared deliberately - it is how a
+	// just-measured folder asks to be rewritten next - and an arbitrary pick
+	// ignored the request entirely.
 	rows, err := s.DB.Query(`SELECT cm.folder FROM catalog_matches cm
 		LEFT JOIN catalog_variants cv ON cv.server_id = cm.server_id AND cv.folder = cm.folder
 		WHERE cm.server_id = ? AND cm.media_id != 0
 		  AND (cv.folder IS NULL OR cv.computed_at < ?)
+		ORDER BY cv.computed_at
 		LIMIT ?`, serverID, cutoff, budget)
 	if err != nil {
 		return
