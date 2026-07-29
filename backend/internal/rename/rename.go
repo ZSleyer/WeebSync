@@ -186,7 +186,7 @@ func templateName(name string, o Options) (string, error) {
 	vars := map[string]string{
 		"title":      parsed.AnimeTitle,
 		"season":     first(parsed.AnimeSeason),
-		"episode":    first(parsed.EpisodeNumber),
+		"episode":    EpisodeNumber(first(parsed.EpisodeNumber)),
 		"year":       parsed.AnimeYear,
 		"group":      cleanGroup(parsed.ReleaseGroup),
 		"resolution": parsed.VideoResolution,
@@ -267,6 +267,27 @@ func first(s []string) string {
 		return s[0]
 	}
 	return ""
+}
+
+// epPrefixRe matches an episode token that still carries its own "E".
+var epPrefixRe = regexp.MustCompile(`^[Ee](\d+(?:\.\d+)?)$`)
+
+// EpisodeNumber strips the "E" anitogo sometimes leaves on an episode token.
+//
+// It usually hands back a bare number - "1208" for "Meitantei Conan E1208" -
+// but a title ending in a word it reads as a marker changes that: for
+// "... Mini Episodes E01 [1080p]" it returns "E01", letter and all. Substituted
+// into a "S{season:02}E{episode:02}" template that becomes "S01EE01", which is
+// not a name anything can parse back - not Plex, and not the episode-number
+// match that decides which episodes a watch covers.
+//
+// The fractional form of a special ("1165.5") has to survive, so the number is
+// matched rather than the letter merely trimmed.
+func EpisodeNumber(tok string) string {
+	if m := epPrefixRe.FindStringSubmatch(tok); m != nil {
+		return m[1]
+	}
+	return tok
 }
 
 // sanitize cleans a name that may carry a "/"-separated folder structure

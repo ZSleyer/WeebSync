@@ -201,3 +201,38 @@ func TestResolution(t *testing.T) {
 		}
 	}
 }
+
+// anitogo usually hands back a bare episode number, but a title that ends in a
+// word it reads as a marker changes that: "... Mini Episodes E01" comes back as
+// "E01". Substituted into an S..E.. template that produced "S01EE01" - a name
+// neither Plex nor the episode match that scopes a Plex language change can read
+// back. The fractional form of a special has to survive the normalisation.
+func TestEpisodeNumberDropsAStrayEPrefix(t *testing.T) {
+	cases := map[string]string{
+		"E01":     "01",
+		"e12":     "12",
+		"1208":    "1208",
+		"1165.5":  "1165.5",
+		"E1165.5": "1165.5",
+		"":        "",
+		"SP1":     "SP1", // not an episode number, left alone
+		"Extra":   "Extra",
+	}
+	for in, want := range cases {
+		if got := EpisodeNumber(in); got != want {
+			t.Errorf("EpisodeNumber(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// The whole point, end to end: the release that produced "S01EE01".
+func TestTemplateNameSurvivesAnEpisodesTitle(t *testing.T) {
+	got, err := New("Super no Ura de Yani Suu Futari Mini Episodes E01 [1080p][AAC][JapDub][GerEngSub][Web-DL].mkv",
+		Options{Mode: "template", Template: "{title} - S01E{episode:02}"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "Super no Ura de Yani Suu Futari Mini - S01E01.mkv"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

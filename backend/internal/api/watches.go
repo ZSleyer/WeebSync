@@ -914,7 +914,9 @@ func parseEpisodeToken(name string) string {
 	if len(p.EpisodeNumber) == 0 {
 		return ""
 	}
-	return p.EpisodeNumber[0]
+	// same normalisation the template path uses: anitogo hands back "E01" for
+	// some names, and the aired-order map is keyed by the bare number
+	return rename.EpisodeNumber(p.EpisodeNumber[0])
 }
 
 // watchLangFilter returns a predicate that keeps only remote files whose
