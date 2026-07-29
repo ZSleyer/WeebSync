@@ -7,6 +7,8 @@ import (
 	"math"
 	"net/http"
 	"path"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -153,6 +155,76 @@ func titleSaysForced(title string, loose bool) bool {
 func isCommentary(title string) bool {
 	t := strings.ToLower(title)
 	return strings.Contains(t, "commentary") || strings.Contains(t, "kommentar")
+}
+
+// trackedEpisodes is the set of episodes a watch actually covers: every video
+// the crawler has seen under its remote path, named the way the sync would file
+// it, plus the ones the watch has already downloaded. Season-encoded via epKey.
+//
+// It exists because a Plex preference must not reach past the watch. The show's
+// Plex listing is the whole show - for an endless series that is every episode
+// ever aired, across seasons nobody asked to be touched.
+//
+// The set is keyed by episode NUMBER rather than by path on purpose: an episode
+// the user fetched by hand sits in the same season under a name of his own, and
+// the number is the only thing that ties it to the remote file it came from. The
+// remote name goes through the watch's own rename first, so an endless series'
+// absolute number is resolved to the same (season, episode) the sync would file
+// it under.
+//
+// ponytail: downloads carries no watch_id, so that half is attributed by server
+// plus remote prefix - and clearing the download history empties it. The
+// remote_index half is what keeps the set standing.
+func (s *Server) trackedEpisodes(w Watch) map[int]bool {
+	eps := map[int]bool{}
+	add := func(name string) {
+		m := epSeasonRe.FindStringSubmatch(name)
+		if m == nil {
+			return
+		}
+		se, _ := strconv.Atoi(m[1])
+		ep, _ := strconv.Atoi(m[2])
+		eps[epKey(se, ep)] = true
+	}
+	// instr(x, p) = 1 rather than LIKE p||'/%': the path is user data and LIKE
+	// would read a "_" in a folder name as a wildcard.
+	nameFn := s.watchNameFn(w)
+	rows, err := s.DB.Query(`SELECT name FROM remote_index
+		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR instr(parent, ?) = 1)`,
+		w.ServerID, w.RemotePath, w.RemotePath+"/")
+	if err == nil {
+		for rows.Next() {
+			var name string
+			if rows.Scan(&name) != nil || !videoExt[strings.ToLower(filepath.Ext(name))] {
+				continue
+			}
+			if nameFn != nil {
+				// the rename is what turns "1187" into S34E01 for an aired
+				// mapping watch, exactly as the sync would file it
+				if n := nameFn(name); n != "" {
+					name = n
+				}
+			}
+			add(name)
+		}
+		rows.Close()
+	}
+	// what is already on disk under this watch, including the episodes
+	// processPendingEpisodes moved out of the collecting folder later
+	drows, derr := s.DB.Query(`SELECT local_path FROM downloads
+		WHERE status = 'done' AND server_id = ? AND (remote_path = ? OR instr(remote_path, ?) = 1)`,
+		w.ServerID, w.RemotePath, w.RemotePath+"/")
+	if derr == nil {
+		for drows.Next() {
+			var local string
+			if drows.Scan(&local) != nil {
+				continue
+			}
+			add(path.Base(local))
+		}
+		drows.Close()
+	}
+	return eps
 }
 
 // watchEpisodeParts locates the watch's show in Plex and returns its episode
@@ -371,11 +443,11 @@ func (s *Server) setPlexStreamMiss(watchID int64, miss string) {
 	s.DB.Exec(`UPDATE watches SET plex_stream_miss = ? WHERE id = ?`, miss, watchID)
 }
 
-// handleWatchPlexStreams applies the watch's Plex playback preference to every
-// episode of the show already in the library (retroactive pass).
+// handleWatchPlexStreams applies the watch's Plex playback preference to the
+// episodes it tracks and already has (retroactive pass).
 //
 //	@Summary		Apply Plex stream preference to existing episodes
-//	@Description	Selects the watch's preferred audio/subtitle streams on every episode of the show Plex already has. Runs in the background.
+//	@Description	Selects the watch's preferred audio/subtitle streams on the episodes this watch tracks and Plex already has. Runs in the background.
 //	@Tags			Watches
 //	@Produce		json
 //	@Param			id	path	int	true	"Watch ID"
@@ -401,19 +473,27 @@ func (s *Server) handleWatchPlexStreams(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusAccepted, WatchCheckResponse{Status: "applying"})
 }
 
-// applyPlexStreamsJob runs the retroactive pass in the background: every episode
-// of the show already in the library gets the watch's preference. Fired from the
-// button, from a preference change (the queue only ever covers downloads that
-// come AFTER it), and once per install for the watches that predate the verdict
-// column.
+// applyPlexStreamsJob runs the retroactive pass in the background: the episodes
+// this watch tracks get its preference. Fired from the button, from a preference
+// change (the queue only ever covers downloads that come AFTER it), and once per
+// install for the watches that predate the verdict column.
 func (s *Server) applyPlexStreamsJob(wt Watch) {
 	s.runJob(fmt.Sprintf("plex:streams:%d", wt.ID), func(context.Context) {
 		c := s.plexClient()
 		if c == nil {
 			return
 		}
-		// every episode under the watch's local folder, not just synced ones
+		// the watch's own episodes, not every episode Plex has under the folder:
+		// an endless series' show listing spans a thousand episodes across
+		// seasons the watch never asked for
 		abs := s.watchTarget(wt)
+		tracked := s.trackedEpisodes(wt)
+		if len(tracked) == 0 {
+			slog.Warn("plex stream preference skipped", "watch", wt.ID,
+				"reason", "the watch tracks no episode yet - nothing crawled, nothing downloaded",
+				"local", logSafe(abs))
+			return
+		}
 		byFile, ok := s.watchEpisodeParts(c, wt)
 		if !ok {
 			// the show could not be resolved at all, or Plex refused the episode
@@ -427,6 +507,15 @@ func (s *Server) applyPlexStreamsJob(wt Watch) {
 		applied, missed, verdict, seen := 0, 0, "", false
 		for file, p := range byFile {
 			if file != abs && !strings.HasPrefix(file, abs+"/") {
+				continue
+			}
+			m := epSeasonRe.FindStringSubmatch(path.Base(file))
+			if m == nil {
+				continue // no episode number: not something the watch can claim
+			}
+			se, _ := strconv.Atoi(m[1])
+			ep, _ := strconv.Atoi(m[2])
+			if !tracked[epKey(se, ep)] {
 				continue
 			}
 			miss, ok := applyStreams(c, p, wt.PlexAudioLang, wt.PlexSubLang)

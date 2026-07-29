@@ -242,3 +242,52 @@ func TestPlanStreamsReportsAWrongVariantAsMissing(t *testing.T) {
 		t.Errorf("planStreams = (%d, %q), want the forced track selected (2) and reported as missing", subID, miss)
 	}
 }
+
+// A Plex preference must reach the episodes the watch tracks and nothing else.
+// For an endless series the show's own listing spans every episode ever aired,
+// so the set is built from what the crawler saw under the watch's remote path,
+// resolved through the watch's rename - which is what turns an absolute number
+// into the season it is filed under.
+func TestTrackedEpisodesCoversTheWatchOnly(t *testing.T) {
+	s, _ := pendingFixture(t)
+	var w Watch
+	if err := s.DB.QueryRow(`SELECT id, server_id, remote_path, local_path, template, aired_mapping FROM watches WHERE id = 1`).
+		Scan(&w.ID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Template, &w.AiredMapping); err != nil {
+		t.Fatal(err)
+	}
+	w.Mode = "template"
+	add := func(parent, name string, isDir int) {
+		s.DB.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir) VALUES (1, ?, ?, ?, ?)`,
+			parent+"/"+name, parent, name, isDir)
+	}
+	add("/ftp/Conan", "Conan - 1207.mkv", 0) // the season map resolves 1207 to S34E21
+	add("/ftp/Conan", "Season 34", 1)        // a directory carries no episode
+	add("/ftp/Conan", "readme.txt", 0)       // not a video
+	// a sibling whose name differs from the watch's only where an underscore
+	// sits - a LIKE prefix would read that "_" as a wildcard and swallow it
+	add("/ftp/Conan_Movies", "Conan - S01E05.mkv", 0)
+
+	got := s.trackedEpisodes(w)
+	if !got[epKey(34, 21)] {
+		t.Errorf("tracked = %v, want the aired mapping to resolve 1207 to S34E21", got)
+	}
+	if got[epKey(1, 5)] {
+		t.Error("a sibling folder that only differs by an underscore was counted as tracked")
+	}
+	if len(got) != 1 {
+		t.Errorf("tracked = %v, want exactly one episode", got)
+	}
+
+	// what the watch already downloaded counts too, whatever it was named
+	s.DB.Exec(`INSERT INTO downloads (id, user_id, server_id, remote_path, local_path, status)
+		VALUES (7, 1, 1, '/ftp/Conan/Conan - 1180.mkv', '/media/Conan/Season_34/Conan - S34E01.mkv', 'done')`)
+	s.DB.Exec(`INSERT INTO downloads (id, user_id, server_id, remote_path, local_path, status)
+		VALUES (8, 1, 1, '/ftp/Conan/Conan - 1181.mkv', '/media/Conan/Season_34/Conan - S34E02.mkv', 'error')`)
+	got = s.trackedEpisodes(w)
+	if !got[epKey(34, 1)] {
+		t.Error("a finished download of this watch is not tracked")
+	}
+	if got[epKey(34, 2)] {
+		t.Error("a failed download must not count as present")
+	}
+}
