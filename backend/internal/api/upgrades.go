@@ -176,7 +176,7 @@ func resTier(h int) int {
 //
 // Resolution needs no caveat either: a name and a container mean the same
 // picture height, so folding both onto a tier is enough.
-func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, season int) (res, sub, dub, soft, unverified bool) {
+func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, season int) (res, sub, dub, soft, unverified, held bool) {
 	res = dims.Res && resTier(top.ResRank) > resTier(cur.ResRank)
 	if dims.Res && !res && top.ResRank > cur.ResRank {
 		slog.Debug("upgrade axis discarded", "showKey", showKey, "season", season,
@@ -191,7 +191,7 @@ func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, sea
 			"sub", sub, "dub", dub,
 			"reason", "the remote copy has not been measured yet, so the gain is only a claim its name makes",
 			"folder", logSafe(top.Folder))
-		sub, dub = false, false
+		sub, dub, held = false, false, true
 	}
 	unverified = (sub || dub) && cur.Probed != top.Probed
 	if unverified {
@@ -200,7 +200,7 @@ func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, sea
 			"reason", "one side could not be measured, so its file names are the best evidence there is",
 			"localProbed", cur.Probed, "remoteProbed", top.Probed)
 	}
-	return res, sub, dub, soft, unverified
+	return res, sub, dub, soft, unverified, held
 }
 
 // alreadyHave reports whether the library already holds, byte for byte, every
@@ -518,7 +518,12 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 				"folder", logSafe(cur.Folder), "reason", "local copy has no quality to compare against")
 			continue
 		}
-		impRes, impSub, impDub, impSoft, langUnverified := improvements(dims, cur, top, u.showKey, u.season)
+		impRes, impSub, impDub, impSoft, langUnverified, held := improvements(dims, cur, top, u.showKey, u.season)
+		if held {
+			// somebody is looking at this unit right now, so the copy behind it
+			// jumps the queue instead of waiting for the background pace
+			s.wantProbe(top.ServerID, top.Folder)
+		}
 		if !impRes && !impSub && !impDub && !impSoft {
 			continue
 		}

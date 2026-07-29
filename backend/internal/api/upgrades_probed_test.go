@@ -108,7 +108,7 @@ func TestImprovements(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			res, sub, dub, soft, unver := improvements(c.dims, c.cur, c.top, "tvdb:1", 1)
+			res, sub, dub, soft, unver, _ := improvements(c.dims, c.cur, c.top, "tvdb:1", 1)
 			if res != c.wRes || sub != c.wSub || dub != c.wDub || soft != c.wSoft || unver != c.wUnver {
 				t.Errorf("improvements = res:%v sub:%v dub:%v soft:%v unverified:%v, want res:%v sub:%v dub:%v soft:%v unverified:%v",
 					res, sub, dub, soft, unver, c.wRes, c.wSub, c.wDub, c.wSoft, c.wUnver)

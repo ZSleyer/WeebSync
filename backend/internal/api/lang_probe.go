@@ -16,16 +16,71 @@ import (
 // clock and its own budget.
 
 const (
+	// langProbeTick is the background pace: slow, because measuring the whole
+	// candidate set is worth a night, not a burst.
 	langProbeTick = 10 * time.Minute
-	// langProbeBudget is how many folders one tick may open. Each one pulls
+	// langProbeRush is the pace while a suggestion someone is LOOKING at is
+	// waiting on a measurement. Those are a handful of folders at a time and the
+	// answer is wanted now, not tonight.
+	langProbeRush = 30 * time.Second
+	// langProbeBudget is how many folders one pass may open. Each one pulls
 	// probeHeaderBytes (12 MiB) over the connection the sync shares, at the
 	// lowest priority the pool offers.
 	//
-	// ponytail: a flat per-tick count, not a bandwidth budget. It is the number
+	// ponytail: a flat per-pass count, not a bandwidth budget. It is the number
 	// to raise once a night of sweeps shows what this actually costs; a real
 	// rate limit is the upgrade path if a slow host ever notices.
 	langProbeBudget = 5
+	// wantedProbeMax bounds the priority set. It only ever holds what a build
+	// actually held back, which is small; the cap is there so a pathological
+	// catalogue cannot turn it into a second copy of the candidate list.
+	wantedProbeMax = 200
 )
+
+// wantedProbe names one remote folder a card is waiting on.
+type wantedProbe struct {
+	serverID int64
+	folder   string
+}
+
+// wantProbe marks a remote folder as one a suggestion is waiting on right now.
+//
+// buildUpgrades calls this when it holds a language gain back for want of a
+// measurement. Whoever is reading that card is the one person who wants the
+// answer, so the loop takes these first and at a much shorter pace instead of
+// reaching them somewhere in a night's worth of background work.
+//
+// ponytail: in memory, not a table. A restart forgets the list and the next
+// page view rebuilds it in the same moment it would have been needed.
+func (s *Server) wantProbe(serverID int64, folder string) {
+	s.probeWantMu.Lock()
+	defer s.probeWantMu.Unlock()
+	if s.probeWant == nil {
+		s.probeWant = map[wantedProbe]bool{}
+	}
+	if len(s.probeWant) >= wantedProbeMax {
+		return
+	}
+	s.probeWant[wantedProbe{serverID, folder}] = true
+}
+
+// takeWantedProbes empties the priority set and returns what was in it.
+func (s *Server) takeWantedProbes() []wantedProbe {
+	s.probeWantMu.Lock()
+	defer s.probeWantMu.Unlock()
+	out := make([]wantedProbe, 0, len(s.probeWant))
+	for w := range s.probeWant {
+		out = append(out, w)
+	}
+	clear(s.probeWant)
+	return out
+}
+
+func (s *Server) wantedProbesPending() bool {
+	s.probeWantMu.Lock()
+	defer s.probeWantMu.Unlock()
+	return len(s.probeWant) > 0
+}
 
 // LangProbeLoop measures the remote copies an upgrade suggestion is waiting on.
 //
@@ -35,14 +90,28 @@ const (
 // would pull gigabytes to answer questions nobody asked. The result lands in the
 // probe cache (30 days, files are immutable) and the next sweep folds it into
 // the variant row through scanQuality.
+//
+// Two paces, because the two kinds of work are not equally urgent. A folder
+// behind a card the user has open is measured within half a minute; the rest of
+// the catalogue is worked through in the background and may take a night. The
+// wake-up is on the short interval either way - it just does nothing on most of
+// them when there is no priority work.
 func (s *Server) LangProbeLoop(ctx context.Context) {
-	tick := time.NewTicker(langProbeTick)
+	tick := time.NewTicker(langProbeRush)
 	defer tick.Stop()
+	var lastBackground time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
+		}
+		if s.wantedProbesPending() {
+			s.probeRemoteCandidates(ctx, langProbeBudget)
+			continue
+		}
+		if time.Since(lastBackground) >= langProbeTick {
+			lastBackground = time.Now()
 			s.probeRemoteCandidates(ctx, langProbeBudget)
 		}
 	}
@@ -54,6 +123,15 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 	type cand struct {
 		userID, serverID int64
 		folder           string
+	}
+	var todo []cand
+	// what a card is waiting on comes first, in the order it was asked for
+	for _, w := range s.takeWantedProbes() {
+		var userID int64
+		if s.DB.QueryRow(`SELECT user_id FROM servers WHERE id = ?`, w.serverID).Scan(&userID) != nil {
+			continue
+		}
+		todo = append(todo, cand{userID, w.serverID, w.folder})
 	}
 	// a remote variant with no measurement yet, whose unit the library also
 	// holds - "probed = 0" is the never-looked state, 2 means we looked and the
@@ -79,7 +157,6 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 	if err != nil {
 		return
 	}
-	var todo []cand
 	for rows.Next() {
 		var c cand
 		if rows.Scan(&c.serverID, &c.folder, &c.userID) == nil {
