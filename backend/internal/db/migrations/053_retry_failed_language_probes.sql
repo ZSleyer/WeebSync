@@ -1,0 +1,17 @@
+-- Judge the copies whose header would not parse once more, under a probe that
+-- can grow.
+--
+-- probed = 2 means "we opened it and the container would not answer", and it is
+-- deliberately final: without that, an unreadable file would be re-fetched on
+-- every pass forever. But the reason those thirteen copies did not answer has
+-- since been measured, and it was the window, not the file: an anime release
+-- embeds its subtitle fonts as attachments and ffprobe reads past them before
+-- reporting anything. One of them carries 41 fonts and needs 13 MiB - just past
+-- the 12 MiB that was pulled. Every one of the failures was a Blu-ray rip, which
+-- is exactly the kind that ships the most fonts.
+--
+-- The probe now tries the small window and grows once, so the verdict those rows
+-- carry was reached by a rule that no longer applies. Back to "never looked" so
+-- the loop opens them again; the ones that really cannot be read from their head
+-- will come back to 2 and stay there, this time on the larger window's evidence.
+UPDATE catalog_variants SET probed = 0 WHERE server_id != 0 AND probed = 2;

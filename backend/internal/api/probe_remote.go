@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -17,10 +19,22 @@ import (
 // probeHeaderBytes is how much of a remote file to pull for ffprobe. Matroska
 // (the common anime container) writes its Tracks element - which carries the
 // per-track language - near the start, so a header slice is enough to read the
-// audio/subtitle languages without downloading the whole file. mp4s that store
-// their moov atom at the end won't parse from the header; probeRemoteLang then
-// reports ok=false and the caller falls back to the filename.
+// audio/subtitle languages without downloading the whole file.
+//
+// The window is small on purpose: it is paid per candidate folder, and a
+// catalogue has hundreds of them.
 const probeHeaderBytes = 12 << 20 // 12 MiB
+
+// probeHeaderRetryBytes is the second, larger attempt for a file whose header
+// did not parse at the first size.
+//
+// An anime release commonly embeds its subtitle fonts as attachments, and
+// ffprobe reads past them before it will report anything: one measured file
+// carries 41 of them and needs 13 MiB, which is just past the first window.
+// Growing only for the files that need it keeps the common case cheap - the
+// alternative, a flat larger window, costs every folder in the catalogue three
+// times the transfer to rescue a sixth of them.
+const probeHeaderRetryBytes = 48 << 20 // 48 MiB
 
 // probeRemoteLang reads a remote video's real audio/subtitle languages by
 // pulling only its header over the existing SFTP/FTP connection and running
@@ -31,63 +45,94 @@ func (s *Server) probeRemoteLang(userID, serverID int64, remotePath string) (dub
 	if dub, sub, ok = s.cachedRemoteLang(serverID, remotePath); ok {
 		return dub, sub, true
 	}
-	key := langProbeKey(serverID, remotePath)
 	ext := strings.ToLower(filepath.Ext(remotePath))
 	if !transfer.VideoExt[ext] {
 		return nil, nil, false
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	// generous enough for the larger of the two windows on a slow host; the
+	// pool already runs this at the lowest priority
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	client, _, err := s.dialServer(ctx, userID, serverID, pool.PriLow)
 	if err != nil {
+		slog.Warn("remote language probe", "server", serverID, "path", logSafe(remotePath),
+			"reason", "the server could not be reached", "err", err)
 		return nil, nil, false
 	}
 	defer client.Close()
+
+	// Try the small window first and grow once. A file whose head simply does
+	// not describe it - an mp4 with its moov atom at the end - fails both, and
+	// that is the answer: its languages cannot be read without the whole file.
+	for _, window := range []int64{probeHeaderBytes, probeHeaderRetryBytes} {
+		streams, reason := probeRemoteHead(ctx, client, remotePath, ext, window)
+		if reason != "" {
+			slog.Warn("remote language probe", "server", serverID, "path", logSafe(remotePath),
+				"headerMiB", window>>20, "reason", reason)
+			if reason == readFailed {
+				return nil, nil, false // reading it again will not go better
+			}
+			continue
+		}
+		dub, sub = map[string]bool{}, map[string]bool{}
+		// undLang for the same reason as streamsQuality, and it has to be the
+		// same rule on both sides: a local copy that records a hole can only
+		// ever be improved on by a remote copy that records one too, or the
+		// comparison refuses every real gain instead of only the guessed ones.
+		for _, st := range streams {
+			switch st.CodecType {
+			case "audio":
+				dub[langOrUnd(st.Lang)] = true
+			case "subtitle":
+				sub[langOrUnd(st.Lang)] = true
+			}
+		}
+		v := struct {
+			Dub []string `json:"Dub"`
+			Sub []string `json:"Sub"`
+		}{keysSorted(dub), keysSorted(sub)}
+		if b, err := json.Marshal(v); err == nil {
+			s.cacheSet(langProbeKey(serverID, remotePath), string(b))
+		}
+		return dub, sub, true
+	}
+	return nil, nil, false
+}
+
+// the two ways probeRemoteHead can come back empty, kept apart because only one
+// of them is worth a second, larger attempt
+const (
+	readFailed  = "the file could not be read from the server"
+	parseFailed = "ffprobe found no streams in the header"
+)
+
+// probeRemoteHead pulls the first window bytes of a remote file and reads its
+// streams. reason is "" on success.
+func probeRemoteHead(ctx context.Context, client remote.Client, remotePath, ext string, window int64) ([]probeStream, string) {
 	rc, err := client.Open(remotePath, 0)
 	if err != nil {
-		return nil, nil, false
+		return nil, readFailed
 	}
 	defer rc.Close()
-
 	tmp, err := os.CreateTemp("", "wslp*"+ext)
 	if err != nil {
-		return nil, nil, false
+		return nil, readFailed
 	}
 	defer os.Remove(tmp.Name())
-	// EOF (file smaller than the header window) is fine - we still probe it
-	if _, err := io.CopyN(tmp, rc, probeHeaderBytes); err != nil && err != io.EOF {
+	// EOF (file smaller than the window) is fine - we still probe what came
+	if _, err := io.CopyN(tmp, rc, window); err != nil && err != io.EOF {
 		tmp.Close()
-		return nil, nil, false
+		return nil, readFailed
 	}
 	tmp.Close()
 
 	// a truncated container needs ffprobe to scan further before giving up
-	streams, sok := ffprobeFile(ctx, tmp.Name(), "-analyzeduration", "20M", "-probesize", "20M")
-	if !sok {
-		return nil, nil, false
+	streams, ok := ffprobeFile(ctx, tmp.Name(), "-analyzeduration", "20M", "-probesize", "20M")
+	if !ok || len(streams) == 0 {
+		return nil, parseFailed
 	}
-	dub, sub = map[string]bool{}, map[string]bool{}
-	// undLang for the same reason as streamsQuality, and it has to be the same
-	// rule on both sides: a local copy that records a hole can only ever be
-	// improved on by a remote copy that records one too, or the comparison
-	// refuses every real gain instead of only the guessed ones.
-	for _, st := range streams {
-		switch st.CodecType {
-		case "audio":
-			dub[langOrUnd(st.Lang)] = true
-		case "subtitle":
-			sub[langOrUnd(st.Lang)] = true
-		}
-	}
-	v := struct {
-		Dub []string `json:"Dub"`
-		Sub []string `json:"Sub"`
-	}{keysSorted(dub), keysSorted(sub)}
-	if b, err := json.Marshal(v); err == nil {
-		s.cacheSet(key, string(b))
-	}
-	return dub, sub, true
+	return streams, ""
 }
 
 // representativeRemote picks the one file of a remote folder that stands in for
