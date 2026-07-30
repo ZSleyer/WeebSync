@@ -622,11 +622,15 @@ func (s *Server) cacheSet(key, payload string) {
 		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, key, payload)
 }
 
-// plexTitleIndex maps normalized titles of the Plex show libraries to their
-// ratingKey. One round of cheap listings, cached for an hour.
+// plexTitleIndex maps normalized titles of the Plex libraries to their
+// ratingKey. One round of cheap listings, cached for an hour. Movies are in
+// here as much as series are: a film the library holds is just as owned as a
+// show, and leaving the movie sections out is what let them come back as
+// suggestions. The key carries a version because the cached payload of the
+// shows-only build is indistinguishable from a complete one.
 func (s *Server) plexTitleIndex(c *plex.Client) map[string]string {
 	idx := map[string]string{}
-	if p, ok := s.cacheGet("plex:titleidx", time.Hour); ok {
+	if p, ok := s.cacheGet("plex:titleidx:v2", time.Hour); ok {
 		json.Unmarshal([]byte(p), &idx)
 		return idx
 	}
@@ -635,7 +639,7 @@ func (s *Server) plexTitleIndex(c *plex.Client) map[string]string {
 		return idx
 	}
 	for _, sec := range sections {
-		if sec.Type != "show" {
+		if sec.Type != "show" && sec.Type != "movie" {
 			continue
 		}
 		shows, err := c.Shows(sec.Key)
@@ -650,8 +654,39 @@ func (s *Server) plexTitleIndex(c *plex.Client) map[string]string {
 		}
 	}
 	p, _ := json.Marshal(idx)
-	s.cacheSet("plex:titleidx", string(p))
+	s.cacheSet("plex:titleidx:v2", string(p))
 	return idx
+}
+
+// plexOwned answers "does the library already hold this?" for a whole round of
+// suggestions. Two lookups, because neither alone is enough: the guid index
+// carries the provider ids Plex assigned (the only reliable match for a
+// TMDB-sourced title, which two catalogues rarely spell alike), and the title
+// index covers the entries Plex has no ids for at all.
+func (s *Server) plexOwned() func(m anilist.Media, source string) bool {
+	c := s.plexClient()
+	if c == nil {
+		// Plex unconfigured: nothing is owned, so nothing gets hidden
+		return func(anilist.Media, string) bool { return false }
+	}
+	titles := s.plexTitleIndex(c)
+	tmdb := map[int]bool{}
+	for _, g := range s.plexGuidIndex() {
+		if g.TMDB > 0 {
+			tmdb[g.TMDB] = true
+		}
+	}
+	return func(m anilist.Media, source string) bool {
+		if src, _, _ := strings.Cut(source, ":"); src == "tmdb" && tmdb[m.ID] {
+			return true
+		}
+		for _, t := range []string{m.Title.Romaji, m.Title.English, m.Title.Native} {
+			if t != "" && titles[normTitle(t)] != "" {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // plexWebLink returns the app.plex.tv deep link to a library entry matching
