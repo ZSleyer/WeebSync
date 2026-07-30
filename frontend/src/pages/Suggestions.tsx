@@ -1,5 +1,6 @@
 import { useState, type KeyboardEvent } from 'react'
 import {
+  ArrowRight,
   Bookmark,
   CircleArrowUp,
   CircleDashed,
@@ -687,6 +688,37 @@ function variantQuality(v: UpgradeVariant, t: (k: string) => string): string {
   return parts.join(' · ')
 }
 
+// splitFolder separates the release folder from the directory holding it. The
+// copies of one show sit under the same few directories, so the tail is what
+// actually tells them apart - it leads the line, the shared prefix follows in
+// muted small print instead of pushing it off screen.
+function splitFolder(p: string): { dir: string; name: string } {
+  const s = p.replace(/\/+$/, '')
+  const i = s.lastIndexOf('/')
+  return i > 0 ? { dir: s.slice(0, i), name: s.slice(i + 1) } : { dir: '', name: s || p }
+}
+
+// groupByFolder collects the copies that live in the same directory of the same
+// server. The directory and the server are then said once above the group
+// instead of on every row, which is what turns a dozen near-identical lines
+// into a handful of short ones.
+function groupByFolder(options: UpgradeVariant[]): { server: string; dir: string; items: UpgradeVariant[] }[] {
+  const out: { server: string; dir: string; items: UpgradeVariant[] }[] = []
+  const seen = new Map<string, { server: string; dir: string; items: UpgradeVariant[] }>()
+  for (const o of options) {
+    const { dir } = splitFolder(o.folder)
+    const key = `${o.serverId} ${dir}`
+    let g = seen.get(key)
+    if (!g) {
+      g = { server: o.serverName ?? '', dir, items: [] }
+      seen.set(key, g)
+      out.push(g)
+    }
+    g.items.push(o)
+  }
+  return out
+}
+
 // VariantBox shows one copy: where it lives (Local (Plex) when the server name
 // is empty, else the server name) plus its full path, its quality make-up, and
 // how that make-up was established - measured from the file, or read off its
@@ -694,21 +726,29 @@ function variantQuality(v: UpgradeVariant, t: (k: string) => string): string {
 // the card instead of from the log.
 function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: string; muted?: boolean; accent?: boolean }) {
   const { t } = useTranslation()
+  const { dir, name } = splitFolder(v.folder)
   return (
-    <div className={`min-w-0 ${accent ? 'border border-accent p-1.5' : ''} ${muted ? 'text-t-muted' : ''}`}>
-      <div className="flex items-center gap-1.5">
+    // both copies sit on their own recessed surface, so the pair reads as two
+    // objects being compared instead of two paragraphs sharing the card
+    <div
+      className={`min-w-0 border bg-bg-secondary p-2 ${accent ? 'border-accent' : 'border-border-subtle'} ${muted ? 'text-t-muted' : ''}`}
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
         <Badge tone={accent ? 'accent' : 'neutral'} className="shrink-0">
           {label}
         </Badge>
         <Badge className="shrink-0">{v.serverName ? v.serverName : t('suggestions.localPlex')}</Badge>
       </div>
-      <div className="mt-0.5 break-all font-mono text-[11px]" title={v.folder}>
-        {v.folder}
+      <div className="mt-1 break-words font-mono text-xs" title={v.folder}>
+        {name}
       </div>
-      <div className="mt-0.5 text-[11px]">{variantQuality(v, t)}</div>
-      <div className="mt-0.5 text-[11px] text-t-muted">
-        {t('suggestions.basisQuality', { how: sourceLabel(v, t) })}
-      </div>
+      {dir && (
+        <div className="truncate font-mono text-xs text-t-muted" title={v.folder}>
+          {dir}
+        </div>
+      )}
+      <div className="mt-1 text-xs">{variantQuality(v, t)}</div>
+      <div className="text-xs text-t-muted">{t('suggestions.basisQuality', { how: sourceLabel(v, t) })}</div>
     </div>
   )
 }
@@ -729,7 +769,7 @@ function LocalSeasons({ seasons, current, isMovie }: { seasons: LocalSeason[]; c
           // share, so there is no path to show - only the season and quality
           const path = ls.folder.startsWith('/') ? ls.folder : ''
           return (
-            <li key={`${ls.season}-${ls.folder}`} className="flex flex-wrap items-center gap-2 text-[11px]">
+            <li key={`${ls.season}-${ls.folder}`} className="flex flex-wrap items-center gap-2 text-xs">
               <Badge tone={here ? 'accent' : 'neutral'} className="shrink-0">
                 {ls.isMovie
                   ? t('suggestions.movie')
@@ -817,9 +857,12 @@ function UpgradesSection() {
             <Panel key={u.key || `${u.showKey}-${u.season}-${i}`} className="flex flex-wrap items-start gap-4 p-3">
               <Cover src={u.cover} />
               <div className="min-w-0 flex-1">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-                  <h4 className="min-w-0 truncate font-display text-sm font-semibold tracking-wider">{u.title}</h4>
-                  <div className="flex shrink-0 flex-wrap gap-1">
+                {/* the diff chips stay beside the title instead of being pushed
+                    to the far edge of a wide card, where they end up an arm's
+                    length from what they describe */}
+                <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3">
+                  <h4 className="min-w-0 break-words font-display text-sm font-semibold tracking-wider">{u.title}</h4>
+                  <div className="flex flex-wrap gap-1">
                     {variantDiff(u.from, chosen, dims, t).map((d, j) => (
                       <Badge key={j} tone="accent">
                         {d}
@@ -847,56 +890,101 @@ function UpgradesSection() {
                 </p>
                 <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
                   <VariantBox v={u.from} label={t('suggestions.fromLabel')} muted />
-                  <span className="text-center text-t-muted">→</span>
+                  {/* points down while the boxes are stacked, right once they sit
+                      side by side; decorative either way, the labels say it */}
+                  <ArrowRight aria-hidden size="1em" className="mx-auto rotate-90 text-t-muted sm:rotate-0" />
                   <VariantBox
                     v={chosen}
                     label={isChosen(u.to) ? t('suggestions.recommended') : t('suggestions.chosenVersion')}
                     accent
                   />
                 </div>
-                <p className="mt-2 text-[11px] text-t-secondary">
+                <p className="mt-2 text-xs text-t-secondary">
                   {t('suggestions.basis', { axes: axesWon(u.from, chosen, dims, t) })}
                   {langUnconfirmed && ` ${t('suggestions.basisLangUnverified')}`}
                 </p>
                 {options.length > 0 && (
-                  <fieldset className="mt-2 min-w-0 border-0 p-0">
-                    <legend className="t-label">{t('suggestions.chooseVersion')}</legend>
-                    <ul className="mt-1 space-y-1">
-                      {options.map((o, j) => {
-                        const diff = variantDiff(u.from, o, dims, t)
-                        return (
-                          <li
-                            key={`${o.serverId}-${o.folder}-${j}`}
-                            className={`border-l-2 pl-2 ${isChosen(o) ? 'border-accent' : 'border-transparent'}`}
-                          >
-                            <label className="flex min-h-6 cursor-pointer flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-                              <span className="flex shrink-0 items-center gap-2">
-                                <Radio
-                                  name={`opt-${u.key}`}
-                                  checked={isChosen(o)}
-                                  onChange={() => setChoice((c) => ({ ...c, [u.key]: o }))}
-                                />
-                                <Badge tone={isChosen(o) ? 'accent' : 'neutral'}>
-                                  {o.serverName ? o.serverName : t('suggestions.localPlex')}
-                                </Badge>
-                              </span>
-                              <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-t-secondary" title={o.folder}>
-                                {o.folder}
-                              </span>
-                              <span className="flex shrink-0 flex-wrap items-center gap-1 text-[11px] text-t-muted">
-                                {variantQuality(o, t)}
-                                {diff.map((d, k) => (
-                                  <Badge key={k} tone="accent">
-                                    {d}
-                                  </Badge>
-                                ))}
-                              </span>
-                            </label>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </fieldset>
+                  // a show can have a dozen copies scattered over the servers;
+                  // unfolded they bury the card's actual answer, so the list
+                  // stays behind its own heading unless it is short. The visible
+                  // name is that heading - the legend only repeats it for the
+                  // screen reader, which never sees it.
+                  <div className="mt-2 min-w-0">
+                    <Collapsible
+                      small
+                      defaultOpen={options.length <= 4}
+                      title={t('suggestions.chooseVersion')}
+                      count={options.length}
+                    >
+                      <fieldset className="min-w-0 border-0 p-0">
+                        <legend className="sr-only">{t('suggestions.chooseVersion')}</legend>
+                        <ul className="min-w-0 space-y-3">
+                          {groupByFolder(options).map((g) => (
+                            <li key={`${g.server}-${g.dir}`} className="min-w-0">
+                              {/* the directory and the server, said once for
+                                  the whole group */}
+                              <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <Badge className="shrink-0">{g.server ? g.server : t('suggestions.localPlex')}</Badge>
+                                <span className="min-w-0 truncate font-mono text-xs text-t-muted" title={g.dir}>
+                                  {g.dir || '/'}
+                                </span>
+                              </p>
+                              <ul className="mt-1 min-w-0 space-y-1">
+                                {g.items.map((o, j) => {
+                                  const diff = variantDiff(u.from, o, dims, t)
+                                  const { name } = splitFolder(o.folder)
+                                  return (
+                                    <li key={`${o.serverId}-${o.folder}-${j}`} className="min-w-0">
+                                      {/* one row: what tells this copy apart from
+                                          its neighbours, and what it is made of.
+                                          Everything sits left of the same edge,
+                                          so no line has to be followed across the
+                                          width of the card to be read, and every
+                                          row carries its own surface so a dozen
+                                          of them do not run together into one
+                                          block. */}
+                                      <label
+                                        className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 border p-2 ${
+                                          isChosen(o)
+                                            ? 'border-accent bg-bg-hover'
+                                            : // hover only lifts the surface: an
+                                              // accent border on hover would look
+                                              // exactly like the chosen row
+                                              'border-border-subtle bg-bg-secondary hover:bg-bg-hover'
+                                        }`}
+                                      >
+                                        <Radio
+                                          name={`opt-${u.key}`}
+                                          checked={isChosen(o)}
+                                          onChange={() => setChoice((c) => ({ ...c, [u.key]: o }))}
+                                        />
+                                        <span className="min-w-0">
+                                          <span
+                                            className="block font-mono text-xs wrap-break-word text-t-primary"
+                                            title={o.folder}
+                                          >
+                                            {name}
+                                          </span>
+                                          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-t-muted">
+                                            <span>{variantQuality(o, t)}</span>
+                                            {diff.map((d, k) => (
+                                              <Badge key={k} tone="accent">
+                                                {d}
+                                              </Badge>
+                                            ))}
+                                          </span>
+                                        </span>
+                                      </label>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            </li>
+                          ))}
+                        </ul>
+                      </fieldset>
+                    </Collapsible>
+                  </div>
                 )}
                 {(u.localSeasons ?? []).length > 0 && (
                   <div className="mt-2">
