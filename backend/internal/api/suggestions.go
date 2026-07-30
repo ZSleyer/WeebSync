@@ -437,13 +437,24 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 
 	// ── Trending: AniList + TMDB discovery charts ──
 	tr := newAcc()
+	// what the library already holds is not a discovery. Asked of the Plex
+	// index directly rather than through PlexFolder, which stays empty
+	// whenever the entry's folder could not be read - a matched title would
+	// then have come back as trending anyway.
+	owned := s.plexOwned()
 	for _, a := range s.anilistTrending(ctx, userID) {
+		if owned(a.Media, "anilist") {
+			continue
+		}
 		tr.add(s.buildItem(a.Media, "anilist", a.Candidates, a.PlexFolder, bySrc, bySeries, ""))
 	}
 	if s.Tmdb.Enabled() {
 		for _, kind := range []string{"tv", "movie"} {
 			if list, err := s.Tmdb.Trending(ctx, kind); err == nil {
 				for _, t := range s.tmdbSuggestList(userID, kind, list, true) {
+					if owned(t.Media, t.Source) {
+						continue
+					}
 					tr.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries, ""))
 				}
 			}
