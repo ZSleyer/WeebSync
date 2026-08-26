@@ -283,6 +283,7 @@ export interface SuggestionItem {
   need?: number // incomplete: episodes through the sequel
   sequel?: Media
   plexFolder?: string
+  because?: string[] // recommended: the finished titles this was derived from
   library?: string // incomplete: the Plex library this came from, shown on the card
   sync?: SyncPlan // incomplete: where a one-off sync creates the season/movie folder
 }
@@ -298,6 +299,7 @@ export interface SyncPlan {
 
 export interface SuggestionsResponse {
   watchlist: SuggestionItem[]
+  recommended: SuggestionItem[]
   trending: SuggestionItem[]
   upgrades: UpgradeSuggestion[]
   incomplete: SuggestionItem[]
