@@ -184,7 +184,15 @@ type rawResult struct {
 	Status      string  `json:"status"`
 	NumEpisodes int     `json:"number_of_episodes"`
 	VoteAverage float64 `json:"vote_average"`
-	Seasons     []struct {
+	VoteCount   int     `json:"vote_count"`
+	LastAirDate string  `json:"last_air_date"`
+	Networks    []struct {
+		Name string `json:"name"`
+	} `json:"networks"`
+	Companies []struct {
+		Name string `json:"name"`
+	} `json:"production_companies"`
+	Seasons []struct {
 		SeasonNumber int `json:"season_number"`
 		EpisodeCount int `json:"episode_count"`
 	} `json:"seasons"`
@@ -401,6 +409,15 @@ func statusMap(s string) string {
 	return s
 }
 
+// tmdbDate turns TMDB's "2026-07-05" into the sortable YYYYMMDD form.
+func tmdbDate(d string) anilist.FuzzyDate {
+	t, err := time.Parse("2006-01-02", d)
+	if err != nil {
+		return 0
+	}
+	return anilist.Date(t.Year(), int(t.Month()), t.Day())
+}
+
 func (c *Client) toMedia(kind string, r rawResult) anilist.Media {
 	var m anilist.Media
 	m.ID = r.ID
@@ -427,6 +444,20 @@ func (c *Client) toMedia(kind string, r rawResult) anilist.Media {
 		}
 	}
 	m.AverageScore = int(r.VoteAverage * 10)
+	// TMDB's own "popularity" is a decaying trend score, not an audience size:
+	// vote count is the closer analogue to AniList's popularity.
+	m.Popularity = r.VoteCount
+	// networks first: for a show the airing network is what AniList calls the
+	// studio; films only carry production companies
+	for _, n := range r.Networks {
+		m.Studios = append(m.Studios, n.Name)
+	}
+	for _, n := range r.Companies {
+		m.Studios = append(m.Studios, n.Name)
+	}
+	m.StartDate = tmdbDate(firstOf(r.FirstAirDate, r.ReleaseDate))
+	m.EndDate = tmdbDate(r.LastAirDate)
+	m.Schema = anilist.MediaSchema
 	m.Description = r.Overview
 	for _, g := range r.GenreObjs {
 		m.Genres = append(m.Genres, g.Name)

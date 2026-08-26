@@ -95,6 +95,12 @@ func (r seriesRecord) toMedia() anilist.Media {
 		year = r.FirstAired[:4]
 	}
 	m.SeasonYear, _ = strconv.Atoi(year)
+	if t, err := time.Parse("2006-01-02", r.FirstAired); err == nil {
+		m.StartDate = anilist.Date(t.Year(), int(t.Month()), t.Day())
+	}
+	// TVDB's base record carries neither an audience size nor the studio, so
+	// those sort keys stay empty here and such titles sort last.
+	m.Schema = anilist.MediaSchema
 	return m
 }
 
