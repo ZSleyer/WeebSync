@@ -19,6 +19,7 @@ import {
   Pause,
   Play,
   Server,
+  Sparkles,
   Star,
   TrendingUp,
   Tv,
@@ -77,10 +78,11 @@ import { SkeletonCards } from '../components/Loading'
 // rematch. Data comes unified from GET /api/suggestions (+ /api/upgrades).
 export default function Suggestions() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'watchlist' | 'trending' | 'upgrades' | 'incomplete'>('watchlist')
+  const [tab, setTab] = useState<'watchlist' | 'recommended' | 'trending' | 'upgrades' | 'incomplete'>('watchlist')
   const [showIgnored, setShowIgnored] = useState(false)
   const tabs = [
     ['watchlist', t('suggestions.tabWatchlist'), Bookmark],
+    ['recommended', t('suggestions.tabRecommended'), Sparkles],
     ['trending', t('suggestions.tabTrending'), TrendingUp],
     ['upgrades', t('suggestions.tabUpgrades'), CircleArrowUp],
     ['incomplete', t('suggestions.tabIncomplete'), CircleDashed],
@@ -152,7 +154,7 @@ const CATS = ['anime-movie', 'anime-tv', 'animation-movie', 'animation-tv', 'mov
 // BucketSection renders one functional bucket. Trending and Watchlist are
 // sub-grouped into the four categories (Anime series/movies, series, movies);
 // Incomplete is a flat list.
-function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incomplete' }) {
+function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recommended' | 'incomplete' }) {
   const { t } = useTranslation()
   const { data, isLoading } = usePersistedQuery<SuggestionsResponse>(
     'suggestions',
@@ -165,7 +167,7 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'incompl
 
   if (isLoading) return <SkeletonCards />
   const items = (data?.[bucket] ?? []) as SuggestionItem[]
-  if (!items.length) return <Badge>{t('suggestions.empty')}</Badge>
+  if (!items.length) return <Badge multiline>{t(bucket === 'recommended' ? 'suggestions.emptyRecommended' : 'suggestions.empty')}</Badge>
 
   const cards = (list: SuggestionItem[]) => (
     <ul className="grid grid-cols-1 gap-2">
@@ -430,6 +432,11 @@ function SugCard({
       >
         {/* two differently styled detail lines plus the candidate list - more
             than the card's single `detail` slot, so they ride along as children */}
+        {!!it.because?.length && (
+          <p className="mt-1 text-[11px] text-t-muted">
+            {t('suggestions.because', { titles: it.because.join(', ') })}
+          </p>
+        )}
         {it.sequel && (
           <p className="mt-1 truncate text-[11px] text-t-muted">{t('suggestions.missing')}: {mediaTitle(it.sequel)}</p>
         )}
