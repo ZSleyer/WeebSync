@@ -14,6 +14,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
 import { Badge, Button, ButtonLink, Cover, Dialog, EmptyState, Input, Panel, Select } from '@weebsync/design-system'
 import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
+import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../components/catalogSort'
 import { CatalogViewSelect } from '../components/CatalogViewSelect'
 import { useCatalogView } from '../components/useCatalogView'
 import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
@@ -402,6 +403,7 @@ export function CatalogGrid({
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   const [detail, setDetail] = useState<CatalogGroup | null>(null)
   const [scopeError, setScopeError] = useState('')
+  const [sort, setSort] = useCatalogSort()
   const pendingCount = items.filter((i) => i.pending).length
   const noMatchCount = items.filter((i) => !i.media && !i.pending).length
 
@@ -447,8 +449,8 @@ export function CatalogGrid({
       if (it.media) byMedia.set(key, g)
       out.push(g)
     }
-    return out
-  }, [items])
+    return sortGroups(out, sort)
+  }, [items, sort])
 
   // the breadcrumb is outside the loading/error branches on purpose: without
   // it a slow or failing folder would be a dead end with no way back up
@@ -501,6 +503,18 @@ export function CatalogGrid({
             {caps?.tvdbApiKeySet && <option value="tvdb">{t('remote.scopeTvdb')}</option>}
           </Select>
         </label>
+        {groups.length > 1 && (
+          <label className="flex items-center gap-2 text-xs text-t-muted">
+            {t('remote.sort')}
+            <Select wrapperClassName="w-44" value={sort} onChange={(e) => setSort(e.target.value as CatalogSort)}>
+              {CATALOG_SORTS.map((s) => (
+                <option key={s} value={s}>
+                  {t(`remote.sort_${s}`)}
+                </option>
+              ))}
+            </Select>
+          </label>
+        )}
         {data && data.scope !== '' && (
           <Button size="sm" title={t('remote.scopeClearHint')} onClick={() => setScope('')}>
             {t('remote.scopeClear')}

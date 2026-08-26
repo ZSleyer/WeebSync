@@ -84,6 +84,10 @@ export interface Media {
   genres: string[]
   description: string
   siteUrl?: string
+  popularity?: number // audience size, comparable within one metadata source
+  studios?: string[] // main studios (AniList) or networks/companies (TMDB)
+  startDate?: number // YYYYMMDD, 0/absent = unknown
+  endDate?: number
 }
 
 // CJK_RE matches Japanese/Chinese native script (kana, CJK ideographs, fullwidth
