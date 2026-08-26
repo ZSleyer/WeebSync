@@ -89,9 +89,10 @@ var dataStores = []dataStore{
 	cacheStore("cache:anilist-search", 24*time.Hour, "ttl_anilist_h", "search:"),
 	cacheStore("cache:anilist-media", 24*time.Hour, "ttl_anilist_h", "media:"),
 	cacheStore("cache:anilist-relations", 24*time.Hour, "ttl_anilist_h", "rel2:"),
+	cacheStore("cache:anilist-recommendations", 24*time.Hour, "ttl_anilist_h", "rec1:"),
 	cacheStore("cache:anilist-reviews", 24*time.Hour, "ttl_anilist_h", "reviews"),
 	cacheStore("cache:anilist-trending", 24*time.Hour, "ttl_anilist_h", "trending:"),
-	cacheStore("cache:anilist-userlist", time.Hour, "", "alist:"),
+	cacheStore("cache:anilist-userlist", time.Hour, "", "alist"),
 
 	// TMDB. Titles and season episode counts are per-title detail like media,
 	// fetched through the same client with the same TTL, so they share its row.
