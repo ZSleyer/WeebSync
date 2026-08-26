@@ -16,7 +16,7 @@ COPY frontend/ ./
 RUN yarn build
 
 # ── backend build ── (native toolchain, cross-compiled to $TARGETARCH)
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETOS TARGETARCH
 # build metadata surfaced on the About page (see internal/version)
 ARG VERSION=dev CHANNEL=dev COMMIT= REPO=
