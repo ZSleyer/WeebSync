@@ -437,7 +437,7 @@ func (s *Server) handleAnilistSuggestions(w http.ResponseWriter, r *http.Request
 	list := s.Anilist.CachedUserList(alID)
 	building := false
 	var fetched string
-	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist:%d", alID)).Scan(&fetched)
+	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", alID)).Scan(&fetched)
 	if t, perr := time.Parse(sqliteTime, fetched); perr != nil || time.Since(t) > time.Hour || r.URL.Query().Get("force") == "1" {
 		building = len(list) == 0
 		if r.URL.Query().Get("force") == "1" {
