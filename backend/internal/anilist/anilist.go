@@ -28,6 +28,68 @@ type AiringSlot struct {
 	Episode  int   `json:"episode"`
 }
 
+// MediaSchema versions the cached media payload. Bump it when a new field is
+// added: entries below the current version are refetched even when the title
+// is finished, which the freshness TTL alone would never do.
+const MediaSchema = 2
+
+// StudioNames flattens AniList's studios connection to plain names. It reads
+// both shapes: the GraphQL object on a live response, and the string list we
+// marshal into the cache and hand to the frontend.
+type StudioNames []string
+
+func (s *StudioNames) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && b[0] == '[' {
+		return json.Unmarshal(b, (*[]string)(s))
+	}
+	var conn struct {
+		Nodes []struct {
+			Name string `json:"name"`
+		} `json:"nodes"`
+	}
+	if err := json.Unmarshal(b, &conn); err != nil {
+		return err
+	}
+	out := make(StudioNames, 0, len(conn.Nodes))
+	for _, n := range conn.Nodes {
+		if n.Name != "" {
+			out = append(out, n.Name)
+		}
+	}
+	*s = out
+	return nil
+}
+
+// FuzzyDate is a partial release date as YYYYMMDD (0 = unknown), which sorts
+// directly. Like StudioNames it reads AniList's {year,month,day} object as
+// well as the flat number we store.
+type FuzzyDate int
+
+func (d *FuzzyDate) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && b[0] != '{' {
+		if string(b) == "null" {
+			*d = 0
+			return nil
+		}
+		return json.Unmarshal(b, (*int)(d))
+	}
+	var o struct {
+		Year  int `json:"year"`
+		Month int `json:"month"`
+		Day   int `json:"day"`
+	}
+	if err := json.Unmarshal(b, &o); err != nil {
+		return err
+	}
+	*d = FuzzyDate(o.Year*10000 + o.Month*100 + o.Day)
+	return nil
+}
+
+// Date builds a FuzzyDate from separate parts (used by the TMDB/TVDB mappers).
+func Date(year, month, day int) FuzzyDate {
+	return FuzzyDate(year*10000 + month*100 + day)
+}
+
 type Media struct {
 	ID    int `json:"id"`
 	Title struct {
@@ -70,6 +132,15 @@ type Media struct {
 	Genres       []string     `json:"genres"`
 	Description  string       `json:"description"`
 	SiteURL      string       `json:"siteUrl,omitempty"` // provider page for cross-checking
+	// Popularity is the audience size (AniList: users on their lists, TMDB:
+	// vote count). Comparable within one source, which is all the catalog
+	// sorts across: the metadata source is picked per folder.
+	Popularity int         `json:"popularity,omitempty"`
+	Studios    StudioNames `json:"studios,omitempty"` // main studios/networks
+	StartDate  FuzzyDate   `json:"startDate,omitempty"`
+	EndDate    FuzzyDate   `json:"endDate,omitempty"`
+	// Schema is the payload version this entry was written with, see MediaSchema.
+	Schema int `json:"schema,omitempty"`
 }
 
 // FutureAirings returns every scheduled not-yet-aired episode (absolute
@@ -92,7 +163,9 @@ const mediaFields = `id title { romaji english native } coverImage { large } ban
 	trailer { id site thumbnail }
 	nextAiringEpisode { airingAt episode }
 	airingSchedule(notYetAired: true, perPage: 25) { nodes { airingAt episode } }
-	episodes seasonYear format status averageScore genres description(asHtml: false)`
+	episodes seasonYear format status averageScore popularity genres description(asHtml: false)
+	studios(isMain: true) { nodes { name } }
+	startDate { year month day } endDate { year month day }`
 
 type Client struct {
 	DB   *sql.DB
@@ -291,6 +364,9 @@ func (c *Client) SearchBatch(ctx context.Context, reqs []SearchReq) ([][]Media, 
 	}
 	for n, i := range missing {
 		list := resp.Data[fmt.Sprintf("r%d", n)].Media
+		for j := range list {
+			list[j].Schema = MediaSchema
+		}
 		out[i] = list
 		payload, _ := json.Marshal(list)
 		c.store(reqs[i].cacheKey(), string(payload))
@@ -496,6 +572,7 @@ func (c *Client) Media(ctx context.Context, id int) (*Media, error) {
 	if resp.Data.Media == nil {
 		return nil, fmt.Errorf("anilist: media %d not found", id)
 	}
+	resp.Data.Media.Schema = MediaSchema
 	payload, _ := json.Marshal(resp.Data.Media)
 	c.store(key, string(payload))
 	return resp.Data.Media, nil

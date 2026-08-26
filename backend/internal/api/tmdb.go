@@ -273,6 +273,15 @@ func (s *Server) queueTmdbFetch(kind string, id int) {
 // background refresh for missing/stale non-finished entries.
 func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending bool) {
 	var fresh bool
+	// a payload written before the current field set is refetched regardless of
+	// TTL and status: a finished title never expires otherwise, so entries
+	// cached earlier would never gain the popularity/studio/date sort keys
+	outdated := func(m *anilist.Media) bool {
+		if m.Schema < anilist.MediaSchema {
+			return true
+		}
+		return !fresh && m.Status != "FINISHED" && m.Status != "CANCELLED"
+	}
 	switch {
 	case source == "anilist":
 		m, fresh = s.Anilist.CachedMedia(id)
@@ -280,7 +289,7 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 			s.queueMediaFetch(id)
 			return nil, true
 		}
-		if !fresh && m.Status != "FINISHED" && m.Status != "CANCELLED" {
+		if outdated(m) {
 			s.queueMediaFetch(id)
 		}
 	case strings.HasPrefix(source, "tmdb:"):
@@ -290,7 +299,7 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 			s.queueTmdbFetch(kind, id)
 			return nil, true
 		}
-		if !fresh && m.Status != "FINISHED" && m.Status != "CANCELLED" {
+		if outdated(m) {
 			s.queueTmdbFetch(kind, id)
 		}
 	case source == "tvdb":
@@ -299,7 +308,7 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 			s.queueTvdbFetch(id)
 			return nil, true
 		}
-		if !fresh && m.Status != "FINISHED" && m.Status != "CANCELLED" {
+		if outdated(m) {
 			s.queueTvdbFetch(id)
 		}
 	}

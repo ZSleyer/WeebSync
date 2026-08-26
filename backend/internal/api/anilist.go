@@ -478,6 +478,9 @@ func hasPrequel(edges []anilist.Relation) bool {
 // queueMediaFetch refreshes missing/stale media metadata in the background.
 func (s *Server) queueMediaFetch(id int) {
 	s.runJob(fmt.Sprintf("f:%d", id), func(ctx context.Context) {
+		// drop first: Media() would otherwise answer from a cache entry that
+		// is still fresh but written with an older field set (see sourceMedia)
+		s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("media:%d", id))
 		s.Anilist.Media(ctx, id) // stores into the cache on success
 	})
 }
