@@ -85,15 +85,21 @@ func (c *Client) Viewer(ctx context.Context, token string) (id int, name, avatar
 type ListEntry struct {
 	Status   string `json:"status"` // CURRENT | PLANNING | COMPLETED | PAUSED | REPEATING
 	Progress int    `json:"progress"`
-	Media    Media  `json:"media"`
+	// Score is the user's own rating, always requested on the 100-point scale:
+	// AniList otherwise answers in whatever format the account is set to
+	// (stars, 10-point, smileys), which is not comparable across accounts.
+	// 0 means unrated.
+	Score int   `json:"score"`
+	Media Media `json:"media"`
 }
 
 const listTTL = time.Hour
 
 // UserList returns the user's anime list (all relevant statuses, one query),
-// cached for an hour under alist:<anilistUserID>.
+// cached for an hour under alist2:<anilistUserID> (key bumped when the entries
+// gained the user score).
 func (c *Client) UserList(ctx context.Context, token string, anilistUserID int) ([]ListEntry, error) {
-	cacheKey := fmt.Sprintf("alist:%d", anilistUserID)
+	cacheKey := fmt.Sprintf("alist2:%d", anilistUserID)
 	var payload, fetched string
 	c.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, cacheKey).Scan(&payload, &fetched)
 	if t, err := time.Parse("2006-01-02 15:04:05", fetched); err == nil && time.Since(t) <= listTTL {
@@ -104,7 +110,7 @@ func (c *Client) UserList(ctx context.Context, token string, anilistUserID int) 
 	}
 	gql := fmt.Sprintf(`query ($id: Int) {
 		MediaListCollection(userId: $id, type: ANIME, status_in: [CURRENT, PLANNING, COMPLETED, PAUSED, REPEATING]) {
-			lists { entries { status progress media { %s } } }
+			lists { entries { status progress score(format: POINT_100) media { %s } } }
 		}
 	}`, mediaFields)
 	var resp struct {
@@ -130,13 +136,13 @@ func (c *Client) UserList(ctx context.Context, token string, anilistUserID int) 
 
 // InvalidateUserList drops the cached list (after progress mutations).
 func (c *Client) InvalidateUserList(anilistUserID int) {
-	c.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist:%d", anilistUserID))
+	c.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", anilistUserID))
 }
 
 // CachedUserList returns the cached list without fetching (may be stale).
 func (c *Client) CachedUserList(anilistUserID int) []ListEntry {
 	var payload string
-	c.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist:%d", anilistUserID)).Scan(&payload)
+	c.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", anilistUserID)).Scan(&payload)
 	var list []ListEntry
 	json.Unmarshal([]byte(payload), &list)
 	return list

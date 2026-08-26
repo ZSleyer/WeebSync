@@ -44,3 +44,33 @@ func TestMediaSortFieldsRoundTrip(t *testing.T) {
 		t.Fatalf("round trip lost fields: %+v", back)
 	}
 }
+
+// the recommendations query nests media one level deeper than the cached form;
+// both must read back into the same struct.
+func TestRecommendationsRoundTrip(t *testing.T) {
+	const live = `{"nodes":[{"rating":412,"mediaRecommendation":{"id":9,"title":{"romaji":"Kino"},"averageScore":83}},
+		{"rating":-3,"mediaRecommendation":{"id":11,"title":{"romaji":"Haibane"}}}]}`
+	var conn struct {
+		Nodes []Recommendation `json:"nodes"`
+	}
+	if err := json.Unmarshal([]byte(live), &conn); err != nil {
+		t.Fatalf("live shape: %v", err)
+	}
+	if len(conn.Nodes) != 2 || conn.Nodes[0].Rating != 412 || conn.Nodes[0].Media.ID != 9 {
+		t.Fatalf("got %+v", conn.Nodes)
+	}
+	if conn.Nodes[1].Rating != -3 {
+		t.Fatalf("downvoted edge lost its rating: %+v", conn.Nodes[1])
+	}
+	payload, err := json.Marshal(conn.Nodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back []Recommendation
+	if err := json.Unmarshal(payload, &back); err != nil {
+		t.Fatalf("cached shape: %v", err)
+	}
+	if len(back) != 2 || back[0].Media.Title.Romaji != "Kino" || back[0].Rating != 412 {
+		t.Fatalf("round trip lost fields: %+v", back)
+	}
+}

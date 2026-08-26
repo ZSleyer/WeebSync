@@ -459,6 +459,69 @@ func (c *Client) RelationsBatch(ctx context.Context, ids []int) (map[int][]Relat
 	return out, nil
 }
 
+// Recommendation is one community-curated "if you liked this, try that" edge.
+// Rating is the net vote count AniList users gave it, so it doubles as the
+// strength of the recommendation.
+type Recommendation struct {
+	Rating int   `json:"rating"`
+	Media  Media `json:"mediaRecommendation"`
+}
+
+// recFields is the trimmed field set for recommended media: enough for a
+// suggestion card, without description/trailer/schedule. Those would multiply
+// the size of every cached batch and the detail dialog fetches them anyway.
+const recFields = `id title { romaji english native } coverImage { large }
+	episodes seasonYear format status averageScore popularity genres siteUrl`
+
+// RecommendationsBatch resolves the recommendation lists of several media,
+// cached per id under rec1:<id>. Same aliasing and batch size as
+// RelationsBatch, so N titles cost N/10 slots of the rate limit.
+func (c *Client) RecommendationsBatch(ctx context.Context, ids []int) (map[int][]Recommendation, error) {
+	out := make(map[int][]Recommendation, len(ids))
+	var missing []int
+	for _, id := range ids {
+		if payload, ok := c.cached(fmt.Sprintf("rec1:%d", id)); ok {
+			var recs []Recommendation
+			if json.Unmarshal([]byte(payload), &recs) == nil {
+				out[id] = recs
+				continue
+			}
+		}
+		missing = append(missing, id)
+	}
+	for start := 0; start < len(missing); start += 10 {
+		chunk := missing[start:min(start+10, len(missing))]
+		var decls, parts []string
+		variables := map[string]any{}
+		for n, id := range chunk {
+			decls = append(decls, fmt.Sprintf("$id%d: Int", n))
+			parts = append(parts, fmt.Sprintf(
+				`r%d: Media(id: $id%d, type: ANIME) { recommendations(sort: RATING_DESC, perPage: 10) { nodes { rating mediaRecommendation { %s } } } }`, n, n, recFields))
+			variables[fmt.Sprintf("id%d", n)] = id
+		}
+		gql := fmt.Sprintf("query (%s) { %s }", strings.Join(decls, ", "), strings.Join(parts, " "))
+		var resp struct {
+			Data map[string]struct {
+				Recommendations struct {
+					Nodes []Recommendation `json:"nodes"`
+				} `json:"recommendations"`
+			} `json:"data"`
+		}
+		if err := c.query(ctx, gql, variables, &resp); err != nil {
+			return out, err
+		}
+		for n, id := range chunk {
+			recs := resp.Data[fmt.Sprintf("r%d", n)].Recommendations.Nodes
+			// a media with no recommendation carries a nil node list; cache
+			// that too, or every rebuild would ask AniList again
+			out[id] = recs
+			payload, _ := json.Marshal(recs)
+			c.store(fmt.Sprintf("rec1:%d", id), string(payload))
+		}
+	}
+	return out, nil
+}
+
 func (c *Client) Search(ctx context.Context, q string) ([]Media, error) {
 	key := "search:" + normQuery(q)
 	if payload, ok := c.cached(key); ok {
