@@ -1,9 +1,11 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
@@ -48,17 +50,19 @@ type SugItem struct {
 	ShowKey    string         `json:"showKey,omitempty"` // incomplete (missing unit): canonical unit
 	Season     int            `json:"season,omitempty"`
 	IsMovie    bool           `json:"isMovie,omitempty"`
+	Because    []string       `json:"because,omitempty"` // recommended: the finished titles behind it
 	Library    string         `json:"library,omitempty"` // incomplete: Plex library title, for grouping
 	Sync       SyncPlan       `json:"sync,omitempty"`    // incomplete (missing unit): where a one-off sync creates the season/movie folder
 }
 
 // SuggestionsResponse is the unified payload: one list per functional bucket.
 type SuggestionsResponse struct {
-	Watchlist  []SugItem           `json:"watchlist"`
-	Trending   []SugItem           `json:"trending"`
-	Upgrades   []UpgradeSuggestion `json:"upgrades"`
-	Incomplete []SugItem           `json:"incomplete"`
-	Building   bool                `json:"building"`
+	Watchlist   []SugItem           `json:"watchlist"`
+	Recommended []SugItem           `json:"recommended"`
+	Trending    []SugItem           `json:"trending"`
+	Upgrades    []UpgradeSuggestion `json:"upgrades"`
+	Incomplete  []SugItem           `json:"incomplete"`
+	Building    bool                `json:"building"`
 }
 
 type providerRef struct {
@@ -391,6 +395,7 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	dismissed := s.dismissedKeys(u.ID, "suggestion")
 	resp.Trending = filterDismissed(resp.Trending, dismissed)
 	resp.Watchlist = filterDismissed(resp.Watchlist, dismissed)
+	resp.Recommended = filterDismissed(resp.Recommended, dismissed)
 	resp.Incomplete = filterDismissed(resp.Incomplete, dismissed)
 	upDismissed := s.dismissedKeys(u.ID, "upgrade")
 	kept := make([]UpgradeSuggestion, 0, len(resp.Upgrades))
@@ -406,6 +411,9 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	}
 	if resp.Watchlist == nil {
 		resp.Watchlist = []SugItem{}
+	}
+	if resp.Recommended == nil {
+		resp.Recommended = []SugItem{}
 	}
 	if resp.Incomplete == nil {
 		resp.Incomplete = []SugItem{}
@@ -491,11 +499,17 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	s.addMissingUnits(inc)
 	s.addIncomplete(userID, inc, bySrc, bySeries)
 
+	// ── Recommended: what AniList's community suggests next to the titles
+	// the user finished ──
+	rec := newAcc()
+	s.addRecommended(ctx, userID, rec, owned, bySrc, bySeries)
+
 	resp := SuggestionsResponse{
-		Watchlist:  wl.list(nil),
-		Trending:   ownedFilter(tr.list(nil)), // trending is for NEW titles only
-		Incomplete: dedupIncomplete(inc.list(nil)),
-		Upgrades:   s.buildUpgrades(userID),
+		Watchlist:   wl.list(nil),
+		Recommended: rec.list(nil),
+		Trending:    ownedFilter(tr.list(nil)), // trending is for NEW titles only
+		Incomplete:  dedupIncomplete(inc.list(nil)),
+		Upgrades:    s.buildUpgrades(userID),
 	}
 	if b, err := json.Marshal(resp); err == nil {
 		s.cacheSet(fmt.Sprintf("suggestions:%d", userID), string(b))
@@ -516,6 +530,156 @@ func ownedFilter(items []SugItem) []SugItem {
 	return out
 }
 
+// maxRecSources caps how many finished titles are asked for recommendations.
+// 150 titles are 15 AniList requests on a cold cache, well inside the per-minute
+// budget, and the tail of a long list adds little.
+const maxRecSources = 150
+
+// maxRecommended caps the bucket. Beyond this nobody scrolls, and every item
+// costs a remote-candidate lookup.
+const maxRecommended = 60
+
+// recSource is one finished title used as evidence, weighted by how much the
+// user liked it.
+type recSource struct {
+	ID         int
+	Title      string
+	Popularity int
+	Weight     float64
+}
+
+// recCandidate is an aggregated recommendation before it becomes a SugItem.
+type recCandidate struct {
+	Media   anilist.Media
+	Score   float64
+	Sources []string // strongest evidence first, at most three
+}
+
+// sourceWeight rates how much a finished title should count as evidence: the
+// user's own score if they gave one (0.5 for a 0, 2.0 for a 100), a flat 1.0
+// when unrated, and a bonus for anything they went back and rewatched.
+func sourceWeight(e anilist.ListEntry) float64 {
+	w := 1.0
+	if e.Score > 0 {
+		w = 0.5 + float64(e.Score)/100*1.5
+	}
+	if e.Status == "REPEATING" {
+		w *= 1.25
+	}
+	return w
+}
+
+// rankRecommendations folds per-source recommendation lists into one ranked
+// list: a title recommended off several works the user liked outranks one
+// strong single edge. skip holds media already on the user's list.
+//
+// Pure by design (no DB, no network) so the ranking is testable on its own.
+func rankRecommendations(sources []recSource, recs map[int][]anilist.Recommendation, skip map[int]bool) []recCandidate {
+	type evidence struct {
+		title  string
+		weight float64
+	}
+	type agg struct {
+		media anilist.Media
+		score float64
+		from  []evidence
+	}
+	byID := map[int]*agg{}
+	var order []int
+	for _, src := range sources {
+		for _, r := range recs[src.ID] {
+			// AniList lets users downvote an edge; a negative rating is not
+			// evidence for anything, so it drops out instead of subtracting
+			if r.Media.ID == 0 || r.Rating <= 0 || skip[r.Media.ID] {
+				continue
+			}
+			a := byID[r.Media.ID]
+			if a == nil {
+				a = &agg{media: r.Media}
+				byID[r.Media.ID] = a
+				order = append(order, r.Media.ID)
+			} else if betterMedia(r.Media, a.media) {
+				a.media = r.Media
+			}
+			w := float64(r.Rating) * src.Weight
+			a.score += w
+			a.from = append(a.from, evidence{src.Title, w})
+		}
+	}
+	out := make([]recCandidate, 0, len(order))
+	for _, id := range order {
+		a := byID[id]
+		slices.SortStableFunc(a.from, func(x, y evidence) int { return cmp.Compare(y.weight, x.weight) })
+		c := recCandidate{Media: a.media, Score: a.score}
+		for _, e := range a.from[:min(3, len(a.from))] {
+			c.Sources = append(c.Sources, e.title)
+		}
+		out = append(out, c)
+	}
+	// ties break on the media id so a rebuild does not reshuffle the grid
+	slices.SortStableFunc(out, func(x, y recCandidate) int {
+		if d := cmp.Compare(y.Score, x.Score); d != 0 {
+			return d
+		}
+		return cmp.Compare(x.Media.ID, y.Media.ID)
+	})
+	return out
+}
+
+// addRecommended fills the "because you finished X" bucket from AniList's
+// community recommendations. Titles already on the user's list (any status) or
+// already in Plex drop out; unlike Trending, titles that DO exist on a server
+// stay - those are the ones the user can act on right away.
+func (s *Server) addRecommended(ctx context.Context, userID int64, acc *sugAcc, owned func(anilist.Media, string) bool, bySrc map[string]int64, bySeries map[int64][]providerRef) {
+	alID, _, err := s.anilistAccount(userID)
+	if err != nil {
+		return
+	}
+	skip := map[int]bool{}
+	var sources []recSource
+	for _, e := range s.Anilist.CachedUserList(alID) {
+		skip[e.Media.ID] = true // never recommend what is already on the list
+		if e.Status != "COMPLETED" && e.Status != "REPEATING" {
+			continue
+		}
+		sources = append(sources, recSource{
+			ID: e.Media.ID, Title: displayTitle(e.Media, "anilist"),
+			Popularity: e.Media.Popularity, Weight: sourceWeight(e),
+		})
+	}
+	if len(sources) == 0 {
+		return
+	}
+	if len(sources) > maxRecSources {
+		// ponytail: cut by popularity - deterministic, but it favours mainstream
+		// evidence and drops niche taste first. "Recently updated" would be the
+		// better cut; the list query does not carry updatedAt.
+		slices.SortStableFunc(sources, func(x, y recSource) int { return cmp.Compare(y.Popularity, x.Popularity) })
+		slog.Info("recommendations capped sources", "user", userID, "have", len(sources), "used", maxRecSources)
+		sources = sources[:maxRecSources]
+	}
+	ids := make([]int, len(sources))
+	for i, src := range sources {
+		ids[i] = src.ID
+	}
+	recs, err := s.Anilist.RecommendationsBatch(ctx, ids)
+	if err != nil && len(recs) == 0 {
+		slog.Warn("recommendations fetch failed", "user", userID, "err", err)
+		return
+	}
+	for _, c := range rankRecommendations(sources, recs, skip) {
+		if owned(c.Media, "anilist") {
+			continue
+		}
+		it := s.buildItem(c.Media, "anilist", s.remoteCandidates(userID, c.Media), "", bySrc, bySeries, "")
+		it.Because = c.Sources
+		acc.add(it)
+		if len(acc.order) >= maxRecommended {
+			break
+		}
+	}
+}
+
 // addAnilistWatchlist adds the user's CURRENT/PLANNING titles that exist on a
 // server, refreshing the watchlist cache in the background when stale.
 func (s *Server) addAnilistWatchlist(userID int64, acc *sugAcc, bySrc map[string]int64, bySeries map[int64][]providerRef) {
@@ -525,7 +689,7 @@ func (s *Server) addAnilistWatchlist(userID int64, acc *sugAcc, bySrc map[string
 	}
 	list := s.Anilist.CachedUserList(alID)
 	var fetched string
-	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist:%d", alID)).Scan(&fetched)
+	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", alID)).Scan(&fetched)
 	if t, perr := time.Parse(sqliteTime, fetched); perr != nil || time.Since(t) > time.Hour {
 		s.buildAnilistSuggestions(alID, token)
 	}

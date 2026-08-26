@@ -1061,6 +1061,14 @@
             },
             "api.SugItem": {
                 "properties": {
+                    "because": {
+                        "description": "recommended: the finished titles behind it",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "candidates": {
                         "items": {
                             "$ref": "#/components/schemas/api.plexCandidate"
@@ -1150,6 +1158,13 @@
                         "type": "boolean"
                     },
                     "incomplete": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.SugItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "recommended": {
                         "items": {
                             "$ref": "#/components/schemas/api.SugItem"
                         },
