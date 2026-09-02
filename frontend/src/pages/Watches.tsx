@@ -43,6 +43,7 @@ import {
   useMenu,
 } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, type Watch } from '../api'
+import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import WatchEpisodesModal from '../components/WatchEpisodesModal'
 import { useConfirm } from '../components/confirm'
@@ -122,22 +123,9 @@ export default function Watches() {
   // the locale separators are what pushes it past the phone column, and a chip
   // has no prose to hold together without them
   const airFmtChip = (ts: number) => airFmt(ts).replace(/,/g, '')
-  // withSec = tick down to the second (for airings happening today)
-  const countdown = (ts: number, withSec = false) => {
-    const ms = ts * 1000 - Date.now()
-    if (ms <= 0) return t('watch.airingNow')
-    const d = Math.floor(ms / 86_400_000)
-    const h = Math.floor((ms % 86_400_000) / 3_600_000)
-    const m = Math.floor((ms % 3_600_000) / 60_000)
-    const s = Math.floor((ms % 60_000) / 1_000)
-    if (d > 0) return t('watch.inDaysH', { d, h })
-    if (h > 0) return withSec ? t('watch.inHoursMS', { h, m, s }) : t('watch.inHoursM', { h, m })
-    if (m > 0) return withSec ? t('watch.inMinutesS', { m, s }) : t('watch.inMinutes', { m })
-    return withSec ? t('watch.inSeconds', { s }) : t('watch.inMinutes', { m })
-  }
   // the backend owns the schedule (interval, smart sync, 12h stale re-check),
   // so this only formats what it sends
-  const untilCheck = (ts: number) => (ts * 1000 <= Date.now() ? t('watch.checkDue') : countdown(ts))
+  const untilCheck = (ts: number) => (ts * 1000 <= Date.now() ? t('watch.checkDue') : countdown(t, ts))
   const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
   // calendar: flatten every scheduled future release the provider knows into
   // per-day events - not just each watch's single next airing, so it reaches as
@@ -334,7 +322,7 @@ export default function Watches() {
                           {new Date(e.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...(isToday(e.at) ? { second: '2-digit' } : {}) })}
                         </span>
                       }
-                      countdown={countdown(e.at, isToday(e.at))}
+                      countdown={countdown(t, e.at, isToday(e.at))}
                     />
                   </li>
                 ))}
