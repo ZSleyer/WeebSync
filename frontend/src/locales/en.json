@@ -1112,5 +1112,26 @@
       "what": "{{path}} is mounted read-only.",
       "fix": "Mount the directory writable, in Docker without :ro, and restart the container."
     }
+  },
+  "jobs": {
+    "family": {
+      "alist": "AniList sync",
+      "anime": "Anime id mapping",
+      "crawl": "Server index",
+      "dlmeta": "Download details",
+      "f": "Title metadata",
+      "m": "Title matching",
+      "plex": "Plex library",
+      "suggestions": "Suggestions",
+      "tf": "Title metadata",
+      "tvf": "Title metadata"
+    },
+    "busy": "Background work running",
+    "busyOne": "{{name}} is being rebuilt",
+    "hold": "Hold",
+    "holdHint": "Holds this task and cancels the running pass. What was already computed stays.",
+    "paused": "paused",
+    "pausedNote": "A held task no longer starts on its own until it is resumed here.",
+    "resume": "Resume"
   }
 }

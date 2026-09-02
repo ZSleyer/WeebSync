@@ -26,8 +26,9 @@ import {
   Toolbar,
   type BadgeTone,
 } from '@weebsync/design-system'
-import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type Watch } from '../api'
+import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type JobsStatus, type Watch } from '../api'
 import { countdown } from '../countdown'
+import { jobLabel } from '../jobs'
 import { useConfirm } from '../components/confirm'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth } from '../hooks'
@@ -187,6 +188,8 @@ export default function Dashboard() {
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
         <Badge className="mt-1">{t('dash.sub')}</Badge>
       </header>
+
+      <BackgroundWork />
 
       {/* phones stack status overview on top; from lg it becomes the right
           column next to the transfer queue */}
@@ -603,6 +606,44 @@ function SpeedSparkline({ current }: { current: number }) {
         <polyline points={points} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinejoin="round" />
       )}
     </svg>
+  )
+}
+
+// BackgroundWork says what the machine is busy with. Indexing a Plex library
+// or crawling a server is felt on a home server, and until now nothing on
+// screen connected the fan noise to the app. Admins get the link to where it
+// can be held; everyone else at least knows why things are slow.
+function BackgroundWork() {
+  const { t } = useTranslation()
+  const { data: user } = useAuth()
+  const { data } = useQuery<JobsStatus>({
+    queryKey: ['jobs', 'status'],
+    queryFn: () => api.get('/api/jobs'),
+    refetchInterval: 10_000,
+  })
+  const running = data?.running ?? []
+  const paused = data?.paused ?? []
+  if (running.length === 0 && paused.length === 0) return null
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 border border-border-subtle bg-bg-card px-3 py-2 text-xs">
+      {running.length > 0 && (
+        <Badge tone="accent">
+          <RefreshCw aria-hidden size="1em" />
+          {running.length === 1 ? t('jobs.busyOne', { name: jobLabel(t, running[0]) }) : t('jobs.busy')}
+        </Badge>
+      )}
+      {running.length > 1 && running.map((f) => <Badge key={f}>{jobLabel(t, f)}</Badge>)}
+      {paused.map((f) => (
+        <Badge key={f} tone="warn">
+          {jobLabel(t, f)} · {t('jobs.paused')}
+        </Badge>
+      ))}
+      {user?.isAdmin && (
+        <Link to="/settings/jobs" className="text-accent underline">
+          {t('settings.nav.jobs')}
+        </Link>
+      )}
+    </div>
   )
 }
 

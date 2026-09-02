@@ -51,6 +51,13 @@ export interface SystemStatus {
   container: ContainerIdentity
 }
 
+// Background job families, as /api/jobs reports them. Every signed-in user may
+// see THAT work is running; pausing and stopping are admin-only endpoints.
+export interface JobsStatus {
+  running: string[]
+  paused: string[]
+}
+
 export interface Download {
   id: number
   userId: number

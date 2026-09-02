@@ -1112,5 +1112,26 @@
       "what": "{{path}} ist schreibgeschützt eingehängt.",
       "fix": "Binde das Verzeichnis mit Schreibrechten ein, in Docker also ohne :ro, und starte den Container neu."
     }
+  },
+  "jobs": {
+    "family": {
+      "alist": "AniList-Abgleich",
+      "anime": "Anime-Zuordnungstabelle",
+      "crawl": "Server-Index",
+      "dlmeta": "Download-Infos",
+      "f": "Titeldaten",
+      "m": "Titelzuordnung",
+      "plex": "Plex-Bibliothek",
+      "suggestions": "Vorschläge",
+      "tf": "Titeldaten",
+      "tvf": "Titeldaten"
+    },
+    "busy": "Hintergrundarbeit läuft",
+    "busyOne": "{{name}} wird gerade aufgebaut",
+    "hold": "Anhalten",
+    "holdHint": "Hält diese Aufgabe an und bricht den laufenden Durchgang ab. Bereits Berechnetes bleibt erhalten.",
+    "paused": "pausiert",
+    "pausedNote": "Pausierte Aufgaben starten nicht mehr von selbst, bis sie hier fortgesetzt werden.",
+    "resume": "Fortsetzen"
   }
 }
