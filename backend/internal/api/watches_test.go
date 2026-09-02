@@ -192,7 +192,7 @@ func TestNextCheckAt(t *testing.T) {
 		{"never checked: overdue now", "", false, 0, now.Unix()},
 	}
 	for _, c := range cases {
-		if got := nextCheckAt(c.lastCheck, 30*time.Minute, c.waiting, c.airingAt, now); got != c.want {
+		if got := nextCheckAt(c.lastCheck, 30*time.Minute, c.waiting, c.airingAt, 0, now); got != c.want {
 			t.Errorf("%s: got %d, want %d (%+d s)", c.name, got, c.want, got-c.want)
 		}
 	}

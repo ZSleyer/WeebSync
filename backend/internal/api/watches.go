@@ -60,12 +60,15 @@ type Watch struct {
 	PlexStreamMiss string `json:"plexStreamMiss,omitempty"`
 	IntervalMin    int    `json:"intervalMin"` // global setting, echoed for the UI
 	LastCheck      string `json:"lastCheck"`
-	NextCheck      int64  `json:"nextCheck"`     // unix seconds of the next scheduled check, mirroring WatchLoop's due rule
-	LastResult     string `json:"lastResult"`    // error text of the last check, "" on success
-	LastQueued     int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
-	LastUploading  int    `json:"lastUploading"` // files still uploading remotely at the last check
-	LangWaiting    int    `json:"langWaiting"`   // videos on the remote skipped by the dub/sub filter, target not yet local
-	CreatedAt      string `json:"createdAt"`
+	NextCheck      int64  `json:"nextCheck"`  // unix seconds of the next scheduled check, mirroring WatchLoop's due rule
+	LastResult     string `json:"lastResult"` // error text of the last check, "" on success
+	// CheckAttempts counts consecutive failed checks; > 0 means the watch is
+	// on the short retry backoff and NextCheck is that retry, not the interval.
+	CheckAttempts int    `json:"checkAttempts,omitempty"`
+	LastQueued    int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
+	LastUploading int    `json:"lastUploading"` // files still uploading remotely at the last check
+	LangWaiting   int    `json:"langWaiting"`   // videos on the remote skipped by the dub/sub filter, target not yet local
+	CreatedAt     string `json:"createdAt"`
 
 	// enriched for the overview
 	Media          *anilist.Media `json:"media,omitempty"`
@@ -146,7 +149,7 @@ func (s *Server) WatchLoop(ctx context.Context) {
 			return
 		case <-tick.C:
 			interval := time.Duration(s.watchInterval()) * time.Minute
-			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, from_episode, aired_mapping, last_filtered, last_check FROM watches`)
+			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, from_episode, aired_mapping, last_filtered, last_check, retry_at FROM watches`)
 			if err != nil {
 				continue
 			}
@@ -158,16 +161,28 @@ func (s *Server) WatchLoop(ctx context.Context) {
 				fromEpisode                                int
 				aired                                      bool
 				filtered                                   int
+				retryAt                                    int64
 			}
 			var cands []cand
 			for rows.Next() {
 				var c cand
-				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.fromEpisode, &c.aired, &c.filtered, &c.lastCheck)
+				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.fromEpisode, &c.aired, &c.filtered, &c.lastCheck, &c.retryAt)
 				cands = append(cands, c)
 			}
 			rows.Close()
 			now := time.Now()
 			for _, c := range cands {
+				// a check that failed is on its own short backoff: it decides
+				// alone, in both directions. Letting the interval rule also
+				// speak here would hand a failing watch its normal slot back
+				// and undo the wait.
+				if c.retryAt > 0 {
+					if now.Unix() >= c.retryAt {
+						slog.Debug("watch retry due", "id", c.id)
+						s.runWatch(c.id)
+					}
+					continue
+				}
 				intervalDue := true
 				stale := true // unparseable/empty last_check counts as stale
 				if t, err := time.Parse("2006-01-02 15:04:05", c.lastCheck); err == nil {
@@ -224,7 +239,14 @@ const staleRecheck = 12 * time.Hour
 // when the title has no schedule left at all (finished and fully local),
 // nothing but the staleRecheck scan for upgrades of already-synced episodes.
 // An unparseable or empty last_check means the watch is overdue right now.
-func nextCheckAt(lastCheck string, interval time.Duration, waiting bool, airingAt int64, now time.Time) int64 {
+// A watch whose last check failed carries a retry_at, and that wins over both.
+func nextCheckAt(lastCheck string, interval time.Duration, waiting bool, airingAt int64, retryAt int64, now time.Time) int64 {
+	// a failed check overrides everything below: WatchLoop looks at this watch
+	// again when the backoff runs out, so saying anything else here would
+	// promise a time at which nothing happens
+	if retryAt > 0 {
+		return retryAt
+	}
 	last, err := time.Parse("2006-01-02 15:04:05", lastCheck)
 	if err != nil {
 		return now.Unix()
@@ -356,15 +378,40 @@ func (s *Server) runWatch(id int64) {
 	// structured result: the frontend localizes the counts; last_result only
 	// carries the error text of a failed check
 	result, queued := "", len(ids)
+	// A check that cannot reach the server yet is the common failure, and it is
+	// usually over in seconds - waiting out a full interval for the next try
+	// means the episode that just appeared sits there for half an hour. Count
+	// the consecutive failures and bring the next check forward onto a short
+	// backoff; a successful check clears both.
+	attempts, retryAt := 0, int64(0)
 	if err != nil {
+		s.DB.QueryRow(`SELECT check_attempts FROM watches WHERE id = ?`, id).Scan(&attempts)
+		attempts++
+		retryAt = time.Now().Add(watchBackoff(attempts)).Unix()
 		result, queued, uploading, filtered = err.Error(), -1, 0, 0
-		slog.Warn("watch check", "id", id, "err", err)
+		slog.Warn("watch check", "id", id, "attempt", attempts, "err", err)
 	} else if queued > 0 || uploading > 0 || filtered > 0 {
 		slog.Info("watch checked", "id", id, "queued", queued, "uploading", uploading, "filtered", filtered)
 	} else {
 		slog.Debug("watch checked", "id", id, "queued", 0)
 	}
-	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ? WHERE id = ?`, result, queued, uploading, filtered, id)
+	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ?,
+		check_attempts = ?, retry_at = ? WHERE id = ?`, result, queued, uploading, filtered, attempts, retryAt, id)
+}
+
+// watchBackoff staggers the wait before a failed check is repeated. The rungs
+// are minutes because WatchLoop ticks once a minute - anything finer would be
+// rounded away - and the ladder holds at its last one so a server that stays
+// unreachable is still reached for, just not on the minute.
+func watchBackoff(attempts int) time.Duration {
+	ladder := []time.Duration{time.Minute, 2 * time.Minute, 5 * time.Minute, 10 * time.Minute, 15 * time.Minute}
+	if attempts >= len(ladder) {
+		return ladder[len(ladder)-1]
+	}
+	if attempts < 1 {
+		attempts = 1
+	}
+	return ladder[attempts-1]
 }
 
 // watchNameFn maps remote file names to local ones via the watch's rename rule
@@ -981,7 +1028,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.check_attempts, w.retry_at, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
 	if err != nil {
@@ -993,9 +1040,10 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	list := []Watch{}
 	for rows.Next() {
 		var it Watch
+		var retryAt int64
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
 			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub, &it.PlexAudioLang, &it.PlexSubLang, &it.PlexStreamMiss,
-			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &it.CreatedAt); err != nil {
+			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &it.CheckAttempts, &retryAt, &it.CreatedAt); err != nil {
 			dbErr(w)
 			return
 		}
@@ -1051,7 +1099,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		// finished and fully local, and that one has no NextAiring at all
 		now := time.Now()
 		it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, it.LangWaiting, it.AiredMapping, watchComplete(it.Media, it.LocalFiles), now)
-		it.NextCheck = nextCheckAt(it.LastCheck, time.Duration(interval)*time.Minute, it.Waiting, it.NextAiringAt, now)
+		it.NextCheck = nextCheckAt(it.LastCheck, time.Duration(interval)*time.Minute, it.Waiting, it.NextAiringAt, retryAt, now)
 		if it.Media != nil {
 			it.Category = watchCategory(it.MediaSource, it.Media)
 			start := it.FromEpisode

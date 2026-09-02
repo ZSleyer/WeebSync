@@ -1426,6 +1426,10 @@
                         "description": "anime-series | anime-movie | series | movie (calendar filter)",
                         "type": "string"
                     },
+                    "checkAttempts": {
+                        "description": "CheckAttempts counts consecutive failed checks; > 0 means the watch is\non the short retry backoff and NextCheck is that retry, not the interval.",
+                        "type": "integer"
+                    },
                     "complete": {
                         "description": "finished title, all episodes synced",
                         "type": "boolean"
@@ -3266,14 +3270,14 @@
             },
             "transfer.Download": {
                 "properties": {
-                    "bytesPerSec": {
-                        "type": "integer"
-                    },
-                    "createdAt": {
                     "attempts": {
                         "description": "Attempts counts the failures behind this row so far, RetryAt (unix\nseconds) says when the next attempt may start. A row waiting for its\nnext attempt stays queued and keeps Error/ErrorCode, so the UI can say\nwhat went wrong and how long the wait is.",
                         "type": "integer"
                     },
+                    "bytesPerSec": {
+                        "type": "integer"
+                    },
+                    "createdAt": {
                         "type": "string"
                     },
                     "error": {
@@ -3295,13 +3299,13 @@
                     "remotePath": {
                         "type": "string"
                     },
+                    "retryAt": {
+                        "type": "integer"
+                    },
                     "serverId": {
                         "type": "integer"
                     },
                     "size": {
-                    "retryAt": {
-                        "type": "integer"
-                    },
                         "type": "integer"
                     },
                     "status": {
