@@ -225,7 +225,7 @@ func (s *Server) plexLocalQuality(sm plex.ShowMedia, ratingKey string, season in
 			// the whole season folder, not just the one episode Plex named: a
 			// dub that arrived late sits on the later files, and this is the
 			// branch the upgrade cards actually compare against
-			if q, ok := probeQuality(folder); ok {
+			if q, ok := s.probeQuality(folder); ok {
 				q.Probed = probeMeasured
 				return q, folder
 			}

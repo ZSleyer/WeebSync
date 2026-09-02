@@ -823,6 +823,10 @@
             "name": "Quality details",
             "desc": "Resolution plus audio and subtitle languages per folder, the basis of the upgrade suggestions. Recomputed gradually in the background."
           },
+          "probe-cache": {
+            "name": "Measured file quality",
+            "desc": "What ffprobe measured per folder: resolution and audio/subtitle tracks. Without this the hourly library index re-measures every season, which keeps a core busy for good. Deleting it costs one slow pass and nothing else."
+          },
           "plex-reconciled": {
             "name": "Plex reconciliation",
             "desc": "A note of which folders have already been reconciled with Plex. Deleting it means going through all of them again, with as many Plex requests."

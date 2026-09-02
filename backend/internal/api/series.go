@@ -187,7 +187,7 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 		// ffprobe (filenames often lack the tokens); fall back to parsing the
 		// filenames when ffprobe is unavailable or finds nothing.
 		if abs, err := s.safeLocal(folder); err == nil {
-			if pq, ok := probeQuality(abs); ok {
+			if pq, ok := s.probeQuality(abs); ok {
 				pq.Probed = probeMeasured
 				return pq
 			}

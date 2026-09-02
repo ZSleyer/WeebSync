@@ -823,6 +823,10 @@
             "name": "Qualitätsmerkmale",
             "desc": "Auflösung sowie Ton- und Untertitelsprachen je Ordner, die Grundlage der Upgrade-Vorschläge. Wird nach und nach im Hintergrund neu berechnet."
           },
+          "probe-cache": {
+            "name": "Gemessene Dateiqualität",
+            "desc": "Was ffprobe je Ordner an Auflösung und Ton-/Untertitelspuren gemessen hat. Ohne diesen Zwischenspeicher misst der stündliche Bibliotheks-Index jede Staffel erneut, was den Prozessor dauerhaft beschäftigt. Löschen kostet einen langsamen Durchlauf, sonst nichts."
+          },
           "plex-reconciled": {
             "name": "Plex-Abgleich",
             "desc": "Merkzettel, welche Ordner bereits mit Plex abgeglichen wurden. Löschen bedeutet, alles noch einmal abzugleichen, mit entsprechend vielen Plex-Anfragen."
