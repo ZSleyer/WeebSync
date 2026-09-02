@@ -24,6 +24,11 @@ jobs:
         run: test -z "$(gofmt -l .)"
       - name: vet
         run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.13.2
+          working-directory: backend
       - name: test
         run: go test -race ./...
       - name: openapi spec in sync
@@ -51,6 +56,8 @@ jobs:
         # degrades to any, which fails the build.
       - name: link the design system to the app's modules
         run: ln -sfn "$PWD/node_modules" ../design-system/node_modules
+      - name: lint (oxlint)
+        run: yarn lint
       - name: test (vitest)
         run: yarn test
       - name: build (tsc + vite)
