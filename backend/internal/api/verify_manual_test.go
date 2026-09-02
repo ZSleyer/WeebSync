@@ -67,7 +67,7 @@ func TestVerifyUnits(t *testing.T) {
 	fmt.Printf("variants with show_key (remote+local matched): %d\n", withKey)
 
 	// 3. Plex library per season (needs Plex reachable; best effort)
-	s.indexPlexLibrary()
+	s.indexPlexLibrary(t.Context())
 	var localUnits int
 	database.QueryRow(`SELECT COUNT(*) FROM catalog_variants WHERE server_id = 0 AND show_key != ''`).Scan(&localUnits)
 	fmt.Printf("server-0 (Plex) per-season variants: %d\n", localUnits)

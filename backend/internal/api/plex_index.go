@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ import (
 // Per (show, season) the local quality is read by ffprobe when the Plex file
 // path is a shared local mount (accurate), else from Plex's own metadata.
 // Runs from the sweep, gated to once an hour (Plex-API heavy).
-func (s *Server) indexPlexLibrary() {
+func (s *Server) indexPlexLibrary(ctx context.Context) {
 	c := s.plexClient()
 	if c == nil {
 		return
@@ -39,6 +40,13 @@ func (s *Server) indexPlexLibrary() {
 	now := time.Now().UTC().Format(time.RFC3339)
 	units := 0
 	for _, sec := range sections {
+		// a stopped index leaves what it already measured in place: every unit
+		// is stored on its own and the probe cache keeps the work, so the next
+		// sweep carries on rather than starting over. Only the stamp is skipped.
+		if ctx.Err() != nil {
+			slog.Info("plex index stopped", "units", units)
+			return
+		}
 		if sec.Type != "show" && sec.Type != "movie" {
 			continue
 		}
@@ -54,6 +62,10 @@ func (s *Server) indexPlexLibrary() {
 			continue
 		}
 		for _, sh := range shows {
+			if ctx.Err() != nil {
+				slog.Info("plex index stopped", "units", units)
+				return
+			}
 			// Plex's guids are the shared identity. Fetch detail when the bulk
 			// listing carried none (older PMS ignore includeGuids).
 			if sh.TVDBID == 0 && sh.TMDBID == 0 && sh.IMDBID == 0 {
