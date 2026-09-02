@@ -27,6 +27,7 @@ import {
   type BadgeTone,
 } from '@weebsync/design-system'
 import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type Watch } from '../api'
+import { countdown } from '../countdown'
 import { useConfirm } from '../components/confirm'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth } from '../hooks'
@@ -35,6 +36,10 @@ import { ProviderBadges } from './Suggestions'
 // history-only status filter: the active queue is short and searchable, its
 // three states never need chips
 const HISTORY_STATUSES: Download['status'][] = ['done', 'error', 'canceled']
+
+// isRetrying: the download failed on something transient and is waiting out its
+// backoff. It stays 'queued' - the wait is what tells the two apart.
+const isRetrying = (d: Download) => (d.retryAt ?? 0) * 1000 > Date.now()
 
 export default function Dashboard() {
   const { t } = useTranslation()
@@ -87,6 +92,15 @@ export default function Dashboard() {
   const totalSpeed = downloads.reduce((s, d) => s + (d.status === 'running' ? (d.bytesPerSec ?? 0) : 0), 0)
   const anyActive = downloads.some((d) => d.status === 'running' || d.status === 'queued')
   const anyPaused = downloads.some((d) => d.status === 'paused')
+  // 1s tick so the retry countdowns stay live, gated on there being one: an
+  // ungated interval re-renders the whole queue every second for nothing
+  const [, setTick] = useState(0)
+  const anyRetrying = downloads.some((d) => isRetrying(d))
+  useEffect(() => {
+    if (!anyRetrying) return
+    const id = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [anyRetrying])
 
   // multi-select: checkbox click toggles, shift-click selects the range in
   // display order, Escape clears
@@ -728,7 +742,18 @@ function DownloadRow({
         {/* only a real poster earns the slot; the hatched placeholder on every
             unmatched row would be noise */}
         {group?.cover && <Cover src={group.cover} size="sm" loading="lazy" />}
-        <StatusChip status={d.status} />
+        {/* a waiting retry is still 'queued', and "queued" alone would hide
+            that this download already failed once. The countdown replaces the
+            status chip rather than joining it: two chips saying when this row
+            will run is one too many for a phone line. */}
+        {isRetrying(d) ? (
+          <Badge tone="warn">
+            <RefreshCw aria-hidden size="1em" />
+            {t('dash.retryIn', { n: d.attempts ?? 1, when: countdown(t, d.retryAt!, true) })}
+          </Badge>
+        ) : (
+          <StatusChip status={d.status} />
+        )}
         {ep && <Badge tone="accent">{ep}</Badge>}
         {/* own line on a phone: cover, status chip and episode badge leave the
             title a few characters otherwise */}
@@ -741,6 +766,13 @@ function DownloadRow({
         </span>
         {d.status === 'running' && d.bytesPerSec != null && (
           <span className="font-mono text-xs text-accent">{fmtSpeed(d.bytesPerSec)}</span>
+        )}
+        {/* why it is waiting, in the row's own words - a countdown without a
+            reason is an unexplained pause */}
+        {isRetrying(d) && d.error && (
+          <span className="max-w-64 truncate text-xs text-err" title={d.error}>
+            {d.error}
+          </span>
         )}
         <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
       </div>
