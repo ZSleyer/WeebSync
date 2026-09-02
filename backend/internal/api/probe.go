@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os/exec"
 	"path/filepath"
@@ -87,11 +88,13 @@ func langCode(tag string) string {
 // often lack the tokens (especially locally), so the container streams are the
 // honest source. Returns ok=false when ffprobe is unavailable or nothing in the
 // folder would answer, so the caller can fall back to filename parsing.
-func probeQuality(dir string) (q FolderQuality, ok bool) {
+func (s *Server) probeQuality(dir string) (q FolderQuality, ok bool) {
 	if _, err := exec.LookPath("ffprobe"); err != nil {
 		return q, false
 	}
 	var videos, names []string
+	var files int
+	var total, newest int64
 	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
@@ -100,10 +103,23 @@ func probeQuality(dir string) (q FolderQuality, ok bool) {
 			videos = append(videos, p)
 		}
 		names = append(names, d.Name())
+		// the signature is built from the walk that has to happen anyway, so
+		// the cache costs a stat per file and saves three ffprobe processes
+		files++
+		if fi, ferr := d.Info(); ferr == nil {
+			total += fi.Size()
+			if m := fi.ModTime().Unix(); m > newest {
+				newest = m
+			}
+		}
 		return nil
 	})
 	if len(videos) == 0 {
 		return q, false
+	}
+	sig := fmt.Sprintf("%d:%d:%d", files, total, newest)
+	if cached, hit := s.probeCacheGet(dir, sig); hit {
+		return cached, true
 	}
 	q, ok = probeFiles(videos)
 	if !ok {
@@ -117,7 +133,45 @@ func probeQuality(dir string) (q FolderQuality, ok bool) {
 	// and the container does not carry is a burned-in subtitle, and the only
 	// way to see it is to compare the two
 	q.Sub = keysSorted(unionSets(toSet(q.Sub), nameSubClaims(names)))
+	s.probeCachePut(dir, sig, q)
 	return q, true
+}
+
+// probeCacheGet answers a folder whose contents have not changed since it was
+// last measured. A miss - no row, a different signature, or unreadable JSON -
+// falls through to a real probe, so a damaged cache costs time and never a
+// wrong answer.
+func (s *Server) probeCacheGet(dir, sig string) (q FolderQuality, ok bool) {
+	if s == nil || s.DB == nil {
+		return q, false
+	}
+	var stored, blob string
+	if err := s.DB.QueryRow(`SELECT sig, quality FROM probe_cache WHERE dir = ?`, dir).Scan(&stored, &blob); err != nil {
+		return q, false
+	}
+	if stored != sig {
+		return q, false
+	}
+	if json.Unmarshal([]byte(blob), &q) != nil {
+		return q, false
+	}
+	return q, true
+}
+
+// probeCachePut records a measurement under the folder's current signature.
+// Failures are ignored: the cache is an accelerator, and a library that cannot
+// be written to should still answer, just slowly.
+func (s *Server) probeCachePut(dir, sig string, q FolderQuality) {
+	if s == nil || s.DB == nil {
+		return
+	}
+	blob, err := json.Marshal(q)
+	if err != nil {
+		return
+	}
+	s.DB.Exec(`INSERT INTO probe_cache (dir, sig, quality, probed_at) VALUES (?, ?, ?, datetime('now'))
+		ON CONFLICT(dir) DO UPDATE SET sig = excluded.sig, quality = excluded.quality, probed_at = excluded.probed_at`,
+		dir, sig, string(blob))
 }
 
 // withSidecars folds a folder's sidecar subtitles into a measured quality: they

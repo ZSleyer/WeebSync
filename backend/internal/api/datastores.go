@@ -147,6 +147,11 @@ var dataStores = []dataStore{
 	{name: "catalog-variants", tables: []string{"catalog_variants"}, kind: kindDerived,
 		rebuild: "sweep", needs: []string{"catalog-matches", "remote-index"}, timeCol: "computed_at",
 		stamp: "plex_indexed_at"},
+	// What ffprobe measured per local folder, so the hourly library index reads
+	// the answer instead of running ffprobe over every season again. Deleting it
+	// costs one slow index pass and nothing else.
+	{name: "probe-cache", tables: []string{"probe_cache"}, kind: kindDerived,
+		rebuild: "plex-index", timeCol: "probed_at"},
 	// Which folders the Plex reconciliation has already looked at.
 	{name: "plex-reconciled", tables: []string{"plex_reconciled"}, kind: kindDerived,
 		rebuild: "plex-sweep", needs: []string{"series"}, timeCol: "checked_at"},
