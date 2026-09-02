@@ -66,6 +66,11 @@ export interface Download {
   errorCode?: FsErrorCode | string
   rateLimit: number
   bytesPerSec?: number
+  // failures behind this row so far, and when the next attempt starts (unix
+  // seconds). A row waiting for its next attempt stays 'queued' and keeps
+  // `error`, so the UI can show the reason next to the countdown.
+  attempts?: number
+  retryAt?: number
   createdAt: string
 }
 
@@ -169,6 +174,8 @@ export interface Watch {
   lastCheck: string
   nextCheck: number // unix seconds of the next scheduled check
   lastResult: string // error text of the last check, '' on success
+  // consecutive failed checks; > 0 means nextCheck is a retry, not the interval
+  checkAttempts?: number
   lastQueued: number // files queued at the last check, -1 = none yet
   lastUploading: number
   createdAt: string

@@ -463,9 +463,14 @@ export default function Watches() {
                             {t('watch.chipLast', { when: ago(w.lastCheck) })}
                             {!w.lastResult && w.lastQueued >= 0 && ` · ${t('watch.lastQueued', { count: w.lastQueued })}`}
                           </Badge>
-                          <Badge size="sm">
+                          {/* a failed check is on a short backoff, not the
+                              interval: say which attempt is coming, or the
+                              next-check chip reads like nothing went wrong */}
+                          <Badge size="sm" tone={w.checkAttempts ? 'warn' : undefined}>
                             <Timer aria-hidden size="1em" />
-                            {t('watch.chipNext', { when: untilCheck(w.nextCheck) })}
+                            {w.checkAttempts
+                              ? t('watch.chipRetry', { n: w.checkAttempts, when: untilCheck(w.nextCheck) })
+                              : t('watch.chipNext', { when: untilCheck(w.nextCheck) })}
                           </Badge>
                         </>
                       }
