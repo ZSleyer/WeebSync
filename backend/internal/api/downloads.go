@@ -330,6 +330,10 @@ func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Transfers.SettingsChanged()
+	// spelled out rather than converted from `in`: request and response are
+	// two documented API types that happen to line up today, and a conversion
+	// would break the moment either grows a field
+	//nolint:staticcheck // S1016: the shared shape is a coincidence, not a contract
 	writeJSON(w, http.StatusOK, RateLimitResponse{RateLimit: in.RateLimit})
 }
 

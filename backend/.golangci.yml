@@ -1,0 +1,21 @@
+# What the linter is for here: catching real defects that `go vet` misses.
+# Style opinions are deliberately out - they generate diff noise nobody asked
+# for and drown the findings that matter.
+version: "2"
+
+linters:
+  default: standard # govet, staticcheck, unused, ineffassign, errcheck
+  disable:
+    # This codebase deliberately discards errors from writes whose failure
+    # changes nothing it could do differently: a Close on a connection that is
+    # being torn down anyway, a `d.Exec` recording a timestamp, a Scan whose
+    # zero value is the intended fallback. The writes that MUST NOT be lost go
+    # through Manager.execRetry instead, which retries and logs. Turning
+    # errcheck on would report fifty of those and hide anything else.
+    - errcheck
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -ST* # naming and doc-comment style
+        - -QF* # refactoring suggestions (tagged switch, De Morgan)

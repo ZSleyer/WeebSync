@@ -264,6 +264,13 @@ func (s *Server) handleAnilistDisconnect(w http.ResponseWriter, r *http.Request)
 
 // anilistMeResponse describes the linked-account status for the settings UI.
 // name/avatar/expiresAt are present only when an account is connected.
+//
+// The handler below writes an anonymous struct and names this one in its
+// swaggo annotation, so the compiler sees no use for it while the OpenAPI
+// spec depends on it. Deleting it would silently empty the documented
+// response body.
+//
+//nolint:unused // referenced by the @Success annotation on handleAnilistMe
 type anilistMeResponse struct {
 	Configured bool   `json:"configured"` // redirect flow available (id + secret set)
 	ClientID   string `json:"clientId"`   // pin-flow client id
