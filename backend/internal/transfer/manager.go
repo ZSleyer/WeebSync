@@ -44,7 +44,13 @@ type Download struct {
 	ErrorCode   string `json:"errorCode,omitempty"`
 	RateLimit   int64  `json:"rateLimit"`
 	BytesPerSec int64  `json:"bytesPerSec,omitempty"`
-	CreatedAt   string `json:"createdAt"`
+	// Attempts counts the failures behind this row so far, RetryAt (unix
+	// seconds) says when the next attempt may start. A row waiting for its
+	// next attempt stays queued and keeps Error/ErrorCode, so the UI can say
+	// what went wrong and how long the wait is.
+	Attempts  int    `json:"attempts,omitempty"`
+	RetryAt   int64  `json:"retryAt,omitempty"`
+	CreatedAt string `json:"createdAt"`
 }
 
 type running struct {
@@ -200,7 +206,11 @@ func (m *Manager) startPending() {
 	if stopping || free <= 0 {
 		return
 	}
-	rows, err := m.DB.Query(`SELECT id FROM downloads WHERE status = 'queued' ORDER BY id LIMIT ?`, free)
+	// retry_at gates a row that failed and is waiting out its backoff. The
+	// clock comes from Go rather than SQLite's strftime: one source of "now"
+	// for the queue and the tests, and no column-affinity surprises.
+	rows, err := m.DB.Query(`SELECT id FROM downloads WHERE status = 'queued' AND retry_at <= ? ORDER BY id LIMIT ?`,
+		time.Now().Unix(), free)
 	if err != nil {
 		return
 	}
@@ -259,6 +269,13 @@ func (m *Manager) startDownload(id int64) {
 			m.setStatus(id, "canceled", "", "")
 		default:
 			code := classifyError(err)
+			// a failure that clears up by itself (dropped connection, short
+			// read) goes back into the queue behind a backoff instead of
+			// ending the download; resume picks the .part file back up
+			if RetryableCode(code) {
+				m.retryLater(id, err, code)
+				break
+			}
 			slog.Warn("download failed", "id", id, "code", code, "err", err)
 			m.setStatus(id, "error", err.Error(), code)
 		}
@@ -555,7 +572,10 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 			res.Uploading++
 			continue
 		}
-		// skip duplicates already in the queue
+		// skip duplicates already in the queue. A row waiting out a retry
+		// backoff is queued, so a watch check that comes around while a
+		// download is between attempts adds nothing - the existing row keeps
+		// its .part file and its attempt count.
 		var existing int
 		m.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ? AND remote_path = ?
 			AND status IN ('queued','running','paused')`, userID, serverID, j.remote).Scan(&existing)
@@ -718,9 +738,9 @@ func (m *Manager) RunningRates() map[int64]int64 {
 
 func (m *Manager) get(id int64) (*Download, error) {
 	var d Download
-	err := m.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, created_at
+	err := m.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, created_at
 		FROM downloads WHERE id = ?`, id).
-		Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size, &d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.CreatedAt)
+		Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size, &d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.CreatedAt)
 	if err != nil {
 		return nil, ErrNotFound
 	}
@@ -806,6 +826,54 @@ func CheckWritable(dir string) (string, error) {
 	return "", nil
 }
 
+// retryBackoff staggers the wait between two attempts at the same download.
+// It is capped rather than open-ended: a server that stays away for an hour
+// should keep being tried, but not with one connection per second.
+var retryBackoff = []time.Duration{5 * time.Second, 15 * time.Second, 45 * time.Second, 2 * time.Minute, 5 * time.Minute}
+
+// backoffFor is the wait before attempt number attempts+1, holding at the last
+// rung of the ladder once the attempts run past it.
+func backoffFor(attempts int) time.Duration {
+	if attempts >= len(retryBackoff) {
+		return retryBackoff[len(retryBackoff)-1]
+	}
+	if attempts < 1 {
+		attempts = 1
+	}
+	return retryBackoff[attempts-1]
+}
+
+// retryLater puts a failed download back into the queue behind a backoff.
+//
+// It deliberately does not go through setStatus: that clears error and
+// error_code, and a row waiting for its next attempt has to keep saying what
+// went wrong - a countdown without a reason is just an unexplained pause.
+func (m *Manager) retryLater(id int64, cause error, code string) {
+	d, err := m.get(id)
+	if err != nil {
+		return
+	}
+	attempts := d.Attempts + 1
+	wait := backoffFor(attempts)
+	retryAt := time.Now().Add(wait).Unix()
+	m.execRetry("retryLater", `UPDATE downloads SET status = 'queued', attempts = ?, retry_at = ?,
+		error = ?, error_code = ?, updated_at = datetime('now') WHERE id = ?`,
+		attempts, retryAt, cause.Error(), code, id)
+	slog.Info("download retry scheduled", "id", id, "attempt", attempts, "in", wait, "err", cause)
+	d.Status, d.Attempts, d.RetryAt, d.Error, d.ErrorCode = "queued", attempts, retryAt, cause.Error(), code
+	m.publish(d)
+	// The queue never reaches a terminal state now, so the "download failed"
+	// push/mail would never fire for a connection problem again. Say it once,
+	// when the ladder has run out and the failure has lasted minutes rather
+	// than seconds - the status on the copy is what the notification reads.
+	// ponytail: one-shot stall notice, not a terminal state; the row keeps trying.
+	if m.OnFinished != nil && attempts == len(retryBackoff) {
+		stalled := *d
+		stalled.Status = "error"
+		go m.OnFinished(&stalled)
+	}
+}
+
 func (m *Manager) setStatus(id int64, status, errMsg, errCode string) {
 	m.execRetry("setStatus", `UPDATE downloads SET status = ?, error = ?, error_code = ?, updated_at = datetime('now') WHERE id = ?`, status, errMsg, errCode, id)
 	if d, err := m.get(id); err == nil {
@@ -817,7 +885,11 @@ func (m *Manager) setStatus(id int64, status, errMsg, errCode string) {
 }
 
 func (m *Manager) setStatusOwned(userID, id int64, status string, from []string) error {
-	q := `UPDATE downloads SET status = ?, error = '', error_code = '', updated_at = datetime('now')
+	// attempts/retry_at reset with the status: a user acting on a row means
+	// "now, and start counting fresh". Without it a hand-pressed Retry would
+	// sit behind the backoff it was pressed to skip. Pause and cancel clear
+	// them too - the count is meaningless for a row nobody is retrying.
+	q := `UPDATE downloads SET status = ?, error = '', error_code = '', attempts = 0, retry_at = 0, updated_at = datetime('now')
 		WHERE id = ? AND user_id = ? AND status IN (`
 	args := []any{status, id, userID}
 	for i, f := range from {

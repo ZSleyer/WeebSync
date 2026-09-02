@@ -22,7 +22,7 @@ import (
 // @Router   /api/downloads [get]
 func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, created_at
+	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, created_at
 		FROM downloads WHERE user_id = ? ORDER BY id DESC LIMIT 500`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -33,7 +33,7 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var d transfer.Download
 		if err := rows.Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size,
-			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.CreatedAt); err != nil {
+			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.CreatedAt); err != nil {
 			dbErr(w)
 			return
 		}
