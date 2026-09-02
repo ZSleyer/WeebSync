@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { countdown } from '../countdown'
+import { jobFamily, jobLabel } from '../jobs'
 import {
   downloadLabel,
   fmtBytes,
@@ -218,5 +219,27 @@ describe('countdown', () => {
   })
   it('treats a past timestamp as now', () => {
     expect(countdown(t, inSec(-5), true)).toMatch(/^watch\.airingNow:/)
+  })
+})
+
+// Job keys carry ids, and the UI pauses families - the same reduction the
+// backend applies, so a Hold button acts on what its label says.
+describe('jobFamily', () => {
+  it('strips the id from a key', () => {
+    expect(jobFamily('plex:index')).toBe('plex')
+    expect(jobFamily('m:1:/Some/Folder')).toBe('m')
+  })
+  it('leaves a key without an id alone', () => {
+    expect(jobFamily('sweep')).toBe('sweep')
+  })
+})
+
+describe('jobLabel', () => {
+  const t = ((k: string) => (k === 'jobs.family.plex' ? 'Plex library' : k)) as never
+  it('names a known family', () => {
+    expect(jobLabel(t, 'plex')).toBe('Plex library')
+  })
+  it('falls back to the raw key so a new job is still legible', () => {
+    expect(jobLabel(t, 'brandnew')).toBe('brandnew')
   })
 })

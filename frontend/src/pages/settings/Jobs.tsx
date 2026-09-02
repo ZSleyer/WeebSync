@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Checkbox, Dialog, Input, Panel, Select } from '@weebsync/design-system'
-import { api, fmtBytes, type Media } from '../../api'
+import { api, fmtBytes, type JobsStatus, type Media } from '../../api'
+import { jobFamily, jobLabel } from '../../jobs'
 import { useConfirm } from '../../components/confirm'
 import i18n from '../../locales'
 
@@ -418,6 +419,13 @@ export default function Jobs() {
     queryFn: () => api.get('/api/admin/jobs'),
     refetchInterval: 5000,
   })
+  // the paused set lives on the small status endpoint, which the dashboard
+  // reads too - one source, so the two views cannot disagree
+  const { data: jobsStatus } = useQuery<JobsStatus>({
+    queryKey: ['jobs', 'status'],
+    queryFn: () => api.get('/api/jobs'),
+    refetchInterval: 5000,
+  })
   // same 5s beat as the job status, so a running rebuild is watchable
   const { data: inventory } = useQuery<AdminData>({
     queryKey: ['adminData'],
@@ -436,6 +444,21 @@ export default function Jobs() {
   const run = useMutation({
     mutationFn: ({ name, body }: { name: string; body?: unknown }) => api.post(`/api/admin/jobs/${name}/run`, body),
     ...opts,
+  })
+  // Holding a task is two things at once, because that is what "make it stop"
+  // means: the family stops starting, and the pass that is running right now is
+  // cancelled. Resuming only lifts the first - the next sweep starts it again.
+  const hold = useMutation({
+    mutationFn: async ({ family, paused }: { family: string; paused: boolean }) => {
+      await api.post('/api/admin/jobs/pause', { family, paused })
+      if (paused) await api.post(`/api/admin/jobs/${family}/stop`)
+    },
+    onSuccess: () => {
+      setError('')
+      qc.invalidateQueries({ queryKey: ['adminJobs'] })
+      qc.invalidateQueries({ queryKey: ['jobs', 'status'] })
+    },
+    onError: (e: Error) => setError(e.message),
   })
   const flush = useMutation({
     mutationFn: (name: string) => api.del(`/api/admin/data/${encodeURIComponent(name)}`),
@@ -542,9 +565,35 @@ export default function Jobs() {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {idle && <Badge tone="ok">{t('settings.jobs.idle')}</Badge>}
           {data.running.map((job) => (
-            <Badge key={job} className="font-mono">
-              {job}
-            </Badge>
+            <span key={job} className="flex items-center gap-1">
+              <Badge className="font-mono">{job}</Badge>
+              <Button
+                size="sm"
+                title={t('jobs.holdHint')}
+                aria-label={`${t('jobs.hold')}: ${jobLabel(t, jobFamily(job))}`}
+                disabled={hold.isPending}
+                onClick={() => hold.mutate({ family: jobFamily(job), paused: true })}
+              >
+                <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('jobs.hold')}
+              </Button>
+            </span>
+          ))}
+          {(jobsStatus?.paused ?? []).map((family) => (
+            <span key={family} className="flex items-center gap-1">
+              <Badge tone="warn">
+                {jobLabel(t, family)} · {t('jobs.paused')}
+              </Badge>
+              <Button
+                size="sm"
+                aria-label={`${t('jobs.resume')}: ${jobLabel(t, family)}`}
+                disabled={hold.isPending}
+                onClick={() => hold.mutate({ family, paused: false })}
+              >
+                <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('jobs.resume')}
+              </Button>
+            </span>
           ))}
           {data.matchQueue > 0 && (
             <Badge tone="warn" className="tabular-nums">
@@ -552,6 +601,9 @@ export default function Jobs() {
             </Badge>
           )}
         </div>
+        {(jobsStatus?.paused ?? []).length > 0 && (
+          <p className="mt-2 text-xs text-warn">{t('jobs.pausedNote')}</p>
+        )}
         <p className="mt-2 text-xs text-t-muted">
           {t('settings.jobs.watchSummary', { count: data.watch.count, min: data.watch.intervalMin })}
         </p>
