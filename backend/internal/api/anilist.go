@@ -151,28 +151,40 @@ func scopeForItem(scope, kind string) string {
 }
 
 // runJob runs fn in the background at most once per key at a time; duplicate
-// keys are dropped while the first run is still in flight.
+// keys are dropped while the first run is still in flight. Five minutes is the
+// bounded wait in the rate-limiter queue; drops are retried by the next catalog
+// poll. A pass that legitimately takes longer uses runJobFor.
 func (s *Server) runJob(key string, fn func(ctx context.Context)) {
-	s.matchMu.Lock()
-	if s.matchJobs == nil {
-		s.matchJobs = map[string]bool{}
-	}
-	if s.matchJobs[key] {
-		s.matchMu.Unlock()
+	s.runJobFor(key, 5*time.Minute, fn)
+}
+
+// runJobFor is runJob with an explicit deadline. The job's cancel function is
+// kept while it runs, which is what lets an admin stop it from the jobs page,
+// and a job whose family is paused never starts.
+func (s *Server) runJobFor(key string, limit time.Duration, fn func(ctx context.Context)) {
+	if s.jobPaused(key) {
+		slog.Debug("job skipped", "job", key, "reason", "paused")
 		return
 	}
-	s.matchJobs[key] = true
+	ctx, cancel := context.WithTimeout(context.Background(), limit)
+	s.matchMu.Lock()
+	if s.matchJobs == nil {
+		s.matchJobs = map[string]context.CancelFunc{}
+	}
+	if _, running := s.matchJobs[key]; running {
+		s.matchMu.Unlock()
+		cancel()
+		return
+	}
+	s.matchJobs[key] = cancel
 	s.matchMu.Unlock()
 	go func() {
 		defer func() {
+			cancel()
 			s.matchMu.Lock()
 			delete(s.matchJobs, key)
 			s.matchMu.Unlock()
 		}()
-		// bounded wait in the rate-limiter queue; drops are retried by the
-		// next catalog poll
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
 		fn(ctx)
 	}()
 }
@@ -205,15 +217,20 @@ func seasonFromPath(p string) (string, int) {
 // retried by a later catalog poll.
 func (s *Server) queueMatch(serverID int64, folder, name string, force bool) {
 	key := fmt.Sprintf("m:%d:%s", serverID, folder)
+	if s.jobPaused(key) {
+		return
+	}
 	s.matchMu.Lock()
 	if s.matchJobs == nil {
-		s.matchJobs = map[string]bool{}
+		s.matchJobs = map[string]context.CancelFunc{}
 	}
-	if s.matchJobs[key] {
+	if _, running := s.matchJobs[key]; running {
 		s.matchMu.Unlock()
 		return
 	}
-	s.matchJobs[key] = true
+	// a queued match owns no context of its own: it is drained by the batch
+	// worker, and stopping one file's lookup is not something to offer
+	s.matchJobs[key] = func() {}
 	s.matchMu.Unlock()
 	s.matchOnce.Do(func() {
 		s.matchCh = make(chan matchJob, 8192)

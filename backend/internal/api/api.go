@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log/slog"
@@ -45,8 +46,11 @@ type Server struct {
 
 	// background AniList matching (see queueMatch in anilist.go):
 	// dedup of in-flight jobs plus a queue drained in batches by one worker
-	matchMu   sync.Mutex
-	matchJobs map[string]bool
+	matchMu sync.Mutex
+	// in-flight jobs by key. The value cancels that job's context, so an
+	// admin can stop a pass that is running away with the machine; a queued
+	// match job that owns no context stores a no-op.
+	matchJobs map[string]context.CancelFunc
 	matchCh   chan matchJob
 	matchOnce sync.Once
 
@@ -268,6 +272,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// admin: background jobs and cache maintenance
 	mux.Handle("GET /api/admin/jobs", authed(adminOnly(http.HandlerFunc(s.handleAdminJobs))))
 	mux.Handle("POST /api/admin/jobs/{name}/run", authed(adminOnly(http.HandlerFunc(s.handleAdminJobRun))))
+	mux.Handle("POST /api/admin/jobs/{name}/stop", authed(adminOnly(http.HandlerFunc(s.handleAdminJobStop))))
+	mux.Handle("POST /api/admin/jobs/pause", authed(adminOnly(http.HandlerFunc(s.handleAdminJobPause))))
+	// the dashboard's activity hint: every signed-in user may see THAT work is
+	// running, only an admin may pause or stop it
+	mux.Handle("GET /api/jobs", authed(http.HandlerFunc(s.handleJobsStatus)))
 	mux.Handle("GET /api/admin/data", authed(adminOnly(http.HandlerFunc(s.handleAdminData))))
 	mux.Handle("POST /api/admin/data/reset", authed(adminOnly(http.HandlerFunc(s.handleAdminDataReset))))
 	mux.Handle("DELETE /api/admin/data/{name}", authed(adminOnly(http.HandlerFunc(s.handleAdminDataDelete))))

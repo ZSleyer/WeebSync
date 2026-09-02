@@ -74,7 +74,10 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// better remote source, not two remote copies. Plex-API heavy.
 			if last := db.Setting(s.DB, "plex_indexed_at"); last == "" || olderThan(last, time.Hour) {
 				slog.Info("sweep triggers job", "job", "plex:index", "reason", "hourly local-quality index due")
-				s.runJob("plex:index", func(context.Context) { s.indexPlexLibrary() })
+				// an hour, not the usual five minutes: the first pass after an
+				// empty probe cache measures the whole library, and cutting it
+				// short would leave it measuring the same rest every time
+				s.runJobFor("plex:index", time.Hour, s.indexPlexLibrary)
 			}
 			// select preferred Plex audio/sub streams on freshly indexed
 			// episodes of watches with a playback preference (no-op when empty)

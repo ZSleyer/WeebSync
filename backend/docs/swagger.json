@@ -498,6 +498,51 @@
                 },
                 "type": "object"
             },
+            "api.JobPauseRequest": {
+                "properties": {
+                    "family": {
+                        "type": "string"
+                    },
+                    "paused": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "api.JobStopResponse": {
+                "properties": {
+                    "stopped": {
+                        "description": "the job keys that were cancelled",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.JobsStatus": {
+                "properties": {
+                    "paused": {
+                        "description": "job families that will not start",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "running": {
+                        "description": "job families currently running",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "api.LegacyImportRequest": {
                 "properties": {
                     "config": {
@@ -3984,6 +4029,82 @@
                 ]
             }
         },
+        "/api/admin/jobs/pause": {
+            "post": {
+                "description": "Stops a family of background jobs from starting, or lets them start again (admin only). A job already running is unaffected - stop it separately.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.JobPauseRequest",
+                                        "summary": "body",
+                                        "description": "Family and desired state"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Family and desired state",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.JobsStatus"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Pause a job family",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
         "/api/admin/jobs/{name}/run": {
             "post": {
                 "description": "Triggers one background job by name (admin only): plex-suggestions, anilist-suggestions, index-crawl or rematch. Crawl/rematch require serverId; rematch returns a queued count, the others a started status.",
@@ -4092,6 +4213,63 @@
                     }
                 ],
                 "summary": "Run background job",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
+        "/api/admin/jobs/{name}/stop": {
+            "post": {
+                "description": "Cancels the running jobs of a family (admin only). A job that checks for cancellation stops within one unit of work; one that does not stops at its next natural break.",
+                "parameters": [
+                    {
+                        "description": "Job family",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.JobStopResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Stop running jobs",
                 "tags": [
                     "Admin"
                 ]
@@ -8181,6 +8359,42 @@
                 "summary": "Import a legacy weebsync config",
                 "tags": [
                     "Import"
+                ]
+            }
+        },
+        "/api/jobs": {
+            "get": {
+                "description": "Reports which background job families are running and which are paused, for the dashboard's activity hint.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.JobsStatus"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Background job status",
+                "tags": [
+                    "Admin"
                 ]
             }
         },
