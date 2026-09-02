@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { countdown } from '../countdown'
 import {
   downloadLabel,
   fmtBytes,
@@ -193,5 +194,29 @@ describe('plexStreamLabel', () => {
   it('leaves a plain code as it is', () => {
     expect(plexStreamLabel('Ger', t)).toBe('Ger')
     expect(plexStreamLabel('off', t)).toBe('off')
+  })
+})
+
+// countdown feeds both the watches page and the queue's retry chip; the rung it
+// picks decides which interpolation the caller gets, so the boundaries are what
+// matter here, not the wording.
+describe('countdown', () => {
+  const t = ((k: string, v?: Record<string, number>) => `${k}:${JSON.stringify(v ?? {})}`) as never
+  const inSec = (s: number) => Math.floor(Date.now() / 1000) + s
+
+  it('counts seconds when asked for them', () => {
+    expect(countdown(t, inSec(9), true)).toMatch(/^watch\.inSeconds:/)
+  })
+  it('falls back to whole minutes without withSec', () => {
+    expect(countdown(t, inSec(9))).toMatch(/^watch\.inMinutes:/)
+  })
+  it('switches to minutes and seconds past a minute', () => {
+    expect(countdown(t, inSec(90), true)).toMatch(/^watch\.inMinutesS:/)
+  })
+  it('reports days far out', () => {
+    expect(countdown(t, inSec(3 * 86_400), true)).toMatch(/^watch\.inDaysH:/)
+  })
+  it('treats a past timestamp as now', () => {
+    expect(countdown(t, inSec(-5), true)).toMatch(/^watch\.airingNow:/)
   })
 })
