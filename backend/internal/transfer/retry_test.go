@@ -204,20 +204,55 @@ func TestResumeClearsRetryState(t *testing.T) {
 	}
 }
 
-func TestBackoffForHoldsAtTheLastRung(t *testing.T) {
-	last := retryBackoff[len(retryBackoff)-1]
+func TestBackoffForDoublesAndHolds(t *testing.T) {
 	for _, tc := range []struct {
 		attempts int
 		want     time.Duration
 	}{
-		{0, retryBackoff[0]},
-		{1, retryBackoff[0]},
-		{2, retryBackoff[1]},
-		{len(retryBackoff), last},
-		{len(retryBackoff) + 50, last},
+		{0, retryBase},
+		{1, retryBase},
+		{2, 2 * retryBase},
+		{3, 4 * retryBase},
+		{4, 8 * retryBase},
+		{10, retryCap},
+		{99, retryCap}, // no overflow into a negative duration
 	} {
 		if got := backoffFor(tc.attempts); got != tc.want {
 			t.Errorf("backoffFor(%d) = %v, want %v", tc.attempts, got, tc.want)
 		}
+	}
+}
+
+// A remote file that was deleted classifies as transient - there is no code
+// for "gone" - so without the attempt limit it would be fetched forever. After
+// retryLimit tries the download ends like any other failure, which is also what
+// puts the "download failed" notification back on the table.
+func TestRetryGivesUpAtTheLimit(t *testing.T) {
+	d := newRetryDB(t)
+	dial := func(userID, serverID int64) (remote.Client, string, error) {
+		return nil, "", errors.New("connection reset by peer")
+	}
+	// max_concurrent 0 keeps the queue loop out of the way: the attempts are
+	// driven by hand so the test does not sit through the real backoff
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
+	m := NewManager(d, dial, t.TempDir())
+	t.Cleanup(func() { m.Shutdown(t.Context()) })
+
+	res, err := d.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, attempts)
+		VALUES (1, 1, '/x/gone.mkv', ?, 8, ?)`, filepath.Join(t.TempDir(), "gone.mkv"), retryLimit-1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := res.LastInsertId()
+
+	cause := errors.New("connection reset by peer")
+	if !m.retryLater(id, cause, "") {
+		t.Fatal("the last attempt was refused, want it scheduled")
+	}
+	if got := readRow(t, d, id).attempts; got != retryLimit {
+		t.Fatalf("attempts = %d, want %d", got, retryLimit)
+	}
+	if m.retryLater(id, cause, "") {
+		t.Error("scheduled an attempt past the limit, want it refused")
 	}
 }
