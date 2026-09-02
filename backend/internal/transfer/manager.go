@@ -272,8 +272,7 @@ func (m *Manager) startDownload(id int64) {
 			// a failure that clears up by itself (dropped connection, short
 			// read) goes back into the queue behind a backoff instead of
 			// ending the download; resume picks the .part file back up
-			if RetryableCode(code) {
-				m.retryLater(id, err, code)
+			if RetryableCode(code) && m.retryLater(id, err, code) {
 				break
 			}
 			slog.Warn("download failed", "id", id, "code", code, "err", err)
@@ -826,32 +825,47 @@ func CheckWritable(dir string) (string, error) {
 	return "", nil
 }
 
-// retryBackoff staggers the wait between two attempts at the same download.
-// It is capped rather than open-ended: a server that stays away for an hour
-// should keep being tried, but not with one connection per second.
-var retryBackoff = []time.Duration{5 * time.Second, 15 * time.Second, 45 * time.Second, 2 * time.Minute, 5 * time.Minute}
+// Retry pacing: the wait doubles with every failed attempt and holds at
+// retryCap, and after retryLimit attempts the download gives up for good.
+//
+// Doubling is what makes one policy fit two very different failures: a blip
+// is over before the third attempt, while a server that is down for an hour
+// is asked once every five minutes instead of once a second. The limit is
+// what keeps the queue honest - a remote file that was deleted classifies as
+// transient (there is no code for "gone"), and without a ceiling it would be
+// fetched forever.
+const (
+	retryLimit = 10
+	retryBase  = 5 * time.Second
+	retryCap   = 5 * time.Minute
+)
 
-// backoffFor is the wait before attempt number attempts+1, holding at the last
-// rung of the ladder once the attempts run past it.
+// backoffFor is the wait before attempt number attempts+1: retryBase doubled
+// once per attempt so far, never longer than retryCap.
 func backoffFor(attempts int) time.Duration {
-	if attempts >= len(retryBackoff) {
-		return retryBackoff[len(retryBackoff)-1]
-	}
 	if attempts < 1 {
 		attempts = 1
 	}
-	return retryBackoff[attempts-1]
+	if attempts > 20 {
+		return retryCap // beyond this the shift below would overflow
+	}
+	if d := retryBase << (attempts - 1); d < retryCap {
+		return d
+	}
+	return retryCap
 }
 
-// retryLater puts a failed download back into the queue behind a backoff.
+// retryLater puts a failed download back into the queue behind a backoff and
+// reports whether it did. It declines once the attempts run out, leaving the
+// caller to end the download the ordinary way.
 //
 // It deliberately does not go through setStatus: that clears error and
 // error_code, and a row waiting for its next attempt has to keep saying what
 // went wrong - a countdown without a reason is just an unexplained pause.
-func (m *Manager) retryLater(id int64, cause error, code string) {
+func (m *Manager) retryLater(id int64, cause error, code string) bool {
 	d, err := m.get(id)
-	if err != nil {
-		return
+	if err != nil || d.Attempts >= retryLimit {
+		return false
 	}
 	attempts := d.Attempts + 1
 	wait := backoffFor(attempts)
@@ -859,19 +873,10 @@ func (m *Manager) retryLater(id int64, cause error, code string) {
 	m.execRetry("retryLater", `UPDATE downloads SET status = 'queued', attempts = ?, retry_at = ?,
 		error = ?, error_code = ?, updated_at = datetime('now') WHERE id = ?`,
 		attempts, retryAt, cause.Error(), code, id)
-	slog.Info("download retry scheduled", "id", id, "attempt", attempts, "in", wait, "err", cause)
+	slog.Info("download retry scheduled", "id", id, "attempt", attempts, "of", retryLimit, "in", wait, "err", cause)
 	d.Status, d.Attempts, d.RetryAt, d.Error, d.ErrorCode = "queued", attempts, retryAt, cause.Error(), code
 	m.publish(d)
-	// The queue never reaches a terminal state now, so the "download failed"
-	// push/mail would never fire for a connection problem again. Say it once,
-	// when the ladder has run out and the failure has lasted minutes rather
-	// than seconds - the status on the copy is what the notification reads.
-	// ponytail: one-shot stall notice, not a terminal state; the row keeps trying.
-	if m.OnFinished != nil && attempts == len(retryBackoff) {
-		stalled := *d
-		stalled.Status = "error"
-		go m.OnFinished(&stalled)
-	}
+	return true
 }
 
 func (m *Manager) setStatus(id int64, status, errMsg, errCode string) {

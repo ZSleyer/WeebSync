@@ -94,16 +94,29 @@ func TestNextCheckAtPrefersRetry(t *testing.T) {
 	}
 }
 
-func TestWatchBackoffHoldsAtTheLastRung(t *testing.T) {
-	last := watchBackoff(99)
-	if last != 15*time.Minute {
-		t.Fatalf("the ladder holds at %v, want 15m", last)
+func TestWatchBackoffDoublesUpToTheInterval(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
 	}
+	t.Cleanup(func() { d.Close() })
+	// 10 minutes, so the ceiling sits inside the doubling rather than beyond it
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('watch_interval_min', '10')`)
+	s := &Server{DB: d}
+
 	for _, tc := range []struct {
 		attempts int
 		want     time.Duration
-	}{{0, time.Minute}, {1, time.Minute}, {2, 2 * time.Minute}, {5, 15 * time.Minute}} {
-		if got := watchBackoff(tc.attempts); got != tc.want {
+	}{
+		{0, time.Minute},
+		{1, time.Minute},
+		{2, 2 * time.Minute},
+		{3, 4 * time.Minute},
+		{4, 8 * time.Minute},
+		{5, 10 * time.Minute}, // 16m would exceed the interval: held there
+		{99, 10 * time.Minute},
+	} {
+		if got := s.watchBackoff(tc.attempts); got != tc.want {
 			t.Errorf("watchBackoff(%d) = %v, want %v", tc.attempts, got, tc.want)
 		}
 	}

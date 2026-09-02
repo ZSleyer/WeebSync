@@ -387,7 +387,7 @@ func (s *Server) runWatch(id int64) {
 	if err != nil {
 		s.DB.QueryRow(`SELECT check_attempts FROM watches WHERE id = ?`, id).Scan(&attempts)
 		attempts++
-		retryAt = time.Now().Add(watchBackoff(attempts)).Unix()
+		retryAt = time.Now().Add(s.watchBackoff(attempts)).Unix()
 		result, queued, uploading, filtered = err.Error(), -1, 0, 0
 		slog.Warn("watch check", "id", id, "attempt", attempts, "err", err)
 	} else if queued > 0 || uploading > 0 || filtered > 0 {
@@ -399,19 +399,27 @@ func (s *Server) runWatch(id int64) {
 		check_attempts = ?, retry_at = ? WHERE id = ?`, result, queued, uploading, filtered, attempts, retryAt, id)
 }
 
-// watchBackoff staggers the wait before a failed check is repeated. The rungs
-// are minutes because WatchLoop ticks once a minute - anything finer would be
-// rounded away - and the ladder holds at its last one so a server that stays
-// unreachable is still reached for, just not on the minute.
-func watchBackoff(attempts int) time.Duration {
-	ladder := []time.Duration{time.Minute, 2 * time.Minute, 5 * time.Minute, 10 * time.Minute, 15 * time.Minute}
-	if attempts >= len(ladder) {
-		return ladder[len(ladder)-1]
-	}
+// watchBackoff staggers the wait before a failed check is repeated: a minute,
+// then doubling, held at the watch's own interval. Minutes because WatchLoop
+// ticks once a minute - anything finer would be rounded away.
+//
+// The interval is the ceiling rather than some fixed number of minutes because
+// that is the point where the fast lane has nothing left to offer: a watch that
+// has been failing for that long is simply back on its ordinary schedule. It is
+// also why failed checks are not capped by a count the way downloads are - a
+// watch must never stop watching.
+func (s *Server) watchBackoff(attempts int) time.Duration {
+	ceiling := time.Duration(s.watchInterval()) * time.Minute
 	if attempts < 1 {
 		attempts = 1
 	}
-	return ladder[attempts-1]
+	if attempts > 20 {
+		return ceiling // beyond this the shift below would overflow
+	}
+	if d := time.Minute << (attempts - 1); d < ceiling {
+		return d
+	}
+	return ceiling
 }
 
 // watchNameFn maps remote file names to local ones via the watch's rename rule
