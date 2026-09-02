@@ -34,6 +34,9 @@ func TestWatchCheckFailureSchedulesRetry(t *testing.T) {
 	s := &Server{DB: d, DownloadRoot: root, Anilist: anilist.New(d),
 		Transfers: transfer.NewManager(d, dial, root)}
 
+	// the queue must not start anything: this test is about the check, and a
+	// download running into the temp directory races its cleanup
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
