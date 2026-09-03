@@ -502,9 +502,10 @@ type UpgradeSuggestion struct {
 	Season      int              `json:"season"`
 	IsMovie     bool             `json:"isMovie,omitempty"`
 	Title       string           `json:"title"`
-	From        UpgradeVariant   `json:"from"`    // best LOCAL copy
-	To          UpgradeVariant   `json:"to"`      // recommended remote copy
-	Options     []UpgradeVariant `json:"options"` // all remote copies
+	Why         string           `json:"why,omitempty"` // one line, in the user's language: what the better copy adds
+	From        UpgradeVariant   `json:"from"`          // best LOCAL copy
+	To          UpgradeVariant   `json:"to"`            // recommended remote copy
+	Options     []UpgradeVariant `json:"options"`       // all remote copies
 	ImprovesRes bool             `json:"improvesRes"`
 	ImprovesSub bool             `json:"improvesSub"`
 	ImprovesDub bool             `json:"improvesDub"`
@@ -561,6 +562,7 @@ func (s *Server) handleUpgrades(w http.ResponseWriter, r *http.Request) {
 // the cached /api/suggestions blob.
 func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	dims := s.upgradeDimsFor(userID)
+	locale := s.userLocale(userID)
 	units := s.loadUnits()
 	enrich := s.unitEnrichIndex()
 	localsByShow := localSeasonsByShow(units)
@@ -639,6 +641,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			LocalSeasons: localsByShow[showScope(u.showKey, u.isMovie)],
 		}
 		up.Sync.Replace = true
+		up.Why = whyUpgrade(locale, cur, top)
 		if e.media.ID != 0 {
 			m := e.media
 			m.Title.Preferred = up.Title
@@ -767,6 +770,7 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 			Providers: e.providers, Links: e.links, Candidates: cands,
 			Library: s.plexLibraryOf(ownedDir[sc]),
 			Sync:    missingSyncPlan(ownedDir[sc], u.season, u.isMovie),
+			Why:     whyMissingUnit(acc.locale, u, localsOfShow[sc]),
 		})
 	}
 }
@@ -866,6 +870,7 @@ func (s *Server) addMissingEpisodes(acc *sugAcc) {
 			Have: len(have), Need: need, Missing: nums,
 			Library: s.plexLibraryOf(local.Folder),
 			Sync:    existingSyncPlan(local.Folder, u.season, false),
+			Why:     tr(acc.locale, "why.episodes", len(have), need, cands[0].ServerName, epRanges(nums)),
 		})
 		if n++; n >= 200 {
 			break
@@ -910,6 +915,7 @@ type DuplicateItem struct {
 	IsMovie  bool            `json:"isMovie,omitempty"`
 	Library  string          `json:"library,omitempty"`
 	Copies   []DuplicateCopy `json:"copies"`
+	Why      string          `json:"why,omitempty"`      // one line, in the user's language
 	Keep     string          `json:"keep,omitempty"`     // folder of the copy bestCopy would keep
 	Episodes []int           `json:"episodes,omitempty"` // dupep: the episode numbers present twice
 	// Twice: dupep only, the files behind each doubled episode, so one of
@@ -938,7 +944,7 @@ type DuplicateCopy struct {
 
 // addDuplicates lists the units the library holds twice and the folders that
 // hold an episode twice.
-func (s *Server) addDuplicates() []DuplicateItem {
+func (s *Server) addDuplicates(locale string) []DuplicateItem {
 	units := s.loadUnits()
 	enrich := s.unitEnrichIndex()
 	out := []DuplicateItem{}
@@ -980,6 +986,11 @@ func (s *Server) addDuplicates() []DuplicateItem {
 		}
 		if len(locals) >= 2 {
 			d := item("dup:" + key)
+			form := tr(locale, "why.dupSeason")
+			if u.isMovie {
+				form = tr(locale, "why.dupFilm")
+			}
+			d.Why = tr(locale, "why.dup", len(locals), form)
 			d.Keep = bestCopy(locals).Folder
 			for _, l := range locals {
 				files, bytes := s.localCopyStats(l.Folder)
@@ -1002,6 +1013,7 @@ func (s *Server) addDuplicates() []DuplicateItem {
 				slices.Sort(twice)
 				d := item("dupep:" + key + ":" + l.Folder)
 				d.Episodes = twice
+				d.Why = tr(locale, "why.dupep", epRanges(twice))
 				for _, ep := range twice {
 					files := byEp[epKey(u.season, ep)]
 					slices.SortFunc(files, func(a, b DuplicateFile) int { return strings.Compare(a.Path, b.Path) })

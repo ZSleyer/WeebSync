@@ -47,7 +47,7 @@ function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: str
         </Badge>
         <Badge className="shrink-0">{v.serverName ? v.serverName : t('suggestions.localPlex')}</Badge>
       </div>
-      <div className="mt-1 break-words font-mono text-xs" title={v.folder}>
+      <div className="mt-1 wrap-break-word font-mono text-xs" title={v.folder}>
         {name}
       </div>
       {dir && (
@@ -144,7 +144,7 @@ return (
           to the far edge of a wide card, where they end up an arm's
           length from what they describe */}
       <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3">
-        <h4 className="min-w-0 break-words font-display text-sm font-semibold tracking-wider">{u.title}</h4>
+        <h4 className="min-w-0 wrap-break-word font-display text-sm font-semibold tracking-wider">{u.title}</h4>
         <div className="flex flex-wrap gap-1">
           {variantDiff(u.from, chosen, dims, t).map((d, j) => (
             <Badge key={j} tone="accent">
@@ -313,6 +313,7 @@ return (
         )}
       </div>
     </div>
+      {u.why && <p className="mt-1 text-[11px] text-t-secondary">{u.why}</p>}
   </Panel>
 )
 }

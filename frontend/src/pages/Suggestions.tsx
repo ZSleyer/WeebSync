@@ -445,6 +445,7 @@ function SugCard({
             {t('suggestions.because', { titles: it.because.join(', ') })}
           </p>
         )}
+        {it.why && <p className="mt-1 text-[11px] text-t-secondary">{it.why}</p>}
         {it.sequel && (
           <p className="mt-1 truncate text-[11px] text-t-muted">{t('suggestions.missing')}: {mediaTitle(it.sequel)}</p>
         )}
@@ -736,6 +737,7 @@ function DuplicatesSection() {
         <Cover src={d.cover} />
         <div className="min-w-0 flex-1">
           <h4 className="min-w-0 wrap-break-word font-display text-sm font-semibold tracking-wider">{d.title}</h4>
+          {d.why && <p className="mt-1 text-[11px] text-t-secondary">{d.why}</p>}
           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
             {seasonLabel && <Badge tone="accent">{seasonLabel}</Badge>}
             {d.library && <Badge aria-label={t('suggestions.library', { name: d.library })}>{d.library}</Badge>}

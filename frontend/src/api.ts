@@ -297,7 +297,8 @@ export interface SuggestionItem {
   need?: number // incomplete: episodes through the sequel
   sequel?: Media
   plexFolder?: string
-  because?: string[] // recommended: the finished titles this was derived from
+  because?: string[]
+  why?: string // one line from the server, in the user's language: why this is listed // recommended: the finished titles this was derived from
   library?: string // incomplete: the Plex library this came from, shown on the card
   sync?: SyncPlan // incomplete: where a one-off sync creates the season/movie folder
   /** incomplete: season (missing season/movie) | sequel (Plex chain) | episodes (gaps in an owned season) */
@@ -327,6 +328,7 @@ export interface DuplicateItem {
   isMovie?: boolean
   library?: string
   copies: DuplicateCopy[]
+  why?: string
   keep?: string // folder of the copy the quality order would keep
   episodes?: number[] // the episode numbers present twice
   twice?: DuplicateEpisode[] // dupep: the files behind each doubled episode
@@ -408,6 +410,7 @@ export interface UpgradeSuggestion {
   season: number // 0 = movie/base
   isMovie?: boolean
   title: string
+  why?: string // one line from the server: what the better copy adds
   from: UpgradeVariant // best LOCAL copy (Plex)
   to: UpgradeVariant // recommended REMOTE copy (best)
   options: UpgradeVariant[] // ALL remote copies

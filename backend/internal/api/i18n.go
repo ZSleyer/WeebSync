@@ -114,6 +114,21 @@ var catalog = map[string]map[string]string{
 	// A folder name on disk, not a label: the leading underscore keeps it out
 	// of Plex's way, and it is only ever chosen when the folder is created.
 	// Switching the interface language later does not rename what is there.
+	// why.*: the one-line reason on a suggestion card, built where the
+	// suggestion is; the frontend shows it as is
+	"why.season":    {"en": "Season %d is on %s; you own season %s of this show.", "de": "Staffel %d liegt auf %s, lokal hast du Staffel %s."},
+	"why.movie":     {"en": "The film is on %s; the series is in your library.", "de": "Der Film liegt auf %s, die Serie ist lokal vorhanden."},
+	"why.episodes":  {"en": "%d of %d episodes are here; %s also has episode %s.", "de": "Lokal %d von %d Folgen, auf %s gibt es auch Folge %s."},
+	"why.sequel":    {"en": "Plex holds the earlier part of this show (%d of %d episodes); this continuation is not in the library.", "de": "Plex hat den früheren Teil dieser Serie (%d von %d Folgen), diese Fortsetzung fehlt."},
+	"why.upgrade":   {"en": "%s has %s.", "de": "%s bietet %s."},
+	"why.res":       {"en": "%dp instead of %dp", "de": "%dp statt %dp"},
+	"why.dub":       {"en": "dub %s", "de": "Dub %s"},
+	"why.sub":       {"en": "subtitles %s", "de": "Untertitel %s"},
+	"why.soft":      {"en": "selectable subtitles %s", "de": "wählbare Untertitel %s"},
+	"why.dup":       {"en": "%d folders hold this %s; the marked one has the best quality.", "de": "%d Ordner enthalten diese %s, der markierte hat die beste Qualität."},
+	"why.dupSeason": {"en": "season", "de": "Staffel"},
+	"why.dupFilm":   {"en": "film", "de": "Film"},
+	"why.dupep":     {"en": "Episode %s is in this folder more than once, as different files (the parts of a split episode count once).", "de": "Folge %s liegt mehrfach in diesem Ordner, als verschiedene Dateien (die Teile einer geteilten Folge zählen einmal)."},
 	"folder.unsorted": {
 		"en": "_Unsorted",
 		"de": "_Unzugeordnet",
