@@ -4,7 +4,9 @@ package transfer
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -92,22 +94,8 @@ type Manager struct {
 // This keeps arbitrary media mounts reachable without exposing the whole
 // filesystem, and stays backward-compatible with root-relative watch targets.
 func ResolveLocal(roots []string, p string) (string, error) {
-	if len(roots) == 0 {
-		return "", errors.New("no local roots configured")
-	}
-	clean := filepath.Clean("/" + strings.TrimPrefix(p, "/"))
-	for _, root := range roots {
-		r := filepath.Clean(root)
-		if clean == r || strings.HasPrefix(clean, r+string(filepath.Separator)) {
-			return clean, nil
-		}
-	}
-	primary := filepath.Clean(roots[0])
-	abs := filepath.Join(primary, clean)
-	if abs == primary || strings.HasPrefix(abs, primary+string(filepath.Separator)) {
-		return abs, nil
-	}
-	return "", errors.New("path outside allowed roots")
+	_, _, abs, err := resolveLocal(roots, p)
+	return abs, err
 }
 
 func (m *Manager) roots() []string {
@@ -305,24 +293,33 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	// file is already present at full size - don't refetch over a good file.
 	// A genuine new episode or a re-release (E15v2, different size) still fails
 	// this check and downloads normally.
-	if alreadyComplete(d.LocalPath, size) {
+	local, err := OpenLocal(m.roots(), d.LocalPath)
+	if err != nil {
+		return err
+	}
+	defer local.Close()
+	if fi, err := local.Root.Stat(local.Name); err == nil && fi.Size() == size {
 		m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, size, d.ID)
 		// self-heal skip: file already present at full size (stale queue)
 		slog.Debug("download skipped", "id", d.ID, "reason", "already complete", "size", size)
 		return nil
 	}
 
-	part := d.LocalPath + ".part"
-	if err := os.MkdirAll(filepath.Dir(part), 0o755); err != nil {
+	part := local.Name + ".part"
+	if err := local.Root.MkdirAll(filepath.Dir(part), 0o755); err != nil {
 		return err
 	}
 	var offset int64
-	if fi, err := os.Stat(part); err == nil {
+	if fi, err := local.Root.Stat(part); err == nil {
 		offset = fi.Size()
 	}
 	if offset > size {
 		offset = 0 // remote file changed, start over
-		if err := os.Truncate(part, 0); err != nil {
+		f, err := local.Root.OpenFile(part, os.O_WRONLY|os.O_TRUNC, 0)
+		if err != nil {
+			return err
+		}
+		if err := f.Close(); err != nil {
 			return err
 		}
 	}
@@ -333,7 +330,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	}
 	defer src.Close()
 
-	dst, err := os.OpenFile(part, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	dst, err := local.Root.OpenFile(part, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return err
 	}
@@ -389,7 +386,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		return fmt.Errorf("incomplete transfer: %d of %d bytes", transferred, size)
 	}
 	slog.Info("download complete", "id", d.ID, "size", size)
-	return os.Rename(part, d.LocalPath)
+	return local.Root.Rename(part, local.Name)
 }
 
 // ── public API used by handlers ─────────────────────────────
@@ -541,8 +538,14 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		// version we already have in the right language doesn't inflate the count)
 		if langFilter != nil && !langFilter(j.remote) {
 			if VideoExt[strings.ToLower(path.Ext(j.remote))] {
-				if _, serr := os.Stat(local); serr != nil {
+				rooted, rerr := OpenLocal(m.roots(), local)
+				if rerr != nil {
 					res.Filtered++
+				} else if _, serr := rooted.Root.Stat(rooted.Name); serr != nil {
+					res.Filtered++
+				}
+				if rooted != nil {
+					rooted.Close()
 				}
 			}
 			continue
@@ -565,12 +568,18 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 
 	for _, local := range targets {
 		j := *best[local]
-		// sync: skip files that already exist with the right size. Counted, so
-		// the caller can say "already there" instead of a bare "0 queued"
-		if fi, err := os.Stat(local); err == nil && fi.Size() == j.size {
-			res.Skipped++
+		rooted, rerr := OpenLocal(m.roots(), local)
+		if rerr != nil {
 			continue
 		}
+		// sync: skip files that already exist with the right size. Counted, so
+		// the caller can say "already there" instead of a bare "0 queued"
+		if fi, err := rooted.Root.Stat(rooted.Name); err == nil && fi.Size() == j.size {
+			res.Skipped++
+			rooted.Close()
+			continue
+		}
+		rooted.Close()
 		// probably still being uploaded: wait for a later check
 		if sizeGuard && VideoExt[strings.ToLower(path.Ext(j.remote))] && looksUploading(j.size, dirSizes[j.dir]) {
 			res.Uploading++
@@ -651,7 +660,13 @@ func (m *Manager) blocked(userID, serverID int64, remotePath, dir string, probed
 	}
 	still, ok := probed[dir]
 	if !ok {
-		still, _ = CheckWritable(dir)
+		local, err := OpenLocal(m.roots(), dir)
+		if err != nil {
+			still = classifyError(err)
+		} else {
+			still, _ = CheckWritableAt(local)
+			local.Close()
+		}
 		probed[dir] = still
 	}
 	return still != ""
@@ -827,6 +842,25 @@ func CheckWritable(dir string) (string, error) {
 	name := f.Name()
 	f.Close()
 	os.Remove(name)
+	return "", nil
+}
+
+// CheckWritableAt is CheckWritable through an os.Root confinement boundary.
+func CheckWritableAt(local *LocalPath) (string, error) {
+	if err := local.Root.MkdirAll(local.Name, 0o755); err != nil {
+		return classifyError(err), err
+	}
+	raw := make([]byte, 8)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	name := filepath.Join(local.Name, ".weebsync-probe-"+hex.EncodeToString(raw))
+	f, err := local.Root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return classifyError(err), err
+	}
+	f.Close()
+	local.Root.Remove(name)
 	return "", nil
 }
 

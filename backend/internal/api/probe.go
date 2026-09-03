@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -92,10 +93,15 @@ func (s *Server) probeQuality(dir string) (q FolderQuality, ok bool) {
 	if _, err := exec.LookPath("ffprobe"); err != nil {
 		return q, false
 	}
+	local, err := s.openLocal(dir)
+	if err != nil {
+		return q, false
+	}
+	defer local.Close()
 	var videos, names []string
 	var files int
 	var total, newest int64
-	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+	fs.WalkDir(local.Root.FS(), filepath.ToSlash(local.Name), func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -121,7 +127,14 @@ func (s *Server) probeQuality(dir string) (q FolderQuality, ok bool) {
 	if cached, hit := s.probeCacheGet(dir, sig); hit {
 		return cached, true
 	}
-	q, ok = probeFiles(videos)
+	q, ok = probeFilesWith(videos, func(ctx context.Context, name string) ([]probeStream, bool) {
+		file, err := local.Root.Open(filepath.FromSlash(name))
+		if err != nil {
+			return nil, false
+		}
+		defer file.Close()
+		return ffprobeOpenFile(ctx, file)
+	})
 	if !ok {
 		return q, false
 	}
@@ -221,7 +234,7 @@ func unionSets(a, b map[string]bool) map[string]bool {
 // ponytail: three files per folder. A folder that mixes releases still reflects
 // only what those three carry; the upgrade path is every file behind a
 // (path, size, mtime) memo.
-func probeFiles(videos []string) (q FolderQuality, ok bool) {
+func probeFilesWith(videos []string, probe func(context.Context, string) ([]probeStream, bool)) (q FolderQuality, ok bool) {
 	slices.Sort(videos)
 	pick := map[int]bool{0: true, len(videos) / 2: true, len(videos) - 1: true}
 	dub, sub := map[string]bool{}, map[string]bool{}
@@ -230,7 +243,7 @@ func probeFiles(videos []string) (q FolderQuality, ok bool) {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		streams, sok := ffprobeFile(ctx, videos[i])
+		streams, sok := probe(ctx, videos[i])
 		cancel()
 		if !sok {
 			continue
@@ -350,9 +363,20 @@ func ffprobeFile(ctx context.Context, file string, extra ...string) ([]probeStre
 	if _, err := exec.LookPath("ffprobe"); err != nil {
 		return nil, false
 	}
-	args := append([]string{"-v", "quiet", "-print_format", "json", "-show_streams"}, extra...)
-	args = append(args, file)
-	out, err := exec.CommandContext(ctx, "ffprobe", args...).Output()
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, false
+	}
+	defer f.Close()
+	return ffprobeOpenFile(ctx, f, extra...)
+}
+
+func ffprobeOpenFile(ctx context.Context, file *os.File, extra ...string) ([]probeStream, bool) {
+	args := append([]string{"-v", "quiet", "-protocol_whitelist", "file,pipe", "-print_format", "json", "-show_streams"}, extra...)
+	args = append(args, "/proc/self/fd/3")
+	cmd := exec.CommandContext(ctx, "ffprobe", args...)
+	cmd.ExtraFiles = []*os.File{file}
+	out, err := cmd.Output()
 	if err != nil {
 		return nil, false
 	}

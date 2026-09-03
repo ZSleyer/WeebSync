@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -47,12 +46,19 @@ func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	abs, err := s.safeLocal(in.Path)
+	local, err := s.openLocal(in.Path)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	items, err := os.ReadDir(abs)
+	defer local.Close()
+	dir, err := local.Root.Open(local.Name)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "cannot read directory")
+		return
+	}
+	defer dir.Close()
+	items, err := dir.ReadDir(-1)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "cannot read directory")
 		return
@@ -171,11 +177,12 @@ func (s *Server) handleRenameApply(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	abs, err := s.safeLocal(in.Path)
+	local, err := s.openLocal(in.Path)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	defer local.Close()
 	results := []renamePair{}
 	for _, p := range in.Renames {
 		// the source is always a plain file in this directory; the target may
@@ -194,25 +201,24 @@ func (s *Server) handleRenameApply(w http.ResponseWriter, r *http.Request) {
 		// cleaning instead would silently re-anchor "../x" as "x", which is
 		// safe but not what the preview showed
 		rel := filepath.FromSlash(p.New)
-		dst := filepath.Join(abs, rel)
-		src := filepath.Join(abs, p.Old)
-		if !filepath.IsLocal(rel) || !strings.HasPrefix(dst, abs+string(os.PathSeparator)) ||
-			!filepath.IsLocal(p.Old) || !strings.HasPrefix(src, abs+string(os.PathSeparator)) {
+		dst := filepath.Join(local.Name, rel)
+		src := filepath.Join(local.Name, p.Old)
+		if !filepath.IsLocal(rel) || !filepath.IsLocal(p.Old) {
 			p.Err = "invalid name"
 			results = append(results, p)
 			continue
 		}
-		if _, err := os.Stat(dst); err == nil {
+		if _, err := local.Root.Stat(dst); err == nil {
 			p.Err = "target exists"
 			results = append(results, p)
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		if err := local.Root.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			p.Err = err.Error()
 			results = append(results, p)
 			continue
 		}
-		if err := os.Rename(src, dst); err != nil {
+		if err := local.Root.Rename(src, dst); err != nil {
 			p.Err = err.Error()
 		}
 		results = append(results, p)
