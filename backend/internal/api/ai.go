@@ -459,7 +459,7 @@ You can only READ through the tools and PROPOSE actions; the user confirms every
 - Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score). When you recommend titles, also call recommend with their ids and reasons so the user gets cards to open; then keep the text short, the cards carry the details.
 - Never recommend what the user already has: entries flagged owned (in the Plex library) or inAutoSync (an auto-sync keeps it current) are covered. Check the flags (or my_watches) before recommending; if the user asks about such a title, say it is already covered.
 - Before proposing a watch or sync, find the folder with search_remote or take a candidate from suggestions/seasonal. Never invent server ids or paths.
-- When you name better copies, call show_upgrades with their keys: the cards show both copies, every option and a sync button, so the text only needs to say why.
+- The upgrades tool already shows the user cards for its first entries; call show_upgrades with keys for any others you name. The cards show both copies, every option and a sync button, so the text only needs to say why.
 - kind "watch" = auto-sync: keeps a remote folder in sync (for airing shows). kind "sync" = download once. kind "upgrade" = replace a local copy with a better remote copy; only from the upgrades tool, quoting its key and one of its option folders, and only when it improves an axis the user enabled (axesByPriority lists them, most important first). Say concretely what improves (resolution, dub, sub, selectable subtitles) and mention when the language data is unverified.
 - Tools are called only through the tool-call interface, never written out as text in the answer.
 - If propose returns ok:false, tell the user the reason; do not retry the same call.
@@ -484,7 +484,7 @@ func animeSeason(t time.Time) (string, int) {
 var aiTools = []ai.Tool{
 	fn("my_lists", "The user's AniList list (status, progress, score) and plex.tv watchlist.", `{"type":"object","properties":{}}`),
 	fn("suggestions", "WeebSync's own suggestions for this user: watchlist titles present on a server, community recommendations, trending, and incomplete seasons the library is missing (each with a refKey, remote candidates and a sync plan).", `{"type":"object","properties":{}}`),
-	fn("upgrades", "Better remote copies of series the library already holds, with the quality of the local and the remote copy and which axes improve. Each has a key and option folders for propose(kind=upgrade).", `{"type":"object","properties":{}}`),
+	fn("upgrades", "Better remote copies of series the library already holds, ranked by the user's axis priority, with the quality of the local and the remote copy and which axes improve. The first six are shown to the user as cards automatically; use show_upgrades for others. Each has a key and option folders for propose(kind=upgrade).", `{"type":"object","properties":{}}`),
 	fn("seasonal", "Anime of one broadcast season, most popular first, flagged with the user's list status, whether the library has it, and remote folders.", `{"type":"object","properties":{"season":{"type":"string","enum":["WINTER","SPRING","SUMMER","FALL"]},"year":{"type":"integer"}},"required":["season","year"]}`),
 	fn("search_remote", "Search folders on the user's remote servers by words of a title. Returns server id, path and the folder's known quality.", `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
 	fn("my_watches", "The user's existing auto-syncs.", `{"type":"object","properties":{}}`),
@@ -537,7 +537,20 @@ func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string)
 	case "suggestions":
 		return aiToolOut{result: s.aiSuggestions(ctx, userID)}
 	case "upgrades":
-		return aiToolOut{result: s.aiUpgrades(ctx, userID)}
+		// the top of the list goes to the user as cards right away: a model
+		// that never calls show_upgrades still leaves something to act on
+		blob, _ := s.aiSuggestionBlob(ctx, userID)
+		dismissed := s.dismissedKeys(userID, "upgrade")
+		var top []UpgradeSuggestion
+		for _, up := range blob.Upgrades {
+			if !dismissed[up.Key] {
+				top = append(top, up)
+			}
+			if len(top) == 6 {
+				break
+			}
+		}
+		return aiToolOut{result: s.aiUpgrades(ctx, userID), upgrades: top}
 	case "seasonal":
 		return aiToolOut{result: s.aiSeasonal(ctx, userID, strings.ToUpper(args.Season), args.Year)}
 	case "search_remote":
