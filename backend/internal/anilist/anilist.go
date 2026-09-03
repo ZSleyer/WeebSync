@@ -615,6 +615,36 @@ func (c *Client) Trending(ctx context.Context) ([]Media, error) {
 	return resp.Data.Page.Media, nil
 }
 
+// Season returns the anime of one broadcast season (WINTER|SPRING|SUMMER|FALL,
+// year), most popular first. Backs the assistant's seasonal recommendations.
+func (c *Client) Season(ctx context.Context, season string, year int) ([]Media, error) {
+	key := fmt.Sprintf("season:%s:%d", season, year)
+	if payload, ok := c.cached(key); ok {
+		var list []Media
+		if json.Unmarshal([]byte(payload), &list) == nil {
+			return list, nil
+		}
+	}
+	var resp struct {
+		Data struct {
+			Page struct {
+				Media []Media `json:"media"`
+			} `json:"Page"`
+		} `json:"data"`
+	}
+	gql := fmt.Sprintf(`query ($season: MediaSeason, $year: Int) { Page(perPage: 50) { media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) { %s } } }`, mediaFields)
+	if err := c.query(ctx, gql, map[string]any{"season": season, "year": year}, &resp); err != nil {
+		return nil, err
+	}
+	list := resp.Data.Page.Media
+	if list == nil {
+		list = []Media{}
+	}
+	payload, _ := json.Marshal(list)
+	c.store(key, string(payload))
+	return list, nil
+}
+
 func (c *Client) Media(ctx context.Context, id int) (*Media, error) {
 	key := fmt.Sprintf("media:%d", id)
 	if payload, ok := c.cached(key); ok {
