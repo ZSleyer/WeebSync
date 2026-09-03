@@ -30,9 +30,11 @@ type ProviderLinks struct {
 // providers surfaced it, carrying which integrations recognise it (Providers),
 // links to each, a series-wide ignore key, and the server folders it maps to.
 type SugItem struct {
-	RefKey     string          `json:"refKey"`   // series:{id} | fold:{key}:{year}
-	SeriesID   int64           `json:"seriesId"` // 0 when not bundled yet
-	Category   string          `json:"category"` // anime-movie | anime-tv | movie | tv
+	RefKey     string          `json:"refKey"`            // series:{id} | fold:{key}:{year} | unit:… | eps:unit:…
+	Kind       string          `json:"kind,omitempty"`    // incomplete: season (missing season/movie) | sequel (Plex chain) | episodes (gaps in an owned season)
+	Missing    []int           `json:"missing,omitempty"` // incomplete/episodes: the episode numbers a remote copy has and the local season lacks
+	SeriesID   int64           `json:"seriesId"`          // 0 when not bundled yet
+	Category   string          `json:"category"`          // anime-movie | anime-tv | movie | tv
 	Title      string          `json:"title"`
 	Year       int             `json:"year,omitempty"`
 	Cover      string          `json:"cover,omitempty"`
@@ -62,6 +64,7 @@ type SuggestionsResponse struct {
 	Trending    []SugItem           `json:"trending"`
 	Upgrades    []UpgradeSuggestion `json:"upgrades"`
 	Incomplete  []SugItem           `json:"incomplete"`
+	Duplicates  []DuplicateItem     `json:"duplicates"` // the same season/movie held twice, or an episode twice in one folder
 	Building    bool                `json:"building"`
 }
 
@@ -226,13 +229,16 @@ func displayTitle(m anilist.Media, source string) string {
 func dedupIncomplete(items []SugItem) []SugItem {
 	covered := map[string]bool{}
 	for _, it := range items {
-		if it.ShowKey != "" {
+		if it.Kind == "season" {
 			covered[match.FoldKey(match.StripMarkers(it.Title))] = true
 		}
 	}
 	out := make([]SugItem, 0, len(items))
 	for _, it := range items {
-		if it.ShowKey == "" && covered[match.FoldKey(match.StripMarkers(it.Title))] {
+		// a missing-season card names the gap precisely; the sequel-chain card
+		// for the same show would only repeat it. Episode gaps are their own
+		// finding and stay beside either.
+		if it.Kind == "sequel" && covered[match.FoldKey(match.StripMarkers(it.Title))] {
 			continue
 		}
 		out = append(out, it)
@@ -405,6 +411,14 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	resp.Upgrades = kept
+	dupDismissed := s.dismissedKeys(u.ID, "duplicate")
+	dups := make([]DuplicateItem, 0, len(resp.Duplicates))
+	for _, d := range resp.Duplicates {
+		if !dupDismissed[d.RefKey] {
+			dups = append(dups, d)
+		}
+	}
+	resp.Duplicates = dups
 	resp.Building = building || payload == ""
 	if resp.Trending == nil {
 		resp.Trending = []SugItem{}
@@ -497,6 +511,7 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	// (Plex), plus the Plex missing-sequel chains ──
 	inc := newAcc()
 	s.addMissingUnits(inc)
+	s.addMissingEpisodes(inc)
 	s.addIncomplete(userID, inc, bySrc, bySeries)
 
 	// ── Recommended: what AniList's community suggests next to the titles
@@ -510,6 +525,7 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 		Trending:    ownedFilter(tr.list(nil)), // trending is for NEW titles only
 		Incomplete:  dedupIncomplete(inc.list(nil)),
 		Upgrades:    s.buildUpgrades(userID),
+		Duplicates:  s.addDuplicates(),
 	}
 	if b, err := json.Marshal(resp); err == nil {
 		s.cacheSet(fmt.Sprintf("suggestions:%d", userID), string(b))
@@ -797,6 +813,7 @@ func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64
 		// without this the sequel half of "incomplete" arrives unscoped while
 		// the missing-unit half carries one
 		it.Library = ps.Library
+		it.Kind = "sequel"
 		seq := ps.Sequel
 		seq.Title.Preferred = displayTitle(seq, source) // same localized title as the card
 		it.Sequel = &seq
