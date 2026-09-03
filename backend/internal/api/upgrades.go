@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -990,7 +991,7 @@ func (s *Server) addDuplicates() []DuplicateItem {
 				var twice []int
 				byEp := s.localEpisodeFiles(l.Folder)
 				for k, files := range byEp {
-					if se, ep := splitEpKey(k); len(files) >= 2 && se == u.season {
+					if se, ep := splitEpKey(k); stacks(files) >= 2 && se == u.season {
 						twice = append(twice, ep)
 					}
 				}
@@ -1016,6 +1017,22 @@ func (s *Server) addDuplicates() []DuplicateItem {
 	}
 	slices.SortStableFunc(out, func(a, b DuplicateItem) int { return strings.Compare(a.Title, b.Title) })
 	return out
+}
+
+// partRe is Plex's split-episode marker: "Show - S01E11.pt2.mp4" continues
+// "Show - S01E11.mp4" (cd, disc, disk, dvd, part, pt - up to eight parts).
+var partRe = regexp.MustCompile(`(?i)[ ._-]*(?:cd|disc|disk|dvd|part|pt)[ ._-]?\d{1,2}$`)
+
+// stacks counts the copies among an episode's files: the parts of a split
+// episode are one copy, not a duplicate of each other.
+func stacks(files []DuplicateFile) int {
+	seen := map[string]bool{}
+	for _, f := range files {
+		base := path.Base(f.Path)
+		stem := strings.TrimSuffix(base, path.Ext(base))
+		seen[partRe.ReplaceAllString(stem, "")] = true
+	}
+	return len(seen)
 }
 
 // outermostCopies drops what only looks like a second copy: a folder that
