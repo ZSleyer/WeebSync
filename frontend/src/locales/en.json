@@ -74,6 +74,15 @@
     "unverified": "language data unverified",
     "create": "Create auto-sync…",
     "queue": "Queue download…",
+    "model": "Model",
+    "steps_one": "Thinking transcript ({{count}} step)",
+    "steps_other": "Thinking transcript ({{count}} steps)",
+    "modelDefault": "{{model}} (default)",
+    "examples": {
+      "seasonal": "What airs this season that fits my list?",
+      "watch": "Set up an auto-sync for a show I am watching",
+      "upgrade": "Are there better copies of series I own?"
+    },
     "done": "done"
   },
   "login": {

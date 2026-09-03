@@ -522,10 +522,21 @@ export interface AiProposal {
   unverified?: boolean
 }
 
+// AiCard is one recommended title: the provider record the catalog's detail
+// view renders, plus the assistant's one-line reason.
+export interface AiCard {
+  source: string
+  media: Media
+  why?: string
+}
+
 export type AiEvent =
   | { type: 'delta'; text: string }
-  | { type: 'tool'; name: string }
+  | { type: 'reasoning'; text: string }
+  | { type: 'tool'; name: string; args?: string }
+  | { type: 'tool_done'; name: string; result?: string }
   | ({ type: 'proposal' } & AiProposal)
+  | { type: 'cards'; cards: AiCard[] }
   | { type: 'error'; message: string }
   | { type: 'done' }
 
@@ -550,11 +561,16 @@ export function parseSseChunk(buffer: string, chunk: string): { events: AiEvent[
 
 // streamAiChat posts the conversation and feeds every event to onEvent as it
 // arrives. EventSource cannot POST, hence fetch + a reader.
-export async function streamAiChat(messages: AiChatMessage[], onEvent: (ev: AiEvent) => void, signal?: AbortSignal) {
+export async function streamAiChat(
+  messages: AiChatMessage[],
+  onEvent: (ev: AiEvent) => void,
+  signal?: AbortSignal,
+  model?: string,
+) {
   const res = await fetch('/api/ai/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, model: model || undefined }),
     signal,
   })
   if (!res.ok || !res.body) {

@@ -74,6 +74,15 @@
     "unverified": "Sprachdaten ungeprüft",
     "create": "Auto-Sync anlegen…",
     "queue": "Download einreihen…",
+    "model": "Modell",
+    "steps_one": "Denkprotokoll ({{count}} Schritt)",
+    "steps_other": "Denkprotokoll ({{count}} Schritte)",
+    "modelDefault": "{{model}} (Standard)",
+    "examples": {
+      "seasonal": "Was läuft diese Season, das zu meiner Liste passt?",
+      "watch": "Richte einen Auto-Sync für eine Serie ein, die ich gerade schaue",
+      "upgrade": "Gibt es bessere Kopien von Serien, die ich schon habe?"
+    },
     "done": "erledigt"
   },
   "login": {
