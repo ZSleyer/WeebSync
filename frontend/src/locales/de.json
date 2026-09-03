@@ -51,7 +51,7 @@
   "assistant": {
     "title": "Assistent",
     "you": "Du",
-    "intro": "Frag nach deinen Listen, den Anime dieser Season oder besseren Kopien dessen, was du schon hast. Der Assistent kann einen Auto-Sync, einen Einmal-Sync oder ein Upgrade vorschlagen; jeden Vorschlag bestätigst du im gewohnten Dialog.",
+    "intro": "Frag nach deinen Listen, den Anime dieser Season oder besseren Kopien dessen, was du schon hast. Der Assistent kann einen Auto-Sync, einen Einmal-Sync oder ein Upgrade vorschlagen. Jeden Vorschlag bestätigst du im gewohnten Dialog.",
     "placeholder": "Nachricht an den Assistenten (Enter sendet, Shift+Enter bricht um)",
     "send": "Senden",
     "stop": "Stopp",
