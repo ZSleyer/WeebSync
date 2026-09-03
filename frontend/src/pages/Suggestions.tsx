@@ -1,8 +1,11 @@
 import { useState, type KeyboardEvent } from 'react'
 import {
   Bookmark,
+  ChevronDown,
+  ChevronUp,
   CircleArrowUp,
   CircleDashed,
+  Copy,
   Download,
   Eye,
   EyeOff,
@@ -41,7 +44,9 @@ import {
   Badge,
   Button,
   Checkbox,
+  Cover,
   Dialog,
+  IconButton,
   Panel,
   SuggestionCard,
   Tab,
@@ -55,15 +60,17 @@ import {
   type UpgradeVariant,
   type UpgradeDims,
   type DismissedItem,
+  type DuplicateItem,
   type SyncResult,
   syncOutcome,
   mediaTitle,
+  fmtBytes,
 } from '../api'
 import Collapsible from '../components/Collapsible'
 import MediaDetail from '../components/MediaDetail'
 import { ProviderBadges } from '../components/ProviderBadges'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
-import { guessSeason, syncFields } from '../components/upgradeQuality'
+import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../components/upgradeQuality'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { usePersistedQuery } from '../hooks'
 import { SkeletonCards } from '../components/Loading'
@@ -74,7 +81,7 @@ import { SkeletonCards } from '../components/Loading'
 // rematch. Data comes unified from GET /api/suggestions (+ /api/upgrades).
 export default function Suggestions() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'watchlist' | 'recommended' | 'trending' | 'upgrades' | 'incomplete'>('watchlist')
+  const [tab, setTab] = useState<'watchlist' | 'recommended' | 'trending' | 'upgrades' | 'incomplete' | 'duplicates'>('watchlist')
   const [showIgnored, setShowIgnored] = useState(false)
   const tabs = [
     ['watchlist', t('suggestions.tabWatchlist'), Bookmark],
@@ -82,6 +89,7 @@ export default function Suggestions() {
     ['trending', t('suggestions.tabTrending'), TrendingUp],
     ['upgrades', t('suggestions.tabUpgrades'), CircleArrowUp],
     ['incomplete', t('suggestions.tabIncomplete'), CircleDashed],
+    ['duplicates', t('suggestions.tabDuplicates'), Copy],
   ] as const
 
   return (
@@ -101,7 +109,7 @@ export default function Suggestions() {
 
       <TabBar label={t('suggestions.title')} tabs={tabs.map(([key, label, icon]) => ({ key, label, icon }))} active={tab} onChange={setTab} />
 
-      {tab === 'upgrades' ? <UpgradesSection /> : <BucketSection bucket={tab} />}
+      {tab === 'upgrades' ? <UpgradesSection /> : tab === 'duplicates' ? <DuplicatesSection /> : <BucketSection bucket={tab} />}
     </div>
   )
 }
@@ -172,14 +180,47 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recomme
     </div>
   )
 
+  // Incomplete: episode gaps inside seasons you own are one finding, missing
+  // seasons and sequels another; each group has the content categories as
+  // collapsible sub-groups, so a flood of films never buries a missing episode
+  const incompleteRows = [
+    ['episodes', 'suggestions.groupEpisodes', (it: SuggestionItem) => it.kind === 'episodes'],
+    ['seasons', 'suggestions.groupSeasons', (it: SuggestionItem) => it.kind !== 'episodes'],
+  ] as const
+  const incompleteGroups = (
+    <div className="space-y-6">
+      {incompleteRows.map(([key, label, pick]) => {
+        const groupItems = items.filter(pick)
+        if (!groupItems.length) return null
+        return (
+          <Collapsible key={key} title={t(label)} count={groupItems.length}>
+            <div className="space-y-3">
+              {CATS.map((cat) => {
+                const list = groupItems.filter((it) => it.category === cat)
+                if (!list.length) return null
+                return (
+                  <Collapsible key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
+                    {cards(list)}
+                  </Collapsible>
+                )
+              })}
+            </div>
+          </Collapsible>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       {notice && <Badge tone="accent">{notice}</Badge>}
       {bucket === 'watchlist'
         ? watchlistGroups
-        : // trending and incomplete: grouped by content category (Animefilme /
-          // Animeserien / Filme / Serien), like the rest of the suggestions
-          CATS.map((cat) => {
+        : bucket === 'incomplete'
+          ? incompleteGroups
+          : // trending and recommended: grouped by content category (Animefilme /
+            // Animeserien / Filme / Serien), like the rest of the suggestions
+            CATS.map((cat) => {
               const list = items.filter((it) => it.category === cat)
               if (!list.length) return null
               return (
@@ -347,6 +388,11 @@ function SugCard({
                 {t('suggestions.haveNeed', { have: it.have, need: it.need })}
               </span>
             ) : null}
+            {it.missing?.length ? (
+              <Badge tone="warn" multiline aria-label={t('suggestions.missingEpisodes', { list: fmtEpisodeRanges(it.missing) })}>
+                {t('suggestions.missingEpisodes', { list: fmtEpisodeRanges(it.missing) })}
+              </Badge>
+            ) : null}
             {it.media.format && (
               <Badge>
                 {it.media.format === 'MOVIE' ? <Clapperboard aria-hidden size="1em" /> : <Tv aria-hidden size="1em" />}
@@ -510,11 +556,31 @@ function UpgradesSection() {
   // per-card chosen sync source among the remote copies; default = recommended
   const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
 
-  const toggle = async (key: keyof UpgradeDims) => {
-    if (!dims) return
-    await api.put('/api/auth/upgrade-dims', { ...dims, [key]: !dims[key] })
+  // the axes in the user's priority order, disabled ones after them so a row
+  // can be switched on without losing its place; every change is saved whole
+  const AXES = ['res', 'soft', 'sub', 'dub'] as const
+  type Axis = (typeof AXES)[number]
+  const order: Axis[] = dims
+    ? [...(dims.order ?? []).filter((a): a is Axis => (AXES as readonly string[]).includes(a)), ...AXES.filter((a) => !(dims.order ?? []).includes(a))]
+    : [...AXES]
+  const saveDims = async (next: UpgradeDims) => {
+    await api.put('/api/auth/upgrade-dims', next)
     qc.invalidateQueries({ queryKey: ['upgrade-dims'] })
     qc.invalidateQueries({ queryKey: ['suggestions'] })
+  }
+  const toggle = (key: Axis) => {
+    if (!dims) return
+    const on = !dims[key]
+    void saveDims({ ...dims, [key]: on, order: order.filter((a) => (a === key ? on : dims[a])) })
+  }
+  const move = (key: Axis, dir: -1 | 1) => {
+    if (!dims) return
+    const i = order.indexOf(key)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= order.length) return
+    const next = [...order]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    void saveDims({ ...dims, order: next.filter((a) => dims[a]) })
   }
   const dismiss = async (u: UpgradeSuggestion) => {
     await api.post('/api/suggestions/dismiss', { kind: 'upgrade', refKey: u.key, label: u.title })
@@ -529,11 +595,29 @@ function UpgradesSection() {
       {dims && (
         <Panel className="px-3 py-2.5">
           <span className="text-sm text-t-secondary">{t('suggestions.upgradeWhat')}</span>
-          <div className="mt-2 flex flex-wrap gap-4">
-            {(['res', 'sub', 'dub', 'soft'] as const).map((k) => (
-              <Checkbox key={k} checked={dims[k]} onChange={() => toggle(k)} label={t(`suggestions.upgradeWhat_${k}`)} />
+          <p className="mt-0.5 text-xs text-t-muted">{t('suggestions.upgradeOrderHint')}</p>
+          <ol className="mt-2 space-y-1">
+            {order.map((k, i) => (
+              <li key={k} className={`flex items-center gap-2 ${dims[k] ? '' : 'text-t-muted'}`}>
+                <span className="w-5 shrink-0 font-mono text-xs text-t-muted" aria-hidden>
+                  {dims[k] ? `${i + 1}.` : ''}
+                </span>
+                <Checkbox checked={dims[k]} onChange={() => toggle(k)} label={t(`suggestions.upgradeWhat_${k}`)} />
+                <span className="ml-auto flex gap-1">
+                  <IconButton aria-label={t('suggestions.moveUp', { axis: t(`suggestions.upgradeWhat_${k}`) })} disabled={!dims[k] || i === 0} onClick={() => move(k, -1)}>
+                    <ChevronUp aria-hidden size="1em" />
+                  </IconButton>
+                  <IconButton
+                    aria-label={t('suggestions.moveDown', { axis: t(`suggestions.upgradeWhat_${k}`) })}
+                    disabled={!dims[k] || i === order.length - 1 || !dims[order[i + 1]]}
+                    onClick={() => move(k, 1)}
+                  >
+                    <ChevronDown aria-hidden size="1em" />
+                  </IconButton>
+                </span>
+              </li>
             ))}
-          </div>
+          </ol>
         </Panel>
       )}
       {isLoading ? (
@@ -593,6 +677,85 @@ function UpgradesSection() {
           onClose={() => setSync(null)}
         />
       )}
+    </div>
+  )
+}
+
+// ── Duplicates ──
+
+// DuplicatesSection lists what the library holds twice. It only shows; which
+// copy goes is decided in Plex or on disk, the card just marks the one the
+// quality order would keep.
+function DuplicatesSection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>(
+    'suggestions',
+    () => api.get('/api/suggestions'),
+    { refetchInterval: (q) => (q.state.data?.building ? 4000 : false) },
+  )
+  const dismiss = async (d: DuplicateItem) => {
+    await api.post('/api/suggestions/dismiss', { kind: 'duplicate', refKey: d.refKey, label: d.title })
+    qc.invalidateQueries({ queryKey: ['suggestions'] })
+    qc.invalidateQueries({ queryKey: ['dismissed'] })
+  }
+  if (isLoading) return <SkeletonCards />
+  const items = data?.duplicates ?? []
+  if (!items.length) return <Badge multiline>{t('suggestions.noDuplicates')}</Badge>
+  const card = (d: DuplicateItem) => {
+    const seasonLabel = d.isMovie ? t('suggestions.movie') : d.season > 0 ? t('suggestions.season', { season: d.season }) : ''
+    return (
+      <Panel key={d.refKey} className="flex flex-wrap items-start gap-4 p-3">
+        <Cover src={d.cover} />
+        <div className="min-w-0 flex-1">
+          <h4 className="min-w-0 break-words font-display text-sm font-semibold tracking-wider">{d.title}</h4>
+          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+            {seasonLabel && <Badge tone="accent">{seasonLabel}</Badge>}
+            {d.library && <Badge aria-label={t('suggestions.library', { name: d.library })}>{d.library}</Badge>}
+            {d.episodes?.length ? (
+              <Badge tone="warn" multiline>
+                {t('suggestions.dupEpisodes', { list: fmtEpisodeRanges(d.episodes) })}
+              </Badge>
+            ) : (
+              <Badge tone="warn">{t('suggestions.dupCopies', { count: d.copies.length })}</Badge>
+            )}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {d.copies.map((c) => (
+              <li key={c.folder} className={`border p-2 text-xs ${c.folder === d.keep ? 'border-accent' : 'border-border-subtle'}`}>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {c.folder === d.keep && d.copies.length > 1 && <Badge tone="accent">{t('suggestions.dupKeep')}</Badge>}
+                  <span className="text-t-muted">
+                    {variantQuality(c, t)} · {t('suggestions.dupFiles', { count: c.files })} · {fmtBytes(c.bytes)}
+                  </span>
+                </div>
+                <div className="mt-1 break-all font-mono text-t-secondary" title={c.folder}>
+                  {c.folder}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+            <Button size="sm" onClick={() => dismiss(d)}>
+              <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('suggestions.dismiss')}
+            </Button>
+          </div>
+        </div>
+      </Panel>
+    )
+  }
+  return (
+    <div className="space-y-4">
+      {CATS.map((cat) => {
+        const list = items.filter((d) => d.category === cat)
+        if (!list.length) return null
+        return (
+          <Collapsible key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
+            <div className="space-y-3">{list.map(card)}</div>
+          </Collapsible>
+        )
+      })}
     </div>
   )
 }
