@@ -1,8 +1,10 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/netguard"
@@ -41,6 +43,7 @@ type pushSubInput struct {
 // @Param        subscription  body      pushSubInput  true  "Push subscription"
 // @Success      201  {object}  OkResponse
 // @Failure      400  {object}  ErrorResponse
+// @Failure      409  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
 // @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
@@ -51,20 +54,26 @@ func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	if in.Endpoint == "" || in.Keys.P256dh == "" || in.Keys.Auth == "" {
+	if in.Endpoint == "" || in.Keys.P256dh == "" || in.Keys.Auth == "" ||
+		len(in.Endpoint) > 2048 || len(in.Keys.P256dh) > 512 || len(in.Keys.Auth) > 512 {
 		writeErr(w, http.StatusBadRequest, "endpoint and keys required")
 		return
 	}
 	// the push endpoint is fetched server-side on every notification; block
 	// metadata/link-local targets so it can't become an SSRF primitive
-	if u, err := url.Parse(in.Endpoint); err != nil || u.Hostname() == "" {
+	if u, err := url.Parse(in.Endpoint); err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil ||
+		u.Fragment != "" || strings.ContainsAny(u.Host, "\r\n") {
 		writeErr(w, http.StatusBadRequest, "invalid endpoint")
 		return
-	} else if err := netguard.Allowed(u.Hostname()); err != nil {
+	} else if err := netguard.PublicAllowed(u.Hostname()); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := s.Push.Subscribe(u.ID, in.Endpoint, in.Keys.P256dh, in.Keys.Auth); err != nil {
+		if errors.Is(err, push.ErrEndpointOwned) {
+			writeErr(w, http.StatusConflict, "endpoint already registered")
+			return
+		}
 		dbErr(w)
 		return
 	}

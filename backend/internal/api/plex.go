@@ -15,6 +15,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/plex"
+	"github.com/ch4d1/weebsync/internal/secret"
 	"github.com/ch4d1/weebsync/internal/tvdb"
 )
 
@@ -30,7 +31,7 @@ func (s *Server) plexSuggestTTL() time.Duration {
 
 func (s *Server) plexClient() *plex.Client {
 	u := db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL")
-	t := db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN")
+	t := secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN")
 	if u == "" || t == "" {
 		return nil
 	}

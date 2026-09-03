@@ -5,6 +5,7 @@ package plex
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -94,7 +95,7 @@ func (c *Client) get(path string, out any) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("plex: HTTP %d", resp.StatusCode)
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	return json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(out)
 }
 
 // put issues a parameterless-body PUT (Plex mutations carry everything in the

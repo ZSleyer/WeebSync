@@ -19,6 +19,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 type Client struct {
@@ -40,7 +41,7 @@ func (c *Client) baseURL() string {
 }
 
 func (c *Client) apiKey() string {
-	return strings.TrimSpace(db.SettingOrEnv(c.DB, "ai_api_key", "AI_API_KEY"))
+	return strings.TrimSpace(secret.SettingOrEnv(c.DB, "ai_api_key", "AI_API_KEY"))
 }
 
 // Model is the configured model id, sent verbatim in every request.
@@ -84,7 +85,7 @@ func (c *Client) Models(ctx context.Context) ([]string, error) {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out); err != nil {
 		return nil, fmt.Errorf("ai: models: %w", err)
 	}
 	ids := make([]string, 0, len(out.Data))
@@ -195,7 +196,12 @@ func (c *Client) Stream(ctx context.Context, model string, messages []Message, t
 	if resp.StatusCode/100 != 2 {
 		return Message{}, httpErr(resp)
 	}
-	return readStream(resp.Body, onDelta)
+	limited := &io.LimitedReader{R: resp.Body, N: 16<<20 + 1}
+	out, err := readStream(limited, onDelta)
+	if err == nil && limited.N == 0 {
+		return Message{}, fmt.Errorf("ai: response too large")
+	}
+	return out, err
 }
 
 // chunk is the slice of a streamed completion chunk we act on.

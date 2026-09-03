@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -771,7 +772,7 @@ func (s *Server) plexWatchlistItems(userID int64, bySrc map[string]int64, bySeri
 			} `json:"Metadata"`
 		} `json:"MediaContainer"`
 	}
-	if json.NewDecoder(resp.Body).Decode(&body) != nil {
+	if json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&body) != nil {
 		return out
 	}
 	for _, m := range body.MediaContainer.Metadata {

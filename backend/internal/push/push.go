@@ -5,6 +5,7 @@ package push
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 type Service struct {
@@ -23,9 +25,11 @@ type Service struct {
 	private string
 }
 
+var ErrEndpointOwned = errors.New("push endpoint belongs to another user")
+
 func New(d *sql.DB) (*Service, error) {
 	pub := db.Setting(d, "vapid_public")
-	priv := db.Setting(d, "vapid_private")
+	priv := secret.SettingOrEnv(d, "vapid_private", "")
 	if pub == "" || priv == "" {
 		var err error
 		priv, pub, err = webpush.GenerateVAPIDKeys()
@@ -33,7 +37,9 @@ func New(d *sql.DB) (*Service, error) {
 			return nil, err
 		}
 		db.SetSetting(d, "vapid_public", pub)
-		db.SetSetting(d, "vapid_private", priv)
+		if err := secret.SetSetting(d, "vapid_private", priv); err != nil {
+			return nil, err
+		}
 	}
 	return &Service{DB: d, public: pub, private: priv}, nil
 }
@@ -56,10 +62,17 @@ func (s *Service) subscriber() string {
 }
 
 func (s *Service) Subscribe(userID int64, endpoint, p256dh, auth string) error {
-	_, err := s.DB.Exec(`INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth)
+	res, err := s.DB.Exec(`INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth)
 		VALUES (?, ?, ?, ?)
-		ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id,
-			p256dh = excluded.p256dh, auth = excluded.auth`, endpoint, userID, p256dh, auth)
+		ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth
+		WHERE push_subscriptions.user_id = excluded.user_id`, endpoint, userID, p256dh, auth)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err == nil && n == 0 {
+		return ErrEndpointOwned
+	}
 	return err
 }
 
@@ -119,7 +132,7 @@ func (s *Service) Notify(userID int64, n Notification) {
 			// route the send through netguard so a subscription host that
 			// DNS-rebinds or 30x-redirects to link-local/metadata is blocked
 			// at dial time; the default client would follow it unchecked
-			HTTPClient:      netguard.Client(15 * time.Second),
+			HTTPClient:      netguard.PublicClient(15 * time.Second),
 			Subscriber:      s.subscriber(),
 			VAPIDPublicKey:  s.public,
 			VAPIDPrivateKey: s.private,

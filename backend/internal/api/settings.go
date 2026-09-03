@@ -2,7 +2,6 @@ package api
 
 import (
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -117,6 +116,13 @@ func setSetting(d *sql.DB, key, value string) {
 	}
 }
 
+func setSecretSetting(d *sql.DB, key, value string) error {
+	if envLocked(key) {
+		return nil
+	}
+	return secret.SetSetting(d, key, value)
+}
+
 // Secrets are write-only: GET reports only whether they are set, PUT with
 // an empty string keeps the stored value, "-" clears it.
 type settingsPayload struct {
@@ -194,15 +200,15 @@ func (s *Server) settingsState() settingsPayload {
 		ForceHTTPS:           truthySetting(db.SettingOrEnv(s.DB, "force_https", "WEEBSYNC_FORCE_HTTPS")),
 		AuthMode:             auth.AuthMode(s.DB),
 		AnilistClientID:      db.SettingOrEnv(s.DB, "anilist_client_id", "ANILIST_CLIENT_ID"),
-		AnilistSecretSet:     db.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET") != "",
+		AnilistSecretSet:     secret.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET") != "",
 		AnilistRedirectURL:   db.Setting(s.DB, "anilist_redirect_url"),
-		TmdbApiKeySet:        db.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
-		TvdbApiKeySet:        db.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
+		TmdbApiKeySet:        secret.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
+		TvdbApiKeySet:        secret.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
 		AiBaseURL:            db.SettingOrEnv(s.DB, "ai_base_url", "AI_BASE_URL"),
 		AiModel:              db.SettingOrEnv(s.DB, "ai_model", "AI_MODEL"),
-		AiApiKeySet:          db.SettingOrEnv(s.DB, "ai_api_key", "AI_API_KEY") != "",
+		AiApiKeySet:          secret.SettingOrEnv(s.DB, "ai_api_key", "AI_API_KEY") != "",
 		PlexURL:              db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
-		PlexTokenSet:         db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
+		PlexTokenSet:         secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
 		PlexSections:         db.Setting(s.DB, "plex_sections"),
 		PlexSectionSources:   db.Setting(s.DB, "plex_section_sources"),
 		PlexSectionAnime:     db.Setting(s.DB, "plex_section_anime"),
@@ -213,7 +219,7 @@ func (s *Server) settingsState() settingsPayload {
 		OidcIssuer:           db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
 		OidcClientID:         db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
 		OidcRedirectURL:      db.SettingOrEnv(s.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL"),
-		OidcClientSecretSet:  db.SettingOrEnv(s.DB, "oidc_client_secret", "OIDC_CLIENT_SECRET") != "",
+		OidcClientSecretSet:  secret.SettingOrEnv(s.DB, "oidc_client_secret", "OIDC_CLIENT_SECRET") != "",
 		OidcClaim:            db.SettingOrEnv(s.DB, "oidc_claim", "OIDC_CLAIM"),
 		OidcAdminValues:      db.SettingOrEnv(s.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES"),
 		OidcUserValues:       db.SettingOrEnv(s.DB, "oidc_user_values", "OIDC_USER_VALUES"),
@@ -358,7 +364,8 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	baseURL := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")
 	if baseURL != "" {
 		u, err := url.Parse(baseURL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
+			(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
 			writeErr(w, http.StatusBadRequest, "baseUrl must be an absolute http(s) URL")
 			return
 		}
@@ -432,38 +439,69 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	go s.refreshPlexRoots()
 	setSetting(s.DB, "anilist_client_id", strings.TrimSpace(in.AnilistClientID))
 	setSetting(s.DB, "anilist_redirect_url", strings.TrimSpace(in.AnilistRedirectURL))
+	saveSecret := func(key, value string) bool {
+		if err := setSecretSetting(s.DB, key, value); err != nil {
+			writeErr(w, http.StatusInternalServerError, "encrypt error")
+			return false
+		}
+		return true
+	}
 	// secrets are write-only: "" keeps the stored value, "-" clears it.
 	// Trimmed: IDs/secrets/keys are pasted and stray whitespace breaks
 	// authentication in ways that are invisible in the UI.
 	if v := strings.TrimSpace(in.AnilistClientSecret); v == "-" {
-		setSetting(s.DB, "anilist_client_secret", "")
+		if !saveSecret("anilist_client_secret", "") {
+			return
+		}
 	} else if v != "" {
-		setSetting(s.DB, "anilist_client_secret", v)
+		if !saveSecret("anilist_client_secret", v) {
+			return
+		}
 	}
 	if v := strings.TrimSpace(in.TmdbApiKey); v == "-" {
-		setSetting(s.DB, "tmdb_api_key", "")
+		if !saveSecret("tmdb_api_key", "") {
+			return
+		}
 	} else if v != "" {
-		setSetting(s.DB, "tmdb_api_key", v)
+		if !saveSecret("tmdb_api_key", v) {
+			return
+		}
 	}
 	if v := strings.TrimSpace(in.TvdbApiKey); v == "-" {
-		setSetting(s.DB, "tvdb_api_key", "")
+		if !saveSecret("tvdb_api_key", "") {
+			return
+		}
 	} else if v != "" {
-		setSetting(s.DB, "tvdb_api_key", v)
+		if !saveSecret("tvdb_api_key", v) {
+			return
+		}
 	}
 	if v := strings.TrimSpace(in.AiApiKey); v == "-" {
-		setSetting(s.DB, "ai_api_key", "")
+		if !saveSecret("ai_api_key", "") {
+			return
+		}
 	} else if v != "" {
-		setSetting(s.DB, "ai_api_key", v)
+		if !saveSecret("ai_api_key", v) {
+			return
+		}
 	}
 	if v := strings.TrimSpace(in.PlexToken); v == "-" {
-		setSetting(s.DB, "plex_token", "")
+		if !saveSecret("plex_token", "") {
+			return
+		}
 	} else if v != "" {
-		setSetting(s.DB, "plex_token", v)
+		if !saveSecret("plex_token", v) {
+			return
+		}
 	}
 	if v := strings.TrimSpace(in.OidcClientSecret); v == "-" {
-		setSetting(s.DB, "oidc_client_secret", "")
+		if !saveSecret("oidc_client_secret", "") {
+			return
+		}
 	} else if v != "" {
-		setSetting(s.DB, "oidc_client_secret", v)
+		if !saveSecret("oidc_client_secret", v) {
+			return
+		}
 	}
 
 	// SMTP
@@ -488,15 +526,13 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	setSetting(s.DB, "smtp_security", in.SmtpSecurity)
 	// password is write-only and stored encrypted: "" keeps, "-" clears
 	if in.SmtpPassword == "-" {
-		setSetting(s.DB, "smtp_password", "")
-	} else if in.SmtpPassword != "" {
-		enc, err := secret.Encrypt(in.SmtpPassword)
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "encrypt error")
+		if !saveSecret("smtp_password", "") {
 			return
 		}
-		// settings are TEXT: base64 so the raw AES bytes survive storage
-		setSetting(s.DB, "smtp_password", base64.StdEncoding.EncodeToString(enc))
+	} else if in.SmtpPassword != "" {
+		if !saveSecret("smtp_password", in.SmtpPassword) {
+			return
+		}
 	}
 
 	s.Transfers.SettingsChanged()

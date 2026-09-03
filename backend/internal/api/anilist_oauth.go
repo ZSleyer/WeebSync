@@ -2,9 +2,7 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -46,7 +44,7 @@ func (s *Server) AnilistToken() string {
 
 func (s *Server) anilistClientConfig() (id, sec, redirect string) {
 	return db.SettingOrEnv(s.DB, "anilist_client_id", "ANILIST_CLIENT_ID"),
-		db.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET"),
+		secret.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET"),
 		db.Setting(s.DB, "anilist_redirect_url")
 }
 
@@ -75,6 +73,7 @@ func (s *Server) anilistAccount(userID int64) (anilistUserID int, token string, 
 //	@Security		CookieAuth
 //	@Router			/api/anilist/connect [get]
 func (s *Server) handleAnilistConnect(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
 	clientID, clientSecret, redirect := s.anilistClientConfig()
 	if clientID == "" || clientSecret == "" {
 		writeErr(w, http.StatusBadRequest, "AniList client not configured")
@@ -83,9 +82,8 @@ func (s *Server) handleAnilistConnect(w http.ResponseWriter, r *http.Request) {
 	if redirect == "" {
 		redirect = requestOrigin(r) + "/api/anilist/callback"
 	}
-	raw := make([]byte, 16)
-	rand.Read(raw)
-	state := hex.EncodeToString(raw)
+	state := randToken()
+	rememberLinkFlow("anilist", state, u.ID)
 	auth.SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_anilist_state", Value: state, Path: "/api/anilist",
 		MaxAge: 600,
@@ -124,7 +122,7 @@ func requestOrigin(r *http.Request) string {
 func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	stateCookie, err := r.Cookie("weebsync_anilist_state")
-	if err != nil || r.URL.Query().Get("state") != stateCookie.Value {
+	if err != nil || r.URL.Query().Get("state") != stateCookie.Value || !ownsLinkFlow("anilist", stateCookie.Value, u.ID) {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
@@ -134,6 +132,7 @@ func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 		Name: "weebsync_anilist_state", Value: "", Path: "/api/anilist",
 		MaxAge: -1,
 	})
+	forgetLinkFlow("anilist", stateCookie.Value)
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		http.Error(w, "missing code", http.StatusBadRequest)

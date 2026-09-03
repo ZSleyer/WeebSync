@@ -36,6 +36,17 @@ func TestAllowed(t *testing.T) {
 	}
 }
 
+func TestPublicAllowedBlocksLocalNetworks(t *testing.T) {
+	for _, host := range []string{"127.0.0.1", "::1", "10.0.0.1", "172.16.0.1", "192.168.1.1"} {
+		if err := PublicAllowed(host); err == nil {
+			t.Errorf("PublicAllowed(%q) = nil, want blocked", host)
+		}
+	}
+	if err := PublicAllowed("1.1.1.1"); err != nil {
+		t.Fatalf("PublicAllowed(public IP) = %v", err)
+	}
+}
+
 func TestClientBlocksDirectDial(t *testing.T) {
 	// dialing a metadata address directly must fail in DialContext
 	c := Client(2 * time.Second)

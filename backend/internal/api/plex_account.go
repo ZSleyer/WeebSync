@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -66,6 +67,7 @@ type plexLinkResponse struct {
 //	@Security		CookieAuth
 //	@Router			/api/plex/link/start [post]
 func (s *Server) handlePlexLinkStart(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
 	resp, err := s.plexTVReq(http.MethodPost, "https://plex.tv/api/v2/pins?strong=true", "")
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "plex.tv unreachable")
@@ -76,10 +78,11 @@ func (s *Server) handlePlexLinkStart(w http.ResponseWriter, r *http.Request) {
 		ID   int    `json:"id"`
 		Code string `json:"code"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&pin); err != nil || pin.ID == 0 {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&pin); err != nil || pin.ID == 0 {
 		writeErr(w, http.StatusBadGateway, "plex.tv PIN failed")
 		return
 	}
+	rememberLinkFlow("plex", fmt.Sprint(pin.ID), u.ID)
 	// the hash fragment carries the params the plex.tv auth page reads
 	authURL := fmt.Sprintf("https://app.plex.tv/auth#?clientID=%s&code=%s&context%%5Bdevice%%5D%%5Bproduct%%5D=%s",
 		url.QueryEscape(s.plexClientID()), url.QueryEscape(pin.Code), url.QueryEscape(plexProduct))
@@ -103,6 +106,10 @@ func (s *Server) handlePlexLinkPoll(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "id required")
 		return
 	}
+	if !ownsLinkFlow("plex", id, u.ID) {
+		writeErr(w, http.StatusNotFound, "link request not found")
+		return
+	}
 	resp, err := s.plexTVReq(http.MethodGet, "https://plex.tv/api/v2/pins/"+url.PathEscape(id), "")
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "plex.tv unreachable")
@@ -112,7 +119,7 @@ func (s *Server) handlePlexLinkPoll(w http.ResponseWriter, r *http.Request) {
 	var pin struct {
 		AuthToken string `json:"authToken"`
 	}
-	json.NewDecoder(resp.Body).Decode(&pin)
+	json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&pin)
 	if pin.AuthToken == "" {
 		writeJSON(w, http.StatusOK, plexAccountResponse{Linked: false}) // still waiting
 		return
@@ -125,6 +132,7 @@ func (s *Server) handlePlexLinkPoll(w http.ResponseWriter, r *http.Request) {
 	}
 	s.DB.Exec(`INSERT OR REPLACE INTO plex_accounts (user_id, token_enc, plex_user, created_at) VALUES (?, ?, ?, ?)`,
 		u.ID, enc, name, time.Now().UTC().Format(time.RFC3339))
+	forgetLinkFlow("plex", id)
 	writeJSON(w, http.StatusOK, plexAccountResponse{Linked: true, User: name})
 }
 
@@ -139,7 +147,7 @@ func (s *Server) plexTVUser(token string) string {
 		Username string `json:"username"`
 		Title    string `json:"title"`
 	}
-	json.NewDecoder(resp.Body).Decode(&acc)
+	json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&acc)
 	if acc.Username != "" {
 		return acc.Username
 	}
@@ -238,7 +246,7 @@ func (s *Server) handlePlexWatchlist(w http.ResponseWriter, r *http.Request) {
 			} `json:"Metadata"`
 		} `json:"MediaContainer"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadGateway, "plex.tv watchlist failed")
 		return
 	}

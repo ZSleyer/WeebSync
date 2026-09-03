@@ -8,13 +8,18 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/push"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 // digestTestServer gives a Server with a real schema and a push service, so
 // the flush path runs end to end without sending anything (no subscriptions).
 func digestTestServer(t *testing.T) *Server {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	dir := t.TempDir()
+	if err := secret.Init(dir); err != nil {
+		t.Fatal(err)
+	}
+	d, err := db.Open(filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
