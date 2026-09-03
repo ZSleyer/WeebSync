@@ -489,6 +489,90 @@ export const api = {
   del: <T>(url: string, body?: unknown) => request<T>('DELETE', url, body),
 }
 
+// ── assistant ──
+
+export interface AiStatus {
+  configured: boolean
+  model?: string
+  connected?: boolean
+  error?: string
+}
+
+export interface AiChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+// AiProposal is a vetted action the assistant suggests; fields prefill the
+// watch dialog, the user confirms there.
+export interface AiProposal {
+  kind: 'watch' | 'sync' | 'upgrade'
+  title: string
+  serverId: number
+  serverName: string
+  remotePath: string
+  fields: Record<string, unknown>
+  info?: string[]
+  unverified?: boolean
+}
+
+export type AiEvent =
+  | { type: 'delta'; text: string }
+  | { type: 'tool'; name: string }
+  | ({ type: 'proposal' } & AiProposal)
+  | { type: 'error'; message: string }
+  | { type: 'done' }
+
+// parseSseChunk consumes one network chunk of an SSE body. Lines may be cut
+// anywhere, so the unfinished tail comes back as `rest` for the next call.
+export function parseSseChunk(buffer: string, chunk: string): { events: AiEvent[]; rest: string } {
+  const text = buffer + chunk
+  const lines = text.split('\n')
+  const rest = lines.pop() ?? ''
+  const events: AiEvent[] = []
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line.startsWith('data:')) continue
+    try {
+      events.push(JSON.parse(line.slice(5).trim()) as AiEvent)
+    } catch {
+      /* keepalive or a torn frame: skip */
+    }
+  }
+  return { events, rest }
+}
+
+// streamAiChat posts the conversation and feeds every event to onEvent as it
+// arrives. EventSource cannot POST, hence fetch + a reader.
+export async function streamAiChat(messages: AiChatMessage[], onEvent: (ev: AiEvent) => void, signal?: AbortSignal) {
+  const res = await fetch('/api/ai/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+    signal,
+  })
+  if (!res.ok || !res.body) {
+    let msg = res.statusText
+    try {
+      msg = ((await res.json()) as { error?: string }).error ?? msg
+    } catch {
+      /* not json */
+    }
+    throw new ApiError(res.status, msg)
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    const parsed = parseSseChunk(buffer, decoder.decode(value, { stream: true }))
+    buffer = parsed.rest
+    parsed.events.forEach(onEvent)
+  }
+  parseSseChunk(buffer, '\n').events.forEach(onEvent)
+}
+
 // syncOutcome turns a sync result into one sentence. Empty when files were
 // queued: then the queue itself is the answer. Otherwise it names the reason,
 // because "0 queued" alone reads like a failure.
