@@ -373,6 +373,15 @@ func categorize(providers []string, m anilist.Media, source, kind string) string
 //	@Success		200		{object}	SuggestionsResponse
 //	@Security		CookieAuth
 //	@Router			/api/suggestions [get]
+//
+// staleSuggestions ages every cached suggestion blob so the next read serves
+// what is there and rebuilds behind it. Deleting the blob instead left the
+// page empty for as long as the rebuild took - minutes, when the remote copies
+// are probed - which read as "all suggestions gone".
+func (s *Server) staleSuggestions() {
+	s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key LIKE 'suggestions:%'`)
+}
+
 func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	force := r.URL.Query().Get("force") == "1"
