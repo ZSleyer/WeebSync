@@ -422,3 +422,22 @@ func TestAiShowUpgradesAndTranscriptStats(t *testing.T) {
 		t.Errorf("show_upgrades stats: %v", st)
 	}
 }
+
+func TestAiUpgradesToolShowsTopCards(t *testing.T) {
+	fp := newFakeProvider(t, fakeReply{tool: "upgrades", args: `{}`}, fakeReply{text: "see cards"})
+	mux, s, c := setupAiTest(t, fp)
+	var ups []UpgradeSuggestion
+	for i := 0; i < 8; i++ {
+		ups = append(ups, UpgradeSuggestion{Key: fmt.Sprintf("unit:x:%d", i), Title: fmt.Sprintf("Show %d", i), From: UpgradeVariant{ResRank: 1080}, To: UpgradeVariant{ServerID: 1, Folder: "/r", ResRank: 2160}})
+	}
+	b, _ := json.Marshal(SuggestionsResponse{Upgrades: ups})
+	s.cacheSet("suggestions:1", string(b))
+	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"better?"}]}`, c)
+	evs := events(t, rec.Body.String())
+	if got := types(evs); got != "tool,upgrades,tool_done,delta,delta,done" {
+		t.Fatalf("event order %s: %s", got, rec.Body)
+	}
+	if n := len(evs[1]["upgrades"].([]any)); n != 6 {
+		t.Errorf("cards: %d, want the first six", n)
+	}
+}
