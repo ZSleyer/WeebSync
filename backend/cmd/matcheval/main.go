@@ -272,6 +272,9 @@ func main() {
 		}
 		matches = append(matches, r)
 	}
+	if err := rows.Err(); err != nil {
+		log.Fatalf("iterate catalog_matches: %v", err)
+	}
 	rows.Close()
 
 	clean := strings.NewReplacer("\t", " ", "\n", " ")
