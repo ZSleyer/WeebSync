@@ -19,7 +19,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:8080',
+      // a second instance for testing runs elsewhere: WEEBSYNC_API=http://localhost:8090 yarn dev
+      '/api': process.env.WEEBSYNC_API ?? 'http://localhost:8080',
     },
   },
 })
