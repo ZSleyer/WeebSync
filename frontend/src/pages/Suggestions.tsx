@@ -593,10 +593,10 @@ function UpgradesSection() {
     <div className="space-y-3">
       {notice && <Badge tone="accent">{notice}</Badge>}
       {dims && (
-        <Panel className="px-3 py-2.5">
-          <span className="text-sm text-t-secondary">{t('suggestions.upgradeWhat')}</span>
-          <p className="mt-0.5 text-xs text-t-muted">{t('suggestions.upgradeOrderHint')}</p>
-          <ol className="mt-2 space-y-1">
+        <Collapsible small defaultOpen={false} title={t('suggestions.upgradeWhat')} count={order.filter((a) => dims[a]).length}>
+          <Panel className="px-3 py-2.5">
+            <p className="text-xs text-t-muted">{t('suggestions.upgradeOrderHint')}</p>
+            <ol className="mt-2 space-y-1">
             {order.map((k, i) => (
               <li key={k} className={`flex items-center gap-2 ${dims[k] ? '' : 'text-t-muted'}`}>
                 <span className="w-5 shrink-0 font-mono text-xs text-t-muted" aria-hidden>
@@ -617,8 +617,9 @@ function UpgradesSection() {
                 </span>
               </li>
             ))}
-          </ol>
-        </Panel>
+            </ol>
+          </Panel>
+        </Collapsible>
       )}
       {isLoading ? (
         <SkeletonCards />
