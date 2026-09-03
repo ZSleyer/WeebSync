@@ -166,6 +166,9 @@ func main() {
 				clean.Replace(path.Base(folder)), source, mediaID, plexID, clean.Replace(ids.title), verdict)
 		}
 	}
+	if err := rows.Err(); err != nil {
+		log.Fatalf("iterate catalog_matches: %v", err)
+	}
 	judged := counts["match"] + counts["MISMATCH"]
 	acc := 0.0
 	if judged > 0 {
