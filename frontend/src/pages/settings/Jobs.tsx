@@ -230,7 +230,7 @@ function LogPanel({ level }: { level: LogLevel }) {
           <p className="text-t-secondary">{t('settings.jobs.logs.empty')}</p>
         ) : (
           shown.map((l, i) => (
-            <div key={i} className="whitespace-pre-wrap break-words">
+            <div key={i} className="whitespace-pre-wrap wrap-break-word">
               <span className="text-t-muted">{fmtLogTime(l.ts)}</span>{' '}
               <span className={`${LOG_COLOR[l.level] ?? ''} font-semibold uppercase`}>{l.level}</span>{' '}
               <span>{l.msg}</span>

@@ -15,7 +15,7 @@ func TestAddDuplicates(t *testing.T) {
 	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, show_key, season, probed) VALUES (0, ?, 1080, 'tvdb:7', 1, 1)`, a)
 	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, show_key, season, probed) VALUES (0, ?, 2160, 'tvdb:7', 1, 1)`, b)
 
-	got := s.addDuplicates()
+	got := s.addDuplicates("en")
 	if len(got) != 2 {
 		t.Fatalf("want a folder duplicate and an episode duplicate, got %d: %+v", len(got), got)
 	}

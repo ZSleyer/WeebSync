@@ -53,6 +53,7 @@ type SugItem struct {
 	Season     int            `json:"season,omitempty"`
 	IsMovie    bool           `json:"isMovie,omitempty"`
 	Because    []string       `json:"because,omitempty"` // recommended: the finished titles behind it
+	Why        string         `json:"why,omitempty"`     // one line, in the user's language: why this is listed
 	Library    string         `json:"library,omitempty"` // incomplete: Plex library title, for grouping
 	Sync       SyncPlan       `json:"sync,omitempty"`    // incomplete (missing unit): where a one-off sync creates the season/movie folder
 }
@@ -99,8 +100,9 @@ func (s *Server) seriesProviderMaps() (bySrc map[string]int64, bySeries map[int6
 // sugAcc deduplicates suggestions by RefKey within one bucket, unioning the
 // providers/links/candidates and keeping the richest media.
 type sugAcc struct {
-	byKey map[string]*SugItem
-	order []string
+	byKey  map[string]*SugItem
+	order  []string
+	locale string // the user's language, for the why line
 }
 
 func newAcc() *sugAcc { return &sugAcc{byKey: map[string]*SugItem{}} }
@@ -465,9 +467,12 @@ const suggestTTL = 30 * time.Minute
 // applied per-request at read time.
 func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) SuggestionsResponse {
 	bySrc, bySeries := s.seriesProviderMaps()
+	locale := s.userLocale(userID)
 
 	// ── Trending: AniList + TMDB discovery charts ──
 	tr := newAcc()
+
+	tr.locale = locale
 	// what the library already holds is not a discovery. Asked of the Plex
 	// index directly rather than through PlexFolder, which stays empty
 	// whenever the entry's folder could not be read - a matched title would
@@ -494,6 +499,8 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 
 	// ── Watchlist: AniList + TMDB + plex.tv ──
 	wl := newAcc()
+
+	wl.locale = locale
 	s.addAnilistWatchlist(userID, wl, bySrc, bySeries)
 	if s.Tmdb.Enabled() {
 		if accountID, session, err := s.tmdbAccount(userID); err == nil {
@@ -519,6 +526,8 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	// ── Incomplete: seasons/movies that exist REMOTE but are missing LOCAL
 	// (Plex), plus the Plex missing-sequel chains ──
 	inc := newAcc()
+
+	inc.locale = locale
 	s.addMissingUnits(inc)
 	s.addMissingEpisodes(inc)
 	s.addIncomplete(userID, inc, bySrc, bySeries)
@@ -526,6 +535,8 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	// ── Recommended: what AniList's community suggests next to the titles
 	// the user finished ──
 	rec := newAcc()
+
+	rec.locale = locale
 	s.addRecommended(ctx, userID, rec, owned, bySrc, bySeries)
 
 	resp := SuggestionsResponse{
@@ -534,7 +545,7 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 		Trending:    ownedFilter(tr.list(nil)), // trending is for NEW titles only
 		Incomplete:  dedupIncomplete(inc.list(nil)),
 		Upgrades:    s.buildUpgrades(userID),
-		Duplicates:  s.addDuplicates(),
+		Duplicates:  s.addDuplicates(locale),
 	}
 	if b, err := json.Marshal(resp); err == nil {
 		s.cacheSet(fmt.Sprintf("suggestions:%d", userID), string(b))
@@ -823,6 +834,7 @@ func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64
 		// the missing-unit half carries one
 		it.Library = ps.Library
 		it.Kind = "sequel"
+		it.Why = tr(acc.locale, "why.sequel", ps.LeafCount, ps.ChainNeed)
 		seq := ps.Sequel
 		seq.Title.Preferred = displayTitle(seq, source) // same localized title as the card
 		it.Sequel = &seq
