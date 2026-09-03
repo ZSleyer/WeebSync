@@ -53,7 +53,7 @@ func (c *Client) key() string {
 }
 
 // Enabled reports whether a TMDB key is configured.
-func (c *Client) Enabled() bool { return c.key() != "" }
+func (c *Client) Enabled() bool { return c != nil && c.DB != nil && c.key() != "" }
 
 // Ping validates the configured key against TMDB's authentication endpoint,
 // so the settings page can show whether the key actually works.
