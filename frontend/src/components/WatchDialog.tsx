@@ -24,6 +24,9 @@ export interface WatchFields extends RenameRule {
   wantSub: string
   plexAudioLang: string
   plexSubLang: string
+  // one-off upgrade sync only: move the copy being improved on to the trash
+  // once the new file is in place. Undefined hides the option.
+  replaceOld?: boolean
 }
 
 // WatchDialog collects the paths and rename rule of a watch (create from
@@ -252,6 +255,13 @@ export default function WatchDialog({
               <input type="checkbox" checked={f.subfolder} onChange={(e) => setF({ ...f, subfolder: e.target.checked })} />
               {t('watch.subfolder')}
             </label>
+            {f.replaceOld !== undefined && (
+              <label className="flex items-center gap-2 text-sm text-t-secondary">
+                <input type="checkbox" checked={f.replaceOld} onChange={(e) => setF({ ...f, replaceOld: e.target.checked })} />
+                {t('watch.replaceOld')}
+                <Hint text={t('watch.replaceOldHint')} />
+              </label>
+            )}
             {/* no folder name: several levels can be missing at once, and
                 naming only the innermost reads as if the rest were there */}
             {targetMissing && <p className="text-[11px] text-t-muted">{t('watch.targetMissing')}</p>}

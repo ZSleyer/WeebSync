@@ -58,10 +58,15 @@ type Watch struct {
 	// PlexStreamMiss: what the preference could not deliver on this watch's
 	// files, a CSV of "audio" and "sub"; "" = everything asked for was there.
 	PlexStreamMiss string `json:"plexStreamMiss,omitempty"`
-	IntervalMin    int    `json:"intervalMin"` // global setting, echoed for the UI
-	LastCheck      string `json:"lastCheck"`
-	NextCheck      int64  `json:"nextCheck"`  // unix seconds of the next scheduled check, mirroring WatchLoop's due rule
-	LastResult     string `json:"lastResult"` // error text of the last check, "" on success
+	// ReplaceOld is read by the one-off sync only (an upgrade): the copy an
+	// episode improves on is moved to the trash once the new file is in place.
+	// Not stored on a watch - a watch with a rename rule already overwrites
+	// re-releases by name.
+	ReplaceOld  bool   `json:"replaceOld,omitempty"`
+	IntervalMin int    `json:"intervalMin"` // global setting, echoed for the UI
+	LastCheck   string `json:"lastCheck"`
+	NextCheck   int64  `json:"nextCheck"`  // unix seconds of the next scheduled check, mirroring WatchLoop's due rule
+	LastResult  string `json:"lastResult"` // error text of the last check, "" on success
 	// CheckAttempts counts consecutive failed checks; > 0 means the watch is
 	// on the short retry backoff and NextCheck is that retry, not the interval.
 	CheckAttempts int    `json:"checkAttempts,omitempty"`
@@ -363,7 +368,7 @@ func (s *Server) runWatch(id int64) {
 	// what is complete at the EXPECTED target, and theirs is still empty
 	skip := s.pendingRemotePaths(w.ID)
 	res, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
-		nameFn, andNotPending(s.watchLangFilter(w), skip), true, !w.Subfolder)
+		nameFn, andNotPending(s.watchLangFilter(w), skip), true, !w.Subfolder, false)
 	ids, uploading, filtered := res.IDs, res.Uploading, res.Filtered
 	if waiting != nil {
 		s.rememberPending(w.ID, ids, waiting())
@@ -1146,7 +1151,13 @@ func (s *Server) countVideos(rel string, minEp int) int {
 	}
 	n := 0
 	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			return skipTrash(d)
+		}
+		if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 			return nil
 		}
 		if minEp > 0 {
@@ -1204,7 +1215,13 @@ func (s *Server) localEpisodeCounts(rel string, minEp int) map[int]int {
 	}
 	nums := map[int]int{}
 	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			return skipTrash(d)
+		}
+		if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 			return nil
 		}
 		m := epSeasonRe.FindStringSubmatch(d.Name())

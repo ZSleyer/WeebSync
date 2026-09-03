@@ -22,7 +22,7 @@ import (
 // @Router   /api/downloads [get]
 func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, created_at
+	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, replace_old, created_at
 		FROM downloads WHERE user_id = ? ORDER BY id DESC LIMIT 500`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -33,7 +33,7 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var d transfer.Download
 		if err := rows.Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size,
-			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.CreatedAt); err != nil {
+			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.CreatedAt); err != nil {
 			dbErr(w)
 			return
 		}
@@ -88,7 +88,7 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	res, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, nil, false, in.Flat)
+	res, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, nil, false, in.Flat, false)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
@@ -141,7 +141,7 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 	// language filter via watchLangFilter, subfolder off when the template owns
 	// the structure.
 	res, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath,
-		s.watchNameFn(in), s.watchLangFilter(in), true, !in.Subfolder)
+		s.watchNameFn(in), s.watchLangFilter(in), true, !in.Subfolder, in.ReplaceOld)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return

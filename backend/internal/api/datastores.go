@@ -158,6 +158,10 @@ var dataStores = []dataStore{
 	// Downloaded episodes parked until the provider knows their number.
 	{name: "pending-episodes", tables: []string{"pending_episodes"}, kind: kindDerived,
 		rebuild: "watch-check", timeCol: "created_at"},
+	// The copies an upgrade sync moved aside, waiting for their grace period
+	// to end. Dropping the rows leaves the files in their .weebsync-trash
+	// folders for hand cleanup; nothing refills the list.
+	{name: "trash", tables: []string{"trash_files"}, kind: kindDerived, timeCol: "trashed_at"},
 
 	// Human decisions. Nothing rebuilds these, so the reset only touches them
 	// when explicitly asked to.

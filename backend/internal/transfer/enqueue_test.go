@@ -78,7 +78,7 @@ func TestEnqueueSkipsNonRetryableFailure(t *testing.T) {
 	}
 	check := func() {
 		t.Helper()
-		if _, err := m.Enqueue(1, 1, "/x/Show", "Show", nil, nil, true, true); err != nil {
+		if _, err := m.Enqueue(1, 1, "/x/Show", "Show", nil, nil, true, true, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -169,7 +169,7 @@ func TestEnqueuePicksBestVariantPerTarget(t *testing.T) {
 	nameFn := func(string) string { return "Tanya - S02E01.mkv" }
 	target := filepath.Join(root, "Show", "Tanya - S02E01.mkv")
 
-	res, err := m.Enqueue(1, 1, "/x/Show", "Show", nameFn, nil, false, true)
+	res, err := m.Enqueue(1, 1, "/x/Show", "Show", nameFn, nil, false, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestEnqueuePicksBestVariantPerTarget(t *testing.T) {
 	if err := os.WriteFile(target, make([]byte, 200), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	res, err = m.Enqueue(1, 1, "/x/Show", "Show", nameFn, nil, false, true)
+	res, err = m.Enqueue(1, 1, "/x/Show", "Show", nameFn, nil, false, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestEnqueuePicksBestVariantPerTarget(t *testing.T) {
 	if err := os.WriteFile(target, make([]byte, 100), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	res, err = m.Enqueue(1, 1, "/x/Show", "Show", nameFn, nil, false, true)
+	res, err = m.Enqueue(1, 1, "/x/Show", "Show", nameFn, nil, false, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}

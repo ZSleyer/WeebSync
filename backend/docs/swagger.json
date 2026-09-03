@@ -1362,6 +1362,10 @@
                         "description": "base dir to sync into",
                         "type": "string"
                     },
+                    "replace": {
+                        "description": "Replace: the copy this sync improves on is trashed once the new file is\nin place (upgrades only; a missing episode has nothing to replace).",
+                        "type": "boolean"
+                    },
                     "subfolder": {
                         "description": "false: the template controls the folder structure",
                         "type": "boolean"
@@ -1720,6 +1724,10 @@
                     "renameTitleLang": {
                         "description": "BCP-47 for the localized rename title; \"\" = Plex/system language",
                         "type": "string"
+                    },
+                    "replaceOld": {
+                        "description": "ReplaceOld is read by the one-off sync only (an upgrade): the copy an\nepisode improves on is moved to the trash once the new file is in place.\nNot stored on a watch - a watch with a rename rule already overwrites\nre-releases by name.",
+                        "type": "boolean"
                     },
                     "replacement": {
                         "type": "string"
@@ -3545,6 +3553,10 @@
                     },
                     "remotePath": {
                         "type": "string"
+                    },
+                    "replaceOld": {
+                        "description": "ReplaceOld: once this file is in place, the older copy of the same\nepisode next to it is moved out of the way (an upgrade sync).",
+                        "type": "boolean"
                     },
                     "retryAt": {
                         "type": "integer"
