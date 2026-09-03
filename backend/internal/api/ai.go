@@ -292,7 +292,7 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		}
 		msgs = append(msgs, reply)
 		for _, call := range reply.ToolCalls {
-			emit(aiEvent{Type: "tool", Name: call.Function.Name, Args: excerpt(call.Function.Arguments, 300)})
+			emit(aiEvent{Type: "tool", Name: call.Function.Name, Args: excerpt(call.Function.Arguments, 400)})
 			out := s.aiTool(ctx, u.ID, call.Function.Name, call.Function.Arguments)
 			if out.proposal != nil {
 				emit(aiEvent{Type: "proposal", aiProposal: out.proposal})
@@ -301,7 +301,7 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 				emit(aiEvent{Type: "cards", Cards: out.cards})
 			}
 			b, _ := json.Marshal(out.result)
-			emit(aiEvent{Type: "tool_done", Name: call.Function.Name, Result: excerpt(string(b), 600)})
+			emit(aiEvent{Type: "tool_done", Name: call.Function.Name, Result: excerpt(string(b), 1500)})
 			msgs = append(msgs, ai.Message{Role: "tool", ToolCallID: call.ID, Content: string(b)})
 		}
 	}
