@@ -94,6 +94,31 @@ func TestReplaceOldCopyMovie(t *testing.T) {
 	}
 }
 
+func TestReplaceOldCopyLeavesEpisodesAloneWithoutNumber(t *testing.T) {
+	s, root := sizeTestServer(t)
+	// an opening file next to the season's only episode: not a movie folder
+	dir := filepath.Join(root, "Show", "Season 01")
+	writeFiles(t, dir, map[string]int64{"Show - 01.mkv": 10, "Show - NCOP1.mkv": 5})
+	s.replaceOldCopy(&transfer.Download{LocalPath: filepath.Join(dir, "Show - NCOP1.mkv"), RemotePath: "/r/Show - NCOP1.mkv"})
+	if left := names(t, dir); !left["Show - 01.mkv"] || len(left) != 2 {
+		t.Errorf("episode trashed by a file without a number: %v", left)
+	}
+	// the opening as the OLD file: episode one arriving must not take it along
+	writeFiles(t, dir, map[string]int64{"Show - S01E01.mkv": 20})
+	s.replaceOldCopy(&transfer.Download{LocalPath: filepath.Join(dir, "Show - S01E01.mkv"), RemotePath: "/r/Show - 01.mkv"})
+	left := names(t, dir)
+	if !left["Show - NCOP1.mkv"] || left["Show - 01.mkv"] {
+		t.Errorf("want the opening kept and episode one replaced: %v", left)
+	}
+	// a flat show folder without episode numbers but named like a season
+	dir = filepath.Join(root, "Show", "Season 02")
+	writeFiles(t, dir, map[string]int64{"Show OVA.mkv": 10, "Show OVA v2.mkv": 12})
+	s.replaceOldCopy(&transfer.Download{LocalPath: filepath.Join(dir, "Show OVA v2.mkv"), RemotePath: "/r/Show OVA v2.mkv"})
+	if left := names(t, dir); len(left) != 2 {
+		t.Errorf("season folder treated as a movie folder: %v", left)
+	}
+}
+
 func TestEmptyTrashStaysInsideTrash(t *testing.T) {
 	s, root := sizeTestServer(t)
 	victim := filepath.Join(root, "keep.mkv")
