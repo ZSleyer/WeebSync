@@ -1127,8 +1127,15 @@ func (s *Server) showKeyCanon() map[string]string {
 		return nil
 	}
 	defer rows.Close()
-	stands := map[string]string{} // (series, form) -> the show_key that speaks for it
-	canon := map[string]string{}  // showScope(key, form) -> that key
+	// A series bundles a show with its films, so folding by series alone
+	// hands every season of the show the film's key - and both sides are
+	// then the same unit again, one layer above the one loadUnits guards.
+	// Fold per (series, form), and key the result per form too: a single
+	// show_key can appear under both (TMDB spells a film id and a series id
+	// the same way), and a bare-key map would rewrite it to whichever form
+	// was read last.
+	groups := map[string][]string{} // (series, form) -> every show_key seen
+	var order []string
 	for rows.Next() {
 		var showKey string
 		var seriesID int64
@@ -1136,23 +1143,48 @@ func (s *Server) showKeyCanon() map[string]string {
 		if rows.Scan(&showKey, &seriesID, &isMovie) != nil {
 			continue
 		}
-		// A series bundles a show with its films, so folding by series alone
-		// hands every season of the show the film's key - and both sides are
-		// then the same unit again, one layer above the one loadUnits guards.
-		// Fold per (series, form), and key the result per form too: a single
-		// show_key can appear under both (TMDB spells a film id and a series id
-		// the same way), and a bare-key map would rewrite it to whichever form
-		// was read last.
-		form := strconv.Itoa(isMovie)
-		if first, ok := stands[strconv.FormatInt(seriesID, 10)+"|"+form]; ok {
-			if first != showKey {
-				canon[showScope(showKey, isMovie == 1)] = first
-			}
-			continue
+		g := strconv.FormatInt(seriesID, 10) + "|" + strconv.Itoa(isMovie)
+		if _, ok := groups[g]; !ok {
+			order = append(order, g)
 		}
-		stands[strconv.FormatInt(seriesID, 10)+"|"+form] = showKey
+		groups[g] = append(groups[g], showKey)
+	}
+	canon := map[string]string{} // showScope(key, form) -> the key that speaks for the series
+	for _, g := range order {
+		keys := groups[g]
+		movie := strings.HasSuffix(g, "|1")
+		// a provider id speaks for the show; a fold key is a guess from a title
+		// and only stands when nothing better is known. Rows arrive sorted by
+		// key, so among equals the first stays, as before.
+		best := keys[0]
+		for _, k := range keys[1:] {
+			if showKeyRank(k) < showKeyRank(best) {
+				best = k
+			}
+		}
+		for _, k := range keys {
+			if k != best {
+				canon[showScope(k, movie)] = best
+			}
+		}
 	}
 	return canon
+}
+
+// showKeyRank orders the key kinds by how much they say: a provider id
+// before a title fold.
+func showKeyRank(key string) int {
+	switch {
+	case strings.HasPrefix(key, "tvdb:"):
+		return 0
+	case strings.HasPrefix(key, "tmdb:"):
+		return 1
+	case strings.HasPrefix(key, "imdb:"):
+		return 2
+	case strings.HasPrefix(key, "fold:"):
+		return 3
+	}
+	return 4
 }
 
 // bestCopy picks the strongest copy: highest resolution, then most dub, then
@@ -1280,7 +1312,18 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 			media, _ = s.sourceMedia(source, mediaID)
 			a, ok := s.animeIDs(mediaID)
 			if !ok {
-				continue
+				// no Fribb mapping: folderUnit filed such a folder under a
+				// title fold, so its cover has to be found under that fold
+				if media == nil {
+					continue
+				}
+				showKey = "fold:" + match.FoldKey(match.StripMarkers(mediaTitle(media)))
+				if media.Format == "MOVIE" {
+					movie = true
+				} else {
+					season = unitSeason(0, media, "")
+				}
+				break
 			}
 			switch {
 			case a.tvdbID != 0:
@@ -1300,6 +1343,7 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 			media, _ = s.sourceMedia(source, mediaID)
 		case "tvdb":
 			showKey = "tvdb:" + strconv.Itoa(mediaID)
+			media, _ = s.sourceMedia(source, mediaID)
 		case "imdb":
 			showKey = "imdb:" + strconv.Itoa(mediaID)
 		}
@@ -1316,6 +1360,33 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 		if media != nil {
 			e.mediaBySeason[showKey+enrichSlot(season, movie)] = *media
 			e.srcBySeason[showKey+enrichSlot(season, movie)] = source
+		}
+	}
+	// the units fold aliased keys onto one per series (see showKeyCanon), and
+	// they ask for that one - so what was learnt under an alias has to sit
+	// under it too, or a Plex show keyed by TMDB never meets the cover its
+	// remote copy fetched under TVDB
+	for raw, c := range s.showKeyCanon() {
+		key := strings.TrimSuffix(raw, "|m")
+		if key == c {
+			continue
+		}
+		e.refsByKey[c] = append(e.refsByKey[c], e.refsByKey[key]...)
+		if _, ok := e.seriesByKey[c]; !ok {
+			e.seriesByKey[c] = e.seriesByKey[key]
+		}
+		if _, ok := e.kindByKey[c]; !ok {
+			e.kindByKey[c] = e.kindByKey[key]
+		}
+		for slot, m := range e.mediaBySeason {
+			if !strings.HasPrefix(slot, key+"|") {
+				continue
+			}
+			target := c + strings.TrimPrefix(slot, key)
+			if _, ok := e.mediaBySeason[target]; !ok {
+				e.mediaBySeason[target] = m
+				e.srcBySeason[target] = e.srcBySeason[slot]
+			}
 		}
 	}
 	return e
@@ -1353,6 +1424,14 @@ func (e *unitEnrich) of(showKey string, season int, isMovie bool) unitInfo {
 		media, src = &m, e.srcBySeason[showKey+"|-1"]
 	} else if m := e.s.seriesMedia(refs); m != nil {
 		media = m // source unknown -> treat like AniList (English-first)
+	} else if keySrc, keyID := keyProvider(showKey, isMovie); keySrc != "" {
+		// nothing matched this show, but the key itself names a provider id
+		// (a Plex show carries its agent's guid): ask that provider, which
+		// also queues the fetch so the next build finds it cached
+		if m, _ := e.s.sourceMedia(keySrc, keyID); m != nil {
+			media, src = m, keySrc
+		}
+		refs = append(refs, providerRef{Source: keySrc, MediaID: keyID})
 	}
 	info := unitInfo{seriesID: e.seriesByKey[showKey], kind: e.kindByKey[showKey], exact: exact}
 	if media != nil {
@@ -1382,6 +1461,25 @@ func (e *unitEnrich) of(showKey string, season int, isMovie bool) unitInfo {
 	}
 	info.providers, info.links = e.s.providerBadgesLinks(refs, info.title, showKey)
 	return info
+}
+
+// keyProvider reads the provider and id a show_key spells, "" for a fold.
+func keyProvider(showKey string, isMovie bool) (string, int) {
+	src, num, ok := strings.Cut(showKey, ":")
+	id, err := strconv.Atoi(num)
+	if !ok || err != nil || id <= 0 {
+		return "", 0
+	}
+	switch src {
+	case "tvdb":
+		return "tvdb", id
+	case "tmdb":
+		if isMovie {
+			return "tmdb:movie", id
+		}
+		return "tmdb:tv", id
+	}
+	return "", 0
 }
 
 // serverNames maps server id → display name (id 0 / local has none).

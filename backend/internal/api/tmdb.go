@@ -293,6 +293,9 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 			s.queueMediaFetch(id)
 		}
 	case strings.HasPrefix(source, "tmdb:"):
+		if s.Tmdb == nil {
+			return nil, false
+		}
 		kind := strings.TrimPrefix(source, "tmdb:")
 		m, fresh = s.Tmdb.CachedMedia(kind, id)
 		if m == nil {
@@ -303,6 +306,9 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 			s.queueTmdbFetch(kind, id)
 		}
 	case source == "tvdb":
+		if s.Tvdb == nil {
+			return nil, false
+		}
 		m, fresh = s.Tvdb.CachedMedia(id)
 		if m == nil {
 			s.queueTvdbFetch(id)
