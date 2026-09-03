@@ -1026,30 +1026,71 @@ dialog:not([open])::backdrop { opacity: 0; }
   to   { background-position: 40% 25%, 60% 45%, 30% 80%, 0 0; }
 }
 
-/* speaker orb: a clipped square, accent-lit for the assistant */
+/* speaker orb: a clipped square, accent-lit for the assistant. The outline
+   is drawn the way .t-btn.t-cut draws it - one even-odd ring instead of a
+   border, because the clip cuts a border open along the diagonal. The glow
+   cannot sit on the clipped box either (a clip clips its own shadow), so it
+   comes from a wrapper-free trick: the ring's drop-shadow filter. */
 .ai-orb {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 2.25rem;
   height: 2.25rem;
+  --orb-cut: 8px;
+  --orb-cut-in: 8.414px;
+  --orb-edge: color-mix(in srgb, var(--accent-blue) 55%, transparent);
   color: var(--accent-blue);
   background: color-mix(in srgb, var(--accent-blue) 14%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--accent-blue) 55%, transparent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--accent-blue) 28%, transparent);
-  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+  clip-path: polygon(0 0, calc(100% - var(--orb-cut)) 0, 100% var(--orb-cut), 100% 100%, 0 100%);
+}
+.ai-orb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--orb-edge);
+  clip-path: polygon(
+    evenodd,
+    0 0,
+    calc(100% - var(--orb-cut)) 0,
+    100% var(--orb-cut),
+    100% 100%,
+    0 100%,
+    0 0,
+    1px 1px,
+    calc(100% - var(--orb-cut-in)) 1px,
+    calc(100% - 1px) var(--orb-cut-in),
+    calc(100% - 1px) calc(100% - 1px),
+    1px calc(100% - 1px),
+    1px 1px
+  );
+  pointer-events: none;
 }
 .ai-orb--lg {
   width: 4rem;
   height: 4rem;
-  box-shadow: 0 0 40px color-mix(in srgb, var(--accent-blue) 40%, transparent);
-  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  --orb-cut: 14px;
+  --orb-cut-in: 14.414px;
+  --orb-edge: var(--accent-blue);
 }
 .ai-orb--user {
   color: var(--text-secondary);
   background: var(--bg-hover);
-  border-color: var(--border-subtle);
-  box-shadow: none;
+  --orb-edge: var(--border-subtle);
+}
+/* the glow lives on a sibling-free layer: the turn row draws it behind the orb */
+.ai-glow {
+  position: relative;
+  isolation: isolate; /* keeps the z-index:-1 layer inside, above the stage */
+}
+.ai-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  filter: blur(12px);
+  z-index: -1;
 }
 
 /* bubbles: the assistant's carries an accent rail, the user's sits darker */
