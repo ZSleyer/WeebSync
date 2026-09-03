@@ -125,6 +125,15 @@ func (s *Service) Notify(userID int64, n Notification) {
 
 	payload, _ := json.Marshal(n)
 	for _, x := range subs {
+		u, err := url.Parse(x.endpoint)
+		if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+			s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, x.endpoint, userID)
+			continue
+		}
+		if err := netguard.PublicAllowed(u.Hostname()); err != nil {
+			slog.Warn("push endpoint blocked", "host", endpointHost(x.endpoint), "err", err)
+			continue
+		}
 		resp, err := webpush.SendNotification(payload, &webpush.Subscription{
 			Endpoint: x.endpoint,
 			Keys:     webpush.Keys{P256dh: x.p256dh, Auth: x.auth},

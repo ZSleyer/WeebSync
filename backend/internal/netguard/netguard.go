@@ -105,15 +105,15 @@ func allowed(host string, deny func(net.IP) bool) error {
 // rebinds to a blocked address is refused mid-flight. Use it for every outbound
 // fetch to a host that is (even indirectly) user-influenced.
 func Client(timeout time.Duration) *http.Client {
-	return client(timeout, blocked)
+	return client(timeout, blocked, false)
 }
 
 // PublicClient is Client with loopback and private networks blocked too.
 func PublicClient(timeout time.Duration) *http.Client {
-	return client(timeout, publicBlocked)
+	return client(timeout, publicBlocked, true)
 }
 
-func client(timeout time.Duration, deny func(net.IP) bool) *http.Client {
+func client(timeout time.Duration, deny func(net.IP) bool, httpsOnly bool) *http.Client {
 	dialer := &net.Dialer{Timeout: timeout}
 	tr := &http.Transport{
 		// A proxy would make DialContext validate the proxy rather than the
@@ -156,6 +156,9 @@ func client(timeout time.Duration, deny func(net.IP) bool) *http.Client {
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
+			}
+			if httpsOnly && req.URL.Scheme != "https" {
+				return fmt.Errorf("redirect to non-HTTPS URL blocked")
 			}
 			return allowed(req.URL.Hostname(), deny)
 		},
