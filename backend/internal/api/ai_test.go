@@ -348,3 +348,40 @@ func TestAiRecommendEmitsCards(t *testing.T) {
 		t.Errorf("tool result: %s", fp.requests[len(fp.requests)-1].Content)
 	}
 }
+
+func TestAiRecommendSkipsWhatTheUserHas(t *testing.T) {
+	fp := newFakeProvider(t,
+		fakeReply{tool: "recommend", args: `{"titles":[{"id":154587,"why":"great"},{"id":21,"why":"long"}]}`},
+		fakeReply{text: "ok"},
+	)
+	mux, s, c := setupAiTest(t, fp)
+	// Frieren is kept in sync by a watch on a folder whose name says so; One
+	// Piece is not owned anywhere
+	s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/anime/Frieren', 'x')`)
+	for _, m := range []anilist.Media{
+		{ID: 154587, Status: "FINISHED", Schema: anilist.MediaSchema},
+		{ID: 21, Status: "RELEASING", Schema: anilist.MediaSchema},
+	} {
+		m := m
+		if m.ID == 154587 {
+			m.Title.Romaji, m.Title.English = "Sousou no Frieren", "Frieren: Beyond Journey's End"
+		} else {
+			m.Title.Romaji = "One Piece"
+		}
+		payload, _ := json.Marshal(m)
+		s.cacheSet(fmt.Sprintf("media:%d", m.ID), string(payload))
+	}
+	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"recommend"}]}`, c)
+	evs := events(t, rec.Body.String())
+	if got := types(evs); got != "tool,cards,tool_done,delta,delta,done" {
+		t.Fatalf("event order %s: %s", got, rec.Body)
+	}
+	cards := evs[1]["cards"].([]any)
+	if len(cards) != 1 || cards[0].(map[string]any)["media"].(map[string]any)["id"] != float64(21) {
+		t.Fatalf("cards: %v", cards)
+	}
+	last := fp.requests[len(fp.requests)-1].Content
+	if !strings.Contains(last, `"reason":"already in an auto-sync"`) || !strings.Contains(last, `"title":"Frieren: Beyond Journey's End"`) {
+		t.Errorf("tool result: %s", last)
+	}
+}

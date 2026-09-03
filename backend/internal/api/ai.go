@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -321,9 +322,12 @@ Today is %s. The current anime season is %s %d.
 Answer in %s. Be concise. Plain text only: no markdown (no bold, headings or tables); short paragraphs and simple "-" bullet lists are fine.
 
 You can only READ through the tools and PROPOSE actions; the user confirms every proposal in a dialog. Rules:
+- Before each tool call, say in one short sentence what you are checking and why; that narration becomes the visible transcript.
 - Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score). When you recommend titles, also call recommend with their ids and reasons so the user gets cards to open; then keep the text short, the cards carry the details.
+- Never recommend what the user already has: entries flagged owned (in the Plex library) or inAutoSync (an auto-sync keeps it current) are covered. Check the flags (or my_watches) before recommending; if the user asks about such a title, say it is already covered.
 - Before proposing a watch or sync, find the folder with search_remote or take a candidate from suggestions/seasonal. Never invent server ids or paths.
 - kind "watch" = auto-sync: keeps a remote folder in sync (for airing shows). kind "sync" = download once. kind "upgrade" = replace a local copy with a better remote copy; only from the upgrades tool, quoting its key and one of its option folders, and only when it improves an axis the user enabled. Say concretely what improves (resolution, dub, sub, selectable subtitles) and mention when the language data is unverified.
+- Tools are called only through the tool-call interface, never written out as text in the answer.
 - If propose returns ok:false, tell the user the reason; do not retry the same call.
 - Do not claim something was created: a proposal is a card the user still has to confirm.`,
 		now.Format("2006-01-02"), season, year, lang)
@@ -404,8 +408,12 @@ func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string)
 	case "my_watches":
 		return aiToolOut{result: s.aiWatches(userID)}
 	case "recommend":
+		// what the user already has is not a recommendation: dropped here
+		// regardless of what the model asked for, and reported so it can say so
+		have := s.aiHaveIndex(userID)
 		cards := []aiCard{}
 		missing := []int{}
+		skipped := []map[string]any{}
 		for i, t := range args.Titles {
 			if i >= 8 {
 				break
@@ -414,15 +422,27 @@ func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string)
 			if src == "" {
 				src = "anilist"
 			}
-			if m := s.aiMedia(ctx, src, t.ID); m != nil {
-				cards = append(cards, aiCard{Source: src, Media: *m, Why: excerpt(t.Why, 200)})
-			} else {
+			m := s.aiMedia(ctx, src, t.ID)
+			if m == nil {
 				missing = append(missing, t.ID)
+				continue
+			}
+			switch {
+			case have.inSync(*m, src):
+				skipped = append(skipped, map[string]any{"id": t.ID, "title": aiTitle(*m), "reason": "already in an auto-sync"})
+			case have.owned(*m, src):
+				skipped = append(skipped, map[string]any{"id": t.ID, "title": aiTitle(*m), "reason": "already in the Plex library"})
+			default:
+				cards = append(cards, aiCard{Source: src, Media: *m, Why: excerpt(t.Why, 200)})
 			}
 		}
 		res := map[string]any{"shown": len(cards)}
 		if len(missing) > 0 {
 			res["unknownIds"] = missing
+		}
+		if len(skipped) > 0 {
+			res["skipped"] = skipped
+			res["note"] = "skipped titles the user already has; do not recommend them, mention briefly that they are covered"
 		}
 		return aiToolOut{result: res, cards: cards}
 	case "propose":
@@ -469,6 +489,10 @@ type aiListEntry struct {
 	Progress int      `json:"progress,omitempty"`
 	Score    int      `json:"score,omitempty"`
 	Genres   []string `json:"genres,omitempty"`
+	// Owned: the Plex library holds it. InAutoSync: a watch keeps it in sync.
+	// Neither is a recommendation candidate.
+	Owned      bool `json:"owned,omitempty"`
+	InAutoSync bool `json:"inAutoSync,omitempty"`
 }
 
 func aiTitle(m anilist.Media) string {
@@ -479,6 +503,58 @@ func aiTitle(m anilist.Media) string {
 		return m.Title.English
 	}
 	return m.Title.Romaji
+}
+
+// aiHave answers "does the user already have this title": in an auto-sync
+// (the watch's catalog match by id, else its title against the folder or
+// override name) or in the Plex library. Built once per tool call so a list
+// of a few hundred entries costs one query and one title index.
+type aiHave struct {
+	owned  func(anilist.Media, string) bool
+	ids    map[string]bool // "source:id" of matched watch folders
+	titles []string        // watch titles for the fold-key comparison
+}
+
+func (s *Server) aiHaveIndex(userID int64) aiHave {
+	h := aiHave{owned: s.plexOwned(), ids: map[string]bool{}}
+	rows, err := s.DB.Query(`SELECT w.remote_path, w.title_override, COALESCE(m.source, ''), COALESCE(m.media_id, 0)
+		FROM watches w LEFT JOIN catalog_matches m ON m.server_id = w.server_id AND m.folder = w.remote_path
+		WHERE w.user_id = ?`, userID)
+	if err != nil {
+		return h
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var remotePath, override, source string
+		var mediaID int
+		if rows.Scan(&remotePath, &override, &source, &mediaID) != nil {
+			continue
+		}
+		if mediaID != 0 {
+			h.ids[source+":"+strconv.Itoa(mediaID)] = true
+		}
+		title := override
+		if title == "" {
+			title = match.GuessTitle(path.Base(remotePath))
+		}
+		h.titles = append(h.titles, title)
+	}
+	return h
+}
+
+// inSync reports whether an auto-sync already covers the media.
+func (h aiHave) inSync(m anilist.Media, source string) bool {
+	if h.ids[source+":"+strconv.Itoa(m.ID)] {
+		return true
+	}
+	for _, t := range h.titles {
+		for _, mt := range []string{m.Title.Romaji, m.Title.English} {
+			if mt != "" && titlesAgree(t, mt) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // aiUserList is the user's AniList list, refreshed in the background when
@@ -498,6 +574,7 @@ func (s *Server) aiUserList(userID int64) []anilist.ListEntry {
 
 func (s *Server) aiLists(userID int64) any {
 	out := map[string]any{}
+	have := s.aiHaveIndex(userID)
 	list := s.aiUserList(userID)
 	if list == nil {
 		out["anilist"] = "no AniList account linked"
@@ -508,14 +585,16 @@ func (s *Server) aiLists(userID int64) any {
 				break
 			}
 			entries = append(entries, aiListEntry{ID: e.Media.ID, Title: aiTitle(e.Media), Year: e.Media.SeasonYear,
-				Format: e.Media.Format, Status: e.Status, Progress: e.Progress, Score: e.Score, Genres: e.Media.Genres})
+				Format: e.Media.Format, Status: e.Status, Progress: e.Progress, Score: e.Score, Genres: e.Media.Genres,
+				Owned: have.owned(e.Media, "anilist"), InAutoSync: have.inSync(e.Media, "anilist")})
 		}
 		out["anilist"] = entries
 	}
 	bySrc, bySeries := s.seriesProviderMaps()
 	plex := []aiListEntry{}
 	for _, it := range s.plexWatchlistItems(userID, bySrc, bySeries) {
-		plex = append(plex, aiListEntry{ID: it.Media.ID, Title: it.Title, Year: it.Year, Format: it.Media.Format})
+		plex = append(plex, aiListEntry{ID: it.Media.ID, Title: it.Title, Year: it.Year, Format: it.Media.Format,
+			Owned: have.owned(it.Media, "anilist"), InAutoSync: have.inSync(it.Media, "anilist")})
 	}
 	out["plexWatchlist"] = plex
 	return out
@@ -540,6 +619,8 @@ type aiSugEntry struct {
 	Genres     []string      `json:"genres,omitempty"`
 	Candidates []aiCandidate `json:"candidates,omitempty"`
 	Sync       *SyncPlan     `json:"sync,omitempty"`
+	Owned      bool          `json:"owned,omitempty"`
+	InAutoSync bool          `json:"inAutoSync,omitempty"`
 }
 
 func aiCands(c []plexCandidate) []aiCandidate {
@@ -571,6 +652,7 @@ func (s *Server) aiSuggestionBlob(ctx context.Context, userID int64) (resp Sugge
 func (s *Server) aiSuggestions(ctx context.Context, userID int64) any {
 	blob, building := s.aiSuggestionBlob(ctx, userID)
 	dismissed := s.dismissedKeys(userID, "suggestion")
+	have := s.aiHaveIndex(userID)
 	conv := func(items []SugItem, limit int) []aiSugEntry {
 		out := []aiSugEntry{}
 		for _, it := range items {
@@ -582,7 +664,8 @@ func (s *Server) aiSuggestions(ctx context.Context, userID int64) any {
 			}
 			e := aiSugEntry{RefKey: it.RefKey, Title: it.Title, Year: it.Year, Category: it.Category, Status: it.Status,
 				Progress: it.Progress, Have: it.Have, Need: it.Need, Because: it.Because, Genres: it.Media.Genres,
-				Candidates: aiCands(it.Candidates)}
+				Candidates: aiCands(it.Candidates),
+				Owned:      it.PlexFolder != "" || have.owned(it.Media, "anilist"), InAutoSync: have.inSync(it.Media, "anilist")}
 			if it.Sync.LocalPath != "" {
 				sp := it.Sync
 				e.Sync = &sp
@@ -680,19 +763,19 @@ func (s *Server) aiSeasonal(ctx context.Context, userID int64, season string, ye
 	for _, e := range s.aiUserList(userID) {
 		onList[e.Media.ID] = e
 	}
-	owned := s.plexOwned()
+	have := s.aiHaveIndex(userID)
 	type entry struct {
 		aiListEntry
 		Episodes   int           `json:"episodes,omitempty"`
 		Airing     string        `json:"airing,omitempty"`
 		Score      int           `json:"averageScore,omitempty"`
-		Owned      bool          `json:"owned,omitempty"`
 		Candidates []aiCandidate `json:"candidates,omitempty"`
 	}
 	out := make([]entry, 0, len(list))
 	for _, m := range list {
-		e := entry{aiListEntry: aiListEntry{ID: m.ID, Title: aiTitle(m), Year: m.SeasonYear, Format: m.Format, Genres: m.Genres},
-			Episodes: m.Episodes, Airing: m.Status, Score: m.AverageScore, Owned: owned(m, "anilist")}
+		e := entry{aiListEntry: aiListEntry{ID: m.ID, Title: aiTitle(m), Year: m.SeasonYear, Format: m.Format, Genres: m.Genres,
+			Owned: have.owned(m, "anilist"), InAutoSync: have.inSync(m, "anilist")},
+			Episodes: m.Episodes, Airing: m.Status, Score: m.AverageScore}
 		if le, ok := onList[m.ID]; ok {
 			e.Status, e.Progress, e.aiListEntry.Score = le.Status, le.Progress, le.Score
 		}
