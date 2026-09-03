@@ -1,19 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Check, ChevronDown, Clock, Download, ExternalLink, Eye, Files, Folder, Info, Pause, Pencil, Play, Radio, RefreshCw, Replace, Search, Star, Trash2, Undo2, X, type LucideIcon } from 'lucide-react'
+import { Check, Download, Eye, Files, Folder, Info, Pencil, RefreshCw, Replace, Search, Star, Trash2, Undo2, X } from 'lucide-react'
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
-const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
-  RELEASING: Radio,
-  FINISHED: Check,
-  NOT_YET_RELEASED: Clock,
-  CANCELLED: X,
-  HIATUS: Pause,
-}
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import MediaDetail from '../components/MediaDetail'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
-import { Badge, Button, ButtonLink, Cover, Dialog, EmptyState, Input, Panel, Select } from '@weebsync/design-system'
-import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type Review, type SearchResult, type ServerInfo } from '../api'
+import { Badge, Button, Cover, Dialog, EmptyState, Input, Panel, Select } from '@weebsync/design-system'
+import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo } from '../api'
 import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../components/catalogSort'
 import { CatalogViewSelect } from '../components/CatalogViewSelect'
 import { useCatalogView } from '../components/useCatalogView'
@@ -967,12 +961,6 @@ interface CatalogGroup {
   items: CatalogItem[]
 }
 
-// source-dependent external link (AniList for anime, TMDB for marked folders)
-const mediaLink = (source: string | undefined, id: number) =>
-  source?.startsWith('tmdb:')
-    ? { href: `https://www.themoviedb.org/${source.slice(5)}/${id}`, label: 'TMDB' }
-    : { href: `https://anilist.co/anime/${id}`, label: 'AniList' }
-
 // DetailDialog shows the anime's full metadata (banner, description, trailer,
 // genres) plus every folder version matched to it, each selectable for sync
 // and individually re-matchable.
@@ -999,15 +987,7 @@ function DetailDialog({
 }) {
   const { t } = useTranslation()
   const m = group.media!
-  const MediaStatusIcon = m.status ? MEDIA_STATUS_ICON[m.status] : undefined
   const source = group.items[0].source
-  const [allReviews, setAllReviews] = useState(false)
-  // reviews load lazily with the modal, never with the catalog grid
-  const { data: rev } = useQuery<{ reviews: Review[] }>({
-    queryKey: ['reviews', source ?? 'anilist', m.id],
-    queryFn: () => api.get(`/api/media/reviews?source=${source ?? 'anilist'}&id=${m.id}`),
-    staleTime: 5 * 60_000,
-  })
 
   return (
     <Dialog
@@ -1023,129 +1003,7 @@ function DetailDialog({
           <X aria-hidden size="1.2em" />
         </Button>
       </div>
-      {m.bannerImage && <img src={m.bannerImage} alt="" className="max-h-36 w-full object-cover" />}
-      <div className="p-5">
-        <div className="flex flex-col gap-4 sm:flex-row">
-          {m.coverImage?.large && <img src={m.coverImage.large} alt="" className="h-40 w-28 shrink-0 object-cover" />}
-          <div className="min-w-0">
-            <h3 className="font-display font-semibold tracking-wider">{mediaTitle(m)}</h3>
-            {m.title.english &&
-              mediaTitle({ title: { english: m.title.english } }) === m.title.english &&
-              m.title.english !== mediaTitle(m) && (
-                <p className="text-sm text-t-muted">{m.title.english}</p>
-              )}
-            <div className="mt-2 flex flex-wrap gap-1">
-              {m.seasonYear > 0 && <Badge>{m.seasonYear}</Badge>}
-              {m.format && <Badge>{m.format}</Badge>}
-              {m.episodes > 0 && <Badge>{m.episodes} EP</Badge>}
-              {m.status && (
-                <Badge>
-                  {MediaStatusIcon && <MediaStatusIcon aria-hidden size="1em" />}
-                  {t(`remote.status.${m.status}`, m.status)}
-                </Badge>
-              )}
-              {m.averageScore > 0 && <Badge tone="accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{m.averageScore}</Badge>}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {m.genres?.map((g) => (
-                <Badge key={g}>{g}</Badge>
-              ))}
-            </div>
-            {(() => {
-              const l = mediaLink(source, m.id)
-              return (
-                <ButtonLink
-                  size="sm"
-                  className="mt-3 inline-flex items-center gap-1.5"
-                  href={l.href}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {l.label} #{m.id}
-                  <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
-                </ButtonLink>
-              )
-            })()}
-          </div>
-        </div>
-        {m.description && (
-          <section className="mt-4 border-t border-border-subtle pt-4">
-            <h4 className="t-label mb-2">{t('remote.description')}</h4>
-            <p className="text-sm whitespace-pre-line text-t-secondary">
-              {/* AniList descriptions still carry some inline HTML; strip via
-                  the browser's own parser (rendered as a text node, never HTML) */}
-              {new DOMParser()
-                .parseFromString(m.description.replace(/<br\s*\/?>/gi, '\n'), 'text/html')
-                .body.textContent}
-            </p>
-          </section>
-        )}
-        {(m.trailer?.site === 'youtube' || m.trailer?.site === 'dailymotion') && (
-          <section className="mt-4 border-t border-border-subtle pt-4">
-            <h4 className="t-label mb-2">{t('remote.trailer')}</h4>
-            {m.trailer?.site === 'youtube' && (
-              <iframe
-                className="aspect-video w-full"
-                title={t('remote.trailer')}
-                src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}`}
-                // the page sends no referrer at all, which the player rejects
-                // with "error 153"; this hands it the bare origin, no path
-                referrerPolicy="strict-origin"
-                allow="encrypted-media; fullscreen"
-                allowFullScreen
-              />
-            )}
-            {m.trailer?.site === 'dailymotion' && (
-              <ButtonLink
-                size="sm"
-                className="inline-flex items-center gap-2"
-                href={`https://www.dailymotion.com/video/${m.trailer.id}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Play aria-hidden size="1em" className="inline align-[-0.125em]" fill="currentColor" strokeWidth={0} /> {t('remote.trailer')}
-                {m.trailer.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
-                <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
-              </ButtonLink>
-            )}
-          </section>
-        )}
-        {rev && (
-          <section className="mt-4 border-t border-border-subtle pt-4">
-            <h4 className="t-label mb-2">
-              {t('remote.reviews')} ({rev.reviews.length})
-            </h4>
-            {rev.reviews.length === 0 && <p className="text-sm text-t-muted">{t('remote.noReviews')}</p>}
-            {/* chat-bubble layout: avatar beside a bordered bubble per review */}
-            <ul className="mt-3 grid gap-3">
-              {(allReviews ? rev.reviews : rev.reviews.slice(0, 5)).map((r, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  {r.user.avatar?.medium ? (
-                    <img src={r.user.avatar.medium} alt="" className="h-9 w-9 shrink-0 object-cover" />
-                  ) : (
-                    <div aria-hidden className="t-hatch flex h-9 w-9 shrink-0 items-center justify-center font-display text-xs text-t-muted">
-                      {r.user.name.slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1 border border-border-subtle bg-bg-secondary p-3 text-sm text-t-secondary">
-                    <p className="mb-1 flex flex-wrap items-center gap-2">
-                      <Badge>{r.user.name}</Badge>
-                      {r.score > 0 && <Badge tone="accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{r.score}</Badge>}
-                    </p>
-                    <p className="whitespace-pre-line">{r.summary}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            {!allReviews && rev.reviews.length > 5 && (
-              <Button size="sm" className="mt-3" onClick={() => setAllReviews(true)}>
-                <ChevronDown aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('remote.moreReviews', { count: rev.reviews.length - 5 })}
-              </Button>
-            )}
-          </section>
-        )}
-
+      <MediaDetail media={m} source={source}>
         <h4 className="t-label mt-4 mb-1 border-t border-border-subtle pt-4">
           {t('remote.versions', { count: group.items.length })}
         </h4>
@@ -1191,7 +1049,7 @@ function DetailDialog({
             {t('remote.close')}
           </Button>
         </div>
-      </div>
+      </MediaDetail>
     </Dialog>
   )
 }
