@@ -300,6 +300,10 @@ export interface SuggestionItem {
   because?: string[] // recommended: the finished titles this was derived from
   library?: string // incomplete: the Plex library this came from, shown on the card
   sync?: SyncPlan // incomplete: where a one-off sync creates the season/movie folder
+  /** incomplete: season (missing season/movie) | sequel (Plex chain) | episodes (gaps in an owned season) */
+  kind?: 'season' | 'sequel' | 'episodes'
+  /** incomplete/episodes: the numbers a remote copy has and the local season lacks */
+  missing?: number[]
 }
 
 // SyncPlan is the pre-computed local target for a one-off sync of a suggestion:
@@ -311,6 +315,26 @@ export interface SyncPlan {
   subfolder: boolean
 }
 
+// DuplicateItem is content the library holds twice: the same season/movie in
+// several folders, or one episode under two names in one folder.
+export interface DuplicateItem {
+  refKey: string
+  title: string
+  cover?: string
+  category: string
+  season: number
+  isMovie?: boolean
+  library?: string
+  copies: DuplicateCopy[]
+  keep?: string // folder of the copy the quality order would keep
+  episodes?: number[] // the episode numbers present twice
+}
+
+export interface DuplicateCopy extends UpgradeVariant {
+  files: number
+  bytes: number
+}
+
 export interface SuggestionsResponse {
   watchlist: SuggestionItem[]
   recommended: SuggestionItem[]
@@ -318,6 +342,7 @@ export interface SuggestionsResponse {
   upgrades: UpgradeSuggestion[]
   incomplete: SuggestionItem[]
   building: boolean
+  duplicates?: DuplicateItem[]
 }
 
 export interface UpgradeVariant {
@@ -404,6 +429,8 @@ export interface UpgradeDims {
   sub: boolean
   dub: boolean
   soft: boolean
+  /** enabled axes, most important first: decides the recommended copy and the order of the list */
+  order: string[]
 }
 
 export interface DismissedItem {
