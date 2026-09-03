@@ -1093,9 +1093,11 @@ dialog:not([open])::backdrop { opacity: 0; }
   z-index: -1;
 }
 
-/* bubbles: the assistant's carries an accent rail, the user's sits darker */
+/* bubbles: the assistant's lights the panel's own corner brackets in the
+   accent colour (a rail along the left edge collided with them), the
+   user's sits darker */
 .ai-bubble {
-  border-left: 2px solid color-mix(in srgb, var(--accent-blue) 70%, transparent);
+  --panel-bracket: var(--accent-blue);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-blue) 8%, transparent), 0 12px 32px -20px color-mix(in srgb, var(--accent-blue) 45%, transparent);
 }
 .ai-bubble--user {
@@ -1103,9 +1105,9 @@ dialog:not([open])::backdrop { opacity: 0; }
 }
 .ai-turn { animation: t-reveal 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
-/* a proposal is the payoff: brighter rail, a soft accent wash on top */
+/* a proposal is the payoff: bright brackets, a soft accent wash on top */
 .ai-proposal {
-  border-left: 2px solid var(--accent-blue);
+  --panel-bracket: var(--accent-blue);
   background:
     linear-gradient(to bottom, color-mix(in srgb, var(--accent-blue) 9%, transparent), transparent 60%),
     var(--bg-card);
