@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io/fs"
 	"net/http"
-	"os"
 	"path"
 	"path/filepath"
 	"slices"
@@ -204,6 +203,10 @@ func (s *Server) safeLocal(rel string) (string, error) {
 	return transfer.ResolveLocal(s.localRoots(), rel)
 }
 
+func (s *Server) openLocal(rel string) (*transfer.LocalPath, error) {
+	return transfer.OpenLocal(s.localRoots(), rel)
+}
+
 // @Summary  Browse local directory
 // @Description Lists entries in a directory under the download root.
 // @Tags     Browse
@@ -228,12 +231,19 @@ func (s *Server) handleBrowseLocal(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	abs, err := s.safeLocal(rel)
+	local, err := s.openLocal(rel)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	items, err := os.ReadDir(abs)
+	defer local.Close()
+	dir, err := local.Root.Open(local.Name)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "cannot read directory")
+		return
+	}
+	defer dir.Close()
+	items, err := dir.ReadDir(-1)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "cannot read directory")
 		return
@@ -251,7 +261,7 @@ func (s *Server) handleBrowseLocal(w http.ResponseWriter, r *http.Request) {
 		// unambiguous.
 		p := path.Join("/", rel, it.Name())
 		if len(roots) > 1 {
-			p = path.Join(abs, it.Name())
+			p = path.Join(local.Abs, it.Name())
 		}
 		entries = append(entries, remote.Entry{
 			Name:    it.Name(),
@@ -286,12 +296,13 @@ func (s *Server) handleMkdirLocal(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	abs, err := s.safeLocal(in.Path)
+	local, err := s.openLocal(in.Path)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := os.MkdirAll(abs, 0o755); err != nil {
+	defer local.Close()
+	if err := local.Root.MkdirAll(local.Name, 0o755); err != nil {
 		writeErr(w, http.StatusInternalServerError, "mkdir failed")
 		return
 	}
@@ -317,11 +328,17 @@ func (s *Server) listLocal(rel string) ([]remote.Entry, error) {
 		}
 		return out, nil
 	}
-	abs, err := s.safeLocal(rel)
+	local, err := s.openLocal(rel)
 	if err != nil {
 		return nil, err
 	}
-	items, err := os.ReadDir(abs)
+	defer local.Close()
+	dir, err := local.Root.Open(local.Name)
+	if err != nil {
+		return nil, errors.New("cannot read directory")
+	}
+	defer dir.Close()
+	items, err := dir.ReadDir(-1)
 	if err != nil {
 		return nil, errors.New("cannot read directory")
 	}
@@ -329,7 +346,7 @@ func (s *Server) listLocal(rel string) ([]remote.Entry, error) {
 	for _, it := range items {
 		p := path.Join("/", rel, it.Name())
 		if len(roots) > 1 {
-			p = path.Join(abs, it.Name())
+			p = path.Join(local.Abs, it.Name())
 		}
 		out = append(out, remote.Entry{Name: it.Name(), Path: p, IsDir: it.IsDir()})
 	}
@@ -372,28 +389,32 @@ func (s *Server) localStat(abs string) LocalStat {
 	var st LocalStat
 	var newest time.Time
 	seen := 0
-	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil // unreadable entry: skip, a partial count still helps
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if seen++; seen > statWalkLimit {
-			return filepath.SkipAll
-		}
-		st.Files++
-		if transfer.VideoExt[strings.ToLower(path.Ext(d.Name()))] {
-			st.Videos++
-		}
-		if info, ierr := d.Info(); ierr == nil {
-			st.Bytes += info.Size()
-			if info.ModTime().After(newest) {
-				newest = info.ModTime()
+	local, err := s.openLocal(abs)
+	if err == nil {
+		defer local.Close()
+		fs.WalkDir(local.Root.FS(), filepath.ToSlash(local.Name), func(_ string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil // unreadable entry: skip, a partial count still helps
 			}
-		}
-		return nil
-	})
+			if d.IsDir() {
+				return nil
+			}
+			if seen++; seen > statWalkLimit {
+				return fs.SkipAll
+			}
+			st.Files++
+			if transfer.VideoExt[strings.ToLower(path.Ext(d.Name()))] {
+				st.Videos++
+			}
+			if info, ierr := d.Info(); ierr == nil {
+				st.Bytes += info.Size()
+				if info.ModTime().After(newest) {
+					newest = info.ModTime()
+				}
+			}
+			return nil
+		})
+	}
 	if !newest.IsZero() {
 		st.ModTime = newest.Format(time.RFC3339)
 	}
@@ -452,12 +473,13 @@ func (s *Server) handleRenameLocal(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid name")
 		return
 	}
-	abs, err := s.safeLocal(in.Path)
+	local, err := s.openLocal(in.Path)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if s.isLocalRoot(abs) {
+	defer local.Close()
+	if local.Name == "." {
 		writeErr(w, http.StatusBadRequest, "cannot rename a root")
 		return
 	}
@@ -466,17 +488,13 @@ func (s *Server) handleRenameLocal(w http.ResponseWriter, r *http.Request) {
 	// would re-anchor it at the root. Base() plus the containment check below is
 	// redundant with the name check above, but it is the shape static analysis
 	// recognises as a path-traversal barrier.
-	dir := filepath.Dir(abs)
+	dir := filepath.Dir(local.Name)
 	dst := filepath.Join(dir, filepath.Base(name))
-	if !strings.HasPrefix(dst, dir+string(os.PathSeparator)) {
-		writeErr(w, http.StatusBadRequest, "invalid name")
-		return
-	}
-	if _, err := os.Lstat(dst); err == nil {
+	if _, err := local.Root.Lstat(dst); err == nil {
 		writeErr(w, http.StatusConflict, "target exists")
 		return
 	}
-	if err := os.Rename(abs, dst); err != nil {
+	if err := local.Root.Rename(local.Name, dst); err != nil {
 		writeErr(w, http.StatusInternalServerError, "rename failed")
 		return
 	}
@@ -507,21 +525,22 @@ func (s *Server) handleDeleteLocal(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	abs, err := s.safeLocal(in.Path)
+	local, err := s.openLocal(in.Path)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if s.isLocalRoot(abs) {
+	defer local.Close()
+	if local.Name == "." {
 		writeErr(w, http.StatusBadRequest, "cannot delete a root")
 		return
 	}
 	if in.Recursive {
-		err = os.RemoveAll(abs)
+		err = local.Root.RemoveAll(local.Name)
 	} else {
 		// plain Remove fails on a non-empty directory, which is the point:
 		// wiping a folder full of episodes has to be asked for explicitly
-		err = os.Remove(abs)
+		err = local.Root.Remove(local.Name)
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "delete failed")

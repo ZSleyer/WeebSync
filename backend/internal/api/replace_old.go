@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -54,10 +53,11 @@ func (s *Server) DownloadFinished(d *transfer.Download) {
 // file without an episode number is a movie: it replaces the one other video in
 // its folder, and leaves a folder with several alone.
 func (s *Server) replaceOldCopy(d *transfer.Download) {
-	dir, err := s.safeLocal(filepath.Dir(d.LocalPath))
+	local, err := s.openLocal(filepath.Dir(d.LocalPath))
 	if err != nil {
 		return
 	}
+	defer local.Close()
 	newBase := filepath.Base(d.LocalPath)
 	// the new file was named by the sync's template, so a real episode carries
 	// SxxEyy; anything looser (an opening, a preview the template could not
@@ -67,7 +67,12 @@ func (s *Server) replaceOldCopy(d *transfer.Download) {
 		se, _ = strconv.Atoi(m[1])
 		ep, _ = strconv.Atoi(m[2])
 	}
-	entries, err := os.ReadDir(dir)
+	dir, err := local.Root.Open(local.Name)
+	if err != nil {
+		return
+	}
+	defer dir.Close()
+	entries, err := dir.ReadDir(-1)
 	if err != nil {
 		return
 	}
@@ -89,11 +94,11 @@ func (s *Server) replaceOldCopy(d *transfer.Download) {
 	// no episode number: a movie only if the folder is not a season folder and
 	// holds no episodes - an NCOP or preview file lands beside episodes too,
 	// and must not push the one episode there into the trash
-	if ep == 0 && (len(old) != 1 || episodesAround || plexSeasonDirRe.MatchString(filepath.Base(dir))) {
+	if ep == 0 && (len(old) != 1 || episodesAround || plexSeasonDirRe.MatchString(filepath.Base(local.Name))) {
 		return
 	}
 	for _, name := range old {
-		s.trashFile(dir, name, entries)
+		s.trashFile(local, name, entries)
 	}
 }
 
@@ -127,15 +132,15 @@ var extraRe = regexp.MustCompile(`(?i)\bNC(OP|ED)\d*\b|\b(OP|ED|PV)\d+\b|preview
 
 // trashFile moves one video and its sidecars (same stem, non-video extension)
 // into dir/.weebsync-trash and records them for the sweep.
-func (s *Server) trashFile(dir, name string, entries []fs.DirEntry) error {
-	td := filepath.Join(dir, trashDir)
-	if err := os.MkdirAll(td, 0o755); err != nil {
-		slog.Warn("trash folder not created", "dir", logSafe(dir), "err", err)
+func (s *Server) trashFile(local *transfer.LocalPath, name string, entries []fs.DirEntry) error {
+	td := filepath.Join(local.Name, trashDir)
+	if err := local.Root.MkdirAll(td, 0o755); err != nil {
+		slog.Warn("trash folder not created", "dir", logSafe(local.Abs), "err", err)
 		return err
 	}
 	// Plex honours this; the walkers here skip the folder by name
-	if _, err := os.Stat(filepath.Join(td, ".plexignore")); err != nil {
-		os.WriteFile(filepath.Join(td, ".plexignore"), []byte("*\n"), 0o644)
+	if _, err := local.Root.Stat(filepath.Join(td, ".plexignore")); err != nil {
+		local.Root.WriteFile(filepath.Join(td, ".plexignore"), []byte("*\n"), 0o644)
 	}
 	stem := strings.TrimSuffix(name, filepath.Ext(name)) + "."
 	now := time.Now().Unix()
@@ -148,15 +153,16 @@ func (s *Server) trashFile(dir, name string, entries []fs.DirEntry) error {
 			continue
 		}
 		dst := filepath.Join(td, n)
-		if err := os.Rename(filepath.Join(dir, n), dst); err != nil {
+		if err := local.Root.Rename(filepath.Join(local.Name, n), dst); err != nil {
 			slog.Warn("old copy not moved", "file", logSafe(n), "err", err)
 			if n == name {
 				return err
 			}
 			continue
 		}
-		s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at) VALUES (?, ?)`, dst, now)
-		slog.Info("old copy moved to trash", "file", logSafe(n), "dir", logSafe(dir))
+		absDst := filepath.Join(local.Root.Name(), dst)
+		s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at) VALUES (?, ?)`, absDst, now)
+		slog.Info("old copy moved to trash", "file", logSafe(n), "dir", logSafe(local.Abs))
 	}
 	return nil
 }
@@ -165,31 +171,43 @@ func (s *Server) trashFile(dir, name string, entries []fs.DirEntry) error {
 // folder beside it. Used by the duplicates view; the upgrade hook goes through
 // trashFile directly.
 func (s *Server) trashPath(abs string) error {
-	fi, err := os.Stat(abs)
+	local, err := s.openLocal(abs)
 	if err != nil {
 		return err
 	}
-	dir, name := filepath.Split(abs)
+	defer local.Close()
+	fi, err := local.Root.Stat(local.Name)
+	if err != nil {
+		return err
+	}
+	dir, name := filepath.Split(local.Name)
 	dir = filepath.Clean(dir)
 	if !fi.IsDir() {
-		entries, err := os.ReadDir(dir)
+		f, err := local.Root.Open(dir)
 		if err != nil {
 			return err
 		}
-		return s.trashFile(dir, name, entries)
+		defer f.Close()
+		entries, err := f.ReadDir(-1)
+		if err != nil {
+			return err
+		}
+		local.Name, local.Abs = dir, filepath.Dir(local.Abs)
+		return s.trashFile(local, name, entries)
 	}
 	td := filepath.Join(dir, trashDir)
-	if err := os.MkdirAll(td, 0o755); err != nil {
+	if err := local.Root.MkdirAll(td, 0o755); err != nil {
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(td, ".plexignore")); err != nil {
-		os.WriteFile(filepath.Join(td, ".plexignore"), []byte("*\n"), 0o644)
+	if _, err := local.Root.Stat(filepath.Join(td, ".plexignore")); err != nil {
+		local.Root.WriteFile(filepath.Join(td, ".plexignore"), []byte("*\n"), 0o644)
 	}
 	dst := filepath.Join(td, name)
-	if err := os.Rename(abs, dst); err != nil {
+	if err := local.Root.Rename(local.Name, dst); err != nil {
 		return err
 	}
-	s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at) VALUES (?, ?)`, dst, time.Now().Unix())
+	absDst := filepath.Join(local.Root.Name(), dst)
+	s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at) VALUES (?, ?)`, absDst, time.Now().Unix())
 	slog.Info("folder moved to trash", "dir", logSafe(abs))
 	return nil
 }
@@ -212,22 +230,28 @@ func (s *Server) emptyTrash() {
 	}
 	rows.Close()
 	for _, p := range paths {
-		abs, err := s.safeLocal(p)
-		if err != nil || abs != p || filepath.Base(filepath.Dir(p)) != trashDir {
+		local, err := s.openLocal(p)
+		if err != nil || local.Abs != p || filepath.Base(filepath.Dir(p)) != trashDir {
 			s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
 			continue
 		}
 		// a trashed folder goes as a whole; the row names the folder itself
-		if err := os.RemoveAll(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		if err := local.Root.RemoveAll(local.Name); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			slog.Warn("trash not deleted", "file", logSafe(p), "err", err)
+			local.Close()
 			continue
 		}
 		s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
 		slog.Info("trash deleted", "file", logSafe(p))
-		td := filepath.Dir(p)
-		if left, err := os.ReadDir(td); err == nil && len(left) == 1 && left[0].Name() == ".plexignore" {
-			os.Remove(filepath.Join(td, ".plexignore"))
-			os.Remove(td)
+		tdRel := filepath.Dir(local.Name)
+		if dir, err := local.Root.Open(tdRel); err == nil {
+			left, readErr := dir.ReadDir(-1)
+			dir.Close()
+			if readErr == nil && len(left) == 1 && left[0].Name() == ".plexignore" {
+				local.Root.Remove(filepath.Join(tdRel, ".plexignore"))
+				local.Root.Remove(tdRel)
+			}
 		}
+		local.Close()
 	}
 }

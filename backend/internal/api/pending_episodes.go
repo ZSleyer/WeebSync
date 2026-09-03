@@ -158,34 +158,44 @@ func (s *Server) filePendingEpisode(downloadID int64, w Watch, from string, seas
 	if w.Subfolder {
 		root = path.Join(w.LocalPath, path.Base(w.RemotePath))
 	}
-	dst, err := s.safeLocal(path.Join(root, name))
+	src, err := s.openLocal(from)
 	if err != nil {
 		return
 	}
-	if dst == from {
+	defer src.Close()
+	dst, err := s.openLocal(path.Join(root, name))
+	if err != nil {
+		return
+	}
+	defer dst.Close()
+	if src.Root.Name() != dst.Root.Name() {
+		slog.Warn("pending episode crosses configured roots", "from", logSafe(from), "to", logSafe(dst.Abs))
+		return
+	}
+	if dst.Abs == from {
 		s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID)
 		return
 	}
-	if _, err := os.Stat(dst); err == nil {
+	if _, err := dst.Root.Stat(dst.Name); err == nil {
 		// the episode arrived by another route; the collected copy is the
 		// duplicate, so stop tracking it rather than overwrite a good file
-		slog.Info("pending episode already present", "target", logSafe(dst))
+		slog.Info("pending episode already present", "target", logSafe(dst.Abs))
 		s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID)
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		slog.Warn("pending episode mkdir", "dir", logSafe(filepath.Dir(dst)), "err", err)
+	if err := dst.Root.MkdirAll(filepath.Dir(dst.Name), 0o755); err != nil {
+		slog.Warn("pending episode mkdir", "dir", logSafe(filepath.Dir(dst.Abs)), "err", err)
 		return
 	}
-	if err := os.Rename(from, dst); err != nil {
+	if err := src.Root.Rename(src.Name, dst.Name); err != nil {
 		// across a filesystem boundary this fails; the file stays put and the
 		// entry survives, so nothing is lost - it just needs a hand
-		slog.Warn("pending episode move", "from", logSafe(from), "to", logSafe(dst), "err", err)
+		slog.Warn("pending episode move", "from", logSafe(from), "to", logSafe(dst.Abs), "err", err)
 		return
 	}
-	slog.Info("pending episode filed", "from", logSafe(from), "to", logSafe(dst), "season", season, "episode", ep)
+	slog.Info("pending episode filed", "from", logSafe(from), "to", logSafe(dst.Abs), "season", season, "episode", ep)
 	// keep the history pointing at the file that exists
-	s.DB.Exec(`UPDATE downloads SET local_path = ? WHERE id = ?`, dst, downloadID)
+	s.DB.Exec(`UPDATE downloads SET local_path = ? WHERE id = ?`, dst.Abs, downloadID)
 	s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID)
 	// The collecting folder sits inside the watch target, so Plex had already
 	// indexed this file under its old name and the stream pass had already run
@@ -195,5 +205,5 @@ func (s *Server) filePendingEpisode(downloadID int64, w Watch, from string, seas
 	if w.PlexAudioLang != "" || w.PlexSubLang != "" {
 		s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, watch_id) VALUES (?, ?)`, downloadID, w.ID)
 	}
-	s.plexRescan(filepath.Dir(dst))
+	s.plexRescan(filepath.Dir(dst.Abs))
 }

@@ -1324,15 +1324,16 @@ type WriteCheckError struct {
 // unresolvable root or a plain I/O error says nothing the user could act on, and
 // blocking the save on it would trade a clear problem for a mysterious one.
 func (s *Server) rejectUnwritable(w http.ResponseWriter, localPath string) bool {
-	abs, err := s.safeLocal(localPath)
+	local, err := s.openLocal(localPath)
 	if err != nil {
 		return false // already validated by the caller
 	}
-	code, cerr := transfer.CheckWritable(abs)
+	defer local.Close()
+	code, cerr := transfer.CheckWritableAt(local)
 	if code == "" {
 		return false
 	}
-	writeJSON(w, http.StatusBadRequest, WriteCheckError{Error: cerr.Error(), ErrorCode: code, Path: abs})
+	writeJSON(w, http.StatusBadRequest, WriteCheckError{Error: cerr.Error(), ErrorCode: code, Path: local.Abs})
 	return true
 }
 
