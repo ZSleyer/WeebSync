@@ -1184,11 +1184,25 @@ func splitEpKey(k int) (season, episode int) { return k / seasonStride, k % seas
 // (only files >= minEp when minEp > 0). Used for gap detection - files without a
 // parseable episode number are ignored.
 func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
+	counts := s.localEpisodeCounts(rel, minEp)
+	if counts == nil {
+		return nil
+	}
+	nums := make(map[int]bool, len(counts))
+	for k := range counts {
+		nums[k] = true
+	}
+	return nums
+}
+
+// localEpisodeCounts is localEpisodeNums with the number of files per episode,
+// so a folder holding an episode twice under two names can be told apart.
+func (s *Server) localEpisodeCounts(rel string, minEp int) map[int]int {
 	abs, err := s.safeLocal(rel)
 	if err != nil {
 		return nil
 	}
-	nums := map[int]bool{}
+	nums := map[int]int{}
 	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 			return nil
@@ -1200,7 +1214,7 @@ func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
 		se, _ := strconv.Atoi(m[1])
 		ep, _ := strconv.Atoi(m[2])
 		if ep >= minEp && ep <= maxEpisode {
-			nums[epKey(se, ep)] = true // season-encoded so gaps stay per-season
+			nums[epKey(se, ep)]++ // season-encoded so gaps stay per-season
 		}
 		return nil
 	})

@@ -738,7 +738,7 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 			kind = ownedKind[sc]
 		}
 		acc.add(SugItem{
-			RefKey: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
+			RefKey: key, Kind: "season", SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
 			Category: categorize(e.providers, media, "", kind),
 			Title:    title, Cover: e.cover, Media: media,
 			Providers: e.providers, Links: e.links, Candidates: cands,
@@ -746,6 +746,240 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 			Sync:    missingSyncPlan(ownedDir[sc], u.season, u.isMovie),
 		})
 	}
+}
+
+// addMissingEpisodes adds "incomplete" suggestions for seasons the library
+// HOLDS but not completely: a remote copy of the same season has episode
+// numbers the local folder lacks - a hole in the middle, or a tail the sync
+// never caught up on. Only real local folders are read (a "plex:" key has no
+// files to count), only remote folders the crawler has listed count, and a
+// remote copy whose numbers do not fit the local ones (absolute numbering
+// against season numbering) is left out rather than reported as a hundred
+// missing episodes.
+func (s *Server) addMissingEpisodes(acc *sugAcc) {
+	units := s.loadUnits()
+	enrich := s.unitEnrichIndex()
+	n := 0
+	for _, key := range units.order {
+		u := units.byKey[key]
+		if u.isMovie || u.season <= 0 || len(u.locals) == 0 || len(u.remotes) == 0 {
+			continue
+		}
+		local := bestCopy(u.locals)
+		if !strings.HasPrefix(local.Folder, "/") {
+			continue
+		}
+		have := map[int]bool{}
+		localMax := 0
+		for k := range s.localEpisodeNums(local.Folder, 0) {
+			if se, ep := splitEpKey(k); se == u.season {
+				have[ep] = true
+				localMax = max(localMax, ep)
+			}
+		}
+		if len(have) == 0 {
+			continue // no readable numbering: nothing to compare against
+		}
+		missing := map[int]bool{}
+		var cands []plexCandidate
+		remoteMax := 0
+		for _, r := range u.remotes {
+			eps := s.remoteEpisodeNums(r.ServerID, r.Folder)
+			rmax := 0
+			for ep := range eps {
+				rmax = max(rmax, ep)
+			}
+			if len(eps) == 0 || rmax > 3*localMax+5 {
+				continue // unlisted, or numbered on another scale
+			}
+			adds := false
+			for ep := range eps {
+				if !have[ep] {
+					missing[ep] = true
+					adds = true
+				}
+			}
+			if adds {
+				cands = append(cands, plexCandidate{ServerID: r.ServerID, ServerName: r.ServerName, Path: r.Folder})
+				remoteMax = max(remoteMax, rmax)
+			}
+		}
+		if len(missing) == 0 {
+			continue
+		}
+		e := enrich.of(u.showKey, u.season, false)
+		if e.title == "" {
+			continue
+		}
+		nums := make([]int, 0, len(missing))
+		for ep := range missing {
+			nums = append(nums, ep)
+		}
+		slices.Sort(nums)
+		title := unitTitle(e.title, e.exact, cands[0].Path)
+		media := e.media
+		media.Format, media.Genres = e.format, e.genres
+		media.Title.Romaji, media.Title.Preferred = title, title
+		need := remoteMax
+		if e.exact && e.episodes > need {
+			need = e.episodes
+		}
+		kind := e.kind
+		if kind == "" {
+			kind = u.libKind
+		}
+		acc.add(SugItem{
+			RefKey: "eps:" + key, Kind: "episodes", SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season,
+			Category: categorize(e.providers, media, "", kind),
+			Title:    title, Cover: e.cover, Media: media,
+			Providers: e.providers, Links: e.links, Candidates: cands,
+			Have: len(have), Need: need, Missing: nums,
+			Library: s.plexLibraryOf(local.Folder),
+			Sync:    existingSyncPlan(local.Folder, u.season, false),
+		})
+		if n++; n >= 200 {
+			break
+		}
+	}
+}
+
+// remoteEpisodeNums reads the episode numbers a remote folder's video files
+// carry, from the crawler's index. Fractional specials and numbers past 999
+// are left out; an unlisted folder yields nothing.
+func (s *Server) remoteEpisodeNums(serverID int64, folder string) map[int]bool {
+	out := map[int]bool{}
+	rows, err := s.DB.Query(`SELECT name FROM remote_index
+		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR parent LIKE ?||'/%')`,
+		serverID, folder, folder)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if rows.Scan(&name) != nil || !videoExt[strings.ToLower(filepath.Ext(name))] {
+			continue
+		}
+		if ep, err := strconv.Atoi(parseEpisodeToken(name)); err == nil && ep >= 1 && ep <= maxEpisode {
+			out[ep] = true
+		}
+	}
+	return out
+}
+
+// DuplicateItem is content the library holds more than once: the same
+// season/movie in several local folders, or one episode number under two
+// file names in one folder. Shown, never cleaned up here - which copy goes is
+// the user's call, the card only says which one the quality order would keep.
+type DuplicateItem struct {
+	RefKey   string          `json:"refKey"` // dup:{unit} | dupep:{unit}
+	Title    string          `json:"title"`
+	Cover    string          `json:"cover,omitempty"`
+	Category string          `json:"category"`
+	Season   int             `json:"season"`
+	IsMovie  bool            `json:"isMovie,omitempty"`
+	Library  string          `json:"library,omitempty"`
+	Copies   []DuplicateCopy `json:"copies"`
+	Keep     string          `json:"keep,omitempty"`     // folder of the copy bestCopy would keep
+	Episodes []int           `json:"episodes,omitempty"` // dupep: the episode numbers present twice
+}
+
+// DuplicateCopy is one local folder holding the unit, with what it costs.
+type DuplicateCopy struct {
+	UpgradeVariant
+	Files int   `json:"files"`
+	Bytes int64 `json:"bytes"`
+}
+
+// addDuplicates lists the units the library holds twice and the folders that
+// hold an episode twice.
+func (s *Server) addDuplicates() []DuplicateItem {
+	units := s.loadUnits()
+	enrich := s.unitEnrichIndex()
+	out := []DuplicateItem{}
+	for _, key := range units.order {
+		u := units.byKey[key]
+		var locals []UpgradeVariant
+		for _, l := range u.locals {
+			if strings.HasPrefix(l.Folder, "/") {
+				locals = append(locals, l)
+			}
+		}
+		if len(locals) == 0 {
+			continue
+		}
+		var e *unitInfo
+		info := func() unitInfo {
+			if e == nil {
+				v := enrich.of(u.showKey, u.season, u.isMovie)
+				e = &v
+			}
+			return *e
+		}
+		item := func(refKey string) DuplicateItem {
+			ei := info()
+			media := anilist.Media{Format: ei.format, Genres: ei.genres}
+			kind := ei.kind
+			if kind == "" {
+				kind = u.libKind
+			}
+			return DuplicateItem{RefKey: refKey, Title: unitTitle(ei.title, ei.exact, locals[0].Folder), Cover: ei.cover,
+				Category: categorize(ei.providers, media, "", kind), Season: u.season, IsMovie: u.isMovie,
+				Library: s.plexLibraryOf(locals[0].Folder)}
+		}
+		if len(locals) >= 2 {
+			d := item("dup:" + key)
+			d.Keep = bestCopy(locals).Folder
+			for _, l := range locals {
+				files, bytes := s.localCopyStats(l.Folder)
+				d.Copies = append(d.Copies, DuplicateCopy{UpgradeVariant: l, Files: files, Bytes: bytes})
+			}
+			out = append(out, d)
+		}
+		if !u.isMovie {
+			for _, l := range locals {
+				var twice []int
+				for k, n := range s.localEpisodeCounts(l.Folder, 0) {
+					if se, ep := splitEpKey(k); n >= 2 && se == u.season {
+						twice = append(twice, ep)
+					}
+				}
+				if len(twice) == 0 {
+					continue
+				}
+				slices.Sort(twice)
+				d := item("dupep:" + key + ":" + l.Folder)
+				d.Episodes = twice
+				files, bytes := s.localCopyStats(l.Folder)
+				d.Copies = []DuplicateCopy{{UpgradeVariant: l, Files: files, Bytes: bytes}}
+				out = append(out, d)
+			}
+		}
+		if len(out) >= 200 {
+			break
+		}
+	}
+	slices.SortStableFunc(out, func(a, b DuplicateItem) int { return strings.Compare(a.Title, b.Title) })
+	return out
+}
+
+// localCopyStats counts a local folder's video files and their bytes.
+func (s *Server) localCopyStats(folder string) (files int, bytes int64) {
+	abs, err := s.safeLocal(folder)
+	if err != nil {
+		return 0, 0
+	}
+	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
+			return nil
+		}
+		if fi, ferr := d.Info(); ferr == nil {
+			files++
+			bytes += fi.Size()
+		}
+		return nil
+	})
+	return files, bytes
 }
 
 // catUnit is one canonical unit (a show's season, or a movie) with all its
