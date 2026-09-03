@@ -26,6 +26,7 @@ import {
   Tv,
   X,
   type LucideIcon,
+  Trash2,
 } from 'lucide-react'
 
 // icon per AniList watch status, shown inside the t-label chips
@@ -39,6 +40,7 @@ const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
 }
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useConfirm } from '../components/confirm'
 import { useNavigate } from 'react-router'
 import {
   Badge,
@@ -72,7 +74,7 @@ import { ProviderBadges } from '../components/ProviderBadges'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../components/upgradeQuality'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
-import { usePersistedQuery } from '../hooks'
+import { usePersistedQuery, useAuth } from '../hooks'
 import { SkeletonCards } from '../components/Loading'
 
 // Suggestions, tabbed by FUNCTION (not by provider): Trending, Watchlist,
@@ -690,6 +692,9 @@ function UpgradesSection() {
 function DuplicatesSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const confirm = useConfirm()
+  const { data: user } = useAuth()
+  const [notice, setNotice] = useState('')
   const { data, isLoading } = usePersistedQuery<SuggestionsResponse>(
     'suggestions',
     () => api.get('/api/suggestions'),
@@ -700,6 +705,27 @@ function DuplicatesSection() {
     qc.invalidateQueries({ queryKey: ['suggestions'] })
     qc.invalidateQueries({ queryKey: ['dismissed'] })
   }
+  // one copy (a folder, or one file of a doubled episode) goes to the trash
+  // folder beside it; the server rebuilds the suggestions afterwards
+  const trash = async (path: string) => {
+    const name = path.split('/').filter(Boolean).pop() ?? path
+    const ok = await confirm({ message: t('suggestions.dupTrashConfirm', { name }), confirmLabel: t('suggestions.dupTrash'), destructive: true })
+    if (!ok) return
+    try {
+      await api.post('/api/suggestions/duplicates/trash', { path })
+      setNotice(t('suggestions.dupTrashed', { name }))
+      qc.invalidateQueries({ queryKey: ['suggestions'] })
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : String(e))
+    }
+  }
+  const trashButton = (path: string) =>
+    user?.isAdmin ? (
+      <Button size="sm" onClick={() => trash(path)}>
+        <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+        {t('suggestions.dupTrash')}
+      </Button>
+    ) : null
   if (isLoading) return <SkeletonCards />
   const items = data?.duplicates ?? []
   if (!items.length) return <Badge multiline>{t('suggestions.noDuplicates')}</Badge>
@@ -733,9 +759,29 @@ function DuplicatesSection() {
                 <div className="mt-1 break-all font-mono text-t-secondary" title={c.folder}>
                   {c.folder}
                 </div>
+                {d.copies.length > 1 && c.folder !== d.keep && <div className="mt-1.5 flex justify-end">{trashButton(c.folder)}</div>}
               </li>
             ))}
           </ul>
+          {d.twice?.length ? (
+            <ul className="mt-2 space-y-1">
+              {d.twice.map((e) => (
+                <li key={e.episode} className="border border-border-subtle p-2 text-xs">
+                  <Badge tone="warn">{t('suggestions.dupEpisode', { n: e.episode })}</Badge>
+                  <ul className="mt-1 space-y-1">
+                    {e.files.map((f) => (
+                      <li key={f.path} className="flex flex-wrap items-center justify-between gap-1.5">
+                        <span className="min-w-0 break-all font-mono text-t-secondary" title={f.path}>
+                          {f.path.split('/').pop()} <span className="text-t-muted">· {fmtBytes(f.bytes)}</span>
+                        </span>
+                        {trashButton(f.path)}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <div className="mt-2 flex flex-wrap justify-end gap-1.5">
             <Button size="sm" onClick={() => dismiss(d)}>
               <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -748,6 +794,12 @@ function DuplicatesSection() {
   }
   return (
     <div className="space-y-4">
+      {notice && (
+        <Badge tone="accent" multiline role="status">
+          {notice}
+        </Badge>
+      )}
+      {user?.isAdmin && <p className="text-xs text-t-muted">{t('suggestions.dupTrashHint')}</p>}
       {CATS.map((cat) => {
         const list = items.filter((d) => d.category === cat)
         if (!list.length) return null

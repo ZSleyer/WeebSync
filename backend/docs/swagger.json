@@ -468,6 +468,32 @@
                 },
                 "type": "object"
             },
+            "api.DuplicateEpisode": {
+                "properties": {
+                    "episode": {
+                        "type": "integer"
+                    },
+                    "files": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.DuplicateFile"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.DuplicateFile": {
+                "properties": {
+                    "bytes": {
+                        "type": "integer"
+                    },
+                    "path": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.DuplicateItem": {
                 "properties": {
                     "category": {
@@ -509,6 +535,23 @@
                         "type": "integer"
                     },
                     "title": {
+                        "type": "string"
+                    },
+                    "twice": {
+                        "description": "Twice: dupep only, the files behind each doubled episode, so one of\nthem can be sent to the trash from the card.",
+                        "items": {
+                            "$ref": "#/components/schemas/api.DuplicateEpisode"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.DuplicateTrashRequest": {
+                "properties": {
+                    "path": {
+                        "description": "local folder or file from a duplicate card",
                         "type": "string"
                     }
                 },
@@ -10995,6 +11038,92 @@
                     }
                 ],
                 "summary": "List ignored suggestions",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/suggestions/duplicates/trash": {
+            "post": {
+                "description": "Moves a local folder or file from the duplicates view into a .weebsync-trash folder next to it; the sweep deletes it after 14 days. Admin only.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.DuplicateTrashRequest",
+                                        "summary": "body",
+                                        "description": "Local path"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Local path",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Trash a duplicate copy",
                 "tags": [
                     "Suggestions"
                 ]

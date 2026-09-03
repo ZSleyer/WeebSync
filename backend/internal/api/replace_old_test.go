@@ -134,3 +134,65 @@ func TestEmptyTrashStaysInsideTrash(t *testing.T) {
 		t.Error("the bogus row should be dropped")
 	}
 }
+
+func TestDuplicateTrashEndpoint(t *testing.T) {
+	mux, s, c := setupAiTest(t, nil)
+	root := s.DownloadRoot
+	dir := filepath.Join(root, "Show", "Season 01")
+	writeFiles(t, dir, map[string]int64{"Show - S01E01.mkv": 10, "Show - S01E01 [v2].mkv": 12, "Show - S01E01 [v2].srt": 1, "Show - S01E02.mkv": 10})
+	other := filepath.Join(root, "Show", "Season 01 (old)")
+	writeFiles(t, other, map[string]int64{"Show - S01E01.mkv": 5})
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season) VALUES (0, ?, 'tvdb:1', 1)`, other)
+
+	// the doubled episode is reported with both files
+	files := s.localEpisodeFiles(dir)
+	if got := files[epKey(1, 1)]; len(got) != 2 {
+		t.Fatalf("episode files: %+v", got)
+	}
+
+	// one file of the doubled episode, with its sidecar
+	rec := doReq(mux, "POST", "/api/suggestions/duplicates/trash", `{"path":"`+filepath.Join(dir, "Show - S01E01 [v2].mkv")+`"}`, c)
+	if rec.Code != 200 {
+		t.Fatalf("file: %d %s", rec.Code, rec.Body)
+	}
+	left := names(t, dir)
+	if left["Show - S01E01 [v2].mkv"] || left["Show - S01E01 [v2].srt"] || !left["Show - S01E01.mkv"] || !left["Show - S01E02.mkv"] {
+		t.Errorf("after trashing one file: %v", left)
+	}
+
+	// a whole folder copy, and its index row goes with it
+	rec = doReq(mux, "POST", "/api/suggestions/duplicates/trash", `{"path":"`+other+`"}`, c)
+	if rec.Code != 200 {
+		t.Fatalf("folder: %d %s", rec.Code, rec.Body)
+	}
+	if _, err := os.Stat(other); !os.IsNotExist(err) {
+		t.Error("folder should be gone from its place")
+	}
+	if _, err := os.Stat(filepath.Join(root, "Show", trashDir, "Season 01 (old)", "Show - S01E01.mkv")); err != nil {
+		t.Error("folder should be in the trash with its file")
+	}
+	var rows int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_variants WHERE folder = ?`, other).Scan(&rows)
+	if rows != 0 {
+		t.Error("index row should be dropped")
+	}
+
+	// a root is refused; a path outside the roots resolves under the root
+	// (legacy relative form) and finds nothing there
+	if rec = doReq(mux, "POST", "/api/suggestions/duplicates/trash", `{"path":"`+root+`"}`, c); rec.Code != 400 {
+		t.Errorf("root: %d", rec.Code)
+	}
+	if rec = doReq(mux, "POST", "/api/suggestions/duplicates/trash", `{"path":"/etc/passwd"}`, c); rec.Code == 200 {
+		t.Error("a path outside the roots must not be moved")
+	}
+	if _, err := os.Stat("/etc/passwd"); err != nil {
+		t.Fatal("touched /etc/passwd")
+	}
+
+	// the sweep removes the folder as a whole
+	s.DB.Exec(`UPDATE trash_files SET trashed_at = 0`)
+	s.emptyTrash()
+	if _, err := os.Stat(filepath.Join(root, "Show", trashDir)); !os.IsNotExist(err) {
+		t.Error("trash folder should be gone after the sweep")
+	}
+}
