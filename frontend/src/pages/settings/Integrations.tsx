@@ -58,6 +58,49 @@ export default function Integrations() {
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4">
+          <Badge>{t('settings.ai')}</Badge>
+          <label className="text-xs text-t-muted">
+            {t('settings.aiBaseUrl')}
+            <EnvBadge show={locked('aiBaseUrl')} />
+            <Input
+              className="mt-1 font-mono"
+              placeholder="http://litellm.example.com:4000/v1"
+              value={form.aiBaseUrl}
+              disabled={locked('aiBaseUrl')}
+              onChange={(e) => set('aiBaseUrl', e.target.value)}
+            />
+            <span className="mt-1 block">{t('settings.aiBaseUrlHint')}</span>
+          </label>
+          <label className="text-xs text-t-muted">
+            {t('settings.aiApiKey')}
+            <EnvBadge show={locked('aiApiKey')} />
+            <Input
+              className="mt-1 font-mono"
+              type="password"
+              autoComplete="off"
+              placeholder={form.aiApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
+              value={form.aiApiKey ?? ''}
+              disabled={locked('aiApiKey')}
+              onChange={(e) => set('aiApiKey', e.target.value)}
+            />
+            <span className="mt-1 block">{t('settings.aiApiKeyHint')}</span>
+          </label>
+          <label className="text-xs text-t-muted">
+            {t('settings.aiModel')}
+            <EnvBadge show={locked('aiModel')} />
+            <Input
+              className="mt-1 font-mono"
+              placeholder="gpt-4o-mini"
+              value={form.aiModel}
+              disabled={locked('aiModel')}
+              onChange={(e) => set('aiModel', e.target.value)}
+            />
+            <span className="mt-1 block">{t('settings.aiModelHint')}</span>
+          </label>
+          <AiAccount />
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-4">
           <Badge>{t('settings.plex')}</Badge>
           <label className="text-xs text-t-muted">
             {t('settings.plexUrl')}
@@ -525,6 +568,45 @@ function TvdbAccount() {
       {data.configured && (
         <Button size="sm" disabled={testing} onClick={test}>
           {t('settings.tvdbTest')}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+// Connection state of the assistant endpoint; the test button lists the
+// endpoint's models, which exercises URL and key without spending tokens.
+function AiAccount() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [testing, setTesting] = useState(false)
+  const { data } = useQuery<{ configured: boolean; connected?: boolean; error?: string }>({
+    queryKey: ['ai-status'],
+    queryFn: () => api.get('/api/ai/status'),
+  })
+  const test = async () => {
+    setTesting(true)
+    try {
+      await qc.fetchQuery({ queryKey: ['ai-status'], queryFn: () => api.get('/api/ai/status?force=1'), staleTime: 0 })
+    } finally {
+      setTesting(false)
+    }
+  }
+  if (!data) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+      {data.connected ? (
+        <Badge tone="ok">{t('settings.aiConnected')}</Badge>
+      ) : data.error ? (
+        <span className="text-err" role="alert">
+          {data.error}
+        </span>
+      ) : !data.configured ? (
+        <span>{t('settings.aiNotConfigured')}</span>
+      ) : null}
+      {data.configured && (
+        <Button size="sm" disabled={testing} onClick={test}>
+          {t('settings.aiTest')}
         </Button>
       )}
     </div>

@@ -23,6 +23,10 @@ export interface SettingsState {
   tmdbApiKey?: string
   tvdbApiKeySet: boolean
   tvdbApiKey?: string
+  aiBaseUrl: string
+  aiModel: string
+  aiApiKeySet: boolean
+  aiApiKey?: string
   plexUrl: string
   plexTokenSet: boolean
   plexToken?: string
@@ -62,6 +66,7 @@ const BLANK_SECRETS = {
   anilistClientSecret: '',
   tmdbApiKey: '',
   tvdbApiKey: '',
+  aiApiKey: '',
   plexToken: '',
   oidcClientSecret: '',
   smtpPassword: '',

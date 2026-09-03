@@ -15,6 +15,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/netguard"
 	"github.com/ch4d1/weebsync/internal/secret"
 )
 
@@ -66,6 +67,9 @@ var envSettings = []struct{ key, env, field string }{
 	{"anilist_client_secret", "ANILIST_CLIENT_SECRET", "anilistClientSecret"},
 	{"tmdb_api_key", "TMDB_API_KEY", "tmdbApiKey"},
 	{"tvdb_api_key", "TVDB_API_KEY", "tvdbApiKey"},
+	{"ai_base_url", "AI_BASE_URL", "aiBaseUrl"},
+	{"ai_api_key", "AI_API_KEY", "aiApiKey"},
+	{"ai_model", "AI_MODEL", "aiModel"},
 	{"plex_url", "PLEX_URL", "plexUrl"},
 	{"plex_token", "PLEX_TOKEN", "plexToken"},
 	{"oidc_provider_name", "OIDC_PROVIDER_NAME", "oidcProviderName"},
@@ -133,6 +137,10 @@ type settingsPayload struct {
 	TmdbApiKey           string         `json:"tmdbApiKey,omitempty"` // write-only
 	TvdbApiKeySet        bool           `json:"tvdbApiKeySet"`
 	TvdbApiKey           string         `json:"tvdbApiKey,omitempty"` // write-only, resolves aired-order season boundaries
+	AiBaseURL            string         `json:"aiBaseUrl"`            // OpenAI-compatible endpoint (LiteLLM, OpenRouter, Ollama /v1); empty = assistant off
+	AiModel              string         `json:"aiModel"`
+	AiApiKeySet          bool           `json:"aiApiKeySet"`
+	AiApiKey             string         `json:"aiApiKey,omitempty"` // write-only, optional (local servers need none)
 	PlexURL              string         `json:"plexUrl"`
 	PlexTokenSet         bool           `json:"plexTokenSet"`
 	PlexToken            string         `json:"plexToken,omitempty"` // write-only
@@ -190,6 +198,9 @@ func (s *Server) settingsState() settingsPayload {
 		AnilistRedirectURL:   db.Setting(s.DB, "anilist_redirect_url"),
 		TmdbApiKeySet:        db.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
 		TvdbApiKeySet:        db.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
+		AiBaseURL:            db.SettingOrEnv(s.DB, "ai_base_url", "AI_BASE_URL"),
+		AiModel:              db.SettingOrEnv(s.DB, "ai_model", "AI_MODEL"),
+		AiApiKeySet:          db.SettingOrEnv(s.DB, "ai_api_key", "AI_API_KEY") != "",
 		PlexURL:              db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
 		PlexTokenSet:         db.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
 		PlexSections:         db.Setting(s.DB, "plex_sections"),
@@ -353,6 +364,22 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	setSetting(s.DB, "base_url", baseURL)
+	// assistant endpoint: empty or an absolute http(s) URL that resolves to a
+	// dialable host (the guard refuses metadata/link-local; LAN is fine)
+	aiURL := strings.TrimRight(strings.TrimSpace(in.AiBaseURL), "/")
+	if aiURL != "" {
+		u, err := url.Parse(aiURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			writeErr(w, http.StatusBadRequest, "aiBaseUrl must be an absolute http(s) URL")
+			return
+		}
+		if err := netguard.Allowed(u.Hostname()); err != nil {
+			writeErr(w, http.StatusBadRequest, "aiBaseUrl: "+err.Error())
+			return
+		}
+	}
+	setSetting(s.DB, "ai_base_url", aiURL)
+	setSetting(s.DB, "ai_model", strings.TrimSpace(in.AiModel))
 	setSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
 	setSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
 	setSetting(s.DB, "watch_interval_min", strconv.FormatInt(in.WatchIntervalMin, 10))
@@ -422,6 +449,11 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		setSetting(s.DB, "tvdb_api_key", "")
 	} else if v != "" {
 		setSetting(s.DB, "tvdb_api_key", v)
+	}
+	if v := strings.TrimSpace(in.AiApiKey); v == "-" {
+		setSetting(s.DB, "ai_api_key", "")
+	} else if v != "" {
+		setSetting(s.DB, "ai_api_key", v)
 	}
 	if v := strings.TrimSpace(in.PlexToken); v == "-" {
 		setSetting(s.DB, "plex_token", "")
