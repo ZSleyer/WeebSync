@@ -1,15 +1,22 @@
-.git
-data
-docs
-graphify-out
-tools
-frontend/node_modules
-frontend/dist
-# the design system is a source dependency of the frontend build; only its
-# own build output and symlinked deps stay out
-design-system/node_modules
-design-system/dist
+**
+!Dockerfile
+!backend/
+!backend/**
+!frontend/
+!frontend/**
+!design-system/
+!design-system/**
+
+backend/data/
+frontend/node_modules/
+frontend/dist/
+design-system/node_modules/
+design-system/dist/
+**/.env
+**/.env.*
+**/*.db
+**/*.db-*
+**/*.key
 **/*.md
 AGENTS.md
 CLAUDE.md
-.env

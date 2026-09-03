@@ -31,6 +31,8 @@ jobs:
           working-directory: backend
       - name: test
         run: go test -race ./...
+      - name: reachable vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
       - name: openapi spec in sync
         run: |
           ./gen-docs.sh
@@ -60,8 +62,28 @@ jobs:
         run: yarn lint
       - name: test (vitest)
         run: yarn test
+      - name: production dependency audit
+        run: yarn audit --groups dependencies
       - name: build (tsc + vite)
         run: yarn build
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: secret scan
+        run: >-
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854
+          detect --source=/repo --no-banner --redact --log-opts=--all
+      - name: build image
+        run: docker build --pull -t weebsync-ci .
+      - name: image vulnerability scan
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy:0.67.2@sha256:e2b22eac59c02003d8749f5b8d9bd073b62e30fefaef5b7c8371204e0a4b0c08
+          image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 weebsync-ci
 
   # dev image: every green main build lands on ghcr as :dev, and the HA add-on
   # follows that tag. The nightly channel stays alongside for anyone who wants
@@ -69,7 +91,7 @@ jobs:
   # worked on. The nightly cleanup excludes :dev by name - see nightly.yml.
   dev-image:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, frontend]
+    needs: [backend, frontend, security]
     runs-on: ubuntu-latest
     permissions:
       contents: read
