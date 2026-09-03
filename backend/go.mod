@@ -10,7 +10,7 @@ require (
 	github.com/nssteinbrenner/anitogo v1.0.0
 	github.com/pkg/sftp v1.13.11
 	github.com/pquerna/otp v1.5.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/text v0.41.0
 	golang.org/x/time v0.15.0

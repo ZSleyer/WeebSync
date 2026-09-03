@@ -40,7 +40,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # those tokens. ca-certificates for provider HTTPS; nonroot uid matches the
 # distroless one we used before.
 FROM alpine:3.24
-RUN apk add --no-cache ffmpeg ca-certificates \
+RUN apk upgrade --no-cache \
+    && apk add --no-cache ffmpeg ca-certificates \
     && adduser -D -H -u 65532 nonroot
 COPY --from=build /weebsync /weebsync
 # pre-owned data dir so the nonroot user can write the volume
