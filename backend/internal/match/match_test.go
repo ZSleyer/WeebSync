@@ -140,9 +140,10 @@ func TestPickNotConfident(t *testing.T) {
 	if _, ok := Pick(Info{Title: "Show", Full: "Show"}, nil); ok {
 		t.Error("Pick with empty list confident, want not confident")
 	}
-	// season-less folders keep today's behavior: any result is accepted
-	if _, ok := pick(t, "Kingdom [GerSub]", fruitsBasket); !ok {
-		t.Error("Pick(Kingdom, fruits basket results) not confident, want confident (backward compat)")
+	// a season-less folder no longer takes whatever the search returned:
+	// nothing about "Kingdom" agrees with Fruits Basket
+	if _, ok := pick(t, "Kingdom [GerSub]", fruitsBasket); ok {
+		t.Error("Pick(Kingdom, fruits basket results) confident, want not confident")
 	}
 }
 
@@ -222,5 +223,31 @@ func TestStripMarkers(t *testing.T) {
 		if got := StripMarkers(in); got != want {
 			t.Errorf("StripMarkers(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestPickRejectsAnotherEraAndStrangers(t *testing.T) {
+	conan := anilist.Media{ID: 779, SeasonYear: 1996, Format: "TV"}
+	conan.Title.Romaji, conan.Title.English = "Meitantei Conan", "Case Closed"
+	if _, ok := pick(t, "Skyscraper (2018)", []anilist.Media{conan}); ok {
+		t.Error("a film from another era must not match a series")
+	}
+	// underscores are spaces: the Plex folder shares its words with the entry
+	loop := anilist.Media{ID: 168374, SeasonYear: 2024, Format: "TV"}
+	loop.Title.Romaji, loop.Title.English = "Loop 7-kaime no Akuyaku Reijou wa, Moto Tekikoku de Jiyuu Kimama na Hanayome Seikatsu wo Mankitsu suru", "7th Time Loop: The Villainess Enjoys a Carefree Life Married to Her Worst Enemy!"
+	if _, ok := pick(t, "7th_Time_Loop", []anilist.Media{loop}); !ok {
+		t.Error("a Plex folder with underscores should still match its entry")
+	}
+	frieren := anilist.Media{ID: 154587, SeasonYear: 2023, Format: "TV"}
+	frieren.Title.Romaji, frieren.Title.English = "Sousou no Frieren", "Frieren: Beyond Journey's End"
+	if got, ok := pick(t, "Frieren [GerSub]", []anilist.Media{conan, frieren}); !ok || got.ID != 154587 {
+		t.Errorf("a folder naming the show with fewer words should still match: %d %v", got.ID, ok)
+	}
+	old := anilist.Media{ID: 1, SeasonYear: 1999, Format: "TV"}
+	old.Title.Romaji = "Hunter x Hunter"
+	remake := anilist.Media{ID: 2, SeasonYear: 2011, Format: "TV"}
+	remake.Title.Romaji = "Hunter x Hunter (2011)"
+	if got, ok := pick(t, "Hunter x Hunter (2011)", []anilist.Media{old, remake}); !ok || got.ID != 2 {
+		t.Errorf("the year picks the remake: %d %v", got.ID, ok)
 	}
 }

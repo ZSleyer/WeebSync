@@ -37,6 +37,9 @@ var (
 // tags and the alternative title in parens ruin the search, so both are
 // stripped afterwards.
 func GuessTitle(name string) string {
+	// Plex libraries spell spaces as underscores; as one token the title
+	// shares nothing with the entry ("7th_Time_Loop")
+	name = strings.ReplaceAll(name, "_", " ")
 	parsed := anitogo.Parse(name, anitogo.DefaultOptions)
 	t := parsed.AnimeTitle
 	if t == "" {
@@ -102,6 +105,7 @@ func seasonMarker(s string) int {
 // guessed titles. Bare trailing digits are deliberately NOT read as a season
 // ("Yami Shibai 10" is a title - exact-title scoring handles those).
 func ParseName(name, title, alt string) Info {
+	name = strings.ReplaceAll(name, "_", " ")
 	info := Info{Title: title, Alt: alt}
 	full := bracketRe.ReplaceAllString(name, " ")
 	full = parenRe.ReplaceAllString(full, " ")
@@ -303,6 +307,12 @@ func Pick(info Info, list []anilist.Media) (int, bool) {
 	}
 	best, bestScore := 0, -1<<30
 	for i, m := range list {
+		// a folder that names its year ("Skyscraper (2018)", "One Piece (2022)")
+		// is not the entry that aired decades away, however well the title
+		// fits: that is how a live-action film got filed under an anime
+		if info.Year != 0 && m.SeasonYear != 0 && abs(m.SeasonYear-info.Year) > 2 {
+			continue
+		}
 		cands := []string{
 			FoldKey(m.Title.Romaji),
 			FoldKey(m.Title.English),
@@ -336,6 +346,17 @@ func Pick(info Info, list []anilist.Media) (int, bool) {
 			}
 		}
 		score += int(bestDice * 50)
+		// the folder names the entry with fewer words ("Frieren" for "Sousou
+		// no Frieren"): whole-token containment of the folder name in the
+		// title, with the folder side substantial enough that a stray word
+		// cannot claim it. Only that direction: a folder with MORE words
+		// ("Haikyu OVA") must not hand the base entry a bonus over the OVA.
+		for _, n := range names {
+			if n != "" && (contains(n, cands[0]) || contains(n, cands[1])) {
+				score += 25
+				break
+			}
+		}
 		// a strictly equal title overrides a season contradiction: the
 		// folder "K-On!!" IS the entry titled "K-ON!!"/"K-ON! Season 2"
 		if ss := seasonScore(info, SeasonOf(m)); ss > 0 || !strict {
@@ -364,10 +385,31 @@ func Pick(info Info, list []anilist.Media) (int, bool) {
 			best, bestScore = i, score
 		}
 	}
-	if bestScore < 35 && (info.Season >= 2 || info.Movie) {
+	if bestScore == -1<<30 {
+		return 0, false // every candidate aired in another era
+	}
+	// below this nothing about the titles agrees: no shared token at all, or
+	// one among many. Before, a first season took whatever the search
+	// returned and "Skyscraper" became Detective Conan. The bar stays low
+	// because folders are often named in German ("Detektiv Conan") while the
+	// entry carries romaji and English, and one shared word is all they have.
+	if bestScore < 20 {
 		return best, false
 	}
 	return best, true
+}
+
+// contains reports whether the folder's fold key is a whole-token run inside
+// the title's, the folder side carrying at least two words or six letters -
+// "assassins" claiming "assassins pride" is what the year check is for.
+func contains(folder, title string) bool {
+	if folder == "" || title == "" || folder == title || len(folder) >= len(title) {
+		return false
+	}
+	if !strings.Contains(" "+title+" ", " "+folder+" ") {
+		return false
+	}
+	return strings.Contains(folder, " ") || len(folder) >= 6
 }
 
 // squash removes spaces for the space-blind exact comparison.

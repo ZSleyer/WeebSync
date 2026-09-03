@@ -38,6 +38,18 @@ func (s *Server) queueTvdbMatch(serverID int64, folder, name string, force bool)
 		if len(list) > 0 {
 			mediaID = list[0].ID
 		}
+		// a folder that names its year gets the entry of that era, not the
+		// best-named one ("Avatar The Last Airbender (2023)" is the remake,
+		// not the 2005 series); nothing of that era means no match
+		if y, _ := strconv.Atoi(yearRe.FindString(name)); y != 0 {
+			mediaID = 0
+			for _, m := range list {
+				if m.SeasonYear == 0 || absInt(m.SeasonYear-y) <= 2 {
+					mediaID = m.ID
+					break
+				}
+			}
+		}
 		if mediaID != 0 {
 			s.Tvdb.Media(ctx, mediaID) // full details into the cache first
 		}
