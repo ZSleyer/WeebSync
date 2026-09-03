@@ -213,3 +213,22 @@ func TestWatchNameFn(t *testing.T) {
 		t.Error("empty template must return nil (identity)")
 	}
 }
+
+func TestEnsureWatchMatchQueuesOnlyUnmatchedFolders(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	s := &Server{DB: d, Anilist: anilist.New(d)}
+	if !s.ensureWatchMatch(1, "/x/Show") {
+		t.Fatal("an unmatched folder should be queued")
+	}
+	d.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id) VALUES (1, '/x/Show', 'anilist', 5)`)
+	if s.ensureWatchMatch(1, "/x/Show") {
+		t.Fatal("a matched folder must not be queued again")
+	}
+}
