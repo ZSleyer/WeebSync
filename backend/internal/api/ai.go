@@ -309,6 +309,9 @@ type aiWatchFields struct {
 	WantSub         string `json:"wantSub"`
 	PlexAudioLang   string `json:"plexAudioLang"`
 	PlexSubLang     string `json:"plexSubLang"`
+	// ReplaceOld is set on upgrades only: the dialog offers to trash the copy
+	// the sync improves on (see replaceOldCopy).
+	ReplaceOld bool `json:"replaceOld,omitempty"`
 }
 
 const (
@@ -1123,6 +1126,7 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind string, serve
 		}
 		p.Title, p.Info, p.Unverified = up.Title, info, unverified
 		p.Fields.LocalPath, p.Fields.Template, p.Fields.Subfolder = up.Sync.LocalPath, up.Sync.Template, up.Sync.Subfolder
+		p.Fields.ReplaceOld = up.Sync.Replace
 		p.Fields.TitleOverride = up.Title
 		return p, ""
 	case "sync":

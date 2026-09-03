@@ -86,6 +86,8 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// file the episodes that were collected because the provider did
 			// not know their number yet, once it does
 			s.processPendingEpisodes(ctx)
+			// delete what upgrade syncs moved aside once its grace period is over
+			s.emptyTrash()
 			// pull every provider's title translations for new/stale series
 			// (budgeted; new bundles have an empty stamp and are picked up first)
 			s.refreshSeriesTitles(ctx, titlesBudget)

@@ -48,9 +48,12 @@ type Download struct {
 	// seconds) says when the next attempt may start. A row waiting for its
 	// next attempt stays queued and keeps Error/ErrorCode, so the UI can say
 	// what went wrong and how long the wait is.
-	Attempts  int    `json:"attempts,omitempty"`
-	RetryAt   int64  `json:"retryAt,omitempty"`
-	CreatedAt string `json:"createdAt"`
+	Attempts int   `json:"attempts,omitempty"`
+	RetryAt  int64 `json:"retryAt,omitempty"`
+	// ReplaceOld: once this file is in place, the older copy of the same
+	// episode next to it is moved out of the way (an upgrade sync).
+	ReplaceOld bool   `json:"replaceOld,omitempty"`
+	CreatedAt  string `json:"createdAt"`
 }
 
 type running struct {
@@ -443,6 +446,8 @@ func looksUploading(size int64, siblings []int64) bool {
 // filtered counts video files present on the remote but skipped by langFilter
 // whose local target does not yet exist - i.e. episodes waiting to appear in
 // the wanted dub/sub language.
+// replaceOld marks every queued row so that, once its file is in place, the
+// older copy of the same episode beside it is moved out of the way.
 // EnqueueResult says what became of the files a sync looked at. The counters
 // are the difference between "nothing to do" and "something went wrong", which
 // a bare list of queued ids cannot express: a caller that only reports len(IDs)
@@ -454,7 +459,7 @@ type EnqueueResult struct {
 	Skipped   int // already present at the target, same size
 }
 
-func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat bool) (res EnqueueResult, err error) {
+func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat, replaceOld bool) (res EnqueueResult, err error) {
 	if nameFn == nil {
 		nameFn = func(s string) string { return s }
 	}
@@ -591,8 +596,8 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		if m.blocked(userID, serverID, j.remote, filepath.Dir(local), probed) {
 			continue
 		}
-		ins, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size)
-			VALUES (?, ?, ?, ?, ?)`, userID, serverID, j.remote, local, j.size)
+		ins, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, replace_old)
+			VALUES (?, ?, ?, ?, ?, ?)`, userID, serverID, j.remote, local, j.size, replaceOld)
 		if ierr == nil {
 			if id, lerr := ins.LastInsertId(); lerr == nil {
 				res.IDs = append(res.IDs, id)
@@ -737,9 +742,9 @@ func (m *Manager) RunningRates() map[int64]int64 {
 
 func (m *Manager) get(id int64) (*Download, error) {
 	var d Download
-	err := m.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, created_at
+	err := m.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, replace_old, created_at
 		FROM downloads WHERE id = ?`, id).
-		Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size, &d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.CreatedAt)
+		Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size, &d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.CreatedAt)
 	if err != nil {
 		return nil, ErrNotFound
 	}

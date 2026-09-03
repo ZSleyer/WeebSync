@@ -34,6 +34,7 @@ export function syncFields(sync: SyncPlan, title: string, remotePath: string): W
     wantSub: '',
     plexAudioLang: '',
     plexSubLang: '',
+    replaceOld: sync.replace ?? false,
   }
 }
 

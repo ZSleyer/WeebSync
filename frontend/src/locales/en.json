@@ -399,6 +399,8 @@
     "plexDetected": "Detected from Plex: {{ordering}} · {{lang}}",
     "sectionRename": "Rename",
     "renameToggle": "Rename files",
+    "replaceOld": "Replace the old copy",
+    "replaceOldHint": "Once a new file is in place, the older file of the same episode next to it (and its subtitles) is moved into a hidden .weebsync-trash folder there. The trash is emptied after 14 days.",
     "waitingFor": "waiting for episode {{n}}",
     "nextEp": "Next: episode {{n}}",
     "view": "View",

@@ -291,7 +291,13 @@ func (s *Server) copySizes(serverID int64, folder string) map[int64]bool {
 			return out // a "plex:..." key, or a path outside the allowed roots
 		}
 		filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				return skipTrash(d)
+			}
+			if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 				return nil
 			}
 			if fi, ferr := d.Info(); ferr == nil && fi.Size() > 0 {
@@ -446,6 +452,9 @@ type SyncPlan struct {
 	LocalPath string `json:"localPath"`          // base dir to sync into
 	Template  string `json:"template,omitempty"` // rename template (may carry a "Season NN/" or "{title}/" subfolder)
 	Subfolder bool   `json:"subfolder"`          // false: the template controls the folder structure
+	// Replace: the copy this sync improves on is trashed once the new file is
+	// in place (upgrades only; a missing episode has nothing to replace).
+	Replace bool `json:"replace,omitempty"`
 }
 
 // UpgradeVariant is one physical copy of a season/movie and its quality.
@@ -623,6 +632,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 
 			LocalSeasons: localsByShow[showScope(u.showKey, u.isMovie)],
 		}
+		up.Sync.Replace = true
 		if e.media.ID != 0 {
 			m := e.media
 			m.Title.Preferred = up.Title
@@ -982,7 +992,13 @@ func (s *Server) localCopyStats(folder string) (files int, bytes int64) {
 		return 0, 0
 	}
 	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			return skipTrash(d)
+		}
+		if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 			return nil
 		}
 		if fi, ferr := d.Info(); ferr == nil {

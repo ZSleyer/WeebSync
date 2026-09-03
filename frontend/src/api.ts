@@ -313,6 +313,7 @@ export interface SyncPlan {
   localPath: string
   template?: string
   subfolder: boolean
+  replace?: boolean // upgrade: trash the copy this sync improves on once the new file is in place
 }
 
 // DuplicateItem is content the library holds twice: the same season/movie in

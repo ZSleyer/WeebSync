@@ -122,7 +122,7 @@ func main() {
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
 	srv.Transfers.Roots = srv.LocalRootsWithPlex() // env mounts + configured Plex roots
-	srv.Transfers.OnFinished = srv.NotifyDownloadFinished
+	srv.Transfers.OnFinished = srv.DownloadFinished
 	srv.Anilist.TokenSource = srv.AnilistToken // linked-account bearer for API calls
 
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

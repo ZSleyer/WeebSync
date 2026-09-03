@@ -399,6 +399,8 @@
     "plexDetected": "Aus Plex erkannt: {{ordering}} · {{lang}}",
     "sectionRename": "Umbenennen",
     "renameToggle": "Dateien umbenennen",
+    "replaceOld": "Alte Kopie ersetzen",
+    "replaceOldHint": "Sobald eine neue Datei da ist, wandert die ältere Datei derselben Folge daneben (samt Untertiteln) in einen versteckten Ordner .weebsync-trash dort. Der Papierkorb wird nach 14 Tagen geleert.",
     "waitingFor": "wartet auf Folge {{n}}",
     "nextEp": "Nächste: Folge {{n}}",
     "view": "Ansicht",
