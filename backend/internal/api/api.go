@@ -262,6 +262,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/ai/models", authed(http.HandlerFunc(s.handleAiModels)))
 	mux.Handle("POST /api/ai/chat", authed(http.HandlerFunc(s.handleAiChat)))
 	mux.Handle("POST /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismiss)))
+	mux.Handle("POST /api/suggestions/duplicates/trash", authed(adminOnly(http.HandlerFunc(s.handleDuplicateTrash))))
 	mux.Handle("DELETE /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismissRestore)))
 	mux.Handle("GET /api/suggestions/dismissed", authed(http.HandlerFunc(s.handleDismissedList)))
 	mux.Handle("POST /api/plex/link/start", authed(http.HandlerFunc(s.handlePlexLinkStart)))

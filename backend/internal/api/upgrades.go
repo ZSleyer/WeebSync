@@ -899,6 +899,21 @@ type DuplicateItem struct {
 	Copies   []DuplicateCopy `json:"copies"`
 	Keep     string          `json:"keep,omitempty"`     // folder of the copy bestCopy would keep
 	Episodes []int           `json:"episodes,omitempty"` // dupep: the episode numbers present twice
+	// Twice: dupep only, the files behind each doubled episode, so one of
+	// them can be sent to the trash from the card.
+	Twice []DuplicateEpisode `json:"twice,omitempty"`
+}
+
+// DuplicateEpisode is one episode a folder holds more than once.
+type DuplicateEpisode struct {
+	Episode int             `json:"episode"`
+	Files   []DuplicateFile `json:"files"`
+}
+
+// DuplicateFile is one of the files behind a doubled episode.
+type DuplicateFile struct {
+	Path  string `json:"path"`
+	Bytes int64  `json:"bytes"`
 }
 
 // DuplicateCopy is one local folder holding the unit, with what it costs.
@@ -961,8 +976,9 @@ func (s *Server) addDuplicates() []DuplicateItem {
 		if !u.isMovie {
 			for _, l := range locals {
 				var twice []int
-				for k, n := range s.localEpisodeCounts(l.Folder, 0) {
-					if se, ep := splitEpKey(k); n >= 2 && se == u.season {
+				byEp := s.localEpisodeFiles(l.Folder)
+				for k, files := range byEp {
+					if se, ep := splitEpKey(k); len(files) >= 2 && se == u.season {
 						twice = append(twice, ep)
 					}
 				}
@@ -972,6 +988,11 @@ func (s *Server) addDuplicates() []DuplicateItem {
 				slices.Sort(twice)
 				d := item("dupep:" + key + ":" + l.Folder)
 				d.Episodes = twice
+				for _, ep := range twice {
+					files := byEp[epKey(u.season, ep)]
+					slices.SortFunc(files, func(a, b DuplicateFile) int { return strings.Compare(a.Path, b.Path) })
+					d.Twice = append(d.Twice, DuplicateEpisode{Episode: ep, Files: files})
+				}
 				files, bytes := s.localCopyStats(l.Folder)
 				d.Copies = []DuplicateCopy{{UpgradeVariant: l, Files: files, Bytes: bytes}}
 				out = append(out, d)

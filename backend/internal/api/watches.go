@@ -1209,12 +1209,35 @@ func (s *Server) localEpisodeNums(rel string, minEp int) map[int]bool {
 // localEpisodeCounts is localEpisodeNums with the number of files per episode,
 // so a folder holding an episode twice under two names can be told apart.
 func (s *Server) localEpisodeCounts(rel string, minEp int) map[int]int {
+	var nums map[int]int
+	s.walkEpisodes(rel, minEp, func(k int, _ string, _ int64) {
+		if nums == nil {
+			nums = map[int]int{}
+		}
+		nums[k]++
+	})
+	return nums
+}
+
+// localEpisodeFiles lists the video files per SxxEyy key, so the duplicates
+// view can name the files an episode is held in twice.
+func (s *Server) localEpisodeFiles(rel string) map[int][]DuplicateFile {
+	out := map[int][]DuplicateFile{}
+	s.walkEpisodes(rel, 0, func(k int, path string, size int64) {
+		out[k] = append(out[k], DuplicateFile{Path: path, Bytes: size})
+	})
+	return out
+}
+
+// walkEpisodes calls fn for every video file under rel that carries an
+// SxxEyy number (only episodes >= minEp when minEp > 0), with the file's path
+// in the caller's form (rel joined with the path below it) and its size.
+func (s *Server) walkEpisodes(rel string, minEp int, fn func(key int, path string, size int64)) {
 	abs, err := s.safeLocal(rel)
 	if err != nil {
-		return nil
+		return
 	}
-	nums := map[int]int{}
-	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
+	filepath.WalkDir(abs, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -1231,11 +1254,15 @@ func (s *Server) localEpisodeCounts(rel string, minEp int) map[int]int {
 		se, _ := strconv.Atoi(m[1])
 		ep, _ := strconv.Atoi(m[2])
 		if ep >= minEp && ep <= maxEpisode {
-			nums[epKey(se, ep)]++ // season-encoded so gaps stay per-season
+			var size int64
+			if fi, ferr := d.Info(); ferr == nil {
+				size = fi.Size()
+			}
+			// season-encoded so gaps stay per-season
+			fn(epKey(se, ep), filepath.Join(rel, strings.TrimPrefix(p, abs)), size)
 		}
 		return nil
 	})
-	return nums
 }
 
 // missingEpisodes returns the gaps WITHIN the contiguous span of local episodes,

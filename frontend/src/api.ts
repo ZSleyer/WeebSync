@@ -329,6 +329,12 @@ export interface DuplicateItem {
   copies: DuplicateCopy[]
   keep?: string // folder of the copy the quality order would keep
   episodes?: number[] // the episode numbers present twice
+  twice?: DuplicateEpisode[] // dupep: the files behind each doubled episode
+}
+
+export interface DuplicateEpisode {
+  episode: number
+  files: { path: string; bytes: number }[]
 }
 
 export interface DuplicateCopy extends UpgradeVariant {

@@ -127,11 +127,11 @@ var extraRe = regexp.MustCompile(`(?i)\bNC(OP|ED)\d*\b|\b(OP|ED|PV)\d+\b|preview
 
 // trashFile moves one video and its sidecars (same stem, non-video extension)
 // into dir/.weebsync-trash and records them for the sweep.
-func (s *Server) trashFile(dir, name string, entries []fs.DirEntry) {
+func (s *Server) trashFile(dir, name string, entries []fs.DirEntry) error {
 	td := filepath.Join(dir, trashDir)
 	if err := os.MkdirAll(td, 0o755); err != nil {
 		slog.Warn("trash folder not created", "dir", logSafe(dir), "err", err)
-		return
+		return err
 	}
 	// Plex honours this; the walkers here skip the folder by name
 	if _, err := os.Stat(filepath.Join(td, ".plexignore")); err != nil {
@@ -150,11 +150,48 @@ func (s *Server) trashFile(dir, name string, entries []fs.DirEntry) {
 		dst := filepath.Join(td, n)
 		if err := os.Rename(filepath.Join(dir, n), dst); err != nil {
 			slog.Warn("old copy not moved", "file", logSafe(n), "err", err)
+			if n == name {
+				return err
+			}
 			continue
 		}
 		s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at) VALUES (?, ?)`, dst, now)
 		slog.Info("old copy moved to trash", "file", logSafe(n), "dir", logSafe(dir))
 	}
+	return nil
+}
+
+// trashPath moves a file (with its sidecars) or a whole folder into the trash
+// folder beside it. Used by the duplicates view; the upgrade hook goes through
+// trashFile directly.
+func (s *Server) trashPath(abs string) error {
+	fi, err := os.Stat(abs)
+	if err != nil {
+		return err
+	}
+	dir, name := filepath.Split(abs)
+	dir = filepath.Clean(dir)
+	if !fi.IsDir() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return err
+		}
+		return s.trashFile(dir, name, entries)
+	}
+	td := filepath.Join(dir, trashDir)
+	if err := os.MkdirAll(td, 0o755); err != nil {
+		return err
+	}
+	if _, err := os.Stat(filepath.Join(td, ".plexignore")); err != nil {
+		os.WriteFile(filepath.Join(td, ".plexignore"), []byte("*\n"), 0o644)
+	}
+	dst := filepath.Join(td, name)
+	if err := os.Rename(abs, dst); err != nil {
+		return err
+	}
+	s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at) VALUES (?, ?)`, dst, time.Now().Unix())
+	slog.Info("folder moved to trash", "dir", logSafe(abs))
+	return nil
 }
 
 // emptyTrash deletes the displaced copies whose grace period is over, and the
@@ -180,7 +217,8 @@ func (s *Server) emptyTrash() {
 			s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
 			continue
 		}
-		if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		// a trashed folder goes as a whole; the row names the folder itself
+		if err := os.RemoveAll(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			slog.Warn("trash not deleted", "file", logSafe(p), "err", err)
 			continue
 		}
