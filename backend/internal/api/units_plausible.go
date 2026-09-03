@@ -62,6 +62,24 @@ func (s *Server) pruneImplausibleRemotes(u catUnits) {
 		}
 		cu.remotes = kept
 	}
+	// a show folder without a season marker is filed as season 0; one that
+	// holds season folders or episodes of several seasons is the whole show,
+	// not the specials, and is no copy of anything the library has by season
+	// ponytail: dropped rather than split per season; splitting a show folder
+	// into per-season copies from its file list is the upgrade path
+	for _, key := range u.order {
+		cu := u.byKey[key]
+		if cu.season != 0 || cu.isMovie || len(cu.remotes) == 0 {
+			continue
+		}
+		kept := cu.remotes[:0]
+		for _, r := range cu.remotes {
+			if !s.remoteShowRoot(r.ServerID, r.Folder) {
+				kept = append(kept, r)
+			}
+		}
+		cu.remotes = kept
+	}
 }
 
 // copyAgrees reports whether a folder could hold the show the titles name. A
