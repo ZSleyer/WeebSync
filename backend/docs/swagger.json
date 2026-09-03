@@ -13,7 +13,7 @@
                 "type": "object"
             },
             "anilist.Media": {
-                "description": "enriched for the overview",
+                "description": "Media is the resolved provider record behind the unit, for a detail view",
                 "properties": {
                     "airingSchedule": {
                         "description": "AiringSchedule is every not-yet-aired episode AniList has dated ahead\n(usually the whole current cour), for the multi-week calendar view.",
@@ -415,6 +415,101 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.DuplicateCopy": {
+                "properties": {
+                    "bytes": {
+                        "type": "integer"
+                    },
+                    "dub": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "files": {
+                        "type": "integer"
+                    },
+                    "folder": {
+                        "type": "string"
+                    },
+                    "probed": {
+                        "$ref": "#/components/schemas/api.probeState"
+                    },
+                    "resRank": {
+                        "type": "integer"
+                    },
+                    "serverId": {
+                        "type": "integer"
+                    },
+                    "serverName": {
+                        "description": "\"\" = local filesystem",
+                        "type": "string"
+                    },
+                    "soft": {
+                        "description": "Soft is the subset of Sub the copy can hand over as a selectable track\n(subtitle stream or sidecar file). A language in Sub but not in Soft is\nburned into the picture, and the card says so.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "sub": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.DuplicateItem": {
+                "properties": {
+                    "category": {
+                        "type": "string"
+                    },
+                    "copies": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.DuplicateCopy"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "cover": {
+                        "type": "string"
+                    },
+                    "episodes": {
+                        "description": "dupep: the episode numbers present twice",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "isMovie": {
+                        "type": "boolean"
+                    },
+                    "keep": {
+                        "description": "folder of the copy bestCopy would keep",
+                        "type": "string"
+                    },
+                    "library": {
+                        "type": "string"
+                    },
+                    "refKey": {
+                        "description": "dup:{unit} | dupep:{unit}",
+                        "type": "string"
+                    },
+                    "season": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -1135,6 +1230,10 @@
                     "isMovie": {
                         "type": "boolean"
                     },
+                    "kind": {
+                        "description": "incomplete: season (missing season/movie) | sequel (Plex chain) | episodes (gaps in an owned season)",
+                        "type": "string"
+                    },
                     "library": {
                         "description": "incomplete: Plex library title, for grouping",
                         "type": "string"
@@ -1144,6 +1243,14 @@
                     },
                     "media": {
                         "$ref": "#/components/schemas/anilist.Media"
+                    },
+                    "missing": {
+                        "description": "incomplete/episodes: the episode numbers a remote copy has and the local season lacks",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "need": {
                         "description": "incomplete: episodes through sequel",
@@ -1164,7 +1271,7 @@
                         "uniqueItems": false
                     },
                     "refKey": {
-                        "description": "series:{id} | fold:{key}:{year}",
+                        "description": "series:{id} | fold:{key}:{year} | unit:… | eps:unit:…",
                         "type": "string"
                     },
                     "season": {
@@ -1201,6 +1308,14 @@
                 "properties": {
                     "building": {
                         "type": "boolean"
+                    },
+                    "duplicates": {
+                        "description": "the same season/movie held twice, or an episode twice in one folder",
+                        "items": {
+                            "$ref": "#/components/schemas/api.DuplicateItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "incomplete": {
                         "items": {
@@ -1294,6 +1409,14 @@
                     "dub": {
                         "type": "boolean"
                     },
+                    "order": {
+                        "description": "Order lists the enabled axes most important first. It picks the remote\ncopy that gets recommended, sorts the suggestions, and tells the\nassistant what counts as the better copy.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "res": {
                         "type": "boolean"
                     },
@@ -1364,6 +1487,9 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "media": {
+                        "$ref": "#/components/schemas/anilist.Media"
                     },
                     "options": {
                         "description": "all remote copies",

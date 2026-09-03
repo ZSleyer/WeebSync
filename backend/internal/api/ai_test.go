@@ -385,3 +385,40 @@ func TestAiRecommendSkipsWhatTheUserHas(t *testing.T) {
 		t.Errorf("tool result: %s", last)
 	}
 }
+
+func TestAiShowUpgradesAndTranscriptStats(t *testing.T) {
+	fp := newFakeProvider(t,
+		fakeReply{tool: "search_remote", args: `{"query":"Frieren"}`},
+		fakeReply{tool: "show_upgrades", args: `{"keys":["unit:x:1","nope"]}`},
+		fakeReply{text: "See the cards."},
+	)
+	mux, s, c := setupAiTest(t, fp)
+	b, _ := json.Marshal(SuggestionsResponse{Upgrades: []UpgradeSuggestion{{
+		Key: "unit:x:1", Title: "Frieren", Season: 1,
+		From: UpgradeVariant{Folder: "/local/Frieren", ResRank: 1080},
+		To:   UpgradeVariant{ServerID: 1, Folder: "/anime/Frieren", ResRank: 2160},
+		Sync: SyncPlan{LocalPath: "/local/Frieren"},
+	}}})
+	s.cacheSet("suggestions:1", string(b))
+	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"better copies?"}]}`, c)
+	evs := events(t, rec.Body.String())
+	if got := types(evs); got != "tool,tool_done,tool,upgrades,tool_done,delta,delta,done" {
+		t.Fatalf("event order %s: %s", got, rec.Body)
+	}
+	// the transcript gets phrases' raw material, never the payload
+	if p := evs[0]["params"].(map[string]any); p["query"] != "Frieren" {
+		t.Errorf("params: %v", p)
+	}
+	st := evs[1]["stats"].(map[string]any)
+	if st["count"] != float64(1) || st["names"] != "Frieren" || evs[1]["result"] != nil {
+		t.Errorf("search stats: %v", evs[1])
+	}
+	ups := evs[3]["upgrades"].([]any)
+	if len(ups) != 1 || ups[0].(map[string]any)["key"] != "unit:x:1" {
+		t.Errorf("upgrades event: %v", ups)
+	}
+	st = evs[4]["stats"].(map[string]any)
+	if st["shown"] != float64(1) || st["unknown"] != float64(1) {
+		t.Errorf("show_upgrades stats: %v", st)
+	}
+}
