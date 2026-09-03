@@ -996,6 +996,7 @@
     "newTitle": "NEUER SERVER",
     "name": "Name",
     "protocol": "Protokoll",
+	"ftpWarning": "FTP überträgt Zugangsdaten und Dateien unverschlüsselt. Nutze nach Möglichkeit SFTP oder FTPS.",
     "port": "Port",
     "host": "Host",
     "user": "Benutzer",
