@@ -47,6 +47,16 @@ func TestPublicAllowedBlocksLocalNetworks(t *testing.T) {
 	}
 }
 
+func TestPublicClientBlocksHTTPSDowngrade(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "http://1.1.1.1/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := PublicClient(time.Second).CheckRedirect(req, nil); err == nil {
+		t.Fatal("public client allowed a redirect to HTTP")
+	}
+}
+
 func TestClientBlocksDirectDial(t *testing.T) {
 	// dialing a metadata address directly must fail in DialContext
 	c := Client(2 * time.Second)
