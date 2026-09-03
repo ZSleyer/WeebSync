@@ -46,7 +46,7 @@ func (c *Client) key() string {
 }
 
 // Enabled reports whether a TVDB key is configured.
-func (c *Client) Enabled() bool { return c != nil && c.DB != nil && c.key() != "" }
+func (c *Client) Enabled() bool { return c != nil && c.key() != "" }
 
 // Ping checks the configured key by logging in. force skips the token cache,
 // so the settings page can re-test after the key changed.
