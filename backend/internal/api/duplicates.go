@@ -53,7 +53,7 @@ func (s *Server) handleDuplicateTrash(w http.ResponseWriter, r *http.Request) {
 	// this the rebuild below shows the duplicate again
 	s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0 AND (folder = ? OR folder LIKE ? || '/%')`, in.Path, in.Path)
 	// every user's suggestions counted that copy
-	s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'suggestions:%'`)
+	s.staleSuggestions()
 	uid := u.ID
 	key := fmt.Sprintf("suggestions:%d", uid)
 	s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, uid) })

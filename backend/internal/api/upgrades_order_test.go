@@ -44,7 +44,7 @@ func TestUpgradeDimsPutKeepsOrderAndSoft(t *testing.T) {
 	mux := http.NewServeMux()
 	s.Register(mux)
 	c := cookieForUser(t, s.DB, 1)
-	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('suggestions:1', '{"upgrades":[]}', '2000-01-01 00:00:00')`)
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('suggestions:1', '{"upgrades":[]}', '2030-01-01 00:00:00')`)
 	rec := doReq(mux, "PUT", "/api/auth/upgrade-dims", `{"res":true,"sub":false,"dub":true,"soft":true,"order":["soft","res","sub"]}`, c)
 	if rec.Code != 200 {
 		t.Fatalf("put: %d %s", rec.Code, rec.Body)
@@ -56,10 +56,11 @@ func TestUpgradeDimsPutKeepsOrderAndSoft(t *testing.T) {
 	if !jsonHas(rec.Body.Bytes(), `"order":["soft","res","dub"]`) {
 		t.Errorf("get: %s", rec.Body)
 	}
-	// the old blob is gone; a rebuild may already have written a fresh one
+	// the old blob is aged so the next read rebuilds behind it (it stays
+	// on screen meanwhile); a rebuild may already have written a fresh one
 	var fetched string
 	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = 'suggestions:1'`).Scan(&fetched)
-	if fetched == "2000-01-01 00:00:00" {
-		t.Error("stale suggestion blob survived the axis change")
+	if fetched == "2030-01-01 00:00:00" {
+		t.Error("the suggestion blob still counts as fresh after the axis change")
 	}
 }

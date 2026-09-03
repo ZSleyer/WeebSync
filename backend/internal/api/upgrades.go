@@ -438,10 +438,11 @@ func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
 	}
 	d := dimsFromOrder(order)
 	s.DB.Exec(`UPDATE users SET upgrade_dims = ? WHERE id = ?`, strings.Join(d.Order, ","), u.ID)
-	// the cached suggestions were ranked under the old axes: drop them and
-	// rebuild now, so the page does not show the old order for half an hour
+	// the cached suggestions were ranked under the old axes: age them and
+	// rebuild now, so the page keeps showing the old order only until the
+	// rebuild lands rather than nothing at all in the meantime
 	key := fmt.Sprintf("suggestions:%d", u.ID)
-	s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, key)
+	s.staleSuggestions()
 	uid := u.ID
 	s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, uid) })
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

@@ -68,7 +68,7 @@ func (s *Server) RevalidateMatches() {
 		dropped++
 	}
 	if dropped > 0 {
-		s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'suggestions:%'`)
+		s.staleSuggestions()
 	}
 	slog.Info("matches revalidated", "checked", len(all), "dropped", dropped)
 	db.SetSetting(s.DB, "match_rules", matchRules)
