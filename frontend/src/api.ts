@@ -395,6 +395,8 @@ export interface UpgradeSuggestion {
   library?: string // the Plex library this copy lives in, shown on the card
   sync?: SyncPlan // where a one-off sync writes (into the existing local season/movie folder)
   localSeasons?: LocalSeason[] // every season of this show the library already has
+  /** resolved provider record behind the unit, for the detail view */
+  media?: Media
 }
 
 export interface UpgradeDims {
