@@ -58,7 +58,13 @@ func (s *Server) RevalidateMatches() {
 		slog.Info("match dropped by the current rules", "folder", logSafe(r.folder), "source", r.source, "reason", reason,
 			"media", r.mediaID, "title", logSafe(m.Title.Romaji), "english", logSafe(m.Title.English), "year", m.SeasonYear)
 		s.persistMatch(r.serverID, r.folder, 0, false, r.source)
-		s.queueScopedMatch(r.serverID, r.folder, path.Base(r.folder), s.scopeFor(r.serverID, path.Dir(r.folder)), true)
+		// the index row carries the show key the old match gave it; without
+		// this the folder keeps meeting the wrong show until its next crawl
+		s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = ? AND folder = ?`, r.serverID, r.folder)
+		// a local folder asks Plex first (its guid names the 2012 JoJo, not a
+		// title search); force would skip that
+		force := r.serverID != localServerID
+		s.queueScopedMatch(r.serverID, r.folder, path.Base(r.folder), s.scopeFor(r.serverID, path.Dir(r.folder)), force)
 		dropped++
 	}
 	if dropped > 0 {

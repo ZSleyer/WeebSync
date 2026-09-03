@@ -111,7 +111,13 @@ func TestRevalidateMatchesDropsWhatTheRulesRefuse(t *testing.T) {
 	} {
 		s.persistMatch(1, folder, id, folder == "/x/Somebody (2001)", "anilist")
 	}
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season) VALUES (1, '/x/One Piece (2022)', 'tvdb:81797', 1)`)
 	s.RevalidateMatches()
+	var variants int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_variants WHERE folder = '/x/One Piece (2022)'`).Scan(&variants)
+	if variants != 0 {
+		t.Error("the index row of a dropped match should go with it")
+	}
 	got := map[string]int{}
 	rows, _ := s.DB.Query(`SELECT folder, media_id FROM catalog_matches WHERE server_id = 1`)
 	for rows.Next() {
