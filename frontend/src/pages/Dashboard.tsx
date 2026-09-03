@@ -32,7 +32,7 @@ import { jobLabel } from '../jobs'
 import { useConfirm } from '../components/confirm'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth } from '../hooks'
-import { ProviderBadges } from './Suggestions'
+import { ProviderBadges } from '../components/ProviderBadges'
 
 // history-only status filter: the active queue is short and searchable, its
 // three states never need chips

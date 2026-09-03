@@ -1,11 +1,9 @@
 import { useState, type KeyboardEvent } from 'react'
 import {
-  ArrowRight,
   Bookmark,
   CircleArrowUp,
   CircleDashed,
   Download,
-  ExternalLink,
   Eye,
   EyeOff,
   FolderOpen,
@@ -42,12 +40,9 @@ import { useNavigate } from 'react-router'
 import {
   Badge,
   Button,
-  ButtonLink,
   Checkbox,
-  Cover,
   Dialog,
   Panel,
-  Radio,
   SuggestionCard,
   Tab,
   Tabs,
@@ -56,18 +51,19 @@ import {
   api,
   type SuggestionItem,
   type SuggestionsResponse,
-  type LocalSeason,
-  type ProviderLinks,
   type UpgradeSuggestion,
   type UpgradeVariant,
   type UpgradeDims,
   type DismissedItem,
-  type SyncPlan,
   type SyncResult,
   syncOutcome,
   mediaTitle,
 } from '../api'
 import Collapsible from '../components/Collapsible'
+import MediaDetail from '../components/MediaDetail'
+import { ProviderBadges } from '../components/ProviderBadges'
+import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
+import { guessSeason, syncFields } from '../components/upgradeQuality'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { usePersistedQuery } from '../hooks'
 import { SkeletonCards } from '../components/Loading'
@@ -108,42 +104,6 @@ export default function Suggestions() {
       {tab === 'upgrades' ? <UpgradesSection /> : <BucketSection bucket={tab} />}
     </div>
   )
-}
-
-// guessSeason reads a trailing season number from a title for the sync template.
-function guessSeason(title: string): number {
-  const m = title.match(/\b(?:season|s)\s*(\d{1,2})\b/i) || title.match(/\s(\d{1,2})$/)
-  const n = m ? parseInt(m[1], 10) : 0
-  return n >= 2 ? n : 0
-}
-
-// syncFields builds the one-off sync form from a suggestion's pre-computed
-// SyncPlan (correct season/movie target + rename template) and the chosen remote
-// source. Fed to WatchDialog; its dry-run preview shows the resulting path.
-function syncFields(sync: SyncPlan, title: string, remotePath: string): WatchFields {
-  return {
-    remotePath,
-    localPath: sync.localPath,
-    mode: 'template',
-    template: sync.template ?? '',
-    separator: '',
-    titleOverride: title,
-    pattern: '',
-    replacement: '',
-    subfolder: sync.subfolder,
-    mediaId: 0,
-    mediaSource: 'anilist',
-    fromEpisode: 0,
-    airedMapping: false,
-    renameProvider: '',
-    renameOrdering: '',
-    renameTitleLang: '',
-    renameSeriesId: 0,
-    wantDub: '',
-    wantSub: '',
-    plexAudioLang: '',
-    plexSubLang: '',
-  }
 }
 
 // Content-category blocks, in reading order: Anime, then Western animation
@@ -488,36 +448,6 @@ function SugCard({
   )
 }
 
-const PROVIDER_LABEL: Record<string, string> = {
-  anilist: 'AniList',
-  tmdb: 'TMDB',
-  tvdb: 'TVDB',
-  imdb: 'IMDb',
-  plex: 'Plex',
-}
-
-// ProviderBadges shows which integrations recognise the title; each links to
-// that provider's page when a URL is known.
-export function ProviderBadges({ providers, links }: { providers: string[]; links: ProviderLinks }) {
-  return (
-    <>
-      {providers.map((p) => {
-        const url = (links as Record<string, string | undefined>)[p]
-        const label = PROVIDER_LABEL[p] ?? p
-        return url ? (
-          // no anchor variant of Badge in the design system, so the linked chip
-          // keeps the class directly
-          <a key={p} className="t-label hover:text-accent" href={url} target="_blank" rel="noreferrer">
-            {label} <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
-          </a>
-        ) : (
-          <Badge key={p}>{label}</Badge>
-        )
-      })}
-    </>
-  )
-}
-
 // IgnoredModal lists ignored items (suggestions + upgrades) and restores them.
 // Backdrop click or Escape closes - both come from the design system's Dialog.
 function IgnoredModal({ onClose }: { onClose: () => void }) {
@@ -564,238 +494,6 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
 
 // ── Upgrades ──
 
-function fmtRes(r: number): string {
-  if (!r) return '?'
-  if (r >= 2160) return '4K'
-  return `${r}p`
-}
-
-// resTier mirrors the backend's resTier: a measured height folds onto the rung
-// it belongs to, so a padded 1088 (mod-16 1080p) is not shown as beaten by the
-// round 1080 a file name states. Keep the two in step.
-function resTier(h: number): number {
-  if (h <= 0) return 0
-  if (h < 600) return 480
-  if (h < 900) return 720
-  if (h < 1300) return 1080
-  if (h < 1800) return 1440
-  if (h < 3000) return 2160
-  return 4320
-}
-
-// "Und" is the backend's marker for a track whose language could not be read.
-// It is a recorded hole, not a language, so it is never shown as one.
-const UNREADABLE = 'Und'
-const realLangs = (xs: string[]) => (xs ?? []).filter((x) => x !== UNREADABLE)
-
-const addedLangs = (a: string[], b: string[]) => realLangs(b).filter((x) => !(a ?? []).includes(x))
-
-// measured: were this copy's tracks actually read? probed 0 means nobody has
-// opened the file yet, so everything it says about its languages comes from its
-// name. The backend refuses to call that an upgrade, and neither may the card -
-// it decides which badges a card shows entirely on its own, so without this the
-// gain reappears here after being dropped there.
-const measured = (v: UpgradeVariant) => v.probed !== 0
-
-// sameSource: were both copies' qualities established the same way? A measured
-// copy against a name-parsed one cannot settle a language difference between
-// them - the name may promise a track the container does not carry. The backend
-// only lets such a gain through when the container refused to be read at all, in
-// which case the gain is shown as unconfirmed.
-const sameSource = (a: UpgradeVariant, b: UpgradeVariant) => a.probed === b.probed
-
-// langGain: does v add a sub or dub language on an axis the user asked for?
-const langGain = (from: UpgradeVariant, v: UpgradeVariant, dims: UpgradeDims | undefined) =>
-  measured(v) &&
-  (((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length > 0) ||
-    ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length > 0))
-
-// burnedIn: languages this copy advertises but cannot hand over as a track.
-const burnedIn = (v: UpgradeVariant) => realLangs(v.sub).filter((x) => !(v.soft ?? []).includes(x))
-
-// softGain: does v offer as a real track what the local copy only burns into
-// the picture?
-const softGain = (from: UpgradeVariant, v: UpgradeVariant) => addedLangs(from.soft, v.soft).length > 0
-
-// variantDiff spells out what v would improve over the local copy on the
-// user's enabled axes: resolution step and added dub/sub languages. Empty
-// means this copy is no improvement.
-function variantDiff(
-  from: UpgradeVariant,
-  v: UpgradeVariant,
-  dims: UpgradeDims | undefined,
-  t: (k: string, o?: Record<string, unknown>) => string,
-): string[] {
-  const out: string[] = []
-  if ((dims?.res ?? true) && resTier(v.resRank) > resTier(from.resRank)) {
-    out.push(`${fmtRes(from.resRank)} → ${fmtRes(v.resRank)}`)
-  }
-  if (!measured(v)) {
-    // nothing was read from this file, so it has nothing to say about its
-    // languages yet. The probe loop takes it next; until then the card offers
-    // only what a name and a container height can honestly establish.
-    if (out.length === 0) out.push(t('suggestions.upLangPending'))
-    return out
-  }
-  if (dims?.dub ?? true) {
-    const d = addedLangs(from.dub, v.dub)
-    if (d.length) out.push(`${t('suggestions.upDub')} +${d.join(',')}`)
-  }
-  if (dims?.sub ?? true) {
-    const s = addedLangs(from.sub, v.sub)
-    if (s.length) out.push(`${t('suggestions.upSub')} +${s.join(',')}`)
-  }
-  if (dims?.soft ?? true) {
-    const s = addedLangs(from.soft, v.soft)
-    if (s.length) out.push(`${t('suggestions.upSoft')} ${s.join(',')}`)
-  }
-  return out
-}
-
-// sourceLabel names how one copy's quality was established, for the card.
-function sourceLabel(v: UpgradeVariant, t: (k: string) => string): string {
-  if (v.probed === 1) return t('suggestions.basisMeasured')
-  if (v.probed === 2) return t('suggestions.basisUnreadable')
-  return t('suggestions.basisGuessed')
-}
-
-// axesWon lists the axes on which v actually beats the local copy, by the same
-// rules the backend applied. Empty when the user picked an option that is no
-// improvement at all.
-function axesWon(
-  from: UpgradeVariant,
-  v: UpgradeVariant,
-  dims: UpgradeDims | undefined,
-  t: (k: string, o?: Record<string, unknown>) => string,
-): string {
-  const out: string[] = []
-  if ((dims?.res ?? true) && resTier(v.resRank) > resTier(from.resRank)) out.push(t('suggestions.axis_res'))
-  if (measured(v)) {
-    if ((dims?.sub ?? true) && addedLangs(from.sub, v.sub).length) out.push(t('suggestions.axis_sub'))
-    if ((dims?.dub ?? true) && addedLangs(from.dub, v.dub).length) out.push(t('suggestions.axis_dub'))
-    if ((dims?.soft ?? true) && softGain(from, v)) out.push(t('suggestions.axis_soft'))
-  }
-  return out.length ? out.join(', ') : t('suggestions.basisNoAxis')
-}
-
-// variantQuality renders a copy's make-up: resolution, its dub/sub codes, and
-// which of the subtitle languages are burned into the picture rather than
-// offered as a track. "Und" never appears - it marks a track whose language
-// could not be read, which is a hole in the account and not a language.
-function variantQuality(v: UpgradeVariant, t: (k: string) => string): string {
-  const parts = [fmtRes(v.resRank)]
-  const dub = realLangs(v.dub)
-  const sub = realLangs(v.sub)
-  const hard = burnedIn(v)
-  if (dub.length) parts.push(`Dub ${dub.join(',')}`)
-  if (sub.length) {
-    const shown = sub.map((c) => (hard.includes(c) ? `${c} (${t('suggestions.subBurned')})` : c))
-    parts.push(`Sub ${shown.join(',')}`)
-  }
-  return parts.join(' · ')
-}
-
-// splitFolder separates the release folder from the directory holding it. The
-// copies of one show sit under the same few directories, so the tail is what
-// actually tells them apart - it leads the line, the shared prefix follows in
-// muted small print instead of pushing it off screen.
-function splitFolder(p: string): { dir: string; name: string } {
-  const s = p.replace(/\/+$/, '')
-  const i = s.lastIndexOf('/')
-  return i > 0 ? { dir: s.slice(0, i), name: s.slice(i + 1) } : { dir: '', name: s || p }
-}
-
-// groupByFolder collects the copies that live in the same directory of the same
-// server. The directory and the server are then said once above the group
-// instead of on every row, which is what turns a dozen near-identical lines
-// into a handful of short ones.
-function groupByFolder(options: UpgradeVariant[]): { server: string; dir: string; items: UpgradeVariant[] }[] {
-  const out: { server: string; dir: string; items: UpgradeVariant[] }[] = []
-  const seen = new Map<string, { server: string; dir: string; items: UpgradeVariant[] }>()
-  for (const o of options) {
-    const { dir } = splitFolder(o.folder)
-    const key = `${o.serverId} ${dir}`
-    let g = seen.get(key)
-    if (!g) {
-      g = { server: o.serverName ?? '', dir, items: [] }
-      seen.set(key, g)
-      out.push(g)
-    }
-    g.items.push(o)
-  }
-  return out
-}
-
-// VariantBox shows one copy: where it lives (Local (Plex) when the server name
-// is empty, else the server name) plus its full path, its quality make-up, and
-// how that make-up was established - measured from the file, or read off its
-// name. That last line is what makes a disputed recommendation readable from
-// the card instead of from the log.
-function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: string; muted?: boolean; accent?: boolean }) {
-  const { t } = useTranslation()
-  const { dir, name } = splitFolder(v.folder)
-  return (
-    // both copies sit on their own recessed surface, so the pair reads as two
-    // objects being compared instead of two paragraphs sharing the card
-    <div
-      className={`min-w-0 border bg-bg-secondary p-2 ${accent ? 'border-accent' : 'border-border-subtle'} ${muted ? 'text-t-muted' : ''}`}
-    >
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Badge tone={accent ? 'accent' : 'neutral'} className="shrink-0">
-          {label}
-        </Badge>
-        <Badge className="shrink-0">{v.serverName ? v.serverName : t('suggestions.localPlex')}</Badge>
-      </div>
-      <div className="mt-1 break-words font-mono text-xs" title={v.folder}>
-        {name}
-      </div>
-      {dir && (
-        <div className="truncate font-mono text-xs text-t-muted" title={v.folder}>
-          {dir}
-        </div>
-      )}
-      <div className="mt-1 text-xs">{variantQuality(v, t)}</div>
-      <div className="text-xs text-t-muted">{t('suggestions.basisQuality', { how: sourceLabel(v, t) })}</div>
-    </div>
-  )
-}
-
-// LocalSeasons lists what the library already holds of this show, so the card
-// answers "and which seasons do I have?" without a trip to Plex. The season of
-// this very suggestion is marked, because that is the one a sync would touch.
-// File names live in the sync dialog's preview, where they carry the
-// new/replaced marks; repeating them here would only bloat the card.
-function LocalSeasons({ seasons, current, isMovie }: { seasons: LocalSeason[]; current: number; isMovie?: boolean }) {
-  const { t } = useTranslation()
-  return (
-    <Collapsible small defaultOpen={false} title={t('suggestions.localSeasons')} count={seasons.length}>
-      <ul className="space-y-1">
-        {seasons.map((ls) => {
-          const here = !isMovie && !ls.isMovie && ls.season === current
-          // a "plex:ratingKey:sN" folder means the copy is not on a mount we
-          // share, so there is no path to show - only the season and quality
-          const path = ls.folder.startsWith('/') ? ls.folder : ''
-          return (
-            <li key={`${ls.season}-${ls.folder}`} className="flex flex-wrap items-center gap-2 text-xs">
-              <Badge tone={here ? 'accent' : 'neutral'} className="shrink-0">
-                {ls.isMovie
-                  ? t('suggestions.movie')
-                  : ls.season === 0
-                    ? t('suggestions.specials') // season 0 is what Plex calls Specials
-                    : t('suggestions.season', { season: ls.season })}
-              </Badge>
-              <span className="min-w-0 flex-1 break-all font-mono text-t-secondary" title={path}>
-                {path}
-              </span>
-              <span className="shrink-0 text-t-muted">{fmtRes(ls.resRank)}</span>
-            </li>
-          )
-        })}
-      </ul>
-    </Collapsible>
-  )
-}
-
 function UpgradesSection() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -806,8 +504,9 @@ function UpgradesSection() {
     { refetchInterval: (q) => (q.state.data?.building ? 4000 : false) },
   )
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
-  const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields; info: string[] } | null>(null)
+  const [sync, setSync] = useState<SyncRequest | null>(null)
   const [notice, setNotice] = useState('')
+  const [detail, setDetail] = useState<UpgradeSuggestion | null>(null)
   // per-card chosen sync source among the remote copies; default = recommended
   const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
 
@@ -843,196 +542,19 @@ function UpgradesSection() {
         <Badge>{t('suggestions.noUpgrades')}</Badge>
       ) : (
         (() => {
-          const render = (u: UpgradeSuggestion, i: number) => {
-          const seasonLabel = u.isMovie ? t('suggestions.movie') : u.season > 0 ? t('suggestions.season', { season: u.season }) : ''
-          const chosen: UpgradeVariant = choice[u.key] ?? u.to
-          const isChosen = (v: UpgradeVariant) => v.serverId === chosen.serverId && v.folder === chosen.folder
-          const options: UpgradeVariant[] = u.options ?? []
-          // a language gain the two copies cannot settle between them: shown,
-          // and shown as unconfirmed. Recomputed rather than read off
-          // u.languageUnverified, because the user may have picked another
-          // option than the recommended one.
-          const langUnconfirmed = !sameSource(u.from, chosen) && langGain(u.from, chosen, dims)
-          const syncInfo = [
-            t('watch.infoSource', { server: chosen.serverName || t('suggestions.localPlex'), quality: variantQuality(chosen, t) }),
-            t('watch.infoLocal', { quality: variantQuality(u.from, t) }),
-          ]
-          return (
-            // handwritten instead of SuggestionCard: the heading row pairs the
-            // title with the right-aligned diff chips, which the card's plain
-            // <h4> slot cannot hold
-            <Panel key={u.key || `${u.showKey}-${u.season}-${i}`} className="flex flex-wrap items-start gap-4 p-3">
-              <Cover src={u.cover} />
-              <div className="min-w-0 flex-1">
-                {/* the diff chips stay beside the title instead of being pushed
-                    to the far edge of a wide card, where they end up an arm's
-                    length from what they describe */}
-                <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3">
-                  <h4 className="min-w-0 break-words font-display text-sm font-semibold tracking-wider">{u.title}</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {variantDiff(u.from, chosen, dims, t).map((d, j) => (
-                      <Badge key={j} tone="accent">
-                        {d}
-                      </Badge>
-                    ))}
-                    {langUnconfirmed && <Badge tone="warn">{t('suggestions.langUnverified')}</Badge>}
-                  </div>
-                </div>
-                <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                  {seasonLabel && <Badge tone="accent">{seasonLabel}</Badge>}
-                  <ProviderBadges providers={u.providers ?? []} links={u.links ?? {}} />
-                  {u.format && (
-                    <Badge>
-                      {u.format === 'MOVIE' ? <Clapperboard aria-hidden size="1em" /> : <Tv aria-hidden size="1em" />}
-                      {u.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}
-                    </Badge>
-                  )}
-                  {u.episodes ? (
-                    <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
-                      <ListVideo aria-hidden size="1em" />
-                      {t('suggestions.episodes', { count: u.episodes })}
-                    </span>
-                  ) : null}
-                  {u.library && <Badge aria-label={t('suggestions.library', { name: u.library })}>{u.library}</Badge>}
-                </p>
-                <div className="mt-2 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
-                  <VariantBox v={u.from} label={t('suggestions.fromLabel')} muted />
-                  {/* points down while the boxes are stacked, right once they sit
-                      side by side; decorative either way, the labels say it */}
-                  <ArrowRight aria-hidden size="1em" className="mx-auto rotate-90 text-t-muted sm:rotate-0" />
-                  <VariantBox
-                    v={chosen}
-                    label={isChosen(u.to) ? t('suggestions.recommended') : t('suggestions.chosenVersion')}
-                    accent
-                  />
-                </div>
-                <p className="mt-2 text-xs text-t-secondary">
-                  {t('suggestions.basis', { axes: axesWon(u.from, chosen, dims, t) })}
-                  {langUnconfirmed && ` ${t('suggestions.basisLangUnverified')}`}
-                </p>
-                {options.length > 0 && (
-                  // a show can have a dozen copies scattered over the servers;
-                  // unfolded they bury the card's actual answer, so the list
-                  // stays behind its own heading unless it is short. The visible
-                  // name is that heading - the legend only repeats it for the
-                  // screen reader, which never sees it.
-                  <div className="mt-2 min-w-0">
-                    <Collapsible
-                      small
-                      defaultOpen={options.length <= 4}
-                      title={t('suggestions.chooseVersion')}
-                      count={options.length}
-                    >
-                      <fieldset className="min-w-0 border-0 p-0">
-                        <legend className="sr-only">{t('suggestions.chooseVersion')}</legend>
-                        <ul className="min-w-0 space-y-3">
-                          {groupByFolder(options).map((g) => (
-                            <li key={`${g.server}-${g.dir}`} className="min-w-0">
-                              {/* the directory and the server, said once for
-                                  the whole group */}
-                              <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <Badge className="shrink-0">{g.server ? g.server : t('suggestions.localPlex')}</Badge>
-                                <span className="min-w-0 truncate font-mono text-xs text-t-muted" title={g.dir}>
-                                  {g.dir || '/'}
-                                </span>
-                              </p>
-                              <ul className="mt-1 min-w-0 space-y-1">
-                                {g.items.map((o, j) => {
-                                  const diff = variantDiff(u.from, o, dims, t)
-                                  const { name } = splitFolder(o.folder)
-                                  return (
-                                    <li key={`${o.serverId}-${o.folder}-${j}`} className="min-w-0">
-                                      {/* one row: what tells this copy apart from
-                                          its neighbours, and what it is made of.
-                                          Everything sits left of the same edge,
-                                          so no line has to be followed across the
-                                          width of the card to be read, and every
-                                          row carries its own surface so a dozen
-                                          of them do not run together into one
-                                          block. */}
-                                      <label
-                                        className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 border p-2 ${
-                                          isChosen(o)
-                                            ? 'border-accent bg-bg-hover'
-                                            : // hover only lifts the surface: an
-                                              // accent border on hover would look
-                                              // exactly like the chosen row
-                                              'border-border-subtle bg-bg-secondary hover:bg-bg-hover'
-                                        }`}
-                                      >
-                                        <Radio
-                                          name={`opt-${u.key}`}
-                                          checked={isChosen(o)}
-                                          onChange={() => setChoice((c) => ({ ...c, [u.key]: o }))}
-                                        />
-                                        <span className="min-w-0">
-                                          <span
-                                            className="block font-mono text-xs wrap-break-word text-t-primary"
-                                            title={o.folder}
-                                          >
-                                            {name}
-                                          </span>
-                                          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-t-muted">
-                                            <span>{variantQuality(o, t)}</span>
-                                            {diff.map((d, k) => (
-                                              <Badge key={k} tone="accent">
-                                                {d}
-                                              </Badge>
-                                            ))}
-                                          </span>
-                                        </span>
-                                      </label>
-                                    </li>
-                                  )
-                                })}
-                              </ul>
-                            </li>
-                          ))}
-                        </ul>
-                      </fieldset>
-                    </Collapsible>
-                  </div>
-                )}
-                {(u.localSeasons ?? []).length > 0 && (
-                  <div className="mt-2">
-                    <LocalSeasons seasons={u.localSeasons!} current={u.season} isMovie={u.isMovie} />
-                  </div>
-                )}
-                <div className="mt-2 flex flex-wrap justify-end gap-1.5">
-                  {u.sync?.localPath && (
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() =>
-                        setSync({ serverId: chosen.serverId, name: u.title, initial: syncFields(u.sync!, u.title, chosen.folder), info: syncInfo })
-                      }
-                    >
-                      <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('plex.syncOnce')}
-                    </Button>
-                  )}
-                  {u.links?.plex && (
-                    <ButtonLink size="sm" href={u.links.plex} target="_blank" rel="noreferrer">
-                      <ExternalLink aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('suggestions.openPlex')}
-                    </ButtonLink>
-                  )}
-                  <Button size="sm" onClick={() => dismiss(u)}>
-                    <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('suggestions.dismiss')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => navigate(`/remote?server=${u.to.serverId}&path=${encodeURIComponent(u.to.folder)}`)}
-                  >
-                    <FolderOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('plex.openBrowser')}
-                  </Button>
-                </div>
-              </div>
-            </Panel>
+          const render = (u: UpgradeSuggestion, i: number) => (
+            <UpgradeCard
+              key={u.key || `${u.showKey}-${u.season}-${i}`}
+              u={u}
+              dims={dims}
+              chosen={choice[u.key] ?? u.to}
+              onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
+              onSync={setSync}
+              onDismiss={dismiss}
+              onOpenRemote={(v) => navigate(`/remote?server=${v.serverId}&path=${encodeURIComponent(v.folder)}`)}
+              onDetails={setDetail}
+            />
           )
-          }
           return (
             <div className="space-y-4">
               {CATS.map((cat) => {
@@ -1047,6 +569,11 @@ function UpgradesSection() {
             </div>
           )
         })()
+      )}
+      {detail?.media && (
+        <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: detail.title })} onClose={() => setDetail(null)}>
+          <MediaDetail media={detail.media} source={detail.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist'} />
+        </Dialog>
       )}
       {sync && (
         <WatchDialog
