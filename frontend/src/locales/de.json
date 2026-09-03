@@ -927,6 +927,8 @@
     "aiConnected": "Assistent: verbunden",
     "aiNotConfigured": "Erst Endpoint-URL und Modell speichern.",
     "aiTest": "Verbindung testen",
+    "aiModels": "Modelle des Endpoints:",
+    "aiModelsReload": "Neu laden",
     "envLockedHint": "Über Umgebungsvariable gesetzt – hier nicht änderbar",
     "plexWatchlistLink": "Plex-Merkliste verknüpfen",
     "plexWatchlistUnlink": "Trennen",

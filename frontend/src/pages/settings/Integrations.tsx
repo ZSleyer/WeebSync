@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Panel, Select } from '@weebsync/design-system'
 import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
+import { useAiModels } from '../../hooks'
 import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
@@ -97,6 +98,7 @@ export default function Integrations() {
             />
             <span className="mt-1 block">{t('settings.aiModelHint')}</span>
           </label>
+          <AiModelChips current={form.aiModel} locked={locked('aiModel')} onPick={(m) => set('aiModel', m)} />
           <AiAccount />
         </div>
 
@@ -569,6 +571,47 @@ function TvdbAccount() {
         <Button size="sm" disabled={testing} onClick={test}>
           {t('settings.tvdbTest')}
         </Button>
+      )}
+    </div>
+  )
+}
+
+// The endpoint's model list as chips: what it serves, one click to make it
+// the default. Loaded live from the saved endpoint, so a URL typed but not
+// saved yet does not show up here.
+function AiModelChips({ current, locked, onPick }: { current: string; locked: boolean; onPick: (m: string) => void }) {
+  const { t } = useTranslation()
+  const { data, isFetching, refetch } = useAiModels()
+  if (!data) return null
+  return (
+    <div className="text-xs text-t-muted">
+      <div className="flex flex-wrap items-center gap-2">
+        <span>{t('settings.aiModels')}</span>
+        <Button size="xs" disabled={isFetching} onClick={() => refetch()}>
+          {t('settings.aiModelsReload')}
+        </Button>
+        {data.error && (
+          <span className="text-err" role="alert">
+            {data.error}
+          </span>
+        )}
+      </div>
+      {data.models.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={t('settings.aiModels')}>
+          {data.models.map((m) => (
+            <li key={m}>
+              <Button
+                size="xs"
+                variant={m === current ? 'primary' : 'default'}
+                aria-pressed={m === current}
+                disabled={locked}
+                onClick={() => onPick(m)}
+              >
+                {m}
+              </Button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )

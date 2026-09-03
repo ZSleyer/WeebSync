@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, ApiError, type AiStatus, type Download, type User } from './api'
+import { api, ApiError, type AiModels, type AiStatus, type Download, type User } from './api'
 import i18n, { syncLocale } from './locales'
 
 let localeSynced = false
@@ -100,6 +100,19 @@ export function useAiStatus(enabled = true) {
   return useQuery<AiStatus>({
     queryKey: ['ai-status'],
     queryFn: () => api.get('/api/ai/status'),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+}
+
+// useAiModels asks the endpoint for its model list (a live call, so only
+// while a picker is on screen). Never throws: an unreachable endpoint comes
+// back as an empty list plus error text.
+export function useAiModels(enabled = true) {
+  return useQuery<AiModels>({
+    queryKey: ['ai-models'],
+    queryFn: () => api.get('/api/ai/models'),
     enabled,
     staleTime: 5 * 60 * 1000,
     retry: false,

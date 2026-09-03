@@ -498,6 +498,12 @@ export interface AiStatus {
   error?: string
 }
 
+export interface AiModels {
+  models: string[]
+  default: string
+  error?: string
+}
+
 export interface AiChatMessage {
   role: 'user' | 'assistant'
   content: string
