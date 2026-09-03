@@ -401,6 +401,11 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
 
+	// what the list tools surfaced this request, and whether cards went out:
+	// a model that names titles in prose instead of calling recommend still
+	// gets its cards (see aiMentionedCards)
+	var surfaced [][]byte
+	cardsShown := false
 	for round := 0; ; round++ {
 		if round >= aiMaxRounds {
 			emit(aiEvent{Type: "error", Message: "the assistant needed too many steps; ask more specifically"})
@@ -421,6 +426,11 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(reply.ToolCalls) == 0 {
+			if !cardsShown && len(surfaced) > 0 {
+				if cards := s.aiMentionedCards(ctx, u.ID, surfaced, reply.Content); len(cards) > 0 {
+					emit(aiEvent{Type: "cards", Cards: cards})
+				}
+			}
 			break
 		}
 		msgs = append(msgs, reply)
@@ -431,12 +441,17 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 				emit(aiEvent{Type: "proposal", aiProposal: out.proposal})
 			}
 			if len(out.cards) > 0 {
+				cardsShown = true
 				emit(aiEvent{Type: "cards", Cards: out.cards})
 			}
 			if len(out.upgrades) > 0 {
 				emit(aiEvent{Type: "upgrades", Upgrades: out.upgrades})
 			}
 			b, _ := json.Marshal(out.result)
+			switch call.Function.Name {
+			case "my_lists", "suggestions", "seasonal":
+				surfaced = append(surfaced, b)
+			}
 			emit(aiEvent{Type: "tool_done", Name: call.Function.Name, Stats: toolStats(call.Function.Name, b)})
 			msgs = append(msgs, ai.Message{Role: "tool", ToolCallID: call.ID, Content: string(b)})
 		}
@@ -459,7 +474,7 @@ Answer in %s. Be concise. Plain text only: no markdown (no bold, headings or tab
 
 You can only READ through the tools and PROPOSE actions; the user confirms every proposal in a dialog. Rules:
 - Before each tool call, say in one short sentence what you are checking and why; that narration becomes the visible transcript.
-- Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score). When you recommend titles, also call recommend with their ids and reasons so the user gets cards to open; then keep the text short, the cards carry the details.
+- Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score). When you recommend titles, call recommend with their ids and reasons in the SAME answer so the user sees their cards right away - never ask whether to show details, the cards are the details; keep the text short.
 - Never recommend what the user already has: entries flagged owned (in the Plex library) or inAutoSync (an auto-sync keeps it current) are covered. Check the flags (or my_watches) before recommending; if the user asks about such a title, say it is already covered.
 - Before proposing a watch or sync, find the folder with search_remote or take a candidate from suggestions/seasonal. Never invent server ids or paths.
 - The upgrades tool already shows the user cards for its first entries; call show_upgrades with keys for any others you name. The cards show both copies, every option and a sync button, so the text only needs to say why.
@@ -674,6 +689,80 @@ type aiListEntry struct {
 	InAutoSync bool `json:"inAutoSync,omitempty"`
 }
 
+// aiMentionedCards is the safety net under recommend: small models list the
+// titles in prose and ask whether to show details instead of calling the tool.
+// Every title a list tool surfaced in this request that the answer names gets
+// its card anyway, with the answer's line about it as the reason. Titles the
+// user already has stay out, as in recommend.
+func (s *Server) aiMentionedCards(ctx context.Context, userID int64, results [][]byte, text string) []aiCard {
+	lines := strings.Split(text, "\n")
+	folded := make([]string, len(lines))
+	for i, l := range lines {
+		folded[i] = match.FoldKey(match.StripMarkers(l))
+	}
+	type ref struct {
+		src string
+		id  int
+	}
+	seen := map[ref]bool{}
+	var refs []ref
+	why := map[ref]string{}
+	var walk func(v any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case map[string]any:
+			id, _ := x["id"].(float64)
+			title, _ := x["title"].(string)
+			fk := match.FoldKey(match.StripMarkers(title))
+			// short keys match inside unrelated words ("free", "one")
+			if id > 0 && len(fk) >= 5 {
+				src, _ := x["source"].(string)
+				if src == "" {
+					src = "anilist"
+				}
+				r := ref{src, int(id)}
+				for i, fl := range folded {
+					if strings.Contains(fl, fk) && !seen[r] {
+						seen[r] = true
+						refs = append(refs, r)
+						why[r] = excerpt(strings.TrimLeft(strings.TrimSpace(lines[i]), "-*• "), 200)
+						break
+					}
+				}
+			}
+			for _, c := range x {
+				walk(c)
+			}
+		case []any:
+			for _, c := range x {
+				walk(c)
+			}
+		}
+	}
+	for _, b := range results {
+		var v any
+		if json.Unmarshal(b, &v) == nil {
+			walk(v)
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	have := s.aiHaveIndex(userID)
+	var cards []aiCard
+	for _, r := range refs {
+		if len(cards) >= 6 {
+			break
+		}
+		m := s.aiMedia(ctx, r.src, r.id)
+		if m == nil || have.inSync(*m, r.src) || have.owned(*m, r.src) {
+			continue
+		}
+		cards = append(cards, aiCard{Source: r.src, Media: *m, Why: why[r]})
+	}
+	return cards
+}
+
 func aiTitle(m anilist.Media) string {
 	switch {
 	case m.Title.Preferred != "":
@@ -787,6 +876,7 @@ type aiCandidate struct {
 
 type aiSugEntry struct {
 	RefKey     string        `json:"refKey"`
+	ID         int           `json:"id,omitempty"` // provider id for recommend; 0 when the title has no match
 	Title      string        `json:"title"`
 	Year       int           `json:"year,omitempty"`
 	Category   string        `json:"category"`
@@ -841,7 +931,7 @@ func (s *Server) aiSuggestions(ctx context.Context, userID int64) any {
 			if len(out) >= limit {
 				break
 			}
-			e := aiSugEntry{RefKey: it.RefKey, Title: it.Title, Year: it.Year, Category: it.Category, Status: it.Status,
+			e := aiSugEntry{RefKey: it.RefKey, ID: it.Media.ID, Title: it.Title, Year: it.Year, Category: it.Category, Status: it.Status,
 				Progress: it.Progress, Have: it.Have, Need: it.Need, Because: it.Because, Genres: it.Media.Genres,
 				Candidates: aiCands(it.Candidates),
 				Owned:      it.PlexFolder != "" || have.owned(it.Media, "anilist"), InAutoSync: have.inSync(it.Media, "anilist")}
