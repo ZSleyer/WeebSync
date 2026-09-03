@@ -114,13 +114,17 @@ func (s *Server) handleAiModels(w http.ResponseWriter, r *http.Request) {
 // reasoning (reasoning), a tool starting (tool: name + args) and finishing
 // (tool_done: name + a result excerpt), a vetted proposal, an error, done.
 type aiEvent struct {
-	Type    string   `json:"type"` // delta | reasoning | tool | tool_done | proposal | cards | error | done
+	Type    string   `json:"type"` // delta | reasoning | tool | tool_done | proposal | cards | upgrades | error | done
 	Text    string   `json:"text,omitempty"`
 	Name    string   `json:"name,omitempty"`
-	Args    string   `json:"args,omitempty"`
-	Result  string   `json:"result,omitempty"`
 	Message string   `json:"message,omitempty"`
 	Cards   []aiCard `json:"cards,omitempty"`
+	// Params (tool) and Stats (tool_done) are what the transcript shows: the
+	// arguments trimmed to what a sentence needs, and counts/names from the
+	// result instead of the result itself. The client phrases them.
+	Params   map[string]any      `json:"params,omitempty"`
+	Stats    map[string]any      `json:"stats,omitempty"`
+	Upgrades []UpgradeSuggestion `json:"upgrades,omitempty"`
 	*aiProposal
 }
 
@@ -131,6 +135,132 @@ type aiCard struct {
 	Source string        `json:"source"` // anilist | tmdb:tv | tmdb:movie | tvdb
 	Media  anilist.Media `json:"media"`
 	Why    string        `json:"why,omitempty"`
+}
+
+// toolParams reads a call's arguments for the transcript: strings shortened,
+// lists reduced to their length plus the first few titles or keys.
+func toolParams(raw string) map[string]any {
+	var args map[string]any
+	if json.Unmarshal([]byte(raw), &args) != nil || len(args) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	for k, v := range args {
+		switch x := v.(type) {
+		case string:
+			out[k] = excerpt(x, 120)
+		case float64, bool:
+			out[k] = x
+		case []any:
+			out[k+"Count"] = len(x)
+			var names []string
+			for _, it := range x {
+				switch e := it.(type) {
+				case string:
+					names = append(names, excerpt(e, 60))
+				case map[string]any:
+					if t, ok := e["title"].(string); ok {
+						names = append(names, excerpt(t, 60))
+					} else if id, ok := e["id"].(float64); ok {
+						names = append(names, strconv.Itoa(int(id)))
+					}
+				}
+				if len(names) == 3 {
+					break
+				}
+			}
+			out[k] = strings.Join(names, ", ")
+		}
+	}
+	return out
+}
+
+// toolStats reduces a tool's result to the numbers and names a transcript
+// sentence needs. Every tool gets a count of some kind; lists carry their
+// first names so the sentence can say what was found.
+func toolStats(name string, result []byte) map[string]any {
+	var r map[string]any
+	if json.Unmarshal(result, &r) != nil {
+		return map[string]any{"error": "unreadable result"}
+	}
+	if e, ok := r["error"].(string); ok {
+		return map[string]any{"error": e}
+	}
+	st := map[string]any{}
+	count := func(key string) int {
+		if l, ok := r[key].([]any); ok {
+			return len(l)
+		}
+		return 0
+	}
+	firstTitles := func(key string, n int) string {
+		l, _ := r[key].([]any)
+		var names []string
+		for _, it := range l {
+			if m, ok := it.(map[string]any); ok {
+				for _, f := range []string{"title", "path", "name"} {
+					if t, ok := m[f].(string); ok && t != "" {
+						if f == "path" {
+							t = path.Base(t)
+						}
+						names = append(names, excerpt(t, 60))
+						break
+					}
+				}
+			}
+			if len(names) == n {
+				break
+			}
+		}
+		return strings.Join(names, ", ")
+	}
+	switch name {
+	case "search_remote":
+		st["count"], st["names"] = count("folders"), firstTitles("folders", 3)
+	case "seasonal":
+		l, _ := r["anime"].([]any)
+		onList, owned, inSync := 0, 0, 0
+		for _, it := range l {
+			if m, ok := it.(map[string]any); ok {
+				if s, _ := m["status"].(string); s != "" {
+					onList++
+				}
+				if b, _ := m["owned"].(bool); b {
+					owned++
+				}
+				if b, _ := m["inAutoSync"].(bool); b {
+					inSync++
+				}
+			}
+		}
+		st["count"], st["onList"], st["owned"], st["inAutoSync"] = len(l), onList, owned, inSync
+		st["season"], st["year"] = r["season"], r["year"]
+	case "my_lists":
+		st["anilist"], st["plexWatchlist"] = count("anilist"), count("plexWatchlist")
+	case "suggestions":
+		st["watchlist"], st["recommended"], st["trending"], st["incomplete"] = count("watchlist"), count("recommended"), count("trending"), count("incomplete")
+		st["building"] = r["note"] != nil
+	case "upgrades":
+		st["count"], st["names"] = count("upgrades"), firstTitles("upgrades", 3)
+	case "my_watches":
+		st["count"], st["names"] = count("watches"), firstTitles("watches", 3)
+	case "recommend", "show_upgrades":
+		st["shown"] = r["shown"]
+		if n := count("skipped"); n > 0 {
+			st["skipped"], st["skippedNames"] = n, firstTitles("skipped", 3)
+		}
+		if n := count("unknownIds"); n > 0 {
+			st["unknown"] = n
+		}
+	case "propose":
+		st["ok"] = r["ok"]
+		if reason, ok := r["reason"].(string); ok {
+			st["reason"] = reason
+		}
+	default:
+		st["keys"] = len(r)
+	}
+	return st
 }
 
 // excerpt trims a tool payload to what a transcript can show.
@@ -292,7 +422,7 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		}
 		msgs = append(msgs, reply)
 		for _, call := range reply.ToolCalls {
-			emit(aiEvent{Type: "tool", Name: call.Function.Name, Args: excerpt(call.Function.Arguments, 400)})
+			emit(aiEvent{Type: "tool", Name: call.Function.Name, Params: toolParams(call.Function.Arguments)})
 			out := s.aiTool(ctx, u.ID, call.Function.Name, call.Function.Arguments)
 			if out.proposal != nil {
 				emit(aiEvent{Type: "proposal", aiProposal: out.proposal})
@@ -300,8 +430,11 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 			if len(out.cards) > 0 {
 				emit(aiEvent{Type: "cards", Cards: out.cards})
 			}
+			if len(out.upgrades) > 0 {
+				emit(aiEvent{Type: "upgrades", Upgrades: out.upgrades})
+			}
 			b, _ := json.Marshal(out.result)
-			emit(aiEvent{Type: "tool_done", Name: call.Function.Name, Result: excerpt(string(b), 1500)})
+			emit(aiEvent{Type: "tool_done", Name: call.Function.Name, Stats: toolStats(call.Function.Name, b)})
 			msgs = append(msgs, ai.Message{Role: "tool", ToolCallID: call.ID, Content: string(b)})
 		}
 	}
@@ -326,6 +459,7 @@ You can only READ through the tools and PROPOSE actions; the user confirms every
 - Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score). When you recommend titles, also call recommend with their ids and reasons so the user gets cards to open; then keep the text short, the cards carry the details.
 - Never recommend what the user already has: entries flagged owned (in the Plex library) or inAutoSync (an auto-sync keeps it current) are covered. Check the flags (or my_watches) before recommending; if the user asks about such a title, say it is already covered.
 - Before proposing a watch or sync, find the folder with search_remote or take a candidate from suggestions/seasonal. Never invent server ids or paths.
+- When you name better copies, call show_upgrades with their keys: the cards show both copies, every option and a sync button, so the text only needs to say why.
 - kind "watch" = auto-sync: keeps a remote folder in sync (for airing shows). kind "sync" = download once. kind "upgrade" = replace a local copy with a better remote copy; only from the upgrades tool, quoting its key and one of its option folders, and only when it improves an axis the user enabled (axesByPriority lists them, most important first). Say concretely what improves (resolution, dub, sub, selectable subtitles) and mention when the language data is unverified.
 - Tools are called only through the tool-call interface, never written out as text in the answer.
 - If propose returns ok:false, tell the user the reason; do not retry the same call.
@@ -355,6 +489,7 @@ var aiTools = []ai.Tool{
 	fn("search_remote", "Search folders on the user's remote servers by words of a title. Returns server id, path and the folder's known quality.", `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
 	fn("my_watches", "The user's existing auto-syncs.", `{"type":"object","properties":{}}`),
 	fn("recommend", "Show the user cards for titles you recommend (cover, description, score, links). Call it with the ids you got from my_lists, suggestions or seasonal, each with a one-line reason. Up to 8 titles.", `{"type":"object","properties":{"titles":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"source":{"type":"string","enum":["anilist","tmdb:tv","tmdb:movie","tvdb"]},"why":{"type":"string"}},"required":["id"]}}},"required":["titles"]}`),
+	fn("show_upgrades", "Show the user the upgrade cards (local vs. remote copy, every option, a sync button) for upgrades you name. Call it with keys from the upgrades tool, up to 8; then keep the text short, the cards carry the details.", `{"type":"object","properties":{"keys":{"type":"array","items":{"type":"string"}}},"required":["keys"]}`),
 	fn("propose", "Propose an action for the user to confirm. kind: watch (auto-sync a remote folder), sync (download once), upgrade (replace a local copy; needs upgradeKey from upgrades and one of its option folders). refKey: from suggestions, when the folder came from there.", `{"type":"object","properties":{"kind":{"type":"string","enum":["watch","sync","upgrade"]},"serverId":{"type":"integer"},"remotePath":{"type":"string"},"title":{"type":"string"},"upgradeKey":{"type":"string"},"refKey":{"type":"string"}},"required":["kind","serverId","remotePath","title"]}`),
 }
 
@@ -370,10 +505,12 @@ type aiToolOut struct {
 	result   any
 	proposal *aiProposal
 	cards    []aiCard
+	upgrades []UpgradeSuggestion
 }
 
 func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string) aiToolOut {
 	var args struct {
+		Keys   []string `json:"keys"`
 		Titles []struct {
 			ID     int    `json:"id"`
 			Source string `json:"source"`
@@ -445,6 +582,32 @@ func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string)
 			res["note"] = "skipped titles the user already has; do not recommend them, mention briefly that they are covered"
 		}
 		return aiToolOut{result: res, cards: cards}
+	case "show_upgrades":
+		blob, _ := s.aiSuggestionBlob(ctx, userID)
+		dismissed := s.dismissedKeys(userID, "upgrade")
+		var ups []UpgradeSuggestion
+		var unknown []string
+		for i, k := range args.Keys {
+			if i >= 8 {
+				break
+			}
+			found := false
+			for _, up := range blob.Upgrades {
+				if up.Key == k && !dismissed[k] {
+					ups = append(ups, up)
+					found = true
+					break
+				}
+			}
+			if !found {
+				unknown = append(unknown, k)
+			}
+		}
+		res := map[string]any{"shown": len(ups)}
+		if len(unknown) > 0 {
+			res["unknownIds"] = unknown
+		}
+		return aiToolOut{result: res, upgrades: ups}
 	case "propose":
 		p, reason := s.aiPropose(ctx, userID, args.Kind, args.ServerID, args.RemotePath, args.Title, args.UpgradeKey, args.RefKey)
 		if p == nil {

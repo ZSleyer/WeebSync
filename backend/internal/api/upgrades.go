@@ -511,6 +511,8 @@ type UpgradeSuggestion struct {
 	Sync               SyncPlan      `json:"sync"`              // where a one-off sync writes (into the existing local season/movie folder)
 	// every season of this show the library already has, this one included
 	LocalSeasons []LocalSeason `json:"localSeasons,omitempty"`
+	// Media is the resolved provider record behind the unit, for a detail view
+	Media *anilist.Media `json:"media,omitempty"`
 }
 
 // handleUpgrades lists, per series, every copy that a sibling copy beats on one
@@ -620,6 +622,11 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			Sync:     existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
 
 			LocalSeasons: localsByShow[showScope(u.showKey, u.isMovie)],
+		}
+		if e.media.ID != 0 {
+			m := e.media
+			m.Title.Preferred = up.Title
+			up.Media = &m
 		}
 		// a better remote copy exists for a season you own: which axis wins
 		slog.Debug("upgrade found", "showKey", u.showKey, "season", u.season,
