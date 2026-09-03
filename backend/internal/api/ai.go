@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/ai"
@@ -174,13 +175,36 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
+	var wmu sync.Mutex
 	emit := func(ev aiEvent) {
 		b, _ := json.Marshal(ev)
+		wmu.Lock()
 		fmt.Fprintf(w, "data: %s\n\n", b)
 		flusher.Flush()
+		wmu.Unlock()
 	}
+	// a model thinking or a tool waiting on a provider can leave the line
+	// silent for a while; proxies drop idle responses, so keep it warm
+	ctx, stop := context.WithCancel(r.Context())
+	defer stop()
+	go func() {
+		t := time.NewTicker(15 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				wmu.Lock()
+				fmt.Fprint(w, ": keepalive\n\n")
+				flusher.Flush()
+				wmu.Unlock()
+			}
+		}
+	}()
+	fmt.Fprint(w, ": connected\n\n")
+	flusher.Flush()
 
-	ctx := r.Context()
 	for round := 0; ; round++ {
 		if round >= aiMaxRounds {
 			emit(aiEvent{Type: "error", Message: "the assistant needed too many steps; ask more specifically"})
@@ -395,20 +419,26 @@ func aiCands(c []plexCandidate) []aiCandidate {
 	return out
 }
 
-// aiSuggestionBlob is the user's aggregated suggestions: the cached blob when
-// there is one, otherwise built now (slow, but the model asked for it).
-func (s *Server) aiSuggestionBlob(ctx context.Context, userID int64) SuggestionsResponse {
-	var resp SuggestionsResponse
-	if payload, ok := s.cacheGet(fmt.Sprintf("suggestions:%d", userID), 24*time.Hour); ok {
-		if json.Unmarshal([]byte(payload), &resp) == nil {
-			return resp
-		}
+// aiSuggestionBlob is the user's aggregated suggestions as the Suggestions
+// page would show them: the cached blob, refreshed in the background when
+// stale. Never built on the request - a build can take minutes (language
+// probes, provider rate limits) and the chat stream would sit silent that
+// long. building reports that a rebuild is running and the blob may be old
+// or empty.
+func (s *Server) aiSuggestionBlob(ctx context.Context, userID int64) (resp SuggestionsResponse, building bool) {
+	key := fmt.Sprintf("suggestions:%d", userID)
+	payload, fresh := s.cacheGet(key, suggestTTL)
+	if !fresh {
+		s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, userID) })
+		payload, _ = s.cacheGet(key, 365*24*time.Hour) // whatever is there beats nothing
+		building = true
 	}
-	return s.buildUserSuggestions(ctx, userID)
+	json.Unmarshal([]byte(payload), &resp)
+	return resp, building
 }
 
 func (s *Server) aiSuggestions(ctx context.Context, userID int64) any {
-	blob := s.aiSuggestionBlob(ctx, userID)
+	blob, building := s.aiSuggestionBlob(ctx, userID)
 	dismissed := s.dismissedKeys(userID, "suggestion")
 	conv := func(items []SugItem, limit int) []aiSugEntry {
 		out := []aiSugEntry{}
@@ -430,12 +460,16 @@ func (s *Server) aiSuggestions(ctx context.Context, userID int64) any {
 		}
 		return out
 	}
-	return map[string]any{
+	out := map[string]any{
 		"watchlist":   conv(blob.Watchlist, 60),
 		"recommended": conv(blob.Recommended, 40),
 		"trending":    conv(blob.Trending, 30),
 		"incomplete":  conv(blob.Incomplete, 40),
 	}
+	if building {
+		out["note"] = "suggestions are being rebuilt in the background; this list may be stale or empty, ask again in a few minutes for the fresh one"
+	}
+	return out
 }
 
 type aiVariant struct {
@@ -472,7 +506,7 @@ func fmtRes(r int) string {
 }
 
 func (s *Server) aiUpgrades(ctx context.Context, userID int64) any {
-	blob := s.aiSuggestionBlob(ctx, userID)
+	blob, building := s.aiSuggestionBlob(ctx, userID)
 	dismissed := s.dismissedKeys(userID, "upgrade")
 	dims := s.upgradeDimsFor(userID)
 	out := []map[string]any{}
@@ -491,7 +525,11 @@ func (s *Server) aiUpgrades(ctx context.Context, userID int64) any {
 			"languageUnverified": up.LanguageUnverified,
 		})
 	}
-	return map[string]any{"enabledAxes": dims, "upgrades": out}
+	res := map[string]any{"enabledAxes": dims, "upgrades": out}
+	if building {
+		res["note"] = "upgrades are being recomputed in the background; this list may be stale or empty"
+	}
+	return res
 }
 
 func (s *Server) aiSeasonal(ctx context.Context, userID int64, season string, year int) any {
@@ -668,7 +706,7 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind string, serve
 		if upgradeKey == "" {
 			return nil, "an upgrade needs the key from the upgrades tool"
 		}
-		blob := s.aiSuggestionBlob(ctx, userID)
+		blob, _ := s.aiSuggestionBlob(ctx, userID)
 		var up *UpgradeSuggestion
 		for i := range blob.Upgrades {
 			if blob.Upgrades[i].Key == upgradeKey {
@@ -699,7 +737,7 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind string, serve
 		return p, ""
 	case "sync":
 		if refKey != "" {
-			blob := s.aiSuggestionBlob(ctx, userID)
+			blob, _ := s.aiSuggestionBlob(ctx, userID)
 			for _, it := range blob.Incomplete {
 				if it.RefKey != refKey {
 					continue
