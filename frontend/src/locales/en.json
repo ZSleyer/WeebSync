@@ -29,7 +29,11 @@
     "tagline": "weeb your sync",
     "loading": "loading",
     "logout": "Log out",
-    "error": "Error"
+    "error": "Error",
+    "updateAvailable": "WeebSync was updated. Reload to get the new version.",
+    "reloadIn": "Reloading in {{s}} s",
+    "reloadNow": "Reload now",
+    "later": "Later"
   },
   "nav": {
     "dashboard": "Dashboard",

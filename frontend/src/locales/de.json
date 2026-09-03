@@ -29,7 +29,11 @@
     "tagline": "weeb your sync",
     "loading": "lädt",
     "logout": "Abmelden",
-    "error": "Fehler"
+    "error": "Fehler",
+    "updateAvailable": "WeebSync wurde aktualisiert. Neu laden, um die neue Version zu bekommen.",
+    "reloadIn": "Neu laden in {{s}} s",
+    "reloadNow": "Jetzt neu laden",
+    "later": "Später"
   },
   "nav": {
     "dashboard": "Dashboard",

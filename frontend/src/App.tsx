@@ -27,6 +27,7 @@ import { AppBar, AppShell, Badge, Button, TabBar } from '@weebsync/design-system
 import { api } from './api'
 import { useAiStatus, useAuth, useEvents } from './hooks'
 import Loading from './components/Loading'
+import UpdateToast from './components/UpdateToast'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -327,6 +328,7 @@ function Shell({ email }: { email: string }) {
       before={
         <>
           <RouteTitle />
+          <UpdateToast />
           {/* closes the "more" sheet on a tap anywhere else */}
           {moreOpen && <div className="fixed inset-0 z-40 lg:hidden" aria-hidden onClick={() => setMoreOpen(false)} />}
         </>
