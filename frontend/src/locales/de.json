@@ -64,6 +64,19 @@
       "propose": "prüft den Vorschlag"
     },
     "unconfigured": "Es ist kein Assistent-Endpoint konfiguriert.",
+    "transcript": {
+      "error": "Das schlug fehl: {{error}}",
+      "generic": { "start": "Führe {{name}} aus…", "done": "{{name}} fertig." },
+      "my_lists": { "start": "Lese deine AniList-Liste und die Plex-Watchlist…", "done": "{{anilist}} AniList-Einträge, {{plexWatchlist}} auf der Plex-Watchlist." },
+      "suggestions": { "start": "Lese die Vorschläge von WeebSync…", "done": "{{watchlist}} aus deiner Watchlist, {{recommended}} empfohlen, {{trending}} im Trend, {{incomplete}} unvollständig." },
+      "upgrades": { "start": "Vergleiche deine Kopien mit den Servern…", "done": "{{count}} bessere Kopien gefunden: {{names}}" },
+      "seasonal": { "start": "Hole die Season {{season}} {{year}}…", "done": "{{count}} Titel, {{onList}} auf deiner Liste, {{owned}} in der Bibliothek, {{inAutoSync}} im Auto-Sync." },
+      "search_remote": { "start": "Durchsuche die Server nach „{{query}}“…", "done": "{{count}} Ordner gefunden: {{names}}" },
+      "my_watches": { "start": "Lese deine Auto-Syncs…", "done": "{{count}} Auto-Syncs: {{names}}" },
+      "recommend": { "start": "Bereite {{titlesCount}} Titelkarten vor…", "done": "{{shown}} Karten gezeigt.", "doneSkipped": "{{shown}} Karten gezeigt, {{skipped}} übersprungen, weil schon vorhanden: {{skippedNames}}" },
+      "show_upgrades": { "start": "Bereite {{keysCount}} Upgrade-Karten vor…", "done": "{{shown}} Upgrade-Karten gezeigt." },
+      "propose": { "start": "Prüfe „{{title}}“ ({{kind}}) unter {{remotePath}}…", "done": "Vorschlag angenommen.", "rejected": "Abgelehnt: {{reason}}" }
+    },
     "unconfiguredAdmin": "Unter Einstellungen → Integrationen einen OpenAI-kompatiblen Endpoint eintragen.",
     "error": "Assistent nicht erreichbar",
     "kind": {

@@ -562,10 +562,11 @@ export interface AiCard {
 export type AiEvent =
   | { type: 'delta'; text: string }
   | { type: 'reasoning'; text: string }
-  | { type: 'tool'; name: string; args?: string }
-  | { type: 'tool_done'; name: string; result?: string }
+  | { type: 'tool'; name: string; params?: Record<string, unknown> }
+  | { type: 'tool_done'; name: string; stats?: Record<string, unknown> }
   | ({ type: 'proposal' } & AiProposal)
   | { type: 'cards'; cards: AiCard[] }
+  | { type: 'upgrades'; upgrades: UpgradeSuggestion[] }
   | { type: 'error'; message: string }
   | { type: 'done' }
 

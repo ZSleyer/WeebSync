@@ -64,6 +64,19 @@
       "propose": "checking the proposal"
     },
     "unconfigured": "No assistant endpoint is configured.",
+    "transcript": {
+      "error": "That failed: {{error}}",
+      "generic": { "start": "Running {{name}}…", "done": "{{name}} finished." },
+      "my_lists": { "start": "Reading your AniList list and Plex watchlist…", "done": "{{anilist}} AniList entries, {{plexWatchlist}} on the Plex watchlist." },
+      "suggestions": { "start": "Reading WeebSync's suggestions…", "done": "{{watchlist}} from your watchlist, {{recommended}} recommended, {{trending}} trending, {{incomplete}} incomplete." },
+      "upgrades": { "start": "Comparing your copies with the servers…", "done": "{{count}} better copies found: {{names}}" },
+      "seasonal": { "start": "Fetching the {{season}} {{year}} season…", "done": "{{count}} titles, {{onList}} on your list, {{owned}} in the library, {{inAutoSync}} in auto-sync." },
+      "search_remote": { "start": "Searching the servers for “{{query}}”…", "done": "{{count}} folders found: {{names}}" },
+      "my_watches": { "start": "Reading your auto-syncs…", "done": "{{count}} auto-syncs: {{names}}" },
+      "recommend": { "start": "Preparing {{titlesCount}} title cards…", "done": "{{shown}} cards shown.", "doneSkipped": "{{shown}} cards shown, {{skipped}} skipped as already covered: {{skippedNames}}" },
+      "show_upgrades": { "start": "Preparing {{keysCount}} upgrade cards…", "done": "{{shown}} upgrade cards shown." },
+      "propose": { "start": "Checking a {{kind}} of “{{title}}” on {{remotePath}}…", "done": "Proposal accepted.", "rejected": "Rejected: {{reason}}" }
+    },
     "unconfiguredAdmin": "Add an OpenAI-compatible endpoint under Settings → Integrations.",
     "error": "Assistant unavailable",
     "kind": {

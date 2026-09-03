@@ -4,7 +4,21 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { Badge, Button, Dialog, EmptyState, MediaCard, Panel, Select, Textarea } from '@weebsync/design-system'
-import { api, mediaTitle, streamAiChat, syncOutcome, type AiCard, type AiChatMessage, type AiProposal, type SyncResult } from '../api'
+import {
+  api,
+  mediaTitle,
+  streamAiChat,
+  syncOutcome,
+  type AiCard,
+  type AiChatMessage,
+  type AiProposal,
+  type SyncResult,
+  type UpgradeDims,
+  type UpgradeSuggestion,
+  type UpgradeVariant,
+} from '../api'
+import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
+import { usePersistedQuery } from '../hooks'
 import MediaDetail from '../components/MediaDetail'
 import { useAiModels, useAiStatus, useAuth } from '../hooks'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
@@ -17,13 +31,16 @@ const plain = (s: string) => s.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`([^`\n]
 // turn that produced them; `done` marks a card the user already confirmed.
 // A step is one entry of the thinking transcript: a stretch of the model's
 // reasoning, or a tool call with its arguments and the result it got back.
-type Step = { kind: 'reasoning'; text: string } | { kind: 'tool'; name: string; args?: string; result?: string }
+type Step =
+  | { kind: 'reasoning'; text: string }
+  | { kind: 'tool'; name: string; params?: Record<string, unknown>; stats?: Record<string, unknown> }
 
 interface Turn {
   role: 'user' | 'assistant'
   content: string
   proposals?: (AiProposal & { done?: boolean })[]
   cards?: AiCard[]
+  upgrades?: UpgradeSuggestion[]
   steps?: Step[]
   stepsOpen?: boolean
   stepsTouched?: boolean // the user toggled the transcript; leave it alone
@@ -79,6 +96,10 @@ export default function Assistant() {
   const [notice, setNotice] = useState('')
   const [open, setOpen] = useState<{ turn: number; idx: number } | null>(null)
   const [card, setCard] = useState<AiCard | null>(null)
+  const [detail, setDetail] = useState<UpgradeSuggestion | null>(null)
+  const [upSync, setUpSync] = useState<SyncRequest | null>(null)
+  const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
+  const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   const abortRef = useRef<AbortController | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
@@ -136,7 +157,7 @@ export default function Assistant() {
               // it belongs to the transcript, the answer starts after the tools
               patchLast((tr) => {
                 const narrated = tr.content.trim() ? addStep(tr, { kind: 'reasoning', text: tr.content.trim() }) : tr
-                return { ...addStep({ ...narrated, content: '' }, { kind: 'tool', name: ev.name, args: ev.args }), tool: ev.name, stepsOpen: tr.stepsTouched ? tr.stepsOpen : true }
+                return { ...addStep({ ...narrated, content: '' }, { kind: 'tool', name: ev.name, params: ev.params }), tool: ev.name, stepsOpen: tr.stepsTouched ? tr.stepsOpen : true }
               })
               break
             }
@@ -145,8 +166,8 @@ export default function Assistant() {
                 const steps = [...(tr.steps ?? [])]
                 for (let i = steps.length - 1; i >= 0; i--) {
                   const st = steps[i]
-                  if (st.kind === 'tool' && st.name === ev.name && st.result === undefined) {
-                    steps[i] = { ...st, result: ev.result ?? '' }
+                  if (st.kind === 'tool' && st.name === ev.name && st.stats === undefined) {
+                    steps[i] = { ...st, stats: ev.stats ?? {} }
                     break
                   }
                 }
@@ -160,6 +181,13 @@ export default function Assistant() {
             }
             case 'cards':
               patchLast((tr) => ({ ...tr, cards: [...(tr.cards ?? []), ...ev.cards] }))
+              break
+            case 'upgrades':
+              // the upgrades tool and show_upgrades may both name a card
+              patchLast((tr) => {
+                const have = new Set((tr.upgrades ?? []).map((u) => u.key))
+                return { ...tr, upgrades: [...(tr.upgrades ?? []), ...ev.upgrades.filter((u) => !have.has(u.key))] }
+              })
               break
             case 'error':
               patchLast((tr) => ({ ...tr, error: ev.message, tool: undefined }))
@@ -355,12 +383,9 @@ export default function Assistant() {
                               {st.text}
                             </li>
                           ) : (
-                            <li key={si} className="font-mono text-xs">
-                              <span className="text-accent">{t(`assistant.tools.${st.name}`, { defaultValue: st.name })}</span>
-                              {st.args && st.args !== '{}' && <span className="text-t-muted"> {st.args}</span>}
-                              {st.result !== undefined && (
-                                <div className="mt-0.5 break-all text-t-faint">{st.result || '∅'}</div>
-                              )}
+                            <li key={si} className="text-t-secondary">
+                              {toolSentence(t, st.name, 'start', st.params)}
+                              {st.stats !== undefined && <span className="text-t-muted"> {toolSentence(t, st.name, 'done', st.stats)}</span>}
                             </li>
                           ),
                         )}
@@ -421,6 +446,18 @@ export default function Assistant() {
                     ))}
                   </ul>
                 ) : null}
+                {tr.upgrades?.map((u) => (
+                  <div key={u.key} className="mt-3">
+                    <UpgradeCard
+                      u={u}
+                      dims={dims}
+                      chosen={choice[u.key] ?? u.to}
+                      onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
+                      onSync={setUpSync}
+                      onDetails={setDetail}
+                    />
+                  </div>
+                ))}
                 {tr.proposals?.map((p, pi) => (
                   <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
                 ))}
@@ -441,6 +478,28 @@ export default function Assistant() {
         <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: mediaTitle(card.media) })} onClose={() => setCard(null)}>
           <MediaDetail media={card.media} source={card.source} />
         </Dialog>
+      )}
+      {detail?.media && (
+        <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: detail.title })} onClose={() => setDetail(null)}>
+          <MediaDetail media={detail.media} source={detail.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist'} />
+        </Dialog>
+      )}
+      {upSync && (
+        <WatchDialog
+          title={upSync.name}
+          serverId={upSync.serverId}
+          initial={upSync.initial}
+          info={upSync.info}
+          saveLabel={t('suggestions.syncOnce')}
+          onSave={async (f) => {
+            const r = await api.post<SyncResult>('/api/downloads/sync', { serverId: upSync.serverId, ...f })
+            const why = syncOutcome(r, t)
+            if (why) return why
+            qc.invalidateQueries({ queryKey: ['downloads'] })
+            setNotice(t('remote.queued', { count: r.queued }))
+          }}
+          onClose={() => setUpSync(null)}
+        />
       )}
       {open && current && (
         <WatchDialog
@@ -474,6 +533,26 @@ export default function Assistant() {
       )}
     </div>
   )
+}
+
+// toolSentence phrases one transcript step from the tool's name, the
+// parameters it was called with and the stats its result yielded. The
+// locale carries one template per tool and phase; a tool without one gets
+// the generic line.
+function toolSentence(
+  t: (k: string, o?: Record<string, unknown>) => string,
+  name: string,
+  phase: 'start' | 'done',
+  data?: Record<string, unknown>,
+): string {
+  const d: Record<string, unknown> = { names: '', skippedNames: '', ...data }
+  if (phase === 'done' && typeof d.error === 'string') return t('assistant.transcript.error', { error: d.error })
+  let variant: string = phase
+  if (phase === 'done' && name === 'recommend' && typeof d.skipped === 'number' && d.skipped > 0) variant = 'doneSkipped'
+  if (phase === 'done' && name === 'propose' && d.ok === false) variant = 'rejected'
+  const key = `assistant.transcript.${name}.${variant}`
+  const generic = phase === 'start' ? t('assistant.transcript.generic.start', { name }) : t('assistant.transcript.generic.done', { name })
+  return t(key, { ...d, defaultValue: generic })
 }
 
 function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean }; onOpen: () => void }) {
