@@ -709,7 +709,7 @@ function DuplicatesSection() {
       <Panel key={d.refKey} className="flex flex-wrap items-start gap-4 p-3">
         <Cover src={d.cover} />
         <div className="min-w-0 flex-1">
-          <h4 className="min-w-0 break-words font-display text-sm font-semibold tracking-wider">{d.title}</h4>
+          <h4 className="min-w-0 wrap-break-word font-display text-sm font-semibold tracking-wider">{d.title}</h4>
           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
             {seasonLabel && <Badge tone="accent">{seasonLabel}</Badge>}
             {d.library && <Badge aria-label={t('suggestions.library', { name: d.library })}>{d.library}</Badge>}
