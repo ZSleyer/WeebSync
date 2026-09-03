@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/ai"
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/logbus"
@@ -35,6 +36,7 @@ type Server struct {
 	Anilist    *anilist.Client
 	Tmdb       *tmdb.Client
 	Tvdb       *tvdb.Client // aired-order season mapping for endless series
+	AI         *ai.Client   // optional assistant endpoint; nil or unconfigured = feature hidden
 	Push       *push.Service
 	Mail       *mailer.Service
 	// Conns pools and caps SSH/FTP connections per server (multiplexes SFTP
@@ -255,6 +257,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/tmdb/suggestions", authed(http.HandlerFunc(s.handleTmdbSuggestions)))
 	mux.Handle("GET /api/suggestions", authed(http.HandlerFunc(s.handleSuggestions)))
 	mux.Handle("GET /api/upgrades", authed(http.HandlerFunc(s.handleUpgrades)))
+	// assistant: read-only tools over the user's data, proposals confirmed in the UI
+	mux.Handle("GET /api/ai/status", authed(http.HandlerFunc(s.handleAiStatus)))
+	mux.Handle("POST /api/ai/chat", authed(http.HandlerFunc(s.handleAiChat)))
 	mux.Handle("POST /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismiss)))
 	mux.Handle("DELETE /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismissRestore)))
 	mux.Handle("GET /api/suggestions/dismissed", authed(http.HandlerFunc(s.handleDismissedList)))

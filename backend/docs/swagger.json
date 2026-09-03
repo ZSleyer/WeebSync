@@ -2077,6 +2077,47 @@
                 },
                 "type": "object"
             },
+            "api.aiChatMessage": {
+                "properties": {
+                    "content": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "example": "user",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.aiChatRequest": {
+                "properties": {
+                    "messages": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.aiChatMessage"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.aiStatusResponse": {
+                "properties": {
+                    "configured": {
+                        "type": "boolean"
+                    },
+                    "connected": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    },
+                    "model": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.anilistMeResponse": {
                 "properties": {
                     "avatar": {
@@ -2805,6 +2846,20 @@
             },
             "api.settingsPayload": {
                 "properties": {
+                    "aiApiKey": {
+                        "description": "write-only, optional (local servers need none)",
+                        "type": "string"
+                    },
+                    "aiApiKeySet": {
+                        "type": "boolean"
+                    },
+                    "aiBaseUrl": {
+                        "description": "OpenAI-compatible endpoint (LiteLLM, OpenRouter, Ollama /v1); empty = assistant off",
+                        "type": "string"
+                    },
+                    "aiModel": {
+                        "type": "string"
+                    },
                     "anilistClientId": {
                         "type": "string"
                     },
@@ -4673,6 +4728,118 @@
                 "summary": "Set cache TTL overrides",
                 "tags": [
                     "Admin"
+                ]
+            }
+        },
+        "/api/ai/chat": {
+            "post": {
+                "description": "Streams the assistant's answer as server-sent events (JSON per line: delta, tool, proposal, error, done). The model only reads; proposals are vetted server-side and confirmed by the user in the watch dialog.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.aiChatRequest",
+                                        "summary": "body",
+                                        "description": "conversation so far"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "conversation so far",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "event stream"
+                    },
+                    "400": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "415": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    },
+                    "503": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "assistant not configured"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Assistant chat",
+                "tags": [
+                    "Assistant"
+                ]
+            }
+        },
+        "/api/ai/status": {
+            "get": {
+                "description": "Whether an assistant endpoint is configured; force=1 also tests the connection. Always 200.",
+                "parameters": [
+                    {
+                        "description": "Also contact the endpoint",
+                        "in": "query",
+                        "name": "force",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.aiStatusResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Assistant status",
+                "tags": [
+                    "Assistant"
                 ]
             }
         },

@@ -21,6 +21,7 @@ import (
 	// line in UTC. ~400 KB for a setting that behaves the same everywhere.
 	_ "time/tzdata"
 
+	"github.com/ch4d1/weebsync/internal/ai"
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/api"
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -113,6 +114,7 @@ func main() {
 		Anilist:      anilist.New(database),
 		Tmdb:         tmdb.New(database),
 		Tvdb:         tvdb.New(database),
+		AI:           ai.New(database),
 		Push:         pushSvc,
 		Mail:         mailer.New(database),
 		Conns:        pool.New(),
