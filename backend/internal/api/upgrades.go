@@ -923,6 +923,11 @@ func (s *Server) addDuplicates() []DuplicateItem {
 			}
 			return *e
 		}
+		// a season folder's own name says nothing about the show; its parent does
+		nameFrom := locals[0].Folder
+		if plexSeasonDirRe.MatchString(filepath.Base(nameFrom)) {
+			nameFrom = filepath.Dir(nameFrom)
+		}
 		item := func(refKey string) DuplicateItem {
 			ei := info()
 			media := anilist.Media{Format: ei.format, Genres: ei.genres}
@@ -930,7 +935,7 @@ func (s *Server) addDuplicates() []DuplicateItem {
 			if kind == "" {
 				kind = u.libKind
 			}
-			return DuplicateItem{RefKey: refKey, Title: unitTitle(ei.title, ei.exact, locals[0].Folder), Cover: ei.cover,
+			return DuplicateItem{RefKey: refKey, Title: unitTitle(ei.title, ei.exact, nameFrom), Cover: ei.cover,
 				Category: categorize(ei.providers, media, "", kind), Season: u.season, IsMovie: u.isMovie,
 				Library: s.plexLibraryOf(locals[0].Folder)}
 		}
