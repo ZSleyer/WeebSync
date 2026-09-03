@@ -139,6 +139,7 @@ export default function Assistant() {
                 return { ...addStep({ ...narrated, content: '' }, { kind: 'tool', name: ev.name, args: ev.args }), tool: ev.name, stepsOpen: tr.stepsTouched ? tr.stepsOpen : true }
               })
               break
+            }
             case 'tool_done':
               patchLast((tr) => {
                 const steps = [...(tr.steps ?? [])]
@@ -274,17 +275,19 @@ export default function Assistant() {
     return (
       <div className="ai-stage page-fill mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col justify-center py-6">
         <div className="ai-hero text-center">
-          <span className="ai-orb ai-orb--lg mx-auto" aria-hidden>
-            <Sparkles size="1.6em" />
+          <span className="ai-glow mx-auto inline-block" aria-hidden>
+            <span className="ai-orb ai-orb--lg">
+              <Sparkles size="1.6em" />
+            </span>
           </span>
           <h2 className="mt-5 font-display text-2xl font-semibold tracking-[0.12em] text-t-primary">{t('assistant.title')}</h2>
           <p className="mx-auto mt-3 max-w-xl text-base text-t-secondary">{t('assistant.intro')}</p>
         </div>
         <div className="mt-8">{composer}</div>
-        <ul className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row">
+        <ul className="mt-4 grid gap-2 sm:grid-cols-3">
           {EXAMPLES.map((k) => (
-            <li key={k} className="flex-1">
-              <button type="button" className="ai-example t-cut h-full w-full px-4 py-3 text-left text-sm" onClick={() => void send(t(`assistant.examples.${k}`))}>
+            <li key={k} className="flex">
+              <button type="button" className="ai-example flex-1 px-4 py-3 text-left text-sm" onClick={() => void send(t(`assistant.examples.${k}`))}>
                 <Sparkles aria-hidden size="1em" className="mr-2 inline align-[-0.125em] text-accent" />
                 {t(`assistant.examples.${k}`)}
               </button>
@@ -299,8 +302,10 @@ export default function Assistant() {
   return (
     <div className="ai-stage page-fill mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <span className="ai-orb" aria-hidden>
-          <Sparkles size="1.1em" />
+        <span className="ai-glow" aria-hidden>
+          <span className="ai-orb">
+            <Sparkles size="1.1em" />
+          </span>
         </span>
         <h2 className="font-display text-lg font-semibold tracking-[0.12em] text-t-primary">{t('assistant.title')}</h2>
         {notice && (
@@ -320,8 +325,10 @@ export default function Assistant() {
           {turns.map((tr, ti) => (
             <li key={ti} className={`ai-turn flex items-start gap-3 ${tr.role === 'user' ? 'justify-end' : ''}`}>
               {tr.role === 'assistant' && (
-                <span className="ai-orb shrink-0" aria-hidden>
-                  <Bot size="1.1em" />
+                <span className="ai-glow shrink-0" aria-hidden>
+                  <span className="ai-orb">
+                    <Bot size="1.1em" />
+                  </span>
                 </span>
               )}
               <div className={`min-w-0 max-w-[88%] ${tr.role === 'user' ? 'order-first' : 'flex-1'}`}>
