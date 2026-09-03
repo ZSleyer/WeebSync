@@ -1348,6 +1348,9 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _ := res.LastInsertId()
 	s.linkMedia(in.ServerID, in.RemotePath, in.MediaID, in.MediaSource)
+	if in.MediaID <= 0 {
+		s.ensureWatchMatch(in.ServerID, in.RemotePath)
+	}
 	go s.runWatch(id) // first sync right away
 	writeJSON(w, http.StatusCreated, WatchCreateResponse{ID: id})
 }
@@ -1430,6 +1433,9 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.linkMedia(serverID, in.RemotePath, in.MediaID, in.MediaSource)
+	if in.MediaID <= 0 {
+		s.ensureWatchMatch(serverID, in.RemotePath)
+	}
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
 		go s.runWatch(id) // paths changed: check the new folder right away
 	}
@@ -1465,6 +1471,23 @@ func (s *Server) linkMedia(serverID int64, folder string, mediaID int, source st
 		VALUES (?, ?, ?, 1, ?)
 		ON CONFLICT(server_id, folder) DO UPDATE SET media_id = excluded.media_id, manual = 1, source = excluded.source`,
 		serverID, folder, mediaID, source)
+}
+
+// ensureWatchMatch queues a metadata match for a watch folder the catalog has
+// not matched yet, so an auto-sync created from the browser or the assistant
+// gets its title, cover and airing data like any catalog folder - a folder
+// outside every catalog view would otherwise stay bare until someone opened
+// it there. Reports whether a match was queued.
+func (s *Server) ensureWatchMatch(serverID int64, folder string) bool {
+	var n int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE server_id = ? AND folder = ?`, serverID, folder).Scan(&n)
+	if n > 0 {
+		return false
+	}
+	name := path.Base(folder)
+	scope := scopeForItem(s.scopeFor(serverID, path.Dir(folder)), s.itemKind(serverID, folder, name))
+	s.queueScopedMatch(serverID, folder, name, scope, false)
+	return true
 }
 
 // handleWatchDelete removes one of the caller's watches.
