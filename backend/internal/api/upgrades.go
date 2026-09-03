@@ -35,16 +35,20 @@ func unitTitle(rawTitle string, exact bool, folder string) string {
 	return rawTitle
 }
 
-var plexSeasonDirRe = regexp.MustCompile(`(?i)^season\s+(\d+)$`)
+var plexSeasonDirRe = regexp.MustCompile(`(?i)^season[\s_]+(\d+)$`)
 
 // seasonFolderName builds the Season-folder name for a new season, matching the
 // zero-padding a sibling season folder already uses ("Season 03" vs "Season 3");
 // defaults to Plex's zero-padded convention.
 func seasonFolderName(siblingBase string, season int) string {
-	if m := plexSeasonDirRe.FindStringSubmatch(siblingBase); m != nil && len(m[1]) < 2 {
-		return fmt.Sprintf("Season %d", season)
+	sep := " "
+	if strings.Contains(siblingBase, "_") {
+		sep = "_" // the library spells it Season_01
 	}
-	return fmt.Sprintf("Season %02d", season)
+	if m := plexSeasonDirRe.FindStringSubmatch(siblingBase); m != nil && len(m[1]) < 2 {
+		return fmt.Sprintf("Season%s%d", sep, season)
+	}
+	return fmt.Sprintf("Season%s%02d", sep, season)
 }
 
 // episodeTemplate is the rename template for a series season: the season number
@@ -806,8 +810,15 @@ func (s *Server) addMissingEpisodes(acc *sugAcc) {
 			for ep := range eps {
 				rmax = max(rmax, ep)
 			}
-			if len(eps) == 0 || rmax > 3*localMax+5 {
-				continue // unlisted, or numbered on another scale
+			rmin := rmax
+			for ep := range eps {
+				rmin = min(rmin, ep)
+			}
+			// unlisted, or numbered on another scale: absolute numbers (26-37
+			// for a second season of twelve) never touch the local 1-12 and
+			// start well past them; a second cour continuing at 13 does touch
+			if len(eps) == 0 || rmax > 3*localMax+5 || rmin > localMax+1 {
+				continue
 			}
 			adds := false
 			for ep := range eps {
@@ -937,6 +948,7 @@ func (s *Server) addDuplicates() []DuplicateItem {
 				locals = append(locals, l)
 			}
 		}
+		locals = outermostCopies(s, locals)
 		if len(locals) == 0 {
 			continue
 		}
@@ -1006,6 +1018,30 @@ func (s *Server) addDuplicates() []DuplicateItem {
 	return out
 }
 
+// outermostCopies drops what only looks like a second copy: a folder that
+// holds no video at all, and a folder that contains another copy (the show
+// root indexed next to its own season folder counts the same files twice).
+func outermostCopies(s *Server, locals []UpgradeVariant) []UpgradeVariant {
+	var out []UpgradeVariant
+	for i, l := range locals {
+		nested := false
+		for j, o := range locals {
+			if i != j && strings.HasPrefix(o.Folder, l.Folder+"/") {
+				nested = true
+				break
+			}
+		}
+		if nested {
+			continue
+		}
+		if files, _ := s.localCopyStats(l.Folder); files == 0 {
+			continue
+		}
+		out = append(out, l)
+	}
+	return out
+}
+
 // localCopyStats counts a local folder's video files and their bytes.
 func (s *Server) localCopyStats(folder string) (files int, bytes int64) {
 	abs, err := s.safeLocal(folder)
@@ -1040,9 +1076,10 @@ type catUnit struct {
 	// libKind: the kind of the Plex library the LOCAL copies came from
 	// (kindAnime or ""). Only server-0 rows carry one; it decorates, it never
 	// decides - see the note on categorize in buildUpgrades.
-	libKind string
-	locals  []UpgradeVariant
-	remotes []UpgradeVariant
+	libKind  string
+	seriesID int64 // from the first row that carries one, for the plausibility check
+	locals   []UpgradeVariant
+	remotes  []UpgradeVariant
 }
 
 type catUnits struct {
@@ -1086,17 +1123,17 @@ func (s *Server) loadUnits() catUnits {
 	names := s.serverNames()
 	canon := s.showKeyCanon()
 	u := catUnits{byKey: map[string]*catUnit{}}
-	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, show_key, season, is_movie, probed, lib_kind
+	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, show_key, season, is_movie, probed, lib_kind, series_id
 		FROM catalog_variants WHERE show_key != '' ORDER BY show_key, season`)
 	if err != nil {
 		return u
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var serverID int64
+		var serverID, seriesID int64
 		var folder, dub, sub, soft, showKey, libKind string
 		var res, season, isMovie, probed int
-		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &soft, &showKey, &season, &isMovie, &probed, &libKind) != nil {
+		if rows.Scan(&serverID, &folder, &res, &dub, &sub, &soft, &showKey, &season, &isMovie, &probed, &libKind, &seriesID) != nil {
 			continue
 		}
 		movie := isMovie == 1
@@ -1113,6 +1150,9 @@ func (s *Server) loadUnits() catUnits {
 		if libKind != "" && cu.libKind == "" {
 			cu.libKind = libKind
 		}
+		if seriesID != 0 && cu.seriesID == 0 {
+			cu.seriesID = seriesID
+		}
 		v := UpgradeVariant{ServerID: serverID, ServerName: names[serverID], Folder: folder,
 			ResRank: res, Dub: splitCSV(dub), Sub: splitCSV(sub), Soft: splitCSV(soft), Probed: probeState(probed)}
 		if serverID == 0 {
@@ -1121,6 +1161,8 @@ func (s *Server) loadUnits() catUnits {
 			cu.remotes = append(cu.remotes, v)
 		}
 	}
+	rows.Close()
+	s.pruneImplausibleRemotes(u)
 	return u
 }
 
@@ -1395,8 +1437,14 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 			}
 		}
 		if media != nil {
-			e.mediaBySeason[showKey+enrichSlot(season, movie)] = *media
-			e.srcBySeason[showKey+enrichSlot(season, movie)] = source
+			slot := showKey + enrichSlot(season, movie)
+			// a series bundles its films and specials, and one of them can
+			// sit in the same season slot; the season is named after the
+			// series entry, not after the special that shares its number
+			if prev, ok := e.mediaBySeason[slot]; !ok || movie || media.Format == "TV" || prev.Format != "TV" {
+				e.mediaBySeason[slot] = *media
+				e.srcBySeason[slot] = source
+			}
 		}
 	}
 	// the units fold aliased keys onto one per series (see showKeyCanon), and
