@@ -8,6 +8,10 @@ import { api, streamAiChat, syncOutcome, type AiChatMessage, type AiProposal, ty
 import { useAiStatus, useAuth } from '../hooks'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 
+// plain strips the markdown a model emits anyway (bold, code spans, heading
+// marks): the page renders text, and the prompt asks for text.
+const plain = (s: string) => s.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`([^`\n]*)`/g, '$1').replace(/^#{1,6}\s+/gm, '')
+
 // One turn of the conversation as rendered. Proposals hang off the assistant
 // turn that produced them; `done` marks a card the user already confirmed.
 interface Turn {
@@ -162,7 +166,7 @@ export default function Assistant() {
               <div className={`min-w-0 max-w-[85%] ${tr.role === 'user' ? 'order-first' : ''}`}>
                 <Panel className={`p-3 text-sm ${tr.role === 'user' ? 'bg-bg-hover' : ''}`}>
                   <span className="sr-only">{tr.role === 'user' ? t('assistant.you') : t('assistant.title')}: </span>
-                  {tr.content && <p className="whitespace-pre-wrap break-words">{tr.content}</p>}
+                  {tr.content && <p className="whitespace-pre-wrap break-words">{plain(tr.content)}</p>}
                   {tr.tool && (
                     <p className="mt-1 flex items-center gap-1 text-xs text-t-muted">
                       <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
