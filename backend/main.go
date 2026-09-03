@@ -131,6 +131,7 @@ func main() {
 	go srv.WatchLoop(rootCtx)
 	go srv.IndexLoop(rootCtx)
 	go srv.BackfillSeries()
+	go srv.RevalidateMatches()         // once per matcher rule set: drop what the rules would not match today
 	go srv.BackfillUnits()             // one-time, self-detecting: fill show_key/season on pre-migration rows
 	go srv.ClearStaleSuggestionCache() // drop cached suggestion blobs once when their format changed
 	go srv.RefreshPlexRoots()          // auto-detect Plex library mounts up front (not just on the hourly index)
