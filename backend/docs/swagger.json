@@ -2097,6 +2097,27 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "model": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.aiModelsResponse": {
+                "properties": {
+                    "default": {
+                        "type": "string"
+                    },
+                    "error": {
+                        "type": "string"
+                    },
+                    "models": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -4802,6 +4823,32 @@
                     }
                 ],
                 "summary": "Assistant chat",
+                "tags": [
+                    "Assistant"
+                ]
+            }
+        },
+        "/api/ai/models": {
+            "get": {
+                "description": "Lists the model ids the configured endpoint serves plus the default. Always 200; an unreachable endpoint reports error with an empty list.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.aiModelsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Assistant models",
                 "tags": [
                     "Assistant"
                 ]

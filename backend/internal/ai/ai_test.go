@@ -17,6 +17,7 @@ func TestReadStreamMergesToolCallFragments(t *testing.T) {
 		`data: {"choices":[{"delta":{"content":"Hel"}}]}`,
 		``,
 		`data: {"choices":[{"delta":{"content":"lo"}}]}`,
+		`data: {"choices":[{"delta":{"reasoning_content":"hmm"}}]}`,
 		`: keepalive`,
 		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search_","arguments":""}}]}}]}`,
 		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"remote","arguments":"{\"que"}}]}}]}`,
@@ -25,13 +26,19 @@ func TestReadStreamMergesToolCallFragments(t *testing.T) {
 		`data: [DONE]`,
 		`data: {"choices":[{"delta":{"content":"after done, ignored"}}]}`,
 	}, "\n")
-	var deltas []string
-	msg, err := readStream(strings.NewReader(body), func(s string) { deltas = append(deltas, s) })
+	var deltas, reasons []string
+	msg, err := readStream(strings.NewReader(body), func(d Delta) {
+		if d.Reasoning != "" {
+			reasons = append(reasons, d.Reasoning)
+		} else {
+			deltas = append(deltas, d.Text)
+		}
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if msg.Content != "Hello" || strings.Join(deltas, "|") != "Hel|lo" {
-		t.Errorf("content %q deltas %v", msg.Content, deltas)
+	if msg.Content != "Hello" || strings.Join(deltas, "|") != "Hel|lo" || strings.Join(reasons, "") != "hmm" {
+		t.Errorf("content %q deltas %v reasons %v", msg.Content, deltas, reasons)
 	}
 	if len(msg.ToolCalls) != 2 {
 		t.Fatalf("tool calls: %+v", msg.ToolCalls)
@@ -57,7 +64,7 @@ func TestStreamAndPingAgainstFakeProvider(t *testing.T) {
 		gotAuth = r.Header.Get("Authorization")
 		switch r.URL.Path {
 		case "/v1/models":
-			w.Write([]byte(`{"data":[]}`))
+			w.Write([]byte(`{"data":[{"id":"test-model"},{"id":"other"}]}`))
 		case "/v1/chat/completions":
 			var req struct {
 				Model  string `json:"model"`
@@ -100,9 +107,15 @@ func TestStreamAndPingAgainstFakeProvider(t *testing.T) {
 	if gotAuth != "Bearer sk-test" {
 		t.Errorf("auth header %q", gotAuth)
 	}
-	msg, err := c.Stream(context.Background(), []Message{{Role: "user", Content: "hi"}}, nil, nil)
+	if ids, err := c.Models(context.Background()); err != nil || strings.Join(ids, ",") != "test-model,other" {
+		t.Fatalf("models: %v %v", ids, err)
+	}
+	msg, err := c.Stream(context.Background(), "", []Message{{Role: "user", Content: "hi"}}, nil, nil)
 	if err != nil || msg.Content != "ok" || gotModel != "test-model" {
 		t.Fatalf("stream: %v %+v model %q", err, msg, gotModel)
+	}
+	if _, err := c.Stream(context.Background(), "other", []Message{{Role: "user", Content: "hi"}}, nil, nil); err != nil || gotModel != "other" {
+		t.Fatalf("stream override: %v model %q", err, gotModel)
 	}
 
 	// a non-2xx answer surfaces the provider's text

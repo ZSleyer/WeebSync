@@ -70,18 +70,75 @@ type aiChatMessage struct {
 	Content string `json:"content"`
 }
 
-// aiChatRequest is the conversation so far, newest last.
+// aiChatRequest is the conversation so far, newest last. Model overrides the
+// configured default for this request (a pick from /api/ai/models).
 type aiChatRequest struct {
 	Messages []aiChatMessage `json:"messages"`
+	Model    string          `json:"model,omitempty"`
 }
 
-// aiEvent is one line of the chat stream.
+// aiModelsResponse lists what the endpoint serves and which id is the default.
+type aiModelsResponse struct {
+	Models  []string `json:"models"`
+	Default string   `json:"default"`
+	Error   string   `json:"error,omitempty"`
+}
+
+// handleAiModels lists the endpoint's models for the pickers.
+//
+//	@Summary		Assistant models
+//	@Description	Lists the model ids the configured endpoint serves plus the default. Always 200; an unreachable endpoint reports error with an empty list.
+//	@Tags			Assistant
+//	@Produce		json
+//	@Success		200	{object}	aiModelsResponse
+//	@Security		CookieAuth
+//	@Router			/api/ai/models [get]
+func (s *Server) handleAiModels(w http.ResponseWriter, r *http.Request) {
+	out := aiModelsResponse{Models: []string{}}
+	if s.AI == nil || !s.AI.Enabled() {
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+	out.Default = s.AI.Model()
+	ids, err := s.AI.Models(r.Context())
+	if err != nil {
+		out.Error = logSafe(err.Error())
+	} else {
+		out.Models = ids
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// aiEvent is one line of the chat stream: answer text (delta), the model's
+// reasoning (reasoning), a tool starting (tool: name + args) and finishing
+// (tool_done: name + a result excerpt), a vetted proposal, an error, done.
 type aiEvent struct {
-	Type    string `json:"type"` // delta | tool | proposal | error | done
-	Text    string `json:"text,omitempty"`
-	Name    string `json:"name,omitempty"`
-	Message string `json:"message,omitempty"`
+	Type    string   `json:"type"` // delta | reasoning | tool | tool_done | proposal | cards | error | done
+	Text    string   `json:"text,omitempty"`
+	Name    string   `json:"name,omitempty"`
+	Args    string   `json:"args,omitempty"`
+	Result  string   `json:"result,omitempty"`
+	Message string   `json:"message,omitempty"`
+	Cards   []aiCard `json:"cards,omitempty"`
 	*aiProposal
+}
+
+// aiCard is one recommended title as the chat shows it: the provider's
+// media record (cover, description, trailer, score - what the catalog's
+// detail dialog renders) plus the model's one-line reason.
+type aiCard struct {
+	Source string        `json:"source"` // anilist | tmdb:tv | tmdb:movie | tvdb
+	Media  anilist.Media `json:"media"`
+	Why    string        `json:"why,omitempty"`
+}
+
+// excerpt trims a tool payload to what a transcript can show.
+func excerpt(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > n {
+		return s[:n] + "…"
+	}
+	return s
 }
 
 // aiProposal is a vetted action the user can confirm. Fields is the watch
@@ -157,6 +214,11 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u := auth.UserFrom(r.Context())
+	model := strings.TrimSpace(in.Model)
+	if len(model) > 200 {
+		writeErr(w, http.StatusBadRequest, "model too long")
+		return
+	}
 	msgs := []ai.Message{{Role: "system", Content: s.aiSystemPrompt(u.ID)}}
 	hist := in.Messages
 	if len(hist) > aiMaxHistory {
@@ -210,7 +272,13 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 			emit(aiEvent{Type: "error", Message: "the assistant needed too many steps; ask more specifically"})
 			break
 		}
-		reply, err := s.AI.Stream(ctx, msgs, aiTools, func(text string) { emit(aiEvent{Type: "delta", Text: text}) })
+		reply, err := s.AI.Stream(ctx, model, msgs, aiTools, func(d ai.Delta) {
+			if d.Reasoning != "" {
+				emit(aiEvent{Type: "reasoning", Text: d.Reasoning})
+			} else {
+				emit(aiEvent{Type: "delta", Text: d.Text})
+			}
+		})
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				slog.Warn("assistant", "user", u.ID, "err", logSafe(err.Error()))
@@ -223,12 +291,16 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		}
 		msgs = append(msgs, reply)
 		for _, call := range reply.ToolCalls {
-			emit(aiEvent{Type: "tool", Name: call.Function.Name})
-			result, proposal := s.aiTool(ctx, u.ID, call.Function.Name, call.Function.Arguments)
-			if proposal != nil {
-				emit(aiEvent{Type: "proposal", aiProposal: proposal})
+			emit(aiEvent{Type: "tool", Name: call.Function.Name, Args: excerpt(call.Function.Arguments, 300)})
+			out := s.aiTool(ctx, u.ID, call.Function.Name, call.Function.Arguments)
+			if out.proposal != nil {
+				emit(aiEvent{Type: "proposal", aiProposal: out.proposal})
 			}
-			b, _ := json.Marshal(result)
+			if len(out.cards) > 0 {
+				emit(aiEvent{Type: "cards", Cards: out.cards})
+			}
+			b, _ := json.Marshal(out.result)
+			emit(aiEvent{Type: "tool_done", Name: call.Function.Name, Result: excerpt(string(b), 600)})
 			msgs = append(msgs, ai.Message{Role: "tool", ToolCallID: call.ID, Content: string(b)})
 		}
 	}
@@ -249,7 +321,7 @@ Today is %s. The current anime season is %s %d.
 Answer in %s. Be concise. Plain text only: no markdown (no bold, headings or tables); short paragraphs and simple "-" bullet lists are fine.
 
 You can only READ through the tools and PROPOSE actions; the user confirms every proposal in a dialog. Rules:
-- Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score).
+- Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score). When you recommend titles, also call recommend with their ids and reasons so the user gets cards to open; then keep the text short, the cards carry the details.
 - Before proposing a watch or sync, find the folder with search_remote or take a candidate from suggestions/seasonal. Never invent server ids or paths.
 - kind "watch" = auto-sync: keeps a remote folder in sync (for airing shows). kind "sync" = download once. kind "upgrade" = replace a local copy with a better remote copy; only from the upgrades tool, quoting its key and one of its option folders, and only when it improves an axis the user enabled. Say concretely what improves (resolution, dub, sub, selectable subtitles) and mention when the language data is unverified.
 - If propose returns ok:false, tell the user the reason; do not retry the same call.
@@ -278,6 +350,7 @@ var aiTools = []ai.Tool{
 	fn("seasonal", "Anime of one broadcast season, most popular first, flagged with the user's list status, whether the library has it, and remote folders.", `{"type":"object","properties":{"season":{"type":"string","enum":["WINTER","SPRING","SUMMER","FALL"]},"year":{"type":"integer"}},"required":["season","year"]}`),
 	fn("search_remote", "Search folders on the user's remote servers by words of a title. Returns server id, path and the folder's known quality.", `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
 	fn("my_watches", "The user's existing auto-syncs.", `{"type":"object","properties":{}}`),
+	fn("recommend", "Show the user cards for titles you recommend (cover, description, score, links). Call it with the ids you got from my_lists, suggestions or seasonal, each with a one-line reason. Up to 8 titles.", `{"type":"object","properties":{"titles":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"source":{"type":"string","enum":["anilist","tmdb:tv","tmdb:movie","tvdb"]},"why":{"type":"string"}},"required":["id"]}}},"required":["titles"]}`),
 	fn("propose", "Propose an action for the user to confirm. kind: watch (auto-sync a remote folder), sync (download once), upgrade (replace a local copy; needs upgradeKey from upgrades and one of its option folders). refKey: from suggestions, when the folder came from there.", `{"type":"object","properties":{"kind":{"type":"string","enum":["watch","sync","upgrade"]},"serverId":{"type":"integer"},"remotePath":{"type":"string"},"title":{"type":"string"},"upgradeKey":{"type":"string"},"refKey":{"type":"string"}},"required":["kind","serverId","remotePath","title"]}`),
 }
 
@@ -287,8 +360,21 @@ func fn(name, desc, params string) ai.Tool {
 
 // aiTool runs one tool for this user. The result goes back to the model; a
 // proposal, when the call produced one, goes to the client.
-func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string) (result any, proposal *aiProposal) {
+// aiToolOut is what a tool hands back: the result for the model, plus what
+// the client gets to see (a vetted proposal, recommendation cards).
+type aiToolOut struct {
+	result   any
+	proposal *aiProposal
+	cards    []aiCard
+}
+
+func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string) aiToolOut {
 	var args struct {
+		Titles []struct {
+			ID     int    `json:"id"`
+			Source string `json:"source"`
+			Why    string `json:"why"`
+		} `json:"titles"`
 		Season     string `json:"season"`
 		Year       int    `json:"year"`
 		Query      string `json:"query"`
@@ -301,30 +387,75 @@ func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string)
 	}
 	if rawArgs != "" {
 		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
-			return map[string]any{"error": "arguments must be a JSON object"}, nil
+			return aiToolOut{result: map[string]any{"error": "arguments must be a JSON object"}}
 		}
 	}
 	switch name {
 	case "my_lists":
-		return s.aiLists(userID), nil
+		return aiToolOut{result: s.aiLists(userID)}
 	case "suggestions":
-		return s.aiSuggestions(ctx, userID), nil
+		return aiToolOut{result: s.aiSuggestions(ctx, userID)}
 	case "upgrades":
-		return s.aiUpgrades(ctx, userID), nil
+		return aiToolOut{result: s.aiUpgrades(ctx, userID)}
 	case "seasonal":
-		return s.aiSeasonal(ctx, userID, strings.ToUpper(args.Season), args.Year), nil
+		return aiToolOut{result: s.aiSeasonal(ctx, userID, strings.ToUpper(args.Season), args.Year)}
 	case "search_remote":
-		return s.aiSearchRemote(userID, args.Query), nil
+		return aiToolOut{result: s.aiSearchRemote(userID, args.Query)}
 	case "my_watches":
-		return s.aiWatches(userID), nil
+		return aiToolOut{result: s.aiWatches(userID)}
+	case "recommend":
+		cards := []aiCard{}
+		missing := []int{}
+		for i, t := range args.Titles {
+			if i >= 8 {
+				break
+			}
+			src := t.Source
+			if src == "" {
+				src = "anilist"
+			}
+			if m := s.aiMedia(ctx, src, t.ID); m != nil {
+				cards = append(cards, aiCard{Source: src, Media: *m, Why: excerpt(t.Why, 200)})
+			} else {
+				missing = append(missing, t.ID)
+			}
+		}
+		res := map[string]any{"shown": len(cards)}
+		if len(missing) > 0 {
+			res["unknownIds"] = missing
+		}
+		return aiToolOut{result: res, cards: cards}
 	case "propose":
 		p, reason := s.aiPropose(ctx, userID, args.Kind, args.ServerID, args.RemotePath, args.Title, args.UpgradeKey, args.RefKey)
 		if p == nil {
-			return map[string]any{"ok": false, "reason": reason}, nil
+			return aiToolOut{result: map[string]any{"ok": false, "reason": reason}}
 		}
-		return map[string]any{"ok": true, "shown": true, "info": p.Info, "unverified": p.Unverified}, p
+		return aiToolOut{result: map[string]any{"ok": true, "shown": true, "info": p.Info, "unverified": p.Unverified}, proposal: p}
 	}
-	return map[string]any{"error": "unknown tool"}, nil
+	return aiToolOut{result: map[string]any{"error": "unknown tool"}}
+}
+
+// aiMedia resolves one provider record for a card, from the cache or live,
+// with the canonical display title set the way the catalog shows it.
+func (s *Server) aiMedia(ctx context.Context, source string, id int) *anilist.Media {
+	if id <= 0 {
+		return nil
+	}
+	var m *anilist.Media
+	var err error
+	switch {
+	case source == "anilist":
+		m, err = s.Anilist.Media(ctx, id)
+	case strings.HasPrefix(source, "tmdb:") && s.Tmdb != nil && s.Tmdb.Enabled():
+		m, err = s.Tmdb.Media(ctx, strings.TrimPrefix(source, "tmdb:"), id)
+	case source == "tvdb" && s.Tvdb != nil && s.Tvdb.Enabled():
+		m, err = s.Tvdb.Media(ctx, id)
+	}
+	if err != nil || m == nil {
+		return nil
+	}
+	m.Title.Preferred = displayTitle(*m, source)
+	return m
 }
 
 // ── read tools ──
