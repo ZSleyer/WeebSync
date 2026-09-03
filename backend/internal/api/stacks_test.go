@@ -23,3 +23,29 @@ func TestStacksTreatsSplitEpisodeAsOneCopy(t *testing.T) {
 		t.Errorf("a stack beside another release: %d stacks, want 2", n)
 	}
 }
+
+func TestShowKeyCanonKeepsTwoProviderIdsApart(t *testing.T) {
+	s, _ := sizeTestServer(t)
+	s.DB.Exec(`INSERT INTO series (id, key, title) VALUES (5, 'fairy tail', 'Fairy Tail')`)
+	for _, row := range [][]any{
+		{0, "/lib/Fairy_Tail/Season_01", "tvdb:114801", 1},
+		{0, "/lib/Fairy_Tail_100_Years_Quest/Season_01", "tvdb:410031", 1},
+		{1, "/seed/Fairy Tail (Sequel) [tags]", "fold:fairy tail", 1},
+	} {
+		s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season, series_id) VALUES (?, ?, ?, ?, 5)`, row...)
+	}
+	canon := s.showKeyCanon()
+	if _, folded := canon["tvdb:410031"]; folded {
+		t.Errorf("the sequel's own tvdb id was folded onto the original: %v", canon)
+	}
+	if _, folded := canon["tvdb:114801"]; folded {
+		t.Errorf("the original's id was folded: %v", canon)
+	}
+	// a series with one provider id still gathers its fold key
+	s.DB.Exec(`INSERT INTO series (id, key, title) VALUES (6, 'yani neko', 'Yani Neko')`)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season, series_id) VALUES (0, '/lib/Cat/Season_01', 'tvdb:473423', 1, 6)`)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season, series_id) VALUES (1, '/seed/Yani Neko', 'fold:yani neko', 1, 6)`)
+	if got := s.showKeyCanon()["fold:yani neko"]; got != "tvdb:473423" {
+		t.Errorf("fold key should fold onto the one provider id, got %q", got)
+	}
+}

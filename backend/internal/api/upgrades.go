@@ -1217,8 +1217,8 @@ func showScope(showKey string, isMovie bool) string {
 // a copy without a series would stop meeting its remote counterpart. Folding
 // the keys gets the same shows together without that dependency.
 func (s *Server) showKeyCanon() map[string]string {
-	rows, err := s.DB.Query(`SELECT DISTINCT show_key, series_id, is_movie FROM catalog_variants
-		WHERE series_id != 0 AND show_key != '' ORDER BY show_key`)
+	rows, err := s.DB.Query(`SELECT show_key, series_id, is_movie, MIN(server_id) FROM catalog_variants
+		WHERE series_id != 0 AND show_key != '' GROUP BY show_key, series_id, is_movie ORDER BY show_key`)
 	if err != nil {
 		return nil
 	}
@@ -1231,13 +1231,17 @@ func (s *Server) showKeyCanon() map[string]string {
 	// the same way), and a bare-key map would rewrite it to whichever form
 	// was read last.
 	groups := map[string][]string{} // (series, form) -> every show_key seen
+	local := map[string]bool{}      // show_key -> a Plex-indexed copy carries it
 	var order []string
 	for rows.Next() {
 		var showKey string
-		var seriesID int64
+		var seriesID, minServer int64
 		var isMovie int
-		if rows.Scan(&showKey, &seriesID, &isMovie) != nil {
+		if rows.Scan(&showKey, &seriesID, &isMovie, &minServer) != nil {
 			continue
+		}
+		if minServer == 0 {
+			local[showKey] = true
 		}
 		g := strconv.FormatInt(seriesID, 10) + "|" + strconv.Itoa(isMovie)
 		if _, ok := groups[g]; !ok {
@@ -1249,6 +1253,15 @@ func (s *Server) showKeyCanon() map[string]string {
 	for _, g := range order {
 		keys := groups[g]
 		movie := strings.HasSuffix(g, "|1")
+		// two ids of one provider that Plex both knows are two shows, whatever
+		// the series bundling made of them (Fairy Tail and its 100 Years Quest
+		// sequel are one series by title but tvdb:114801 and tvdb:410031);
+		// folding them made the sequel's first season a copy of the original's.
+		// An id only a remote folder carries (Fribb filing JoJo's 1993 OVA
+		// under its own tvdb id) still folds onto the show Plex names.
+		if sameProviderTwice(keys, local) {
+			continue
+		}
 		// a provider id speaks for the show; a fold key is a guess from a title
 		// and only stands when nothing better is known. Rows arrive sorted by
 		// key, so among equals the first stays, as before.
@@ -1265,6 +1278,24 @@ func (s *Server) showKeyCanon() map[string]string {
 		}
 	}
 	return canon
+}
+
+// sameProviderTwice reports whether two keys the library itself carries name
+// different ids of the same provider ("tvdb:1" and "tvdb:2"); fold keys are
+// guesses and remote-only ids are aliases, neither counts.
+func sameProviderTwice(keys []string, local map[string]bool) bool {
+	seen := map[string]string{}
+	for _, k := range keys {
+		src, id, ok := strings.Cut(k, ":")
+		if !ok || src == "fold" || !local[k] {
+			continue
+		}
+		if prev, dup := seen[src]; dup && prev != id {
+			return true
+		}
+		seen[src] = id
+	}
+	return false
 }
 
 // showKeyRank orders the key kinds by how much they say: a provider id
