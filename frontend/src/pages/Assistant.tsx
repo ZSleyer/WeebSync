@@ -359,7 +359,7 @@ export default function Assistant() {
                   </span>
                 </span>
               )}
-              <div className={`min-w-0 max-w-[88%] ${tr.role === 'user' ? 'order-first' : 'flex-1'}`}>
+              <div className={`min-w-0 max-w-[92%] sm:max-w-[88%] ${tr.role === 'user' ? 'order-first' : 'flex-1'}`}>
                 <Panel className={`p-4 text-base leading-relaxed ${tr.role === 'user' ? 'ai-bubble--user' : 'ai-bubble'}`}>
                   <span className="sr-only">{tr.role === 'user' ? t('assistant.you') : t('assistant.title')}: </span>
                   {tr.steps?.length ? (
@@ -420,10 +420,14 @@ export default function Assistant() {
                     </p>
                   )}
                 </Panel>
+                {/* min-w-0 on the items: a grid item's automatic minimum is
+                    its content's min-content width, and a truncated title
+                    reports its full text there - the card grew past a phone's
+                    viewport and the log scrolled sideways */}
                 {tr.cards?.length ? (
                   <ul className="mt-3 grid gap-3 sm:grid-cols-2">
                     {tr.cards.map((c) => (
-                      <li key={`${c.source}:${c.media.id}`}>
+                      <li key={`${c.source}:${c.media.id}`} className="min-w-0">
                         <MediaCard
                           className="ai-card h-full"
                           title={mediaTitle(c.media)}
