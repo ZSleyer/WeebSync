@@ -259,6 +259,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/upgrades", authed(http.HandlerFunc(s.handleUpgrades)))
 	// assistant: read-only tools over the user's data, proposals confirmed in the UI
 	mux.Handle("GET /api/ai/status", authed(http.HandlerFunc(s.handleAiStatus)))
+	mux.Handle("GET /api/ai/models", authed(http.HandlerFunc(s.handleAiModels)))
 	mux.Handle("POST /api/ai/chat", authed(http.HandlerFunc(s.handleAiChat)))
 	mux.Handle("POST /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismiss)))
 	mux.Handle("DELETE /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismissRestore)))

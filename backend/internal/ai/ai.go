@@ -55,25 +55,45 @@ func (c *Client) Enabled() bool { return c.baseURL() != "" && c.Model() != "" }
 // Ping checks the endpoint by listing its models - every OpenAI-compatible
 // server answers GET /models, and it exercises the key without spending tokens.
 func (c *Client) Ping(ctx context.Context) error {
+	_, err := c.Models(ctx)
+	return err
+}
+
+// Models lists the ids the endpoint serves, in the order it reports them.
+func (c *Client) Models(ctx context.Context) ([]string, error) {
 	if !c.Enabled() {
-		return errors.New("ai: not configured")
+		return nil, errors.New("ai: not configured")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL()+"/models", nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	c.auth(req)
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return httpErr(resp)
+		return nil, httpErr(resp)
 	}
-	return nil
+	var out struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("ai: models: %w", err)
+	}
+	ids := make([]string, 0, len(out.Data))
+	for _, m := range out.Data {
+		if m.ID != "" {
+			ids = append(ids, m.ID)
+		}
+	}
+	return ids, nil
 }
 
 func (c *Client) auth(req *http.Request) {
@@ -132,16 +152,27 @@ type ToolFunction struct {
 	Parameters  json.RawMessage `json:"parameters"`
 }
 
-// Stream sends one chat completion request with stream=true, hands every text
-// delta to onDelta as it arrives and returns the assembled assistant message,
-// tool calls included. Tool-call fragments arrive spread over many chunks and
-// are keyed by index; they are merged here so the caller sees whole calls.
-func (c *Client) Stream(ctx context.Context, messages []Message, tools []Tool, onDelta func(string)) (Message, error) {
+// Delta is one streamed fragment: answer text, or the model's reasoning
+// (reasoning_content / reasoning, whichever the provider streams).
+type Delta struct {
+	Text      string
+	Reasoning string
+}
+
+// Stream sends one chat completion request with stream=true, hands every
+// fragment to onDelta as it arrives and returns the assembled assistant
+// message, tool calls included. Tool-call fragments arrive spread over many
+// chunks and are keyed by index; they are merged here so the caller sees
+// whole calls. An empty model means the configured default.
+func (c *Client) Stream(ctx context.Context, model string, messages []Message, tools []Tool, onDelta func(Delta)) (Message, error) {
 	if !c.Enabled() {
 		return Message{}, errors.New("ai: not configured")
 	}
+	if model == "" {
+		model = c.Model()
+	}
 	payload := map[string]any{
-		"model":    c.Model(),
+		"model":    model,
 		"messages": messages,
 		"stream":   true,
 	}
@@ -174,8 +205,10 @@ type chunk struct {
 	} `json:"error"`
 	Choices []struct {
 		Delta struct {
-			Content   string `json:"content"`
-			ToolCalls []struct {
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"` // DeepSeek, llama.cpp, LiteLLM
+			Reasoning        string `json:"reasoning"`         // OpenRouter
+			ToolCalls        []struct {
 				Index    int    `json:"index"`
 				ID       string `json:"id"`
 				Type     string `json:"type"`
@@ -189,7 +222,7 @@ type chunk struct {
 }
 
 // readStream parses the SSE body of a streamed completion.
-func readStream(r io.Reader, onDelta func(string)) (Message, error) {
+func readStream(r io.Reader, onDelta func(Delta)) (Message, error) {
 	out := Message{Role: "assistant"}
 	var content strings.Builder
 	calls := map[int]*ToolCall{}
@@ -216,8 +249,11 @@ func readStream(r io.Reader, onDelta func(string)) (Message, error) {
 			if choice.Delta.Content != "" {
 				content.WriteString(choice.Delta.Content)
 				if onDelta != nil {
-					onDelta(choice.Delta.Content)
+					onDelta(Delta{Text: choice.Delta.Content})
 				}
+			}
+			if r := choice.Delta.ReasoningContent + choice.Delta.Reasoning; r != "" && onDelta != nil {
+				onDelta(Delta{Reasoning: r})
 			}
 			for _, tc := range choice.Delta.ToolCalls {
 				call, ok := calls[tc.Index]

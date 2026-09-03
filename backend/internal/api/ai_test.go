@@ -23,6 +23,7 @@ type fakeProvider struct {
 	round    atomic.Int32
 	script   []fakeReply
 	requests []ai.Message
+	model    string
 }
 
 type fakeReply struct {
@@ -35,16 +36,22 @@ func newFakeProvider(t *testing.T, script ...fakeReply) *fakeProvider {
 	t.Helper()
 	fp := &fakeProvider{script: script}
 	fp.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/models" {
+			w.Write([]byte(`{"data":[{"id":"fake"},{"id":"bigger"}]}`))
+			return
+		}
 		if r.URL.Path != "/v1/chat/completions" {
 			http.NotFound(w, r)
 			return
 		}
 		var req struct {
+			Model    string       `json:"model"`
 			Messages []ai.Message `json:"messages"`
 			Tools    []ai.Tool    `json:"tools"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
 		fp.requests = req.Messages
+		fp.model = req.Model
 		if len(req.Tools) == 0 {
 			http.Error(w, "no tools declared", 400)
 			return
@@ -144,10 +151,10 @@ func TestAiChatToolLoopProposesExistingFolder(t *testing.T) {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body)
 	}
 	evs := events(t, rec.Body.String())
-	if got := types(evs); got != "tool,tool,proposal,delta,delta,done" {
+	if got := types(evs); got != "tool,tool_done,tool,proposal,tool_done,delta,delta,done" {
 		t.Fatalf("event order %s: %s", got, rec.Body)
 	}
-	p := evs[2]
+	p := evs[3]
 	if p["kind"] != "watch" || p["serverId"] != float64(1) || p["remotePath"] != "/anime/Frieren" || p["serverName"] != "srv" {
 		t.Errorf("proposal: %v", p)
 	}
@@ -180,7 +187,7 @@ func TestAiProposeRejectsInventedPathAndDuplicateWatch(t *testing.T) {
 	s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/anime/Frieren', 'x')`)
 	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"go"}]}`, c)
 	evs := events(t, rec.Body.String())
-	if got := types(evs); got != "tool,tool,delta,delta,done" {
+	if got := types(evs); got != "tool,tool_done,tool,tool_done,delta,delta,done" {
 		t.Fatalf("event order %s: %s", got, rec.Body)
 	}
 	var reasons []string
@@ -222,7 +229,7 @@ func TestAiProposeUpgradeChecksGain(t *testing.T) {
 	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"better?"}]}`, c)
 	evs := events(t, rec.Body.String())
 	// both rounds ran against the same 1080p blob: nothing improves res → no proposal
-	if got := types(evs); got != "tool,tool,delta,delta,done" {
+	if got := types(evs); got != "tool,tool_done,tool,tool_done,delta,delta,done" {
 		t.Fatalf("event order %s: %s", got, rec.Body)
 	}
 	for _, m := range fp.requests {
@@ -236,7 +243,7 @@ func TestAiProposeUpgradeChecksGain(t *testing.T) {
 	s.cacheSet("suggestions:1", blob(2160))
 	rec = doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"better?"}]}`, c)
 	evs = events(t, rec.Body.String())
-	if got := types(evs); got != "tool,proposal,tool,proposal,delta,delta,done" {
+	if got := types(evs); got != "tool,proposal,tool_done,tool,proposal,tool_done,delta,delta,done" {
 		t.Fatalf("event order %s: %s", got, rec.Body)
 	}
 	p := evs[1]
@@ -263,7 +270,7 @@ func TestAiProposeRefusesFolderMatchedToAnotherTitle(t *testing.T) {
 	s.cacheSet("media:154587", string(payload))
 	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"go"}]}`, c)
 	evs := events(t, rec.Body.String())
-	if got := types(evs); got != "tool,delta,delta,done" {
+	if got := types(evs); got != "tool,tool_done,delta,delta,done" {
 		t.Fatalf("event order %s: %s", got, rec.Body)
 	}
 	if !strings.Contains(fp.requests[len(fp.requests)-1].Content, "is matched to") {
@@ -284,4 +291,60 @@ func TestAnimeSeason(t *testing.T) {
 
 func timeOf(year, month int) time.Time {
 	return time.Date(year, time.Month(month), 15, 12, 0, 0, 0, time.UTC)
+}
+
+func TestAiModelsAndOverride(t *testing.T) {
+	fp := newFakeProvider(t, fakeReply{text: "hi there"})
+	mux, _, c := setupAiTest(t, fp)
+	rec := doReq(mux, "GET", "/api/ai/models", "", c)
+	if rec.Code != 200 || !jsonHas(rec.Body.Bytes(), `"models":["fake","bigger"]`) || !jsonHas(rec.Body.Bytes(), `"default":"fake"`) {
+		t.Fatalf("models: %d %s", rec.Code, rec.Body)
+	}
+	rec = doReq(mux, "POST", "/api/ai/chat", `{"model":"bigger","messages":[{"role":"user","content":"hi"}]}`, c)
+	if rec.Code != 200 || fp.model != "bigger" {
+		t.Fatalf("override: %d model %q", rec.Code, fp.model)
+	}
+	rec = doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"hi"}]}`, c)
+	if rec.Code != 200 || fp.model != "fake" {
+		t.Fatalf("default: %d model %q", rec.Code, fp.model)
+	}
+}
+
+func TestAiModelsUnconfigured(t *testing.T) {
+	mux, _, c := setupAiTest(t, nil)
+	rec := doReq(mux, "GET", "/api/ai/models", "", c)
+	if rec.Code != 200 || !jsonHas(rec.Body.Bytes(), `"models":[]`) {
+		t.Fatalf("models: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestAiRecommendEmitsCards(t *testing.T) {
+	fp := newFakeProvider(t,
+		fakeReply{tool: "recommend", args: `{"titles":[{"id":154587,"why":"you finished Mushoku Tensei"},{"id":999999999}]}`},
+		fakeReply{text: "Here you go."},
+	)
+	mux, s, c := setupAiTest(t, fp)
+	m := anilist.Media{ID: 154587, Status: "FINISHED", Schema: anilist.MediaSchema, SeasonYear: 2023, Genres: []string{"Fantasy"}}
+	m.Title.Romaji = "Sousou no Frieren"
+	payload, _ := json.Marshal(m)
+	s.cacheSet("media:154587", string(payload))
+	// the unknown id would hit AniList live; point the client at nothing
+	s.Anilist.HTTP.Timeout = 50 * time.Millisecond
+	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"what next?"}]}`, c)
+	evs := events(t, rec.Body.String())
+	if got := types(evs); got != "tool,cards,tool_done,delta,delta,done" {
+		t.Fatalf("event order %s: %s", got, rec.Body)
+	}
+	cards := evs[1]["cards"].([]any)
+	if len(cards) != 1 {
+		t.Fatalf("cards: %v", cards)
+	}
+	card := cards[0].(map[string]any)
+	media := card["media"].(map[string]any)
+	if card["why"] != "you finished Mushoku Tensei" || media["id"] != float64(154587) || card["source"] != "anilist" {
+		t.Errorf("card: %v", card)
+	}
+	if !strings.Contains(fp.requests[len(fp.requests)-1].Content, `"unknownIds":[999999999]`) {
+		t.Errorf("tool result: %s", fp.requests[len(fp.requests)-1].Content)
+	}
 }
