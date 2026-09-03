@@ -162,6 +162,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   const confirm = useConfirm()
   const qc = useQueryClient()
   const [error, setError] = useState('')
+	const [protocol, setProtocol] = useState(editing?.protocol ?? 'sftp')
   // uncontrolled form: any input change marks it dirty for the close guard
   const [dirty, setDirty] = useState(false)
   // Dialog asks this before Escape or a backdrop click closes it
@@ -183,8 +184,6 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   const cancel = async () => {
     if (await mayClose()) onClose()
   }
-  // reopening the dialog (same or different server) starts clean
-  useEffect(() => setDirty(false), [editing])
   useEffect(() => {
     if (!dirty) return
     const h = (e: BeforeUnloadEvent) => e.preventDefault()
@@ -233,7 +232,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             <Input name="name" required defaultValue={editing?.name} />
           </Field>
           <Field label={t('servers.protocol')}>
-            <Select name="protocol" defaultValue={editing?.protocol ?? 'sftp'}>
+            <Select name="protocol" value={protocol} onChange={(e) => setProtocol(e.target.value as ServerInfo['protocol'])}>
               <option value="sftp">SFTP (SSH)</option>
               <option value="ftps">FTPS (TLS)</option>
               <option value="ftp">FTP</option>
@@ -280,6 +279,11 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
               defaultValue={editing?.maxConnections ?? 3}
             />
           </Field>
+			{protocol === 'ftp' && (
+				<p className="col-span-2 border border-warn/50 px-3 py-2 text-sm text-warn" role="status">
+					{t('servers.ftpWarning')}
+				</p>
+			)}
           <p className="col-span-2 text-[11px] text-t-muted">{t('servers.maxConnectionsHint')}</p>
         </div>
         {error && (

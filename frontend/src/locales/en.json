@@ -996,6 +996,7 @@
     "newTitle": "NEW SERVER",
     "name": "Name",
     "protocol": "Protocol",
+	"ftpWarning": "FTP sends credentials and files without encryption. Use SFTP or FTPS whenever possible.",
     "port": "Port",
     "host": "Host",
     "user": "Username",
