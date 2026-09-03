@@ -1003,3 +1003,125 @@ dialog:not([open])::backdrop { opacity: 0; }
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Assistant: a stage of its own. The whole <main> becomes the backdrop -
+   aurora glow in the accent colour, a hatch that fades towards the bottom -
+   so the stage fills the space the shell gives it, padding included. Orbs for
+   the two speakers, a composer that reads as one surface. Motion (aurora
+   drift, thinking dots, stream cursor) sits under the global reduced-motion
+   gate. ── */
+.app-shell > main:has(.ai-stage) {
+  background-color: var(--bg-primary);
+  background-image:
+    radial-gradient(70% 50% at 15% 0%, color-mix(in srgb, var(--accent-blue) 24%, transparent), transparent 70%),
+    radial-gradient(50% 45% at 90% 35%, color-mix(in srgb, var(--accent-blue) 13%, transparent), transparent 70%),
+    radial-gradient(60% 40% at 40% 100%, color-mix(in srgb, var(--accent-blue) 10%, transparent), transparent 70%),
+    repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--text-primary) 2.5%, transparent) 7px 8px);
+  background-size: 200% 200%, 200% 200%, 200% 200%, auto;
+  background-position: 0% 0%, 100% 0%, 50% 100%, 0 0;
+  animation: ai-aurora 20s ease-in-out infinite alternate;
+}
+@keyframes ai-aurora {
+  from { background-position: 0% 0%, 100% 0%, 50% 100%, 0 0; }
+  to   { background-position: 40% 25%, 60% 45%, 30% 80%, 0 0; }
+}
+
+/* speaker orb: a clipped square, accent-lit for the assistant */
+.ai-orb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 14%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent-blue) 28%, transparent);
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+.ai-orb--lg {
+  width: 4rem;
+  height: 4rem;
+  box-shadow: 0 0 40px color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+}
+.ai-orb--user {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
+  box-shadow: none;
+}
+
+/* bubbles: the assistant's carries an accent rail, the user's sits darker */
+.ai-bubble {
+  border-left: 2px solid color-mix(in srgb, var(--accent-blue) 70%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-blue) 8%, transparent), 0 12px 32px -20px color-mix(in srgb, var(--accent-blue) 45%, transparent);
+}
+.ai-bubble--user {
+  background: var(--bg-hover);
+}
+.ai-turn { animation: t-reveal 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* a proposal is the payoff: brighter rail, a soft accent wash on top */
+.ai-proposal {
+  border-left: 2px solid var(--accent-blue);
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--accent-blue) 9%, transparent), transparent 60%),
+    var(--bg-card);
+}
+
+/* example prompts on the empty stage */
+.ai-example {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-card) 80%, transparent);
+  border: 1px solid var(--border-subtle);
+  transition: border-color 150ms, background-color 150ms;
+}
+.ai-example:hover {
+  border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent);
+  background: color-mix(in srgb, var(--accent-blue) 10%, var(--bg-card));
+}
+.ai-example:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-blue);
+}
+
+/* composer: one framed surface holding the textarea and the send button */
+.ai-composer {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-blue) 6%, transparent), 0 -12px 40px -24px color-mix(in srgb, var(--accent-blue) 50%, transparent);
+}
+.ai-composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent);
+}
+.ai-composer .t-input:focus,
+.ai-composer .t-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* thinking dots and the streaming cursor */
+.ai-dots { display: inline-flex; gap: 4px; }
+.ai-dots i {
+  width: 6px;
+  height: 6px;
+  background: var(--accent-blue);
+  animation: ai-dot 900ms ease-in-out infinite;
+}
+.ai-dots i:nth-child(2) { animation-delay: 150ms; }
+.ai-dots i:nth-child(3) { animation-delay: 300ms; }
+@keyframes ai-dot {
+  0%, 100% { opacity: 0.25; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-3px); }
+}
+.ai-cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--accent-blue);
+  animation: ai-blink 900ms steps(2, start) infinite;
+}
+@keyframes ai-blink { to { visibility: hidden; } }

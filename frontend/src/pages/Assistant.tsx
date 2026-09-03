@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { Bot, Check, RefreshCw, Send, Square, Trash2, User as UserIcon } from 'lucide-react'
+import { Bot, Check, RefreshCw, Send, Sparkles, Square, Trash2, User as UserIcon } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Badge, Button, EmptyState, Panel, Textarea } from '@weebsync/design-system'
-import { api, streamAiChat, syncOutcome, type AiChatMessage, type AiProposal, type SyncResult } from '../api'
-import { useAiStatus, useAuth } from '../hooks'
+import { Badge, Button, Dialog, EmptyState, MediaCard, Panel, Select, Textarea } from '@weebsync/design-system'
+import { api, mediaTitle, streamAiChat, syncOutcome, type AiCard, type AiChatMessage, type AiProposal, type SyncResult } from '../api'
+import MediaDetail from '../components/MediaDetail'
+import { useAiModels, useAiStatus, useAuth } from '../hooks'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 
 // plain strips the markdown a model emits anyway (bold, code spans, heading
@@ -14,36 +15,69 @@ const plain = (s: string) => s.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`([^`\n]
 
 // One turn of the conversation as rendered. Proposals hang off the assistant
 // turn that produced them; `done` marks a card the user already confirmed.
+// A step is one entry of the thinking transcript: a stretch of the model's
+// reasoning, or a tool call with its arguments and the result it got back.
+type Step = { kind: 'reasoning'; text: string } | { kind: 'tool'; name: string; args?: string; result?: string }
+
 interface Turn {
   role: 'user' | 'assistant'
   content: string
   proposals?: (AiProposal & { done?: boolean })[]
+  cards?: AiCard[]
+  steps?: Step[]
+  stepsOpen?: boolean
   tool?: string // the tool currently running, while streaming
   error?: string
 }
 
+// addStep appends to the transcript, merging consecutive reasoning deltas.
+function addStep(tr: Turn, step: Step): Turn {
+  const steps = [...(tr.steps ?? [])]
+  const lastStep = steps[steps.length - 1]
+  if (step.kind === 'reasoning' && lastStep?.kind === 'reasoning') {
+    steps[steps.length - 1] = { kind: 'reasoning', text: lastStep.text + step.text }
+  } else {
+    steps.push(step)
+  }
+  return { ...tr, steps }
+}
+
+const EXAMPLES = ['seasonal', 'watch', 'upgrade'] as const
+
 // The assistant chats over the user's own data and can only propose: every
 // card opens the ordinary watch dialog, and what the dialog saves goes
 // through the same endpoints the Suggestions page uses. The conversation
-// lives in sessionStorage per user: gone with the tab, never in the DB.
+// lives in sessionStorage per user: gone with the tab, never in the DB. The
+// model pick is per user too (localStorage), the admin's setting is the default.
 export default function Assistant() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: user } = useAuth()
   const { data: status } = useAiStatus()
-  const storageKey = `weebsync.ai.${user?.id ?? 0}`
+  const { data: models } = useAiModels(!!status?.configured)
+  const uid = user?.id ?? 0
+  const storageKey = `weebsync.ai.${uid}`
+  const modelKey = `weebsync.ai.model.${uid}`
   const [turns, setTurns] = useState<Turn[]>(() => {
     try {
-      const v = sessionStorage.getItem(`weebsync.ai.${user?.id ?? 0}`)
+      const v = sessionStorage.getItem(`weebsync.ai.${uid}`)
       return v ? (JSON.parse(v) as Turn[]) : []
     } catch {
       return []
+    }
+  })
+  const [model, setModel] = useState(() => {
+    try {
+      return localStorage.getItem(`weebsync.ai.model.${uid}`) ?? ''
+    } catch {
+      return ''
     }
   })
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [notice, setNotice] = useState('')
   const [open, setOpen] = useState<{ turn: number; idx: number } | null>(null)
+  const [card, setCard] = useState<AiCard | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
@@ -58,11 +92,24 @@ export default function Assistant() {
   }, [turns, storageKey])
   useEffect(() => () => abortRef.current?.abort(), [])
 
+  // a pick that the endpoint no longer serves falls back to the default
+  const modelList = models?.models ?? []
+  const effectiveModel = model && (modelList.length === 0 || modelList.includes(model)) ? model : ''
+  const pickModel = (m: string) => {
+    setModel(m)
+    try {
+      if (m) localStorage.setItem(modelKey, m)
+      else localStorage.removeItem(modelKey)
+    } catch {
+      /* best effort */
+    }
+  }
+
   const patchLast = (fn: (turn: Turn) => Turn) =>
     setTurns((prev) => prev.map((tr, i) => (i === prev.length - 1 ? fn(tr) : tr)))
 
-  const send = async () => {
-    const text = input.trim()
+  const send = async (raw?: string) => {
+    const text = (raw ?? input).trim()
     if (!text || streaming) return
     const history: AiChatMessage[] = [...turns, { role: 'user' as const, content: text }]
       .filter((tr) => tr.content.trim())
@@ -80,14 +127,33 @@ export default function Assistant() {
             case 'delta':
               patchLast((tr) => ({ ...tr, content: tr.content + ev.text, tool: undefined }))
               break
+            case 'reasoning':
+              patchLast((tr) => addStep(tr, { kind: 'reasoning', text: ev.text }))
+              break
             case 'tool':
-              patchLast((tr) => ({ ...tr, tool: ev.name }))
+              patchLast((tr) => ({ ...addStep(tr, { kind: 'tool', name: ev.name, args: ev.args }), tool: ev.name }))
+              break
+            case 'tool_done':
+              patchLast((tr) => {
+                const steps = [...(tr.steps ?? [])]
+                for (let i = steps.length - 1; i >= 0; i--) {
+                  const st = steps[i]
+                  if (st.kind === 'tool' && st.name === ev.name && st.result === undefined) {
+                    steps[i] = { ...st, result: ev.result ?? '' }
+                    break
+                  }
+                }
+                return { ...tr, steps }
+              })
               break
             case 'proposal': {
               const { type: _t, ...p } = ev
               patchLast((tr) => ({ ...tr, proposals: [...(tr.proposals ?? []), p] }))
               break
             }
+            case 'cards':
+              patchLast((tr) => ({ ...tr, cards: [...(tr.cards ?? []), ...ev.cards] }))
+              break
             case 'error':
               patchLast((tr) => ({ ...tr, error: ev.message, tool: undefined }))
               break
@@ -97,6 +163,7 @@ export default function Assistant() {
           }
         },
         ac.signal,
+        effectiveModel,
       )
     } catch (e) {
       if (!ac.signal.aborted) {
@@ -140,89 +207,223 @@ export default function Assistant() {
   }
 
   const current = open ? turns[open.turn]?.proposals?.[open.idx] : undefined
+  const last = turns.length - 1
+  const empty = turns.length === 0
+
+  // the composer is one element in two places: centred on the empty stage,
+  // pinned to the bottom once the conversation exists
+  const composer = (
+    <form
+      className="ai-composer flex items-end gap-3 p-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        void send()
+      }}
+    >
+      <label className="flex-1">
+        <span className="sr-only">{t('assistant.placeholder')}</span>
+        <Textarea
+          rows={empty ? 3 : 2}
+          className="w-full resize-none border-0 bg-transparent text-base"
+          placeholder={t('assistant.placeholder')}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={onKey}
+          autoFocus
+        />
+      </label>
+      {streaming ? (
+        <Button type="button" onClick={() => abortRef.current?.abort()}>
+          <Square aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('assistant.stop')}
+        </Button>
+      ) : (
+        <Button type="submit" variant="primary" disabled={!input.trim()}>
+          <Send aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('assistant.send')}
+        </Button>
+      )}
+    </form>
+  )
+
+  const modelPicker = (
+    <label className="flex items-center gap-2 text-xs text-t-muted">
+      <span>{t('assistant.model')}</span>
+      <Select size="sm" className="max-w-[22rem] font-mono" value={effectiveModel} onChange={(e) => pickModel(e.target.value)}>
+        <option value="">{t('assistant.modelDefault', { model: models?.default ?? status?.model ?? '' })}</option>
+        {modelList
+          .filter((m) => m !== (models?.default ?? status?.model))
+          .map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+      </Select>
+    </label>
+  )
+
+  if (empty) {
+    return (
+      <div className="ai-stage page-fill mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col justify-center py-6">
+        <div className="ai-hero text-center">
+          <span className="ai-orb ai-orb--lg mx-auto" aria-hidden>
+            <Sparkles size="1.6em" />
+          </span>
+          <h2 className="mt-5 font-display text-2xl font-semibold tracking-[0.12em] text-t-primary">{t('assistant.title')}</h2>
+          <p className="mx-auto mt-3 max-w-xl text-base text-t-secondary">{t('assistant.intro')}</p>
+        </div>
+        <div className="mt-8">{composer}</div>
+        <ul className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row">
+          {EXAMPLES.map((k) => (
+            <li key={k} className="flex-1">
+              <button type="button" className="ai-example t-cut h-full w-full px-4 py-3 text-left text-sm" onClick={() => void send(t(`assistant.examples.${k}`))}>
+                <Sparkles aria-hidden size="1em" className="mr-2 inline align-[-0.125em] text-accent" />
+                {t(`assistant.examples.${k}`)}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-6 flex justify-center">{modelPicker}</div>
+      </div>
+    )
+  }
 
   return (
-    <div className="page-fill mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Badge tone="accent">{t('assistant.title')}</Badge>
-        {status?.model && <span className="font-mono text-xs text-t-muted">{status.model}</span>}
+    <div className="ai-stage page-fill mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <span className="ai-orb" aria-hidden>
+          <Sparkles size="1.1em" />
+        </span>
+        <h2 className="font-display text-lg font-semibold tracking-[0.12em] text-t-primary">{t('assistant.title')}</h2>
         {notice && (
           <Badge tone="ok" role="status">
             {notice}
           </Badge>
         )}
-        <Button size="sm" className="ml-auto" onClick={clear} disabled={!turns.length && !streaming}>
+        <div className="ml-auto">{modelPicker}</div>
+        <Button size="sm" onClick={clear}>
           <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('assistant.clear')}
         </Button>
       </div>
 
       <div ref={logRef} role="log" aria-live="polite" aria-label={t('assistant.title')} className="min-h-0 flex-1 overflow-y-auto pr-1">
-        {!turns.length && <p className="p-4 text-sm text-t-muted">{t('assistant.intro')}</p>}
-        <ol className="space-y-3">
+        <ol className="space-y-4">
           {turns.map((tr, ti) => (
-            <li key={ti} className={`flex gap-2 ${tr.role === 'user' ? 'justify-end' : ''}`}>
-              {tr.role === 'assistant' && <Bot aria-hidden size="1.25em" className="mt-2 shrink-0 text-accent" />}
-              <div className={`min-w-0 max-w-[85%] ${tr.role === 'user' ? 'order-first' : ''}`}>
-                <Panel className={`p-3 text-sm ${tr.role === 'user' ? 'bg-bg-hover' : ''}`}>
+            <li key={ti} className={`ai-turn flex items-start gap-3 ${tr.role === 'user' ? 'justify-end' : ''}`}>
+              {tr.role === 'assistant' && (
+                <span className="ai-orb shrink-0" aria-hidden>
+                  <Bot size="1.1em" />
+                </span>
+              )}
+              <div className={`min-w-0 max-w-[88%] ${tr.role === 'user' ? 'order-first' : 'flex-1'}`}>
+                <Panel className={`p-4 text-base leading-relaxed ${tr.role === 'user' ? 'ai-bubble--user' : 'ai-bubble'}`}>
                   <span className="sr-only">{tr.role === 'user' ? t('assistant.you') : t('assistant.title')}: </span>
-                  {tr.content && <p className="whitespace-pre-wrap break-words">{plain(tr.content)}</p>}
+                  {tr.steps?.length ? (
+                    <details
+                      className="ai-steps mb-3"
+                      open={tr.stepsOpen ?? false}
+                      onToggle={(e) =>
+                        setTurns((prev) => prev.map((x, i) => (i === ti ? { ...x, stepsOpen: (e.target as HTMLDetailsElement).open } : x)))
+                      }
+                    >
+                      <summary className="cursor-pointer text-sm text-t-muted">
+                        {t('assistant.steps', { count: tr.steps.length })}
+                      </summary>
+                      <ol className="mt-2 space-y-2 border-l border-border-subtle pl-3 text-sm">
+                        {tr.steps.map((st, si) =>
+                          st.kind === 'reasoning' ? (
+                            <li key={si} className="whitespace-pre-wrap break-words text-t-muted italic">
+                              {st.text}
+                            </li>
+                          ) : (
+                            <li key={si} className="font-mono text-xs">
+                              <span className="text-accent">{t(`assistant.tools.${st.name}`, { defaultValue: st.name })}</span>
+                              {st.args && st.args !== '{}' && <span className="text-t-muted"> {st.args}</span>}
+                              {st.result !== undefined && (
+                                <div className="mt-0.5 break-all text-t-faint">{st.result || '∅'}</div>
+                              )}
+                            </li>
+                          ),
+                        )}
+                      </ol>
+                    </details>
+                  ) : null}
+                  {tr.content && (
+                    <p className="whitespace-pre-wrap break-words">
+                      {plain(tr.content)}
+                      {streaming && ti === last && !tr.tool && <span className="ai-cursor" aria-hidden />}
+                    </p>
+                  )}
                   {tr.tool && (
-                    <p className="mt-1 flex items-center gap-1 text-xs text-t-muted">
+                    <p className="mt-2 flex items-center gap-2 text-sm text-accent">
                       <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
                       {t('assistant.toolRunning', { name: t(`assistant.tools.${tr.tool}`, { defaultValue: tr.tool }) })}
                     </p>
                   )}
-                  {!tr.content && !tr.tool && tr.role === 'assistant' && !tr.error && streaming && ti === turns.length - 1 && (
-                    <p className="text-xs text-t-muted">{t('assistant.thinking')}</p>
+                  {!tr.content && !tr.tool && tr.role === 'assistant' && !tr.error && streaming && ti === last && (
+                    <p className="flex items-center gap-2 text-sm text-t-muted">
+                      <span className="ai-dots" aria-hidden>
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                      {t('assistant.thinking')}
+                    </p>
                   )}
                   {tr.error && (
-                    <p className="mt-1 text-xs text-err" role="alert">
+                    <p className="mt-2 text-sm text-err" role="alert">
                       {t('assistant.error')}: {tr.error}
                     </p>
                   )}
                 </Panel>
+                {tr.cards?.length ? (
+                  <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {tr.cards.map((c) => (
+                      <li key={`${c.source}:${c.media.id}`}>
+                        <MediaCard
+                          className="ai-card h-full"
+                          title={mediaTitle(c.media)}
+                          cover={c.media.coverImage?.large}
+                          meta={c.why}
+                          badges={
+                            <>
+                              {c.media.seasonYear > 0 && <Badge size="sm">{c.media.seasonYear}</Badge>}
+                              {c.media.format && <Badge size="sm">{c.media.format}</Badge>}
+                              {c.media.averageScore > 0 && <Badge size="sm" tone="accent">{c.media.averageScore}</Badge>}
+                            </>
+                          }
+                          actions={
+                            <Button size="sm" onClick={() => setCard(c)} aria-label={t('remote.detailsFor', { name: mediaTitle(c.media) })}>
+                              {t('remote.details')}
+                            </Button>
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 {tr.proposals?.map((p, pi) => (
                   <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
                 ))}
               </div>
-              {tr.role === 'user' && <UserIcon aria-hidden size="1.25em" className="mt-2 shrink-0 text-t-muted" />}
+              {tr.role === 'user' && (
+                <span className="ai-orb ai-orb--user shrink-0" aria-hidden>
+                  <UserIcon size="1.1em" />
+                </span>
+              )}
             </li>
           ))}
         </ol>
       </div>
 
-      <form
-        className="mt-3 flex items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void send()
-        }}
-      >
-        <label className="flex-1 text-xs text-t-muted">
-          <span className="sr-only">{t('assistant.placeholder')}</span>
-          <Textarea
-            rows={2}
-            className="w-full resize-none"
-            placeholder={t('assistant.placeholder')}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKey}
-          />
-        </label>
-        {streaming ? (
-          <Button type="button" onClick={() => abortRef.current?.abort()}>
-            <Square aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('assistant.stop')}
-          </Button>
-        ) : (
-          <Button type="submit" variant="primary" disabled={!input.trim()}>
-            <Send aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('assistant.send')}
-          </Button>
-        )}
-      </form>
+      <div className="mt-4">{composer}</div>
 
+      {card && (
+        <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: mediaTitle(card.media) })} onClose={() => setCard(null)}>
+          <MediaDetail media={card.media} source={card.source} />
+        </Dialog>
+      )}
       {open && current && (
         <WatchDialog
           title={current.title}
@@ -260,10 +461,10 @@ export default function Assistant() {
 function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean }; onOpen: () => void }) {
   const { t } = useTranslation()
   return (
-    <Panel className="mt-2 p-3 text-sm">
+    <Panel className="ai-proposal mt-3 p-4 text-base">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="accent">{t(`assistant.kind.${p.kind}`)}</Badge>
-        <span className="font-display font-semibold">{p.title}</span>
+        <span className="font-display text-lg font-semibold">{p.title}</span>
         {p.unverified && <Badge tone="warn">{t('assistant.unverified')}</Badge>}
         {p.done && (
           <Badge tone="ok">
@@ -272,18 +473,19 @@ function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean }; onOpe
           </Badge>
         )}
       </div>
-      <p className="mt-1 break-all font-mono text-xs text-t-muted">
+      <p className="mt-2 break-all font-mono text-sm text-t-muted">
         {p.serverName}: {p.remotePath}
       </p>
       {p.info?.length ? (
-        <ul className="mt-1 list-inside list-disc text-xs text-t-secondary">
+        <ul className="mt-2 list-inside list-disc text-sm text-t-secondary">
           {p.info.map((line, i) => (
             <li key={i}>{line}</li>
           ))}
         </ul>
       ) : null}
       {!p.done && (
-        <Button size="sm" variant="primary" className="mt-2" onClick={onOpen}>
+        <Button variant="primary" className="mt-3" onClick={onOpen}>
+          <Sparkles aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {p.kind === 'watch' ? t('assistant.create') : t('assistant.queue')}
         </Button>
       )}
