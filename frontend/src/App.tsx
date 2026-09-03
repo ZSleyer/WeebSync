@@ -226,7 +226,7 @@ function Shell({ email }: { email: string }) {
       end={n.to === '/'}
       className={({ isActive }) =>
         mobile
-          ? `flex min-h-[var(--nav-h)] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
+          ? `flex min-h-(--nav-h) min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
               isActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
             }`
           : `group flex items-center gap-3 border-l-2 px-4 py-2.5 font-display text-sm transition-colors ${
@@ -304,7 +304,7 @@ function Shell({ email }: { email: string }) {
       <div className="flex">
         {NAV_PRIMARY.map((n) => navLink(n, true))}
         <button
-          className={`flex min-h-[var(--nav-h)] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
+          className={`flex min-h-(--nav-h) min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
             moreOpen || moreActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
           }`}
           aria-expanded={moreOpen}

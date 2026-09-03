@@ -286,7 +286,7 @@ export default function Assistant() {
   const modelPicker = (
     <label className="flex items-center gap-2 text-xs text-t-muted">
       <span>{t('assistant.model')}</span>
-      <Select size="sm" className="max-w-[22rem] font-mono" value={effectiveModel} onChange={(e) => pickModel(e.target.value)}>
+      <Select size="sm" className="max-w-88 font-mono" value={effectiveModel} onChange={(e) => pickModel(e.target.value)}>
         <option value="">{t('assistant.modelDefault', { model: models?.default ?? status?.model ?? '' })}</option>
         {modelList
           .filter((m) => m !== (models?.default ?? status?.model))
@@ -379,7 +379,7 @@ export default function Assistant() {
                       <ol className="mt-2 space-y-2 border-l border-border-subtle pl-3 text-sm">
                         {tr.steps.map((st, si) =>
                           st.kind === 'reasoning' ? (
-                            <li key={si} className="whitespace-pre-wrap break-words text-t-muted italic">
+                            <li key={si} className="whitespace-pre-wrap wrap-break-word text-t-muted italic">
                               {st.text}
                             </li>
                           ) : (
@@ -393,7 +393,7 @@ export default function Assistant() {
                     </details>
                   ) : null}
                   {tr.content && (
-                    <p className="whitespace-pre-wrap break-words">
+                    <p className="whitespace-pre-wrap wrap-break-word">
                       {plain(tr.content)}
                       {streaming && ti === last && !tr.tool && <span className="ai-cursor" aria-hidden />}
                     </p>

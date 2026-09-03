@@ -190,7 +190,7 @@ export default function Rename() {
             {/* break-anywhere: a file name has no spaces to break at, so its
                 length became the table's minimum width and pushed the panel
                 into a sideways scroll on a phone */}
-            <tbody className="font-mono text-xs [overflow-wrap:anywhere]">
+            <tbody className="font-mono text-xs wrap-anywhere">
               {rows.map((p, i) => (
                 <tr key={i} className="border-b border-border-subtle/50">
                   <td className="px-3 py-1.5">

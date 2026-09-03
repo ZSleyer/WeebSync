@@ -83,7 +83,7 @@ export function Hint({ text }: { text: string }) {
     <span ref={ref} className="relative ml-1 inline-block align-middle">
       <button
         type="button"
-        className="group/hint t-iconbtn rounded align-middle focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
+        className="group/hint t-iconbtn rounded align-middle focus-visible:outline-1 focus-visible:outline-accent"
         aria-label={text}
         onMouseEnter={show}
         onMouseLeave={() => setPos(null)}
@@ -104,7 +104,7 @@ export function Hint({ text }: { text: string }) {
           <span
             role="tooltip"
             style={{ position: 'fixed', top: pos.top, left: pos.left, width: 'min(256px, 70vw)' }}
-            className="pointer-events-none z-[100] rounded border border-border-subtle bg-[#0d1117] p-2 text-[11px] font-normal normal-case leading-snug tracking-normal text-t-secondary shadow-lg"
+            className="pointer-events-none z-100 rounded border border-border-subtle bg-[#0d1117] p-2 text-[11px] font-normal normal-case leading-snug tracking-normal text-t-secondary shadow-lg"
           >
             {text}
           </span>,
