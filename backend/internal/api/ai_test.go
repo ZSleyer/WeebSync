@@ -441,3 +441,36 @@ func TestAiUpgradesToolShowsTopCards(t *testing.T) {
 		t.Errorf("cards: %d, want the first six", n)
 	}
 }
+
+func TestAiCardsForTitlesNamedWithoutRecommend(t *testing.T) {
+	fp := newFakeProvider(t,
+		fakeReply{tool: "seasonal", args: `{"season":"FALL","year":2026}`},
+		fakeReply{text: "Two picks:\n- Sousou no Frieren: quiet fantasy with a strong cast.\n- Dan Da Dan: loud and fun.\nShall I show details?"},
+	)
+	mux, s, c := setupAiTest(t, fp)
+	mk := func(id int, title string) anilist.Media {
+		m := anilist.Media{ID: id, Status: "FINISHED", Schema: anilist.MediaSchema, SeasonYear: 2026}
+		m.Title.Romaji = title
+		return m
+	}
+	list := []anilist.Media{mk(154587, "Sousou no Frieren"), mk(171018, "Dan Da Dan"), mk(1, "Unmentioned Show")}
+	payload, _ := json.Marshal(list)
+	s.cacheSet("season:FALL:2026", string(payload))
+	for _, m := range list {
+		p, _ := json.Marshal(m)
+		s.cacheSet(fmt.Sprintf("media:%d", m.ID), string(p))
+	}
+	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"what airs this season?"}]}`, c)
+	evs := events(t, rec.Body.String())
+	if got := types(evs); got != "tool,tool_done,delta,delta,cards,done" {
+		t.Fatalf("event order %s: %s", got, rec.Body)
+	}
+	cards := evs[4]["cards"].([]any)
+	if len(cards) != 2 {
+		t.Fatalf("cards: %v", cards)
+	}
+	first := cards[0].(map[string]any)
+	if first["media"].(map[string]any)["id"] != float64(154587) || first["why"] != "Sousou no Frieren: quiet fantasy with a strong cast." {
+		t.Errorf("first card: %v", first)
+	}
+}
