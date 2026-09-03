@@ -99,6 +99,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer database.Close()
+	if err := secret.MigrateSettings(database); err != nil {
+		slog.Error("secret settings migration", "err", err)
+		os.Exit(1)
+	}
 
 	pushSvc, err := push.New(database)
 	if err != nil {
@@ -141,7 +145,7 @@ func main() {
 	srv.Register(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := database.PingContext(r.Context()); err != nil {
-			http.Error(w, "db: "+err.Error(), http.StatusServiceUnavailable)
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		w.Write([]byte("ok"))
@@ -157,7 +161,9 @@ func main() {
 		// Slowloris protection. No WriteTimeout: /api/events is a long-lived
 		// SSE stream that a write deadline would sever.
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    32 << 10,
 	}
 	slog.Info("weebsync listening", "addr", addr, "downloads", downloadRoot)
 	go func() {
@@ -217,7 +223,12 @@ func harden(next http.Handler) http.Handler {
 			"default-src 'self'; img-src 'self' https: data:; "+
 				"style-src 'self' 'unsafe-inline'; connect-src 'self'; "+
 				"frame-src https://www.youtube-nocookie.com; "+
-				"frame-ancestors 'none'; base-uri 'self'")
+				"frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			h.Set("Cache-Control", "no-store")
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		}
 		if auth.IsHTTPS(r) {
 			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}

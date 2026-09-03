@@ -55,7 +55,8 @@ func (s *Server) baseURL() string {
 		db.SettingOrEnv(s.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL"),
 		db.Setting(s.DB, "anilist_redirect_url"),
 	} {
-		if u, err := url.Parse(strings.TrimSpace(raw)); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
+		if u, err := url.Parse(strings.TrimSpace(raw)); err == nil && (u.Scheme == "http" || u.Scheme == "https") &&
+			u.Host != "" && u.User == nil && (u.Path == "" || u.Path == "/") && u.RawQuery == "" && u.Fragment == "" {
 			return u.Scheme + "://" + u.Host
 		}
 	}
@@ -108,14 +109,14 @@ func emailHTML(locale, title, content, extra, manage string) string {
 // sendVerifyEmail delivers the account-verification link. Fire-and-forget:
 // failures are logged, the account still exists and can be re-verified once
 // SMTP works (admin can also verify via the users panel).
-func (s *Server) sendVerifyEmail(to, token, origin, locale string) {
+func (s *Server) sendVerifyEmail(to, token, locale string) {
 	if s.Mail == nil {
 		return
 	}
-	// prefer the configured instance URL: the request origin can be wrong
-	// behind proxies and is only the fallback
-	if base := s.baseURL(); base != "" {
-		origin = base
+	origin := s.baseURL()
+	if origin == "" {
+		slog.Error("verify email skipped", "reason", "public base URL is not configured")
+		return
 	}
 	link := origin + "/api/auth/verify?token=" + token
 	welcome, intro, ignore := tr(locale, "email.verifyWelcome"), tr(locale, "email.verifyIntro"), tr(locale, "email.verifyIgnore")

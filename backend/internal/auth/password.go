@@ -50,7 +50,7 @@ func HashPassword(password string) (string, error) {
 
 func VerifyPassword(password, encoded string) bool {
 	parts := strings.Split(encoded, "$")
-	if len(parts) != 6 || parts[1] != "argon2id" {
+	if len(parts) != 6 || parts[1] != "argon2id" || parts[2] != fmt.Sprintf("v=%d", argon2.Version) {
 		return false
 	}
 	var mem, time uint32
@@ -64,6 +64,10 @@ func VerifyPassword(password, encoded string) bool {
 	}
 	want, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
+		return false
+	}
+	if mem < 8*1024 || mem > 256*1024 || time < 1 || time > 10 || threads < 1 || threads > 16 ||
+		len(salt) < 8 || len(salt) > 64 || len(want) < 16 || len(want) > 64 {
 		return false
 	}
 	got := argon2.IDKey([]byte(password), salt, time, mem, threads, uint32(len(want)))

@@ -18,6 +18,13 @@ func TestHashVerify(t *testing.T) {
 	}
 }
 
+func TestVerifyPasswordRejectsExcessiveCost(t *testing.T) {
+	encoded := "$argon2id$v=19$m=4294967295,t=3,p=4$MTIzNDU2Nzg5MGFiY2RlZg$MTIzNDU2Nzg5MGFiY2RlZjEyMzQ1Njc4OTBhYmNkZWY"
+	if VerifyPassword("password", encoded) {
+		t.Fatal("accepted hash with unsafe memory cost")
+	}
+}
+
 func TestValidatePassword(t *testing.T) {
 	if err := ValidatePassword("short"); err == nil {
 		t.Error("short password accepted")

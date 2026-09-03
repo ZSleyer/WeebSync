@@ -16,6 +16,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
+	"github.com/ch4d1/weebsync/internal/secret"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 )
@@ -68,7 +69,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 		return nil
 	}
 	clientID := db.SettingOrEnv(m.DB, "oidc_client_id", "OIDC_CLIENT_ID")
-	clientSecret := db.SettingOrEnv(m.DB, "oidc_client_secret", "OIDC_CLIENT_SECRET")
+	clientSecret := secret.SettingOrEnv(m.DB, "oidc_client_secret", "OIDC_CLIENT_SECRET")
 	redirectURL := db.SettingOrEnv(m.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL")
 	if clientID == "" || redirectURL == "" {
 		return fmt.Errorf("oidc: issuer set but client id or redirect url missing")

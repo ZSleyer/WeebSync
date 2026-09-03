@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 type Client struct {
@@ -42,7 +43,7 @@ func New(d *sql.DB) *Client {
 
 // key is read per request so the settings UI can change it at runtime.
 func (c *Client) key() string {
-	return db.SettingOrEnv(c.DB, "tvdb_api_key", "TVDB_API_KEY")
+	return secret.SettingOrEnv(c.DB, "tvdb_api_key", "TVDB_API_KEY")
 }
 
 // Enabled reports whether a TVDB key is configured.
@@ -87,7 +88,7 @@ func (c *Client) authToken(ctx context.Context, force bool) (string, error) {
 			Token string `json:"token"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out); err != nil {
 		return "", err
 	}
 	if out.Data.Token == "" {
@@ -123,7 +124,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 			resp.Body.Close()
 			return fmt.Errorf("tvdb: HTTP %d", resp.StatusCode)
 		}
-		err = json.NewDecoder(resp.Body).Decode(out)
+		err = json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(out)
 		resp.Body.Close()
 		return err
 	}

@@ -26,10 +26,17 @@ func blocked(ip net.IP) bool {
 	return ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.Equal(awsMetadataV6)
 }
 
+func publicBlocked(ip net.IP) bool { return blocked(ip) || ip.IsLoopback() || ip.IsPrivate() }
+
 // SafeDial resolves host, rejects blocked IPs, and dials the exact verified IP
 // (no second resolve, so no DNS-rebinding TOCTOU). For raw-TCP callers such as
 // the SSH transport that cannot use the HTTP Client above.
 func SafeDial(ctx context.Context, network, host string, port int, timeout time.Duration) (net.Conn, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 	var ips []net.IP
 	if ip := net.ParseIP(host); ip != nil {
 		ips = []net.IP{ip}
@@ -60,11 +67,21 @@ func SafeDial(ctx context.Context, network, host string, port int, timeout time.
 // address is a metadata/link-local target. Every resolved IP is checked so a
 // hostname cannot smuggle a blocked address past the guard (DNS rebinding).
 func Allowed(host string) error {
+	return allowed(host, blocked)
+}
+
+// PublicAllowed rejects every non-public destination. It is for callbacks such
+// as Web Push endpoints, where LAN access is never legitimate.
+func PublicAllowed(host string) error {
+	return allowed(host, publicBlocked)
+}
+
+func allowed(host string, deny func(net.IP) bool) error {
 	if host == "" {
 		return fmt.Errorf("empty host")
 	}
 	if ip := net.ParseIP(host); ip != nil {
-		if blocked(ip) {
+		if deny(ip) {
 			return fmt.Errorf("host %s is a blocked address", host)
 		}
 		return nil
@@ -74,7 +91,7 @@ func Allowed(host string) error {
 		return fmt.Errorf("resolve %s: %w", host, err)
 	}
 	for _, ip := range ips {
-		if blocked(ip) {
+		if deny(ip) {
 			return fmt.Errorf("host %s resolves to blocked address %s", host, ip)
 		}
 	}
@@ -88,9 +105,20 @@ func Allowed(host string) error {
 // rebinds to a blocked address is refused mid-flight. Use it for every outbound
 // fetch to a host that is (even indirectly) user-influenced.
 func Client(timeout time.Duration) *http.Client {
+	return client(timeout, blocked)
+}
+
+// PublicClient is Client with loopback and private networks blocked too.
+func PublicClient(timeout time.Duration) *http.Client {
+	return client(timeout, publicBlocked)
+}
+
+func client(timeout time.Duration, deny func(net.IP) bool) *http.Client {
 	dialer := &net.Dialer{Timeout: timeout}
 	tr := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
+		// A proxy would make DialContext validate the proxy rather than the
+		// requested destination and bypass this guard.
+		Proxy: nil,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
@@ -108,7 +136,7 @@ func Client(timeout time.Duration) *http.Client {
 			}
 			var lastErr error = fmt.Errorf("no dialable address for %s", host)
 			for _, ip := range ips {
-				if blocked(ip) {
+				if deny(ip) {
 					lastErr = fmt.Errorf("host %s resolves to blocked address %s", host, ip)
 					continue
 				}
@@ -129,7 +157,7 @@ func Client(timeout time.Duration) *http.Client {
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
 			}
-			return Allowed(req.URL.Hostname())
+			return allowed(req.URL.Hostname(), deny)
 		},
 	}
 }

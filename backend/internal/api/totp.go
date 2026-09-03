@@ -30,6 +30,7 @@ func (s *Server) totpEnabled(userID int64) bool {
 func (s *Server) newLoginPending(userID int64) (string, error) {
 	token := randToken()
 	exp := time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339)
+	s.DB.Exec(`DELETE FROM login_pending WHERE user_id = ? OR expires_at <= ?`, userID, time.Now().UTC().Format(time.RFC3339))
 	_, err := s.DB.Exec(`INSERT INTO login_pending (token_hash, user_id, expires_at) VALUES (?, ?, ?)`,
 		hashToken(token), userID, exp)
 	return token, err
@@ -215,22 +216,18 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	// consume the pending token single-use, and only if unexpired
-	var userID int64
-	var exp string
-	err := s.DB.QueryRow(`SELECT user_id, expires_at FROM login_pending WHERE token_hash = ?`, hashToken(in.Token)).Scan(&userID, &exp)
-	if err != nil {
-		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
-		return
-	}
-	s.DB.Exec(`DELETE FROM login_pending WHERE token_hash = ?`, hashToken(in.Token))
-	if t, perr := time.Parse(time.RFC3339, exp); perr != nil || time.Now().After(t) {
+	userID, ok := s.peekLoginPending(in.Token)
+	if !ok {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
 	}
 	sec, ok := s.totpSecret(userID)
 	if !ok || (!totp.Validate(in.Code, sec) && !s.useRecoveryCode(userID, in.Code)) {
 		writeErr(w, http.StatusUnauthorized, "invalid code")
+		return
+	}
+	if !s.consumeLoginPending(in.Token, userID) {
+		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
 	}
 	if err := auth.CreateSession(s.DB, w, r, userID); err != nil {
@@ -287,8 +284,12 @@ func (s *Server) useRecoveryCode(userID int64, code string) bool {
 			continue
 		}
 		if subtle.ConstantTimeCompare([]byte(h), []byte(want)) == 1 {
-			s.DB.Exec(`UPDATE user_recovery_codes SET used_at = datetime('now') WHERE rowid = ?`, rowid)
-			return true
+			res, err := s.DB.Exec(`UPDATE user_recovery_codes SET used_at = datetime('now') WHERE rowid = ? AND used_at IS NULL`, rowid)
+			if err != nil {
+				return false
+			}
+			n, _ := res.RowsAffected()
+			return n == 1
 		}
 	}
 	return false

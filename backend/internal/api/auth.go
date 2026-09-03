@@ -97,6 +97,10 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	// up, and never for the very first account (the admin during first-run,
 	// before SMTP can exist) - requiring it there would lock the instance out.
 	needVerify := existing > 0 && s.Mail != nil && s.Mail.Configured()
+	if needVerify && s.baseURL() == "" {
+		writeErr(w, http.StatusServiceUnavailable, "public base URL required for email verification")
+		return
+	}
 
 	verified, token := 1, ""
 	if needVerify {
@@ -117,7 +121,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if needVerify {
-		go s.sendVerifyEmail(c.Email, token, requestOrigin(r), s.userLocale(id))
+		go s.sendVerifyEmail(c.Email, token, s.userLocale(id))
 		writeJSON(w, http.StatusOK, RegisterResponse{NeedsVerification: true, Email: c.Email})
 		return
 	}

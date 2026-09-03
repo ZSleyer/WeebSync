@@ -271,7 +271,7 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 			resp.Body.Close()
 			return fmt.Errorf("anilist: HTTP %d", resp.StatusCode)
 		}
-		raw, err := io.ReadAll(resp.Body)
+		raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 		resp.Body.Close()
 		if err != nil {
 			return err

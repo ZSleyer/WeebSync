@@ -4,23 +4,22 @@
 package mailer
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"mime"
 	"mime/quotedprintable"
-	"net"
 	"net/mail"
 	"net/smtp"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/netguard"
 	"github.com/ch4d1/weebsync/internal/secret"
 )
 
@@ -64,21 +63,7 @@ func (s *Service) load() (config, error) {
 	if _, err := mail.ParseAddress(c.from); err != nil {
 		return c, fmt.Errorf("smtp from %q is not a valid email address - set a real sender in the email settings", c.from)
 	}
-	// env override wins (matches SettingOrEnv semantics); the DB value is
-	// stored base64(AES-GCM) like other secrets
-	if pw := os.Getenv("SMTP_PASSWORD"); pw != "" {
-		c.password = pw
-	} else if enc := db.Setting(s.DB, "smtp_password"); enc != "" {
-		raw, err := base64.StdEncoding.DecodeString(enc)
-		if err != nil {
-			return c, fmt.Errorf("smtp password decode: %w", err)
-		}
-		pw, err := secret.Decrypt(raw)
-		if err != nil {
-			return c, fmt.Errorf("smtp password decrypt: %w", err)
-		}
-		c.password = pw
-	}
+	c.password = secret.SettingOrEnv(s.DB, "smtp_password", "SMTP_PASSWORD")
 	return c, nil
 }
 
@@ -102,7 +87,6 @@ func (s *Service) Send(to, subject, text, html string) error {
 		return fmt.Errorf("invalid sender: %w", err)
 	}
 	to, c.from = toAddr.Address, fromAddr.Address
-	addr := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 	msg := buildMessage(c.from, to, subject, text, html)
 
 	var auth smtp.Auth
@@ -110,30 +94,43 @@ func (s *Service) Send(to, subject, text, html string) error {
 		auth = smtp.PlainAuth("", c.username, c.password, c.host)
 	}
 
-	switch c.security {
-	case "tls": // implicit TLS (usually port 465)
-		return sendImplicitTLS(addr, c.host, auth, c.from, to, msg)
-	default: // starttls / none, both go through smtp.SendMail (STARTTLS if offered)
-		return smtp.SendMail(addr, auth, c.from, []string{to}, msg)
-	}
+	return sendSMTP(c, auth, to, msg)
 }
 
-func sendImplicitTLS(addr, host string, auth smtp.Auth, from, to string, msg []byte) error {
-	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 15 * time.Second}, "tcp", addr, &tls.Config{ServerName: host})
+func sendSMTP(c config, auth smtp.Auth, to string, msg []byte) error {
+	conn, err := netguard.SafeDial(context.Background(), "tcp", c.host, c.port, 15*time.Second)
 	if err != nil {
 		return err
 	}
-	cl, err := smtp.NewClient(conn, host)
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(30 * time.Second))
+	tlsConfig := &tls.Config{ServerName: c.host, MinVersion: tls.VersionTLS12}
+	if c.security == "tls" {
+		tlsConn := tls.Client(conn, tlsConfig)
+		if err := tlsConn.Handshake(); err != nil {
+			return err
+		}
+		conn = tlsConn
+	}
+	cl, err := smtp.NewClient(conn, c.host)
 	if err != nil {
 		return err
 	}
 	defer cl.Close()
+	if c.security == "starttls" {
+		if ok, _ := cl.Extension("STARTTLS"); !ok {
+			return fmt.Errorf("smtp server does not offer STARTTLS")
+		}
+		if err := cl.StartTLS(tlsConfig); err != nil {
+			return err
+		}
+	}
 	if auth != nil {
 		if err := cl.Auth(auth); err != nil {
 			return err
 		}
 	}
-	if err := cl.Mail(from); err != nil {
+	if err := cl.Mail(c.from); err != nil {
 		return err
 	}
 	if err := cl.Rcpt(to); err != nil {

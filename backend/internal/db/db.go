@@ -6,6 +6,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"os"
 	"sort"
 
 	_ "modernc.org/sqlite"
@@ -15,6 +16,16 @@ import (
 var migrations embed.FS
 
 func Open(path string) (*sql.DB, error) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := f.Close(); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		return nil, err
+	}
 	// busy_timeout + WAL: multiple goroutines (API + download workers) share the handle.
 	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)", path)
 	d, err := sql.Open("sqlite", dsn)

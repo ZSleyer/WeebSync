@@ -41,6 +41,7 @@ func (s *Server) tmdbAccount(userID int64) (accountID int, session string, err e
 //	@Security		CookieAuth
 //	@Router			/api/tmdb/connect [get]
 func (s *Server) handleTmdbConnect(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
 	if !s.Tmdb.Enabled() {
 		writeErr(w, http.StatusBadRequest, "TMDB not configured")
 		return
@@ -50,6 +51,7 @@ func (s *Server) handleTmdbConnect(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	rememberLinkFlow("tmdb", token, u.ID)
 	// the approval page redirects back with the token in the query; the
 	// cookie binds the callback to this browser (CSRF)
 	auth.SetCookie(w, r, &http.Cookie{
@@ -78,7 +80,7 @@ func (s *Server) handleTmdbConnect(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTmdbCallback(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	rtCookie, err := r.Cookie("weebsync_tmdb_rt")
-	if err != nil || r.URL.Query().Get("request_token") != rtCookie.Value {
+	if err != nil || r.URL.Query().Get("request_token") != rtCookie.Value || !ownsLinkFlow("tmdb", rtCookie.Value, u.ID) {
 		http.Error(w, "invalid request token", http.StatusBadRequest)
 		return
 	}
@@ -86,6 +88,7 @@ func (s *Server) handleTmdbCallback(w http.ResponseWriter, r *http.Request) {
 		Name: "weebsync_tmdb_rt", Value: "", Path: "/api/tmdb",
 		MaxAge: -1,
 	})
+	forgetLinkFlow("tmdb", rtCookie.Value)
 	if r.URL.Query().Get("denied") == "true" || r.URL.Query().Get("approved") == "false" {
 		http.Redirect(w, r, "/settings", http.StatusFound)
 		return

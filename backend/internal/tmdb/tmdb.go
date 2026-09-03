@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
+	"github.com/ch4d1/weebsync/internal/secret"
 	"golang.org/x/time/rate"
 )
 
@@ -49,7 +51,7 @@ func New(d *sql.DB) *Client {
 // Accepts a v4 read access token (JWT, sent as Bearer header) or a v3 key
 // (sent as api_key query parameter).
 func (c *Client) key() string {
-	return db.SettingOrEnv(c.DB, "tmdb_api_key", "TMDB_API_KEY")
+	return secret.SettingOrEnv(c.DB, "tmdb_api_key", "TMDB_API_KEY")
 }
 
 // Enabled reports whether a TMDB key is configured.
@@ -123,7 +125,7 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, out an
 			resp.Body.Close()
 			return fmt.Errorf("tmdb: HTTP %d", resp.StatusCode)
 		}
-		err = json.NewDecoder(resp.Body).Decode(out)
+		err = json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(out)
 		resp.Body.Close()
 		return err
 	}

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -110,7 +111,7 @@ func fetchJSON(c *http.Client, url string, v any) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("github: %s", resp.Status)
 	}
-	return json.NewDecoder(resp.Body).Decode(v)
+	return json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(v)
 }
 
 // updateCheckResponse echoes the update-check toggle state.

@@ -403,7 +403,7 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusBadRequest, "expired login session")
 		return
 	}
-	userID, ok := s.consumeLoginPending(token)
+	userID, ok := s.peekLoginPending(token)
 	if !ok {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
@@ -421,6 +421,10 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 	cred, err := wa.FinishLogin(user, *session, r)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, "security key verification failed")
+		return
+	}
+	if !s.consumeLoginPending(token, userID) {
+		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
 	}
 	s.updateCredential(cred)
@@ -505,10 +509,13 @@ func (s *Server) peekLoginPending(token string) (int64, bool) {
 	return userID, true
 }
 
-func (s *Server) consumeLoginPending(token string) (int64, bool) {
-	id, ok := s.peekLoginPending(token)
-	if ok {
-		s.DB.Exec(`DELETE FROM login_pending WHERE token_hash = ?`, hashToken(token))
+func (s *Server) consumeLoginPending(token string, userID int64) bool {
+	res, err := s.DB.Exec(`DELETE FROM login_pending
+		WHERE token_hash = ? AND user_id = ? AND expires_at > ?`,
+		hashToken(token), userID, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return false
 	}
-	return id, ok
+	n, err := res.RowsAffected()
+	return err == nil && n == 1
 }
