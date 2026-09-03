@@ -26,6 +26,7 @@ interface Turn {
   cards?: AiCard[]
   steps?: Step[]
   stepsOpen?: boolean
+  stepsTouched?: boolean // the user toggled the transcript; leave it alone
   tool?: string // the tool currently running, while streaming
   error?: string
 }
@@ -128,10 +129,15 @@ export default function Assistant() {
               patchLast((tr) => ({ ...tr, content: tr.content + ev.text, tool: undefined }))
               break
             case 'reasoning':
-              patchLast((tr) => addStep(tr, { kind: 'reasoning', text: ev.text }))
+              patchLast((tr) => ({ ...addStep(tr, { kind: 'reasoning', text: ev.text }), stepsOpen: tr.stepsTouched ? tr.stepsOpen : true }))
               break
-            case 'tool':
-              patchLast((tr) => ({ ...addStep(tr, { kind: 'tool', name: ev.name, args: ev.args }), tool: ev.name }))
+            case 'tool': {
+              // what the model said before calling a tool is its narration:
+              // it belongs to the transcript, the answer starts after the tools
+              patchLast((tr) => {
+                const narrated = tr.content.trim() ? addStep(tr, { kind: 'reasoning', text: tr.content.trim() }) : tr
+                return { ...addStep({ ...narrated, content: '' }, { kind: 'tool', name: ev.name, args: ev.args }), tool: ev.name, stepsOpen: tr.stepsTouched ? tr.stepsOpen : true }
+              })
               break
             case 'tool_done':
               patchLast((tr) => {
@@ -158,7 +164,9 @@ export default function Assistant() {
               patchLast((tr) => ({ ...tr, error: ev.message, tool: undefined }))
               break
             case 'done':
-              patchLast((tr) => ({ ...tr, tool: undefined }))
+              // the transcript stays open while it is being written and folds
+              // away with the answer, unless the user toggled it themselves
+              patchLast((tr) => ({ ...tr, tool: undefined, stepsOpen: tr.stepsTouched ? tr.stepsOpen : false }))
               break
           }
         },
@@ -323,9 +331,12 @@ export default function Assistant() {
                     <details
                       className="ai-steps mb-3"
                       open={tr.stepsOpen ?? false}
-                      onToggle={(e) =>
-                        setTurns((prev) => prev.map((x, i) => (i === ti ? { ...x, stepsOpen: (e.target as HTMLDetailsElement).open } : x)))
-                      }
+                      onToggle={(e) => {
+                        const isOpen = (e.target as HTMLDetailsElement).open
+                        setTurns((prev) =>
+                          prev.map((x, i) => (i === ti && isOpen !== (x.stepsOpen ?? false) ? { ...x, stepsOpen: isOpen, stepsTouched: true } : x)),
+                        )
+                      }}
                     >
                       <summary className="cursor-pointer text-sm text-t-muted">
                         {t('assistant.steps', { count: tr.steps.length })}
