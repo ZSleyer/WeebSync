@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, ApiError, type Download, type User } from './api'
+import { api, ApiError, type AiStatus, type Download, type User } from './api'
 import i18n, { syncLocale } from './locales'
 
 let localeSynced = false
@@ -91,4 +91,17 @@ export function useEvents(enabled: boolean) {
     es.onerror = () => qc.invalidateQueries({ queryKey: ['me'] })
     return () => es.close()
   }, [enabled, qc])
+}
+
+// useAiStatus gates the assistant: the nav entry and the page only show when
+// an endpoint is configured. No network call behind it (that is force=1 on
+// the settings page), so a dead endpoint never slows the shell down.
+export function useAiStatus(enabled = true) {
+  return useQuery<AiStatus>({
+    queryKey: ['ai-status'],
+    queryFn: () => api.get('/api/ai/status'),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
 }

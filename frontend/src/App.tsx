@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
+  Bot,
   Cloud,
   Ellipsis,
   HardDrive,
@@ -24,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppBar, AppShell, Badge, Button, TabBar } from '@weebsync/design-system'
 import { api } from './api'
-import { useAuth, useEvents } from './hooks'
+import { useAiStatus, useAuth, useEvents } from './hooks'
 import Loading from './components/Loading'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
@@ -34,6 +35,7 @@ import Remote from './pages/Remote'
 import Local from './pages/Local'
 import Watches from './pages/Watches'
 import Suggestions from './pages/Suggestions'
+import Assistant from './pages/Assistant'
 import Rename from './pages/Rename'
 import SettingsLayout, { AdminRoute } from './pages/settings/SettingsLayout'
 import Look from './pages/settings/Look'
@@ -54,6 +56,7 @@ const NAV = [
   { to: '/remote', key: 'nav.remote', icon: Cloud },
   { to: '/watches', key: 'nav.watches', icon: RefreshCw },
   { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
+  { to: '/assistant', key: 'nav.assistant', icon: Bot },
   { to: '/servers', key: 'nav.servers', icon: Server },
   { to: '/rename', key: 'nav.rename', icon: PenLine },
   { to: '/settings', key: 'nav.settings', icon: Settings },
@@ -61,7 +64,6 @@ const NAV = [
 // mobile bottom bar: only the daily-use targets get a tab, the rest moves
 // into a "more" sheet so touch targets stay wide enough
 const NAV_PRIMARY = NAV.slice(0, 4)
-const NAV_MORE = NAV.slice(4)
 
 // position of a path in the nav order, for direction-aware route transitions
 const navIndex = (path: string) => {
@@ -111,6 +113,7 @@ export const router = createBrowserRouter(
       <Route path="/browser" element={<Navigate to="/remote" replace />} />
       <Route path="/watches" element={<Watches />} />
       <Route path="/suggestions" element={<Suggestions />} />
+      <Route path="/assistant" element={<Assistant />} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
       <Route path="/servers" element={<Servers />} />
       <Route path="/local" element={<Local />} />
@@ -170,6 +173,11 @@ function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
+  // the assistant is optional: without a configured endpoint its entry stays
+  // out of the rail and the sheet (the page itself explains when opened directly)
+  const { data: aiStatus } = useAiStatus()
+  const nav = aiStatus?.configured ? NAV : NAV.filter((n) => n.to !== '/assistant')
+  const NAV_MORE = nav.slice(4)
   const moreActive = NAV_MORE.some((n) => location.pathname === n.to || location.pathname.startsWith(n.to + '/'))
   // navigating (via sheet or otherwise) closes the sheet; Escape too
   useEffect(() => setMoreOpen(false), [location.pathname])
@@ -246,7 +254,7 @@ function Shell({ email }: { email: string }) {
         <Badge className="mt-2">{t('app.tagline')}</Badge>
       </div>
       <nav className="flex-1 py-3" aria-label={t('nav.main')}>
-        {NAV.map((n) => navLink(n, false))}
+        {nav.map((n) => navLink(n, false))}
       </nav>
       <div className="border-t border-border-subtle p-4">
         <p className="mb-2 truncate font-mono text-xs text-t-muted" title={email}>
