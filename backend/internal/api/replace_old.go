@@ -5,8 +5,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -59,23 +59,37 @@ func (s *Server) replaceOldCopy(d *transfer.Download) {
 		return
 	}
 	newBase := filepath.Base(d.LocalPath)
-	se, ep := episodeNumbers(newBase, path.Base(d.RemotePath))
+	// the new file was named by the sync's template, so a real episode carries
+	// SxxEyy; anything looser (an opening, a preview the template could not
+	// number) is not allowed to displace an episode
+	se, ep := 0, 0
+	if m := epSeasonRe.FindStringSubmatch(newBase); m != nil {
+		se, _ = strconv.Atoi(m[1])
+		ep, _ = strconv.Atoi(m[2])
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
 	var old []string
+	episodesAround := false
 	for _, e := range entries {
 		name := e.Name()
 		if !e.Type().IsRegular() || name == newBase || !videoExt[strings.ToLower(filepath.Ext(name))] {
 			continue
+		}
+		if _, n := episodeNumbers(name, ""); n > 0 {
+			episodesAround = true
 		}
 		if ep > 0 && !sameEpisode(name, se, ep) {
 			continue
 		}
 		old = append(old, name)
 	}
-	if ep == 0 && len(old) != 1 {
+	// no episode number: a movie only if the folder is not a season folder and
+	// holds no episodes - an NCOP or preview file lands beside episodes too,
+	// and must not push the one episode there into the trash
+	if ep == 0 && (len(old) != 1 || episodesAround || plexSeasonDirRe.MatchString(filepath.Base(dir))) {
 		return
 	}
 	for _, name := range old {
@@ -88,8 +102,11 @@ func (s *Server) replaceOldCopy(d *transfer.Download) {
 // folder often carry no season token). A multi-episode file is never a match -
 // it would vanish when its first episode arrives.
 func sameEpisode(name string, se, ep int) bool {
+	if extraRe.MatchString(name) {
+		return false
+	}
 	p := anitogo.Parse(name, anitogo.DefaultOptions)
-	if len(p.EpisodeNumber) != 1 {
+	if len(p.EpisodeNumber) != 1 || len(p.AnimeType) > 0 {
 		return false
 	}
 	n, err := strconv.Atoi(p.EpisodeNumber[0])
@@ -103,6 +120,10 @@ func sameEpisode(name string, se, ep int) bool {
 	}
 	return true
 }
+
+// extraRe spots the files a release ships beside its episodes (creditless
+// openings, previews, trailers), whose number is not an episode number.
+var extraRe = regexp.MustCompile(`(?i)\bNC(OP|ED)\d*\b|\b(OP|ED|PV)\d+\b|preview|trailer|\bmenu\b|\bextra`)
 
 // trashFile moves one video and its sidecars (same stem, non-video extension)
 // into dir/.weebsync-trash and records them for the sweep.
