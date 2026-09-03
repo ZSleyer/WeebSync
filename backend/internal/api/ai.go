@@ -326,7 +326,7 @@ You can only READ through the tools and PROPOSE actions; the user confirms every
 - Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score). When you recommend titles, also call recommend with their ids and reasons so the user gets cards to open; then keep the text short, the cards carry the details.
 - Never recommend what the user already has: entries flagged owned (in the Plex library) or inAutoSync (an auto-sync keeps it current) are covered. Check the flags (or my_watches) before recommending; if the user asks about such a title, say it is already covered.
 - Before proposing a watch or sync, find the folder with search_remote or take a candidate from suggestions/seasonal. Never invent server ids or paths.
-- kind "watch" = auto-sync: keeps a remote folder in sync (for airing shows). kind "sync" = download once. kind "upgrade" = replace a local copy with a better remote copy; only from the upgrades tool, quoting its key and one of its option folders, and only when it improves an axis the user enabled. Say concretely what improves (resolution, dub, sub, selectable subtitles) and mention when the language data is unverified.
+- kind "watch" = auto-sync: keeps a remote folder in sync (for airing shows). kind "sync" = download once. kind "upgrade" = replace a local copy with a better remote copy; only from the upgrades tool, quoting its key and one of its option folders, and only when it improves an axis the user enabled (axesByPriority lists them, most important first). Say concretely what improves (resolution, dub, sub, selectable subtitles) and mention when the language data is unverified.
 - Tools are called only through the tool-call interface, never written out as text in the answer.
 - If propose returns ok:false, tell the user the reason; do not retry the same call.
 - Do not claim something was created: a proposal is a card the user still has to confirm.`,
@@ -739,7 +739,7 @@ func (s *Server) aiUpgrades(ctx context.Context, userID int64) any {
 			"languageUnverified": up.LanguageUnverified,
 		})
 	}
-	res := map[string]any{"enabledAxes": dims, "upgrades": out}
+	res := map[string]any{"axesByPriority": dims.Order, "upgrades": out}
 	if building {
 		res["note"] = "upgrades are being recomputed in the background; this list may be stale or empty"
 	}
@@ -996,21 +996,30 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind string, serve
 func (s *Server) aiUpgradeGain(userID int64, up *UpgradeSuggestion, to UpgradeVariant) (info []string, unverified bool, ok bool) {
 	dims := s.upgradeDimsFor(userID)
 	from := up.From
-	if dims.Res && resTier(to.ResRank) > resTier(from.ResRank) {
-		info = append(info, fmtRes(from.ResRank)+" → "+fmtRes(to.ResRank))
-		ok = true
-	}
-	if add := missing(from.Dub, to.Dub); dims.Dub && len(add) > 0 {
-		info = append(info, "dub: +"+strings.Join(add, ", "))
-		ok = true
-	}
-	if add := missing(from.Sub, to.Sub); dims.Sub && len(add) > 0 {
-		info = append(info, "sub: +"+strings.Join(add, ", "))
-		ok = true
-	}
-	if add := missing(from.Soft, to.Soft); dims.Soft && len(add) > 0 {
-		info = append(info, "selectable subtitles: +"+strings.Join(add, ", "))
-		ok = true
+	// one line per axis the copy wins, in the user's priority order
+	for _, axis := range dims.Order {
+		switch axis {
+		case "res":
+			if resTier(to.ResRank) > resTier(from.ResRank) {
+				info = append(info, fmtRes(from.ResRank)+" → "+fmtRes(to.ResRank))
+				ok = true
+			}
+		case "dub":
+			if add := missing(from.Dub, to.Dub); len(add) > 0 {
+				info = append(info, "dub: +"+strings.Join(add, ", "))
+				ok = true
+			}
+		case "sub":
+			if add := missing(from.Sub, to.Sub); len(add) > 0 {
+				info = append(info, "sub: +"+strings.Join(add, ", "))
+				ok = true
+			}
+		case "soft":
+			if add := missing(from.Soft, to.Soft); len(add) > 0 {
+				info = append(info, "selectable subtitles: +"+strings.Join(add, ", "))
+				ok = true
+			}
+		}
 	}
 	if !ok {
 		info = []string{"local " + fmtRes(from.ResRank) + " dub " + strings.Join(from.Dub, ",") + " sub " + strings.Join(from.Sub, ","),

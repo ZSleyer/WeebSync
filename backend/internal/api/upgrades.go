@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -330,19 +331,54 @@ type UpgradeDims struct {
 	// already reads the German signs may not care, and someone who wants to turn
 	// them off cares about nothing else.
 	Soft bool `json:"soft"`
+	// Order lists the enabled axes most important first. It picks the remote
+	// copy that gets recommended, sorts the suggestions, and tells the
+	// assistant what counts as the better copy.
+	Order []string `json:"order"`
 }
 
-// upgradeDimsFor reads a user's enabled upgrade axes from users.upgrade_dims
-// (CSV, default "res,sub,dub,soft"). An empty column means the default was
-// cleared, i.e. nothing.
+// upgradeAxes are the axis names in their default priority.
+var upgradeAxes = []string{"res", "soft", "sub", "dub"}
+
+// upgradeDimsFor reads a user's upgrade axes from users.upgrade_dims: a CSV
+// whose ORDER is the priority (most important first). An empty column means
+// the default was cleared, i.e. nothing.
 func (s *Server) upgradeDimsFor(userID int64) UpgradeDims {
 	var csv string
 	s.DB.QueryRow(`SELECT upgrade_dims FROM users WHERE id = ?`, userID).Scan(&csv)
-	set := map[string]bool{}
-	for _, p := range strings.Split(csv, ",") {
-		set[strings.TrimSpace(p)] = true
+	return dimsFromOrder(strings.Split(csv, ","))
+}
+
+// dimsFromOrder builds the axes from an ordered list, dropping unknown names
+// and repeats.
+func dimsFromOrder(order []string) UpgradeDims {
+	d := UpgradeDims{Order: []string{}}
+	for _, p := range order {
+		p = strings.TrimSpace(p)
+		if !slices.Contains(upgradeAxes, p) || slices.Contains(d.Order, p) {
+			continue
+		}
+		d.Order = append(d.Order, p)
+		switch p {
+		case "res":
+			d.Res = true
+		case "sub":
+			d.Sub = true
+		case "dub":
+			d.Dub = true
+		case "soft":
+			d.Soft = true
+		}
 	}
-	return UpgradeDims{Res: set["res"], Sub: set["sub"], Dub: set["dub"], Soft: set["soft"]}
+	return d
+}
+
+// axisRank is the priority index of an axis, len(order) when disabled.
+func axisRank(order []string, axis string) int {
+	if i := slices.Index(order, axis); i >= 0 {
+		return i
+	}
+	return len(order)
 }
 
 // handleUpgradeDimsGet returns the user's upgrade axes.
@@ -375,17 +411,28 @@ func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	var dims []string
-	if in.Res {
-		dims = append(dims, "res")
+	enabled := map[string]bool{"res": in.Res, "sub": in.Sub, "dub": in.Dub, "soft": in.Soft}
+	// the given order first (only enabled axes), then whatever is enabled but
+	// unordered, in the default priority
+	var order []string
+	for _, a := range in.Order {
+		if enabled[a] {
+			order = append(order, a)
+		}
 	}
-	if in.Sub {
-		dims = append(dims, "sub")
+	for _, a := range upgradeAxes {
+		if enabled[a] {
+			order = append(order, a)
+		}
 	}
-	if in.Dub {
-		dims = append(dims, "dub")
-	}
-	s.DB.Exec(`UPDATE users SET upgrade_dims = ? WHERE id = ?`, strings.Join(dims, ","), u.ID)
+	d := dimsFromOrder(order)
+	s.DB.Exec(`UPDATE users SET upgrade_dims = ? WHERE id = ?`, strings.Join(d.Order, ","), u.ID)
+	// the cached suggestions were ranked under the old axes: drop them and
+	// rebuild now, so the page does not show the old order for half an hour
+	key := fmt.Sprintf("suggestions:%d", u.ID)
+	s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, key)
+	uid := u.ID
+	s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, uid) })
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -508,8 +555,8 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		if len(u.locals) == 0 || len(u.remotes) == 0 {
 			continue // not owned locally, or nothing remote to upgrade from
 		}
-		cur := bestCopy(u.locals)  // your Plex/local copy
-		top := bestCopy(u.remotes) // best remote copy of the SAME season
+		cur := bestCopy(u.locals)                 // your Plex/local copy
+		top := bestCopyFor(dims.Order, u.remotes) // the remote copy the user's priorities prefer
 		if !comparable(cur) {
 			// nothing is known about this copy, so every remote one "improves"
 			// it: 1080 beats 0, and any language set is a superset of none.
@@ -584,6 +631,23 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	if len(out) > 0 {
 		slog.Debug("upgrades built", "user", userID, "suggestions", len(out))
 	}
+	// the axis the user ranks highest decides the order: a suggestion that
+	// improves it comes before one that only improves a lower axis
+	rank := func(up UpgradeSuggestion) int {
+		best := len(dims.Order)
+		for axis, imp := range map[string]bool{"res": up.ImprovesRes, "soft": up.ImprovesSoft, "sub": up.ImprovesSub, "dub": up.ImprovesDub} {
+			if imp {
+				best = min(best, axisRank(dims.Order, axis))
+			}
+		}
+		return best
+	}
+	slices.SortStableFunc(out, func(a, b UpgradeSuggestion) int {
+		if ra, rb := rank(a), rank(b); ra != rb {
+			return ra - rb
+		}
+		return strings.Compare(a.Title, b.Title)
+	})
 	return out
 }
 
@@ -869,6 +933,47 @@ func bestCopy(vs []UpgradeVariant) UpgradeVariant {
 		}
 	}
 	return best
+}
+
+// bestCopyFor picks the copy the user would want by their axis priority: the
+// first axis in order on which two copies differ decides (resolution by tier,
+// languages by count). Copies equal on every enabled axis fall back to
+// bestCopy's fixed order.
+func bestCopyFor(order []string, copies []UpgradeVariant) UpgradeVariant {
+	if len(copies) == 0 {
+		return UpgradeVariant{}
+	}
+	best := copies[0]
+	for _, c := range copies[1:] {
+		if betterBy(order, c, best) {
+			best = c
+		}
+	}
+	return best
+}
+
+// betterBy reports whether a beats b under the axis priority.
+func betterBy(order []string, a, b UpgradeVariant) bool {
+	for _, axis := range order {
+		var d int
+		switch axis {
+		case "res":
+			d = resTier(a.ResRank) - resTier(b.ResRank)
+		case "soft":
+			d = realLangs(a.Soft) - realLangs(b.Soft)
+		case "sub":
+			d = realLangs(a.Sub) - realLangs(b.Sub)
+		case "dub":
+			d = realLangs(a.Dub) - realLangs(b.Dub)
+		}
+		if d != 0 {
+			return d > 0
+		}
+	}
+	// a tie on every axis the user cares about: the fixed order decides, and
+	// it keeps the first copy on a full tie
+	w := bestCopy([]UpgradeVariant{b, a})
+	return w.ServerID == a.ServerID && w.Folder == a.Folder && (w.ServerID != b.ServerID || w.Folder != b.Folder)
 }
 
 // unitInfo is the display context for a unit, resolved from its show_key.
