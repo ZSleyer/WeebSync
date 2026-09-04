@@ -96,7 +96,13 @@ export default function Login() {
       qc.clear()
       await qc.invalidateQueries({ queryKey: ['me'] })
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('app.error'))
+      const msg = err instanceof Error ? err.message : t('app.error')
+      // the pending token is gone (expired or too many wrong codes): back to
+      // the password step, the code field would only keep failing
+      if (msg.includes('expired login')) {
+        setTwoFA(null)
+        setError(t('login.twoFactorExpired'))
+      } else setError(msg)
     } finally {
       setBusy(false)
     }

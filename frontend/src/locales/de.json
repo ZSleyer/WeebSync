@@ -119,6 +119,7 @@
     "verifyInvalid": "Bestätigungslink ungültig oder bereits verwendet.",
     "totpTitle": "Zwei-Faktor-Bestätigung",
     "totpHint": "Gib den 6-stelligen Code aus deiner Authenticator-App ein (oder einen Recovery-Code).",
+    "twoFactorExpired": "Anmeldung abgelaufen, bitte Passwort erneut eingeben.",
     "totpCode": "Code",
     "passkey": "Mit Passkey anmelden",
     "useSecurityKey": "Security-Key verwenden",
