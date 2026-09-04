@@ -59,6 +59,7 @@ type smtpRecord struct {
 	rcpt string
 	data string
 	mail bool
+	done chan struct{} // closed when the session goroutine exits
 }
 
 // fakeSMTP serves one session on loopback; starttls controls whether EHLO
@@ -70,8 +71,9 @@ func fakeSMTP(t *testing.T, starttls bool) (int, *smtpRecord) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { ln.Close() })
-	rec := &smtpRecord{}
+	rec := &smtpRecord{done: make(chan struct{})}
 	go func() {
+		defer close(rec.done)
 		conn, err := ln.Accept()
 		if err != nil {
 			return
@@ -123,6 +125,7 @@ func TestSendSMTPRequiresSTARTTLS(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "does not offer STARTTLS") {
 		t.Fatalf("plain server accepted in starttls mode: %v", err)
 	}
+	<-rec.done
 	if rec.mail {
 		t.Fatal("MAIL was sent over plaintext")
 	}
@@ -133,6 +136,7 @@ func TestSendSMTPPlainDelivers(t *testing.T) {
 	if err := sendSMTP(config{host: "127.0.0.1", port: port, from: "a@b.c", security: "none"}, nil, "to@x.y", []byte("Subject: t\r\n\r\nhello")); err != nil {
 		t.Fatal(err)
 	}
+	<-rec.done
 	if rec.rcpt != "to@x.y" || !strings.Contains(rec.data, "hello") {
 		t.Fatalf("rcpt=%q data=%q", rec.rcpt, rec.data)
 	}
