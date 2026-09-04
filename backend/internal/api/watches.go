@@ -1145,18 +1145,8 @@ var epSeasonRe = regexp.MustCompile(`(?i)S(\d+)E(\d+)`)
 // folder with earlier parts (e.g. Dr. Stone S4 Part 3 starts at E26, Conan
 // S33 at E31), so only this part's episodes are tallied.
 func (s *Server) countVideos(rel string, minEp int) int {
-	abs, err := s.safeLocal(rel)
-	if err != nil {
-		return 0
-	}
 	n := 0
-	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			return skipTrash(d)
-		}
+	s.walkLocal(rel, func(_ string, d fs.DirEntry) error {
 		if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 			return nil
 		}
@@ -1233,17 +1223,7 @@ func (s *Server) localEpisodeFiles(rel string) map[int][]DuplicateFile {
 // SxxEyy number (only episodes >= minEp when minEp > 0), with the file's path
 // in the caller's form (rel joined with the path below it) and its size.
 func (s *Server) walkEpisodes(rel string, minEp int, fn func(key int, path string, size int64)) {
-	abs, err := s.safeLocal(rel)
-	if err != nil {
-		return
-	}
-	filepath.WalkDir(abs, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			return skipTrash(d)
-		}
+	s.walkLocal(rel, func(sub string, d fs.DirEntry) error {
 		if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 			return nil
 		}
@@ -1259,7 +1239,7 @@ func (s *Server) walkEpisodes(rel string, minEp int, fn func(key int, path strin
 				size = fi.Size()
 			}
 			// season-encoded so gaps stay per-season
-			fn(epKey(se, ep), filepath.Join(rel, strings.TrimPrefix(p, abs)), size)
+			fn(epKey(se, ep), filepath.Join(rel, sub), size)
 		}
 		return nil
 	})

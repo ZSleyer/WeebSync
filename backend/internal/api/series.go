@@ -195,7 +195,7 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 			// names are all that is left, and the attempt is recorded so the
 			// comparison does not keep waiting for a measurement that will not
 			// come
-			fq := localFilenameQuality(abs)
+			fq := s.localFilenameQuality(abs)
 			fq.Probed = probeFailed
 			return fq
 		}

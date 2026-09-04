@@ -421,14 +421,11 @@ func ffprobeOpenFile(ctx context.Context, file *os.File, extra ...string) ([]pro
 // An axis no file name says anything about ends up as undLang rather than
 // empty. Empty would read as "this copy has no subtitles", which a file name
 // cannot establish - it only ever states what a release advertises.
-func localFilenameQuality(dir string) FolderQuality {
+func (s *Server) localFilenameQuality(dir string) FolderQuality {
 	q := FolderQuality{}
 	var names []string
 	dub, sub := map[string]bool{}, map[string]bool{}
-	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
+	s.walkLocal(dir, func(_ string, d fs.DirEntry) error {
 		name := d.Name()
 		names = append(names, name)
 		if r := rename.Resolution(name); r > q.ResRank {

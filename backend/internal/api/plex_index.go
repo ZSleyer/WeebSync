@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -231,16 +230,14 @@ func (s *Server) plexLocalQuality(sm plex.ShowMedia, ratingKey string, season in
 	// translate the Plex-reported path to where the file is mounted locally
 	// (identity for a shared mount; a prefix swap when configured otherwise)
 	file := s.mapPlexPath(sm.File)
-	if file != "" && underLocalRoot(s.localRoots(), file) {
-		if _, err := os.Stat(file); err == nil {
-			folder = filepath.Dir(file)
-			// the whole season folder, not just the one episode Plex named: a
-			// dub that arrived late sits on the later files, and this is the
-			// branch the upgrade cards actually compare against
-			if q, ok := s.probeQuality(folder); ok {
-				q.Probed = probeMeasured
-				return q, folder
-			}
+	if file != "" && s.localExists(file) {
+		folder = filepath.Dir(file)
+		// the whole season folder, not just the one episode Plex named: a
+		// dub that arrived late sits on the later files, and this is the
+		// branch the upgrade cards actually compare against
+		if q, ok := s.probeQuality(folder); ok {
+			q.Probed = probeMeasured
+			return q, folder
 		}
 	}
 	// fallback: Plex's own metadata. Also measured - Plex analyses the media
@@ -259,16 +256,6 @@ func (s *Server) plexLocalQuality(sm plex.ShowMedia, ratingKey string, season in
 	}
 	q.Dub, q.Sub = keysSorted(dub), keysSorted(sub)
 	return q, folder
-}
-
-// underLocalRoot reports whether p sits under one of the configured local roots.
-func underLocalRoot(roots []string, p string) bool {
-	for _, r := range roots {
-		if p == r || strings.HasPrefix(p, strings.TrimRight(r, "/")+"/") {
-			return true
-		}
-	}
-	return false
 }
 
 // streamsQuality aggregates ffprobe streams into a FolderQuality.

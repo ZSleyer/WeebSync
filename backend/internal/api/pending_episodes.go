@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"path"
 	"path/filepath"
 	"time"
@@ -109,7 +108,7 @@ func (s *Server) processPendingEpisodes(ctx context.Context) {
 			return
 		}
 		// the file may have been moved or deleted by hand in the meantime
-		if _, err := os.Stat(e.localPath); err != nil {
+		if !s.localExists(e.localPath) {
 			s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, e.downloadID)
 			continue
 		}
