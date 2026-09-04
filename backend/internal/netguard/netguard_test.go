@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -132,8 +133,8 @@ func TestClientRefusesHostnameResolvingToBlocked(t *testing.T) {
 // DNS rebinding: the IP that was checked is the IP that gets dialed, and a
 // later answer pointing at a blocked address is refused, not silently dialed.
 func TestClientDialsTheIPItChecked(t *testing.T) {
-	hits := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits++ }))
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits.Add(1) }))
 	defer srv.Close()
 	_, port, _ := net.SplitHostPort(srv.Listener.Addr().String())
 	stubDNS(t, []net.IP{net.IPv4(127, 0, 0, 1)}, []net.IP{net.ParseIP("169.254.169.254")})
@@ -147,8 +148,8 @@ func TestClientDialsTheIPItChecked(t *testing.T) {
 	if _, err := c.Get("http://rebind.test:" + port + "/"); err == nil || !strings.Contains(err.Error(), "blocked address") {
 		t.Fatalf("rebound request: err=%v", err)
 	}
-	if hits != 1 {
-		t.Fatalf("server hit %d times", hits)
+	if n := hits.Load(); n != 1 {
+		t.Fatalf("server hit %d times", n)
 	}
 }
 
