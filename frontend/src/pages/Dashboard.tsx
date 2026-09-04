@@ -797,8 +797,10 @@ function DownloadRow({
         )}
         {ep && <Badge tone="accent">{ep}</Badge>}
         {/* own line on a phone: cover, status chip and episode badge leave the
-            title a few characters otherwise */}
-        <span className="min-w-0 basis-full truncate text-sm text-t-primary sm:flex-1 sm:basis-auto" title={d.remotePath}>
+            title a few characters otherwise. From sm on it only takes what is
+            left (basis 0), so a long title truncates instead of wrapping the
+            controls onto a second line */}
+        <span className="min-w-0 basis-full truncate text-sm text-t-primary sm:flex-1 sm:basis-0" title={d.remotePath}>
           {label}
           {label !== name && <span className="block truncate font-mono text-xs text-t-muted">{name}</span>}
         </span>
@@ -894,12 +896,9 @@ function HistoryRow({
         <StatusChip status={d.status} />
         {ep && <Badge tone="accent">{ep}</Badge>}
         {/* own line on a phone, same reason as the queue row */}
-        <span className="min-w-0 basis-full truncate text-xs text-t-secondary sm:flex-1 sm:basis-auto" title={d.remotePath}>
+        <span className="min-w-0 basis-full truncate text-xs text-t-secondary sm:flex-1 sm:basis-0" title={d.remotePath}>
           {label}
         </span>
-        {/* an explained failure gets its own full-width row below; only an
-            unclassified one still has to make do with a truncated string */}
-        {d.error && !explained && <span className="max-w-64 truncate text-xs text-err" title={d.error}>{d.error}</span>}
         <span className="font-mono text-xs text-t-muted">{fmtBytes(d.size)}</span>
         {(d.status === 'error' || d.status === 'canceled') && (
           <Button size="sm" onClick={() => onAction('resume')}>
@@ -912,7 +911,18 @@ function HistoryRow({
         </Button>
         <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
       </div>
-      {explained && <FsErrorNote code={d.errorCode!} dir={dirOf(d.localPath)} className="mt-2" />}
+      {/* the failure gets its own line under the row, explained or not: inline
+          it fought the title for the little width left next to the actions,
+          and on a tablet the title lost every time */}
+      {explained ? (
+        <FsErrorNote code={d.errorCode!} dir={dirOf(d.localPath)} className="mt-2" />
+      ) : (
+        d.error && (
+          <p className="mt-1 truncate text-xs text-err" title={d.error}>
+            {d.error}
+          </p>
+        )
+      )}
       {open && <DownloadDetails d={d} meta={meta} />}
     </div>
   )
