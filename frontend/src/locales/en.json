@@ -237,6 +237,9 @@
     "selectionActions": "Actions for selection",
     "removeSelected": "Remove",
     "clearSelection": "Clear selection",
+    "clearHistory": "Clear history",
+    "clearHistoryConfirm_one": "Remove {{count}} entry from the history?",
+    "clearHistoryConfirm_other": "Remove {{count}} entries from the history?",
     "limitUnit": "Rate limit unit"
   },
   "local": {

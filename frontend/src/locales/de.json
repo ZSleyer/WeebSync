@@ -237,6 +237,9 @@
     "selectionActions": "Aktionen für Auswahl",
     "removeSelected": "Entfernen",
     "clearSelection": "Auswahl aufheben",
+    "clearHistory": "Verlauf leeren",
+    "clearHistoryConfirm_one": "{{count}} Eintrag aus dem Verlauf entfernen?",
+    "clearHistoryConfirm_other": "{{count}} Einträge aus dem Verlauf entfernen?",
     "limitUnit": "Einheit des Limits"
   },
   "local": {
