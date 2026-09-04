@@ -420,6 +420,7 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 	}
 	cred, err := wa.FinishLogin(user, *session, r)
 	if err != nil {
+		s.failLoginPending(token)
 		writeErr(w, http.StatusUnauthorized, "security key verification failed")
 		return
 	}
@@ -518,4 +519,14 @@ func (s *Server) consumeLoginPending(token string, userID int64) bool {
 	}
 	n, err := res.RowsAffected()
 	return err == nil && n == 1
+}
+
+const loginPendingMaxAttempts = 5
+
+// failLoginPending counts a wrong second factor against the pending token and
+// drops it once the budget is spent, so the next attempt needs the password again.
+func (s *Server) failLoginPending(token string) {
+	h := hashToken(token)
+	s.DB.Exec(`UPDATE login_pending SET attempts = attempts + 1 WHERE token_hash = ?`, h)
+	s.DB.Exec(`DELETE FROM login_pending WHERE token_hash = ? AND attempts >= ?`, h, loginPendingMaxAttempts)
 }

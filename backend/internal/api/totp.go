@@ -223,6 +223,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	}
 	sec, ok := s.totpSecret(userID)
 	if !ok || (!totp.Validate(in.Code, sec) && !s.useRecoveryCode(userID, in.Code)) {
+		s.failLoginPending(in.Token)
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
