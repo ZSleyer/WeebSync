@@ -31,6 +31,7 @@ func (s *Server) SweepLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
+			s.expireAuthRows()
 			rows, err := s.DB.Query(`SELECT id FROM servers`)
 			if err != nil {
 				continue
@@ -418,4 +419,13 @@ func (s *Server) BackfillUnits() {
 	// rebuild the cached suggestion blobs against the now-populated units
 	s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'suggestions:%'`)
 	db.SetSetting(s.DB, "units_backfilled_v1", "1")
+}
+
+// expireAuthRows drops sessions and pending logins past their TTL. Sessions
+// were only deleted when their cookie showed up again, so idle rows piled up
+// forever. Both tables store UTC RFC3339, so a string compare is exact.
+func (s *Server) expireAuthRows() {
+	now := time.Now().UTC().Format(time.RFC3339)
+	s.DB.Exec(`DELETE FROM sessions WHERE expires_at <= ?`, now)
+	s.DB.Exec(`DELETE FROM login_pending WHERE expires_at <= ?`, now)
 }
