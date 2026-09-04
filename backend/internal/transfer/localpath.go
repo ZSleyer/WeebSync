@@ -39,39 +39,40 @@ func resolveLocal(roots []string, name string) (root, rel, abs string, err error
 
 	clean := filepath.Clean(name)
 	if !filepath.IsAbs(clean) {
+		// legacy relative spelling: either a root-less form of an absolute
+		// root ("mnt/nas/x" for /mnt/nas) or a path under the primary root
 		rootless := filepath.Clean(string(filepath.Separator) + clean)
+		matched := false
 		for _, candidate := range roots {
-			candidate = filepath.Clean(candidate)
-			r, rerr := filepath.Rel(candidate, rootless)
-			if rerr == nil && filepath.IsLocal(r) && (root == "" || len(candidate) > len(root)) {
-				root, rel, clean = candidate, r, rootless
+			if r, rerr := filepath.Rel(filepath.Clean(candidate), rootless); rerr == nil && filepath.IsLocal(r) {
+				matched = true
+				break
 			}
+		}
+		if matched {
+			clean = rootless
+		} else {
+			if !filepath.IsLocal(clean) {
+				return "", "", "", errors.New("path outside allowed roots")
+			}
+			clean = filepath.Join(filepath.Clean(roots[0]), clean)
 		}
 	}
-	if filepath.IsAbs(clean) {
-		for _, candidate := range roots {
-			candidate = filepath.Clean(candidate)
-			r, err := filepath.Rel(candidate, clean)
-			if err == nil && filepath.IsLocal(r) && (root == "" || len(candidate) > len(root)) {
-				root, rel = candidate, r
-			}
+	// absolute now: the longest matching root wins so nested roots resolve to
+	// the same handle regardless of how the caller spelled the path
+	for _, candidate := range roots {
+		candidate = filepath.Clean(candidate)
+		r, err := filepath.Rel(candidate, clean)
+		if err == nil && filepath.IsLocal(r) && (root == "" || len(candidate) > len(root)) {
+			root, rel = candidate, r
 		}
-		if root == "" {
-			rel = strings.TrimPrefix(clean, string(filepath.Separator))
-			if rel == "" {
-				rel = "."
-			}
-			root = filepath.Clean(roots[0])
-		}
-	} else if root == "" {
-		rel = filepath.Clean(strings.TrimPrefix(name, string(filepath.Separator)))
-		if !filepath.IsLocal(rel) {
-			return "", "", "", errors.New("path outside allowed roots")
+	}
+	if root == "" {
+		rel = strings.TrimPrefix(clean, string(filepath.Separator))
+		if rel == "" {
+			rel = "."
 		}
 		root = filepath.Clean(roots[0])
-	}
-	if rel == "" {
-		rel = "."
 	}
 	return root, rel, filepath.Join(root, rel), nil
 }

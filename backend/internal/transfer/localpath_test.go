@@ -36,3 +36,26 @@ func TestOpenLocalSymlinksStayInsideRoot(t *testing.T) {
 		t.Fatal("escaping symlink was followed")
 	}
 }
+
+func TestResolveLocalNestedRootsIgnoreSpelling(t *testing.T) {
+	roots := []string{"/data", "/data/anime", "/mnt/nas"}
+	cases := []struct{ in, root, rel string }{
+		{"anime", "/data/anime", "."},
+		{"/data/anime", "/data/anime", "."},
+		{"anime/show/ep.mkv", "/data/anime", "show/ep.mkv"},
+		{"data/anime/show", "/data/anime", "show"},
+		{"movies/x", "/data", "movies/x"},
+		{"mnt/nas/x", "/mnt/nas", "x"},
+		{"/elsewhere/x", "/data", "elsewhere/x"},
+		{".", "/data", "."},
+	}
+	for _, c := range cases {
+		root, rel, abs, err := resolveLocal(roots, c.in)
+		if err != nil || root != c.root || rel != c.rel || abs != filepath.Join(c.root, c.rel) {
+			t.Errorf("%q: got root=%q rel=%q abs=%q err=%v, want %q %q", c.in, root, rel, abs, err, c.root, c.rel)
+		}
+	}
+	if _, _, _, err := resolveLocal(roots, "../etc"); err == nil {
+		t.Error("escaping relative path accepted")
+	}
+}
