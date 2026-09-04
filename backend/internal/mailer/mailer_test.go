@@ -1,7 +1,11 @@
 package mailer
 
 import (
+	"io"
+	"net"
 	"net/mail"
+	"net/textproto"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -48,5 +52,88 @@ func TestBuildMessage(t *testing.T) {
 	}
 	if !strings.Contains(plain, "Subject: Hi\r\n") {
 		t.Errorf("ascii subject should stay readable:\n%s", plain)
+	}
+}
+
+type smtpRecord struct {
+	rcpt string
+	data string
+	mail bool
+}
+
+// fakeSMTP serves one session on loopback; starttls controls whether EHLO
+// advertises the extension.
+func fakeSMTP(t *testing.T, starttls bool) (int, *smtpRecord) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	rec := &smtpRecord{}
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		tp := textproto.NewConn(conn)
+		tp.PrintfLine("220 fake ESMTP")
+		for {
+			line, err := tp.ReadLine()
+			if err != nil {
+				return
+			}
+			switch cmd := strings.ToUpper(strings.SplitN(line, " ", 2)[0]); cmd {
+			case "EHLO", "HELO":
+				if starttls {
+					tp.PrintfLine("250-fake")
+					tp.PrintfLine("250-STARTTLS")
+				} else {
+					tp.PrintfLine("250-fake")
+				}
+				tp.PrintfLine("250 OK")
+			case "MAIL":
+				rec.mail = true
+				tp.PrintfLine("250 OK")
+			case "RCPT":
+				rec.rcpt = strings.TrimSuffix(strings.TrimPrefix(line[len("RCPT TO:"):], "<"), ">")
+				tp.PrintfLine("250 OK")
+			case "DATA":
+				tp.PrintfLine("354 go")
+				b, _ := io.ReadAll(tp.DotReader())
+				rec.data = string(b)
+				tp.PrintfLine("250 queued")
+			case "QUIT":
+				tp.PrintfLine("221 bye")
+				return
+			default:
+				tp.PrintfLine("250 OK")
+			}
+		}
+	}()
+	_, port, _ := net.SplitHostPort(ln.Addr().String())
+	p, _ := strconv.Atoi(port)
+	return p, rec
+}
+
+func TestSendSMTPRequiresSTARTTLS(t *testing.T) {
+	port, rec := fakeSMTP(t, false)
+	err := sendSMTP(config{host: "127.0.0.1", port: port, from: "a@b.c", security: "starttls"}, nil, "to@x.y", []byte("hi"))
+	if err == nil || !strings.Contains(err.Error(), "does not offer STARTTLS") {
+		t.Fatalf("plain server accepted in starttls mode: %v", err)
+	}
+	if rec.mail {
+		t.Fatal("MAIL was sent over plaintext")
+	}
+}
+
+func TestSendSMTPPlainDelivers(t *testing.T) {
+	port, rec := fakeSMTP(t, false)
+	if err := sendSMTP(config{host: "127.0.0.1", port: port, from: "a@b.c", security: "none"}, nil, "to@x.y", []byte("Subject: t\r\n\r\nhello")); err != nil {
+		t.Fatal(err)
+	}
+	if rec.rcpt != "to@x.y" || !strings.Contains(rec.data, "hello") {
+		t.Fatalf("rcpt=%q data=%q", rec.rcpt, rec.data)
 	}
 }

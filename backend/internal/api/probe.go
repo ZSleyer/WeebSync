@@ -133,7 +133,7 @@ func (s *Server) probeQuality(dir string) (q FolderQuality, ok bool) {
 			return nil, false
 		}
 		defer file.Close()
-		return ffprobeOpenFile(ctx, file)
+		return probeOpenFile(ctx, file)
 	})
 	if !ok {
 		return q, false
@@ -370,6 +370,10 @@ func ffprobeFile(ctx context.Context, file string, extra ...string) ([]probeStre
 	defer f.Close()
 	return ffprobeOpenFile(ctx, f, extra...)
 }
+
+// probeOpenFile is the ffprobe seam for the confined folder probe; tests swap
+// it to see which files the walk actually opened.
+var probeOpenFile = ffprobeOpenFile
 
 func ffprobeOpenFile(ctx context.Context, file *os.File, extra ...string) ([]probeStream, bool) {
 	args := append([]string{"-v", "quiet", "-protocol_whitelist", "file,pipe", "-print_format", "json", "-show_streams"}, extra...)

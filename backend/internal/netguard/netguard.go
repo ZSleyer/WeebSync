@@ -18,6 +18,12 @@ import (
 // IsLinkLocalUnicast; this one sits in the ULA range and needs an explicit check.
 var awsMetadataV6 = net.ParseIP("fd00:ec2::254")
 
+// lookupIP is the single resolve seam; tests swap it, production always asks
+// the system resolver.
+var lookupIP = func(ctx context.Context, host string) ([]net.IP, error) {
+	return net.DefaultResolver.LookupIP(ctx, "ip", host)
+}
+
 // blocked reports whether a resolved IP must never be dialed. Loopback and
 // private LAN stay allowed on purpose - a self-hosted setup legitimately points
 // at SFTP/Plex/OIDC on the same host or LAN. Unspecified (0.0.0.0 / ::) is never
@@ -41,7 +47,7 @@ func SafeDial(ctx context.Context, network, host string, port int, timeout time.
 	if ip := net.ParseIP(host); ip != nil {
 		ips = []net.IP{ip}
 	} else {
-		resolved, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+		resolved, err := lookupIP(ctx, host)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s: %w", host, err)
 		}
@@ -86,7 +92,7 @@ func allowed(host string, deny func(net.IP) bool) error {
 		}
 		return nil
 	}
-	ips, err := net.LookupIP(host)
+	ips, err := lookupIP(context.Background(), host)
 	if err != nil {
 		return fmt.Errorf("resolve %s: %w", host, err)
 	}
@@ -128,7 +134,7 @@ func client(timeout time.Duration, deny func(net.IP) bool, httpsOnly bool) *http
 			if ip := net.ParseIP(host); ip != nil {
 				ips = []net.IP{ip}
 			} else {
-				resolved, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+				resolved, err := lookupIP(ctx, host)
 				if err != nil {
 					return nil, err
 				}
