@@ -63,7 +63,17 @@ jobs:
       - name: test (vitest)
         run: yarn test
       - name: production dependency audit
-        run: yarn audit --groups dependencies
+        # the yarn v1 audit endpoint is flaky (timeouts, 5xx); retry transient
+        # failures, fail immediately on real advisories (exit code >= 2)
+        run: |
+          for attempt in 1 2 3; do
+            yarn --network-timeout 120000 audit --groups dependencies && exit 0
+            code=$?
+            [ "$code" -ge 2 ] && exit "$code"
+            echo "audit attempt $attempt failed (exit $code), retrying"
+            sleep 30
+          done
+          exit 1
       - name: build (tsc + vite)
         run: yarn build
 
