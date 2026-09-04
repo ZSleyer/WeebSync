@@ -87,6 +87,15 @@ export default function Login() {
     }
   }
 
+  // the pending token is gone (expired or too many wrong codes): back to the
+  // password step, the second-factor form would only keep failing
+  const twoFactorFailed = (msg: string) => {
+    if (msg.includes('expired login')) {
+      setTwoFA(null)
+      setError(t('login.twoFactorExpired'))
+    } else setError(msg)
+  }
+
   const submitTotp = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -96,13 +105,7 @@ export default function Login() {
       qc.clear()
       await qc.invalidateQueries({ queryKey: ['me'] })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : t('app.error')
-      // the pending token is gone (expired or too many wrong codes): back to
-      // the password step, the code field would only keep failing
-      if (msg.includes('expired login')) {
-        setTwoFA(null)
-        setError(t('login.twoFactorExpired'))
-      } else setError(msg)
+      twoFactorFailed(err instanceof Error ? err.message : t('app.error'))
     } finally {
       setBusy(false)
     }
@@ -152,7 +155,7 @@ export default function Login() {
       await assertSecurityKey(twoFA.token)
       await afterAuth()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('login.passkeyFailed'))
+      twoFactorFailed(err instanceof Error ? err.message : t('login.passkeyFailed'))
     } finally {
       setBusy(false)
     }
