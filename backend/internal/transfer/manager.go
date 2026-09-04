@@ -405,15 +405,6 @@ var VideoExt = map[string]bool{".mkv": true, ".mp4": true, ".avi": true, ".ts": 
 // names no language the ".sub" beside it does not.
 var SubExt = map[string]bool{".ass": true, ".ssa": true, ".srt": true, ".sub": true, ".vtt": true}
 
-// alreadyComplete reports whether the final file is already present at the
-// exact remote size, so a queued download can be skipped instead of refetched
-// over a good file (stale queue from a check that ran while the disk was
-// unmounted). A re-release with a different size fails this and downloads.
-func alreadyComplete(localPath string, size int64) bool {
-	fi, err := os.Stat(localPath)
-	return err == nil && fi.Size() == size
-}
-
 // looksUploading reports whether a video file is probably still being
 // uploaded: far smaller than its siblings in the same directory.
 // ponytail: 50%-of-median heuristic; compression varies between episodes,

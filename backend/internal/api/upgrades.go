@@ -291,17 +291,8 @@ func (x *sizeIndex) anyAlreadyHave(local map[int64]bool, remotes []UpgradeVarian
 func (s *Server) copySizes(serverID int64, folder string) map[int64]bool {
 	out := map[int64]bool{}
 	if serverID == 0 {
-		abs, err := s.safeLocal(folder)
-		if err != nil {
-			return out // a "plex:..." key, or a path outside the allowed roots
-		}
-		filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return nil
-			}
-			if d.IsDir() {
-				return skipTrash(d)
-			}
+		// a "plex:..." key or a path outside the allowed roots walks nothing
+		s.walkLocal(folder, func(_ string, d fs.DirEntry) error {
 			if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 				return nil
 			}
@@ -1074,17 +1065,7 @@ func outermostCopies(s *Server, locals []UpgradeVariant) []UpgradeVariant {
 
 // localCopyStats counts a local folder's video files and their bytes.
 func (s *Server) localCopyStats(folder string) (files int, bytes int64) {
-	abs, err := s.safeLocal(folder)
-	if err != nil {
-		return 0, 0
-	}
-	filepath.WalkDir(abs, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			return skipTrash(d)
-		}
+	s.walkLocal(folder, func(_ string, d fs.DirEntry) error {
 		if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
 			return nil
 		}

@@ -207,6 +207,40 @@ func (s *Server) openLocal(rel string) (*transfer.LocalPath, error) {
 	return transfer.OpenLocal(s.localRoots(), rel)
 }
 
+// walkLocal walks the files under rel inside its os.Root, so a link leading out
+// of the allowed roots is a dead end rather than a door. fn sees each file's
+// path relative to rel; unreadable entries and the trash folder are skipped.
+func (s *Server) walkLocal(rel string, fn func(sub string, d fs.DirEntry) error) error {
+	local, err := s.openLocal(rel)
+	if err != nil {
+		return err
+	}
+	defer local.Close()
+	start := filepath.ToSlash(local.Name)
+	return fs.WalkDir(local.Root.FS(), start, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			return skipTrash(d)
+		}
+		sub, _ := filepath.Rel(start, p)
+		return fn(sub, d)
+	})
+}
+
+// localExists reports whether p exists inside the allowed roots; a link that
+// leads outside does not count.
+func (s *Server) localExists(p string) bool {
+	local, err := s.openLocal(p)
+	if err != nil {
+		return false
+	}
+	defer local.Close()
+	_, err = local.Root.Stat(local.Name)
+	return err == nil
+}
+
 // @Summary  Browse local directory
 // @Description Lists entries in a directory under the download root.
 // @Tags     Browse
