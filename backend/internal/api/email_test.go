@@ -18,3 +18,14 @@ func TestOneLine(t *testing.T) {
 		}
 	}
 }
+
+func TestOriginDropsPathAndRejectsCredentials(t *testing.T) {
+	if o, ok := origin(" https://weebsync.example.com/api/auth/oidc/callback "); !ok || o != "https://weebsync.example.com" {
+		t.Fatalf("got %q %v", o, ok)
+	}
+	for _, bad := range []string{"", "weebsync.example.com", "ftp://x", "https://user:pw@x"} {
+		if _, ok := origin(bad); ok {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+}
