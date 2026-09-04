@@ -387,6 +387,29 @@ export default function Dashboard() {
                         </button>
                       )}
                     </div>
+                    {/* clears what the search and status filter currently
+                        match, so one button covers "everything" and "only the
+                        failed ones". Disabled on an empty match: the bulk
+                        endpoint reads an empty id list as "all of it" */}
+                    <Toolbar className="ml-auto">
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={bulk.isPending || historyIds.length === 0}
+                        onClick={async () => {
+                          if (
+                            await confirm({
+                              message: t('dash.clearHistoryConfirm', { count: historyIds.length }),
+                              destructive: true,
+                            })
+                          )
+                            bulk.mutate({ a: 'delete', ids: historyIds })
+                        }}
+                      >
+                        <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('dash.clearHistory')}
+                      </Button>
+                    </Toolbar>
                   </Toolbar>
                   {historySelected.length > 0 && (
                     <Panel
