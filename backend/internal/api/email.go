@@ -55,12 +55,21 @@ func (s *Server) baseURL() string {
 		db.SettingOrEnv(s.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL"),
 		db.Setting(s.DB, "anilist_redirect_url"),
 	} {
-		if u, err := url.Parse(strings.TrimSpace(raw)); err == nil && (u.Scheme == "http" || u.Scheme == "https") &&
-			u.Host != "" && u.User == nil && (u.Path == "" || u.Path == "/") && u.RawQuery == "" && u.Fragment == "" {
-			return u.Scheme + "://" + u.Host
+		if o, ok := origin(raw); ok {
+			return o
 		}
 	}
 	return ""
+}
+
+// origin reduces raw to scheme://host when it is an absolute http(s) URL
+// without credentials; path, query and fragment are dropped.
+func origin(raw string) (string, bool) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+		return "", false
+	}
+	return u.Scheme + "://" + u.Host, true
 }
 
 // emailLines renders escaped content lines in the mail's monospace style.

@@ -330,14 +330,22 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "issuer required")
 		return
 	}
-	if b := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/"); b != "" {
-		setSetting(s.DB, "base_url", b)
+	if strings.TrimSpace(in.BaseURL) != "" {
+		o, ok := origin(in.BaseURL)
+		if !ok {
+			writeErr(w, http.StatusBadRequest, "baseUrl must be an absolute http(s) URL")
+			return
+		}
+		setSetting(s.DB, "base_url", o)
 	}
 	// setSetting skips env-locked keys: env-provided OIDC config wins
 	setSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
 	setSetting(s.DB, "oidc_issuer", in.OidcIssuer)
 	setSetting(s.DB, "oidc_client_id", in.OidcClientID)
-	setSetting(s.DB, "oidc_client_secret", in.OidcClientSecret)
+	if err := setSecretSetting(s.DB, "oidc_client_secret", in.OidcClientSecret); err != nil {
+		writeErr(w, http.StatusInternalServerError, "encrypt error")
+		return
+	}
 	setSetting(s.DB, "oidc_redirect_url", in.OidcRedirectURL)
 	setSetting(s.DB, "oidc_claim", in.OidcClaim)
 	setSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
