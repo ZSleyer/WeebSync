@@ -651,8 +651,11 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
    than its text. On a 393px phone that alone is the difference between a chip
    on one line and a chip on three, so the tracking shrinks before anything
    else does. Keyed on width, not on pointer type, so a narrow desktop window
-   and the WCAG 1.4.10 reflow case get the same treatment. */
-@media (max-width: 30rem) {
+   and the WCAG 1.4.10 reflow case get the same treatment. 40rem, not 30rem:
+   Firefox for Android reports a Pixel 8 Pro as ~540 CSS px where Chrome says
+   448, and a 480px boundary put the two browsers on the same phone in
+   different buckets. Every phone-relevant breakpoint sits at 40rem or 64rem. */
+@media (max-width: 40rem) {
   .t-label { letter-spacing: 0.06em; }
   .t-label--sm { letter-spacing: 0.04em; }
   .t-btn { letter-spacing: 0; }
