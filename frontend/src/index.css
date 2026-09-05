@@ -686,6 +686,12 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
   /* stays at the 24px floor even in the compact row */
   .t-toolbar input[type='checkbox'] { width: 1.5rem; height: 1.5rem; }
 }
+/* The compact height is set on the element, so it outranks the :root touch
+   values above and a toolbar on a phone came out at 36px. Same small step as
+   every other touch control instead. */
+@media (pointer: coarse) {
+  .t-toolbar { --ctl-h: 2.222rem; --ctl-h-sm: 2.222rem; }
+}
 
 /* ── Form controls ── */
 /* Tempest checkbox: hard corners, hairline border, CSS-drawn check - the
