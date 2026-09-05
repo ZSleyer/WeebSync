@@ -87,3 +87,4 @@ export { Dialog } from './dialog'
 export type { DialogProps } from './dialog'
 
 export { useMenu } from './useMenu'
+export { SHEET_MQ, useMediaQuery } from './useMediaQuery'

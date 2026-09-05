@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 
 // The native <dialog> mechanics WeebSync repeats in every modal: open it as a
 // modal on mount, close on a backdrop click but not on a drag that merely ended
@@ -6,10 +7,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 // every exit path behaves the same.
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(' ')
-
-// The width below which a sheet-sized dialog covers the screen. Must match the
-// `dialog.dialog-sheet` media query in the stylesheet.
-const SHEET_MQ = '(max-width: 40rem)'
 
 // Widths small enough to stay a centred box on a phone. Anything wider - the
 // watch editor, the remote browser - fills the screen instead, where a centred
@@ -74,21 +71,11 @@ export function Dialog({
   // visible backdrop to click and so no way out except this button - both the
   // button and the backdrop handler key off the live match rather than the
   // prop, so dragging a desktop window across the breakpoint flips both.
-  const [narrow, setNarrow] = useState(
-    () => typeof matchMedia === 'function' && matchMedia(SHEET_MQ).matches,
-  )
+  const narrow = useMediaQuery(SHEET_MQ)
   const isSheet = asSheet && narrow
 
   useEffect(() => {
     ref.current?.showModal()
-  }, [])
-
-  useEffect(() => {
-    if (typeof matchMedia !== 'function') return
-    const mq = matchMedia(SHEET_MQ)
-    const on = () => setNarrow(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
   }, [])
 
   const guarded = async () => {
