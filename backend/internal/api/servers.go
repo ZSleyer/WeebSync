@@ -22,6 +22,14 @@ type serverInfo struct {
 	Username       string `json:"username"`
 	RootPath       string `json:"rootPath"`
 	MaxConnections int    `json:"maxConnections"`
+	Icon           string `json:"icon"` // one of serverIcons, empty = the name stands alone
+}
+
+// serverIcons is the picture a server may show in the files page's source
+// switch; the frontend draws them and keeps the same list.
+var serverIcons = map[string]bool{
+	"": true, "server": true, "cloud": true, "hard-drive": true, "database": true, "globe": true,
+	"satellite-dish": true, "box": true, "rocket": true, "tv": true, "film": true,
 }
 
 type serverInput struct {
@@ -33,9 +41,13 @@ type serverInput struct {
 	Password       string `json:"password"` // empty on update = keep existing
 	RootPath       string `json:"rootPath"`
 	MaxConnections int    `json:"maxConnections"`
+	Icon           string `json:"icon"`
 }
 
 func (in *serverInput) valid() bool {
+	if !serverIcons[in.Icon] {
+		return false
+	}
 	switch in.Protocol {
 	case "sftp", "ftps", "ftp":
 	default:
@@ -71,7 +83,7 @@ func (in *serverInput) valid() bool {
 // @Router   /api/servers [get]
 func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path, max_connections
+	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path, max_connections, icon
 		FROM servers WHERE user_id = ? ORDER BY name`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -81,7 +93,7 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	list := []serverInfo{}
 	for rows.Next() {
 		var si serverInfo
-		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath, &si.MaxConnections); err != nil {
+		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath, &si.MaxConnections, &si.Icon); err != nil {
 			dbErr(w)
 			return
 		}
@@ -128,9 +140,9 @@ func (s *Server) insertServer(userID int64, in serverInput) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	res, err := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path, max_connections)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		userID, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections)
+	res, err := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path, max_connections, icon)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		userID, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, in.Icon)
 	if err != nil {
 		return 0, err
 	}
@@ -170,16 +182,16 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// credentials changed: reset the learned host key too
-		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, max_connections=?, host_key=''
-			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, id, u.ID)
+		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, max_connections=?, icon=?, host_key=''
+			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, in.Icon, id, u.ID)
 		if err != nil {
 			dbErr(w)
 			return
 		}
 	} else {
 		var err error
-		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?, max_connections=?
-			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, in.MaxConnections, id, u.ID)
+		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?, max_connections=?, icon=?
+			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, in.MaxConnections, in.Icon, id, u.ID)
 		if err != nil {
 			dbErr(w)
 			return

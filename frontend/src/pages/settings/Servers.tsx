@@ -2,10 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Lock, LockOpen, Pencil, Plus, PlugZap, Save, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ActionBar, Badge, Button, Dialog, EmptyState, Field, Input, Panel, Select } from '@weebsync/design-system'
+import { ActionBar, Badge, Button, Dialog, EmptyState, Field, Input, Panel, Segmented, Select } from '@weebsync/design-system'
 import { api, ApiError, type ServerInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { PageFooter } from '../../components/PageActions'
+import { SERVER_ICONS, ServerIcon } from '../../components/serverIcon'
 
 export default function Servers() {
   const { t } = useTranslation()
@@ -168,6 +169,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   const qc = useQueryClient()
   const [error, setError] = useState('')
 	const [protocol, setProtocol] = useState(editing?.protocol ?? 'sftp')
+	const [icon, setIcon] = useState(editing?.icon ?? '')
   // uncontrolled form: any input change marks it dirty for the close guard
   const [dirty, setDirty] = useState(false)
   // Dialog asks this before Escape or a backdrop click closes it
@@ -208,6 +210,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
       password: fd.get('password'),
       rootPath: fd.get('rootPath'),
       maxConnections: Number(fd.get('maxConnections')) || 3,
+      icon,
     }
     setError('')
     try {
@@ -235,6 +238,18 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('servers.name')} className="sm:col-span-2">
             <Input name="name" required defaultValue={editing?.name} />
+          </Field>
+          {/* the picture the source switch shows for this server; none = its name */}
+          <Field label={t('servers.icon')} className="sm:col-span-2">
+            <Segmented
+              aria-label={t('servers.icon')}
+              value={icon}
+              onChange={setIcon}
+              options={[
+                { value: '', label: t('servers.iconNone') },
+                ...Object.keys(SERVER_ICONS).map((k) => ({ value: k, 'aria-label': k.replace('-', ' '), label: <ServerIcon name={k} aria-hidden size="1em" /> })),
+              ]}
+            />
           </Field>
           <Field label={t('servers.protocol')}>
             <Select name="protocol" value={protocol} onChange={(e) => setProtocol(e.target.value as ServerInfo['protocol'])}>
