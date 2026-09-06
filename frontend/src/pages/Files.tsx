@@ -232,7 +232,7 @@ export default function Files() {
             ))}
           </Select>
         </label>
-        <Link to="/servers" aria-label={t('files.manageSources')} title={t('files.manageSources')} className="t-iconbtn text-t-muted hover:text-accent">
+        <Link to="/settings/servers" aria-label={t('files.manageSources')} title={t('files.manageSources')} className="t-iconbtn text-t-muted hover:text-accent">
           <Server aria-hidden size="1.25em" />
         </Link>
         <PageActions>
@@ -243,7 +243,7 @@ export default function Files() {
       {!isLocal && servers.length === 0 ? (
         <EmptyState>
           <Trans i18nKey="remote.noServers">
-            Erst unter <Link to="/servers" className="text-accent underline">Server</Link> eine Quelle anlegen.
+            Erst unter <Link to="/settings/servers" className="text-accent underline">Server</Link> eine Quelle anlegen.
           </Trans>
         </EmptyState>
       ) : (

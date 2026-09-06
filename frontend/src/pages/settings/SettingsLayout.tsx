@@ -1,16 +1,17 @@
 import type { ReactNode } from 'react'
-import { Activity, ArrowDownUp, Bell, Info, Mail, Palette, Plug, Shield, Upload, UserRound, Users } from 'lucide-react'
+import { Activity, ArrowDownUp, Bell, ChevronRight, LogOut, Mail, Plug, Server, Settings2, Shield, Upload, UserRound, Users } from 'lucide-react'
 import { NavLink, Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Badge, buttonClass, navItemClass } from '@weebsync/design-system'
+import { Badge, Button, navItemClass, Panel } from '@weebsync/design-system'
+import { api } from '../../api'
 import { useAuth } from '../../hooks'
 
 const PERSONAL = [
-  { to: 'look', key: 'settings.nav.look', icon: Palette },
+  { to: 'general', key: 'settings.nav.general', icon: Settings2 },
   { to: 'account', key: 'settings.nav.account', icon: UserRound },
   { to: 'notifications', key: 'settings.nav.notifications', icon: Bell },
-  { to: 'about', key: 'settings.nav.about', icon: Info },
 ]
+const SOURCES = [{ to: 'servers', key: 'nav.servers', icon: Server }]
 const ADMIN = [
   { to: 'transfers', key: 'settings.nav.transfers', icon: ArrowDownUp },
   { to: 'security', key: 'settings.nav.security', icon: Shield },
@@ -23,61 +24,83 @@ const ADMIN = [
 
 export function AdminRoute({ children }: { children: ReactNode }) {
   const { data: user } = useAuth()
-  if (!user?.isAdmin) return <Navigate to="/settings/look" replace />
+  if (!user?.isAdmin) return <Navigate to="/settings" replace />
   return <>{children}</>
+}
+
+function useGroups() {
+  const { data: user } = useAuth()
+  return [
+    { label: 'settings.groupPersonal', items: PERSONAL },
+    { label: 'settings.groupSources', items: SOURCES },
+    ...(user?.isAdmin ? [{ label: 'settings.groupAdmin', items: ADMIN }] : []),
+  ]
+}
+
+// The hub at /settings: one row per section with a hint, and the account row
+// with Logout. On a phone it is the screen behind the More sheet's Settings
+// entry; on desktop it fills the content pane next to the side menu.
+export function SettingsHub() {
+  const { t } = useTranslation()
+  const { data: user } = useAuth()
+  const groups = useGroups()
+  const logout = async () => {
+    try {
+      await api.post('/api/auth/logout')
+    } catch {
+      /* drop to the login screen either way */
+    }
+    window.location.href = '/'
+  }
+  return (
+    <div className="flex flex-col gap-6">
+      <Panel className="flex items-center justify-between gap-3 p-3">
+        <span className="min-w-0 truncate font-mono text-xs text-t-muted" title={user?.email}>
+          {user?.email}
+        </span>
+        <Button size="sm" onClick={logout}>
+          <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('app.logout')}
+        </Button>
+      </Panel>
+      {groups.map((g) => (
+        <nav key={g.label} aria-label={t(g.label)}>
+          <Badge className="mb-2">{t(g.label)}</Badge>
+          <div className="border-t border-border-subtle lg:grid lg:grid-cols-2 lg:gap-x-6">
+            {g.items.map((i) => (
+              <NavLink key={i.to} to={i.to} className={({ isActive }) => navItemClass('row', isActive)}>
+                <i.icon aria-hidden size="1.25em" className="shrink-0" />
+                <span className="flex min-w-0 flex-1 flex-col py-2">
+                  <span>{t(i.key)}</span>
+                  {t(`settings.hub.${i.to}`, { defaultValue: '' }) && (
+                    <span className="font-sans text-xs text-t-muted">{t(`settings.hub.${i.to}`)}</span>
+                  )}
+                </span>
+                <ChevronRight aria-hidden size="1em" className="shrink-0 text-t-faint" />
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      ))}
+    </div>
+  )
 }
 
 export default function SettingsLayout() {
   const { t } = useTranslation()
-  const { data: user } = useAuth()
-  const isAdmin = !!user?.isAdmin
-
-  const groups = [
-    { label: 'settings.groupPersonal', items: PERSONAL },
-    ...(isAdmin ? [{ label: 'settings.groupAdmin', items: ADMIN }] : []),
-  ]
-
-
+  const groups = useGroups()
   return (
     <div>
-      <header className="mb-6">
+      {/* the desktop's heading; on a phone the app bar carries the section
+          title and a back link to the hub */}
+      <header className="mb-6 hidden lg:block">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('settings.title')}</h2>
         <Badge className="mt-1">{t('settings.sub')}</Badge>
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        {/* phone: chip tabs - every section visible at once, one tap. A grid,
-            not a wrapping row: the labels differ enough in length that free
-            wrapping left a ragged block with single entries stranded on their
-            own line. The column count follows the longest label
-            ("Benachrichtigungen"): two up to md, because the coarse-pointer
-            root font grows with the viewport and eats the room a third column
-            would need - at 640px it already clips. */}
-        <nav aria-label={t('settings.navLabel')} className="flex flex-col gap-3 lg:hidden">
-          {groups.map((g) => (
-            <div key={g.label}>
-              <Badge className="mb-1.5">{t(g.label)}</Badge>
-              <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3">
-                {g.items.map((i) => (
-                  <NavLink
-                    key={i.to}
-                    to={i.to}
-                    className={({ isActive }) =>
-                      `${buttonClass({ size: 'sm', variant: isActive ? 'primary' : 'default' })} min-w-0!`
-                    }
-                  >
-                    <i.icon aria-hidden size="1em" className="mr-1 inline shrink-0 align-[-0.125em]" />
-                    <span className="truncate">{t(i.key)}</span>
-                  </NavLink>
-                ))}
-              </div>
-            </div>
-          ))}
-        </nav>
-        {/* desktop: grouped side menu */}
-        {/* w-52 like the app's own sidebar: at w-44 the entry "Benachrichtigungen"
-            needed 9px more than it had, and a nowrap entry has nothing to clip
-            it - the label ran into the border */}
+        {/* desktop: grouped side menu. w-52 like the app's own sidebar: at
+            w-44 the entry "Benachrichtigungen" needed 9px more than it had */}
         <nav aria-label={t('settings.navLabel')} className="hidden shrink-0 lg:block lg:w-52">
           <div className="flex flex-col gap-5">
             {groups.map((g) => (

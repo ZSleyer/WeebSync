@@ -24,8 +24,8 @@ const LOGIN = { email: 'a@example.com', password: 'testpassword123' }
 const ROUTES = arg('routes', '').split(',').filter(Boolean).length
   ? arg('routes', '').split(',')
   : [
-  '/', '/files', '/files?source=local', '/watches', '/suggestions', '/suggestions?tab=upgrades', '/assistant', '/servers', '/rename',
-  '/settings/look', '/settings/account', '/settings/notifications', '/settings/about',
+  '/', '/files', '/files?source=local', '/watches', '/suggestions', '/suggestions?tab=upgrades', '/assistant', '/rename',
+  '/settings', '/settings/general', '/settings/account', '/settings/notifications', '/settings/servers',
   '/settings/transfers', '/settings/security', '/settings/integrations',
   '/settings/email', '/settings/users', '/settings/jobs', '/settings/import',
 ]

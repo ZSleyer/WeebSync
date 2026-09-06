@@ -686,7 +686,19 @@
     "navLabel": "Einstellungsbereiche",
     "groupPersonal": "Persönlich",
     "groupAdmin": "Administration",
+    "groupSources": "Quellen",
+    "hub": {
+      "general": "Design, Sprache, Version",
+      "account": "Passkeys, Zwei-Faktor",
+      "notifications": "Push und E-Mail",
+      "servers": "Remote-Quellen",
+      "transfers": "Limits und Intervall",
+      "security": "Anmeldung, OIDC, API-Token",
+      "integrations": "AniList, TMDB, TVDB, Plex, Assistent",
+      "jobs": "Jobs, Caches, Log"
+    },
     "nav": {
+      "general": "Allgemein",
       "look": "Darstellung",
       "account": "Konto",
       "notifications": "Benachrichtigungen",
