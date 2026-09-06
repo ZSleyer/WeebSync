@@ -57,6 +57,9 @@ export function useCatalogView(serverId: number, path: string) {
       if (scoped) await putScope('') // clear the mark: folder is classic again
     } else if (next === 'catalogOnce') {
       setOverride('catalog') // transient, no persistence
+      // unpinning a saved folder drops its mark (a tv/movie/tvdb mark too,
+      // same as switching to classic); the override keeps the catalog up
+      if (scoped) await putScope('')
     } else {
       setOverride('catalog')
       if (!scoped) await putScope('anime') // persist; keep an existing tv/movie/tvdb mark

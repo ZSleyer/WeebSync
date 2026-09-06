@@ -1,29 +1,45 @@
 import { useTranslation } from 'react-i18next'
-import { Select } from '@weebsync/design-system'
+import { LayoutGrid, List, Pin } from 'lucide-react'
+import { Button, Segmented } from '@weebsync/design-system'
 import type { CatalogViewValue } from './useCatalogView'
 
-// The Klassisch / Katalog (einmalig) / Katalog (dauerhaft) dropdown, shared by
-// the Remote and Local browsers. Labelled so the persistence difference is
-// obvious to any user.
-export function CatalogViewSelect({ value, onChange }: { value: CatalogViewValue; onChange: (v: CatalogViewValue) => void }) {
+// Classic or catalog as one pressed-button group, the same control the
+// auto-sync page uses for list and calendar, and a pin next to it while the
+// catalog is up: pressed, the folder is saved as a catalog folder and reopens
+// that way. Icons alone in the app bar on a phone, icon and label on desktop.
+export function CatalogViewSwitch({ value, onChange }: { value: CatalogViewValue; onChange: (v: CatalogViewValue) => void }) {
   const { t } = useTranslation()
+  const catalog = value !== 'classic'
+  const opt = (v: 'classic' | 'catalog', icon: React.ReactNode) => ({
+    value: v,
+    'aria-label': t(`remote.${v}`),
+    label: (
+      <>
+        {icon}
+        <span className="ml-1 hidden lg:inline">{t(`remote.${v}`)}</span>
+      </>
+    ),
+  })
   return (
-    // min-w-44: "Katalog (dauerhaft)" needs 150px, and a select clips its
-    // label silently rather than scrolling - so the control keeps the width of
-    // its longest option and the row wraps instead
-    // on a phone the control sits in the app bar without its caption (the
-    // accessible name stays), on desktop in the page header with it
-    <label className="text-xs text-t-muted lg:min-w-44" title={t('remote.autoCatalogHint')}>
-      <span className="sr-only lg:not-sr-only">{t('remote.view')}</span>
-      <Select
-        wrapperClassName="lg:mt-1 lg:w-44"
-        value={value}
-        onChange={(e) => onChange(e.target.value as CatalogViewValue)}
-      >
-        <option value="classic">{t('remote.classic')}</option>
-        <option value="catalogOnce">{t('remote.catalogOnce')}</option>
-        <option value="catalogPersist">{t('remote.catalogPersist')}</option>
-      </Select>
-    </label>
+    <div className="flex items-center gap-2" title={t('remote.autoCatalogHint')}>
+      <Segmented
+        aria-label={t('remote.view')}
+        value={catalog ? 'catalog' : 'classic'}
+        onChange={(v) => onChange(v === 'classic' ? 'classic' : 'catalogOnce')}
+        options={[opt('classic', <List aria-hidden size="1em" />), opt('catalog', <LayoutGrid aria-hidden size="1em" />)]}
+      />
+      {catalog && (
+        <Button
+          size="sm"
+          variant={value === 'catalogPersist' ? 'primary' : 'default'}
+          aria-pressed={value === 'catalogPersist'}
+          aria-label={t('remote.catalogPersist')}
+          title={t('remote.catalogPersist')}
+          onClick={() => onChange(value === 'catalogPersist' ? 'catalogOnce' : 'catalogPersist')}
+        >
+          <Pin aria-hidden size="1em" />
+        </Button>
+      )}
+    </div>
   )
 }
