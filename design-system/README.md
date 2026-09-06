@@ -23,6 +23,12 @@ One height per family, fixed line boxes, all driven by variables in
 | `--ctl-h-sm` | 26px | 2.222rem (40px) | `.t-btn--sm`, `.t-iconbtn`, `.t-divider` |
 | `--ctl-fs` / `--ctl-lh` | 14 / 20px | 0.889 / 1.333rem | full-size controls |
 | `--ctl-fs-sm` / `--ctl-lh-sm` | 11 / 16px | 0.722 / 1.111rem | small controls, `.t-label`, `.t-count` |
+| `--nav-h` | 3.33rem | 3.33rem | `NavItem` bottom tabs, the shell's tab bar |
+
+Composites that add no height of their own: `ActionBar` (a row of small
+controls, sticky at the bottom of the scroller), `Disclosure` (summary at
+`--ctl-h-sm`), `Segmented` (small buttons). `AppBar` slots are `--ctl-h` tall
+so a control in the bar meets the touch size.
 
 Why the fixed line box: `.t-input` and `.t-select` used to inherit their font
 from the surrounding element while `.t-btn` carried its own, so the same three

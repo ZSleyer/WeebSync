@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  ActionBar,
   AppBar,
   AppShell,
   Badge,
@@ -8,6 +9,7 @@ import {
   CalendarDay,
   CalendarEntry,
   Cover,
+  Disclosure,
   EmptyState,
   FileBrowser,
   FileRow,
@@ -17,6 +19,7 @@ import {
   Modal,
   NavItem,
   navItemClass,
+  Segmented,
   SuggestionCard,
 } from '@weebsync/design-system'
 
@@ -344,5 +347,68 @@ describe('AppBar and AppShell', () => {
     )
     expect([...shell.children].map((c) => c.tagName)).toEqual(['HEADER', 'MAIN', 'DIV', 'NAV'])
     expect(screen.getByText('Update')).toBeInTheDocument()
+  })
+})
+
+describe('ActionBar, Disclosure and Segmented', () => {
+  it('is a named toolbar that sticks to the bottom of the scroller', () => {
+    render(
+      <ActionBar aria-label="Auswahl">
+        <button type="button">Pause</button>
+      </ActionBar>,
+    )
+    const bar = screen.getByRole('toolbar', { name: 'Auswahl' })
+    expect(bar).toHaveClass('sticky', '-bottom-4', 'lg:bottom-0')
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument()
+  })
+
+  it('folds its block on the native details element and reports toggles', () => {
+    const onToggle = vi.fn()
+    const { container } = render(
+      <Disclosure title="Geplant" count={3} onToggle={onToggle}>
+        <p>Inhalt</p>
+      </Disclosure>,
+    )
+    const details = container.querySelector('details') as HTMLDetailsElement
+    expect(details.open).toBe(true)
+    expect(screen.getByRole('heading', { level: 3, name: 'Geplant' })).toBeInTheDocument()
+    expect(screen.getByText('3')).toHaveClass('t-label')
+    details.open = false
+    fireEvent(details, new Event('toggle'))
+    expect(onToggle).toHaveBeenCalledWith(false)
+  })
+
+  it('starts closed with defaultOpen false and wears the chip style when small', () => {
+    const { container } = render(
+      <Disclosure title="Serien" small defaultOpen={false}>
+        <p>Inhalt</p>
+      </Disclosure>,
+    )
+    expect((container.querySelector('details') as HTMLDetailsElement).open).toBe(false)
+    expect(container.querySelector('summary > span')).toHaveClass('t-label', 't-label--accent')
+    // closed: the block is not in the DOM at all
+    expect(screen.queryByText('Inhalt')).toBeNull()
+  })
+
+  it('presses exactly the current option and reports the tapped one', () => {
+    const onChange = vi.fn()
+    render(
+      <Segmented
+        aria-label="Ansicht"
+        value="list"
+        onChange={onChange}
+        options={[
+          { value: 'list', label: 'Liste' },
+          { value: 'calendar', label: 'K', 'aria-label': 'Kalender' },
+        ]}
+      />,
+    )
+    expect(screen.getByRole('group', { name: 'Ansicht' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Liste' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Liste' })).toHaveClass('t-btn--primary')
+    const cal = screen.getByRole('button', { name: 'Kalender' })
+    expect(cal).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(cal)
+    expect(onChange).toHaveBeenCalledWith('calendar')
   })
 })

@@ -353,11 +353,16 @@ export function Toolbar({ className, ...rest }: ToolbarProps) {
 
 export interface TabsProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
+  /**
+   * One row that scrolls sideways instead of wrapping - for a bar with more
+   * tabs than a phone is wide. The caller scrolls the selected tab into view.
+   */
+  scroll?: boolean
 }
 
-export function Tabs({ className, children, ...rest }: TabsProps) {
+export function Tabs({ scroll, className, children, ...rest }: TabsProps) {
   return (
-    <div role="tablist" {...rest} className={cx('t-tabs', className)}>
+    <div role="tablist" {...rest} className={cx('t-tabs', scroll && 't-tabs--scroll', className)}>
       {children}
     </div>
   )
