@@ -950,10 +950,19 @@ dialog > :only-child {
     padding-right: 3rem;
   }
 }
+/* The page behind a dialog is blurred as well as dimmed: on a phone the box
+   sits over content of the same colours and the hairline border alone did
+   not separate the two (WCAG 1.4.11 asks 3:1 for a component's edge; the
+   blur makes the boundary the shape, not the line). The box lifts with a
+   shadow for the same reason. */
 dialog::backdrop {
-  background: color-mix(in srgb, #05070a 65%, transparent);
+  background: color-mix(in srgb, #05070a 70%, transparent);
+  backdrop-filter: blur(6px);
   transition: opacity 240ms ease-out;
   opacity: 1;
+}
+dialog[open] {
+  box-shadow: 0 24px 48px -12px rgb(0 0 0 / 0.6);
 }
 dialog:not([open]) { clip-path: inset(50% 0 50% 0); opacity: 0; }
 dialog:not([open])::backdrop { opacity: 0; }
