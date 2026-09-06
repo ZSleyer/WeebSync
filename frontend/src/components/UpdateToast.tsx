@@ -76,7 +76,10 @@ export default function UpdateToast() {
     <div
       role="status"
       aria-live="polite"
-      className="t-panel fixed! inset-x-3 bottom-[calc(var(--nav-h,0px)+0.75rem)] z-50 flex flex-col gap-3 border border-accent/60 bg-bg-secondary p-4 shadow-lg sm:inset-x-auto sm:right-4 sm:bottom-4 sm:max-w-sm"
+      // a shell row above the tab bar on a phone (a fixed box drifts on
+      // Firefox for Android while the URL bar animates), a corner card on a
+      // desktop where the document scrolls
+      className="t-panel flex flex-col gap-3 border border-accent/60 bg-bg-secondary p-4 lg:fixed lg:right-6 lg:bottom-6 lg:z-50 lg:max-w-sm lg:shadow-lg"
     >
       <p className="text-sm text-t-primary">{t('app.updateAvailable')}</p>
       <div className="flex items-center justify-between gap-3">

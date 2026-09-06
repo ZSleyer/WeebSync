@@ -583,9 +583,9 @@ export function AppShell({ sidebar, bar, tabs, notice, mainKey, before, children
       <main key={mainKey} className="flex min-w-0 flex-1 flex-col overflow-x-clip p-4 lg:p-6">
         {children}
       </main>
-      {/* rendered only with content, so the row leaves no empty band and the
-          shell's header/main/nav contract stays intact for the audits */}
-      {notice != null && notice !== false && <div className="shrink-0 px-3 pt-3 lg:contents">{notice}</div>}
+      {/* the row collapses while its content renders nothing (a toast that is
+          not up), so it leaves no empty band above the tab bar */}
+      {notice != null && notice !== false && <div className="shrink-0 px-3 pt-3 empty:hidden lg:contents">{notice}</div>}
       {tabs}
     </div>
   )
