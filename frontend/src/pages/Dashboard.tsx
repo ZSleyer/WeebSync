@@ -703,21 +703,14 @@ function SelectBox({ checked, name, onSelect }: { checked: boolean; name: string
 // dirOf is the folder a path lives in, for the browser deep links.
 const dirOf = (p: string) => p.slice(0, p.lastIndexOf('/')) || '/'
 
-// DetailsToggle is the chevron that opens a download's metadata. Not
-// <Collapsible>: that renders a section heading with a count badge, and these
-// are rows.
+// DetailsToggle is the chevron that opens a download's metadata: a square
+// small button, the same box as the row's other actions.
 function DetailsToggle({ open, name, onToggle }: { open: boolean; name: string; onToggle: () => void }) {
   const { t } = useTranslation()
   return (
-    <button
-      type="button"
-      aria-expanded={open}
-      aria-label={t('dash.details', { name })}
-      className="t-label min-h-6 min-w-6 cursor-pointer justify-center hover:text-accent"
-      onClick={onToggle}
-    >
-      {open ? <ChevronDown aria-hidden size="1em" /> : <ChevronRight aria-hidden size="1em" />}
-    </button>
+    <Button size="sm" className="aspect-square px-0!" aria-expanded={open} aria-label={t('dash.details', { name })} onClick={onToggle}>
+      {open ? <ChevronDown aria-hidden size="1.2em" /> : <ChevronRight aria-hidden size="1.2em" />}
+    </Button>
   )
 }
 
@@ -909,26 +902,33 @@ function HistoryRow({
   const explained = explain && isFsErrorCode(d.errorCode)
   return (
     <div className="border border-border-subtle bg-bg-card px-3 py-2 text-sm">
-      <div className="flex flex-wrap items-center gap-3">
+      {/* one line at every width: box, cover, a title-and-meta column that
+          takes what is left, the actions as equal squares on the right */}
+      <div className="flex items-center gap-3">
         <SelectBox checked={selected} name={name} onSelect={onSelect} />
         {group?.cover && <Cover src={group.cover} size="sm" loading="lazy" />}
-        <StatusChip status={d.status} />
-        {ep && <Badge tone="accent">{ep}</Badge>}
-        {/* own line on a phone, same reason as the queue row */}
-        <span className="min-w-0 basis-full truncate text-xs text-t-secondary sm:flex-1 sm:basis-0" title={d.remotePath}>
-          {label}
-        </span>
-        <span className="font-mono text-xs text-t-muted">{fmtBytes(d.size)}</span>
-        {(d.status === 'error' || d.status === 'canceled') && (
-          <Button size="sm" onClick={() => onAction('resume')}>
-            <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('dash.retry')}
+        <div className="min-w-0 flex-1">
+          <span className="block truncate text-sm text-t-primary" title={d.remotePath}>
+            {label}
+          </span>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <StatusChip status={d.status} />
+            {ep && <Badge tone="accent">{ep}</Badge>}
+            <span className="font-mono text-xs text-t-muted">{fmtBytes(d.size)}</span>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {(d.status === 'error' || d.status === 'canceled') && (
+            <Button size="sm" className="aspect-square px-0! sm:aspect-auto sm:px-2.5!" aria-label={t('dash.retry')} title={t('dash.retry')} onClick={() => onAction('resume')}>
+              <RotateCcw aria-hidden size="1.2em" className="inline align-[-0.125em] sm:mr-1" />
+              <span className="hidden sm:inline">{t('dash.retry')}</span>
+            </Button>
+          )}
+          <Button size="sm" variant="danger" className="aspect-square px-0!" aria-label={t('dash.remove', { id: d.id })} onClick={() => onAction('delete')}>
+            <X aria-hidden size="1.2em" />
           </Button>
-        )}
-        <Button size="sm" variant="danger" aria-label={t('dash.remove', { id: d.id })} onClick={() => onAction('delete')}>
-          <X aria-hidden size="1.2em" />
-        </Button>
-        <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
+          <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
+        </div>
       </div>
       {/* the failure gets its own line under the row, explained or not: inline
           it fought the title for the little width left next to the actions,

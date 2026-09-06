@@ -736,8 +736,9 @@ input[type='checkbox']:checked::after {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 0.625rem;
-  height: 0.3125rem;
+  /* fractions of the box, so the mark grows with the touch-sized box */
+  width: 40%;
+  height: 20%;
   border-left: 2px solid var(--bg-primary);
   border-bottom: 2px solid var(--bg-primary);
   transform: translate(-50%, -70%) rotate(-45deg);
@@ -747,7 +748,7 @@ input[type='checkbox']:indeterminate::after {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 0.625rem;
+  width: 40%;
   height: 2px;
   background: var(--bg-primary);
   transform: translate(-50%, -50%);
@@ -760,8 +761,9 @@ input[type='checkbox']:focus-visible {
 }
 input[type='checkbox']:disabled { opacity: 0.45; cursor: not-allowed; }
 @media (pointer: coarse) {
-  /* WCAG 2.5.8 touch target */
-  input[type='checkbox'] { width: 1.5rem; height: 1.5rem; }
+  /* the small control step, so a box lines up with the icon buttons and
+     the search field beside it instead of sitting 16px shorter */
+  input[type='checkbox'] { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
 }
 
 /* Tempest radio: the one control that stays round on purpose - "only toggles
