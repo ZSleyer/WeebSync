@@ -912,6 +912,14 @@ dialog {
 dialog > :only-child {
   max-height: var(--dialog-max-h);
 }
+/* Nothing in a dialog scrolls sideways on purpose, but `overflow-y: auto`
+   turns the other axis into auto as well, and the content box measures one
+   pixel wider than its client width (a cut button's outline ring reaches
+   1px past its box, fractional layout at 125% or a phone's 2.625 does the
+   rest): a horizontal scrollbar along the bottom of a four-line confirm. */
+dialog .overflow-y-auto {
+  overflow-x: hidden;
+}
 /* The box a dialog's content lives in: fixed header, scrolling middle, sticky
    footer, capped so the page behind never gains a scrollbar. One class instead
    of the `flex max-h-[85dvh] flex-col` every modal used to repeat - the cap has
