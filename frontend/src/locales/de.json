@@ -523,6 +523,7 @@
     }
   },
   "rename": {
+    "browse": "Ordner durchsuchen",
     "title": "UMBENENNEN",
     "sub": "template · regex · anilist",
     "folder": "ordner",
