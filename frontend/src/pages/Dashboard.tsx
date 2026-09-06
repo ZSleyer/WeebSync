@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import {
+  ActionBar,
   Badge,
   Button,
   Count,
@@ -184,7 +185,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <header className="mb-6">
+      <header className="mb-6 hidden lg:block">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
         <Badge className="mt-1">{t('dash.sub')}</Badge>
       </header>
@@ -195,7 +196,8 @@ export default function Dashboard() {
           column next to the transfer queue */}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
         <aside className="flex flex-col gap-4 lg:order-2">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2">
+          {/* one row of three on a phone, so the queue starts above the fold */}
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-2">
             <StatTile label={t('dash.active')} value={String(active.filter((d) => d.status === 'running').length)} />
             <StatTile label={t('dash.queue')} value={String(active.filter((d) => d.status === 'queued').length)} />
             <StatTile label={t('dash.speed')} value={fmtSpeed(totalSpeed)} wide>
@@ -264,33 +266,6 @@ export default function Dashboard() {
                 {!!user?.isAdmin && <GlobalLimitInput />}
               </Toolbar>
             </Toolbar>
-
-      {activeSelected.length > 0 && (
-        <Panel className="mb-4 flex flex-wrap items-center gap-2 p-3" role="toolbar" aria-label={t('dash.selectionActions')}>
-          <Badge tone="accent">{t('dash.selectedCount', { count: activeSelected.length })}</Badge>
-          <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}>
-            <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('dash.pause')}
-          </Button>
-          <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}>
-            <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('dash.resume')}
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            disabled={bulk.isPending}
-            onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}
-          >
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('dash.cancel')}
-          </Button>
-          <Button size="sm" className="ml-auto" onClick={() => toggleSection(activeIds, true)}>
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('dash.clearSelection')}
-          </Button>
-        </Panel>
-      )}
 
             {active.length === 0 &&
               (filtering ? (
@@ -411,36 +386,6 @@ export default function Dashboard() {
                       </Button>
                     </Toolbar>
                   </Toolbar>
-                  {historySelected.length > 0 && (
-                    <Panel
-                      className="mb-2 flex flex-wrap items-center gap-2 p-3"
-                      role="toolbar"
-                      aria-label={t('dash.selectionActions')}
-                    >
-                      <Badge tone="accent">{t('dash.selectedCount', { count: historySelected.length })}</Badge>
-                      <Button
-                        size="sm"
-                        disabled={bulk.isPending}
-                        onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}
-                      >
-                        <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                        {t('dash.retry')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={bulk.isPending}
-                        onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}
-                      >
-                        <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                        {t('dash.removeSelected')}
-                      </Button>
-                      <Button size="sm" className="ml-auto" onClick={() => toggleSection(historyIds, true)}>
-                        <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                        {t('dash.clearSelection')}
-                      </Button>
-                    </Panel>
-                  )}
                   {/* not <EmptyState>: this one is the compact p-6/text-sm
                       variant, and its padding must not be overridden */}
                   {finished.length === 0 && historyFiltering && (
@@ -483,6 +428,48 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* the selection's actions stick to the bottom edge of the scroller
+          while rows are selected: under the thumb on a phone, at the foot of
+          the viewport on desktop. Last child of the page root on purpose -
+          that is what makes it stick. */}
+      {selected.size > 0 && (
+        <ActionBar aria-label={t('dash.selectionActions')}>
+          <Badge tone="accent">{t('dash.selectedCount', { count: selected.size })}</Badge>
+          {activeSelected.length > 0 && (
+            <>
+              <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}>
+                <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('dash.pause')}
+              </Button>
+              <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}>
+                <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('dash.resume')}
+              </Button>
+              <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}>
+                <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('dash.cancel')}
+              </Button>
+            </>
+          )}
+          {historySelected.length > 0 && (
+            <>
+              <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}>
+                <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('dash.retry')}
+              </Button>
+              <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}>
+                <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('dash.removeSelected')}
+              </Button>
+            </>
+          )}
+          <Button size="sm" className="ml-auto" onClick={() => setSelected(new Set())}>
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('dash.clearSelection')}
+          </Button>
+        </ActionBar>
+      )}
     </div>
   )
 }
@@ -596,10 +583,10 @@ function SyncSummary() {
 
 function StatTile({ label, value, wide, children }: { label: string; value: string; wide?: boolean; children?: React.ReactNode }) {
   return (
-    <Panel className={`px-4 py-2 ${wide ? 'col-span-2 sm:min-w-44' : 'sm:min-w-20'}`}>
+    <Panel className={`min-w-0 px-3 py-2 sm:px-4 ${wide ? 'sm:col-span-2 sm:min-w-44' : 'sm:min-w-20'}`}>
       <Badge>{label}</Badge>
       <div className="flex items-end gap-2">
-        <p className="font-mono text-lg text-t-primary">{value}</p>
+        <p className="truncate font-mono text-base text-t-primary sm:text-lg">{value}</p>
         {children}
       </div>
     </Panel>
@@ -624,7 +611,8 @@ function SpeedSparkline({ current }: { current: number }) {
   const h = 24
   const points = hist.map((v, i) => `${(i / 59) * w},${h - (v / max) * (h - 2) - 1}`).join(' ')
   return (
-    <svg width={w} height={h} className="mb-1 shrink-0" role="img" aria-label={t('dash.speedChart')}>
+    // hidden on a phone: the third tile of the row has no room for it
+    <svg width={w} height={h} className="mb-1 hidden shrink-0 sm:block" role="img" aria-label={t('dash.speedChart')}>
       {hist.length > 1 && (
         <polyline points={points} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinejoin="round" />
       )}
