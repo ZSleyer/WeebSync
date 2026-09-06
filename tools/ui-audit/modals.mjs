@@ -18,6 +18,8 @@ const TOKEN = process.env.WS_TOKEN || ''
 // /remote is a separate view with dialogs of its own, and a plain visit never
 // reaches it.
 const TRIGGERS = [
+  // the phone's overflow sheet is a dialog; the button only exists below lg
+  { route: '/', label: 'Mehr', names: [/^Mehr$|^More$/] },
   { route: '/servers', names: [/Server hinzufügen|Add server/, /Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
   { route: '/watches', names: [/Bearbeiten|^Edit$/, /Löschen|^Delete$/, /fehlt$|Lücken:|gaps:|missing$/] },
   {

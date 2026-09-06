@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
+  ArrowLeft,
   Bot,
+  ChevronRight,
   Cloud,
   Ellipsis,
   HardDrive,
@@ -15,6 +17,7 @@ import {
 import {
   createBrowserRouter,
   createRoutesFromElements,
+  Link,
   NavLink,
   Navigate,
   Outlet,
@@ -24,12 +27,13 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppBar, AppShell, Badge, Button, TabBar } from '@weebsync/design-system'
+import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar } from '@weebsync/design-system'
 import { api } from './api'
 import { useAiStatus, useAuth, useEvents } from './hooks'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
+import { AppBarActions } from './components/PageActions'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -53,24 +57,28 @@ import Users from './pages/settings/Users'
 import Jobs from './pages/settings/Jobs'
 import Import from './pages/settings/Import'
 
-const NAV = [
+// The phone's tab bar holds the daily targets; everything else lives in the
+// "more" sheet. The desktop rail lists both, in this order.
+const TABS = [
   { to: '/', key: 'nav.dashboard', icon: LayoutDashboard },
   { to: '/local', key: 'nav.local', icon: HardDrive },
   { to: '/remote', key: 'nav.remote', icon: Cloud },
   { to: '/watches', key: 'nav.watches', icon: RefreshCw },
+]
+const OVERFLOW = [
   { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
   { to: '/assistant', key: 'nav.assistant', icon: Bot },
   { to: '/servers', key: 'nav.servers', icon: Server },
   { to: '/rename', key: 'nav.rename', icon: PenLine },
   { to: '/settings', key: 'nav.settings', icon: Settings },
 ]
-// mobile bottom bar: only the daily-use targets get a tab, the rest moves
-// into a "more" sheet so touch targets stay wide enough
-const NAV_PRIMARY = NAV.slice(0, 4)
+const NAV = [...TABS, ...OVERFLOW]
+type NavEntry = (typeof NAV)[number]
+const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
 
 // position of a path in the nav order, for direction-aware route transitions
 const navIndex = (path: string) => {
-  const i = NAV.findIndex((n) => n.to === path || (n.to !== '/' && path.startsWith(n.to + '/')))
+  const i = NAV.findIndex((n) => onPath(n, path))
   return i < 0 ? 0 : i
 }
 
@@ -193,14 +201,17 @@ function RouteTransition({ cls, children }: { cls: string; children: ReactNode }
 function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
   const location = useLocation()
+  const { title, back } = useScreen()
   const [moreOpen, setMoreOpen] = useState(false)
+  // the app bar's actions slot, handed to pages through context; held in
+  // state (not a ref) so a page mounting before the bar still portals in
+  const [actions, setActions] = useState<HTMLElement | null>(null)
   // the assistant is optional: without a configured endpoint its entry stays
   // out of the rail and the sheet (the page itself explains when opened directly)
   const { data: aiStatus } = useAiStatus()
-  const nav = aiStatus?.configured ? NAV : NAV.filter((n) => n.to !== '/assistant')
-  const NAV_MORE = nav.slice(4)
-  const moreActive = NAV_MORE.some((n) => location.pathname === n.to || location.pathname.startsWith(n.to + '/'))
-  // navigating (via sheet or otherwise) closes the sheet; Escape too
+  const overflow = aiStatus?.configured ? OVERFLOW : OVERFLOW.filter((n) => n.to !== '/assistant')
+  const moreActive = overflow.some((n) => onPath(n, location.pathname))
+  // navigating (via sheet or otherwise) closes the sheet
   useEffect(() => setMoreOpen(false), [location.pathname])
 
   // route transition follows nav order: a lower-numbered tab enters from the
@@ -217,12 +228,6 @@ function Shell({ email }: { email: string }) {
     return cls
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
-  useEffect(() => {
-    if (!moreOpen) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMoreOpen(false)
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [moreOpen])
 
   const logout = async () => {
     try {
@@ -236,35 +241,7 @@ function Shell({ email }: { email: string }) {
     window.location.href = '/'
   }
 
-  // hand-written, not navItemClass(): the shell's rail and tab bar carry more
-  // than the design system's sidebar/bottomTab variants - a wider icon gap and
-  // taller rows on the rail, a 3.33rem touch target plus truncation on the tab
-  // bar. Migrating them would shrink the touch targets.
-  const navLink = (n: (typeof NAV)[number], mobile: boolean) => (
-    <NavLink
-      key={n.to}
-      to={n.to}
-      end={n.to === '/'}
-      className={({ isActive }) =>
-        mobile
-          ? `flex min-h-(--nav-h) min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
-              isActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
-            }`
-          : `group flex items-center gap-3 border-l-2 px-4 py-2.5 font-display text-sm transition-colors ${
-              isActive
-                ? 'border-accent bg-bg-hover text-accent'
-                : 'border-transparent text-t-muted hover:bg-bg-hover hover:text-t-primary'
-            }`
-      }
-    >
-      <n.icon aria-hidden size="1.25em" className="shrink-0" />
-      {mobile ? (
-        <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
-      ) : (
-        t(n.key)
-      )}
-    </NavLink>
-  )
+  const icon = (n: NavEntry) => <n.icon aria-hidden size="1.25em" className="shrink-0" />
 
   const sidebar = (
     <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
@@ -274,8 +251,13 @@ function Shell({ email }: { email: string }) {
         </h1>
         <Badge className="mt-2">{t('app.tagline')}</Badge>
       </div>
-      <nav className="flex-1 py-3" aria-label={t('nav.main')}>
-        {nav.map((n) => navLink(n, false))}
+      <nav className="min-h-0 flex-1 overflow-y-auto py-3" aria-label={t('nav.main')}>
+        {[...TABS, ...overflow].map((n) => (
+          <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => navItemClass('sidebar', isActive)}>
+            {icon(n)}
+            {t(n.key)}
+          </NavLink>
+        ))}
       </nav>
       <div className="border-t border-border-subtle p-4">
         <p className="mb-2 truncate font-mono text-xs text-t-muted" title={email}>
@@ -289,75 +271,100 @@ function Shell({ email }: { email: string }) {
     </aside>
   )
 
+  // the phone's top bar: back link on a stacked screen, the screen title as
+  // the page's h1, and the slot pages fill with their secondary controls
   const bar = (
-    <AppBar>
-      <h1 className="font-display text-base font-bold tracking-[0.2em] text-t-primary">
-        WEEB<span className="text-accent">SYNC</span>
-      </h1>
-      <Button size="sm" onClick={logout}>
-        <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-        {t('app.logout')}
-      </Button>
-    </AppBar>
+    <AppBar
+      leading={
+        back ? (
+          <Link to={back} aria-label={t('nav.back')} className="t-iconbtn text-t-secondary hover:text-t-primary">
+            <ArrowLeft aria-hidden size="1.25em" />
+          </Link>
+        ) : (
+          <span aria-hidden className="font-display text-xs font-bold tracking-[0.2em] text-t-primary">
+            WEEB<span className="text-accent">SYNC</span>
+          </span>
+        )
+      }
+      title={title ? t(title) : 'WeebSync'}
+      actions={<div ref={setActions} className="flex items-center gap-1" />}
+    />
   )
 
-  // the phone's tab bar: primary tabs + "more" sheet
+  // the phone's tab bar: primary tabs + the "more" button
   const tabs = (
     <TabBar aria-label={t('nav.main')}>
-      {moreOpen && (
-        <div id="nav-more" className="border-b border-border-subtle">
-          {NAV_MORE.map((n) => (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              className={({ isActive }) =>
-                `flex min-h-14 items-center gap-3 px-5 font-display text-sm ${
-                  isActive ? 'text-accent' : 'text-t-secondary'
-                }`
-              }
-            >
-              <n.icon aria-hidden size="1.25em" className="shrink-0" />
-              {t(n.key)}
-            </NavLink>
-          ))}
-        </div>
-      )}
       <div className="flex">
-        {NAV_PRIMARY.map((n) => navLink(n, true))}
-        <button
-          className={`flex min-h-(--nav-h) min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight ${
-            moreOpen || moreActive ? 'border-accent text-accent' : 'border-transparent text-t-muted'
-          }`}
+        {TABS.map((n) => (
+          <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => navItemClass('bottomTab', isActive)}>
+            {icon(n)}
+            <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
+          </NavLink>
+        ))}
+        <NavItem
+          as="button"
+          variant="bottomTab"
+          active={moreOpen || moreActive}
+          aria-haspopup="dialog"
           aria-expanded={moreOpen}
-          aria-controls="nav-more"
-          onClick={() => setMoreOpen((o) => !o)}
+          onClick={() => setMoreOpen(true)}
         >
           <Ellipsis aria-hidden size="1.25em" className="shrink-0" />
           <span className="max-w-full truncate whitespace-nowrap">{t('nav.more')}</span>
-        </button>
+        </NavItem>
       </div>
     </TabBar>
   )
 
+  // the "more" sheet is a real dialog: top layer, focus, Escape, backdrop and
+  // the scroll lock all come from the platform, and focus returns to the
+  // button that opened it
+  const more = moreOpen && (
+    <Dialog width="max-w-sm" onClose={() => setMoreOpen(false)} aria-labelledby="more-title">
+      <h2 id="more-title" className="sr-only">
+        {t('nav.more')}
+      </h2>
+      <nav aria-label={t('nav.more')} className="py-1">
+        {overflow.map((n) => (
+          <NavLink key={n.to} to={n.to} className={({ isActive }) => navItemClass('sheet', isActive)}>
+            {icon(n)}
+            {t(n.key)}
+            <ChevronRight aria-hidden size="1em" className="ml-auto shrink-0 text-t-faint" />
+          </NavLink>
+        ))}
+      </nav>
+      <div className="flex items-center justify-between gap-3 border-t border-border-subtle px-5 py-3">
+        <span className="min-w-0 truncate font-mono text-xs text-t-muted" title={email}>
+          {email}
+        </span>
+        <Button size="sm" onClick={logout}>
+          <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('app.logout')}
+        </Button>
+      </div>
+    </Dialog>
+  )
+
   return (
-    <AppShell
-      sidebar={sidebar}
-      bar={bar}
-      tabs={tabs}
-      mainKey={location.pathname}
-      notice={<UpdateToast />}
-      before={
-        <>
-          <RouteTitle />
-          <ScrollMemory />
-          {/* closes the "more" sheet on a tap anywhere else */}
-          {moreOpen && <div className="fixed inset-0 z-40 lg:hidden" aria-hidden onClick={() => setMoreOpen(false)} />}
-        </>
-      }
-    >
-      <RouteTransition cls={transitionClass}>
-        <Outlet />
-      </RouteTransition>
-    </AppShell>
+    <AppBarActions.Provider value={actions}>
+      <AppShell
+        sidebar={sidebar}
+        bar={bar}
+        tabs={tabs}
+        mainKey={location.pathname}
+        notice={<UpdateToast />}
+        before={
+          <>
+            <RouteTitle />
+            <ScrollMemory />
+            {more}
+          </>
+        }
+      >
+        <RouteTransition cls={transitionClass}>
+          <Outlet />
+        </RouteTransition>
+      </AppShell>
+    </AppBarActions.Provider>
   )
 }
