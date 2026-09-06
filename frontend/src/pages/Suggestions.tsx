@@ -483,7 +483,7 @@ function SugCard({
                     <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.syncOnce')}
                   </Button>
-                  <Button size="sm" onClick={() => navigate(`/remote?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}>
+                  <Button size="sm" onClick={() => navigate(`/files?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}>
                     <FolderOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.open')}
                   </Button>
@@ -639,7 +639,7 @@ function UpgradesSection() {
               onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
               onSync={setSync}
               onDismiss={dismiss}
-              onOpenRemote={(v) => navigate(`/remote?server=${v.serverId}&path=${encodeURIComponent(v.folder)}`)}
+              onOpenRemote={(v) => navigate(`/files?server=${v.serverId}&path=${encodeURIComponent(v.folder)}`)}
               onDetails={setDetail}
             />
           )

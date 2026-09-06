@@ -294,7 +294,7 @@ export default function Watches() {
       ) : watches.length === 0 ? (
         <EmptyState>
           <Trans i18nKey="watch.empty">
-            In der <Link to="/remote" className="text-accent underline">Remote</Link>-Ansicht einen Ordner auswählen und „Beobachten" klicken.
+            In der <Link to="/files" className="text-accent underline">Remote</Link>-Ansicht einen Ordner auswählen und „Beobachten" klicken.
           </Trans>
         </EmptyState>
       ) : view === 'calendar' ? (

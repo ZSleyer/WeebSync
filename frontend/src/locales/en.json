@@ -47,7 +47,8 @@
     "more": "More",
     "local": "Local",
     "assistant": "Assistant",
-    "back": "Back"
+    "back": "Back",
+    "files": "Files"
   },
   "assistant": {
     "title": "Assistant",
@@ -242,6 +243,12 @@
     "clearHistoryConfirm_one": "Remove {{count}} entry from the history?",
     "clearHistoryConfirm_other": "Remove {{count}} entries from the history?",
     "limitUnit": "Rate limit unit"
+  },
+  "files": {
+    "title": "FILES",
+    "sub": "local library · servers · sync",
+    "local": "Local library",
+    "manageSources": "Manage sources"
   },
   "local": {
     "videoCount_one": "{{count}} video",

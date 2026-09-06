@@ -3,9 +3,8 @@ import {
   ArrowLeft,
   Bot,
   ChevronRight,
-  Cloud,
   Ellipsis,
-  HardDrive,
+  FolderOpen,
   LayoutDashboard,
   LogOut,
   PenLine,
@@ -33,13 +32,13 @@ import { useAiStatus, useAuth, useEvents } from './hooks'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
+import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions } from './components/PageActions'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Servers from './pages/Servers'
-import Remote from './pages/Remote'
-import Local from './pages/Local'
+import Files from './pages/Files'
 import Watches from './pages/Watches'
 import Suggestions from './pages/Suggestions'
 import Assistant from './pages/Assistant'
@@ -61,12 +60,11 @@ import Import from './pages/settings/Import'
 // "more" sheet. The desktop rail lists both, in this order.
 const TABS = [
   { to: '/', key: 'nav.dashboard', icon: LayoutDashboard },
-  { to: '/local', key: 'nav.local', icon: HardDrive },
-  { to: '/remote', key: 'nav.remote', icon: Cloud },
   { to: '/watches', key: 'nav.watches', icon: RefreshCw },
+  { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
+  { to: '/files', key: 'nav.files', icon: FolderOpen },
 ]
 const OVERFLOW = [
-  { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
   { to: '/assistant', key: 'nav.assistant', icon: Bot },
   { to: '/servers', key: 'nav.servers', icon: Server },
   { to: '/rename', key: 'nav.rename', icon: PenLine },
@@ -128,15 +126,17 @@ export const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<RootLayout />}>
       <Route path="/" element={<Dashboard />} handle={h('nav.dashboard')} />
-      <Route path="/remote" element={<Remote />} handle={h('nav.remote')} />
-      {/* the page was called "browser" until it got a local counterpart */}
-      <Route path="/browser" element={<Navigate to="/remote" replace />} />
+      <Route path="/files" element={<Files />} handle={h('nav.files')} />
+      {/* the remote and local browsers merged into /files; their links keep
+          the folder they pointed at */}
+      <Route path="/remote" element={<RedirectWithQuery to="/files" />} />
+      <Route path="/local" element={<RedirectWithQuery to="/files" rewrite={(p) => (p.set('source', 'local'), p)} />} />
+      <Route path="/browser" element={<RedirectWithQuery to="/files" />} />
       <Route path="/watches" element={<Watches />} handle={h('nav.watches')} />
       <Route path="/suggestions" element={<Suggestions />} handle={h('nav.suggestions')} />
       <Route path="/assistant" element={<Assistant />} handle={h('nav.assistant')} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
       <Route path="/servers" element={<Servers />} handle={h('nav.servers')} />
-      <Route path="/local" element={<Local />} handle={h('nav.local')} />
       <Route path="/rename" element={<Rename />} handle={h('nav.rename')} />
       <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
         <Route index element={<Navigate to="look" replace />} />

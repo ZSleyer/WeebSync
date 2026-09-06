@@ -36,13 +36,24 @@ const TRIGGERS = [
     },
     names: [/^Ändern$|^Change$/],
   },
-  // the app's prompt() replacement - a dialog of its own, and the only one
-  // reached from a per-row action rather than a page-level button
-  { route: '/local', label: 'Prompt', names: [/umbenennen$|^Rename /] },
-  // /remote itself has no dialog of its own - the file list is a view, not a
+  // the app's prompt() replacement - a dialog of its own, reached from the
+  // selection bar of the local library once a row is selected
+  {
+    route: '/files?source=local',
+    label: 'Prompt',
+    setup: async (page) => {
+      const pick = page.getByRole('button', { name: /auswählen$|^Select / }).first()
+      if (!(await pick.count().catch(() => 0))) return false
+      await pick.click({ timeout: 3000 }).catch(() => {})
+      await page.waitForTimeout(400)
+      return true
+    },
+    names: [/umbenennen$|^Rename /],
+  },
+  // /files itself has no dialog of its own - the file list is a view, not a
   // modal, and every modal on that route lives in the catalogue below
   {
-    route: '/remote',
+    route: '/files',
     label: 'Katalog',
     setup: async (page) => {
       // The detail modal only exists where a folder actually matched a title,
@@ -72,7 +83,7 @@ const TRIGGERS = [
         return null
       })
       if (target) {
-        await page.goto(`${BASE}/remote?server=${target.id}&path=${encodeURIComponent(target.path.replace(/^\//, ''))}`)
+        await page.goto(`${BASE}/files?server=${target.id}&path=${encodeURIComponent(target.path.replace(/^\//, ''))}`)
         await page.waitForTimeout(2500)
       }
       // the view picker is gone once a folder is saved as a catalogue folder,
