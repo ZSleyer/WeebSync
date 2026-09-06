@@ -650,7 +650,7 @@ function BackgroundWork() {
         </Badge>
       ))}
       {user?.isAdmin && (
-        <Link to="/settings/jobs" className="text-accent underline">
+        <Link to="/settings/jobs" className="inline-flex min-h-6 items-center text-accent underline">
           {t('settings.nav.jobs')}
         </Link>
       )}
