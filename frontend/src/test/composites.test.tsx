@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  AppBar,
+  AppShell,
   Badge,
   Breadcrumb,
   CalendarDay,
@@ -309,5 +311,38 @@ describe('Modal and EmptyState', () => {
     expect(container.firstElementChild).toHaveClass('t-panel', 'text-center')
     expect(screen.getByText('leer')).toHaveClass('t-label', 't-label--accent')
     expect(screen.getByText('Noch nichts hier')).toBeInTheDocument()
+  })
+})
+
+describe('AppBar and AppShell', () => {
+  it('renders the three slots with the title as the page heading', () => {
+    render(<AppBar leading={<span>mark</span>} title="Auto-Sync" actions={<button type="button">Sortieren</button>} />)
+    expect(screen.getByRole('banner')).toHaveClass('lg:hidden')
+    expect(screen.getByRole('heading', { level: 1, name: 'Auto-Sync' })).toHaveClass('truncate')
+    expect(screen.getByText('mark')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sortieren' })).toBeInTheDocument()
+  })
+
+  it('lets free-form children replace the slots', () => {
+    render(<AppBar title="ignored">custom</AppBar>)
+    expect(screen.getByText('custom')).toBeInTheDocument()
+    expect(screen.queryByRole('heading')).toBeNull()
+  })
+
+  it('places the notice row between main and the tab bar, and only when given', () => {
+    const { container, rerender } = render(
+      <AppShell bar={<AppBar title="A" />} tabs={<nav aria-label="Tabs" />}>
+        Inhalt
+      </AppShell>,
+    )
+    const shell = container.firstElementChild as HTMLElement
+    expect([...shell.children].map((c) => c.tagName)).toEqual(['HEADER', 'MAIN', 'NAV'])
+    rerender(
+      <AppShell bar={<AppBar title="A" />} tabs={<nav aria-label="Tabs" />} notice={<p>Update</p>}>
+        Inhalt
+      </AppShell>,
+    )
+    expect([...shell.children].map((c) => c.tagName)).toEqual(['HEADER', 'MAIN', 'DIV', 'NAV'])
+    expect(screen.getByText('Update')).toBeInTheDocument()
   })
 })

@@ -545,6 +545,12 @@ export interface AppShellProps {
   bar?: ReactNode
   /** the phone's bottom tab bar - see `TabBar` */
   tabs?: ReactNode
+  /**
+   * A row between <main> and the tab bar for something the user must see
+   * while scrolling - the update toast. A shell row, never a fixed overlay:
+   * fixed boxes drift on Firefox for Android while its URL bar animates.
+   */
+  notice?: ReactNode
   /** remounts <main> when it changes; the app keys it on the route */
   mainKey?: string
   /** anything that has to live inside the shell but outside <main> */
@@ -564,7 +570,7 @@ export interface AppShellProps {
  * Below `lg` the stylesheet gives `.app-shell` one dynamic viewport of height
  * and makes <main> the scroller, so the rows sit where the box ends.
  */
-export function AppShell({ sidebar, bar, tabs, mainKey, before, children, className }: AppShellProps) {
+export function AppShell({ sidebar, bar, tabs, notice, mainKey, before, children, className }: AppShellProps) {
   return (
     <div className={cx('app-shell t-hatch flex min-h-dvh flex-col lg:flex-row', className)}>
       {before}
@@ -577,13 +583,23 @@ export function AppShell({ sidebar, bar, tabs, mainKey, before, children, classN
       <main key={mainKey} className="flex min-w-0 flex-1 flex-col overflow-x-clip p-4 lg:p-6">
         {children}
       </main>
+      {/* rendered only with content, so the row leaves no empty band and the
+          shell's header/main/nav contract stays intact for the audits */}
+      {notice != null && notice !== false && <div className="shrink-0 px-3 pt-3 lg:contents">{notice}</div>}
       {tabs}
     </div>
   )
 }
 
-export interface AppBarProps extends HTMLAttributes<HTMLElement> {
-  children: ReactNode
+export interface AppBarProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
+  /** back link or a small mark, at the left edge */
+  leading?: ReactNode
+  /** the screen's title - rendered as the page's <h1> */
+  title?: ReactNode
+  /** the page's secondary controls, at the right edge */
+  actions?: ReactNode
+  /** free-form content instead of the three slots */
+  children?: ReactNode
 }
 
 /**
@@ -591,17 +607,29 @@ export interface AppBarProps extends HTMLAttributes<HTMLElement> {
  * real inset only in an installed window - a browser tab reports one but keeps
  * the strip out of the viewport, so honouring it there just wastes a band.
  * Not sticky: it is the shell's first row and the shell does not scroll.
+ *
+ * Three slots: leading, title, actions. The title is the page's heading on a
+ * phone, where the in-page header is hidden. The slots are as tall as a full
+ * control, so a back link or an icon button in the bar meets the touch size.
  */
-export function AppBar({ children, className, ...rest }: AppBarProps) {
+export function AppBar({ leading, title, actions, children, className, ...rest }: AppBarProps) {
   return (
     <header
       {...rest}
       className={cx(
-        'flex items-center justify-between border-b border-border-subtle bg-bg-secondary px-4 py-3 pt-[calc(0.75rem+var(--safe-t))] lg:hidden',
+        'flex items-center gap-2 border-b border-border-subtle bg-bg-secondary px-3 py-2 pt-[calc(0.5rem+var(--safe-t))] lg:hidden',
         className,
       )}
     >
-      {children}
+      {children ?? (
+        <>
+          {leading && <div className="flex min-h-(--ctl-h) shrink-0 items-center">{leading}</div>}
+          <h1 className="min-w-0 flex-1 truncate font-display text-base font-bold tracking-wider text-t-primary">
+            {title}
+          </h1>
+          {actions && <div className="flex min-h-(--ctl-h) shrink-0 items-center gap-1">{actions}</div>}
+        </>
+      )}
     </header>
   )
 }
