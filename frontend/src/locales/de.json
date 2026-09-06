@@ -1048,6 +1048,19 @@
   },
   "suggestions": {
     "title": "VORSCHLÄGE",
+    "navLabel": "Vorschlagsbereiche",
+    "groupDiscover": "Entdecken",
+    "groupLibrary": "Bibliothek",
+    "groupHidden": "Ausgeblendet",
+    "hub": {
+      "watchlist": "AniList- und TMDB-Watchlist auf deinen Servern",
+      "recommended": "Passend zu deiner Liste",
+      "trending": "Was gerade läuft",
+      "upgrades": "Bessere Kopien als deine",
+      "incomplete": "Fehlende Staffeln und Folgen",
+      "duplicates": "Mehrfach vorhandene Ordner",
+      "ignored": "Ausgeblendete Vorschläge zurückholen"
+    },
     "sub": "anilist- & tmdb-watchlist · plex-fortsetzungen · trending",
     "upgrades": "Upgrades",
     "noUpgrades": "Keine besseren Versionen gefunden.",

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useState } from 'react'
 import {
   Bookmark,
   ChevronDown,
@@ -41,7 +41,7 @@ const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useConfirm } from '../components/confirm'
-import { useNavigate, useSearchParams } from 'react-router'
+import { Navigate, Outlet, useNavigate, useSearchParams } from 'react-router'
 import {
   Badge,
   Button,
@@ -52,8 +52,7 @@ import {
   IconButton,
   Panel,
   SuggestionCard,
-  Tab,
-  Tabs,
+  useMediaQuery,
 } from '@weebsync/design-system'
 import {
   api,
@@ -75,6 +74,8 @@ import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../components/upgradeQuality'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { usePersistedQuery, useAuth } from '../hooks'
+import { WIDE_MQ } from '../components/PageActions'
+import { SectionHub, SectionNav, type SectionGroup } from '../components/SectionNav'
 import { SkeletonCards } from '../components/Loading'
 
 // Suggestions, tabbed by FUNCTION (not by provider): Trending, Watchlist,
@@ -84,44 +85,66 @@ import { SkeletonCards } from '../components/Loading'
 const BUCKETS = ['watchlist', 'recommended', 'trending', 'upgrades', 'incomplete', 'duplicates', 'ignored'] as const
 type Bucket = (typeof BUCKETS)[number]
 
-export default function Suggestions() {
-  const { t } = useTranslation()
-  // the bucket lives in the URL, so a notification, a bookmark and the back
-  // gesture reproduce it
-  const [params, setParams] = useSearchParams()
-  const fromUrl = params.get('tab') as Bucket | null
-  const tab: Bucket = fromUrl && BUCKETS.includes(fromUrl) ? fromUrl : 'watchlist'
-  const setTab = (b: Bucket) => setParams(b === 'watchlist' ? {} : { tab: b }, { replace: true })
-  const tabs = [
-    ['watchlist', t('suggestions.tabWatchlist'), Bookmark],
-    ['recommended', t('suggestions.tabRecommended'), Sparkles],
-    ['trending', t('suggestions.tabTrending'), TrendingUp],
-    ['upgrades', t('suggestions.tabUpgrades'), CircleArrowUp],
-    ['incomplete', t('suggestions.tabIncomplete'), CircleDashed],
-    ['duplicates', t('suggestions.tabDuplicates'), Copy],
-    ['ignored', t('suggestions.ignored'), EyeOff],
-  ] as const
+// The sections in their groups, with the count each shows in the menu. The
+// blob is the same query every section reads, so the menu costs no request.
+function useGroups(): SectionGroup[] {
+  const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
+  const { data: dismissed } = usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
+  const n = (k: Exclude<Bucket, 'ignored'>) => (data && !data.building ? (data[k]?.length ?? 0) : undefined)
+  const item = (to: Bucket, key: string, icon: LucideIcon, count?: number) => ({ to, key, icon, hint: `suggestions.hub.${to}`, count })
+  return [
+    {
+      label: 'suggestions.groupDiscover',
+      items: [
+        item('watchlist', 'suggestions.tabWatchlist', Bookmark, n('watchlist')),
+        item('recommended', 'suggestions.tabRecommended', Sparkles, n('recommended')),
+        item('trending', 'suggestions.tabTrending', TrendingUp, n('trending')),
+      ],
+    },
+    {
+      label: 'suggestions.groupLibrary',
+      items: [
+        item('upgrades', 'suggestions.tabUpgrades', CircleArrowUp, n('upgrades')),
+        item('incomplete', 'suggestions.tabIncomplete', CircleDashed, n('incomplete')),
+        item('duplicates', 'suggestions.tabDuplicates', Copy, n('duplicates')),
+      ],
+    },
+    { label: 'suggestions.groupHidden', items: [item('ignored', 'suggestions.ignored', EyeOff, dismissed?.length)] },
+  ]
+}
 
+// The frame around the sections: heading and side menu on desktop, just the
+// section on a phone (the app bar carries its title and the way back).
+export default function SuggestionsLayout() {
+  const { t } = useTranslation()
+  const groups = useGroups()
   return (
     <div>
       <header className="mb-6 hidden lg:block">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>
         <Badge multiline className="mt-1">{t('suggestions.sub')}</Badge>
       </header>
-
-      <TabBar label={t('suggestions.title')} tabs={tabs.map(([key, label, icon]) => ({ key, label, icon }))} active={tab} onChange={setTab} />
-
-      {tab === 'upgrades' ? (
-        <UpgradesSection />
-      ) : tab === 'duplicates' ? (
-        <DuplicatesSection />
-      ) : tab === 'ignored' ? (
-        <IgnoredSection />
-      ) : (
-        <BucketSection bucket={tab} />
-      )}
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <SectionNav label={t('suggestions.navLabel')} groups={groups} />
+        <div className="min-w-0 flex-1">
+          <Outlet />
+        </div>
+      </div>
     </div>
   )
+}
+
+// The index: the phone's menu of sections. Desktop has the side menu, so it
+// opens the first section instead. `?tab=` is the old single-page address
+// and still lands on its section.
+export function SuggestionsHub() {
+  const groups = useGroups()
+  const wide = useMediaQuery(WIDE_MQ)
+  const [params] = useSearchParams()
+  const tab = params.get('tab') as Bucket | null
+  if (tab && BUCKETS.includes(tab)) return <Navigate to={`/suggestions/${tab}`} replace />
+  if (wide) return <Navigate to="/suggestions/watchlist" replace />
+  return <SectionHub groups={groups} />
 }
 
 // Content-category blocks, in reading order: Anime, then Western animation
@@ -132,7 +155,7 @@ const CATS = ['anime-movie', 'anime-tv', 'animation-movie', 'animation-tv', 'mov
 // BucketSection renders one functional bucket. Trending and Watchlist are
 // sub-grouped into the four categories (Anime series/movies, series, movies);
 // Incomplete is a flat list.
-function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recommended' | 'incomplete' }) {
+export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recommended' | 'incomplete' }) {
   const { t } = useTranslation()
   const { data, isLoading } = usePersistedQuery<SuggestionsResponse>(
     'suggestions',
@@ -508,7 +531,7 @@ function SugCard({
 // The ignored bucket lists dismissed suggestions, upgrades and duplicates and
 // restores them. A bucket like the others, not a modal: on a phone a modal
 // over the list was one more layer to close.
-function IgnoredSection() {
+export function IgnoredSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data } = usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
@@ -538,7 +561,7 @@ function IgnoredSection() {
 
 // ── Upgrades ──
 
-function UpgradesSection() {
+export function UpgradesSection() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -685,7 +708,7 @@ function UpgradesSection() {
 // DuplicatesSection lists what the library holds twice. It only shows; which
 // copy goes is decided in Plex or on disk, the card just marks the one the
 // quality order would keep.
-function DuplicatesSection() {
+export function DuplicatesSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const confirm = useConfirm()
@@ -811,46 +834,3 @@ function DuplicatesSection() {
 }
 
 // ── tab bar (ARIA tabs: underline, roving tabindex, arrow keys) ──
-function TabBar<T extends string>({
-  tabs,
-  active,
-  onChange,
-  label,
-}: {
-  tabs: { key: T; label: string; icon?: LucideIcon }[]
-  active: T
-  onChange: (k: T) => void
-  label: string
-}) {
-  const onKey = (e: KeyboardEvent<HTMLButtonElement>, idx: number) => {
-    const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
-    if (!dir) return
-    e.preventDefault()
-    const next = (idx + dir + tabs.length) % tabs.length
-    onChange(tabs[next].key)
-    const els = e.currentTarget.closest('[role="tablist"]')?.querySelectorAll<HTMLElement>('[role="tab"]')
-    els?.[next]?.focus()
-  }
-  // one scrolling row: the selected tab is brought into view so a bucket
-  // reached from a link is never hidden past the edge
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
-  }, [active])
-  return (
-    <Tabs ref={ref} scroll aria-label={label} className="mb-4">
-      {tabs.map((tb, i) => (
-        <Tab
-          key={tb.key}
-          selected={active === tb.key}
-          tabIndex={active === tb.key ? 0 : -1}
-          onClick={() => onChange(tb.key)}
-          onKeyDown={(e) => onKey(e, i)}
-        >
-          {tb.icon && <tb.icon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />}
-          {tb.label}
-        </Tab>
-      ))}
-    </Tabs>
-  )
-}
