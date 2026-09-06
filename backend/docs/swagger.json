@@ -239,6 +239,38 @@
                 },
                 "type": "object"
             },
+            "api.CommonDefaults": {
+                "properties": {
+                    "airedMapping": {
+                        "type": "boolean"
+                    },
+                    "plexAudioLang": {
+                        "type": "string"
+                    },
+                    "plexSubLang": {
+                        "type": "string"
+                    },
+                    "renameOrdering": {
+                        "description": "official | dvd | absolute | aired | \"\"",
+                        "type": "string"
+                    },
+                    "renameProvider": {
+                        "description": "tvdb | tmdb | \"\"",
+                        "type": "string"
+                    },
+                    "renameTitleLang": {
+                        "description": "BCP-47 or \"\"",
+                        "type": "string"
+                    },
+                    "wantDub": {
+                        "type": "string"
+                    },
+                    "wantSub": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.DeleteLocalRequest": {
                 "properties": {
                     "path": {
@@ -681,6 +713,23 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.KindDefaults": {
+                "properties": {
+                    "localPath": {
+                        "type": "string"
+                    },
+                    "separator": {
+                        "type": "string"
+                    },
+                    "subfolder": {
+                        "type": "boolean"
+                    },
+                    "template": {
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -1849,6 +1898,40 @@
                 },
                 "type": "object"
             },
+            "api.WatchDefaults": {
+                "properties": {
+                    "common": {
+                        "$ref": "#/components/schemas/api.CommonDefaults"
+                    },
+                    "kinds": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/api.KindDefaults"
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "api.WatchDefaultsResponse": {
+                "properties": {
+                    "common": {
+                        "$ref": "#/components/schemas/api.CommonDefaults"
+                    },
+                    "fields": {
+                        "$ref": "#/components/schemas/api.aiWatchFields"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "kinds": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/api.KindDefaults"
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
             "api.WatchEpisode": {
                 "properties": {
                     "absolute": {
@@ -2323,6 +2406,78 @@
                         "type": "string"
                     },
                     "model": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.aiWatchFields": {
+                "properties": {
+                    "airedMapping": {
+                        "type": "boolean"
+                    },
+                    "fromEpisode": {
+                        "type": "integer"
+                    },
+                    "localPath": {
+                        "type": "string"
+                    },
+                    "mediaId": {
+                        "type": "integer"
+                    },
+                    "mediaSource": {
+                        "type": "string"
+                    },
+                    "mode": {
+                        "type": "string"
+                    },
+                    "pattern": {
+                        "type": "string"
+                    },
+                    "plexAudioLang": {
+                        "type": "string"
+                    },
+                    "plexSubLang": {
+                        "type": "string"
+                    },
+                    "remotePath": {
+                        "type": "string"
+                    },
+                    "renameOrdering": {
+                        "type": "string"
+                    },
+                    "renameProvider": {
+                        "type": "string"
+                    },
+                    "renameSeriesId": {
+                        "type": "integer"
+                    },
+                    "renameTitleLang": {
+                        "type": "string"
+                    },
+                    "replaceOld": {
+                        "description": "ReplaceOld is set on upgrades only: the dialog offers to trash the copy\nthe sync improves on (see replaceOldCopy).",
+                        "type": "boolean"
+                    },
+                    "replacement": {
+                        "type": "string"
+                    },
+                    "separator": {
+                        "type": "string"
+                    },
+                    "subfolder": {
+                        "type": "boolean"
+                    },
+                    "template": {
+                        "type": "string"
+                    },
+                    "titleOverride": {
+                        "type": "string"
+                    },
+                    "wantDub": {
+                        "type": "string"
+                    },
+                    "wantSub": {
                         "type": "string"
                     }
                 },
@@ -6757,6 +6912,112 @@
                 "summary": "Verify email address",
                 "tags": [
                     "Email"
+                ]
+            }
+        },
+        "/api/auth/watch-defaults": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "resolve the kind and fields for this folder",
+                        "in": "query",
+                        "name": "serverId",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "remote folder path",
+                        "in": "query",
+                        "name": "path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.WatchDefaultsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Get auto-sync defaults",
+                "tags": [
+                    "Watches"
+                ]
+            },
+            "put": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.WatchDefaults",
+                                        "summary": "body",
+                                        "description": "defaults"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "defaults",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Set auto-sync defaults",
+                "tags": [
+                    "Watches"
                 ]
             }
         },
