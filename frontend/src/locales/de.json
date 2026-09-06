@@ -66,7 +66,12 @@
       "seasonal": "holt die Season",
       "search_remote": "durchsucht die Server",
       "my_watches": "liest Auto-Syncs",
-      "propose": "prüft den Vorschlag"
+      "propose": "prüft den Vorschlag",
+      "search_media": "sucht den Titel",
+      "library": "durchsucht die Bibliothek",
+      "downloads": "liest die Warteschlange",
+      "airing": "liest den Kalender",
+      "series_seasons": "löst die Staffeln auf"
     },
     "unconfigured": "Es ist kein Assistent-Endpoint konfiguriert.",
     "transcript": {
@@ -80,7 +85,12 @@
       "my_watches": { "start": "Lese deine Auto-Syncs…", "done": "{{count}} Auto-Syncs: {{names}}" },
       "recommend": { "start": "Bereite {{titlesCount}} Titelkarten vor…", "done": "{{shown}} Karten gezeigt.", "doneSkipped": "{{shown}} Karten gezeigt, {{skipped}} übersprungen, weil schon vorhanden: {{skippedNames}}" },
       "show_upgrades": { "start": "Bereite {{keysCount}} Upgrade-Karten vor…", "done": "{{shown}} Upgrade-Karten gezeigt." },
-      "propose": { "start": "Prüfe „{{title}}“ ({{kind}}) unter {{remotePath}}…", "done": "Vorschlag angenommen.", "rejected": "Abgelehnt: {{reason}}" }
+      "propose": { "start": "Prüfe „{{title}}“ ({{kind}}) unter {{remotePath}}…", "done": "Vorschlag angenommen.", "rejected": "Abgelehnt: {{reason}}" },
+      "search_media": { "start": "Suche „{{query}}“ bei den Anbietern…", "done": "{{count}} Treffer: {{names}}" },
+      "library": { "start": "Durchsuche die Bibliothek…", "done": "{{count}} Ordner in der Bibliothek: {{names}}" },
+      "downloads": { "start": "Lese Warteschlange und Verlauf…", "done": "{{count}} Einträge, {{errors}} Fehler, {{active}} laufend." },
+      "airing": { "start": "Lese den Kalender der Auto-Syncs…", "done": "{{count}} Auto-Syncs, {{missing}} mit Lücken, {{behind}} hinter der Ausstrahlung." },
+      "series_seasons": { "start": "Löse die Staffeln auf…", "done": "{{series}}: {{count}} Staffeln, {{local}} lokal, {{remote}} auf den Servern." }
     },
     "unconfiguredAdmin": "Unter Einstellungen → Integrationen einen OpenAI-kompatiblen Endpoint eintragen.",
     "error": "Assistent nicht erreichbar",

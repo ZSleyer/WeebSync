@@ -66,7 +66,12 @@
       "seasonal": "fetching the season",
       "search_remote": "searching the servers",
       "my_watches": "reading auto-syncs",
-      "propose": "checking the proposal"
+      "propose": "checking the proposal",
+      "search_media": "looks the title up",
+      "library": "searches the library",
+      "downloads": "reads the queue",
+      "airing": "reads the calendar",
+      "series_seasons": "resolves the seasons"
     },
     "unconfigured": "No assistant endpoint is configured.",
     "transcript": {
@@ -80,7 +85,12 @@
       "my_watches": { "start": "Reading your auto-syncs…", "done": "{{count}} auto-syncs: {{names}}" },
       "recommend": { "start": "Preparing {{titlesCount}} title cards…", "done": "{{shown}} cards shown.", "doneSkipped": "{{shown}} cards shown, {{skipped}} skipped as already covered: {{skippedNames}}" },
       "show_upgrades": { "start": "Preparing {{keysCount}} upgrade cards…", "done": "{{shown}} upgrade cards shown." },
-      "propose": { "start": "Checking a {{kind}} of “{{title}}” on {{remotePath}}…", "done": "Proposal accepted.", "rejected": "Rejected: {{reason}}" }
+      "propose": { "start": "Checking a {{kind}} of “{{title}}” on {{remotePath}}…", "done": "Proposal accepted.", "rejected": "Rejected: {{reason}}" },
+      "search_media": { "start": "Looking up \"{{query}}\" at the providers…", "done": "{{count}} hits: {{names}}" },
+      "library": { "start": "Searching the library…", "done": "{{count}} folders in the library: {{names}}" },
+      "downloads": { "start": "Reading the queue and history…", "done": "{{count}} entries, {{errors}} failed, {{active}} running." },
+      "airing": { "start": "Reading the auto-sync calendar…", "done": "{{count}} auto-syncs, {{missing}} with gaps, {{behind}} behind the broadcast." },
+      "series_seasons": { "start": "Resolving the seasons…", "done": "{{series}}: {{count}} seasons, {{local}} local, {{remote}} on the servers." }
     },
     "unconfiguredAdmin": "Add an OpenAI-compatible endpoint under Settings → Integrations.",
     "error": "Assistant unavailable",

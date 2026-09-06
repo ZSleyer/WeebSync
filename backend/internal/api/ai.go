@@ -244,6 +244,48 @@ func toolStats(name string, result []byte) map[string]any {
 		st["count"], st["names"] = count("upgrades"), firstTitles("upgrades", 3)
 	case "my_watches":
 		st["count"], st["names"] = count("watches"), firstTitles("watches", 3)
+	case "search_media":
+		st["count"], st["names"], st["query"] = count("results"), firstTitles("results", 3), r["query"]
+	case "library":
+		st["count"], st["names"] = count("folders"), firstTitles("folders", 3)
+	case "downloads":
+		st["count"] = count("downloads")
+		c, _ := r["counts"].(map[string]any)
+		n := func(k string) int {
+			f, _ := c[k].(float64)
+			return int(f)
+		}
+		st["errors"], st["active"] = n("error"), n("running")
+	case "airing":
+		l, _ := r["watches"].([]any)
+		missing, behind := 0, 0
+		for _, it := range l {
+			if m, ok := it.(map[string]any); ok {
+				if x, _ := m["missing"].([]any); len(x) > 0 {
+					missing++
+				}
+				if b, _ := m["behind"].(float64); b > 0 {
+					behind++
+				}
+			}
+		}
+		st["count"], st["days"], st["missing"], st["behind"] = len(l), r["days"], missing, behind
+	case "series_seasons":
+		l, _ := r["seasons"].([]any)
+		local, remote := 0, 0
+		for _, it := range l {
+			if m, ok := it.(map[string]any); ok {
+				if x, _ := m["local"].([]any); len(x) > 0 {
+					local++
+				}
+				if x, _ := m["remote"].([]any); len(x) > 0 {
+					remote++
+				} else if x, _ := m["candidates"].([]any); len(x) > 0 {
+					remote++
+				}
+			}
+		}
+		st["count"], st["local"], st["remote"], st["series"] = len(l), local, remote, r["series"]
 	case "recommend", "show_upgrades":
 		st["shown"] = r["shown"]
 		if n := count("skipped"); n > 0 {
@@ -477,6 +519,10 @@ You can only READ through the tools and PROPOSE actions; the user confirms every
 - Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score). When you recommend titles, call recommend with their ids and reasons in the SAME answer so the user sees their cards right away - never ask whether to show details, the cards are the details; keep the text short.
 - Never recommend what the user already has: entries flagged owned (in the Plex library) or inAutoSync (an auto-sync keeps it current) are covered. Check the flags (or my_watches) before recommending; if the user asks about such a title, say it is already covered.
 - Before proposing a watch or sync, find the folder with search_remote or take a candidate from suggestions/seasonal. Never invent server ids or paths.
+- For a title that is not in the user's lists or the season, look it up with search_media first; library says what the user already holds and in which quality, downloads what is loading or failed, airing what comes next and where episodes are missing.
+- Before proposing an auto-sync for a season, call series_seasons for the title: when earlier seasons are neither local nor covered by an auto-sync, propose them too in the same answer (kind sync for a finished season, watch for one still airing), one propose per season, each with its own remote folder from that result.
+- A proposal carries the user's configured defaults (target folder, naming, languages); do not describe or invent paths for it, the card shows them.
+- You may propose several titles in one answer; the user can confirm them one by one or all at once.
 - The upgrades tool already shows the user cards for its first entries; call show_upgrades with keys for any others you name. The cards show both copies, every option and a sync button, so the text only needs to say why.
 - kind "watch" = auto-sync: keeps a remote folder in sync (for airing shows). kind "sync" = download once. kind "upgrade" = replace a local copy with a better remote copy; only from the upgrades tool, quoting its key and one of its option folders, and only when it improves an axis the user enabled (axesByPriority lists them, most important first). Say concretely what improves (resolution, dub, sub, selectable subtitles) and mention when the language data is unverified.
 - Tools are called only through the tool-call interface, never written out as text in the answer.
@@ -506,6 +552,11 @@ var aiTools = []ai.Tool{
 	fn("seasonal", "Anime of one broadcast season, most popular first, flagged with the user's list status, whether the library has it, and remote folders.", `{"type":"object","properties":{"season":{"type":"string","enum":["WINTER","SPRING","SUMMER","FALL"]},"year":{"type":"integer"}},"required":["season","year"]}`),
 	fn("search_remote", "Search folders on the user's remote servers by words of a title. Returns server id, path and the folder's known quality.", `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
 	fn("my_watches", "The user's existing auto-syncs.", `{"type":"object","properties":{}}`),
+	fn("search_media", "Look a title up at the providers: kind anime searches AniList, tv and movie search TMDB. Use it for titles that are not in the user's lists or the season; the ids feed recommend and series_seasons.", `{"type":"object","properties":{"query":{"type":"string"},"kind":{"type":"string","enum":["anime","tv","movie"]}},"required":["query"]}`),
+	fn("library", "Search the local library by words of a title: folder, matched title, season, resolution, dub and sub languages. Answers whether and in which quality the user already has something.", `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
+	fn("downloads", "The user's download queue and history, newest first: file, status, error, size, progress. status narrows to active (queued/running/paused), error or done.", `{"type":"object","properties":{"status":{"type":"string","enum":["active","error","done"]}}}`),
+	fn("airing", "The calendar of the user's auto-syncs: next episode and when it airs, episodes airing within the next days, gaps below the newest local episode (missing), episodes aired but not local yet (behind), the last check error.", `{"type":"object","properties":{"days":{"type":"integer"}}}`),
+	fn("series_seasons", "Every season of the show a title belongs to, with the local copies, the remote folders on the user's servers (server id and path for propose) and whether an auto-sync exists. Call it before proposing a season, so earlier seasons the library lacks get proposed too.", `{"type":"object","properties":{"id":{"type":"integer"},"source":{"type":"string","enum":["anilist","tmdb:tv","tmdb:movie","tvdb"]}},"required":["id"]}`),
 	fn("recommend", "Show the user cards for titles you recommend (cover, description, score, links). Call it with the ids you got from my_lists, suggestions or seasonal, each with a one-line reason. Up to 8 titles.", `{"type":"object","properties":{"titles":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"source":{"type":"string","enum":["anilist","tmdb:tv","tmdb:movie","tvdb"]},"why":{"type":"string"}},"required":["id"]}}},"required":["titles"]}`),
 	fn("show_upgrades", "Show the user the upgrade cards (local vs. remote copy, every option, a sync button) for upgrades you name. Call it with keys from the upgrades tool, up to 8; then keep the text short, the cards carry the details.", `{"type":"object","properties":{"keys":{"type":"array","items":{"type":"string"}}},"required":["keys"]}`),
 	fn("propose", "Propose an action for the user to confirm. kind: watch (auto-sync a remote folder), sync (download once), upgrade (replace a local copy; needs upgradeKey from upgrades and one of its option folders). refKey: from suggestions, when the folder came from there.", `{"type":"object","properties":{"kind":{"type":"string","enum":["watch","sync","upgrade"]},"serverId":{"type":"integer"},"remotePath":{"type":"string"},"title":{"type":"string"},"upgradeKey":{"type":"string"},"refKey":{"type":"string"}},"required":["kind","serverId","remotePath","title"]}`),
@@ -543,6 +594,10 @@ func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string)
 		Title      string `json:"title"`
 		UpgradeKey string `json:"upgradeKey"`
 		RefKey     string `json:"refKey"`
+		ID         int    `json:"id"`
+		Source     string `json:"source"`
+		Status     string `json:"status"`
+		Days       int    `json:"days"`
 	}
 	if rawArgs != "" {
 		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
@@ -575,6 +630,16 @@ func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string)
 		return aiToolOut{result: s.aiSearchRemote(userID, args.Query)}
 	case "my_watches":
 		return aiToolOut{result: s.aiWatches(userID)}
+	case "search_media":
+		return aiToolOut{result: s.aiSearchMedia(ctx, userID, args.Query, args.Kind)}
+	case "library":
+		return aiToolOut{result: s.aiLibrary(userID, args.Query)}
+	case "downloads":
+		return aiToolOut{result: s.aiDownloads(userID, args.Status)}
+	case "airing":
+		return aiToolOut{result: s.aiAiring(userID, args.Days)}
+	case "series_seasons":
+		return aiToolOut{result: s.aiSeriesSeasons(ctx, userID, args.Source, args.ID)}
 	case "recommend":
 		// what the user already has is not a recommendation: dropped here
 		// regardless of what the model asked for, and reported so it can say so
