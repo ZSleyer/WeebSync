@@ -24,7 +24,7 @@ const LOGIN = { email: 'a@example.com', password: 'testpassword123' }
 const ROUTES = arg('routes', '').split(',').filter(Boolean).length
   ? arg('routes', '').split(',')
   : [
-  '/', '/local', '/remote', '/watches', '/suggestions', '/assistant', '/servers', '/rename',
+  '/', '/files', '/files?source=local', '/watches', '/suggestions', '/assistant', '/servers', '/rename',
   '/settings/look', '/settings/account', '/settings/notifications', '/settings/about',
   '/settings/transfers', '/settings/security', '/settings/integrations',
   '/settings/email', '/settings/users', '/settings/jobs', '/settings/import',
@@ -420,7 +420,7 @@ const run = async (name, browserType) => {
         const r = await fetch(`/api/servers/${id}/catalog${path ? `?path=${encodeURIComponent(path)}` : ''}`, { credentials: 'include' })
         if (!r.ok) continue
         const items = (await r.json()).items || []
-        if (items.some((it) => it.media)) return `/remote?server=${id}&path=${encodeURIComponent(path.replace(/^\//, ''))}`
+        if (items.some((it) => it.media)) return `/files?server=${id}&path=${encodeURIComponent(path.replace(/^\//, ''))}`
         for (const it of items) queue.push({ id, path: it.entry.path })
       }
       return null

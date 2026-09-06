@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Check, Download, Eye, Files, Folder, Info, Pencil, RefreshCw, Replace, Search, Star, Trash2, Undo2, X } from 'lucide-react'
+import { Check, Download, Eye, Files as FilesIcon, Folder, Info, Pencil, RefreshCw, Replace, Search, Server, Star, Trash2, Undo2, X } from 'lucide-react'
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -14,40 +14,101 @@ import { useCatalogView } from '../components/useCatalogView'
 import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
 import PathInput from '../components/PathInput'
 import FileIcon from '../components/FileIcon'
+import PageActions from '../components/PageActions'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
 import RenamePreview from '../components/RenamePreview'
 import { useRenamePreview } from '../components/useRenamePreview'
 import { syncTargetDir, useTargetFolder } from '../components/useTargetFolder'
 import WatchDialog from '../components/WatchDialog'
 import { useConfirm } from '../components/confirm'
+import { usePrompt } from '../components/prompt'
+import { useAuth } from '../hooks'
 import Loading from '../components/Loading'
 
-export default function Remote() {
+// Where the browser is looking: the local library or one of the servers. An
+// explicit union, never a bare 0 - the catalog API addresses the local library
+// as server 0, and a numeric state made "no server chosen yet" and "local"
+// the same value.
+type Source = 'local' | number
+const SOURCE_KEY = 'weebsync.files.source'
+
+const sourceFromParams = (p: URLSearchParams): Source | null => {
+  if (p.get('source') === 'local') return 'local'
+  const id = Number(p.get('server'))
+  return id > 0 ? id : null
+}
+const sourceFromStorage = (): Source | null => {
+  try {
+    const v = localStorage.getItem(SOURCE_KEY)
+    if (v === 'local') return 'local'
+    const id = Number(v)
+    return id > 0 ? id : null
+  } catch {
+    return null
+  }
+}
+
+// One browser for every source: the local library and each server. Browse,
+// search a server's index, switch to the catalog view, sync once, watch, and
+// on the local library (admins) rename and delete. Replaces the Remote and
+// Local pages; their URLs redirect here with the folder kept.
+export default function Files() {
   const { t } = useTranslation()
+  const { data: user } = useAuth()
+  const qc = useQueryClient()
+  const confirm = useConfirm()
+  const prompt = usePrompt()
   const { data: servers = [] } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
     queryFn: () => api.get('/api/servers'),
   })
-  const [params] = useSearchParams()
-  const [serverId, setServerId] = useState<number>(Number(params.get('server')) || 0)
-  // deep links (e.g. Plex suggestions) open the browser at a remote path
-  const [remotePath, setRemotePath] = useState((params.get('path') ?? '').replace(/^\//, ''))
+  const [params, setParams] = useSearchParams()
+  // the source from the link, else the one used last, else the first server
+  // once the list is in, else the local library
+  const [chosen, setChosen] = useState<Source | null>(() => sourceFromParams(params) ?? sourceFromStorage())
+  const source: Source = chosen ?? servers[0]?.id ?? 'local'
+  const isLocal = source === 'local'
+  // the catalog API addresses the local library as server 0
+  const active = isLocal ? 0 : source
+  // deep links (the dashboard queue, suggestions) open the browser at a folder
+  const [path, setPath] = useState((params.get('path') ?? '').replace(/^\//, ''))
   const [localPath, setLocalPath] = useState('')
   const [selection, setSelection] = useState<Entry | null>(null)
   const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
   // the dialogs carry their own entry: a catalog card acts on itself without
   // going through the selection, which would pop the action bar open as a
   // second copy of the same two buttons
   const [watchEntry, setWatchEntry] = useState<Entry | null>(null)
   const [syncEntry, setSyncEntry] = useState<Entry | null>(null)
   const [flat, setFlat] = useState(false)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(params.get('q') ?? '')
 
-  const active = serverId || servers[0]?.id || 0
+  // the URL follows the browser, so a dialog round-trip, a reload and the
+  // system back gesture all land in the same folder
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (isLocal) next.set('source', 'local')
+    else next.set('server', String(source))
+    if (path) next.set('path', path)
+    if (query.trim()) next.set('q', query)
+    if (next.toString() !== params.toString()) setParams(next, { replace: true })
+  }, [isLocal, source, path, query, params, setParams])
+  const pickSource = (s: Source) => {
+    setChosen(s)
+    setPath('')
+    setSelection(null)
+    setQuery('')
+    try {
+      localStorage.setItem(SOURCE_KEY, String(s))
+    } catch {
+      /* best effort */
+    }
+  }
 
   // default classic, catalog only for folders the user saved as catalog
   // (server-side scope mark); "once"/"saved" switch and persist per folder
-  const { view, value: viewValue, set: setView } = useCatalogView(active, remotePath)
+  const { view, value: viewValue, set: setView } = useCatalogView(active, path)
 
   const [lastIds, setLastIds] = useState<number[]>([])
   const enqueue = useMutation({
@@ -89,63 +150,132 @@ export default function Remote() {
     }
   }
 
-  if (servers.length === 0) {
-    return (
-      <EmptyState>
-        <Trans i18nKey="remote.noServers">
-          Erst unter <Link to="/servers" className="text-accent underline">Server</Link> eine Quelle anlegen.
-        </Trans>
-      </EmptyState>
-    )
+  // the local library is edited through the selection: rename and delete
+  // cannot be undone, so both go through a blocking modal. Admins only.
+  const canEdit = isLocal && !!user?.isAdmin
+  const refreshLocal = () => {
+    qc.invalidateQueries({ queryKey: ['local'] })
+    qc.invalidateQueries({ queryKey: ['catalog', 0] })
+    setSelection(null)
   }
+  const renameLocal = async (e: Entry) => {
+    const name = await prompt({
+      title: t('local.renameTitle', { name: e.name }),
+      defaultValue: e.name,
+      confirmLabel: t('local.rename'),
+    })
+    if (!name || name === e.name) return
+    setError('')
+    try {
+      await api.post('/api/browse/local/rename', { path: e.path, name })
+      refreshLocal()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('app.error'))
+    }
+  }
+  const removeLocal = async (e: Entry) => {
+    const ok = await confirm({
+      message: e.isDir ? t('local.deleteDirConfirm', { name: e.name }) : t('local.deleteConfirm', { name: e.name }),
+      confirmLabel: t('local.delete'),
+      destructive: true,
+    })
+    if (!ok) return
+    setError('')
+    try {
+      // recursive only for directories: a folder the user confirmed goes
+      // completely, a file needs no flag
+      await api.del('/api/browse/local', { path: e.path, recursive: e.isDir })
+      refreshLocal()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('app.error'))
+    }
+  }
+  // the catalog cards keep their own edit buttons: a card acts on itself
+  const cardActions = (e: Entry) =>
+    canEdit ? (
+      <span className="flex shrink-0 gap-1.5">
+        <Button size="sm" aria-label={t('local.renameItem', { name: e.name })} title={t('local.rename')} onClick={() => renameLocal(e)}>
+          <Pencil aria-hidden size="1.2em" />
+        </Button>
+        <Button size="sm" variant="danger" aria-label={t('local.deleteItem', { name: e.name })} title={t('local.delete')} onClick={() => removeLocal(e)}>
+          <X aria-hidden size="1.2em" />
+        </Button>
+      </span>
+    ) : undefined
+
+  const navigate = (p: string) => {
+    setPath(p.replace(/^\//, ''))
+    setSelection(null)
+  }
+  const browseUrl = (p: string) =>
+    isLocal ? `/api/browse/local?path=${encodeURIComponent(p)}` : `/api/servers/${active}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`
+  // rows are selectable wherever the selection bar has something to offer
+  const selectable = !isLocal || canEdit
 
   return (
     <div className="page-fill flex min-h-0 flex-1 flex-col">
-      {/* controls sit side by side with their labels stacked on top, so the
-          selects share one baseline instead of two ragged label+select rows */}
+      {/* the in-page heading is the desktop's; on a phone the app bar carries
+          the title and the view picker, and the source row stands alone */}
       <header className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-2">
-        <div className="mr-auto">
-          <h2 className="font-display text-xl font-semibold tracking-wider">{t('remote.title')}</h2>
-          <Badge className="mt-1">{t('remote.sub')}</Badge>
+        <div className="mr-auto hidden lg:block">
+          <h2 className="font-display text-xl font-semibold tracking-wider">{t('files.title')}</h2>
+          <Badge className="mt-1">{t('files.sub')}</Badge>
         </div>
-        <div className="flex w-full flex-wrap gap-3 sm:w-auto">
-          <label className="flex-1 min-w-44 text-xs text-t-muted sm:flex-none">
-            {t('remote.source')}
-            <Select wrapperClassName="mt-1 sm:w-44" value={active} onChange={(e) => setServerId(Number(e.target.value))}>
-              {servers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
-          </label>
+        <label className="min-w-0 flex-1 text-xs text-t-muted lg:min-w-44 lg:flex-none">
+          <span className="sr-only lg:not-sr-only">{t('remote.source')}</span>
+          <Select wrapperClassName="lg:mt-1 lg:w-44" value={String(source)} onChange={(e) => pickSource(e.target.value === 'local' ? 'local' : Number(e.target.value))}>
+            <option value="local">{t('files.local')}</option>
+            {servers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <Link to="/servers" aria-label={t('files.manageSources')} title={t('files.manageSources')} className="t-iconbtn text-t-muted hover:text-accent">
+          <Server aria-hidden size="1.25em" />
+        </Link>
+        <PageActions>
           <CatalogViewSelect value={viewValue} onChange={setView} />
-        </div>
+        </PageActions>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <Panel as="section" className="flex min-h-64 min-w-0 flex-col lg:min-h-0" aria-label={t('remote.remote')}>
+      {!isLocal && servers.length === 0 ? (
+        <EmptyState>
+          <Trans i18nKey="remote.noServers">
+            Erst unter <Link to="/servers" className="text-accent underline">Server</Link> eine Quelle anlegen.
+          </Trans>
+        </EmptyState>
+      ) : (
+        <Panel as="section" className="flex min-h-64 min-w-0 flex-1 flex-col lg:min-h-0" aria-label={t('files.title')}>
           <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            <Badge tone="accent">{t('remote.remote')}</Badge>
+            <Badge tone="accent">{isLocal ? t('remote.local') : t('remote.remote')}</Badge>
             <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">
-              {selection ? selection.path : t('remote.noSelection')}
+              {selection ? selection.path : path ? `/${path}` : t('remote.noSelection')}
             </span>
-            <Input
-              className="w-40 py-1 text-xs sm:w-56"
-              type="search"
-              placeholder={t('remote.search')}
-              aria-label={t('remote.search')}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+            {!isLocal && (
+              <Input
+                className="w-40 sm:w-56"
+                size="sm"
+                type="search"
+                placeholder={t('remote.search')}
+                aria-label={t('remote.search')}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            )}
           </div>
-          {query.trim() ? (
+          {error && (
+            <p className="border-b border-border-subtle px-3 py-2 text-xs text-err" role="alert">
+              {error}
+            </p>
+          )}
+          {!isLocal && query.trim() ? (
             <SearchResults
               serverId={active}
               query={query}
               onOpenDir={(p) => {
-                setRemotePath(p.replace(/^\//, ''))
-                setSelection(null)
+                navigate(p)
                 setQuery('')
               }}
               onSelect={setSelection}
@@ -153,51 +283,42 @@ export default function Remote() {
             />
           ) : view === 'classic' ? (
             <FileBrowser
-              queryKey={['remote', active]}
-              fetchPath={(p) => `/api/servers/${active}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`}
-              path={remotePath}
-              onNavigate={(p) => {
-                setRemotePath(p)
-                setSelection(null)
-              }}
-              onSelect={setSelection}
+              queryKey={isLocal ? ['local'] : ['remote', active]}
+              fetchPath={browseUrl}
+              path={path}
+              onNavigate={navigate}
+              onSelect={selectable ? setSelection : undefined}
               selected={selection?.path}
+              emptyHint={isLocal ? t('remote.emptyLocal') : undefined}
             />
           ) : (
             <CatalogGrid
               serverId={active}
-              path={remotePath}
-              onNavigate={(p) => {
-                setRemotePath(p)
-                setSelection(null)
-              }}
-              onSelect={setSelection}
+              path={path}
+              onNavigate={navigate}
+              onSelect={selectable ? setSelection : () => {}}
               selected={selection?.path}
-              onSync={setSyncEntry}
-              onWatch={setWatchEntry}
+              onSync={isLocal ? undefined : setSyncEntry}
+              onWatch={isLocal ? undefined : setWatchEntry}
+              cardActions={isLocal ? cardActions : undefined}
               onOpenFiles={(p) => {
                 // opening a title's files navigates into a subfolder; the view
                 // re-derives from that folder's own scope (marks don't inherit,
                 // so it lands in the classic list) - no explicit reset needed
-                setRemotePath(p.replace(/^\//, ''))
+                navigate(p)
+                if (isLocal) setView('classic')
               }}
             />
           )}
         </Panel>
+      )}
 
-      </div>
-
-      {/* action bar: appears with a selection (or a pending notice) so the long
-          remote list keeps the full height. It sits at the end of the page on
-          every size - it used to be pinned above the phone's tab bar with a
-          hardcoded offset, which stopped being a place once the bar became a
-          row of the shell rather than a fixed overlay. */}
+      {/* action bar: the last row of the page-fill column, directly above the
+          phone's tab bar, so the primary action sits under the thumb. It
+          appears with a selection (or a pending notice) so the list keeps
+          the full height otherwise. */}
       {(selection || notice) && (
-        <Panel
-          role="region"
-          aria-label={t('remote.selectionBar')}
-          className="mt-4 flex flex-wrap items-center gap-2 p-3"
-        >
+        <Panel role="region" aria-label={t('remote.selectionBar')} className="mt-4 flex flex-wrap items-center gap-2 p-3">
           {selection && (
             <span className="min-w-28 flex-1 truncate text-sm text-t-secondary" title={selection.path}>
               <FileIcon isDir={selection.isDir} name={selection.name} className="mr-1.5 inline align-[-2px]" />
@@ -215,7 +336,19 @@ export default function Remote() {
               )}
             </span>
           )}
-          {selection && (
+          {selection && canEdit && (
+            <>
+              <Button size="sm" aria-label={t('local.renameItem', { name: selection.name })} onClick={() => renameLocal(selection)}>
+                <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('local.rename')}
+              </Button>
+              <Button size="sm" variant="danger" aria-label={t('local.deleteItem', { name: selection.name })} onClick={() => removeLocal(selection)}>
+                <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('local.delete')}
+              </Button>
+            </>
+          )}
+          {selection && !isLocal && (
             <>
               <Button size="sm" disabled={!selection.isDir} onClick={() => setWatchEntry(selection)}>
                 <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -675,7 +808,7 @@ export function CatalogGrid({
                         title={t('remote.showFiles')}
                         onClick={() => onOpenFiles(it.entry.path)}
                       >
-                        <Files aria-hidden size="1.2em" />
+                        <FilesIcon aria-hidden size="1.2em" />
                       </Button>
                       {onSync && (
                         <Button
@@ -714,7 +847,7 @@ export function CatalogGrid({
                     title={t('remote.showFiles')}
                     onClick={() => onOpenFiles(it.entry.path)}
                   >
-                    <Files aria-hidden size="1.2em" />
+                    <FilesIcon aria-hidden size="1.2em" />
                   </Button>
                   {!g.pending && !!it.source && (
                     <Button
@@ -1021,7 +1154,7 @@ function DetailDialog({
                 {t('remote.select')}
               </Button>
               <Button size="sm" className="shrink-0" title={t('remote.showFiles')} onClick={() => onFiles(it.entry)}>
-                <Files aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                <FilesIcon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.files')}
               </Button>
               {onSync && (

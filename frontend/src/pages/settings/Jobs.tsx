@@ -1186,7 +1186,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
       title={t('settings.jobs.matchesTitle', { name: stat.name })}
       onClose={onClose}
       footer={
-        <Link className="text-xs text-accent underline-offset-2 hover:underline" to="/remote">
+        <Link className="text-xs text-accent underline-offset-2 hover:underline" to="/files">
           {t('settings.jobs.openBrowser')}
         </Link>
       }

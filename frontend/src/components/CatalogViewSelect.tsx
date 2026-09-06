@@ -11,10 +11,12 @@ export function CatalogViewSelect({ value, onChange }: { value: CatalogViewValue
     // min-w-44: "Katalog (dauerhaft)" needs 150px, and a select clips its
     // label silently rather than scrolling - so the control keeps the width of
     // its longest option and the row wraps instead
-    <label className="flex-1 min-w-44 text-xs text-t-muted sm:flex-none" title={t('remote.autoCatalogHint')}>
-      {t('remote.view')}
+    // on a phone the control sits in the app bar without its caption (the
+    // accessible name stays), on desktop in the page header with it
+    <label className="text-xs text-t-muted lg:min-w-44" title={t('remote.autoCatalogHint')}>
+      <span className="sr-only lg:not-sr-only">{t('remote.view')}</span>
       <Select
-        wrapperClassName="mt-1 sm:w-44"
+        wrapperClassName="lg:mt-1 lg:w-44"
         value={value}
         onChange={(e) => onChange(e.target.value as CatalogViewValue)}
       >

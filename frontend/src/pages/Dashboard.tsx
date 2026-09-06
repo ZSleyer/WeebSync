@@ -298,7 +298,7 @@ export default function Dashboard() {
               ) : (
                 <EmptyState>
                   <Trans i18nKey="dash.empty">
-                    Keine aktiven Downloads. Zum Syncen in die <Link to="/remote" className="text-accent underline">Remote</Link>-Ansicht wechseln.
+                    Keine aktiven Downloads. Zum Syncen in die <Link to="/files" className="text-accent underline">Remote</Link>-Ansicht wechseln.
                   </Trans>
                 </EmptyState>
               ))}
@@ -736,7 +736,7 @@ function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
   const remoteBase = d.remotePath.split('/').pop() ?? ''
   const localBase = d.localPath.split('/').pop() ?? ''
   const showFolder = group?.folder ?? remoteDir
-  const remoteLink = (path: string) => `/remote?server=${d.serverId}&path=${encodeURIComponent(path)}`
+  const remoteLink = (path: string) => `/files?server=${d.serverId}&path=${encodeURIComponent(path)}`
   return (
     <dl className="mt-3 grid gap-x-4 gap-y-2 border-t border-border-subtle pt-3 text-xs sm:grid-cols-[max-content_1fr]">
       {group?.overview && (
@@ -764,7 +764,7 @@ function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
       </dd>
       <dt className="t-label">{t('dash.target')}</dt>
       <dd className="min-w-0 break-all">
-        <Link to={`/local?path=${encodeURIComponent(localDir)}`} className="font-mono text-accent underline">
+        <Link to={`/files?source=local&path=${encodeURIComponent(localDir)}`} className="font-mono text-accent underline">
           {localDir}
         </Link>
       </dd>
