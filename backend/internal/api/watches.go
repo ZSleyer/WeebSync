@@ -1039,17 +1039,28 @@ func (s *Server) watchLangFilter(w Watch) func(string) bool {
 // @Router       /api/watches [get]
 func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	interval := s.watchInterval()
-	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.check_attempts, w.retry_at, w.created_at
-		FROM watches w JOIN servers s ON s.id = w.server_id
-		WHERE w.user_id = ? ORDER BY w.id DESC`, u.ID)
+	list, err := s.watchesFor(u.ID)
 	if err != nil {
 		dbErr(w)
 		return
 	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// watchesFor is a user's auto-syncs as the overview shows them: metadata,
+// local file count, gaps, what is airing next. Shared by the list endpoint
+// and the assistant's airing tool.
+func (s *Server) watchesFor(userID int64) ([]Watch, error) {
+	interval := s.watchInterval()
+	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.check_attempts, w.retry_at, w.created_at
+		FROM watches w JOIN servers s ON s.id = w.server_id
+		WHERE w.user_id = ? ORDER BY w.id DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
-	progress := s.anilistProgress(u.ID)
+	progress := s.anilistProgress(userID)
 	list := []Watch{}
 	for rows.Next() {
 		var it Watch
@@ -1057,8 +1068,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
 			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub, &it.PlexAudioLang, &it.PlexSubLang, &it.PlexStreamMiss,
 			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &it.CheckAttempts, &retryAt, &it.CreatedAt); err != nil {
-			dbErr(w)
-			return
+			return nil, err
 		}
 		it.IntervalMin = interval
 		it.Media = s.watchMedia(it.ServerID, it.RemotePath)
@@ -1077,7 +1087,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		it.Unsorted = s.pendingCount(it.ID)
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
-			u.ID, it.ServerID, it.RemotePath).Scan(&it.Active)
+			userID, it.ServerID, it.RemotePath).Scan(&it.Active)
 		offset := watchOffset(it.Template)
 		it.Offset = offset
 		it.Complete = watchComplete(it.Media, it.LocalFiles) && it.Active == 0
@@ -1129,7 +1139,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 		}
 		list = append(list, it)
 	}
-	writeJSON(w, http.StatusOK, list)
+	return list, nil
 }
 
 var epNumRe = regexp.MustCompile(`(?i)S\d+E(\d+)`)
