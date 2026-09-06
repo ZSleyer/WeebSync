@@ -364,6 +364,8 @@
     "details": "Details"
   },
   "watch": {
+    "moreActions": "More actions for {{title}}",
+    "gapsAction": "Missing episodes",
     "title": "AUTO-SYNC",
     "sub": "watch folders permanently",
     "sortBy": "Sort",
