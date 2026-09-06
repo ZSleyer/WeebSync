@@ -49,10 +49,7 @@ import Notifications from './pages/settings/Notifications'
 import Transfers from './pages/settings/Transfers'
 import Security from './pages/settings/Security'
 import Integrations from './pages/settings/Integrations'
-import Smtp from './pages/settings/Smtp'
-import Users from './pages/settings/Users'
 import Jobs from './pages/settings/Jobs'
-import Import from './pages/settings/Import'
 
 // The phone's tab bar holds the daily targets; everything else lives in the
 // "more" sheet. The desktop rail lists both, in this order.
@@ -146,10 +143,11 @@ export const router = createBrowserRouter(
         <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} handle={inSettings('settings.nav.transfers')} />
         <Route path="security" element={<AdminRoute><Security /></AdminRoute>} handle={inSettings('settings.nav.security')} />
         <Route path="integrations" element={<AdminRoute><Integrations /></AdminRoute>} handle={inSettings('settings.nav.integrations')} />
-        <Route path="email" element={<AdminRoute><Smtp /></AdminRoute>} handle={inSettings('settings.nav.email')} />
-        <Route path="users" element={<AdminRoute><Users /></AdminRoute>} handle={inSettings('settings.nav.users')} />
         <Route path="jobs" element={<AdminRoute><Jobs /></AdminRoute>} handle={inSettings('settings.nav.jobs')} />
-        <Route path="import" element={<AdminRoute><Import /></AdminRoute>} handle={inSettings('settings.nav.import')} />
+        {/* merged sections: the old paths land on their panel */}
+        <Route path="email" element={<Navigate to="/settings/integrations#email" replace />} />
+        <Route path="users" element={<Navigate to="/settings/security#users" replace />} />
+        <Route path="import" element={<Navigate to="/settings/jobs#import" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Route>,

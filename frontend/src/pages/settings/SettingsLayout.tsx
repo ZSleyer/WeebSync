@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Activity, ArrowDownUp, Bell, ChevronRight, LogOut, Mail, Plug, Server, Settings2, Shield, Upload, UserRound, Users } from 'lucide-react'
+import { Activity, ArrowDownUp, Bell, ChevronRight, LogOut, Plug, Server, Settings2, Shield, UserRound } from 'lucide-react'
 import { NavLink, Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, navItemClass, Panel } from '@weebsync/design-system'
@@ -16,10 +16,7 @@ const ADMIN = [
   { to: 'transfers', key: 'settings.nav.transfers', icon: ArrowDownUp },
   { to: 'security', key: 'settings.nav.security', icon: Shield },
   { to: 'integrations', key: 'settings.nav.integrations', icon: Plug },
-  { to: 'email', key: 'settings.nav.email', icon: Mail },
-  { to: 'users', key: 'settings.nav.users', icon: Users },
   { to: 'jobs', key: 'settings.nav.jobs', icon: Activity },
-  { to: 'import', key: 'settings.nav.import', icon: Upload },
 ]
 
 export function AdminRoute({ children }: { children: ReactNode }) {

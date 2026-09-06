@@ -27,7 +27,7 @@ const ROUTES = arg('routes', '').split(',').filter(Boolean).length
   '/', '/files', '/files?source=local', '/watches', '/suggestions', '/suggestions?tab=upgrades', '/assistant', '/rename',
   '/settings', '/settings/general', '/settings/account', '/settings/notifications', '/settings/servers',
   '/settings/transfers', '/settings/security', '/settings/integrations',
-  '/settings/email', '/settings/users', '/settings/jobs', '/settings/import',
+  '/settings/jobs',
 ]
 
 const VIEWPORTS = {

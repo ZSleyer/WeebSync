@@ -6,6 +6,7 @@ import { api } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
+import Users from './Users'
 
 export default function Security() {
   const { t } = useTranslation()
@@ -219,9 +220,14 @@ export default function Security() {
           </fieldset>
         </div>
       </Panel>
-      <SaveBar form={form} save={save} saved={saved} />
       <ApiTokenSection />
       <RateLimitSection />
+      {/* the user list has no form of its own and reads the saved settings,
+          so it lives on the same screen as the sign-in policy it depends on */}
+      <div id="users">
+        <Users />
+      </div>
+      <SaveBar form={form} save={save} saved={saved} />
     </>
   )
 }

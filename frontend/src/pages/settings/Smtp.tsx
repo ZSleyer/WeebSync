@@ -1,17 +1,22 @@
 import { useTranslation } from 'react-i18next'
 import { Badge, Input, Panel, Select } from '@weebsync/design-system'
-import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
-import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
+import { EnvBadge, type SettingsState } from './useSettingsForm'
 
-export default function Smtp() {
+// The SMTP section of the Integrations screen. It takes the screen's form
+// rather than mounting useSettingsForm itself: two instances on one screen
+// would each seed a copy, and the second save would overwrite the first.
+export default function Smtp({
+  form,
+  set,
+  locked,
+}: {
+  form: SettingsState
+  set: <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => void
+  locked: (k: keyof SettingsState) => boolean
+}) {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked, dirty } = useSettingsForm()
-  if (!form) return null
-
   return (
-    <>
-      <UnsavedGuard dirty={dirty} />
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.email')}>
+      <Panel as="section" id="email" className="mb-4 p-5" aria-label={t('settings.email')}>
         <Badge tone="accent">{t('settings.email')}</Badge>
         <p className="mt-2 text-xs text-t-muted">{t('settings.emailHint')}</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -92,7 +97,5 @@ export default function Smtp() {
           </label>
         </div>
       </Panel>
-      <SaveBar form={form} save={save} saved={saved} />
-    </>
   )
 }
