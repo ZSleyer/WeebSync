@@ -37,7 +37,6 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "remote": "Remote",
     "watches": "Auto-Sync",
     "servers": "Server",
     "rename": "Umbenennen",
@@ -45,7 +44,6 @@
     "main": "Hauptnavigation",
     "suggestions": "Vorschläge",
     "more": "Mehr",
-    "local": "Lokal",
     "assistant": "Assistent",
     "back": "Zurück",
     "files": "Dateien"
@@ -254,8 +252,6 @@
     "videoCount_one": "{{count}} Video",
     "videoCount_other": "{{count}} Videos",
     "lastChange": "Zuletzt geändert",
-    "title": "Lokale Dateien",
-    "sub": "was auf der Platte liegt",
     "rename": "Umbenennen",
     "renameTitle": "{{name}} umbenennen",
     "renameItem": "{{name}} umbenennen",
@@ -699,17 +695,13 @@
     },
     "nav": {
       "general": "Allgemein",
-      "look": "Darstellung",
       "account": "Konto",
       "notifications": "Benachrichtigungen",
       "transfers": "Transfers",
       "security": "Sicherheit",
       "integrations": "Integrationen",
-      "email": "E-Mail / SMTP",
-      "users": "Benutzer",
       "jobs": "Wartung & Cache",
-      "about": "Über",
-      "import": "Import"
+      "about": "Über"
     },
     "jobs": {
       "activity": "Aktive Aufgaben",
@@ -1046,22 +1038,8 @@
     "hostKeyRejected": "Host-Key abgelehnt - es wurde nichts gespeichert."
   },
   "plex": {
-    "title": "PLEX",
-    "sub": "fehlende fortsetzungen",
-    "building": "Abgleich läuft im Hintergrund…",
-    "buildingLong": "Plex-Bibliothek wird mit AniList abgeglichen, das dauert beim ersten Mal ein paar Minuten…",
-    "refresh": "Neu prüfen",
-    "empty": "Keine fehlenden Fortsetzungen gefunden.",
-    "notConfigured": "Plex ist nicht eingerichtet. URL und Token unter <1>Einstellungen</1> hinterlegen.",
-    "have": "{{have}} von {{need}} Folgen vorhanden",
-    "missing": "Fehlt",
-    "folder": "Plex-Ordner",
-    "folderHint": "Bisheriger Speicherort der Serie, dort weiterführen für eine einheitliche Ablage.",
-    "candidates": "Remote-Kandidaten aus dem Index",
     "openBrowser": "Im Browser öffnen",
     "syncOnce": "Syncen",
-    "watchHint": "Auto-Sync anlegen, vorbefüllt mit Plex-Ordnername und Rename-Vorschlag.",
-    "syncHint": "Einmalig in den Plex-Ordnernamen unter downloads/ herunterladen.",
     "open": "Öffnen"
   },
   "suggestions": {
