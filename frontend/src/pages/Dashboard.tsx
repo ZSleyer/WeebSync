@@ -230,15 +230,17 @@ export default function Dashboard() {
                 checked={allActiveSelected}
                 onChange={() => toggleSection(activeIds, allActiveSelected)}
               />
+              {/* the checkbox and the search share the first row on a phone,
+                  the bulk controls take the second */}
               <Input
-                className="font-mono text-xs sm:max-w-72"
+                className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
                 type="search"
                 placeholder={t('dash.search')}
                 aria-label={t('dash.search')}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
-              <Toolbar className="ml-auto">
+              <Toolbar className="ml-auto basis-full sm:basis-auto">
                 {anyActive && (
                   <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause' })}>
                     <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -326,7 +328,7 @@ export default function Dashboard() {
                       onChange={() => toggleSection(historyIds, allHistorySelected)}
                     />
                     <Input
-                      className="font-mono text-xs sm:max-w-72"
+                      className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
                       type="search"
                       placeholder={t('dash.search')}
                       aria-label={t('dash.search')}
@@ -334,8 +336,10 @@ export default function Dashboard() {
                       onChange={(e) => setHistoryQuery(e.target.value)}
                     />
                     {/* toggle chips: <Badge> renders a span, these have to stay
-                        buttons with aria-pressed - kept hand-written */}
-                    <div role="group" aria-label={t('dash.filterStatus')} className="flex flex-wrap items-center gap-1">
+                        buttons with aria-pressed - kept hand-written. On a
+                        phone the chips take the second row of the toolbar,
+                        the search and the clear button share the first */}
+                    <div role="group" aria-label={t('dash.filterStatus')} className="order-last flex basis-full flex-wrap items-center gap-1 sm:order-none sm:basis-auto">
                       {HISTORY_STATUSES.map((st) => {
                         const Icon = STATUS_ICON[st]
                         return (
@@ -371,6 +375,8 @@ export default function Dashboard() {
                       <Button
                         size="sm"
                         variant="danger"
+                        aria-label={t('dash.clearHistory')}
+                        title={t('dash.clearHistory')}
                         disabled={bulk.isPending || historyIds.length === 0}
                         onClick={async () => {
                           if (
@@ -382,8 +388,8 @@ export default function Dashboard() {
                             bulk.mutate({ a: 'delete', ids: historyIds })
                         }}
                       >
-                        <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                        {t('dash.clearHistory')}
+                        <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                        <span className="hidden sm:inline">{t('dash.clearHistory')}</span>
                       </Button>
                     </Toolbar>
                   </Toolbar>
