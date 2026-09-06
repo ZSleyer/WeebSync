@@ -105,9 +105,9 @@ const TRIGGERS = [
       }
       // the view picker is gone once a folder is saved as a catalogue folder,
       // which is exactly the state a previous run leaves behind
-      const view = page.getByRole('combobox', { name: /Ansicht|View/ }).first()
+      const view = page.getByRole('group', { name: /Ansicht|View/ }).getByRole('button').nth(2) // catalogue, persisted
       if (await view.count().catch(() => 0)) {
-        await view.selectOption({ index: 2 }) // catalogue, persisted
+        await view.click()
         await page.waitForTimeout(2500)
       }
       return (await page.getByRole('article').count().catch(() => 0)) > 0
@@ -123,7 +123,7 @@ const TRIGGERS = [
 
 const VIEWPORTS = {
   desktop: { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 },
-  pixel: { viewport: { width: 448, height: 998 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  pixel: { viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true },
   iphone: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
 }
 

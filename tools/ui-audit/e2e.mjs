@@ -32,8 +32,8 @@ const ROUTES = arg('routes', '').split(',').filter(Boolean).length
 
 const VIEWPORTS = {
   desktop: { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
-  // Pixel 8 Pro as Chrome reports it
-  pixel: { viewport: { width: 448, height: 998 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  // Pixel 8 Pro: the CSS viewport Firefox for Android gives it
+  pixel: { viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true },
   // iPhone 14 - the narrower of the two target phones, and therefore the one
   // that finds the labels which no longer fit on a single line
   iphone: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
