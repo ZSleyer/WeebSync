@@ -146,7 +146,7 @@ return (
         <h4 className="min-w-0 wrap-break-word font-display text-sm font-semibold tracking-wider">{u.title}</h4>
         <div className="flex flex-wrap gap-1">
           {variantDiff(u.from, chosen, dims, t).map((d, j) => (
-            <Badge key={j} tone="accent">
+            <Badge key={j} tone="accent" multiline>
               {d}
             </Badge>
           ))}
@@ -254,7 +254,7 @@ return (
                                 <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-t-muted">
                                   <span>{variantQuality(o, t)}</span>
                                   {diff.map((d, k) => (
-                                    <Badge key={k} tone="accent">
+                                    <Badge key={k} tone="accent" multiline>
                                       {d}
                                     </Badge>
                                   ))}
