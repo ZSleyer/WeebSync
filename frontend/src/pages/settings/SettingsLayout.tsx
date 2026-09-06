@@ -2,9 +2,10 @@ import type { ReactNode } from 'react'
 import { Activity, ArrowDownUp, Bell, ChevronRight, LogOut, Plug, Server, Settings2, Shield, UserRound } from 'lucide-react'
 import { NavLink, Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, navItemClass, Panel } from '@weebsync/design-system'
+import { Badge, Button, navItemClass, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useAuth } from '../../hooks'
+import { WIDE_MQ } from '../../components/PageActions'
 
 const PERSONAL = [
   { to: 'general', key: 'settings.nav.general', icon: Settings2 },
@@ -36,11 +37,14 @@ function useGroups() {
 
 // The hub at /settings: one row per section with a hint, and the account row
 // with Logout. On a phone it is the screen behind the More sheet's Settings
-// entry; on desktop it fills the content pane next to the side menu.
+// entry. Desktop has the side menu with the same sections, so there the
+// index opens the first section instead of listing the menu a second time.
 export function SettingsHub() {
   const { t } = useTranslation()
   const { data: user } = useAuth()
   const groups = useGroups()
+  const wide = useMediaQuery(WIDE_MQ)
+  if (wide) return <Navigate to="/settings/general" replace />
   const logout = async () => {
     try {
       await api.post('/api/auth/logout')
