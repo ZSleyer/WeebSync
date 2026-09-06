@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
 import { Badge, Panel } from './primitives'
 
 // The composed surfaces WeebSync reuses across pages: media tiles, the file
@@ -391,7 +391,7 @@ export function MenuItem({ selected, trailing, children, className, ...rest }: M
   )
 }
 
-export type NavVariant = 'sidebar' | 'bottomTab' | 'sheet'
+export type NavVariant = 'sidebar' | 'bottomTab' | 'sheet' | 'row'
 
 export interface NavItemProps {
   icon?: ReactNode
@@ -401,25 +401,35 @@ export interface NavItemProps {
    * sidebar: accent bar on the left edge (desktop rail and settings menu)
    * bottomTab: icon over label, accent bar on top (phone tab bar)
    * sheet: tall touch row in the overflow sheet
+   * row: list entry with a hairline underneath (the settings hub)
    */
   variant?: NavVariant
+  /** right-aligned slot - a chevron on a row, a count on a sidebar entry */
+  trailing?: ReactNode
   className?: string
 }
 
+// The metrics are the shell's own: the rail row and the tab bar are the tallest
+// touch targets in the app (--nav-h for a tab), and the app must not carry a
+// second copy of them.
 const NAV_BASE: Record<NavVariant, string> = {
-  sidebar: 'flex items-center gap-2 whitespace-nowrap border-l-2 px-4 py-2 font-display text-sm transition-colors',
-  bottomTab: 'flex flex-1 flex-col items-center gap-0.5 border-t-2 px-1 py-2 font-display text-[11px] transition-colors',
+  sidebar: 'group flex items-center gap-3 whitespace-nowrap border-l-2 px-4 py-2.5 font-display text-sm transition-colors',
+  bottomTab:
+    'flex min-h-(--nav-h) min-w-0 flex-1 flex-col items-center justify-center gap-0.5 border-t-2 px-0.5 font-display text-[0.72rem] leading-tight transition-colors',
   sheet: 'flex min-h-14 items-center gap-3 px-5 font-display text-sm transition-colors',
+  row: 'flex min-h-12 w-full items-center gap-3 border-b border-border-subtle px-4 text-left font-display text-sm transition-colors',
 }
 const NAV_ACTIVE: Record<NavVariant, string> = {
   sidebar: 'border-accent bg-bg-hover text-accent',
   bottomTab: 'border-accent text-accent',
   sheet: 'bg-bg-hover text-accent',
+  row: 'bg-bg-hover text-accent',
 }
 const NAV_IDLE: Record<NavVariant, string> = {
   sidebar: 'border-transparent text-t-muted hover:bg-bg-hover hover:text-t-primary',
   bottomTab: 'border-transparent text-t-muted',
   sheet: 'text-t-muted hover:bg-bg-hover hover:text-t-primary',
+  row: 'text-t-secondary hover:bg-bg-hover hover:text-t-primary',
 }
 
 /**
@@ -431,12 +441,44 @@ export function navItemClass(variant: NavVariant, active: boolean, className?: s
   return cx(NAV_BASE[variant], active ? NAV_ACTIVE[variant] : NAV_IDLE[variant], className)
 }
 
-/** Navigation entry as a plain anchor, for previews and non-router use. */
-export function NavItem({ icon, children, active, variant = 'sidebar', className, ...rest }: NavItemProps & HTMLAttributes<HTMLAnchorElement> & { href?: string }) {
-  return (
-    <a {...rest} aria-current={active ? 'page' : undefined} className={navItemClass(variant, !!active, className)}>
+type NavItemElementProps =
+  | ({ as?: 'a' } & HTMLAttributes<HTMLAnchorElement> & { href?: string })
+  | ({ as: 'button' } & ButtonHTMLAttributes<HTMLButtonElement>)
+
+/**
+ * Navigation entry as a plain anchor (previews, non-router use) or, with
+ * `as="button"`, as a button - the tab that opens the overflow sheet instead of
+ * navigating. Only an anchor carries aria-current.
+ */
+export function NavItem({
+  icon,
+  children,
+  active,
+  variant = 'sidebar',
+  trailing,
+  className,
+  ...rest
+}: NavItemProps & NavItemElementProps) {
+  const cls = navItemClass(variant, !!active, className)
+  const body = (
+    <>
       {icon}
       {children}
+      {trailing && <span className="ml-auto flex shrink-0 items-center">{trailing}</span>}
+    </>
+  )
+  if (rest.as === 'button') {
+    const { as: _as, ...btn } = rest
+    return (
+      <button type="button" {...btn} className={cls}>
+        {body}
+      </button>
+    )
+  }
+  const { as: _as, ...a } = rest
+  return (
+    <a {...a} aria-current={active ? 'page' : undefined} className={cls}>
+      {body}
     </a>
   )
 }
