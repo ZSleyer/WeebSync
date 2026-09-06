@@ -312,7 +312,10 @@ return (
         )}
       </div>
     </div>
-      {u.why && <p className="mt-1 text-[11px] text-t-secondary">{u.why}</p>}
+      {/* a row of its own: as a third flex item beside the cover and the text
+          column it took the width its sentence needed and squeezed the title
+          column to a few dozen pixels on a phone */}
+      {u.why && <p className="mt-1 basis-full text-xs text-t-secondary">{u.why}</p>}
   </Panel>
 )
 }
