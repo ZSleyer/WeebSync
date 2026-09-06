@@ -135,6 +135,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("PUT /api/auth/email-prefs", authed(http.HandlerFunc(s.handleEmailPrefsPut)))
 	mux.Handle("GET /api/auth/upgrade-dims", authed(http.HandlerFunc(s.handleUpgradeDimsGet)))
 	mux.Handle("PUT /api/auth/upgrade-dims", authed(http.HandlerFunc(s.handleUpgradeDimsPut)))
+	mux.Handle("GET /api/auth/watch-defaults", authed(http.HandlerFunc(s.handleWatchDefaultsGet)))
+	mux.Handle("PUT /api/auth/watch-defaults", authed(http.HandlerFunc(s.handleWatchDefaultsPut)))
 	mux.Handle("GET /api/auth/notify-prefs", authed(http.HandlerFunc(s.handleNotifyPrefsGet)))
 	mux.Handle("PUT /api/auth/notify-prefs", authed(http.HandlerFunc(s.handleNotifyPrefsPut)))
 

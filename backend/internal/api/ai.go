@@ -1117,16 +1117,23 @@ func (s *Server) aiSearchRemote(userID int64, query string) any {
 // aiMatchedTitle names the provider title the catalog matched a folder to,
 // "" when unmatched.
 func (s *Server) aiMatchedTitle(serverID int64, folder string) string {
+	if _, m := s.aiMatchedMedia(serverID, folder); m != nil {
+		return aiTitle(*m)
+	}
+	return ""
+}
+
+// aiMatchedMedia is the catalog match of a folder: its source and the cached
+// media, nil media when the folder is unmatched or the media not cached yet.
+func (s *Server) aiMatchedMedia(serverID int64, folder string) (string, *anilist.Media) {
 	var source string
 	var mediaID int
 	if s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
 		serverID, folder).Scan(&source, &mediaID); source == "" || mediaID == 0 {
-		return ""
+		return "", nil
 	}
-	if m, _ := s.sourceMedia(source, mediaID); m != nil {
-		return aiTitle(*m)
-	}
-	return ""
+	m, _ := s.sourceMedia(source, mediaID)
+	return source, m
 }
 
 func (s *Server) aiWatches(userID int64) any {
@@ -1181,8 +1188,17 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind string, serve
 		title = match.GuessTitle(path.Base(remotePath))
 	}
 	p := &aiProposal{Kind: kind, Title: title, ServerID: serverID, ServerName: serverName, RemotePath: remotePath}
-	p.Fields = aiWatchFields{RemotePath: remotePath, LocalPath: s.DownloadRoot, Mode: "template", TitleOverride: title,
-		Subfolder: true, MediaSource: "anilist"}
+	p.Fields = aiWatchFields{RemotePath: remotePath, Mode: "template", TitleOverride: title, Subfolder: true, MediaSource: "anilist"}
+	// every accepted proposal ends here: the user's defaults for the folder's
+	// kind fill what is still blank (a plan that found the library folder
+	// keeps it), the download root is the last resort for the target
+	done := func() (*aiProposal, string) {
+		s.watchDefaultsFor(userID).apply(s.matchedKind(serverID, remotePath), &p.Fields)
+		if p.Fields.LocalPath == "" {
+			p.Fields.LocalPath = s.DownloadRoot
+		}
+		return p, ""
+	}
 
 	switch kind {
 	case "upgrade":
@@ -1218,7 +1234,7 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind string, serve
 		p.Fields.LocalPath, p.Fields.Template, p.Fields.Subfolder = up.Sync.LocalPath, up.Sync.Template, up.Sync.Subfolder
 		p.Fields.ReplaceOld = up.Sync.Replace
 		p.Fields.TitleOverride = up.Title
-		return p, ""
+		return done()
 	case "sync":
 		if refKey != "" {
 			blob, _ := s.aiSuggestionBlob(ctx, userID)
@@ -1243,7 +1259,7 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind string, serve
 				if it.Need > 0 {
 					p.Info = append(p.Info, fmt.Sprintf("%d of %d episodes present locally", it.Have, it.Need))
 				}
-				return p, ""
+				return done()
 			}
 		}
 	case "watch":
@@ -1258,7 +1274,7 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind string, serve
 	if matched := s.aiMatchedTitle(serverID, remotePath); matched != "" && !titlesAgree(matched, title) {
 		return nil, "that folder is matched to \"" + matched + "\", not to \"" + title + "\""
 	}
-	return p, ""
+	return done()
 }
 
 // aiUpgradeGain lists what a remote copy improves over the local one on the
