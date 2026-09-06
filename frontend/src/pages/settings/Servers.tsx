@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ActionBar, Badge, Button, Dialog, EmptyState, Field, Input, Panel, Select } from '@weebsync/design-system'
 import { api, ApiError, type ServerInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
+import { PageFooter } from '../../components/PageActions'
 
 export default function Servers() {
   const { t } = useTranslation()
@@ -149,12 +150,14 @@ export default function Servers() {
       </div>
 
       {dialogOpen && <ServerDialog editing={editing} onClose={() => setDialogOpen(false)} />}
-      <ActionBar aria-label={t('servers.add')}>
-        <Button variant="primary" cut onClick={() => openDialog(null)}>
-          <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('servers.add')}
-        </Button>
-      </ActionBar>
+      <PageFooter>
+        <ActionBar aria-label={t('servers.add')}>
+          <Button variant="primary" cut onClick={() => openDialog(null)}>
+            <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('servers.add')}
+          </Button>
+        </ActionBar>
+      </PageFooter>
     </div>
   )
 }

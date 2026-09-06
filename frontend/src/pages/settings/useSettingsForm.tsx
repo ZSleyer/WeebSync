@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ActionBar, Badge, Button } from '@weebsync/design-system'
+import { PageFooter } from '../../components/PageActions'
 import { api } from '../../api'
 
 export interface SettingsState {
@@ -145,23 +146,24 @@ export function SaveBar({
 }) {
   const { t } = useTranslation()
   return (
-    // sticky at the bottom of the scroller on a phone, where a long form
-    // used to hide it; in flow after the panels on desktop as before. Must
-    // stay the last element of its page for the sticky to hold.
-    <ActionBar aria-label={t('settings.save')} className="lg:static lg:mt-0 lg:mb-6 lg:border-0 lg:bg-transparent lg:p-0">
-      <Button variant="primary" cut onClick={() => save.mutate(form)} disabled={save.isPending}>
-        {t('settings.save')}
-      </Button>
-      {saved && (
-        <Badge tone="ok" role="status">
-          {t('settings.saved')}
-        </Badge>
-      )}
-      {save.error && (
-        <span className="text-sm text-err" role="alert">
-          {save.error.message}
-        </span>
-      )}
-    </ActionBar>
+    // the shell's footer row on a phone, where a long form used to hide the
+    // button below the fold; in flow after the panels on desktop as before
+    <PageFooter>
+      <ActionBar aria-label={t('settings.save')} sticky={false} className="lg:mb-6 lg:border-0 lg:bg-transparent lg:p-0">
+        <Button variant="primary" cut onClick={() => save.mutate(form)} disabled={save.isPending}>
+          {t('settings.save')}
+        </Button>
+        {saved && (
+          <Badge tone="ok" role="status">
+            {t('settings.saved')}
+          </Badge>
+        )}
+        {save.error && (
+          <span className="text-sm text-err" role="alert">
+            {save.error.message}
+          </span>
+        )}
+      </ActionBar>
+    </PageFooter>
   )
 }
