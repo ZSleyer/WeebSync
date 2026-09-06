@@ -472,13 +472,13 @@ export default function Assistant() {
           />
         </label>
         {/* the button matches the two-row textarea: it stretches to the row,
-            the height utility needs the ! because .t-btn is unlayered */}
+            square, the height and padding utilities need the ! because .t-btn is unlayered */}
         {streaming ? (
-          <Button type="button" className="h-auto! self-stretch" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
+          <Button type="button" className="aspect-square h-auto! self-stretch px-0!" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
             <Square aria-hidden size="1.2em" />
           </Button>
         ) : (
-          <Button type="submit" variant="primary" className="h-auto! self-stretch" aria-label={t('assistant.send')} title={t('assistant.send')} disabled={!input.trim()}>
+          <Button type="submit" variant="primary" className="aspect-square h-auto! self-stretch px-0!" aria-label={t('assistant.send')} title={t('assistant.send')} disabled={!input.trim()}>
             <Send aria-hidden size="1.2em" />
           </Button>
         )}
