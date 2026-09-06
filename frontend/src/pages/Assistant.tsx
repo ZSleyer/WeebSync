@@ -3,7 +3,7 @@ import { Bot, Check, RefreshCw, Send, Sparkles, Square, Trash2, User as UserIcon
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Badge, Button, Dialog, EmptyState, MediaCard, Panel, Select, Textarea } from '@weebsync/design-system'
+import { Badge, Button, Dialog, EmptyState, MediaCard, Panel, Select, Textarea, useMediaQuery } from '@weebsync/design-system'
 import {
   api,
   mediaTitle,
@@ -21,6 +21,7 @@ import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { usePersistedQuery } from '../hooks'
 import MediaDetail from '../components/MediaDetail'
 import { useAiModels, useAiStatus, useAuth } from '../hooks'
+import PageActions, { WIDE_MQ } from '../components/PageActions'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 
 // plain strips the markdown a model emits anyway (bold, code spans, heading
@@ -73,6 +74,7 @@ export default function Assistant() {
   const { data: user } = useAuth()
   const { data: status } = useAiStatus()
   const { data: models } = useAiModels(!!status?.configured)
+  const wide = useMediaQuery(WIDE_MQ)
   const uid = user?.id ?? 0
   const storageKey = `weebsync.ai.${uid}`
   const modelKey = `weebsync.ai.model.${uid}`
@@ -266,7 +268,9 @@ export default function Assistant() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKey}
-          autoFocus
+          // not on a phone: focusing on arrival raises the keyboard and
+          // shrinks the whole shell before anything was read
+          autoFocus={wide}
         />
       </label>
       {streaming ? (
@@ -283,10 +287,11 @@ export default function Assistant() {
     </form>
   )
 
+  // in the app bar on a phone, inline on desktop
   const modelPicker = (
     <label className="flex items-center gap-2 text-xs text-t-muted">
-      <span>{t('assistant.model')}</span>
-      <Select size="sm" className="max-w-88 font-mono" value={effectiveModel} onChange={(e) => pickModel(e.target.value)}>
+      <span className="sr-only lg:not-sr-only">{t('assistant.model')}</span>
+      <Select size="sm" className="max-w-40 font-mono lg:max-w-88" value={effectiveModel} onChange={(e) => pickModel(e.target.value)}>
         <option value="">{t('assistant.modelDefault', { model: models?.default ?? status?.model ?? '' })}</option>
         {modelList
           .filter((m) => m !== (models?.default ?? status?.model))
@@ -322,7 +327,9 @@ export default function Assistant() {
             </li>
           ))}
         </ul>
-        <div className="mt-6 flex justify-center">{modelPicker}</div>
+        <PageActions>
+          <div className="lg:mt-6 lg:flex lg:justify-center">{modelPicker}</div>
+        </PageActions>
       </div>
     )
   }
@@ -341,11 +348,15 @@ export default function Assistant() {
             {notice}
           </Badge>
         )}
-        <div className="ml-auto">{modelPicker}</div>
-        <Button size="sm" onClick={clear}>
-          <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('assistant.clear')}
-        </Button>
+        <PageActions>
+          <div className="flex items-center gap-2 lg:ml-auto">
+            {modelPicker}
+            <Button size="sm" aria-label={t('assistant.clear')} onClick={clear}>
+              <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] lg:mr-1" />
+              <span className="hidden lg:inline">{t('assistant.clear')}</span>
+            </Button>
+          </div>
+        </PageActions>
       </div>
 
       <div ref={logRef} role="log" aria-live="polite" aria-label={t('assistant.title')} className="min-h-0 flex-1 overflow-y-auto pr-1">
