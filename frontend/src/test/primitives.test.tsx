@@ -406,6 +406,15 @@ describe('Surface, Toolbar, Tabs and Count', () => {
     expect(tabs[1]).not.toHaveAttribute('aria-selected')
   })
 
+  it('adds the scroll modifier next to the base tabs class', () => {
+    render(
+      <Tabs scroll>
+        <Tab>Alle</Tab>
+      </Tabs>,
+    )
+    expect(screen.getByRole('tablist')).toHaveClass('t-tabs', 't-tabs--scroll')
+  })
+
   it('renders a tabular-number span', () => {
     render(<Count>42</Count>)
     expect(screen.getByText('42')).toHaveClass('t-count')

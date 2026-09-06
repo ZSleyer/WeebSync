@@ -45,12 +45,14 @@ export type {
 } from './primitives'
 
 export {
+  ActionBar,
   AppBar,
   AppShell,
   Breadcrumb,
   CalendarDay,
   CalendarEntry,
   Cover,
+  Disclosure,
   EmptyState,
   FileBrowser,
   FileRow,
@@ -60,16 +62,19 @@ export {
   Modal,
   NavItem,
   navItemClass,
+  Segmented,
   SuggestionCard,
   TabBar,
 } from './composites'
 export type {
+  ActionBarProps,
   AppBarProps,
   AppShellProps,
   BreadcrumbProps,
   CalendarDayProps,
   CalendarEntryProps,
   CoverProps,
+  DisclosureProps,
   EmptyStateProps,
   FileBrowserProps,
   FileRowProps,
@@ -79,6 +84,8 @@ export type {
   ModalProps,
   NavItemProps,
   NavVariant,
+  SegmentedOption,
+  SegmentedProps,
   SuggestionCardProps,
   TabBarProps,
 } from './composites'

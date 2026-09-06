@@ -1,5 +1,5 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
-import { Badge, Panel } from './primitives'
+import { useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
+import { Badge, buttonClass, Panel } from './primitives'
 
 // The composed surfaces WeebSync reuses across pages: media tiles, the file
 // browser, calendar entries, menus and modals. Same markup the app renders,
@@ -654,5 +654,147 @@ export function TabBar({ children, className, ...rest }: TabBarProps) {
     >
       {children}
     </nav>
+  )
+}
+
+export interface ActionBarProps extends HTMLAttributes<HTMLDivElement> {
+  /** a toolbar needs a name - what the actions apply to */
+  'aria-label': string
+  children: ReactNode
+}
+
+/**
+ * A row of actions pinned to the bottom edge of the scroller: bulk actions
+ * for a selection, Save under a form, Apply under a preview. Sticky inside
+ * <main>, never fixed - a fixed box drifts on Firefox for Android while the
+ * URL bar animates, a sticky row in the scroller does not. It only sticks
+ * while it is the last child of the page root. It keeps to its parent's
+ * width: a bleed into <main>'s padding read as 18px of sideways overflow to
+ * the audit. No safe-area padding of its own: the tab bar below it owns that.
+ */
+export function ActionBar({ className, ...rest }: ActionBarProps) {
+  return (
+    <div
+      role="toolbar"
+      {...rest}
+      className={cx(
+        // below lg the scroller is <main> with 1rem of padding, and a sticky
+        // box aligns to the padding's inner edge: without the negative offset
+        // a 1rem strip of page showed through between the bar and the tab bar
+        'sticky -bottom-4 z-10 mt-4 flex flex-wrap items-center gap-2 border-t border-border-subtle bg-bg-secondary py-2 lg:bottom-0',
+        className,
+      )}
+    />
+  )
+}
+
+export interface DisclosureProps {
+  title: ReactNode
+  /** count chip after the title */
+  count?: number
+  /** initial state when uncontrolled */
+  defaultOpen?: boolean
+  /** controlled state */
+  open?: boolean
+  onToggle?: (open: boolean) => void
+  /** chip-styled summary for a sub-group, heading-styled otherwise */
+  small?: boolean
+  children: ReactNode
+  className?: string
+}
+
+const Chevron = () => (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 24 24"
+    width="1em"
+    height="1em"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    className="shrink-0 text-accent transition-transform group-open:rotate-90"
+  >
+    <path d="m9 6 6 6-6 6" />
+  </svg>
+)
+
+/**
+ * A block behind its heading, on the native details element: the summary is
+ * the toggle, keyboard and screen-reader behaviour come from the platform.
+ * The marker is hidden by the stylesheet and drawn as a chevron instead.
+ * The block's content is mounted only while it is open: a closed details
+ * keeps its children's boxes (Firefox reports their last size, a hundred
+ * thousand pixels for a long list), and a folded list of two hundred cards
+ * should not be rendered at all.
+ */
+export function Disclosure({ title, count, defaultOpen = true, open, onToggle, small, children, className }: DisclosureProps) {
+  const [own, setOwn] = useState(defaultOpen)
+  const shown = open ?? own
+  const label = (
+    <>
+      <Chevron />
+      <h3 className="min-w-0">{title}</h3>
+      {count !== undefined && <Badge>{count}</Badge>}
+    </>
+  )
+  return (
+    <details
+      className={cx('group', className)}
+      open={shown}
+      onToggle={(e) => {
+        const next = (e.currentTarget as HTMLDetailsElement).open
+        if (open === undefined) setOwn(next)
+        onToggle?.(next)
+      }}
+    >
+      <summary
+        className={cx(
+          'flex min-h-(--ctl-h-sm) cursor-pointer items-center',
+          small ? 'mb-1' : 'mb-2 gap-1.5 font-display text-sm font-semibold tracking-wider text-t-secondary',
+        )}
+      >
+        {small ? <span className="t-label t-label--accent">{label}</span> : label}
+      </summary>
+      {shown && children}
+    </details>
+  )
+}
+
+export interface SegmentedOption<T extends string> {
+  value: T
+  label: ReactNode
+  /** for an icon-only option */
+  'aria-label'?: string
+}
+
+export interface SegmentedProps<T extends string> {
+  'aria-label': string
+  value: T
+  onChange: (value: T) => void
+  options: SegmentedOption<T>[]
+  size?: 'md' | 'sm'
+  className?: string
+}
+
+/**
+ * One choice out of a few, as a group of pressed buttons: list or calendar,
+ * login or register. The pressed option renders as the primary button.
+ */
+export function Segmented<T extends string>({ value, onChange, options, size = 'sm', className, ...aria }: SegmentedProps<T>) {
+  return (
+    <div role="group" {...aria} className={cx('flex flex-wrap gap-1', className)}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={o.value === value}
+          aria-label={o['aria-label']}
+          onClick={() => onChange(o.value)}
+          className={buttonClass({ size, variant: o.value === value ? 'primary' : 'default' })}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   )
 }

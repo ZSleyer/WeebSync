@@ -512,6 +512,22 @@ a.t-label:hover {
   background: var(--bg-card);
   border-bottom-color: var(--accent-blue);
 }
+/* A bar with more tabs than a phone is wide: one row that scrolls sideways
+   instead of two or three wrapped rows above the content. Wrapping is still
+   the default (see above); this is opt-in for the one bar that has seven.
+   The caller scrolls the selected tab into view. No scroll snapping: Firefox
+   snapped straight back to the start after scrollIntoView, which left the
+   selected tab cut off at the edge again. */
+.t-tabs--scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* Disclosure on the native details element: the marker is drawn as a chevron
+   by the component, so the platform's own triangle goes. */
+summary { list-style: none; }
+summary::-webkit-details-marker { display: none; }
 
 /* One field of a multi-column row: label on top, control pinned to the bottom,
    so the controls of a row still line up when one label wraps or carries a
