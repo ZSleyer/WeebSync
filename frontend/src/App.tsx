@@ -20,6 +20,7 @@ import {
   Outlet,
   Route,
   useLocation,
+  useMatches,
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -28,6 +29,7 @@ import { api } from './api'
 import { useAiStatus, useAuth, useEvents } from './hooks'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
+import ScrollMemory from './components/ScrollMemory'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -105,49 +107,67 @@ function AdminGate({ email }: { email: string }) {
   return <Shell email={email} />
 }
 
+/** Route meta the shell reads through useMatches(): the title key of a screen
+ *  and, on a stacked screen, where its back link goes. */
+export interface RouteHandle {
+  title?: string
+  back?: string
+}
+const h = (title: string, back?: string): RouteHandle => ({ title, back })
+const inSettings = (title: string) => h(title, '/settings')
+
 export const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<RootLayout />}>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/remote" element={<Remote />} />
+      <Route path="/" element={<Dashboard />} handle={h('nav.dashboard')} />
+      <Route path="/remote" element={<Remote />} handle={h('nav.remote')} />
       {/* the page was called "browser" until it got a local counterpart */}
       <Route path="/browser" element={<Navigate to="/remote" replace />} />
-      <Route path="/watches" element={<Watches />} />
-      <Route path="/suggestions" element={<Suggestions />} />
-      <Route path="/assistant" element={<Assistant />} />
+      <Route path="/watches" element={<Watches />} handle={h('nav.watches')} />
+      <Route path="/suggestions" element={<Suggestions />} handle={h('nav.suggestions')} />
+      <Route path="/assistant" element={<Assistant />} handle={h('nav.assistant')} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
-      <Route path="/servers" element={<Servers />} />
-      <Route path="/local" element={<Local />} />
-      <Route path="/rename" element={<Rename />} />
-      <Route path="/settings" element={<SettingsLayout />}>
+      <Route path="/servers" element={<Servers />} handle={h('nav.servers')} />
+      <Route path="/local" element={<Local />} handle={h('nav.local')} />
+      <Route path="/rename" element={<Rename />} handle={h('nav.rename')} />
+      <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
         <Route index element={<Navigate to="look" replace />} />
-        <Route path="look" element={<Look />} />
-        <Route path="account" element={<Account />} />
-        <Route path="notifications" element={<Notifications />} />
-        <Route path="about" element={<About />} />
-        <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} />
-        <Route path="security" element={<AdminRoute><Security /></AdminRoute>} />
-        <Route path="integrations" element={<AdminRoute><Integrations /></AdminRoute>} />
-        <Route path="email" element={<AdminRoute><Smtp /></AdminRoute>} />
-        <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
-        <Route path="jobs" element={<AdminRoute><Jobs /></AdminRoute>} />
-        <Route path="import" element={<AdminRoute><Import /></AdminRoute>} />
+        <Route path="look" element={<Look />} handle={inSettings('settings.nav.look')} />
+        <Route path="account" element={<Account />} handle={inSettings('settings.nav.account')} />
+        <Route path="notifications" element={<Notifications />} handle={inSettings('settings.nav.notifications')} />
+        <Route path="about" element={<About />} handle={inSettings('settings.nav.about')} />
+        <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} handle={inSettings('settings.nav.transfers')} />
+        <Route path="security" element={<AdminRoute><Security /></AdminRoute>} handle={inSettings('settings.nav.security')} />
+        <Route path="integrations" element={<AdminRoute><Integrations /></AdminRoute>} handle={inSettings('settings.nav.integrations')} />
+        <Route path="email" element={<AdminRoute><Smtp /></AdminRoute>} handle={inSettings('settings.nav.email')} />
+        <Route path="users" element={<AdminRoute><Users /></AdminRoute>} handle={inSettings('settings.nav.users')} />
+        <Route path="jobs" element={<AdminRoute><Jobs /></AdminRoute>} handle={inSettings('settings.nav.jobs')} />
+        <Route path="import" element={<AdminRoute><Import /></AdminRoute>} handle={inSettings('settings.nav.import')} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Route>,
   ),
 )
 
-// document.title per route (WCAG 2.4.2)
+/** The deepest matched route that carries a title - the screen the user is on. */
+export function useScreen(): RouteHandle {
+  const matches = useMatches()
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const handle = matches[i].handle as RouteHandle | undefined
+    if (handle?.title) return handle
+  }
+  return {}
+}
+
+// document.title per route (WCAG 2.4.2). A stacked screen names its parent
+// in the middle so a tab reads "Notifications - Settings - WeebSync".
 function RouteTitle() {
   const { t } = useTranslation()
-  const location = useLocation()
+  const { title, back } = useScreen()
   useEffect(() => {
-    const item = NAV.find(
-      (n) => n.to === location.pathname || (n.to !== '/' && location.pathname.startsWith(n.to + '/')),
-    )
-    document.title = item ? `${t(item.key)} - WeebSync` : 'WeebSync'
-  }, [location.pathname, t])
+    const parts = [title && t(title), back && t('nav.settings'), 'WeebSync'].filter(Boolean)
+    document.title = parts.join(' - ')
+  }, [title, back, t])
   return null
 }
 
@@ -328,6 +348,7 @@ function Shell({ email }: { email: string }) {
       before={
         <>
           <RouteTitle />
+          <ScrollMemory />
           <UpdateToast />
           {/* closes the "more" sheet on a tap anywhere else */}
           {moreOpen && <div className="fixed inset-0 z-40 lg:hidden" aria-hidden onClick={() => setMoreOpen(false)} />}
