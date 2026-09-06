@@ -457,7 +457,7 @@ export default function Assistant() {
           void send()
         }}
       >
-        <label className="min-w-0 flex-1">
+        <label className="flex min-w-0 flex-1">
           <span className="sr-only">{t('assistant.placeholder')}</span>
           <Textarea
             rows={2}
@@ -471,12 +471,14 @@ export default function Assistant() {
             autoFocus={wide}
           />
         </label>
+        {/* the button matches the two-row textarea: it stretches to the row,
+            the height utility needs the ! because .t-btn is unlayered */}
         {streaming ? (
-          <Button type="button" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
+          <Button type="button" className="h-auto! self-stretch" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
             <Square aria-hidden size="1.2em" />
           </Button>
         ) : (
-          <Button type="submit" variant="primary" aria-label={t('assistant.send')} title={t('assistant.send')} disabled={!input.trim()}>
+          <Button type="submit" variant="primary" className="h-auto! self-stretch" aria-label={t('assistant.send')} title={t('assistant.send')} disabled={!input.trim()}>
             <Send aria-hidden size="1.2em" />
           </Button>
         )}
