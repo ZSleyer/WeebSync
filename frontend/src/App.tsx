@@ -345,11 +345,11 @@ function Shell({ email }: { email: string }) {
       bar={bar}
       tabs={tabs}
       mainKey={location.pathname}
+      notice={<UpdateToast />}
       before={
         <>
           <RouteTitle />
           <ScrollMemory />
-          <UpdateToast />
           {/* closes the "more" sheet on a tap anywhere else */}
           {moreOpen && <div className="fixed inset-0 z-40 lg:hidden" aria-hidden onClick={() => setMoreOpen(false)} />}
         </>
