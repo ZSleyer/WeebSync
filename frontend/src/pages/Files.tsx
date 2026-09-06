@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Check, Download, Eye, Files as FilesIcon, Folder, Info, Pencil, RefreshCw, Replace, Search, Server, Star, Trash2, Undo2, X } from 'lucide-react'
+import { Check, Download, Eye, Files as FilesIcon, Folder, HardDrive, Info, Pencil, Plus, RefreshCw, Replace, Search, Server, Star, Trash2, Undo2, X } from 'lucide-react'
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import MediaDetail from '../components/MediaDetail'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
-import { Badge, Button, Cover, Dialog, EmptyState, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Cover, Dialog, EmptyState, Input, Panel, Segmented, Select } from '@weebsync/design-system'
 import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo } from '../api'
 import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../components/catalogSort'
-import { CatalogViewSelect } from '../components/CatalogViewSelect'
+import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
+import { ServerIcon } from '../components/serverIcon'
 import { useCatalogView } from '../components/useCatalogView'
 import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
 import PathInput from '../components/PathInput'
@@ -215,28 +216,58 @@ export default function Files() {
   return (
     <div className="page-fill flex min-h-0 flex-1 flex-col">
       {/* the in-page heading is the desktop's; on a phone the app bar carries
-          the title and the view picker, and the source row stands alone */}
-      <header className="mb-4 flex flex-wrap items-end gap-x-3 gap-y-2">
+          the title and the view switch, and the source row stands alone.
+          Sources are a pressed-button group like the views: one control style
+          across the app instead of a dropdown here and buttons there.
+          ponytail: the group wraps past three or four sources, a menu if that
+          ever happens */}
+      <header className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="mr-auto hidden lg:block">
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('files.title')}</h2>
           <Badge className="mt-1">{t('files.sub')}</Badge>
         </div>
-        <label className="min-w-0 flex-1 text-xs text-t-muted lg:min-w-44 lg:flex-none">
-          <span className="sr-only lg:not-sr-only">{t('remote.source')}</span>
-          <Select wrapperClassName="lg:mt-1 lg:w-44" value={String(source)} onChange={(e) => pickSource(e.target.value === 'local' ? 'local' : Number(e.target.value))}>
-            <option value="local">{t('files.local')}</option>
-            {servers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
-        </label>
+        <Segmented
+          aria-label={t('remote.source')}
+          className="min-w-0 flex-1 lg:flex-none"
+          value={String(source)}
+          onChange={(v) => pickSource(v === 'local' ? 'local' : Number(v))}
+          options={[
+            // the local library always draws the drive; a server draws its
+            // picture when it has one, its name otherwise. Names stay on
+            // desktop, the phone gets the picture alone
+            {
+              value: 'local',
+              'aria-label': t('files.local'),
+              label: (
+                <>
+                  <HardDrive aria-hidden size="1em" />
+                  <span className="ml-1 hidden lg:inline">{t('files.local')}</span>
+                </>
+              ),
+            },
+            ...servers.map((s) => ({
+              value: String(s.id),
+              'aria-label': s.name,
+              label: s.icon ? (
+                <>
+                  <ServerIcon name={s.icon} aria-hidden size="1em" />
+                  <span className="ml-1 hidden lg:inline">{s.name}</span>
+                </>
+              ) : (
+                s.name
+              ),
+            })),
+          ]}
+        />
         <Link to="/settings/servers" aria-label={t('files.manageSources')} title={t('files.manageSources')} className="t-iconbtn text-t-muted hover:text-accent">
-          <Server aria-hidden size="1.25em" />
+          {/* a server with a plus in the corner: this is where servers get added */}
+          <span className="relative inline-block pr-1.5 pb-1.5">
+            <Server aria-hidden size="1.25em" />
+            <Plus aria-hidden size="0.75em" strokeWidth={3} className="absolute right-0 bottom-0" />
+          </span>
         </Link>
         <PageActions>
-          <CatalogViewSelect value={viewValue} onChange={setView} />
+          <CatalogViewSwitch value={viewValue} onChange={setView} />
         </PageActions>
       </header>
 

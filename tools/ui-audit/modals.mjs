@@ -103,11 +103,14 @@ const TRIGGERS = [
         await page.goto(`${BASE}/files?server=${target.id}&path=${encodeURIComponent(target.path.replace(/^\//, ''))}`)
         await page.waitForTimeout(2500)
       }
-      // the view picker is gone once a folder is saved as a catalogue folder,
-      // which is exactly the state a previous run leaves behind
-      const view = page.getByRole('group', { name: /Ansicht|View/ }).getByRole('button').nth(2) // catalogue, persisted
+      // catalogue view, then the pin next to it saves the folder as a
+      // catalogue folder - the state a previous run leaves behind
+      const view = page.getByRole('group', { name: /Ansicht|View/ }).getByRole('button').nth(1)
       if (await view.count().catch(() => 0)) {
         await view.click()
+        await page.waitForTimeout(1500)
+        const pin = page.getByRole('button', { name: /dauerhaft|saved/ }).first()
+        if ((await pin.count().catch(() => 0)) && (await pin.getAttribute('aria-pressed')) !== 'true') await pin.click()
         await page.waitForTimeout(2500)
       }
       return (await page.getByRole('article').count().catch(() => 0)) > 0
