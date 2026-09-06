@@ -5,6 +5,7 @@ import type {
   InputHTMLAttributes,
   LabelHTMLAttributes,
   ReactNode,
+  Ref,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
@@ -353,6 +354,8 @@ export function Toolbar({ className, ...rest }: ToolbarProps) {
 
 export interface TabsProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
+  /** the tablist element, for scrolling the selected tab into view */
+  ref?: Ref<HTMLDivElement>
   /**
    * One row that scrolls sideways instead of wrapping - for a bar with more
    * tabs than a phone is wide. The caller scrolls the selected tab into view.

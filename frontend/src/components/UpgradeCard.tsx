@@ -1,8 +1,7 @@
 import { ArrowRight, Clapperboard, Download, ExternalLink, EyeOff, FolderOpen, Info, ListVideo, Tv } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, ButtonLink, Cover, Panel, Radio } from '@weebsync/design-system'
+import { Badge, Button, ButtonLink, Cover, Disclosure, Panel, Radio } from '@weebsync/design-system'
 import type { LocalSeason, UpgradeDims, UpgradeSuggestion, UpgradeVariant } from '../api'
-import Collapsible from './Collapsible'
 import { ProviderBadges } from './ProviderBadges'
 import type { WatchFields } from './WatchDialog'
 import {
@@ -69,7 +68,7 @@ function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: str
 function LocalSeasons({ seasons, current, isMovie }: { seasons: LocalSeason[]; current: number; isMovie?: boolean }) {
   const { t } = useTranslation()
   return (
-    <Collapsible small defaultOpen={false} title={t('suggestions.localSeasons')} count={seasons.length}>
+    <Disclosure small defaultOpen={false} title={t('suggestions.localSeasons')} count={seasons.length}>
       <ul className="space-y-1">
         {seasons.map((ls) => {
           const here = !isMovie && !ls.isMovie && ls.season === current
@@ -93,7 +92,7 @@ function LocalSeasons({ seasons, current, isMovie }: { seasons: LocalSeason[]; c
           )
         })}
       </ul>
-    </Collapsible>
+    </Disclosure>
   )
 }
 
@@ -193,7 +192,7 @@ return (
         // name is that heading - the legend only repeats it for the
         // screen reader, which never sees it.
         <div className="mt-2 min-w-0">
-          <Collapsible
+          <Disclosure
             small
             defaultOpen={options.length <= 4}
             title={t('suggestions.chooseVersion')}
@@ -266,7 +265,7 @@ return (
                 ))}
               </ul>
             </fieldset>
-          </Collapsible>
+          </Disclosure>
         </div>
       )}
       {(u.localSeasons ?? []).length > 0 && (

@@ -114,7 +114,6 @@ const TRIGGERS = [
     },
     names: [/Details zu|Details for/, /Match ändern|Change match/, /Syncen|Sync/],
   },
-  { route: '/suggestions', names: [/Ignorierte|Ignored/] },
   // the reset dialog is the widest one in the app: it lists every data store as
   // a chip, and the longest of those labels is what a phone has to fit
   // `Ansehen` opens the cache viewer (a list dialog), `Index leeren` the
