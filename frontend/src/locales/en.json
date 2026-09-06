@@ -111,7 +111,11 @@
       "watch": "Set up an auto-sync for a show I am watching",
       "upgrade": "Are there better copies of series I own?"
     },
-    "done": "done"
+    "done": "done",
+    "createAll": "Create all {{count}}",
+    "createAllConfirm": "Create {{count}} proposals?",
+    "createdCount": "{{ok}} created, {{failed}} failed",
+    "target": "Target"
   },
   "login": {
     "tagline": "weeb your sync",

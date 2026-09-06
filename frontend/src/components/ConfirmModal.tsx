@@ -45,7 +45,7 @@ export default function ConfirmModal({
           {title ?? t('common.confirmTitle')}
         </h3>
       </header>
-      <div className="px-5 py-4 text-sm text-t-secondary">{message}</div>
+      <div className="px-5 py-4 text-sm whitespace-pre-line text-t-secondary">{message}</div>
       <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
         <Button onClick={onCancel} autoFocus>
           <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
