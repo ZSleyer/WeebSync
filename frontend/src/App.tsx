@@ -38,7 +38,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Files from './pages/Files'
 import Watches from './pages/Watches'
-import Suggestions from './pages/Suggestions'
+import SuggestionsLayout, { BucketSection, DuplicatesSection, IgnoredSection, SuggestionsHub, UpgradesSection } from './pages/Suggestions'
 import Assistant from './pages/Assistant'
 import Rename from './pages/Rename'
 import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/SettingsLayout'
@@ -111,10 +111,14 @@ function AdminGate({ email }: { email: string }) {
  *  and, on a stacked screen, where its back link goes. */
 export interface RouteHandle {
   title?: string
+  /** where the app bar's back link goes */
   back?: string
+  /** the section this screen belongs to, for the document title */
+  section?: string
 }
-const h = (title: string, back?: string): RouteHandle => ({ title, back })
-const inSettings = (title: string) => h(title, '/settings')
+const h = (title: string, back?: string, section?: string): RouteHandle => ({ title, back, section })
+const inSettings = (title: string) => h(title, '/settings', 'nav.settings')
+const inSuggestions = (title: string) => h(title, '/suggestions', 'nav.suggestions')
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -127,7 +131,16 @@ export const router = createBrowserRouter(
       <Route path="/local" element={<RedirectWithQuery to="/files" rewrite={(p) => (p.set('source', 'local'), p)} />} />
       <Route path="/browser" element={<RedirectWithQuery to="/files" />} />
       <Route path="/watches" element={<Watches />} handle={h('nav.watches')} />
-      <Route path="/suggestions" element={<Suggestions />} handle={h('nav.suggestions')} />
+      <Route path="/suggestions" element={<SuggestionsLayout />} handle={h('nav.suggestions')}>
+        <Route index element={<SuggestionsHub />} />
+        <Route path="watchlist" element={<BucketSection bucket="watchlist" />} handle={inSuggestions('suggestions.tabWatchlist')} />
+        <Route path="recommended" element={<BucketSection bucket="recommended" />} handle={inSuggestions('suggestions.tabRecommended')} />
+        <Route path="trending" element={<BucketSection bucket="trending" />} handle={inSuggestions('suggestions.tabTrending')} />
+        <Route path="upgrades" element={<UpgradesSection />} handle={inSuggestions('suggestions.tabUpgrades')} />
+        <Route path="incomplete" element={<BucketSection bucket="incomplete" />} handle={inSuggestions('suggestions.tabIncomplete')} />
+        <Route path="duplicates" element={<DuplicatesSection />} handle={inSuggestions('suggestions.tabDuplicates')} />
+        <Route path="ignored" element={<IgnoredSection />} handle={inSuggestions('suggestions.ignored')} />
+      </Route>
       <Route path="/assistant" element={<Assistant />} handle={h('nav.assistant')} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
       <Route path="/servers" element={<Navigate to="/settings/servers" replace />} />
@@ -168,11 +181,11 @@ export function useScreen(): RouteHandle {
 // in the middle so a tab reads "Notifications - Settings - WeebSync".
 function RouteTitle() {
   const { t } = useTranslation()
-  const { title, back } = useScreen()
+  const { title, section } = useScreen()
   useEffect(() => {
-    const parts = [title && t(title), back && t('nav.settings'), 'WeebSync'].filter(Boolean)
+    const parts = [title && t(title), section && t(section), 'WeebSync'].filter(Boolean)
     document.title = parts.join(' - ')
-  }, [title, back, t])
+  }, [title, section, t])
   return null
 }
 

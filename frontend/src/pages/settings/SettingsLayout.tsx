@@ -1,23 +1,24 @@
 import type { ReactNode } from 'react'
-import { Activity, ArrowDownUp, Bell, ChevronRight, LogOut, Plug, Server, Settings2, Shield, UserRound } from 'lucide-react'
-import { NavLink, Navigate, Outlet } from 'react-router'
+import { Activity, ArrowDownUp, Bell, LogOut, Plug, Server, Settings2, Shield, UserRound } from 'lucide-react'
+import { Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, navItemClass, Panel, useMediaQuery } from '@weebsync/design-system'
+import { Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useAuth } from '../../hooks'
 import { WIDE_MQ } from '../../components/PageActions'
+import { SectionHub, SectionNav, type SectionGroup } from '../../components/SectionNav'
 
 const PERSONAL = [
-  { to: 'general', key: 'settings.nav.general', icon: Settings2 },
-  { to: 'account', key: 'settings.nav.account', icon: UserRound },
-  { to: 'notifications', key: 'settings.nav.notifications', icon: Bell },
+  { to: 'general', key: 'settings.nav.general', icon: Settings2, hint: 'settings.hub.general' },
+  { to: 'account', key: 'settings.nav.account', icon: UserRound, hint: 'settings.hub.account' },
+  { to: 'notifications', key: 'settings.nav.notifications', icon: Bell, hint: 'settings.hub.notifications' },
 ]
-const SOURCES = [{ to: 'servers', key: 'nav.servers', icon: Server }]
+const SOURCES = [{ to: 'servers', key: 'nav.servers', icon: Server, hint: 'settings.hub.servers' }]
 const ADMIN = [
-  { to: 'transfers', key: 'settings.nav.transfers', icon: ArrowDownUp },
-  { to: 'security', key: 'settings.nav.security', icon: Shield },
-  { to: 'integrations', key: 'settings.nav.integrations', icon: Plug },
-  { to: 'jobs', key: 'settings.nav.jobs', icon: Activity },
+  { to: 'transfers', key: 'settings.nav.transfers', icon: ArrowDownUp, hint: 'settings.hub.transfers' },
+  { to: 'security', key: 'settings.nav.security', icon: Shield, hint: 'settings.hub.security' },
+  { to: 'integrations', key: 'settings.nav.integrations', icon: Plug, hint: 'settings.hub.integrations' },
+  { to: 'jobs', key: 'settings.nav.jobs', icon: Activity, hint: 'settings.hub.jobs' },
 ]
 
 export function AdminRoute({ children }: { children: ReactNode }) {
@@ -26,7 +27,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
-function useGroups() {
+function useGroups(): SectionGroup[] {
   const { data: user } = useAuth()
   return [
     { label: 'settings.groupPersonal', items: PERSONAL },
@@ -54,36 +55,20 @@ export function SettingsHub() {
     window.location.href = '/'
   }
   return (
-    <div className="flex flex-col gap-6">
-      <Panel className="flex items-center justify-between gap-3 p-3">
-        <span className="min-w-0 truncate font-mono text-xs text-t-muted" title={user?.email}>
-          {user?.email}
-        </span>
-        <Button size="sm" onClick={logout}>
-          <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('app.logout')}
-        </Button>
-      </Panel>
-      {groups.map((g) => (
-        <nav key={g.label} aria-label={t(g.label)}>
-          <Badge className="mb-2">{t(g.label)}</Badge>
-          <div className="border-t border-border-subtle lg:grid lg:grid-cols-2 lg:gap-x-6">
-            {g.items.map((i) => (
-              <NavLink key={i.to} to={i.to} className={({ isActive }) => navItemClass('row', isActive)}>
-                <i.icon aria-hidden size="1.25em" className="shrink-0" />
-                <span className="flex min-w-0 flex-1 flex-col py-2">
-                  <span>{t(i.key)}</span>
-                  {t(`settings.hub.${i.to}`, { defaultValue: '' }) && (
-                    <span className="font-sans text-xs text-t-muted">{t(`settings.hub.${i.to}`)}</span>
-                  )}
-                </span>
-                <ChevronRight aria-hidden size="1em" className="shrink-0 text-t-faint" />
-              </NavLink>
-            ))}
-          </div>
-        </nav>
-      ))}
-    </div>
+    <SectionHub
+      groups={groups}
+      before={
+        <Panel className="flex items-center justify-between gap-3 p-3">
+          <span className="min-w-0 truncate font-mono text-xs text-t-muted" title={user?.email}>
+            {user?.email}
+          </span>
+          <Button size="sm" onClick={logout}>
+            <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('app.logout')}
+          </Button>
+        </Panel>
+      }
+    />
   )
 }
 
@@ -100,27 +85,7 @@ export default function SettingsLayout() {
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row">
-        {/* desktop: grouped side menu. w-52 like the app's own sidebar: at
-            w-44 the entry "Benachrichtigungen" needed 9px more than it had */}
-        <nav aria-label={t('settings.navLabel')} className="hidden shrink-0 lg:block lg:w-52">
-          <div className="flex flex-col gap-5">
-            {groups.map((g) => (
-              <div key={g.label}>
-                <Badge className="mb-1">{t(g.label)}</Badge>
-                <ul className="flex flex-col gap-1">
-                  {g.items.map((i) => (
-                    <li key={i.to}>
-                      <NavLink to={i.to} className={({ isActive }) => navItemClass('sidebar', isActive)}>
-                        <i.icon aria-hidden size="1.25em" className="shrink-0" />
-                        {t(i.key)}
-                      </NavLink>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </nav>
+        <SectionNav label={t('settings.navLabel')} groups={groups} />
 
         <div className="min-w-0 max-w-4xl flex-1">
           <Outlet />

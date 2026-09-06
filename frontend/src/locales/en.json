@@ -1048,6 +1048,19 @@
   },
   "suggestions": {
     "title": "SUGGESTIONS",
+    "navLabel": "Suggestion sections",
+    "groupDiscover": "Discover",
+    "groupLibrary": "Library",
+    "groupHidden": "Hidden",
+    "hub": {
+      "watchlist": "AniList and TMDB watchlist on your servers",
+      "recommended": "Fits your list",
+      "trending": "Airing right now",
+      "upgrades": "Better copies than yours",
+      "incomplete": "Missing seasons and episodes",
+      "duplicates": "Folders you hold twice",
+      "ignored": "Bring hidden suggestions back"
+    },
     "upgrades": "Upgrades",
     "noUpgrades": "No better versions found.",
     "upRes": "higher resolution",
