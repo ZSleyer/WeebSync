@@ -47,7 +47,7 @@ export interface RenameProfile {
 
 export const TITLE_LANGS = ['de-DE', 'en-US', 'ja-JP', 'fr-FR', 'es-ES', 'it-IT', 'pt-BR', 'ru-RU', 'ko-KR', 'zh-CN']
 
-const PRESETS = [
+export const PRESETS = [
   { key: 'rename.presetPlex', patch: { template: '{title} - S{season:02}E{episode:02}' } },
   { key: 'rename.presetCompact', patch: { template: '{title}.S{season:02}E{episode:02}', separator: '.' } },
   { key: 'rename.presetGroup', patch: { template: '[{group}] {title} - {episode:02}' } },

@@ -25,7 +25,7 @@ const ROUTES = arg('routes', '').split(',').filter(Boolean).length
   ? arg('routes', '').split(',')
   : [
   '/', '/files', '/files?source=local', '/watches', '/suggestions', '/suggestions/upgrades', '/suggestions/incomplete', '/assistant', '/rename',
-  '/settings', '/settings/general', '/settings/account', '/settings/notifications', '/settings/servers',
+  '/settings', '/settings/general', '/settings/account', '/settings/sync', '/settings/notifications', '/settings/servers',
   '/settings/transfers', '/settings/security', '/settings/integrations',
   '/settings/jobs',
 ]

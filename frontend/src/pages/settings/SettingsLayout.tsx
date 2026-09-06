@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Activity, ArrowDownUp, Bell, LogOut, Plug, Server, Settings2, Shield, UserRound } from 'lucide-react'
+import { Activity, ArrowDownUp, Bell, LogOut, Plug, RefreshCw, Server, Settings2, Shield, UserRound } from 'lucide-react'
 import { Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
@@ -11,6 +11,7 @@ import { SectionHub, SectionNav, type SectionGroup } from '../../components/Sect
 const PERSONAL = [
   { to: 'general', key: 'settings.nav.general', icon: Settings2, hint: 'settings.hub.general' },
   { to: 'account', key: 'settings.nav.account', icon: UserRound, hint: 'settings.hub.account' },
+  { to: 'sync', key: 'settings.nav.sync', icon: RefreshCw, hint: 'settings.hub.sync' },
   { to: 'notifications', key: 'settings.nav.notifications', icon: Bell, hint: 'settings.hub.notifications' },
 ]
 const SOURCES = [{ to: 'servers', key: 'nav.servers', icon: Server, hint: 'settings.hub.servers' }]

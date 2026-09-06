@@ -42,6 +42,7 @@ import SuggestionsLayout, { BucketSection, DuplicatesSection, IgnoredSection, Su
 import Assistant from './pages/Assistant'
 import Rename from './pages/Rename'
 import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/SettingsLayout'
+import SyncDefaults from './pages/settings/SyncDefaults'
 import General from './pages/settings/General'
 import Servers from './pages/settings/Servers'
 import Account from './pages/settings/Account'
@@ -151,6 +152,7 @@ export const router = createBrowserRouter(
         <Route path="look" element={<Navigate to="/settings/general" replace />} />
         <Route path="about" element={<Navigate to="/settings/general#about" replace />} />
         <Route path="account" element={<Account />} handle={inSettings('settings.nav.account')} />
+        <Route path="sync" element={<SyncDefaults />} handle={inSettings('settings.nav.sync')} />
         <Route path="notifications" element={<Notifications />} handle={inSettings('settings.nav.notifications')} />
         <Route path="servers" element={<Servers />} handle={inSettings('nav.servers')} />
         <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} handle={inSettings('settings.nav.transfers')} />
