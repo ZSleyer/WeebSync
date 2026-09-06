@@ -7,6 +7,7 @@ import { Badge, Button, Checkbox, Dialog, Input, Panel, Select } from '@weebsync
 import { api, fmtBytes, type JobsStatus, type Media } from '../../api'
 import { jobFamily, jobLabel } from '../../jobs'
 import { useConfirm } from '../../components/confirm'
+import LegacyImport from '../../components/LegacyImport'
 import i18n from '../../locales'
 
 /* Uniformity rules for this page (user requirement: identical elements must
@@ -843,6 +844,13 @@ export default function Jobs() {
       {cacheModal && <CacheEntriesModal store={cacheModal} onClose={() => setCacheModal(null)} />}
       {matchModal && <MatchesModal stat={matchModal} onClose={() => setMatchModal(null)} />}
       {resetOpen && <ResetModal stores={stores} onClose={() => setResetOpen(false)} />}
+      <div id="import" className="space-y-5">
+        <div>
+          <h3 className="font-display text-lg font-semibold tracking-wider">{t('legacy.title')}</h3>
+          <p className="mt-1 text-xs text-t-muted">{t('legacy.sub')}</p>
+        </div>
+        <LegacyImport />
+      </div>
     </>
   )
 }

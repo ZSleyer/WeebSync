@@ -7,6 +7,7 @@ import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../..
 import { useAiModels } from '../../hooks'
 import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
+import Smtp from './Smtp'
 
 export default function Integrations() {
   const { t } = useTranslation()
@@ -159,6 +160,7 @@ export default function Integrations() {
           )}
         </div>
       </Panel>
+      <Smtp form={form} set={set} locked={locked} />
       <SaveBar form={form} save={save} saved={saved} />
     </>
   )
