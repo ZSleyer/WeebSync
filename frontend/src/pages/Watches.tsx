@@ -5,6 +5,7 @@ import {
   Check,
   Clock,
   Download,
+  Ellipsis,
   Eye,
   FolderClock,
   History,
@@ -35,17 +36,23 @@ import {
   Button,
   CalendarDay,
   CalendarEntry,
+  Dialog,
   Divider,
   EmptyState,
+  IconButton,
   MediaCard,
   Menu,
   MenuItem,
+  Segmented,
+  SHEET_MQ,
+  useMediaQuery,
   useMenu,
 } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, type Watch } from '../api'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import WatchEpisodesModal from '../components/WatchEpisodesModal'
+import PageActions from '../components/PageActions'
 import { useConfirm } from '../components/confirm'
 import { SkeletonCards } from '../components/Loading'
 
@@ -67,6 +74,10 @@ export default function Watches() {
   const [edit, setEdit] = useState<Watch | null>(null)
   // the watch whose episode list is open; the modal fetches on mount
   const [gaps, setGaps] = useState<Watch | null>(null)
+  // on a phone a card shows Check now and one More button; the rest of its
+  // actions open in a dialog, so a card stays two lines instead of four
+  const [more, setMore] = useState<Watch | null>(null)
+  const narrow = useMediaQuery(SHEET_MQ)
   const [error, setError] = useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['watches'] })
 
@@ -192,58 +203,44 @@ export default function Watches() {
           every view, so switching list/calendar never moves it. The
           view-specific controls (calendar filter / list sort) sit on their own
           row below and only they change - critical on a narrow phone viewport. */}
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <header className="mb-4 hidden flex-wrap items-end justify-between gap-3 lg:flex">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('watch.title')}</h2>
           <Badge className="mt-1">{t('watch.sub')}</Badge>
         </div>
-        <div role="group" aria-label={t('watch.view')} className="flex shrink-0">
-          <Button
-            size="sm"
-            variant={view === 'list' ? 'primary' : 'default'}
-            aria-pressed={view === 'list'}
-            onClick={() => setView('list')}
-          >
-            <List aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('watch.viewList')}
-          </Button>
-          <Button
-            size="sm"
-            variant={view === 'calendar' ? 'primary' : 'default'}
-            aria-pressed={view === 'calendar'}
-            onClick={() => setView('calendar')}
-          >
-            <CalendarDays aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('watch.viewCalendar')}
-          </Button>
-        </div>
       </header>
-
-      {(view === 'calendar' && calCats.length > 1) || (view === 'list' && watches.length > 1) ? (
-        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-          {view === 'calendar' && calCats.length > 1 && (
-            <div role="group" aria-label={t('watch.calFilter')} className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant={calCat === 'all' ? 'primary' : 'default'}
-                aria-pressed={calCat === 'all'}
-                onClick={() => setCalCat('all')}
-              >
-                {t('watch.calAll')}
-              </Button>
-              {calCats.map((c) => (
-                <Button
-                  key={c}
-                  size="sm"
-                  variant={calCat === c ? 'primary' : 'default'}
-                  aria-pressed={calCat === c}
-                  onClick={() => setCalCat(c)}
-                >
-                  {t(`watch.cat.${c}`)}
-                </Button>
-              ))}
-            </div>
-          )}
+      {/* the view toggle and the sort menu are the page's secondary controls:
+          in the app bar on a phone, in a row under the header on desktop.
+          The toggle lives there in every view, so switching never moves it. */}
+      <PageActions>
+        <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
+          <Segmented
+            aria-label={t('watch.view')}
+            value={view}
+            onChange={setView}
+            options={[
+              {
+                value: 'list',
+                'aria-label': t('watch.viewList'),
+                label: (
+                  <>
+                    <List aria-hidden size="1em" />
+                    <span className="ml-1 hidden lg:inline">{t('watch.viewList')}</span>
+                  </>
+                ),
+              },
+              {
+                value: 'calendar',
+                'aria-label': t('watch.viewCalendar'),
+                label: (
+                  <>
+                    <CalendarDays aria-hidden size="1em" />
+                    <span className="ml-1 hidden lg:inline">{t('watch.viewCalendar')}</span>
+                  </>
+                ),
+              },
+            ]}
+          />
           {view === 'list' && watches.length > 1 && (
             <div className="relative" ref={sortRef}>
               <Button
@@ -273,6 +270,34 @@ export default function Watches() {
                   ))}
                 </Menu>
               )}
+            </div>
+          )}
+        </div>
+      </PageActions>
+
+      {view === 'calendar' && calCats.length > 1 ? (
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          {view === 'calendar' && calCats.length > 1 && (
+            <div role="group" aria-label={t('watch.calFilter')} className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant={calCat === 'all' ? 'primary' : 'default'}
+                aria-pressed={calCat === 'all'}
+                onClick={() => setCalCat('all')}
+              >
+                {t('watch.calAll')}
+              </Button>
+              {calCats.map((c) => (
+                <Button
+                  key={c}
+                  size="sm"
+                  variant={calCat === c ? 'primary' : 'default'}
+                  aria-pressed={calCat === c}
+                  onClick={() => setCalCat(c)}
+                >
+                  {t(`watch.cat.${c}`)}
+                </Button>
+              ))}
             </div>
           )}
         </div>
@@ -492,30 +517,42 @@ export default function Watches() {
                         </>
                       }
                       actions={
-                        <>
-                          <Button size="sm" className="flex-1 sm:flex-initial" onClick={() => check(w.id)}>
-                            <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                            {t('watch.checkNow')}
-                          </Button>
-                          {(w.plexAudioLang || w.plexSubLang) && (
-                            <Button
-                              size="sm"
-                              className="flex-1 sm:flex-initial"
-                              title={t('watch.plexApplyAllHint')}
-                              onClick={() => applyPlexStreams(w.id)}
-                            >
-                              {t('watch.plexApplyAll')}
+                        narrow ? (
+                          <>
+                            <Button size="sm" className="flex-1" onClick={() => check(w.id)}>
+                              <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                              {t('watch.checkNow')}
                             </Button>
-                          )}
-                          <Button size="sm" className="flex-1 sm:flex-initial" onClick={() => setEdit(w)}>
-                            <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                            {t('servers.edit')}
-                          </Button>
-                          <Button size="sm" variant="danger" className="flex-1 sm:flex-initial" onClick={() => del(w)}>
-                            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                            {t('servers.delete')}
-                          </Button>
-                        </>
+                            <IconButton
+                              aria-label={t('watch.moreActions', { title: nameOf(w) })}
+                              aria-haspopup="dialog"
+                              className="min-w-0! border border-border-subtle"
+                              onClick={() => setMore(w)}
+                            >
+                              <Ellipsis aria-hidden size="1.2em" />
+                            </IconButton>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" onClick={() => check(w.id)}>
+                              <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                              {t('watch.checkNow')}
+                            </Button>
+                            {(w.plexAudioLang || w.plexSubLang) && (
+                              <Button size="sm" title={t('watch.plexApplyAllHint')} onClick={() => applyPlexStreams(w.id)}>
+                                {t('watch.plexApplyAll')}
+                              </Button>
+                            )}
+                            <Button size="sm" onClick={() => setEdit(w)}>
+                              <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                              {t('servers.edit')}
+                            </Button>
+                            <Button size="sm" variant="danger" onClick={() => del(w)}>
+                              <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                              {t('servers.delete')}
+                            </Button>
+                          </>
+                        )
                       }
                     />
                   </li>
@@ -563,6 +600,37 @@ export default function Watches() {
         />
       )}
       {gaps && <WatchEpisodesModal watch={gaps} onClose={() => setGaps(null)} />}
+      {more && (
+        <Dialog width="max-w-sm" onClose={() => setMore(null)} aria-labelledby="watch-more-title">
+          <header className="border-b border-border-subtle px-5 py-4">
+            <h3 id="watch-more-title" className="truncate font-display font-semibold tracking-wider">
+              {more.titleOverride || mediaTitle(more.media, more.remotePath.split('/').pop() || '')}
+            </h3>
+          </header>
+          <div className="flex flex-col gap-1 p-2">
+            <Button className="justify-start" onClick={() => { const w = more; setMore(null); setEdit(w) }}>
+              <Pencil aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
+              {t('servers.edit')}
+            </Button>
+            {(more.plexAudioLang || more.plexSubLang) && (
+              <Button className="justify-start" onClick={() => { const w = more; setMore(null); applyPlexStreams(w.id) }}>
+                <Languages aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
+                {t('watch.plexApplyAll')}
+              </Button>
+            )}
+            {(more.missing?.length ?? 0) > 0 && (
+              <Button className="justify-start" onClick={() => { const w = more; setMore(null); setGaps(w) }}>
+                <TriangleAlert aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
+                {t('watch.gapsAction')}
+              </Button>
+            )}
+            <Button variant="danger" className="justify-start" onClick={() => { const w = more; setMore(null); del(w) }}>
+              <Trash2 aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
+              {t('servers.delete')}
+            </Button>
+          </div>
+        </Dialog>
+      )}
     </div>
   )
 }

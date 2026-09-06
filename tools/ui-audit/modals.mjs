@@ -17,17 +17,34 @@ const TOKEN = process.env.WS_TOKEN || ''
 // runs first for views that are not the route's default - the catalogue on
 // /remote is a separate view with dialogs of its own, and a plain visit never
 // reaches it.
+// opens the first card's action dialog where one exists (phone widths) and is
+// a no-op on desktop, where the same buttons are inline
+const openCardMenu = async (page) => {
+  const more = page.getByRole('button', { name: /Mehr Aktionen|More actions/ }).first()
+  if (!(await more.count().catch(() => 0))) return true
+  await more.click({ timeout: 3000 }).catch(() => {})
+  await page.waitForTimeout(500)
+  return true
+}
+
 const TRIGGERS = [
   // the phone's overflow sheet is a dialog; the button only exists below lg
   { route: '/', label: 'Mehr', names: [/^Mehr$|^More$/] },
   { route: '/servers', names: [/Server hinzufügen|Add server/, /Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
-  { route: '/watches', names: [/Bearbeiten|^Edit$/, /Löschen|^Delete$/, /fehlt$|Lücken:|gaps:|missing$/] },
+  // below 40rem a card shows Check now and a More button; Edit and Delete live
+  // in the dialog behind it, on desktop they are inline. One entry per name,
+  // because the dialog closes with the action it started.
+  { route: '/watches', label: 'Karte', names: [/Mehr Aktionen|More actions/] },
+  { route: '/watches', setup: openCardMenu, names: [/Bearbeiten|^Edit$/] },
+  { route: '/watches', setup: openCardMenu, names: [/Löschen|^Delete$/] },
+  { route: '/watches', names: [/fehlt$|Lücken:|gaps:|missing$/] },
   {
     // nested: the Plex picker only exists inside the watch dialog, so the
     // parent has to be open before the trigger is on the page at all
     route: '/watches',
     label: 'Plex-Serie',
     setup: async (page) => {
+      await openCardMenu(page)
       const edit = page.getByRole('button', { name: /Bearbeiten|^Edit$/ }).first()
       if (!(await edit.count().catch(() => 0))) return false
       await edit.click({ timeout: 3000 }).catch(() => {})
