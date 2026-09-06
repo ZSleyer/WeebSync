@@ -22,6 +22,8 @@ export interface ServerInfo {
   username: string
   rootPath: string
   maxConnections: number
+  /** picture for the source switch, one of SERVER_ICONS or empty */
+  icon: string
 }
 
 export interface Entry {

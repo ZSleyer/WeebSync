@@ -2999,6 +2999,10 @@
                     "host": {
                         "type": "string"
                     },
+                    "icon": {
+                        "description": "one of serverIcons, empty = the name stands alone",
+                        "type": "string"
+                    },
                     "id": {
                         "type": "integer"
                     },
@@ -3027,6 +3031,9 @@
                 "description": "server to create (protocol/port/password confirmed by the user)",
                 "properties": {
                     "host": {
+                        "type": "string"
+                    },
+                    "icon": {
                         "type": "string"
                     },
                     "maxConnections": {
