@@ -73,6 +73,7 @@ import { ProviderBadges } from '../components/ProviderBadges'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../components/upgradeQuality'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
+import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
 import { usePersistedQuery, useAuth } from '../hooks'
 import { WIDE_MQ } from '../components/PageActions'
 import { SectionHub, SectionNav, type SectionGroup } from '../components/SectionNav'
@@ -314,15 +315,18 @@ function SugCard({
   const qc = useQueryClient()
   const StatusIcon = it.status ? WATCH_STATUS_ICON[it.status] : undefined
 
+  const { data: defaults } = useWatchDefaults()
   const prefill = (path: string): WatchFields => {
     // a missing-unit card already carries the resolved target - the season
     // folder and the template with its fixed season number. plexFolder is only
     // a basename (and empty on those cards), so it would resolve under the
-    // primary download root instead of the Plex library.
-    if (it.sync?.localPath) return syncFields(it.sync, it.title, path)
+    // primary download root instead of the Plex library. The user's defaults
+    // fill whatever is still blank after that.
+    const kind = suggestionKind(it.category)
+    if (it.sync?.localPath) return applyDefaults(syncFields(it.sync, it.title, path), kind, defaults)
     const season = guessSeason(it.title)
     const movie = it.category.endsWith('movie')
-    return {
+    return applyDefaults({
       remotePath: path,
       localPath: it.plexFolder ?? '',
       mode: 'template',
@@ -348,7 +352,7 @@ function SugCard({
       wantSub: '',
       plexAudioLang: '',
       plexSubLang: '',
-    }
+    }, kind, defaults)
   }
 
   const syncOnce = async (serverId: number, path: string) => {
@@ -563,6 +567,7 @@ export function IgnoredSection() {
 
 export function UpgradesSection() {
   const { t } = useTranslation()
+  const { data: defaults } = useWatchDefaults()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data, isLoading } = usePersistedQuery<SuggestionsResponse>(
@@ -655,7 +660,7 @@ export function UpgradesSection() {
               dims={dims}
               chosen={choice[u.key] ?? u.to}
               onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
-              onSync={setSync}
+              onSync={(r) => setSync({ ...r, initial: applyDefaults(r.initial, 'anime-series', defaults) })}
               onDismiss={dismiss}
               onOpenRemote={(v) => navigate(`/files?server=${v.serverId}&path=${encodeURIComponent(v.folder)}`)}
               onDetails={setDetail}
