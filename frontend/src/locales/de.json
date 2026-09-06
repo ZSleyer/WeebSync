@@ -51,8 +51,9 @@
   "assistant": {
     "title": "Assistent",
     "you": "Du",
-    "intro": "Frag nach deinen Listen, den Anime dieser Season oder besseren Kopien dessen, was du schon hast. Der Assistent kann einen Auto-Sync, einen Einmal-Sync oder ein Upgrade vorschlagen. Jeden Vorschlag bestätigst du im gewohnten Dialog.",
-    "placeholder": "Nachricht an den Assistenten (Enter sendet, Shift+Enter bricht um)",
+    "sub": "listen · season · upgrades",
+    "intro": "Frag nach deiner Liste, der aktuellen Season oder besseren Kopien. Jeden Vorschlag bestätigst du im gewohnten Dialog.",
+    "placeholder": "Frag den Assistenten (Enter sendet)",
     "send": "Senden",
     "stop": "Stopp",
     "clear": "Neuer Chat",

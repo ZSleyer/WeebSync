@@ -51,8 +51,9 @@
   "assistant": {
     "title": "Assistant",
     "you": "You",
-    "intro": "Ask about your lists, this season's anime or better copies of what you own. The assistant can propose an auto-sync, a one-off sync or an upgrade. You confirm each one in the usual dialog.",
-    "placeholder": "Message the assistant (Enter sends, Shift+Enter breaks the line)",
+    "sub": "lists · season · upgrades",
+    "intro": "Ask about your list, this season or better copies of what you own. You confirm each proposal in the usual dialog.",
+    "placeholder": "Ask the assistant (Enter sends)",
     "send": "Send",
     "stop": "Stop",
     "clear": "New chat",
