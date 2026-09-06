@@ -150,7 +150,11 @@ return (
               {d}
             </Badge>
           ))}
-          {langUnconfirmed && <Badge tone="warn">{t('suggestions.langUnverified')}</Badge>}
+          {langUnconfirmed && (
+            <Badge tone="warn" multiline>
+              {t('suggestions.langUnverified')}
+            </Badge>
+          )}
         </div>
       </div>
       <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">

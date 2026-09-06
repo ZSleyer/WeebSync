@@ -83,7 +83,7 @@ export default function Servers() {
               </Badge>
               <h3 className="min-w-0 flex-1 truncate font-display font-semibold">{s.name}</h3>
             </div>
-            <p className="font-mono text-xs text-t-muted">
+            <p className="truncate font-mono text-xs text-t-muted" title={`${s.username}@${s.host}:${s.port}`}>
               {s.username}@{s.host}:{s.port}
             </p>
             <p className="mb-3 font-mono text-xs text-t-muted">root: {s.rootPath}</p>
