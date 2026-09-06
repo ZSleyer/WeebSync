@@ -1,6 +1,6 @@
-import { useEffect, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Activity, ArrowDownUp, Bell, Info, Mail, Palette, Plug, Shield, Upload, UserRound, Users } from 'lucide-react'
-import { NavLink, Navigate, Outlet, useLocation } from 'react-router'
+import { NavLink, Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge, buttonClass, navItemClass } from '@weebsync/design-system'
 import { useAuth } from '../../hooks'
@@ -30,7 +30,6 @@ export function AdminRoute({ children }: { children: ReactNode }) {
 export default function SettingsLayout() {
   const { t } = useTranslation()
   const { data: user } = useAuth()
-  const location = useLocation()
   const isAdmin = !!user?.isAdmin
 
   const groups = [
@@ -38,10 +37,6 @@ export default function SettingsLayout() {
     ...(isAdmin ? [{ label: 'settings.groupAdmin', items: ADMIN }] : []),
   ]
 
-  const current = groups.flatMap((g) => g.items).find((i) => location.pathname === `/settings/${i.to}`)
-  useEffect(() => {
-    if (current) document.title = `${t(current.key)} - ${t('settings.title')} - WeebSync`
-  }, [current, t])
 
   return (
     <div>
