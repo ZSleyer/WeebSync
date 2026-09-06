@@ -229,8 +229,8 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
         <h3 className="mb-4 font-display text-lg font-semibold tracking-wider">
           {editing ? t('servers.editTitle') : t('servers.newTitle')}
         </h3>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={t('servers.name')} className="col-span-2">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t('servers.name')} className="sm:col-span-2">
             <Input name="name" required defaultValue={editing?.name} />
           </Field>
           <Field label={t('servers.protocol')}>
@@ -251,7 +251,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
               defaultValue={editing?.port || ''}
             />
           </Field>
-          <Field label={t('servers.host')} className="col-span-2">
+          <Field label={t('servers.host')} className="sm:col-span-2">
             <Input name="host" className="font-mono" required defaultValue={editing?.host} />
           </Field>
           <Field label={t('servers.user')}>
@@ -266,12 +266,12 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
               autoComplete="new-password"
             />
           </Field>
-          <Field label={t('servers.rootPath')} className="col-span-2">
+          <Field label={t('servers.rootPath')} className="sm:col-span-2">
             <Input name="rootPath" className="font-mono" defaultValue={editing?.rootPath ?? '/'} />
           </Field>
           {/* the hint is its own grid cell: inside the Field it would sit
               below the control, which pins itself to the bottom of the row */}
-          <Field label={t('servers.maxConnections')} className="col-span-2">
+          <Field label={t('servers.maxConnections')} className="sm:col-span-2">
             <Input
               name="maxConnections"
               type="number"
@@ -282,11 +282,11 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             />
           </Field>
 			{protocol === 'ftp' && (
-				<p className="col-span-2 border border-warn/50 px-3 py-2 text-sm text-warn" role="status">
+				<p className="sm:col-span-2 border border-warn/50 px-3 py-2 text-sm text-warn" role="status">
 					{t('servers.ftpWarning')}
 				</p>
 			)}
-          <p className="col-span-2 text-[11px] text-t-muted">{t('servers.maxConnectionsHint')}</p>
+          <p className="sm:col-span-2 text-xs text-t-muted">{t('servers.maxConnectionsHint')}</p>
         </div>
         {error && (
           <p className="mt-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
