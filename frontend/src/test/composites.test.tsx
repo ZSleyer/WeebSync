@@ -256,6 +256,34 @@ describe('navItemClass and NavItem', () => {
     render(<NavItem href="/watches">Watches</NavItem>)
     expect(screen.getByRole('link', { name: 'Watches' })).not.toHaveAttribute('aria-current')
   })
+
+  it('carries the shell metrics so the app does not repeat them', () => {
+    expect(navItemClass('bottomTab', false)).toContain('min-h-(--nav-h)')
+    expect(navItemClass('row', true)).toContain('border-b')
+    expect(navItemClass('row', false)).toContain('text-t-secondary')
+  })
+
+  it('renders as a button without aria-current when asked to', () => {
+    render(
+      <NavItem as="button" variant="bottomTab" active aria-haspopup="dialog">
+        Mehr
+      </NavItem>,
+    )
+    const btn = screen.getByRole('button', { name: 'Mehr' })
+    expect(btn).toHaveAttribute('type', 'button')
+    expect(btn).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(btn).not.toHaveAttribute('aria-current')
+    expect(btn.className).toBe(navItemClass('bottomTab', true))
+  })
+
+  it('places the trailing slot at the right edge', () => {
+    render(
+      <NavItem variant="row" href="#" trailing={<span>chevron</span>}>
+        Konto
+      </NavItem>,
+    )
+    expect(screen.getByText('chevron').parentElement).toHaveClass('ml-auto')
+  })
 })
 
 describe('Modal and EmptyState', () => {
