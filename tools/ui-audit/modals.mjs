@@ -30,7 +30,7 @@ const openCardMenu = async (page) => {
 const TRIGGERS = [
   // the phone's overflow sheet is a dialog; the button only exists below lg
   { route: '/', label: 'Mehr', names: [/^Mehr$|^More$/] },
-  { route: '/servers', names: [/Server hinzufügen|Add server/, /Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
+  { route: '/settings/servers', names: [/Server hinzufügen|Add server/, /Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
   // below 40rem a card shows Check now and a More button; Edit and Delete live
   // in the dialog behind it, on desktop they are inline. One entry per name,
   // because the dialog closes with the action it started.

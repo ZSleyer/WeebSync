@@ -9,7 +9,6 @@ import {
   LogOut,
   PenLine,
   RefreshCw,
-  Server,
   Settings,
   Sparkles,
 } from 'lucide-react'
@@ -37,16 +36,15 @@ import { AppBarActions } from './components/PageActions'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import Servers from './pages/Servers'
 import Files from './pages/Files'
 import Watches from './pages/Watches'
 import Suggestions from './pages/Suggestions'
 import Assistant from './pages/Assistant'
 import Rename from './pages/Rename'
-import SettingsLayout, { AdminRoute } from './pages/settings/SettingsLayout'
-import Look from './pages/settings/Look'
+import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/SettingsLayout'
+import General from './pages/settings/General'
+import Servers from './pages/settings/Servers'
 import Account from './pages/settings/Account'
-import About from './pages/settings/About'
 import Notifications from './pages/settings/Notifications'
 import Transfers from './pages/settings/Transfers'
 import Security from './pages/settings/Security'
@@ -66,7 +64,6 @@ const TABS = [
 ]
 const OVERFLOW = [
   { to: '/assistant', key: 'nav.assistant', icon: Bot },
-  { to: '/servers', key: 'nav.servers', icon: Server },
   { to: '/rename', key: 'nav.rename', icon: PenLine },
   { to: '/settings', key: 'nav.settings', icon: Settings },
 ]
@@ -136,14 +133,16 @@ export const router = createBrowserRouter(
       <Route path="/suggestions" element={<Suggestions />} handle={h('nav.suggestions')} />
       <Route path="/assistant" element={<Assistant />} handle={h('nav.assistant')} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
-      <Route path="/servers" element={<Servers />} handle={h('nav.servers')} />
+      <Route path="/servers" element={<Navigate to="/settings/servers" replace />} />
       <Route path="/rename" element={<Rename />} handle={h('nav.rename')} />
       <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
-        <Route index element={<Navigate to="look" replace />} />
-        <Route path="look" element={<Look />} handle={inSettings('settings.nav.look')} />
+        <Route index element={<SettingsHub />} />
+        <Route path="general" element={<General />} handle={inSettings('settings.nav.general')} />
+        <Route path="look" element={<Navigate to="/settings/general" replace />} />
+        <Route path="about" element={<Navigate to="/settings/general#about" replace />} />
         <Route path="account" element={<Account />} handle={inSettings('settings.nav.account')} />
         <Route path="notifications" element={<Notifications />} handle={inSettings('settings.nav.notifications')} />
-        <Route path="about" element={<About />} handle={inSettings('settings.nav.about')} />
+        <Route path="servers" element={<Servers />} handle={inSettings('nav.servers')} />
         <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} handle={inSettings('settings.nav.transfers')} />
         <Route path="security" element={<AdminRoute><Security /></AdminRoute>} handle={inSettings('settings.nav.security')} />
         <Route path="integrations" element={<AdminRoute><Integrations /></AdminRoute>} handle={inSettings('settings.nav.integrations')} />

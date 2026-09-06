@@ -2,9 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Lock, LockOpen, Pencil, Plus, PlugZap, Save, ShieldCheck, Trash2, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Dialog, EmptyState, Field, Input, Panel, Select } from '@weebsync/design-system'
-import { api, ApiError, type ServerInfo } from '../api'
-import { useConfirm } from '../components/confirm'
+import { ActionBar, Badge, Button, Dialog, EmptyState, Field, Input, Panel, Select } from '@weebsync/design-system'
+import { api, ApiError, type ServerInfo } from '../../api'
+import { useConfirm } from '../../components/confirm'
 
 export default function Servers() {
   const { t } = useTranslation()
@@ -65,15 +65,11 @@ export default function Servers() {
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <header className="mb-6 hidden flex-wrap items-end justify-between gap-3 lg:flex">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('servers.title')}</h2>
           <Badge className="mt-1">{t('servers.sub')}</Badge>
         </div>
-        <Button variant="primary" cut onClick={() => openDialog(null)}>
-          <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('servers.add')}
-        </Button>
       </header>
 
       {servers.length === 0 && <EmptyState>{t('servers.none')}</EmptyState>}
@@ -153,6 +149,12 @@ export default function Servers() {
       </div>
 
       {dialogOpen && <ServerDialog editing={editing} onClose={() => setDialogOpen(false)} />}
+      <ActionBar aria-label={t('servers.add')}>
+        <Button variant="primary" cut onClick={() => openDialog(null)}>
+          <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('servers.add')}
+        </Button>
+      </ActionBar>
     </div>
   )
 }
