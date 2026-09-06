@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { TriangleAlert } from 'lucide-react'
+import { FolderOpen, TriangleAlert } from 'lucide-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Panel } from '@weebsync/design-system'
+import { ActionBar, Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api, type RenamePair } from '../api'
 import { LocalPicker } from '../components/FileBrowser'
+import { WIDE_MQ } from '../components/PageActions'
+import PathInput from '../components/PathInput'
 import RenameOptions, { type RenameRule } from '../components/RenameOptions'
 
 const EMPTY_RULE: RenameRule = {
@@ -32,6 +34,11 @@ export default function Rename() {
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [previewBusy, setPreviewBusy] = useState(false)
   const [previewErr, setPreviewErr] = useState('')
+  // desktop keeps the always-open picker column; a phone gets a path field
+  // and opens the picker on demand, so the page has one scroller
+  const wide = useMediaQuery(WIDE_MQ)
+  const [browse, setBrowse] = useState(false)
+  const [draft, setDraft] = useState('')
 
   const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean; tmdbApiKeySet?: boolean }>({
     queryKey: ['settings'],
@@ -114,20 +121,46 @@ export default function Rename() {
 
   return (
     <div>
-      <header className="mb-6">
+      <header className="mb-6 hidden lg:block">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('rename.title')}</h2>
         <Badge className="mt-1">{t('rename.sub')}</Badge>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(16rem,0.5fr)_1fr]">
-        <Panel as="section" className="flex h-96 min-w-0 flex-col" aria-label={t('rename.folderSection')}>
-          <div className="border-b border-border-subtle px-3 py-2">
-            <Badge>
-              {t('rename.folder')}: downloads/{path}
-            </Badge>
-          </div>
-          <LocalPicker path={path} onNavigate={setPath} />
-        </Panel>
+        {wide ? (
+          <Panel as="section" className="flex h-96 min-w-0 flex-col" aria-label={t('rename.folderSection')}>
+            <div className="border-b border-border-subtle px-3 py-2">
+              <Badge>
+                {t('rename.folder')}: downloads/{path}
+              </Badge>
+            </div>
+            <LocalPicker path={path} onNavigate={setPath} />
+          </Panel>
+        ) : (
+          <Panel as="section" className="flex min-w-0 flex-col" aria-label={t('rename.folderSection')}>
+            <div className="flex items-stretch gap-2 p-2">
+              <PathInput
+                value={browse ? path : draft || path}
+                onChange={setDraft}
+                onCommit={(p) => {
+                  setPath(p.replace(/^\//, ''))
+                  setDraft('')
+                }}
+                fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p)}`}
+                queryKey={['local']}
+                ariaLabel={t('rename.folder')}
+              />
+              <Button size="sm" aria-expanded={browse} aria-label={t('rename.browse')} title={t('rename.browse')} onClick={() => setBrowse((b) => !b)}>
+                <FolderOpen aria-hidden size="1.2em" />
+              </Button>
+            </div>
+            {browse && (
+              <div className="flex max-h-56 flex-col border-t border-border-subtle">
+                <LocalPicker path={path} onNavigate={setPath} />
+              </div>
+            )}
+          </Panel>
+        )}
 
         <Panel as="section" className="min-w-0 space-y-3 p-4" aria-label={t('rename.rules')}>
           <RenameOptions
@@ -141,21 +174,6 @@ export default function Rename() {
               onUseParent: () => setPath(path.split('/').filter(Boolean).slice(0, -1).join('/')),
             }}
           />
-
-          <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-4">
-            <Button
-              variant="primary"
-              cut
-              disabled={picked.size === 0 || doApply.isPending}
-              onClick={() => doApply.mutate()}
-            >
-              {t('rename.apply')}
-            </Button>
-            {previewBusy && <Badge>{t('app.loading')}</Badge>}
-            {!previewBusy && preview && (
-              <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>
-            )}
-          </div>
           {(previewErr || doApply.error) && (
             <p className="text-sm text-err" role="alert">
               {previewErr || (doApply.error as Error).message}
@@ -223,6 +241,17 @@ export default function Rename() {
             </tbody>
           </table>
         </Panel>
+      )}
+
+      {/* Apply sits under the preview it acts on and stays reachable while
+          the table scrolls: the sticky last row of the page */}
+      {preview && (
+        <ActionBar aria-label={t('rename.apply')}>
+          <Button variant="primary" cut disabled={picked.size === 0 || doApply.isPending} onClick={() => doApply.mutate()}>
+            {t('rename.apply')}
+          </Button>
+          {previewBusy ? <Badge>{t('app.loading')}</Badge> : <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>}
+        </ActionBar>
       )}
     </div>
   )

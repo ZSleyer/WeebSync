@@ -523,6 +523,7 @@
     }
   },
   "rename": {
+    "browse": "Browse folders",
     "title": "RENAME",
     "sub": "template · regex · anilist",
     "folder": "folder",
