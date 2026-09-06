@@ -1,7 +1,7 @@
 import { Check, X } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Input } from '@weebsync/design-system'
+import { Button, Dialog, Input } from '@weebsync/design-system'
 
 export interface PromptOptions {
   title: string
@@ -12,8 +12,9 @@ export interface PromptOptions {
   cancelLabel?: string
 }
 
-// Text-input modal on the native <dialog> (same look as ConfirmModal), replacing
-// window.prompt(). Resolves the entered string, or null on cancel/backdrop/Escape.
+// Text-input modal on the design system's Dialog (same mechanics as every
+// other modal, including the Firefox Escape path), replacing window.prompt().
+// Resolves the entered string, or null on cancel, backdrop or Escape.
 export default function PromptModal({
   title,
   message,
@@ -25,33 +26,27 @@ export default function PromptModal({
   onCancel,
 }: PromptOptions & { onSubmit: (value: string) => void; onCancel: () => void }) {
   const { t } = useTranslation()
-  const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
+  // the decision is taken by a button, but reported once through the
+  // dialog's own close event, whatever closed it
   const submitted = useRef<string | null>(null)
-  const backdropDown = useRef(false)
+  const dialog = useRef<HTMLDialogElement | null>(null)
   const [value, setValue] = useState(defaultValue ?? '')
-  useEffect(() => {
-    ref.current?.showModal()
-  }, [])
   const close = (v: string | null) => {
     submitted.current = v
-    ref.current?.close()
+    dialog.current?.close()
   }
   return (
-    <dialog
-      ref={ref}
-      className="w-full max-w-md p-0"
+    <Dialog
+      width="max-w-md"
       aria-labelledby={titleId}
       onClose={() => (submitted.current !== null ? onSubmit(submitted.current) : onCancel())}
-      onCancel={(e) => {
-        e.preventDefault()
-        close(null)
-      }}
-      onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
-      onClick={(e) => e.target === ref.current && backdropDown.current && close(null)}
     >
       <form
         className="flex flex-col"
+        ref={(el) => {
+          dialog.current = el?.closest('dialog') ?? null
+        }}
         onSubmit={(e) => {
           e.preventDefault()
           close(value)
@@ -64,12 +59,7 @@ export default function PromptModal({
         </header>
         <div className="px-5 py-4">
           {message && <p className="mb-2 text-sm text-t-secondary">{message}</p>}
-          <Input
-            autoFocus
-            placeholder={placeholder}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-          />
+          <Input autoFocus placeholder={placeholder} value={value} onChange={(e) => setValue(e.target.value)} />
         </div>
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
           <Button onClick={() => close(null)}>
@@ -82,6 +72,6 @@ export default function PromptModal({
           </Button>
         </footer>
       </form>
-    </dialog>
+    </Dialog>
   )
 }
