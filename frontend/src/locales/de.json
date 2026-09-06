@@ -685,9 +685,17 @@
     "groupPersonal": "Persönlich",
     "groupAdmin": "Administration",
     "groupSources": "Quellen",
+    "sync": {
+      "targets": "Zielordner je Medienart",
+      "targetsHint": "Wohin ein neuer Auto-Sync oder Einmal-Sync dieser Art schreibt und wie die Dateien heißen. Liegt die Serie schon in der Bibliothek, gewinnt ihr Ordner.",
+      "common": "Rename und Sprachen",
+      "commonHint": "Gilt für alle Arten und für jeden Vorschlag des Assistenten. Leer bedeutet: wie bisher im Dialog wählen.",
+      "langHint": "Sprachcodes wie in den Dateinamen (Ger, Eng, Jap). Plex-Untertitel: off, Ger oder Ger:forced."
+    },
     "hub": {
       "general": "Design, Sprache, Version",
       "account": "Passkeys, Zwei-Faktor",
+      "sync": "Zielordner, Rename, Sprachen",
       "notifications": "Push und E-Mail",
       "servers": "Remote-Quellen",
       "transfers": "Limits und Intervall",
@@ -698,6 +706,7 @@
     "nav": {
       "general": "Allgemein",
       "account": "Konto",
+      "sync": "Auto-Sync-Vorgaben",
       "notifications": "Benachrichtigungen",
       "transfers": "Transfers",
       "security": "Sicherheit",

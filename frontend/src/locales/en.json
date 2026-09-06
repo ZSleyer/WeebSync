@@ -685,9 +685,17 @@
     "groupPersonal": "Personal",
     "groupAdmin": "Administration",
     "groupSources": "Sources",
+    "sync": {
+      "targets": "Target folder per media kind",
+      "targetsHint": "Where a new auto-sync or one-off sync of this kind writes and how its files are named. A series already in the library keeps its folder.",
+      "common": "Rename and languages",
+      "commonHint": "Applies to every kind and to every proposal the assistant makes. Empty means: pick it in the dialog as before.",
+      "langHint": "Language codes as they appear in file names (Ger, Eng, Jap). Plex subtitles: off, Ger or Ger:forced."
+    },
     "hub": {
       "general": "Theme, language, version",
       "account": "Passkeys, two-factor",
+      "sync": "Target folders, rename, languages",
       "notifications": "Push and email",
       "servers": "Remote sources",
       "transfers": "Limits and interval",
@@ -698,6 +706,7 @@
     "nav": {
       "general": "General",
       "account": "Account",
+      "sync": "Auto-sync defaults",
       "notifications": "Notifications",
       "transfers": "Transfers",
       "security": "Security",

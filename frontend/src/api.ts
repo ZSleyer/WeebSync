@@ -26,6 +26,28 @@ export interface ServerInfo {
   icon: string
 }
 
+// What a new auto-sync starts from, per media kind and shared.
+export interface KindDefaults {
+  localPath: string
+  subfolder: boolean
+  template: string
+  separator: string
+}
+
+export interface WatchDefaults {
+  kinds: Partial<Record<'anime-series' | 'anime-movie' | 'series' | 'movie', KindDefaults>>
+  common: {
+    renameProvider: string
+    renameOrdering: string
+    renameTitleLang: string
+    airedMapping: boolean
+    wantDub: string
+    wantSub: string
+    plexAudioLang: string
+    plexSubLang: string
+  }
+}
+
 export interface Entry {
   name: string
   path: string
