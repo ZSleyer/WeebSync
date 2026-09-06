@@ -551,6 +551,12 @@ export interface AppShellProps {
    * fixed boxes drift on Firefox for Android while its URL bar animates.
    */
   notice?: ReactNode
+  /**
+   * The row right above the tab bar: a page's primary actions (`ActionBar`)
+   * on a phone. A shell row rather than a sticky box in <main>, so it sits on
+   * the tab bar whether the page is shorter or longer than the screen.
+   */
+  footer?: ReactNode
   /** remounts <main> when it changes; the app keys it on the route */
   mainKey?: string
   /** anything that has to live inside the shell but outside <main> */
@@ -570,7 +576,7 @@ export interface AppShellProps {
  * Below `lg` the stylesheet gives `.app-shell` one dynamic viewport of height
  * and makes <main> the scroller, so the rows sit where the box ends.
  */
-export function AppShell({ sidebar, bar, tabs, notice, mainKey, before, children, className }: AppShellProps) {
+export function AppShell({ sidebar, bar, tabs, notice, footer, mainKey, before, children, className }: AppShellProps) {
   return (
     <div className={cx('app-shell t-hatch flex min-h-dvh flex-col lg:flex-row', className)}>
       {before}
@@ -586,6 +592,7 @@ export function AppShell({ sidebar, bar, tabs, notice, mainKey, before, children
       {/* the row collapses while its content renders nothing (a toast that is
           not up), so it leaves no empty band above the tab bar */}
       {notice != null && notice !== false && <div className="shrink-0 px-3 pt-3 empty:hidden lg:contents">{notice}</div>}
+      {footer}
       {tabs}
     </div>
   )
@@ -660,28 +667,32 @@ export function TabBar({ children, className, ...rest }: TabBarProps) {
 export interface ActionBarProps extends HTMLAttributes<HTMLDivElement> {
   /** a toolbar needs a name - what the actions apply to */
   'aria-label': string
+  /** from lg on: stick to the bottom of the document (default) or stay in flow */
+  sticky?: boolean
   children: ReactNode
 }
 
 /**
- * A row of actions pinned to the bottom edge of the scroller: bulk actions
- * for a selection, Save under a form, Apply under a preview. Sticky inside
- * <main>, never fixed - a fixed box drifts on Firefox for Android while the
- * URL bar animates, a sticky row in the scroller does not. It only sticks
- * while it is the last child of the page root. It keeps to its parent's
- * width: a bleed into <main>'s padding read as 18px of sideways overflow to
- * the audit. No safe-area padding of its own: the tab bar below it owns that.
+ * A row of primary actions: bulk actions for a selection, Save under a form,
+ * Apply under a preview. On a phone the app renders it into the shell's
+ * `footer` row, right above the tab bar: a sticky box in <main> only held its
+ * place on pages taller than the screen, on a short page it sat wherever the
+ * content ended. Never fixed either - a fixed box drifts on Firefox for
+ * Android while the URL bar animates. From lg on it sticks to the bottom of
+ * the document instead, in flow after the content it acts on. Its own inline
+ * padding matches <main>'s on a phone, so the buttons line up with the page.
+ * No safe-area padding: the tab bar below it owns that.
  */
-export function ActionBar({ className, ...rest }: ActionBarProps) {
+export function ActionBar({ sticky = true, className, ...rest }: ActionBarProps) {
   return (
     <div
       role="toolbar"
       {...rest}
       className={cx(
-        // below lg the scroller is <main> with 1rem of padding, and a sticky
-        // box aligns to the padding's inner edge: without the negative offset
-        // a 1rem strip of page showed through between the bar and the tab bar
-        'sticky -bottom-4 z-10 mt-4 flex flex-wrap items-center gap-2 border-t border-border-subtle bg-bg-secondary py-2 lg:bottom-0',
+        'flex flex-wrap items-center gap-2 border-t border-border-subtle bg-bg-secondary px-4 py-2',
+        // a prop, not a consumer override: two `lg:` utilities for the same
+        // property resolve by stylesheet order, not by who asked last
+        sticky && 'lg:sticky lg:bottom-0 lg:z-10 lg:mt-4 lg:px-0',
         className,
       )}
     />

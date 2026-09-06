@@ -1,11 +1,22 @@
 import { ActionBar, AppBar, AppShell, Badge, Button, NavItem, Panel, TabBar } from '@weebsync/design-system'
 
-// Sticky inside the shell's scroller: scroll the frame and the bar stays at
-// the bottom edge, above the tab bar, until the page ends.
+// The shell's footer row: the bar sits on the tab bar whether the page is
+// shorter or longer than the frame. The app portals a page's bar in there
+// below lg and renders it in flow (sticky) from lg on.
 export const SelectionBar = () => (
   <div style={{ width: 380, height: 560, overflow: 'hidden' }}>
     <AppShell
       bar={<AppBar title="Dashboard" />}
+      footer={
+        <ActionBar aria-label="Auswahl">
+          <Badge tone="accent">3 gewählt</Badge>
+          <Button size="sm">Pause</Button>
+          <Button size="sm">Fortsetzen</Button>
+          <Button size="sm" variant="danger">
+            Abbrechen
+          </Button>
+        </ActionBar>
+      }
       tabs={
         <TabBar aria-label="Hauptnavigation">
           <div className="flex">
@@ -25,25 +36,17 @@ export const SelectionBar = () => (
             Download {i + 1}
           </Panel>
         ))}
-        <ActionBar aria-label="Auswahl">
-          <Badge tone="accent">3 gewählt</Badge>
-          <Button size="sm">Pause</Button>
-          <Button size="sm">Fortsetzen</Button>
-          <Button size="sm" variant="danger">
-            Abbrechen
-          </Button>
-        </ActionBar>
       </div>
     </AppShell>
   </div>
 )
 
-// The save bar of a settings form: sticky on a phone, in flow after the
-// panels on desktop.
+// The save bar of a settings form: the footer row on a phone, in flow after
+// the panels on desktop.
 export const SaveBar = () => (
   <div style={{ maxWidth: 380 }}>
     <Panel className="p-4">Formular</Panel>
-    <ActionBar aria-label="Speichern" className="lg:static lg:border-0 lg:bg-transparent lg:p-0">
+    <ActionBar aria-label="Speichern" sticky={false} className="lg:border-0 lg:bg-transparent lg:p-0">
       <Button variant="primary" cut>
         Speichern
       </Button>
