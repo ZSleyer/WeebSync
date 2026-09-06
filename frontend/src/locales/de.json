@@ -111,7 +111,11 @@
       "watch": "Richte einen Auto-Sync für eine Serie ein, die ich gerade schaue",
       "upgrade": "Gibt es bessere Kopien von Serien, die ich schon habe?"
     },
-    "done": "erledigt"
+    "done": "erledigt",
+    "createAll": "Alle {{count}} anlegen",
+    "createAllConfirm": "{{count}} Vorschläge anlegen?",
+    "createdCount": "{{ok}} angelegt, {{failed}} fehlgeschlagen",
+    "target": "Ziel"
   },
   "login": {
     "tagline": "weeb your sync",

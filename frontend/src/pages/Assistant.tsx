@@ -24,6 +24,7 @@ import { useAiModels, useAiStatus, useAuth } from '../hooks'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, useWatchDefaults } from '../components/watchDefaults'
+import { useConfirm } from '../components/confirm'
 
 // plain strips the markdown a model emits anyway (bold, code spans, heading
 // marks): the page renders text, and the prompt asks for text.
@@ -40,7 +41,7 @@ type Step =
 interface Turn {
   role: 'user' | 'assistant'
   content: string
-  proposals?: (AiProposal & { done?: boolean })[]
+  proposals?: (AiProposal & { done?: boolean; error?: string })[]
   cards?: AiCard[]
   upgrades?: UpgradeSuggestion[]
   steps?: Step[]
@@ -102,6 +103,7 @@ export default function Assistant() {
   const [detail, setDetail] = useState<UpgradeSuggestion | null>(null)
   const [upSync, setUpSync] = useState<SyncRequest | null>(null)
   const { data: defaults } = useWatchDefaults()
+  const confirm = useConfirm()
   const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   const abortRef = useRef<AbortController | null>(null)
@@ -229,6 +231,41 @@ export default function Assistant() {
     abortRef.current?.abort()
     setTurns([])
     setNotice('')
+  }
+
+  // every open proposal of one answer in one go, after one confirm that
+  // lists the targets. Each goes through the same endpoint the dialog
+  // uses, one after the other; a failure lands on its card, the rest go on.
+  const createAll = async (ti: number) => {
+    const open = (turns[ti]?.proposals ?? []).map((p, idx) => ({ p, idx })).filter(({ p }) => !p.done && !p.unverified)
+    if (open.length < 2) return
+    const lines = open.map(({ p }) => `${p.title} → ${targetOf(p)}`).join('\n')
+    if (!(await confirm({ title: t('assistant.createAll', { count: open.length }), message: t('assistant.createAllConfirm', { count: open.length }) + '\n' + lines }))) return
+    let ok = 0
+    let failed = 0
+    for (const { p, idx } of open) {
+      let error = ''
+      try {
+        if (p.kind === 'watch') {
+          await api.post('/api/watches', { serverId: p.serverId, ...p.fields })
+        } else {
+          const r = await api.post<SyncResult>('/api/downloads/sync', { serverId: p.serverId, ...p.fields })
+          error = syncOutcome(r, t) ?? ''
+        }
+      } catch (e) {
+        error = e instanceof Error ? e.message : String(e)
+      }
+      if (error) failed++
+      else ok++
+      setTurns((prev) =>
+        prev.map((tr, i) =>
+          i === ti ? { ...tr, proposals: tr.proposals?.map((q, j) => (j === idx ? { ...q, done: !error, error: error || undefined } : q)) } : tr,
+        ),
+      )
+    }
+    qc.invalidateQueries({ queryKey: ['watches'] })
+    qc.invalidateQueries({ queryKey: ['downloads'] })
+    setNotice(t('assistant.createdCount', { ok, failed }))
   }
 
   if (status && !status.configured) {
@@ -439,6 +476,11 @@ export default function Assistant() {
                     {tr.proposals?.map((p, pi) => (
                       <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
                     ))}
+                    {(tr.proposals?.filter((p) => !p.done && !p.unverified).length ?? 0) >= 2 && (
+                      <Button variant="primary" cut className="mt-3" onClick={() => void createAll(ti)}>
+                        {t('assistant.createAll', { count: tr.proposals!.filter((p) => !p.done && !p.unverified).length })}
+                      </Button>
+                    )}
                   </div>
                 )}
               </li>
@@ -567,7 +609,15 @@ function toolSentence(
   return t(key, { ...d, defaultValue: generic })
 }
 
-function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean }; onOpen: () => void }) {
+// targetOf is where a proposal lands: the target folder, plus the remote
+// folder's name when the sync writes into a subfolder.
+function targetOf(p: AiProposal): string {
+  const f = p.fields
+  const sub = f.subfolder ? '/' + (p.remotePath.split('/').filter(Boolean).pop() ?? '') : ''
+  return (f.localPath || '?') + sub
+}
+
+function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean; error?: string }; onOpen: () => void }) {
   const { t } = useTranslation()
   return (
     <Panel className="mt-3 p-4 text-base">
@@ -585,6 +635,15 @@ function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean }; onOpe
       <p className="mt-2 break-all font-mono text-sm text-t-muted">
         {p.serverName}: {p.remotePath}
       </p>
+      <p className="break-all font-mono text-sm text-t-muted">
+        {t('assistant.target')}: {targetOf(p)}
+        {p.fields.template && <span className="text-t-faint"> · {p.fields.template}</span>}
+      </p>
+      {p.error && (
+        <p className="mt-2 text-sm text-err" role="alert">
+          {p.error}
+        </p>
+      )}
       {p.info?.length ? (
         <ul className="mt-2 list-inside list-disc text-sm text-t-secondary">
           {p.info.map((line, i) => (

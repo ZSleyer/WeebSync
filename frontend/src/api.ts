@@ -580,7 +580,7 @@ export interface AiProposal {
   serverId: number
   serverName: string
   remotePath: string
-  fields: Record<string, unknown>
+  fields: { localPath: string; template: string; subfolder: boolean; replaceOld?: boolean } & Record<string, unknown>
   info?: string[]
   unverified?: boolean
 }
