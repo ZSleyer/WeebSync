@@ -211,36 +211,10 @@ export default function Watches() {
       </header>
       {/* the view toggle and the sort menu are the page's secondary controls:
           in the app bar on a phone, in a row under the header on desktop.
-          The toggle lives there in every view, so switching never moves it. */}
+          The row is right-aligned and the sort menu is the list's alone, so
+          it leads: the toggle keeps its place when the menu goes away. */}
       <PageActions>
         <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
-          <Segmented
-            aria-label={t('watch.view')}
-            value={view}
-            onChange={setView}
-            options={[
-              {
-                value: 'list',
-                'aria-label': t('watch.viewList'),
-                label: (
-                  <>
-                    <List aria-hidden size="1em" />
-                    <span className="ml-1 hidden lg:inline">{t('watch.viewList')}</span>
-                  </>
-                ),
-              },
-              {
-                value: 'calendar',
-                'aria-label': t('watch.viewCalendar'),
-                label: (
-                  <>
-                    <CalendarDays aria-hidden size="1em" />
-                    <span className="ml-1 hidden lg:inline">{t('watch.viewCalendar')}</span>
-                  </>
-                ),
-              },
-            ]}
-          />
           {view === 'list' && watches.length > 1 && (
             <div className="relative" ref={sortRef}>
               <Button
@@ -272,6 +246,33 @@ export default function Watches() {
               )}
             </div>
           )}
+          <Segmented
+            aria-label={t('watch.view')}
+            value={view}
+            onChange={setView}
+            options={[
+              {
+                value: 'list',
+                'aria-label': t('watch.viewList'),
+                label: (
+                  <>
+                    <List aria-hidden size="1em" />
+                    <span className="ml-1 hidden lg:inline">{t('watch.viewList')}</span>
+                  </>
+                ),
+              },
+              {
+                value: 'calendar',
+                'aria-label': t('watch.viewCalendar'),
+                label: (
+                  <>
+                    <CalendarDays aria-hidden size="1em" />
+                    <span className="ml-1 hidden lg:inline">{t('watch.viewCalendar')}</span>
+                  </>
+                ),
+              },
+            ]}
+          />
         </div>
       </PageActions>
 
