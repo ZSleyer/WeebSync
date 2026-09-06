@@ -20,7 +20,8 @@ import RenameOptions, { type RenameProfile, type RenameRule } from '../component
 import RenamePreview from '../components/RenamePreview'
 import { useRenamePreview } from '../components/useRenamePreview'
 import { syncTargetDir, useTargetFolder } from '../components/useTargetFolder'
-import WatchDialog from '../components/WatchDialog'
+import WatchDialog, { type WatchFields } from '../components/WatchDialog'
+import { applyDefaults, useFolderKind, useWatchDefaults } from '../components/watchDefaults'
 import { useConfirm } from '../components/confirm'
 import { usePrompt } from '../components/prompt'
 import { useAuth } from '../hooks'
@@ -82,7 +83,19 @@ export default function Files() {
   // second copy of the same two buttons
   const [watchEntry, setWatchEntry] = useState<Entry | null>(null)
   const [syncEntry, setSyncEntry] = useState<Entry | null>(null)
+  // the user's defaults fill a new watch: its kind comes from the folder's
+  // catalog match, a target picked on this page wins over the default one
+  const { data: defaults } = useWatchDefaults()
+  const { data: watchKind, isPending: kindPending } = useFolderKind(active, watchEntry?.path)
   const [flat, setFlat] = useState(false)
+  // once the user touched the checkbox its value stands, seed or not
+  const [flatTouched, setFlatTouched] = useState(false)
+  const { data: syncKind, isPending: syncKindPending } = useFolderKind(active, syncEntry?.path)
+  const syncSeed = syncEntry && !syncKindPending ? applyDefaults(blankWatch(syncEntry.path, localPath), syncKind?.kind, defaults) : null
+  // a target picked on this page wins, the default one fills in otherwise;
+  // the subfolder choice follows the default only while nothing was picked
+  const syncLocal = localPath || syncSeed?.localPath || ''
+  const syncFlat = flatTouched || localPath || !syncSeed || !syncEntry?.isDir ? flat : !syncSeed.subfolder
   const [query, setQuery] = useState(params.get('q') ?? '')
 
   // the URL follows the browser, so a dialog round-trip, a reload and the
@@ -121,15 +134,15 @@ export default function Files() {
         ? api.post<{ queued: number; ids: number[] }>('/api/downloads/sync', {
             serverId: active,
             remotePath: entry.path,
-            localPath,
-            subfolder: !(flat && entry.isDir),
+            localPath: syncLocal,
+            subfolder: !(syncFlat && entry.isDir),
             ...rename,
           })
         : api.post<{ queued: number; ids: number[] }>('/api/downloads', {
             serverId: active,
             remotePath: entry.path,
-            localPath,
-            flat: flat && entry.isDir,
+            localPath: syncLocal,
+            flat: syncFlat && entry.isDir,
           }),
     onSuccess: (r) => {
       setNotice(t('remote.queued', { count: r.queued }))
@@ -394,14 +407,18 @@ export default function Files() {
         </Panel>
       )}
 
-      {syncEntry && (
+      {syncEntry && syncSeed && (
         <SyncDialog
           entry={syncEntry}
           serverId={active}
-          localPath={localPath}
+          localPath={syncLocal}
           onLocalPath={setLocalPath}
-          flat={flat}
-          onFlat={setFlat}
+          flat={syncFlat}
+          onFlat={(v) => {
+            setFlatTouched(true)
+            setFlat(v)
+          }}
+          seed={syncSeed}
           pending={enqueue.isPending}
           onConfirm={(rename) => {
             enqueue.mutate({ entry: syncEntry, rename })
@@ -410,33 +427,11 @@ export default function Files() {
           onClose={() => setSyncEntry(null)}
         />
       )}
-      {watchEntry && (
+      {watchEntry && !kindPending && (
         <WatchDialog
           title={t('watch.addTitle', { name: watchEntry.name })}
           serverId={active}
-          initial={{
-            remotePath: watchEntry.path,
-            localPath,
-            mode: 'template',
-            template: '',
-            separator: '',
-            titleOverride: '',
-            pattern: '',
-            replacement: '',
-            subfolder: false,
-            mediaId: 0,
-            mediaSource: 'anilist',
-            fromEpisode: 0,
-            airedMapping: false,
-            renameProvider: '',
-            renameOrdering: '',
-            renameTitleLang: '',
-            renameSeriesId: 0,
-            wantDub: '',
-            wantSub: '',
-            plexAudioLang: '',
-            plexSubLang: '',
-          }}
+          initial={applyDefaults(blankWatch(watchEntry.path, localPath), watchKind?.kind, defaults)}
           onSave={async (f) => {
             await api.post('/api/watches', { serverId: active, ...f })
             setNotice(t('watch.created'))
@@ -956,6 +951,36 @@ const EMPTY_RULE: RenameRule = {
   renameSeriesId: 0,
 }
 
+// ruleOf is the rename half of a watch's fields.
+const ruleOf = (f: WatchFields): RenameRule => ({
+  mode: f.mode,
+  template: f.template,
+  separator: f.separator,
+  titleOverride: f.titleOverride,
+  pattern: f.pattern,
+  replacement: f.replacement,
+  fromEpisode: f.fromEpisode,
+  airedMapping: f.airedMapping,
+  renameProvider: f.renameProvider,
+  renameOrdering: f.renameOrdering,
+  renameTitleLang: f.renameTitleLang,
+  renameSeriesId: f.renameSeriesId,
+})
+
+// blankWatch is what a dialog starts from before the user's defaults apply.
+const blankWatch = (remotePath: string, localPath: string): WatchFields => ({
+  ...EMPTY_RULE,
+  remotePath,
+  localPath,
+  subfolder: false,
+  mediaId: 0,
+  mediaSource: 'anilist',
+  wantDub: '',
+  wantSub: '',
+  plexAudioLang: '',
+  plexSubLang: '',
+})
+
 function SyncDialog({
   entry,
   serverId,
@@ -966,6 +991,7 @@ function SyncDialog({
   pending,
   onConfirm,
   onClose,
+  seed,
 }: {
   entry: Entry
   serverId: number
@@ -976,11 +1002,14 @@ function SyncDialog({
   pending: boolean
   onConfirm: (rename: RenameRule | null) => void
   onClose: () => void
+  /** the user's defaults for this folder's kind, applied on open */
+  seed?: WatchFields
 }) {
   const { t } = useTranslation()
   const [browse, setBrowse] = useState(false)
-  const [renameOn, setRenameOn] = useState(false)
-  const [rule, setRule] = useState<RenameRule>(EMPTY_RULE)
+  // the user's defaults seed the rename rule once, on open
+  const [renameOn, setRenameOn] = useState(!!seed?.template)
+  const [rule, setRule] = useState<RenameRule>(() => (seed ? ruleOf(seed) : EMPTY_RULE))
   const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean; tmdbApiKeySet?: boolean }>({
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),

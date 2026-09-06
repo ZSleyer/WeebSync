@@ -23,6 +23,7 @@ import MediaDetail from '../components/MediaDetail'
 import { useAiModels, useAiStatus, useAuth } from '../hooks'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
+import { applyDefaults, useWatchDefaults } from '../components/watchDefaults'
 
 // plain strips the markdown a model emits anyway (bold, code spans, heading
 // marks): the page renders text, and the prompt asks for text.
@@ -100,6 +101,7 @@ export default function Assistant() {
   const [card, setCard] = useState<AiCard | null>(null)
   const [detail, setDetail] = useState<UpgradeSuggestion | null>(null)
   const [upSync, setUpSync] = useState<SyncRequest | null>(null)
+  const { data: defaults } = useWatchDefaults()
   const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   const abortRef = useRef<AbortController | null>(null)
@@ -429,7 +431,7 @@ export default function Assistant() {
                           dims={dims}
                           chosen={choice[u.key] ?? u.to}
                           onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
-                          onSync={setUpSync}
+                          onSync={(r) => setUpSync({ ...r, initial: applyDefaults(r.initial, 'anime-series', defaults) })}
                           onDetails={setDetail}
                         />
                       </div>
