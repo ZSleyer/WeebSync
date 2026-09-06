@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, cleanup } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ActionBar,
@@ -348,18 +348,36 @@ describe('AppBar and AppShell', () => {
     expect([...shell.children].map((c) => c.tagName)).toEqual(['HEADER', 'MAIN', 'DIV', 'NAV'])
     expect(screen.getByText('Update')).toBeInTheDocument()
   })
+
+  it('puts the footer row right above the tabs', () => {
+    const { container } = render(
+      <AppShell bar={<AppBar title="A" />} tabs={<nav aria-label="Tabs" />} notice={<p>Update</p>} footer={<div role="toolbar" aria-label="Aktionen" />}>
+        Inhalt
+      </AppShell>,
+    )
+    const shell = container.firstElementChild as HTMLElement
+    expect([...shell.children].map((c) => c.getAttribute('aria-label') ?? c.tagName)).toEqual(['HEADER', 'MAIN', 'DIV', 'Aktionen', 'Tabs'])
+  })
 })
 
 describe('ActionBar, Disclosure and Segmented', () => {
-  it('is a named toolbar that sticks to the bottom of the scroller', () => {
+  it('is a named toolbar: a shell row on a phone, sticky on desktop', () => {
     render(
       <ActionBar aria-label="Auswahl">
         <button type="button">Pause</button>
       </ActionBar>,
     )
     const bar = screen.getByRole('toolbar', { name: 'Auswahl' })
-    expect(bar).toHaveClass('sticky', '-bottom-4', 'lg:bottom-0')
+    expect(bar).toHaveClass('px-4', 'lg:sticky', 'lg:bottom-0')
+    expect(bar).not.toHaveClass('sticky')
     expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument()
+    cleanup()
+    render(
+      <ActionBar aria-label="Speichern" sticky={false}>
+        <button type="button">Save</button>
+      </ActionBar>,
+    )
+    expect(screen.getByRole('toolbar', { name: 'Speichern' })).not.toHaveClass('lg:sticky', 'lg:mt-4')
   })
 
   it('folds its block on the native details element and reports toggles', () => {

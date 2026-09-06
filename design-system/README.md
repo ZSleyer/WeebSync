@@ -26,7 +26,8 @@ One height per family, fixed line boxes, all driven by variables in
 | `--nav-h` | 3.33rem | 3.33rem | `NavItem` bottom tabs, the shell's tab bar |
 
 Composites that add no height of their own: `ActionBar` (a row of small
-controls, sticky at the bottom of the scroller), `Disclosure` (summary at
+controls, the shell's `footer` row above the tab bar on a phone, sticky at
+the bottom of the document on desktop), `Disclosure` (summary at
 `--ctl-h-sm`), `Segmented` (small buttons). `AppBar` slots are `--ctl-h` tall
 so a control in the bar meets the touch size.
 
