@@ -185,7 +185,7 @@ export default function Setup({
   const wide = step === 'import' || step === 'server' || step === 'storage' || step === 'meta'
 
   return (
-    <main className="t-hatch grid min-h-dvh place-items-center p-4">
+    <main className="t-hatch grid min-h-dvh content-start justify-items-center p-4 pt-[max(2rem,var(--safe-t))] pb-[calc(1rem+var(--safe-b))] sm:content-center sm:pt-4 sm:pb-4">
       <div className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
         <div className="mb-6 text-center">
           <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
@@ -195,19 +195,23 @@ export default function Setup({
         </div>
 
         {step !== 'done' && (
-          <ol className="mb-5 flex flex-wrap gap-1" aria-label={t('setup.title')}>
-            {STEPS.map((s, i) => (
-              <li
-                key={s}
-                aria-current={s === step ? 'step' : undefined}
-                className={`min-w-16 flex-1 border-t-2 pt-1.5 font-display text-[11px] ${
-                  s === step ? 'border-accent text-accent' : 'border-border-subtle text-t-muted'
-                }`}
-              >
-                <span className="font-mono text-[10px]">0{i + 1}</span> {t(`setup.step.${s}`)}
-              </li>
-            ))}
-          </ol>
+          <>
+            <p className="mb-1 font-mono text-xs text-t-muted">{t('setup.stepOf', { n: STEPS.indexOf(step) + 1, total: STEPS.length })}</p>
+            {/* one row that scrolls on a phone instead of two ragged wrapped lines */}
+            <ol className="mb-5 flex gap-1 overflow-x-auto [scrollbar-width:none]" aria-label={t('setup.title')}>
+              {STEPS.map((s, i) => (
+                <li
+                  key={s}
+                  aria-current={s === step ? 'step' : undefined}
+                  className={`min-w-16 flex-1 shrink-0 whitespace-nowrap border-t-2 pt-1.5 font-display text-xs ${
+                    s === step ? 'border-accent text-accent' : 'border-border-subtle text-t-muted'
+                  }`}
+                >
+                  <span className="font-mono">0{i + 1}</span> {t(`setup.step.${s}`)}
+                </li>
+              ))}
+            </ol>
+          </>
         )}
 
         {step === 'account' && (

@@ -120,8 +120,8 @@ export default function SetupSteps({
       <Panel as="section" className="animate-fadeIn p-6" aria-label={t('setup.step.server')}>
         {heading(t('setup.serverTitle'))}
         <p className="mb-4 text-sm text-t-secondary">{t('setup.serverHint')}</p>
-        <form onSubmit={createServer} className="grid grid-cols-2 gap-3">
-          <Field label={t('servers.name')} className="col-span-2">
+        <form onSubmit={createServer} className="grid gap-3 sm:grid-cols-2">
+          <Field label={t('servers.name')} className="sm:col-span-2">
             <Input name="name" required disabled={!!serverId} />
           </Field>
           <Field label={t('servers.protocol')}>
@@ -142,7 +142,7 @@ export default function SetupSteps({
               disabled={!!serverId}
             />
           </Field>
-          <Field label={t('servers.host')} className="col-span-2">
+          <Field label={t('servers.host')} className="sm:col-span-2">
             <Input name="host" className="font-mono" required disabled={!!serverId} />
           </Field>
           <Field label={t('servers.user')}>
@@ -151,11 +151,11 @@ export default function SetupSteps({
           <Field label={t('servers.password')}>
             <Input name="password" type="password" required autoComplete="new-password" disabled={!!serverId} />
           </Field>
-          <Field label={t('servers.rootPath')} className="col-span-2">
+          <Field label={t('servers.rootPath')} className="sm:col-span-2">
             <Input name="rootPath" className="font-mono" defaultValue="/" disabled={!!serverId} />
           </Field>
           {!serverId && (
-            <Button type="submit" variant="primary" cut className="col-span-2" disabled={busy}>
+            <Button type="submit" variant="primary" cut className="sm:col-span-2" disabled={busy}>
               {t('setup.serverCreate')}
             </Button>
           )}

@@ -210,8 +210,8 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
           </Field>
         )}
         {serverId === 0 && (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t('servers.name')} className="col-span-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={t('servers.name')} className="sm:col-span-2">
               <Input name="name" required defaultValue={plan.server.name} />
             </Field>
             <Field label={t('servers.protocol')}>
@@ -224,7 +224,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
             <Field label={t('servers.port')}>
               <Input name="port" className="font-mono" type="number" min={1} max={65535} defaultValue={plan.server.port} />
             </Field>
-            <Field label={t('servers.host')} className="col-span-2">
+            <Field label={t('servers.host')} className="sm:col-span-2">
               <Input name="host" className="font-mono" required defaultValue={plan.server.host} />
             </Field>
             <Field label={t('servers.user')}>
@@ -240,10 +240,10 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
                 onChange={(e) => setPassword(e.target.value)}
               />
             </Field>
-            <Field label={t('servers.rootPath')} className="col-span-2">
+            <Field label={t('servers.rootPath')} className="sm:col-span-2">
               <Input name="rootPath" className="font-mono" defaultValue="/" />
             </Field>
-            <p className="col-span-2 text-xs text-t-muted">
+            <p className="sm:col-span-2 text-xs text-t-muted">
               {plan.server.hasPassword ? t('legacy.passwordCarried') : t('legacy.passwordMissing')}
             </p>
           </div>
