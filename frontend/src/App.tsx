@@ -32,7 +32,7 @@ import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
 import RedirectWithQuery from './components/RedirectWithQuery'
-import { AppBarActions } from './components/PageActions'
+import { AppBarActions, ShellFooter } from './components/PageActions'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -203,6 +203,8 @@ function Shell({ email }: { email: string }) {
   // the app bar's actions slot, handed to pages through context; held in
   // state (not a ref) so a page mounting before the bar still portals in
   const [actions, setActions] = useState<HTMLElement | null>(null)
+  // the shell's footer row, same deal: a page's action bar portals in
+  const [footer, setFooter] = useState<HTMLElement | null>(null)
   // the assistant is optional: without a configured endpoint its entry stays
   // out of the rail and the sheet (the page itself explains when opened directly)
   const { data: aiStatus } = useAiStatus()
@@ -344,24 +346,27 @@ function Shell({ email }: { email: string }) {
 
   return (
     <AppBarActions.Provider value={actions}>
-      <AppShell
-        sidebar={sidebar}
-        bar={bar}
-        tabs={tabs}
-        mainKey={location.pathname}
-        notice={<UpdateToast />}
-        before={
-          <>
-            <RouteTitle />
-            <ScrollMemory />
-            {more}
-          </>
-        }
-      >
-        <RouteTransition cls={transitionClass}>
-          <Outlet />
-        </RouteTransition>
-      </AppShell>
+      <ShellFooter.Provider value={footer}>
+        <AppShell
+          sidebar={sidebar}
+          bar={bar}
+          tabs={tabs}
+          mainKey={location.pathname}
+          notice={<UpdateToast />}
+          footer={<div ref={setFooter} className="shrink-0 empty:hidden lg:hidden" />}
+          before={
+            <>
+              <RouteTitle />
+              <ScrollMemory />
+              {more}
+            </>
+          }
+        >
+          <RouteTransition cls={transitionClass}>
+            <Outlet />
+          </RouteTransition>
+        </AppShell>
+      </ShellFooter.Provider>
     </AppBarActions.Provider>
   )
 }

@@ -31,6 +31,7 @@ import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Do
 import { countdown } from '../countdown'
 import { jobLabel } from '../jobs'
 import { useConfirm } from '../components/confirm'
+import { PageFooter } from '../components/PageActions'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth } from '../hooks'
 import { ProviderBadges } from '../components/ProviderBadges'
@@ -429,46 +430,47 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* the selection's actions stick to the bottom edge of the scroller
-          while rows are selected: under the thumb on a phone, at the foot of
-          the viewport on desktop. Last child of the page root on purpose -
-          that is what makes it stick. */}
+      {/* the selection's actions while rows are selected: the shell's footer
+          row above the tab bar on a phone, sticky at the foot of the viewport
+          on desktop */}
       {selected.size > 0 && (
-        <ActionBar aria-label={t('dash.selectionActions')}>
-          <Badge tone="accent">{t('dash.selectedCount', { count: selected.size })}</Badge>
-          {activeSelected.length > 0 && (
-            <>
-              <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}>
-                <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('dash.pause')}
-              </Button>
-              <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}>
-                <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('dash.resume')}
-              </Button>
-              <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}>
-                <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('dash.cancel')}
-              </Button>
-            </>
-          )}
-          {historySelected.length > 0 && (
-            <>
-              <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}>
-                <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('dash.retry')}
-              </Button>
-              <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}>
-                <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('dash.removeSelected')}
-              </Button>
-            </>
-          )}
-          <Button size="sm" className="ml-auto" onClick={() => setSelected(new Set())}>
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('dash.clearSelection')}
-          </Button>
-        </ActionBar>
+        <PageFooter>
+          <ActionBar aria-label={t('dash.selectionActions')}>
+            <Badge tone="accent">{t('dash.selectedCount', { count: selected.size })}</Badge>
+            {activeSelected.length > 0 && (
+              <>
+                <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}>
+                  <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('dash.pause')}
+                </Button>
+                <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}>
+                  <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('dash.resume')}
+                </Button>
+                <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}>
+                  <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('dash.cancel')}
+                </Button>
+              </>
+            )}
+            {historySelected.length > 0 && (
+              <>
+                <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}>
+                  <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('dash.retry')}
+                </Button>
+                <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}>
+                  <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('dash.removeSelected')}
+                </Button>
+              </>
+            )}
+            <Button size="sm" className="ml-auto" onClick={() => setSelected(new Set())}>
+              <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('dash.clearSelection')}
+            </Button>
+          </ActionBar>
+        </PageFooter>
       )}
     </div>
   )

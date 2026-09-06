@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ActionBar, Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api, type RenamePair } from '../api'
 import { LocalPicker } from '../components/FileBrowser'
-import { WIDE_MQ } from '../components/PageActions'
+import { PageFooter, WIDE_MQ } from '../components/PageActions'
 import PathInput from '../components/PathInput'
 import RenameOptions, { type RenameRule } from '../components/RenameOptions'
 
@@ -243,15 +243,17 @@ export default function Rename() {
         </Panel>
       )}
 
-      {/* Apply sits under the preview it acts on and stays reachable while
-          the table scrolls: the sticky last row of the page */}
+      {/* Apply stays reachable while the table scrolls: the shell's footer
+          row on a phone, sticky under the preview on desktop */}
       {preview && (
-        <ActionBar aria-label={t('rename.apply')}>
-          <Button variant="primary" cut disabled={picked.size === 0 || doApply.isPending} onClick={() => doApply.mutate()}>
-            {t('rename.apply')}
-          </Button>
-          {previewBusy ? <Badge>{t('app.loading')}</Badge> : <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>}
-        </ActionBar>
+        <PageFooter>
+          <ActionBar aria-label={t('rename.apply')}>
+            <Button variant="primary" cut disabled={picked.size === 0 || doApply.isPending} onClick={() => doApply.mutate()}>
+              {t('rename.apply')}
+            </Button>
+            {previewBusy ? <Badge>{t('app.loading')}</Badge> : <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>}
+          </ActionBar>
+        </PageFooter>
       )}
     </div>
   )
