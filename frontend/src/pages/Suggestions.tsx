@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import {
   Bookmark,
   ChevronDown,
@@ -41,13 +41,14 @@ const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useConfirm } from '../components/confirm'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import {
   Badge,
   Button,
   Checkbox,
   Cover,
   Dialog,
+  Disclosure,
   IconButton,
   Panel,
   SuggestionCard,
@@ -68,7 +69,6 @@ import {
   mediaTitle,
   fmtBytes,
 } from '../api'
-import Collapsible from '../components/Collapsible'
 import MediaDetail from '../components/MediaDetail'
 import { ProviderBadges } from '../components/ProviderBadges'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
@@ -81,10 +81,17 @@ import { SkeletonCards } from '../components/Loading'
 // Upgrades and Incomplete. Every item is deduplicated per series and carries
 // which integrations recognise it, links to each, a series-wide ignore, and a
 // rematch. Data comes unified from GET /api/suggestions (+ /api/upgrades).
+const BUCKETS = ['watchlist', 'recommended', 'trending', 'upgrades', 'incomplete', 'duplicates', 'ignored'] as const
+type Bucket = (typeof BUCKETS)[number]
+
 export default function Suggestions() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'watchlist' | 'recommended' | 'trending' | 'upgrades' | 'incomplete' | 'duplicates'>('watchlist')
-  const [showIgnored, setShowIgnored] = useState(false)
+  // the bucket lives in the URL, so a notification, a bookmark and the back
+  // gesture reproduce it
+  const [params, setParams] = useSearchParams()
+  const fromUrl = params.get('tab') as Bucket | null
+  const tab: Bucket = fromUrl && BUCKETS.includes(fromUrl) ? fromUrl : 'watchlist'
+  const setTab = (b: Bucket) => setParams(b === 'watchlist' ? {} : { tab: b }, { replace: true })
   const tabs = [
     ['watchlist', t('suggestions.tabWatchlist'), Bookmark],
     ['recommended', t('suggestions.tabRecommended'), Sparkles],
@@ -92,26 +99,27 @@ export default function Suggestions() {
     ['upgrades', t('suggestions.tabUpgrades'), CircleArrowUp],
     ['incomplete', t('suggestions.tabIncomplete'), CircleDashed],
     ['duplicates', t('suggestions.tabDuplicates'), Copy],
+    ['ignored', t('suggestions.ignored'), EyeOff],
   ] as const
 
   return (
     <div>
-      <header className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>
-          <Badge multiline className="mt-1">{t('suggestions.sub')}</Badge>
-        </div>
-        <Button size="sm" onClick={() => setShowIgnored((v) => !v)}>
-          <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('suggestions.ignored')}
-        </Button>
+      <header className="mb-6 hidden lg:block">
+        <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>
+        <Badge multiline className="mt-1">{t('suggestions.sub')}</Badge>
       </header>
-
-      {showIgnored && <IgnoredModal onClose={() => setShowIgnored(false)} />}
 
       <TabBar label={t('suggestions.title')} tabs={tabs.map(([key, label, icon]) => ({ key, label, icon }))} active={tab} onChange={setTab} />
 
-      {tab === 'upgrades' ? <UpgradesSection /> : tab === 'duplicates' ? <DuplicatesSection /> : <BucketSection bucket={tab} />}
+      {tab === 'upgrades' ? (
+        <UpgradesSection />
+      ) : tab === 'duplicates' ? (
+        <DuplicatesSection />
+      ) : tab === 'ignored' ? (
+        <IgnoredSection />
+      ) : (
+        <BucketSection bucket={tab} />
+      )}
     </div>
   )
 }
@@ -164,19 +172,19 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recomme
         const statusItems = items.filter((it) => statusOf(it) === key)
         if (!statusItems.length) return null
         return (
-          <Collapsible key={key} title={t(label)} count={statusItems.length} defaultOpen={key !== 'COMPLETED'}>
+          <Disclosure key={key} title={t(label)} count={statusItems.length} defaultOpen={key !== 'COMPLETED'}>
             <div className="space-y-3">
               {CATS.map((cat) => {
                 const list = statusItems.filter((it) => it.category === cat)
                 if (!list.length) return null
                 return (
-                  <Collapsible key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
+                  <Disclosure key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
                     {cards(list)}
-                  </Collapsible>
+                  </Disclosure>
                 )
               })}
             </div>
-          </Collapsible>
+          </Disclosure>
         )
       })}
     </div>
@@ -195,19 +203,19 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recomme
         const groupItems = items.filter(pick)
         if (!groupItems.length) return null
         return (
-          <Collapsible key={key} title={t(label)} count={groupItems.length}>
+          <Disclosure key={key} title={t(label)} count={groupItems.length}>
             <div className="space-y-3">
               {CATS.map((cat) => {
                 const list = groupItems.filter((it) => it.category === cat)
                 if (!list.length) return null
                 return (
-                  <Collapsible key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
+                  <Disclosure key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
                     {cards(list)}
-                  </Collapsible>
+                  </Disclosure>
                 )
               })}
             </div>
-          </Collapsible>
+          </Disclosure>
         )
       })}
     </div>
@@ -226,9 +234,9 @@ function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recomme
               const list = items.filter((it) => it.category === cat)
               if (!list.length) return null
               return (
-                <Collapsible key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
+                <Disclosure key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
                   {cards(list)}
-                </Collapsible>
+                </Disclosure>
               )
             })}
       {watch && (
@@ -497,9 +505,10 @@ function SugCard({
   )
 }
 
-// IgnoredModal lists ignored items (suggestions + upgrades) and restores them.
-// Backdrop click or Escape closes - both come from the design system's Dialog.
-function IgnoredModal({ onClose }: { onClose: () => void }) {
+// The ignored bucket lists dismissed suggestions, upgrades and duplicates and
+// restores them. A bucket like the others, not a modal: on a phone a modal
+// over the list was one more layer to close.
+function IgnoredSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data } = usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
@@ -509,35 +518,21 @@ function IgnoredModal({ onClose }: { onClose: () => void }) {
     qc.invalidateQueries({ queryKey: ['dismissed'] })
     qc.invalidateQueries({ queryKey: ['suggestions'] })
   }
+  if (!items.length) return <Badge>{t('suggestions.noIgnored')}</Badge>
   return (
-    // the list caps itself at 60dvh, so this dialog never needs a full screen
-    <Dialog onClose={onClose} width="max-w-lg" sheet={false} aria-label={t('suggestions.ignored')}>
-      <div className="p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="font-display text-sm font-semibold tracking-wider">{t('suggestions.ignored')}</h3>
-          <Button size="sm" onClick={onClose} aria-label={t('common.cancel')}>
-            <X aria-hidden size="1.2em" />
+    <ul className="space-y-1">
+      {items.map((d) => (
+        <li key={`${d.kind}-${d.refKey}`} className="flex items-center justify-between gap-2 border-b border-border-subtle/50 py-1 text-sm">
+          <span className="min-w-0 truncate">
+            {d.label || d.refKey} <Badge>{d.kind}</Badge>
+          </span>
+          <Button size="sm" className="shrink-0" onClick={() => restore(d)}>
+            <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('suggestions.restore')}
           </Button>
-        </div>
-        {!items.length ? (
-          <Badge>{t('suggestions.noIgnored')}</Badge>
-        ) : (
-          <ul className="max-h-[60dvh] space-y-1 overflow-y-auto">
-            {items.map((d) => (
-              <li key={`${d.kind}-${d.refKey}`} className="flex items-center justify-between gap-2 text-sm">
-                <span className="min-w-0 truncate">
-                  {d.label || d.refKey} <Badge>{d.kind}</Badge>
-                </span>
-                <Button size="sm" className="shrink-0" onClick={() => restore(d)}>
-                  <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('suggestions.restore')}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </Dialog>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -596,7 +591,7 @@ function UpgradesSection() {
     <div className="space-y-3">
       {notice && <Badge tone="accent">{notice}</Badge>}
       {dims && (
-        <Collapsible small defaultOpen={false} title={t('suggestions.upgradeWhat')} count={order.filter((a) => dims[a]).length}>
+        <Disclosure small defaultOpen={false} title={t('suggestions.upgradeWhat')} count={order.filter((a) => dims[a]).length}>
           <Panel className="px-3 py-2.5">
             <p className="text-xs text-t-muted">{t('suggestions.upgradeOrderHint')}</p>
             <ol className="mt-2 space-y-1">
@@ -622,7 +617,7 @@ function UpgradesSection() {
             ))}
             </ol>
           </Panel>
-        </Collapsible>
+        </Disclosure>
       )}
       {isLoading ? (
         <SkeletonCards />
@@ -649,9 +644,9 @@ function UpgradesSection() {
                 const list = items.filter((u) => u.category === cat)
                 if (!list.length) return null
                 return (
-                  <Collapsible key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
+                  <Disclosure key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
                     <div className="space-y-3">{list.map(render)}</div>
-                  </Collapsible>
+                  </Disclosure>
                 )
               })}
             </div>
@@ -806,9 +801,9 @@ function DuplicatesSection() {
         const list = items.filter((d) => d.category === cat)
         if (!list.length) return null
         return (
-          <Collapsible key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
+          <Disclosure key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
             <div className="space-y-3">{list.map(card)}</div>
-          </Collapsible>
+          </Disclosure>
         )
       })}
     </div>
@@ -836,8 +831,14 @@ function TabBar<T extends string>({
     const els = e.currentTarget.closest('[role="tablist"]')?.querySelectorAll<HTMLElement>('[role="tab"]')
     els?.[next]?.focus()
   }
+  // one scrolling row: the selected tab is brought into view so a bucket
+  // reached from a link is never hidden past the edge
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+  }, [active])
   return (
-    <Tabs aria-label={label} className="mb-4">
+    <Tabs ref={ref} scroll aria-label={label} className="mb-4">
       {tabs.map((tb, i) => (
         <Tab
           key={tb.key}
