@@ -740,12 +740,16 @@ function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
   const caption = 'mb-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-t-muted'
   return (
     <div className="mt-3 border-t border-border-subtle pt-3 text-xs">
-      {/* the description needs no caption, it reads as one */}
-      {group?.overview && <p className="mb-3 line-clamp-3 text-t-secondary">{group.overview}</p>}
-      {/* source and target side by side from sm on; a rename gets its own
-          full-width line and only when there is one - "no renaming" was a
-          line saying nothing */}
+      {/* source and target side by side from sm on, everything else full
+          width; a rename only when there is one - "no renaming" was a line
+          saying nothing */}
       <dl className="grid gap-3 sm:grid-cols-2">
+        {group?.overview && (
+          <div className="min-w-0 sm:col-span-2">
+            <dt className={caption}>{t('dash.overview')}</dt>
+            <dd className="line-clamp-3 text-t-secondary">{group.overview}</dd>
+          </div>
+        )}
         <div className="min-w-0">
           <dt className={caption}>{t('dash.source')}</dt>
           <dd className="break-all">
@@ -777,14 +781,20 @@ function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
             </dd>
           </div>
         )}
+        <div className="min-w-0 sm:col-span-2">
+          <dt className={caption}>{t('dash.linksLabel')}</dt>
+          {/* the one row made of controls, so chips are right here. The
+              catalog link leads first and in the accent tone: it stays inside
+              the app, the provider pages behind it all leave it */}
+          <dd className="flex flex-wrap items-center gap-1.5">
+            <Link to={remoteLink(showFolder)} className="t-label t-label--accent">
+              <FolderOpen aria-hidden size="1em" />
+              {t('dash.openShow')}
+            </Link>
+            {group?.providers && group.providers.length > 0 && <ProviderBadges providers={group.providers} links={group.links} />}
+          </dd>
+        </div>
       </dl>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Link to={remoteLink(showFolder)} className="t-label hover:text-accent">
-          <FolderOpen aria-hidden size="1em" />
-          {t('dash.openShow')}
-        </Link>
-        {group?.providers && group.providers.length > 0 && <ProviderBadges providers={group.providers} links={group.links} />}
-      </div>
     </div>
   )
 }
