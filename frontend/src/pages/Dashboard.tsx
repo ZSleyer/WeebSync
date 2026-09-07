@@ -398,8 +398,12 @@ export default function Dashboard() {
                   {finished.length === 0 && historyFiltering && (
                     <Panel className="p-6 text-center text-sm text-t-muted">{t('dash.noMatches')}</Panel>
                   )}
-                  <div className="mt-2 flex flex-col gap-2">
-                    {(() => {
+                  {/* one bracketed block with hairlines between the rows,
+                      the sync summary's recipe: twenty bordered cards under
+                      each other read as twenty boxes, not as a list */}
+                  <Panel className="mt-2">
+                    <ul className="divide-y divide-border-subtle">
+                      {(() => {
                       // One unwritable directory fails every episode of a
                       // season, so the same explanation would repeat down the
                       // whole list - hundreds of pixels saying one thing. Spell
@@ -423,7 +427,8 @@ export default function Dashboard() {
                         )
                       })
                     })()}
-                  </div>
+                    </ul>
+                  </Panel>
                   {finished.length > finishedShown.length && (
                     <Button size="sm" className="mt-3" onClick={() => setShowAllHistory(true)}>
                       {t('dash.showAllHistory', { count: finished.length })}
@@ -880,9 +885,11 @@ function DownloadRow({
   )
 }
 
-// HistoryRow is a finished download: one compact line, expandable to the same
+// HistoryRow is a finished download: one list row, expandable to the same
 // details as a queue row. Worth expanding here too - the file exists now, so the
-// link into the local browser actually leads somewhere.
+// link into the local browser actually leads somewhere. The row itself carries
+// no buttons: retry and remove live in the expanded half, bulk selection covers
+// the many-at-once case, and the line is left to the title and one meta line.
 function HistoryRow({
   d,
   meta,
@@ -904,39 +911,50 @@ function HistoryRow({
   const [open, setOpen] = useState(false)
   const { label, ep, name, group } = downloadLabel(d, meta)
   const explained = explain && isFsErrorCode(d.errorCode)
+  const StatusIcon = STATUS_ICON[d.status]
+  const tone = d.status === 'done' ? 'text-ok' : d.status === 'error' ? 'text-err' : 'text-t-muted'
   return (
-    <div className="border border-border-subtle bg-bg-card px-3 py-2 text-sm">
-      {/* one line at every width: box, cover, a title-and-meta column that
-          takes what is left, the actions as equal squares on the right */}
+    <li className={`px-3 py-2 text-sm ${selected ? 'bg-bg-hover' : ''}`}>
+      {/* box, cover, then the whole rest of the line is the details toggle -
+          a sibling of the checkbox, never its parent */}
       <div className="flex items-center gap-3">
         <SelectBox checked={selected} name={name} onSelect={onSelect} />
-        {group?.cover && <Cover src={group.cover} size="sm" loading="lazy" />}
-        <div className="min-w-0 flex-1">
-          <span className="block truncate text-sm text-t-primary" title={d.remotePath}>
-            {label}
+        {/* a spacer keeps the text column flush down a divided list; the
+            hatched placeholder on every unmatched row would be noise */}
+        {group?.cover ? <Cover src={group.cover} size="sm" loading="lazy" /> : <span aria-hidden className="w-10 shrink-0" />}
+        {/* no aria-label: the visible title and meta line are the button's
+            name, aria-expanded says what it does */}
+        <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-t-primary" title={d.remotePath}>
+              {label}
+            </span>
+            {/* status, episode and size as one line of text: the chips this
+                used to be were two more boxes on a line that had five */}
+            <span className="mt-0.5 block truncate text-xs text-t-muted">
+              {/* text-xs on the span itself, not only inherited: the audit's
+                  nowrap check measures a detached clone, which would grow to
+                  the body size without it */}
+              <span className={`text-xs capitalize ${tone}`}>
+                <StatusIcon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t(`status.${d.status}`)}
+              </span>
+              {ep && <span aria-hidden> · </span>}
+              {ep}
+              <span aria-hidden> · </span>
+              {fmtBytes(d.size)}
+            </span>
           </span>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <StatusChip status={d.status} />
-            {ep && <Badge tone="accent">{ep}</Badge>}
-            <span className="font-mono text-xs text-t-muted">{fmtBytes(d.size)}</span>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {(d.status === 'error' || d.status === 'canceled') && (
-            <Button size="sm" className="aspect-square px-0! sm:aspect-auto sm:px-2.5!" aria-label={t('dash.retry')} title={t('dash.retry')} onClick={() => onAction('resume')}>
-              <RotateCcw aria-hidden size="1.2em" className="inline align-[-0.125em] sm:mr-1" />
-              <span className="hidden sm:inline">{t('dash.retry')}</span>
-            </Button>
+          {open ? (
+            <ChevronDown aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
+          ) : (
+            <ChevronRight aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
           )}
-          <Button size="sm" variant="danger" className="aspect-square px-0!" aria-label={t('dash.remove', { id: d.id })} onClick={() => onAction('delete')}>
-            <X aria-hidden size="1.2em" />
-          </Button>
-          <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
-        </div>
+        </button>
       </div>
       {/* the failure gets its own line under the row, explained or not: inline
-          it fought the title for the little width left next to the actions,
-          and on a tablet the title lost every time */}
+          it fought the title for the little width left, and on a tablet the
+          title lost every time */}
       {explained ? (
         <FsErrorNote code={d.errorCode!} dir={dirOf(d.localPath)} className="mt-2" />
       ) : (
@@ -946,8 +964,24 @@ function HistoryRow({
           </p>
         )
       )}
-      {open && <DownloadDetails d={d} meta={meta} />}
-    </div>
+      {open && (
+        <>
+          <DownloadDetails d={d} meta={meta} />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(d.status === 'error' || d.status === 'canceled') && (
+              <Button size="sm" onClick={() => onAction('resume')}>
+                <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('dash.retry')}
+              </Button>
+            )}
+            <Button size="sm" variant="danger" aria-label={t('dash.remove', { id: d.id })} onClick={() => onAction('delete')}>
+              <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('dash.removeSelected')}
+            </Button>
+          </div>
+        </>
+      )}
+    </li>
   )
 }
 
