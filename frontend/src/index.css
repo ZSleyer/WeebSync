@@ -761,9 +761,11 @@ input[type='checkbox']:focus-visible {
 }
 input[type='checkbox']:disabled { opacity: 0.45; cursor: not-allowed; }
 @media (pointer: coarse) {
-  /* the small control step, so a box lines up with the icon buttons and
-     the search field beside it instead of sitting 16px shorter */
-  input[type='checkbox'] { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
+  /* the small control step, so a box in a toolbar lines up with the search
+     field and the icon buttons beside it instead of sitting 16px shorter.
+     Toolbars only: a box in a list row stands next to text and a cover,
+     and at 40px it was the heaviest thing on the line */
+  .t-toolbar input[type='checkbox'] { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
 }
 
 /* Tempest radio: the one control that stays round on purpose - "only toggles
