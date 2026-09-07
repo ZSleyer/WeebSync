@@ -691,8 +691,10 @@ export function ActionBar({ sticky = true, className, ...rest }: ActionBarProps)
       className={cx(
         'flex flex-wrap items-center gap-2 border-t border-border-subtle bg-bg-secondary px-4 py-2',
         // a prop, not a consumer override: two `lg:` utilities for the same
-        // property resolve by stylesheet order, not by who asked last
-        sticky && 'lg:sticky lg:bottom-0 lg:z-10 lg:mt-4 lg:px-0',
+        // property resolve by stylesheet order, not by who asked last. On
+        // desktop the bar is a box like the panel it acts on: a bare strip
+        // with one hairline above it read as buttons dropped on the page
+        sticky && 'lg:sticky lg:bottom-0 lg:z-10 lg:mt-4 lg:border lg:bg-bg-card',
         className,
       )}
     />
