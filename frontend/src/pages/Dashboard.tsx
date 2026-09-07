@@ -25,6 +25,7 @@ import {
   Panel,
   Select,
   Toolbar,
+  useMediaQuery,
   type BadgeTone,
 } from '@weebsync/design-system'
 import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type JobsStatus, type Watch } from '../api'
@@ -154,6 +155,10 @@ export default function Dashboard() {
       return next
     })
   const [historyOpen, setHistoryOpen] = useState(true)
+  // the history toolbar is one row on a phone: box, search, status select,
+  // clear. The search keeps what is left, which is too little for the full
+  // placeholder - a short one there, the aria-label stays the full sentence
+  const phone = useMediaQuery('(width < 40rem)')
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setSelected(new Set())
@@ -330,16 +335,35 @@ export default function Dashboard() {
                     <Input
                       className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
                       type="search"
-                      placeholder={t('dash.search')}
+                      placeholder={phone ? t('dash.searchShort') : t('dash.search')}
                       aria-label={t('dash.search')}
                       value={historyQuery}
                       onChange={(e) => setHistoryQuery(e.target.value)}
                     />
+                    {/* one select on a phone, so the filter shares the row
+                        with the search instead of taking a second one as
+                        three chips. Single choice there: the chips' multi
+                        select is a desktop nicety, not something the phone
+                        row has room for */}
+                    <Select
+                      size="sm"
+                      // important: .t-select-wrap sets display outside the
+                      // utilities layer and would win over a plain sm:hidden
+                      wrapperClassName="sm:hidden!"
+                      aria-label={t('dash.filterStatus')}
+                      value={statusFilter.size === 1 ? [...statusFilter][0] : ''}
+                      onChange={(e) => setStatusFilter(e.target.value ? new Set([e.target.value as Download['status']]) : new Set())}
+                    >
+                      <option value="">{t('dash.filterAll')}</option>
+                      {HISTORY_STATUSES.map((st) => (
+                        <option key={st} value={st}>
+                          {t(`status.${st}`)}
+                        </option>
+                      ))}
+                    </Select>
                     {/* toggle chips: <Badge> renders a span, these have to stay
-                        buttons with aria-pressed - kept hand-written. On a
-                        phone the chips take the second row of the toolbar,
-                        the search and the clear button share the first */}
-                    <div role="group" aria-label={t('dash.filterStatus')} className="order-last flex basis-full flex-wrap items-center gap-1 sm:order-none sm:basis-auto">
+                        buttons with aria-pressed - kept hand-written */}
+                    <div role="group" aria-label={t('dash.filterStatus')} className="hidden flex-wrap items-center gap-1 sm:flex">
                       {HISTORY_STATUSES.map((st) => {
                         const Icon = STATUS_ICON[st]
                         return (
