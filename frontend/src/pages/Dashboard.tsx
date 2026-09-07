@@ -725,7 +725,9 @@ function DetailsToggle({ open, name, onToggle }: { open: boolean; name: string; 
 
 // DownloadDetails is the expanded half of a queue or history row: what the file
 // becomes, where it comes from, where it lands, and the pages that describe it.
-// Shared by both row types so they cannot drift apart.
+// Shared by both row types so they cannot drift apart. Labels are small caps
+// text, not chips: a chip is a control or a status, and a caption over a path
+// is neither.
 function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
   const { t } = useTranslation()
   const { group } = downloadLabel(d, meta)
@@ -735,48 +737,55 @@ function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
   const localBase = d.localPath.split('/').pop() ?? ''
   const showFolder = group?.folder ?? remoteDir
   const remoteLink = (path: string) => `/files?server=${d.serverId}&path=${encodeURIComponent(path)}`
+  const caption = 'mb-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-t-muted'
   return (
-    <dl className="mt-3 grid gap-x-4 gap-y-2 border-t border-border-subtle pt-3 text-xs sm:grid-cols-[max-content_1fr]">
-      {group?.overview && (
-        <>
-          <dt className="t-label">{t('dash.overview')}</dt>
-          <dd className="line-clamp-4 text-t-secondary">{group.overview}</dd>
-        </>
-      )}
-      <dt className="t-label">{t('dash.renamedTo')}</dt>
-      <dd className="min-w-0 break-all font-mono text-t-secondary">
-        {remoteBase === localBase ? (
-          t('dash.noRename')
-        ) : (
-          <>
-            {remoteBase} <ArrowRight aria-hidden size="1em" className="inline align-[-0.125em] text-accent" /> {localBase}
-          </>
+    <div className="mt-3 border-t border-border-subtle pt-3 text-xs">
+      {/* the description needs no caption, it reads as one */}
+      {group?.overview && <p className="mb-3 line-clamp-3 text-t-secondary">{group.overview}</p>}
+      {/* source and target side by side from sm on; a rename gets its own
+          full-width line and only when there is one - "no renaming" was a
+          line saying nothing */}
+      <dl className="grid gap-3 sm:grid-cols-2">
+        <div className="min-w-0">
+          <dt className={caption}>{t('dash.source')}</dt>
+          <dd className="break-all">
+            {group?.serverName && <span className="mr-2 text-t-muted">{group.serverName}</span>}
+            <Link to={remoteLink(remoteDir)} className="font-mono text-accent underline">
+              {remoteDir}
+            </Link>
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className={caption}>{t('dash.target')}</dt>
+          <dd className="break-all">
+            <Link to={`/files?source=local&path=${encodeURIComponent(localDir)}`} className="font-mono text-accent underline">
+              {localDir}
+            </Link>
+          </dd>
+        </div>
+        {remoteBase !== localBase && (
+          <div className="min-w-0 sm:col-span-2">
+            <dt className={caption}>{t('dash.renamedTo')}</dt>
+            {/* two lines, the new name under the old: file names are long,
+                and inline the arrow vanished somewhere in the middle */}
+            <dd className="break-all font-mono">
+              <span className="block text-t-muted">{remoteBase}</span>
+              <span className="block text-t-secondary">
+                <ArrowRight aria-hidden size="1em" className="mr-1 inline align-[-0.125em] text-accent" />
+                {localBase}
+              </span>
+            </dd>
+          </div>
         )}
-      </dd>
-      <dt className="t-label">{t('dash.source')}</dt>
-      <dd className="min-w-0 break-all">
-        {group?.serverName && <span className="mr-2 text-t-muted">{group.serverName}</span>}
-        <Link to={remoteLink(remoteDir)} className="font-mono text-accent underline">
-          {remoteDir}
-        </Link>
-      </dd>
-      <dt className="t-label">{t('dash.target')}</dt>
-      <dd className="min-w-0 break-all">
-        <Link to={`/files?source=local&path=${encodeURIComponent(localDir)}`} className="font-mono text-accent underline">
-          {localDir}
-        </Link>
-      </dd>
-      <dt className="t-label">{t('dash.linksLabel')}</dt>
-      <dd className="flex flex-wrap items-center gap-2">
+      </dl>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Link to={remoteLink(showFolder)} className="t-label hover:text-accent">
           <FolderOpen aria-hidden size="1em" />
           {t('dash.openShow')}
         </Link>
-        {group?.providers && group.providers.length > 0 && (
-          <ProviderBadges providers={group.providers} links={group.links} />
-        )}
-      </dd>
-    </dl>
+        {group?.providers && group.providers.length > 0 && <ProviderBadges providers={group.providers} links={group.links} />}
+      </div>
+    </div>
   )
 }
 
