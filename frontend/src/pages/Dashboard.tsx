@@ -680,23 +680,27 @@ export function StatusChip({ status }: { status: Download['status'] }) {
 }
 
 // Selection checkbox: click toggles, shift-click selects a range (handled by
-// the parent), Space works natively via the checkbox semantics.
+// the parent), Space works natively via the checkbox semantics. The label
+// pads the hit area out to 40px without moving anything: the negative margin
+// gives the padding back, so the visible box stays the 24px it is.
 function SelectBox({ checked, name, onSelect }: { checked: boolean; name: string; onSelect: (shift: boolean) => void }) {
   const { t } = useTranslation()
   return (
-    <input
-      type="checkbox"
-      aria-label={t('dash.select', { name })}
-      checked={checked}
-      onClick={(e) => onSelect(e.shiftKey)}
-      onKeyDown={(e) => {
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault()
-          onSelect(e.shiftKey)
-        }
-      }}
-      onChange={() => {}}
-    />
+    <label className="-m-2 flex shrink-0 p-2">
+      <input
+        type="checkbox"
+        aria-label={t('dash.select', { name })}
+        checked={checked}
+        onClick={(e) => onSelect(e.shiftKey)}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault()
+            onSelect(e.shiftKey)
+          }
+        }}
+        onChange={() => {}}
+      />
+    </label>
   )
 }
 
