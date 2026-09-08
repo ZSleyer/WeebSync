@@ -27,12 +27,16 @@ docker compose up -d
 
 | Tag | When | Use |
 |---|---|---|
-| `ghcr.io/zsleyer/weebsync:nightly` | daily (03:00 UTC) from green `main` | latest features, moves once a day |
+| `ghcr.io/zsleyer/weebsync:nightly` | daily (03:00 UTC) from green `main`, only if `main` moved | **recommended** - latest features, moves at most once a day |
 | `:nightly-<sha>` | with each nightly | pin a specific nightly build |
-| `:vX.Y.Z`, `:X.Y` | on a `v*` release tag | stable releases (recommended for prod) |
+| `:dev` | on every push to `main` that passes CI | follow development as it happens; moves several times a day |
+| `:dev-<sha>` | with each `:dev` | pin a specific push |
 
 The nightly image builds once a day instead of on every push, so an
 auto-updater (e.g. the HA add-on tracking `:nightly`) updates at most daily.
+`:dev` is the same code a few hours earlier, for testing a fix the moment it
+lands. Versioned releases (`:vX.Y.Z`) are not planned yet: the project is at
+an early stage and the schema still changes, so there is nothing to freeze.
 
 ### File ownership (UID/GID)
 
