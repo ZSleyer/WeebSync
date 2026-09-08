@@ -258,7 +258,13 @@ func readStream(r io.Reader, onDelta func(Delta)) (Message, error) {
 					onDelta(Delta{Text: choice.Delta.Content})
 				}
 			}
-			if r := choice.Delta.ReasoningContent + choice.Delta.Reasoning; r != "" && onDelta != nil {
+			// LiteLLM mirrors OpenRouter's reasoning into reasoning_content,
+			// so a chunk can carry the same text under both names: one wins
+			r := choice.Delta.ReasoningContent
+			if r == "" {
+				r = choice.Delta.Reasoning
+			}
+			if r != "" && onDelta != nil {
 				onDelta(Delta{Reasoning: r})
 			}
 			for _, tc := range choice.Delta.ToolCalls {

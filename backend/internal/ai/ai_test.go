@@ -18,6 +18,7 @@ func TestReadStreamMergesToolCallFragments(t *testing.T) {
 		``,
 		`data: {"choices":[{"delta":{"content":"lo"}}]}`,
 		`data: {"choices":[{"delta":{"reasoning_content":"hmm"}}]}`,
+		`data: {"choices":[{"delta":{"reasoning_content":" twice","reasoning":" twice"}}]}`,
 		`: keepalive`,
 		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search_","arguments":""}}]}}]}`,
 		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"remote","arguments":"{\"que"}}]}}]}`,
@@ -37,7 +38,7 @@ func TestReadStreamMergesToolCallFragments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if msg.Content != "Hello" || strings.Join(deltas, "|") != "Hel|lo" || strings.Join(reasons, "") != "hmm" {
+	if msg.Content != "Hello" || strings.Join(deltas, "|") != "Hel|lo" || strings.Join(reasons, "") != "hmm twice" {
 		t.Errorf("content %q deltas %v reasons %v", msg.Content, deltas, reasons)
 	}
 	if len(msg.ToolCalls) != 2 {

@@ -358,7 +358,7 @@ type aiWatchFields struct {
 
 const (
 	aiMaxHistory = 30 // turns kept from the client's history
-	aiMaxRounds  = 6  // model↔tool round trips per request
+	aiMaxRounds  = 12 // model↔tool round trips per request; the last one gets no tools
 )
 
 // handleAiChat streams one assistant answer for the given conversation.
@@ -448,12 +448,16 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 	// gets its cards (see aiMentionedCards)
 	var surfaced [][]byte
 	cardsShown := false
-	for round := 0; ; round++ {
-		if round >= aiMaxRounds {
-			emit(aiEvent{Type: "error", Message: "the assistant needed too many steps; ask more specifically"})
-			break
+	for round := 0; round < aiMaxRounds; round++ {
+		// a model that is still calling tools on the last round has to
+		// answer with what it has: without tools the reply is plain text,
+		// and the work it did (accepted proposals, cards) is not thrown away.
+		// A provider that calls tools anyway ends at the loop bound.
+		tools := aiTools
+		if round == aiMaxRounds-1 {
+			tools = nil
 		}
-		reply, err := s.AI.Stream(ctx, model, msgs, aiTools, func(d ai.Delta) {
+		reply, err := s.AI.Stream(ctx, model, msgs, tools, func(d ai.Delta) {
 			if d.Reasoning != "" {
 				emit(aiEvent{Type: "reasoning", Text: d.Reasoning})
 			} else {

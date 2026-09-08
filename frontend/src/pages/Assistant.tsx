@@ -148,6 +148,11 @@ export default function Assistant() {
     setStreaming(true)
     const ac = new AbortController()
     abortRef.current = ac
+    // cards and proposals arrive while tools run, before the answer is
+    // written; shown right away they push the streaming text around. They
+    // wait here and land below the answer once the stream ends, however it
+    // ends (done, error, abort) - nothing accepted gets lost
+    const pending: { proposals: NonNullable<Turn['proposals']>; cards: AiCard[]; upgrades: UpgradeSuggestion[] } = { proposals: [], cards: [], upgrades: [] }
     try {
       await streamAiChat(
         history,
@@ -183,19 +188,18 @@ export default function Assistant() {
               break
             case 'proposal': {
               const { type: _t, ...p } = ev
-              patchLast((tr) => ({ ...tr, proposals: [...(tr.proposals ?? []), p] }))
+              pending.proposals.push(p)
               break
             }
             case 'cards':
-              patchLast((tr) => ({ ...tr, cards: [...(tr.cards ?? []), ...ev.cards] }))
+              pending.cards.push(...ev.cards)
               break
-            case 'upgrades':
+            case 'upgrades': {
               // the upgrades tool and show_upgrades may both name a card
-              patchLast((tr) => {
-                const have = new Set((tr.upgrades ?? []).map((u) => u.key))
-                return { ...tr, upgrades: [...(tr.upgrades ?? []), ...ev.upgrades.filter((u) => !have.has(u.key))] }
-              })
+              const have = new Set(pending.upgrades.map((u) => u.key))
+              pending.upgrades.push(...ev.upgrades.filter((u) => !have.has(u.key)))
               break
+            }
             case 'error':
               patchLast((tr) => ({ ...tr, error: ev.message, tool: undefined }))
               break
@@ -214,7 +218,13 @@ export default function Assistant() {
         patchLast((tr) => ({ ...tr, error: e instanceof Error ? e.message : String(e), tool: undefined }))
       }
     } finally {
-      patchLast((tr) => ({ ...tr, tool: undefined }))
+      patchLast((tr) => ({
+        ...tr,
+        tool: undefined,
+        proposals: pending.proposals.length ? [...(tr.proposals ?? []), ...pending.proposals] : tr.proposals,
+        cards: pending.cards.length ? [...(tr.cards ?? []), ...pending.cards] : tr.cards,
+        upgrades: pending.upgrades.length ? [...(tr.upgrades ?? []), ...pending.upgrades] : tr.upgrades,
+      }))
       setStreaming(false)
       abortRef.current = null
     }
