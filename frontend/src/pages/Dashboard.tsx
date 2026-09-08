@@ -463,13 +463,14 @@ export default function Dashboard() {
             </section>
           )}
           {/* the selection's actions while rows are selected: the shell's footer
-              row above the tab bar on a phone, sticky at the foot of the viewport
-              on desktop. Inside the queue column, not under the whole grid: the
-              summary column is usually the taller one, and the bar sat at its
-              foot with a screen's worth of nothing between it and the rows */}
+              row above the tab bar on a phone, a floating toolbar at the foot
+              of the viewport on desktop. Inside the queue column, not under the
+              whole grid: the summary column is usually the taller one, and the
+              bar sat at its foot with a screen's worth of nothing between it
+              and the rows */}
           {selected.size > 0 && (
             <PageFooter>
-              <ActionBar aria-label={t('dash.selectionActions')}>
+              <ActionBar aria-label={t('dash.selectionActions')} floating>
                 <Badge tone="accent">{t('dash.selectedCount', { count: selected.size })}</Badge>
                 {activeSelected.length > 0 && (
                   <>
@@ -499,7 +500,7 @@ export default function Dashboard() {
                     </Button>
                   </>
                 )}
-                <Button size="sm" className="ml-auto" onClick={() => setSelected(new Set())}>
+                <Button size="sm" className="ml-auto lg:ml-2" onClick={() => setSelected(new Set())}>
                   <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('dash.clearSelection')}
                 </Button>
