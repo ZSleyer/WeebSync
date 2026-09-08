@@ -79,6 +79,16 @@ All optional. Env values **override** UI settings and lock the field.
 
 Runs **behind a TLS reverse proxy** (Traefik/Nginx/Caddy) - it does not terminate TLS itself. For public instances set `WEEBSYNC_TRUSTED_PROXY=true` + `WEEBSYNC_FORCE_HTTPS=true` and keep registration closed.
 
+### Container hardening
+
+The compose file drops every capability, forbids privilege gain
+(`no-new-privileges`) and mounts the root filesystem read-only; the container
+runs as `nonroot` anyway. Keep those lines when you adapt the file. Writes go
+only to the `/data` volume and the media mounts, plus `tmpfs` on `/tmp` and
+`/var/tmp` - SQLite and ffprobe need a writable temp dir and fail in odd ways
+without one. On Debian/Ubuntu Docker also applies its default AppArmor
+profile (`docker-default`); on Fedora/RHEL SELinux takes that role.
+
 ## Development
 
 ```bash
