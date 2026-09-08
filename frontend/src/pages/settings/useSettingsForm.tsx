@@ -149,7 +149,7 @@ export function SaveBar({
     // the shell's footer row on a phone, where a long form used to hide the
     // button below the fold; in flow after the panels on desktop as before
     <PageFooter>
-      <ActionBar aria-label={t('settings.save')} sticky={false} className="lg:mb-6 lg:border-0 lg:bg-transparent lg:p-0">
+      <ActionBar aria-label={t('settings.save')} sticky={false} className="lg:mb-6">
         <Button variant="primary" cut onClick={() => save.mutate(form)} disabled={save.isPending}>
           {t('settings.save')}
         </Button>
