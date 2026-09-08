@@ -183,77 +183,80 @@ export default function Rename() {
       </div>
 
       {rows && (
-        <Panel as="section" className="mt-4 overflow-x-auto" aria-label={t('rename.result')}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border-subtle text-left">
-                <th className="w-10 px-3 py-2">
-                  {preview && selectable.length > 0 && (
-                    <input
-                      type="checkbox"
-                      aria-label={t('dash.selectAll')}
-                      checked={picked.size === selectable.length}
-                      onChange={(e) => setPicked(new Set(e.target.checked ? selectable.map((p) => p.old) : []))}
-                    />
-                  )}
-                </th>
-                <th className="px-3 py-2">
-                  <Badge>{t('rename.old')}</Badge>
-                </th>
-                <th className="px-3 py-2">
-                  <Badge>{applied ? t('rename.applied') : t('rename.new')}</Badge>
-                </th>
-              </tr>
-            </thead>
-            {/* break-anywhere: a file name has no spaces to break at, so its
-                length became the table's minimum width and pushed the panel
-                into a sideways scroll on a phone */}
-            <tbody className="font-mono text-xs wrap-anywhere">
-              {rows.map((p, i) => (
-                <tr key={i} className="border-b border-border-subtle/50">
-                  <td className="px-3 py-1.5">
-                    {preview && renameable(p) && (
+        <Panel as="section" className="mt-4" aria-label={t('rename.result')}>
+          {/* the scroller is an inner box: a scroll container on the panel
+              itself would unstick the footer below */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border-subtle text-left">
+                  <th className="w-10 px-3 py-2">
+                    {preview && selectable.length > 0 && (
                       <input
                         type="checkbox"
-                        aria-label={t('dash.select', { name: p.old })}
-                        checked={picked.has(p.old)}
-                        onChange={() => toggle(p.old)}
+                        aria-label={t('dash.selectAll')}
+                        checked={picked.size === selectable.length}
+                        onChange={(e) => setPicked(new Set(e.target.checked ? selectable.map((p) => p.old) : []))}
                       />
                     )}
-                  </td>
-                  <td className="px-3 py-1.5 text-t-muted">{p.old}</td>
-                  <td
-                    className={`px-3 py-1.5 ${p.error ? 'text-err' : p.old === p.new ? 'text-t-muted' : applied ? 'text-ok' : 'text-accent'}`}
-                  >
-                    {p.error ? (
-                      <>
-                        <TriangleAlert aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                        {p.error}
-                      </>
-                    ) : p.old === p.new ? (
-                      t('rename.unchanged')
-                    ) : (
-                      p.new
-                    )}
-                  </td>
+                  </th>
+                  <th className="px-3 py-2">
+                    <Badge>{t('rename.old')}</Badge>
+                  </th>
+                  <th className="px-3 py-2">
+                    <Badge>{applied ? t('rename.applied') : t('rename.new')}</Badge>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              {/* break-anywhere: a file name has no spaces to break at, so its
+                  length became the table's minimum width and pushed the panel
+                  into a sideways scroll on a phone */}
+              <tbody className="font-mono text-xs wrap-anywhere">
+                {rows.map((p, i) => (
+                  <tr key={i} className="border-b border-border-subtle/50">
+                    <td className="px-3 py-1.5">
+                      {preview && renameable(p) && (
+                        <input
+                          type="checkbox"
+                          aria-label={t('dash.select', { name: p.old })}
+                          checked={picked.has(p.old)}
+                          onChange={() => toggle(p.old)}
+                        />
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-t-muted">{p.old}</td>
+                    <td
+                      className={`px-3 py-1.5 ${p.error ? 'text-err' : p.old === p.new ? 'text-t-muted' : applied ? 'text-ok' : 'text-accent'}`}
+                    >
+                      {p.error ? (
+                        <>
+                          <TriangleAlert aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                          {p.error}
+                        </>
+                      ) : p.old === p.new ? (
+                        t('rename.unchanged')
+                      ) : (
+                        p.new
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Apply stays reachable while the table scrolls: the shell's footer
+              row on a phone, the preview panel's sticky footer on desktop */}
+          {preview && (
+            <PageFooter>
+              <ActionBar aria-label={t('rename.apply')}>
+                <Button variant="primary" cut disabled={picked.size === 0 || doApply.isPending} onClick={() => doApply.mutate()}>
+                  {t('rename.apply')}
+                </Button>
+                {previewBusy ? <Badge>{t('app.loading')}</Badge> : <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>}
+              </ActionBar>
+            </PageFooter>
+          )}
         </Panel>
-      )}
-
-      {/* Apply stays reachable while the table scrolls: the shell's footer
-          row on a phone, sticky under the preview on desktop */}
-      {preview && (
-        <PageFooter>
-          <ActionBar aria-label={t('rename.apply')}>
-            <Button variant="primary" cut disabled={picked.size === 0 || doApply.isPending} onClick={() => doApply.mutate()}>
-              {t('rename.apply')}
-            </Button>
-            {previewBusy ? <Badge>{t('app.loading')}</Badge> : <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>}
-          </ActionBar>
-        </PageFooter>
       )}
     </div>
   )
