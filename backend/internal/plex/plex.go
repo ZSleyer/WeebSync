@@ -734,22 +734,43 @@ func (c *Client) SetStreams(partID, audioStreamID, subtitleStreamID int64) error
 	return c.put("/library/parts/" + strconv.FormatInt(partID, 10) + "?" + q.Encode())
 }
 
+// showsPageSize is the X-Plex-Container-Size per page. Plex logs a
+// deprecation warning for unpaginated section listings and announces a
+// future HTTP 400 for them, so the listing is always paged.
+var showsPageSize = 500 // var so the test can shrink it
+
 // Shows lists every show of a section (title, year, episode/season counts).
 func (c *Client) Shows(sectionKey string) ([]Show, error) {
-	var resp struct {
-		MediaContainer struct {
-			Metadata []rawShow `json:"Metadata"`
-		} `json:"MediaContainer"`
+	var shows []Show
+	for start := 0; ; start += showsPageSize {
+		var resp struct {
+			MediaContainer struct {
+				TotalSize int       `json:"totalSize"`
+				Metadata  []rawShow `json:"Metadata"`
+			} `json:"MediaContainer"`
+		}
+		// includeGuids=1 makes the bulk listing carry each show's provider guid
+		// array (tvdb://, tmdb://); without it guids only come from a per-show
+		// detail fetch. Supported by modern PMS; ignored by old ones (guids stay 0).
+		q := url.Values{
+			"includeGuids":           {"1"},
+			"X-Plex-Container-Start": {strconv.Itoa(start)},
+			"X-Plex-Container-Size":  {strconv.Itoa(showsPageSize)},
+		}
+		if err := c.get("/library/sections/"+url.PathEscape(sectionKey)+"/all?"+q.Encode(), &resp); err != nil {
+			return nil, err
+		}
+		for _, m := range resp.MediaContainer.Metadata {
+			shows = append(shows, m.toShow())
+		}
+		n := len(resp.MediaContainer.Metadata)
+		// short page ends it; a PMS that ignores paging returns everything at once
+		if n < showsPageSize || start+n >= resp.MediaContainer.TotalSize {
+			break
+		}
 	}
-	// includeGuids=1 makes the bulk listing carry each show's provider guid
-	// array (tvdb://, tmdb://); without it guids only come from a per-show
-	// detail fetch. Supported by modern PMS; ignored by old ones (guids stay 0).
-	if err := c.get("/library/sections/"+url.PathEscape(sectionKey)+"/all?includeGuids=1", &resp); err != nil {
-		return nil, err
-	}
-	shows := make([]Show, 0, len(resp.MediaContainer.Metadata))
-	for _, m := range resp.MediaContainer.Metadata {
-		shows = append(shows, m.toShow())
+	if shows == nil {
+		shows = []Show{}
 	}
 	return shows, nil
 }

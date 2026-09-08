@@ -15,9 +15,23 @@ func testServer(t *testing.T) *httptest.Server {
 			{"key":"1","type":"show","title":"Anime","agent":"tv.plex.agents.series","Location":[{"path":"/media/anime"}]},
 			{"key":"2","type":"movie","title":"Movies","agent":"tv.plex.agents.movie","Location":[{"path":"/media/movies"}]}]}}`))
 	})
+	// paged like real PMS: unpaginated section listings are deprecated there
 	mux.HandleFunc("/library/sections/1/all", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"MediaContainer":{"Metadata":[
-			{"ratingKey":"10","title":"Example Show","year":2024,"leafCount":12,"childCount":1}]}}`))
+		q := r.URL.Query()
+		if q.Get("X-Plex-Container-Size") == "" {
+			http.Error(w, "unpaginated listing", http.StatusBadRequest)
+			return
+		}
+		switch q.Get("X-Plex-Container-Start") {
+		case "0":
+			w.Write([]byte(`{"MediaContainer":{"totalSize":2,"Metadata":[
+				{"ratingKey":"10","title":"Example Show","year":2024,"leafCount":12,"childCount":1}]}}`))
+		case "1":
+			w.Write([]byte(`{"MediaContainer":{"totalSize":2,"Metadata":[
+				{"ratingKey":"11","title":"Second Show","year":2025,"leafCount":3,"childCount":1}]}}`))
+		default:
+			w.Write([]byte(`{"MediaContainer":{"totalSize":2}}`))
+		}
 	})
 	// mirrors real PMS behavior: leaf listings omit Stream even with
 	// includeStreams=1; only the episode metadata detail carries them
@@ -80,8 +94,11 @@ func TestClient(t *testing.T) {
 	if err != nil || len(secs) != 2 || secs[0].Key != "1" {
 		t.Fatalf("sections: %v %v", secs, err)
 	}
+	oldPage := showsPageSize
+	showsPageSize = 1 // force two pages against the fixture
+	defer func() { showsPageSize = oldPage }()
 	shows, err := c.Shows("1")
-	if err != nil || len(shows) != 1 || shows[0].LeafCount != 12 {
+	if err != nil || len(shows) != 2 || shows[0].LeafCount != 12 || shows[1].RatingKey != "11" {
 		t.Fatalf("shows: %v %v", shows, err)
 	}
 	d, err := c.ShowDetail("10")
