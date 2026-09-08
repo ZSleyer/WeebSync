@@ -361,7 +361,7 @@ describe('AppBar and AppShell', () => {
 })
 
 describe('ActionBar, Disclosure and Segmented', () => {
-  it('is a named toolbar: a shell row on a phone, sticky on desktop', () => {
+  it('is a named toolbar: a shell row on a phone, a panel footer or a bare row on desktop', () => {
     render(
       <ActionBar aria-label="Auswahl">
         <button type="button">Pause</button>
@@ -369,7 +369,7 @@ describe('ActionBar, Disclosure and Segmented', () => {
     )
     const bar = screen.getByRole('toolbar', { name: 'Auswahl' })
     expect(bar).toHaveClass('px-4', 'lg:sticky', 'lg:bottom-0')
-    expect(bar).not.toHaveClass('sticky')
+    expect(bar).not.toHaveClass('sticky', 'lg:mt-4', 'lg:border')
     expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument()
     cleanup()
     render(
@@ -377,7 +377,16 @@ describe('ActionBar, Disclosure and Segmented', () => {
         <button type="button">Save</button>
       </ActionBar>,
     )
-    expect(screen.getByRole('toolbar', { name: 'Speichern' })).not.toHaveClass('lg:sticky', 'lg:mt-4')
+    const save = screen.getByRole('toolbar', { name: 'Speichern' })
+    expect(save).not.toHaveClass('lg:sticky')
+    expect(save).toHaveClass('lg:border-0', 'lg:p-0')
+    cleanup()
+    render(
+      <ActionBar aria-label="Auswahl" floating>
+        <button type="button">Löschen</button>
+      </ActionBar>,
+    )
+    expect(screen.getByRole('toolbar', { name: 'Auswahl' })).toHaveClass('lg:sticky', 'lg:w-fit', 'lg:mx-auto', 'lg:border')
   })
 
   it('folds its block on the native details element and reports toggles', () => {
