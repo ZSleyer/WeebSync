@@ -36,3 +36,13 @@ services:
       # WEEBSYNC_DOWNLOADS above:
       # - /srv/media:/media
     restart: unless-stopped
+    # hardening that travels with the file (an AppArmor profile would have
+    # to be loaded on every host by hand): no capabilities - nonroot on
+    # port 8080 needs none -, no privilege gain via setuid binaries, and a
+    # read-only root. Writes go to the volumes above; tmpfs covers SQLite's
+    # temp files and ffprobe, both of which fail quietly without a writable
+    # /tmp or /var/tmp.
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp, /var/tmp]
