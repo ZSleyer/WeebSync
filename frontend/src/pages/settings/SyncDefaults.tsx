@@ -179,7 +179,7 @@ export default function SyncDefaults() {
       </Panel>
 
       <PageFooter>
-        <ActionBar aria-label={t('settings.save')} sticky={false} className="lg:mb-6 lg:border-0 lg:bg-transparent lg:p-0">
+        <ActionBar aria-label={t('settings.save')} sticky={false} className="lg:mb-6">
           <Button variant="primary" cut onClick={() => save.mutate(form)} disabled={save.isPending}>
             {t('settings.save')}
           </Button>
