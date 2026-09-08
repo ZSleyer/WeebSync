@@ -72,6 +72,17 @@ export default function Servers() {
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('servers.title')}</h2>
           <Badge className="mt-1">{t('servers.sub')}</Badge>
         </div>
+        {/* the page's one primary action: top right in the header on desktop,
+            the shell's footer row on a phone (a portal, so the hidden header
+            does not hide it there) */}
+        <PageFooter>
+          <ActionBar aria-label={t('servers.add')} sticky={false}>
+            <Button variant="primary" cut onClick={() => openDialog(null)}>
+              <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('servers.add')}
+            </Button>
+          </ActionBar>
+        </PageFooter>
       </header>
 
       {servers.length === 0 && <EmptyState>{t('servers.none')}</EmptyState>}
@@ -151,14 +162,6 @@ export default function Servers() {
       </div>
 
       {dialogOpen && <ServerDialog editing={editing} onClose={() => setDialogOpen(false)} />}
-      <PageFooter>
-        <ActionBar aria-label={t('servers.add')}>
-          <Button variant="primary" cut onClick={() => openDialog(null)}>
-            <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('servers.add')}
-          </Button>
-        </ActionBar>
-      </PageFooter>
     </div>
   )
 }
