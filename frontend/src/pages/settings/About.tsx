@@ -1,26 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge, Panel } from '@weebsync/design-system'
 import { api } from '../../api'
-import { useAuth } from '../../hooks'
-
-interface VersionInfo {
-  version: string
-  channel: string
-  commit: string
-  repo: string
-  updateCheck: boolean
-  updateAvailable: boolean
-  latest: string
-  url: string
-}
+import { useAuth, useVersion } from '../../hooks'
 
 export default function About() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: user } = useAuth()
-  const { data } = useQuery<VersionInfo>({ queryKey: ['version'], queryFn: () => api.get('/api/version') })
+  const { data } = useVersion()
 
   const toggle = useMutation({
     mutationFn: (enabled: boolean) => api.post('/api/version/update-check', { enabled }),

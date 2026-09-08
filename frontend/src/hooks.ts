@@ -93,6 +93,38 @@ export function useEvents(enabled: boolean) {
   }, [enabled, qc])
 }
 
+export interface VersionInfo {
+  version: string
+  channel: string
+  commit: string
+  repo: string
+  updateCheck: boolean
+  updateAvailable: boolean
+  latest: string
+  url: string
+}
+
+// useVersion feeds the About panel and the update hint in the rail: one
+// query, fresh for six hours - the backend caches its upstream lookup that
+// long too, so asking more often would only repeat the cached answer.
+export function useVersion(enabled = true) {
+  return useQuery<VersionInfo>({
+    queryKey: ['version'],
+    queryFn: () => api.get('/api/version'),
+    enabled,
+    staleTime: 6 * 60 * 60 * 1000,
+    retry: false,
+  })
+}
+
+// useUpdateHint is the version info while a newer build is out, for admins
+// only: they are the ones who deploy, everyone else can do nothing with it.
+export function useUpdateHint() {
+  const { data: user } = useAuth()
+  const { data } = useVersion(!!user?.isAdmin)
+  return data?.updateAvailable ? data : undefined
+}
+
 // useAiStatus gates the assistant: the nav entry and the page only show when
 // an endpoint is configured. No network call behind it (that is force=1 on
 // the settings page), so a dead endpoint never slows the shell down.
