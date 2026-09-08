@@ -1,7 +1,7 @@
 services:
   weebsync:
     build: .
-    # image: ghcr.io/zsleyer/weebsync:nightly   # or a :vX.Y.Z release
+    # image: ghcr.io/zsleyer/weebsync:nightly   # or :dev for every green push
     # optional: run as the owner of your media instead of the image's
     # nonroot (65532), so downloads land with your uid/gid. `./data` must be
     # owned by that user too (see README, "File ownership").
