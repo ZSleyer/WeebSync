@@ -17,6 +17,14 @@ export function suggestDirs(partial: string, entries: Entry[]): string[] {
     .map((e) => (parent ? `${parent}/` : '') + e.name)
 }
 
+// Strip trailing separators without a regex: `/\/+$/` backtracks per slash
+// on input like "a////..." (CodeQL js/polynomial-redos).
+export function trimSlashes(p: string): string {
+  let end = p.length
+  while (end > 0 && p[end - 1] === '/') end--
+  return p.slice(0, end)
+}
+
 const parentOf = (p: string) => {
   const s = p.lastIndexOf('/')
   return s >= 0 ? p.slice(0, s) : ''
@@ -71,7 +79,7 @@ export default function PathInput({
   const commit = (p: string) => {
     setOpen(false)
     setActive(-1)
-    onCommit(p.replace(/\/+$/, ''))
+    onCommit(trimSlashes(p))
   }
   const pick = (p: string) => {
     // append a slash so the next keystroke-free suggestion lists the picked
