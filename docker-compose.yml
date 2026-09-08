@@ -2,6 +2,12 @@ services:
   weebsync:
     build: .
     # image: ghcr.io/zsleyer/weebsync:nightly   # or a :vX.Y.Z release
+    # optional: run as the owner of your media instead of the image's
+    # nonroot (65532), so downloads land with your uid/gid. `./data` must be
+    # owned by that user too (see README, "File ownership").
+    # user: "1000:1000"
+    # group_add:
+    #   - "990"
     ports:
       # session auth runs over plain HTTP - bind to loopback and put a
       # TLS-terminating reverse proxy in front. Use "8080:8080" only on a

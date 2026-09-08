@@ -34,6 +34,31 @@ docker compose up -d
 The nightly image builds once a day instead of on every push, so an
 auto-updater (e.g. the HA add-on tracking `:nightly`) updates at most daily.
 
+### File ownership (UID/GID)
+
+The container runs as the unprivileged user `nonroot` (uid/gid 65532) - no
+root process, no `PUID`/`PGID` entrypoint that drops privileges later. Files
+it writes belong to that uid, and a media mount owned by your host user is
+read-only for it. To make it run as *your* user, hand Docker the ids
+instead; the binary is static and needs nothing from `/etc/passwd`:
+
+```yaml
+services:
+  weebsync:
+    user: "1000:1000"   # $(id -u):$(id -g) of the media owner
+    group_add:
+      - "990"           # extra group(s) with write access to the mounts
+```
+
+Same thing on the CLI: `docker run --user 1000:1000 --group-add 990 …`.
+
+Then the data dir must belong to that user as well: `./data` is created by
+Docker as root when it does not exist, so `mkdir -p data && chown 1000:1000 data`
+once before the first start. A named volume is initialised with the image's
+owner (65532) and needs the same one-time `chown` from a helper container. The
+Home Assistant add-on is not affected: the Supervisor runs it with the rights
+it has on `/media` and `/config`.
+
 ## Configuration (env)
 
 All optional. Env values **override** UI settings and lock the field.
