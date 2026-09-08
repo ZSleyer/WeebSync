@@ -77,6 +77,11 @@ func main() {
 	// media mounts, e.g. "/media:/config"). The first is the primary download
 	// dir; a target path may live under any of them.
 	localRoots := filepath.SplitList(env("WEEBSYNC_DOWNLOADS", filepath.Join(dataDir, "downloads")))
+	for i, r := range localRoots {
+		// "/media/" from a config option would otherwise show up as
+		// "/media//title" wherever a target path is built by hand
+		localRoots[i] = filepath.Clean(r)
+	}
 	downloadRoot := localRoots[0]
 	webDir := env("WEEBSYNC_WEB", "./web")
 
