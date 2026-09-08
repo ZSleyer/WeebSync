@@ -2,7 +2,7 @@ import { ActionBar, AppBar, AppShell, Badge, Button, NavItem, Panel, TabBar } fr
 
 // The shell's footer row: the bar sits on the tab bar whether the page is
 // shorter or longer than the frame. The app portals a page's bar in there
-// below lg and renders it in flow (sticky) from lg on.
+// below lg and renders it as the footer of the panel it acts on from lg on.
 export const SelectionBar = () => (
   <div style={{ width: 380, height: 560, overflow: 'hidden' }}>
     <AppShell
@@ -46,7 +46,7 @@ export const SelectionBar = () => (
 export const SaveBar = () => (
   <div style={{ maxWidth: 380 }}>
     <Panel className="p-4">Formular</Panel>
-    <ActionBar aria-label="Speichern" sticky={false} className="lg:border-0 lg:bg-transparent lg:p-0">
+    <ActionBar aria-label="Speichern" sticky={false}>
       <Button variant="primary" cut>
         Speichern
       </Button>

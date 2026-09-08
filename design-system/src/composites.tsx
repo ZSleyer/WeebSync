@@ -667,8 +667,14 @@ export function TabBar({ children, className, ...rest }: TabBarProps) {
 export interface ActionBarProps extends HTMLAttributes<HTMLDivElement> {
   /** a toolbar needs a name - what the actions apply to */
   'aria-label': string
-  /** from lg on: stick to the bottom of the document (default) or stay in flow */
+  /** from lg on: the sticky footer of a panel (default) or a bare row in flow */
   sticky?: boolean
+  /**
+   * from lg on: a floating toolbar instead, as wide as its content and
+   * centered at the foot of the viewport - for a selection's actions, which
+   * belong to no single panel. Implies `sticky`.
+   */
+  floating?: boolean
   children: ReactNode
 }
 
@@ -678,12 +684,22 @@ export interface ActionBarProps extends HTMLAttributes<HTMLDivElement> {
  * `footer` row, right above the tab bar: a sticky box in <main> only held its
  * place on pages taller than the screen, on a short page it sat wherever the
  * content ended. Never fixed either - a fixed box drifts on Firefox for
- * Android while the URL bar animates. From lg on it sticks to the bottom of
- * the document instead, in flow after the content it acts on. Its own inline
- * padding matches <main>'s on a phone, so the buttons line up with the page.
- * No safe-area padding: the tab bar below it owns that.
+ * Android while the URL bar animates. Its own inline padding matches <main>'s
+ * on a phone, so the buttons line up with the page. No safe-area padding: the
+ * tab bar below it owns that.
+ *
+ * From lg on it is one of two things. Sticky (default): the footer of the
+ * panel it acts on - the last child of that panel, sticking to the bottom of
+ * the viewport while the panel scrolls, the way a dialog's footer does. A
+ * bar dropped after the panel with a gap read as buttons lost on the page.
+ * Not sticky: a bare row in flow, for Save after a form or a page's "add"
+ * button in its header slot. Floating: a selection's toolbar, which acts on
+ * rows in more than one panel - a strip across the whole column with three
+ * small buttons at its left end read as lost, so it shrinks to its content
+ * and floats centered over the foot of the viewport, the way a bulk-action
+ * bar does in a file manager.
  */
-export function ActionBar({ sticky = true, className, ...rest }: ActionBarProps) {
+export function ActionBar({ sticky = true, floating = false, className, ...rest }: ActionBarProps) {
   return (
     <div
       role="toolbar"
@@ -691,10 +707,12 @@ export function ActionBar({ sticky = true, className, ...rest }: ActionBarProps)
       className={cx(
         'flex flex-wrap items-center gap-2 border-t border-border-subtle bg-bg-secondary px-4 py-2',
         // a prop, not a consumer override: two `lg:` utilities for the same
-        // property resolve by stylesheet order, not by who asked last. On
-        // desktop the bar is a box like the panel it acts on: a bare strip
-        // with one hairline above it read as buttons dropped on the page
-        sticky && 'lg:sticky lg:bottom-0 lg:z-10 lg:mt-4 lg:border lg:bg-bg-card',
+        // property resolve by stylesheet order, not by who asked last
+        floating
+          ? 'lg:sticky lg:bottom-4 lg:z-10 lg:mx-auto lg:w-fit lg:max-w-full lg:border lg:bg-bg-card lg:shadow-lg'
+          : sticky
+            ? 'lg:sticky lg:bottom-0 lg:z-10 lg:bg-bg-card'
+            : 'lg:border-0 lg:bg-transparent lg:p-0',
         className,
       )}
     />
