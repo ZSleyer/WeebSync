@@ -27,7 +27,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar } from '@weebsync/design-system'
 import { api } from './api'
-import { useAiStatus, useAuth, useEvents } from './hooks'
+import { useAiStatus, useAuth, useEvents, useUpdateHint } from './hooks'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
@@ -225,6 +225,11 @@ function Shell({ email }: { email: string }) {
   const { data: aiStatus } = useAiStatus()
   const overflow = aiStatus?.configured ? OVERFLOW : OVERFLOW.filter((n) => n.to !== '/assistant')
   const moreActive = overflow.some((n) => onPath(n, location.pathname))
+  // a newer build out: a dot on the Settings entry (and on the More tab that
+  // hides it) and a line in the rail's foot, so an admin sees it without
+  // opening Settings; the About panel has the details
+  const update = useUpdateHint()
+  const updateText = update && (update.channel === 'stable' ? t('about.updateStable', { version: update.latest }) : t('about.updateDev'))
   // navigating (via sheet or otherwise) closes the sheet
   useEffect(() => setMoreOpen(false), [location.pathname])
 
@@ -256,6 +261,18 @@ function Shell({ email }: { email: string }) {
   }
 
   const icon = (n: NavEntry) => <n.icon aria-hidden size="1.25em" className="shrink-0" />
+  // the dot sits on the icon's corner, so it works in a row and in a stacked tab
+  const dotted = (node: ReactNode, show: boolean) => (
+    <span className="relative shrink-0">
+      {node}
+      {show && (
+        <>
+          <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-warn" />
+          <span className="sr-only">{t('app.updateHint')}</span>
+        </>
+      )}
+    </span>
+  )
 
   const sidebar = (
     <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
@@ -268,12 +285,18 @@ function Shell({ email }: { email: string }) {
       <nav className="min-h-0 flex-1 overflow-y-auto py-3" aria-label={t('nav.main')}>
         {[...TABS, ...overflow].map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => navItemClass('sidebar', isActive)}>
-            {icon(n)}
+            {dotted(icon(n), !!update && n.to === '/settings')}
             {t(n.key)}
           </NavLink>
         ))}
       </nav>
       <div className="border-t border-border-subtle p-4">
+        {update && (
+          <Link to="/settings/general#about" className="mb-3 flex items-center gap-2 text-xs text-warn hover:underline">
+            <span aria-hidden className="size-2 shrink-0 rounded-full bg-warn" />
+            <span className="min-w-0 truncate">{updateText}</span>
+          </Link>
+        )}
         <p className="mb-2 truncate font-mono text-xs text-t-muted" title={email}>
           {email}
         </p>
@@ -323,7 +346,7 @@ function Shell({ email }: { email: string }) {
           aria-expanded={moreOpen}
           onClick={() => setMoreOpen(true)}
         >
-          <Ellipsis aria-hidden size="1.25em" className="shrink-0" />
+          {dotted(<Ellipsis aria-hidden size="1.25em" className="shrink-0" />, !!update)}
           <span className="max-w-full truncate whitespace-nowrap">{t('nav.more')}</span>
         </NavItem>
       </div>
@@ -341,7 +364,7 @@ function Shell({ email }: { email: string }) {
       <nav aria-label={t('nav.more')} className="py-1">
         {overflow.map((n) => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => navItemClass('sheet', isActive)}>
-            {icon(n)}
+            {dotted(icon(n), !!update && n.to === '/settings')}
             {t(n.key)}
             <ChevronRight aria-hidden size="1em" className="ml-auto shrink-0 text-t-faint" />
           </NavLink>

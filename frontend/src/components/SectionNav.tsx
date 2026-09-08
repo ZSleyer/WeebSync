@@ -5,14 +5,18 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Count, navItemClass } from '@weebsync/design-system'
 
 // One entry of a section menu: a relative route, its label and icon, an
-// optional hint under the label (hub rows) and an optional count.
+// optional hint under the label (hub rows), an optional count and an
+// optional alert dot (something in that section wants a look).
 export interface SectionItem {
   to: string
   key: string
   icon: LucideIcon
   hint?: string
   count?: number
+  alert?: boolean
 }
+
+const AlertDot = () => <span aria-hidden className="size-2 shrink-0 rounded-full bg-warn" />
 
 export interface SectionGroup {
   label: string
@@ -37,6 +41,7 @@ export function SectionNav({ label, groups }: { label: string; groups: SectionGr
                   <NavLink to={i.to} className={({ isActive }) => navItemClass('sidebar', isActive)}>
                     <i.icon aria-hidden size="1.25em" className="shrink-0" />
                     <span className="min-w-0 flex-1 truncate">{t(i.key)}</span>
+                    {i.alert && <AlertDot />}
                     {i.count != null && <Count>{i.count}</Count>}
                   </NavLink>
                 </li>
@@ -68,6 +73,7 @@ export function SectionHub({ groups, before }: { groups: SectionGroup[]; before?
                   <span>{t(i.key)}</span>
                   {i.hint && <span className="font-sans text-xs text-t-muted">{t(i.hint)}</span>}
                 </span>
+                {i.alert && <AlertDot />}
                 {i.count != null && <Count>{i.count}</Count>}
                 <ChevronRight aria-hidden size="1em" className="shrink-0 text-t-faint" />
               </NavLink>

@@ -27,6 +27,7 @@
   },
   "app": {
     "tagline": "weeb your sync",
+    "updateHint": "Update verfügbar",
     "loading": "lädt",
     "logout": "Abmelden",
     "error": "Fehler",

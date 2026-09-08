@@ -4,7 +4,7 @@ import { Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api } from '../../api'
-import { useAuth } from '../../hooks'
+import { useAuth, useUpdateHint } from '../../hooks'
 import { WIDE_MQ } from '../../components/PageActions'
 import { SectionHub, SectionNav, type SectionGroup } from '../../components/SectionNav'
 
@@ -30,8 +30,10 @@ export function AdminRoute({ children }: { children: ReactNode }) {
 
 function useGroups(): SectionGroup[] {
   const { data: user } = useAuth()
+  // the About panel lives on General: a newer build out marks that entry
+  const update = useUpdateHint()
   return [
-    { label: 'settings.groupPersonal', items: PERSONAL },
+    { label: 'settings.groupPersonal', items: PERSONAL.map((i) => (i.to === 'general' ? { ...i, alert: !!update } : i)) },
     { label: 'settings.groupSources', items: SOURCES },
     ...(user?.isAdmin ? [{ label: 'settings.groupAdmin', items: ADMIN }] : []),
   ]
