@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Entry } from '../api'
-import { suggestDirs } from '../components/PathInput'
+import { suggestDirs, trimSlashes } from '../components/PathInput'
 import { isSeasonFolder } from '../components/RenameOptions'
 import { classifyTargets, syncTargetDir } from '../components/useTargetFolder'
 
@@ -8,6 +8,15 @@ const dir = (name: string): Entry => ({ name, path: name, size: 0, isDir: true, 
 const file = (name: string): Entry => ({ ...dir(name), isDir: false })
 
 const LISTING: Entry[] = [dir('Anime'), dir('anime-movies'), dir('Docs'), file('Anime.txt')]
+
+describe('trimSlashes', () => {
+  it('drops trailing separators only', () => {
+    expect(trimSlashes('a/b///')).toBe('a/b')
+    expect(trimSlashes('/')).toBe('')
+    expect(trimSlashes('')).toBe('')
+    expect(trimSlashes('a/b')).toBe('a/b')
+  })
+})
 
 describe('suggestDirs', () => {
   it('matches the last segment case-insensitively and keeps the parent path', () => {
