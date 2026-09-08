@@ -885,10 +885,10 @@ html-parse-stringify@^4.0.1:
   resolved "https://registry.yarnpkg.com/html-parse-stringify/-/html-parse-stringify-4.0.1.tgz#7264be901df0fef8829eb04632191be0aa94f55e"
   integrity sha512-0zHsZJrK7S3K2aucXWL6ycoYJ/iNtIcFHC/nYQgFklPtrv5LpJctIiSCroWZWeuoXvuyFdzp6KzjJQ+OT5MfFw==
 
-i18next@^26.4.0:
-  version "26.4.0"
-  resolved "https://registry.yarnpkg.com/i18next/-/i18next-26.4.0.tgz#721c4f0ae295a5c237e25b01abfc8489831c1204"
-  integrity sha512-rsmK5bFqsD1AetSFSIa43wtNR4WpvvH4p0tLEsTxkC7QTrfdFm06nbQ95bh8Og4wwaCnUEcm9DVYL2cgxitiQg==
+i18next@^26.4.2:
+  version "26.4.2"
+  resolved "https://registry.yarnpkg.com/i18next/-/i18next-26.4.2.tgz#824233630f147359296bcaddf1404945d2b211bf"
+  integrity sha512-RX+R0VLg13IbvRuJSxnqykUFS9vQZTl8wYpWPCIUDWVrSGjsQywB5Y+pjzrkboxGAuYfJZVH1InFTdgBdxq6ug==
 
 indent-string@^4.0.0:
   version "4.0.0"
@@ -1090,10 +1090,10 @@ lru-cache@^11.5.2:
   resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-11.5.2.tgz#00e16665c90c620fba14a3c368732a976493f760"
   integrity sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g==
 
-lucide-react@^1.34.0:
-  version "1.39.0"
-  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-1.39.0.tgz#9acdc7be3c414bf707d956ee40208f79b6fb203f"
-  integrity sha512-y8nXoEwvqqIsF927NBWXODa4bfMrcUeEb/9sgpwFqg0gUjgn3j5Hznk+v7STmPgZ2iQ11JKlbQGdFRuTOwvYkA==
+lucide-react@^1.40.0:
+  version "1.40.0"
+  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-1.40.0.tgz#d0c803e74afb9a677d3933403d0f9ac0f6162fe7"
+  integrity sha512-MaG+8WnOXkDWz9XeElj7TnQ890tTZUB0a36i03aRRCKGWE6e7jJpmdCvtxxuxcjjdqyN6m4sL6qlHVuSUDtYgg==
 
 lz-string@^1.5.0:
   version "1.5.0"
@@ -1204,10 +1204,10 @@ react-dom@^19.2.8:
   dependencies:
     scheduler "^0.27.0"
 
-react-i18next@^17.0.12:
-  version "17.0.12"
-  resolved "https://registry.yarnpkg.com/react-i18next/-/react-i18next-17.0.12.tgz#8f7254800c81644a284be2fd0908e895df9a1d18"
-  integrity sha512-lFWPEGkxQ6RhusdUkysFBD58VHfSSzvHBzqMgN0SvfVpdQGfwtNkStTqdy08/sJd7s807qqutgx93fRpD0DJ3Q==
+react-i18next@^17.0.13:
+  version "17.0.13"
+  resolved "https://registry.yarnpkg.com/react-i18next/-/react-i18next-17.0.13.tgz#b35ec04059096797e6b12ea2f6552168c0172f7b"
+  integrity sha512-Cc1PscmblIHA1kljTqDwrcVMI21ydgmUzw0UAeQBe7pAOgfuRLfzXze4EUBQoeDiICzFIXXhHFoZxuetNg5D0Q==
   dependencies:
     "@babel/runtime" "^7.29.7"
     html-parse-stringify "^4.0.1"
