@@ -52,7 +52,11 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 // the latest release tag; dev tracks the tip of main. Best-effort: any error
 // leaves updateAvailable false. Result cached 6h in the shared KV cache.
 func (s *Server) fillUpdate(info *versionInfo) {
-	cacheKey := "update:" + info.Channel + ":" + info.Repo
+	// the build is part of the key: the answer "a newer build is out" belongs
+	// to the binary that asked. Without it the row the old binary wrote in
+	// the minutes before a deploy outlived the deploy, and the new build
+	// reported itself outdated for up to six hours
+	cacheKey := "update:" + info.Channel + ":" + info.Repo + ":" + info.Version + ":" + info.Commit
 	if payload, ok := s.cacheGet(cacheKey, 6*time.Hour); ok {
 		var cached struct {
 			Latest, URL string
