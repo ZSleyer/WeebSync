@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowLeft,
   ChevronRight,
@@ -16,6 +16,7 @@ import {
   createRoutesFromElements,
   Link,
   NavLink,
+  useViewTransitionState,
   Navigate,
   Outlet,
   Route,
@@ -190,7 +191,7 @@ function RouteTitle() {
   return null
 }
 
-// RouteTransition drops the animation class once the wipe finished: a filled
+// RouteTransition drops the animation class once the rise finished: a filled
 // transform animation keeps the wrapper a containing block, which would pin
 // position:fixed descendants (e.g. the browser's selection bar) to the page
 // instead of the viewport. Lives inside the keyed <main>, so a navigation
@@ -201,7 +202,7 @@ function RouteTransition({ cls, children }: { cls: string; children: ReactNode }
     // the layout classes have to survive the animation class being dropped:
     // they are what lets a page claim the remaining height of <main>
     <div
-      className={`flex min-h-0 flex-1 flex-col${done ? '' : ' ' + cls}`}
+      className={`flex min-h-0 flex-1 flex-col${cls && !done ? ' ' + cls : ''}`}
       onAnimationEnd={(e) => e.target === e.currentTarget && setDone(true)}
     >
       {children}
@@ -234,15 +235,25 @@ function Shell({ email }: { email: string }) {
   // Keyed on pathname so it's computed once per navigation - a plain re-render
   // (e.g. opening the mobile "more" sheet) must not re-flip the class and
   // replay the animation.
+  // The nav links navigate inside a view transition (<main> is named in CSS);
+  // then the browser animates the swap and the wrapper class stays off, or
+  // both would move. Everything else (navigate(), back button, cards) still
+  // gets the class animation.
+  const inViewTransition = useViewTransitionState(location.pathname)
   const curNav = navIndex(location.pathname)
   const prevNav = useRef(curNav)
-  const transitionClass = useMemo(() => {
-    const cls =
-      curNav < prevNav.current ? 'anim-slide-from-right' : curNav > prevNav.current ? 'anim-slide-from-left' : 'anim-t-reveal'
+  const { transitionClass, navDir } = useMemo(() => {
+    const dir = curNav < prevNav.current ? 'back' : curNav > prevNav.current ? 'fwd' : 'same'
     prevNav.current = curNav
-    return cls
+    const cls = dir === 'back' ? 'anim-slide-from-right' : dir === 'fwd' ? 'anim-slide-from-left' : 'anim-t-reveal'
+    return { transitionClass: inViewTransition ? '' : cls, navDir: dir }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
+  // the direction for the view transition's CSS; a layout effect, so it is on
+  // <html> before the browser captures the new state
+  useLayoutEffect(() => {
+    document.documentElement.dataset.nav = navDir
+  }, [navDir, location.pathname])
 
   const logout = async () => {
     try {
@@ -280,7 +291,7 @@ function Shell({ email }: { email: string }) {
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto py-3" aria-label={t('nav.main')}>
         {[...TABS, ...overflow].map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => navItemClass('sidebar', isActive)}>
+          <NavLink key={n.to} to={n.to} end={n.to === '/'} viewTransition className={({ isActive }) => navItemClass('sidebar', isActive)}>
             {dotted(icon(n), !!update && n.to === '/settings')}
             {t(n.key)}
           </NavLink>
@@ -329,7 +340,7 @@ function Shell({ email }: { email: string }) {
     <TabBar aria-label={t('nav.main')}>
       <div className="flex">
         {TABS.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => navItemClass('bottomTab', isActive)}>
+          <NavLink key={n.to} to={n.to} end={n.to === '/'} viewTransition className={({ isActive }) => navItemClass('bottomTab', isActive)}>
             {icon(n)}
             <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
           </NavLink>
@@ -359,7 +370,7 @@ function Shell({ email }: { email: string }) {
       </h2>
       <nav aria-label={t('nav.more')} className="py-1">
         {overflow.map((n) => (
-          <NavLink key={n.to} to={n.to} className={({ isActive }) => navItemClass('sheet', isActive)}>
+          <NavLink key={n.to} to={n.to} viewTransition className={({ isActive }) => navItemClass('sheet', isActive)}>
             {dotted(icon(n), !!update && n.to === '/settings')}
             {t(n.key)}
             <ChevronRight aria-hidden size="1em" className="ml-auto shrink-0 text-t-faint" />

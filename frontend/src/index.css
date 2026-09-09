@@ -1024,6 +1024,20 @@ details[open]::details-content { height: auto; }
 .anim-slide-from-right { animation: t-slide-from-right var(--dur-2) var(--ease-out) both; }
 .anim-slide-from-left  { animation: t-slide-from-left var(--dur-2) var(--ease-out) both; }
 
+/* ── View transitions between routes: the nav links navigate inside one, the
+   shell names <main>, and the old page fades while the new one slides in by
+   nav direction (html[data-nav], set by the shell). The root pair does not
+   animate, so sidebar and bars stand still. Browsers without the API keep
+   the wrapper animation above. ── */
+.app-shell > main { view-transition-name: main; }
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; }
+::view-transition-old(main) { animation: t-fade-out var(--dur-1) var(--ease-in) both; }
+::view-transition-new(main) { animation: t-reveal var(--dur-2) var(--ease-out) both; }
+:root[data-nav="fwd"]::view-transition-new(main) { animation-name: t-slide-from-left; }
+:root[data-nav="back"]::view-transition-new(main) { animation-name: t-slide-from-right; }
+@keyframes t-fade-out { to { opacity: 0; } }
+
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .animate-fadeIn { animation: fadeIn var(--dur-2) var(--ease-out); }
 
@@ -1073,6 +1087,10 @@ details[open]::details-content { height: auto; }
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+/* the view-transition pseudo-elements hang off <html>; `*` never reaches them */
+:root[data-motion="off"]::view-transition-group(*),
+:root[data-motion="off"]::view-transition-old(*),
+:root[data-motion="off"]::view-transition-new(*) { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -1080,6 +1098,9 @@ details[open]::details-content { height: auto; }
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
 }
 
 /* ── Assistant: turn reveal, thinking dots, stream cursor. Motion sits under
