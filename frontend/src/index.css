@@ -1010,6 +1010,12 @@ details::details-content {
 }
 details[open]::details-content { height: auto; }
 
+/* Squircle corners where the engine draws them (Chromium 139+): only on the
+   large radii - at 4-6px a superellipse reads tighter, not softer. */
+@supports (corner-shape: squircle) {
+  .t-panel, dialog, .t-pop { corner-shape: squircle; }
+}
+
 /* ── Micro-transitions: a page rises 6px into place ── */
 @keyframes t-reveal {
   from { transform: translateY(6px); opacity: 0; }
