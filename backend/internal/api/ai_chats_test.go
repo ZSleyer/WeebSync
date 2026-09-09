@@ -50,3 +50,21 @@ func TestAiChatsRoundTripAndOwnership(t *testing.T) {
 		t.Errorf("after delete: %d", rec.Code)
 	}
 }
+
+// A picture on the user's message reaches the provider as an image part
+// next to the text; a picture that is not a data:image URL is dropped.
+func TestAiChatImagesBecomeContentParts(t *testing.T) {
+	fp := newFakeProvider(t, fakeReply{text: "A cat."})
+	mux, _, c := setupAiTest(t, fp)
+	body := `{"messages":[{"role":"user","content":"what is this?","images":["data:image/png;base64,iVBORw0KGgo=","https://example.com/x.png"]}]}`
+	if rec := doReq(mux, "POST", "/api/ai/chat", body, c); rec.Code != 200 {
+		t.Fatalf("chat: %d %s", rec.Code, rec.Body)
+	}
+	raw := string(fp.raw)
+	if !strings.Contains(raw, `"type":"image_url"`) || !strings.Contains(raw, `data:image/png;base64,iVBORw0KGgo=`) || !strings.Contains(raw, `"type":"text","text":"what is this?"`) {
+		t.Errorf("parts missing: %s", raw)
+	}
+	if strings.Contains(raw, "example.com") {
+		t.Errorf("non-data url forwarded: %s", raw)
+	}
+}

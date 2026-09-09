@@ -108,8 +108,8 @@ func TestStreamAndPingAgainstFakeProvider(t *testing.T) {
 	if gotAuth != "Bearer sk-test" {
 		t.Errorf("auth header %q", gotAuth)
 	}
-	if ids, err := c.Models(context.Background()); err != nil || strings.Join(ids, ",") != "test-model,other" {
-		t.Fatalf("models: %v %v", ids, err)
+	if models, err := c.Models(context.Background()); err != nil || len(models) != 2 || models[0].ID != "test-model" || models[1].ID != "other" || models[0].Vision != nil {
+		t.Fatalf("models: %v %v", models, err)
 	}
 	msg, err := c.Stream(context.Background(), "", []Message{{Role: "user", Content: "hi"}}, nil, nil)
 	if err != nil || msg.Content != "ok" || gotModel != "test-model" {
