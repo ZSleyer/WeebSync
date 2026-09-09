@@ -164,29 +164,35 @@ function NotifyPrefsSection() {
   const setFreq = (freq: string) => save.mutate({ push: data.push, freq })
 
   return (
-    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.pushCategories')}>
-      <Badge tone="accent">{t('settings.pushCategories')}</Badge>
-      {data.pushAvailable ? (
-        <div className="mt-3 space-y-1.5">
-          {data.available.map((cat) => (
-            <label key={cat} className="flex items-center gap-2 text-sm text-t-secondary">
-              <input type="checkbox" checked={data.push.includes(cat)} onChange={() => togglePush(cat)} />
-              {t(`settings.emailCat_${cat}`)}
-            </label>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-2 text-xs text-t-muted">{t('settings.pushUnavailable')}</p>
-      )}
-      <label className="mt-4 flex items-center gap-2 text-sm text-t-secondary">
-        {t('settings.notifyFreq')}
-        <Select size="sm" value={data.freq} onChange={(e) => setFreq(e.target.value)}>
-          <option value="instant">{t('settings.freqInstant')}</option>
-          <option value="hourly">{t('settings.freqHourly')}</option>
-          <option value="daily">{t('settings.freqDaily')}</option>
-        </Select>
-      </label>
-      <p className="mt-2 text-xs text-t-muted">{t('settings.notifyFreqHint')}</p>
-    </Panel>
+    <>
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.pushCategories')}>
+        <Badge tone="accent">{t('settings.pushCategories')}</Badge>
+        {data.pushAvailable ? (
+          <div className="mt-3 space-y-1.5">
+            {data.available.map((cat) => (
+              <label key={cat} className="flex items-center gap-2 text-sm text-t-secondary">
+                <input type="checkbox" checked={data.push.includes(cat)} onChange={() => togglePush(cat)} />
+                {t(`settings.emailCat_${cat}`)}
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-t-muted">{t('settings.pushUnavailable')}</p>
+        )}
+      </Panel>
+      {/* the cadence batches mail as well as push, so it is not a push setting */}
+      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.notifyDelivery')}>
+        <Badge tone="accent">{t('settings.notifyDelivery')}</Badge>
+        <label className="mt-3 flex items-center gap-2 text-sm text-t-secondary">
+          {t('settings.notifyFreq')}
+          <Select size="sm" value={data.freq} onChange={(e) => setFreq(e.target.value)}>
+            <option value="instant">{t('settings.freqInstant')}</option>
+            <option value="hourly">{t('settings.freqHourly')}</option>
+            <option value="daily">{t('settings.freqDaily')}</option>
+          </Select>
+        </label>
+        <p className="mt-2 text-xs text-t-muted">{t('settings.notifyFreqHint')}</p>
+      </Panel>
+    </>
   )
 }
