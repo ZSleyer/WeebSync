@@ -558,6 +558,8 @@ export interface AiStatus {
   configured: boolean
   model?: string
   connected?: boolean
+  /** a SearXNG is set, so web search and research can be switched on */
+  webSearch?: boolean
   error?: string
 }
 
@@ -645,11 +647,12 @@ export async function streamAiChat(
   onEvent: (ev: AiEvent) => void,
   signal?: AbortSignal,
   model?: string,
+  opts: { tools?: string[]; mode?: 'research' } = {},
 ) {
   const res = await fetch('/api/ai/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, model: model || undefined }),
+    body: JSON.stringify({ messages, model: model || undefined, tools: opts.tools?.length ? opts.tools : undefined, mode: opts.mode }),
     signal,
   })
   if (!res.ok || !res.body) {
