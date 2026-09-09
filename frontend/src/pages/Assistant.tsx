@@ -515,7 +515,7 @@ export default function Assistant() {
           void addImages(e.dataTransfer.files)
         }}
       >
-        <div className={`rounded-xl border bg-bg-card transition-colors ${dragging ? 'border-accent' : 'border-border-subtle focus-within:border-accent/60'}`}>
+        <div className={`rounded-xl border bg-bg-card transition-colors ${dragging ? 'border-accent' : 'border-border-input focus-within:border-accent/60'}`}>
           {attachments.length > 0 && (
             <ul className="flex flex-wrap gap-1.5 px-3 pt-3">
               {attachments.map((src, i) => (
