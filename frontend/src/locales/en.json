@@ -1084,6 +1084,7 @@
     "groupDiscover": "Discover",
     "groupLibrary": "Library",
     "groupHidden": "Hidden",
+    "groupAssistant": "AI",
     "hub": {
       "watchlist": "AniList and TMDB watchlist on your servers",
       "recommended": "Fits your list",
@@ -1091,7 +1092,8 @@
       "upgrades": "Better copies than yours",
       "incomplete": "Missing seasons and episodes",
       "duplicates": "Folders you hold twice",
-      "ignored": "Bring hidden suggestions back"
+      "ignored": "Bring hidden suggestions back",
+      "assistant": "Ask about your list, the season or better copies"
     },
     "upgrades": "Upgrades",
     "noUpgrades": "No better versions found.",

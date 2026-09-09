@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   Bookmark,
+  Bot,
   ChevronDown,
   ChevronUp,
   CircleArrowUp,
@@ -74,7 +75,7 @@ import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../components/upgradeQuality'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
-import { usePersistedQuery, useAuth } from '../hooks'
+import { useAiStatus, usePersistedQuery, useAuth } from '../hooks'
 import { WIDE_MQ } from '../components/PageActions'
 import { SectionHub, SectionNav, type SectionGroup } from '../components/SectionNav'
 import { SkeletonCards } from '../components/Loading'
@@ -91,8 +92,9 @@ type Bucket = (typeof BUCKETS)[number]
 function useGroups(): SectionGroup[] {
   const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
   const { data: dismissed } = usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
+  const { data: ai } = useAiStatus()
   const n = (k: Exclude<Bucket, 'ignored'>) => (data && !data.building ? (data[k]?.length ?? 0) : undefined)
-  const item = (to: Bucket, key: string, icon: LucideIcon, count?: number) => ({ to, key, icon, hint: `suggestions.hub.${to}`, count })
+  const item = (to: Bucket | 'assistant', key: string, icon: LucideIcon, count?: number) => ({ to, key, icon, hint: `suggestions.hub.${to}`, count })
   return [
     {
       label: 'suggestions.groupDiscover',
@@ -111,6 +113,9 @@ function useGroups(): SectionGroup[] {
       ],
     },
     { label: 'suggestions.groupHidden', items: [item('ignored', 'suggestions.ignored', EyeOff, dismissed?.length)] },
+    // the assistant is optional: without a configured endpoint its entry stays
+    // out of the menu (the page itself explains when opened directly)
+    ...(ai?.configured ? [{ label: 'suggestions.groupAssistant', items: [item('assistant', 'nav.assistant', Bot)] }] : []),
   ]
 }
 
@@ -119,15 +124,18 @@ function useGroups(): SectionGroup[] {
 export default function SuggestionsLayout() {
   const { t } = useTranslation()
   const groups = useGroups()
+  // the wrappers are flex columns down to the section, so a section that
+  // fills the screen by design (the assistant's log and composer) can claim
+  // the remaining height; a list section is unaffected
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <header className="mb-6 hidden lg:block">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>
         <Badge multiline className="mt-1">{t('suggestions.sub')}</Badge>
       </header>
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
         <SectionNav label={t('suggestions.navLabel')} groups={groups} />
-        <div className="min-w-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <Outlet />
         </div>
       </div>
