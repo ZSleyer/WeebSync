@@ -564,12 +564,22 @@ export interface AiStatus {
 export interface AiModels {
   models: string[]
   default: string
+  /** per model: reads pictures (true), does not (false), endpoint does not say (null) */
+  vision?: Record<string, boolean | null>
   error?: string
 }
 
 export interface AiChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** data URLs of pictures attached to a user message */
+  images?: string[]
+}
+
+export interface AiChatSummary {
+  id: number
+  title: string
+  updatedAt: string
 }
 
 // AiProposal is a vetted action the assistant suggests; fields prefill the
