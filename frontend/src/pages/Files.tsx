@@ -293,7 +293,22 @@ export default function Files() {
       ) : (
         <Panel as="section" className="flex min-h-64 min-w-0 flex-1 flex-col lg:min-h-0" aria-label={t('files.title')}>
           <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            <Badge tone="accent">{isLocal ? t('remote.local') : t('remote.remote')}</Badge>
+            {/* the tag names the source and switches it: the same list as the
+                header's group, in reach of the path it labels */}
+            <Select
+              size="sm"
+              aria-label={t('remote.source')}
+              wrapperClassName="shrink-0"
+              value={String(source)}
+              onChange={(e) => pickSource(e.target.value === 'local' ? 'local' : Number(e.target.value))}
+            >
+              <option value="local">{t('files.local')}</option>
+              {servers.map((s) => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
             <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">
               {selection ? selection.path : path ? `/${path}` : t('remote.noSelection')}
             </span>
