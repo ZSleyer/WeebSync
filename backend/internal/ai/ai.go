@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -61,7 +62,17 @@ func (c *Client) Ping(ctx context.Context) error {
 }
 
 // Models lists the ids the endpoint serves, in the order it reports them.
-func (c *Client) Models(ctx context.Context) ([]string, error) {
+// ModelInfo is one model the endpoint serves. Vision says whether it reads
+// pictures: nil when the endpoint does not say, which the standard model list
+// never does - OpenRouter's list names input modalities, LiteLLM's model
+// info carries supports_vision for the models it knows.
+type ModelInfo struct {
+	ID     string
+	Vision *bool
+}
+
+// Models lists what the endpoint serves.
+func (c *Client) Models(ctx context.Context) ([]ModelInfo, error) {
 	if !c.Enabled() {
 		return nil, errors.New("ai: not configured")
 	}
@@ -82,19 +93,75 @@ func (c *Client) Models(ctx context.Context) ([]string, error) {
 	}
 	var out struct {
 		Data []struct {
-			ID string `json:"id"`
+			ID           string `json:"id"`
+			Architecture struct {
+				InputModalities []string `json:"input_modalities"`
+			} `json:"architecture"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out); err != nil {
 		return nil, fmt.Errorf("ai: models: %w", err)
 	}
-	ids := make([]string, 0, len(out.Data))
+	models := make([]ModelInfo, 0, len(out.Data))
+	open := false
 	for _, m := range out.Data {
-		if m.ID != "" {
-			ids = append(ids, m.ID)
+		if m.ID == "" {
+			continue
+		}
+		mi := ModelInfo{ID: m.ID}
+		if len(m.Architecture.InputModalities) > 0 {
+			v := slices.Contains(m.Architecture.InputModalities, "image")
+			mi.Vision = &v
+		} else {
+			open = true
+		}
+		models = append(models, mi)
+	}
+	if open {
+		c.litellmVision(ctx, models)
+	}
+	return models, nil
+}
+
+// litellmVision fills the vision flag from LiteLLM's model info for the
+// models the list left open. Any other endpoint answers 404 here, which is
+// the same as saying nothing.
+func (c *Client) litellmVision(ctx context.Context, models []ModelInfo) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL()+"/model/info", nil)
+	if err != nil {
+		return
+	}
+	c.auth(req)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return
+	}
+	var out struct {
+		Data []struct {
+			ModelName string `json:"model_name"`
+			ModelInfo struct {
+				SupportsVision *bool `json:"supports_vision"`
+			} `json:"model_info"`
+		} `json:"data"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out) != nil {
+		return
+	}
+	known := map[string]*bool{}
+	for _, m := range out.Data {
+		if m.ModelInfo.SupportsVision != nil {
+			known[m.ModelName] = m.ModelInfo.SupportsVision
 		}
 	}
-	return ids, nil
+	for i := range models {
+		if models[i].Vision == nil {
+			models[i].Vision = known[models[i].ID]
+		}
+	}
 }
 
 func (c *Client) auth(req *http.Request) {
@@ -125,6 +192,37 @@ type Message struct {
 	Content    string     `json:"content"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"` // role tool: the call this answers
+	// Images are data URLs attached to a user message; they go out as the
+	// content parts a vision model reads, next to the text
+	Images []string `json:"-"`
+}
+
+// contentPart is one piece of a multimodal message.
+type contentPart struct {
+	Type     string    `json:"type"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *imageURL `json:"image_url,omitempty"`
+}
+
+type imageURL struct {
+	URL string `json:"url"`
+}
+
+// MarshalJSON writes the content as parts when images are attached: the
+// plain string form otherwise, which every endpoint understands.
+func (m Message) MarshalJSON() ([]byte, error) {
+	type plain Message
+	if len(m.Images) == 0 {
+		return json.Marshal(plain(m))
+	}
+	parts := []contentPart{{Type: "text", Text: m.Content}}
+	for _, u := range m.Images {
+		parts = append(parts, contentPart{Type: "image_url", ImageURL: &imageURL{URL: u}})
+	}
+	return json.Marshal(struct {
+		Role    string        `json:"role"`
+		Content []contentPart `json:"content"`
+	}{m.Role, parts})
 }
 
 // ToolCall is one function the model asked us to run.

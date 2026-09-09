@@ -69,7 +69,19 @@ func (s *Server) handleAiStatus(w http.ResponseWriter, r *http.Request) {
 type aiChatMessage struct {
 	Role    string `json:"role" example:"user"`
 	Content string `json:"content"`
+	// Images are data URLs (image/*) the user attached, read by a vision model
+	Images []string `json:"images,omitempty"`
 }
+
+// aiMaxImages caps the pictures on one message, aiMaxImageBytes one data URL:
+// the client scales a picture down before sending, this is the backstop.
+const (
+	aiMaxImages     = 4
+	aiMaxImageBytes = 2 << 20
+	// a conversation with a few pictures in its history is bigger than the
+	// megabyte every other body gets
+	aiChatBodyLimit = 12 << 20
+)
 
 // aiChatRequest is the conversation so far, newest last. Model overrides the
 // configured default for this request (a pick from /api/ai/models).
@@ -166,15 +178,13 @@ func (s *Server) handleAiSteer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, aiSteerResponse{Queued: s.aiSteerPush(u.ID, text)})
 }
 
-// aiChatBodyLimit: a conversation with a few pictures in its history is
-// bigger than the megabyte every other body gets.
-const aiChatBodyLimit = 12 << 20
-
 // aiModelsResponse lists what the endpoint serves and which id is the default.
 type aiModelsResponse struct {
 	Models  []string `json:"models"`
 	Default string   `json:"default"`
-	Error   string   `json:"error,omitempty"`
+	// Vision per model: true, false, or null when the endpoint does not say
+	Vision map[string]*bool `json:"vision"`
+	Error  string           `json:"error,omitempty"`
 }
 
 // handleAiModels lists the endpoint's models for the pickers.
@@ -193,11 +203,15 @@ func (s *Server) handleAiModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out.Default = s.AI.Model()
-	ids, err := s.AI.Models(r.Context())
+	models, err := s.AI.Models(r.Context())
 	if err != nil {
 		out.Error = logSafe(err.Error())
 	} else {
-		out.Models = ids
+		out.Vision = map[string]*bool{}
+		for _, m := range models {
+			out.Models = append(out.Models, m.ID)
+			out.Vision[m.ID] = m.Vision
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -473,7 +487,7 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in aiChatRequest
-	if !readJSON(w, r, &in) {
+	if !readJSONLimit(w, r, &in, aiChatBodyLimit) {
 		return
 	}
 	flusher, ok := w.(http.Flusher)
@@ -493,8 +507,16 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		hist = hist[len(hist)-aiMaxHistory:]
 	}
 	for _, m := range hist {
-		if (m.Role == "user" || m.Role == "assistant") && strings.TrimSpace(m.Content) != "" {
-			msgs = append(msgs, ai.Message{Role: m.Role, Content: m.Content})
+		if (m.Role == "user" || m.Role == "assistant") && (strings.TrimSpace(m.Content) != "" || len(m.Images) > 0) {
+			var imgs []string
+			if m.Role == "user" {
+				for _, u := range m.Images {
+					if strings.HasPrefix(u, "data:image/") && len(u) <= aiMaxImageBytes && len(imgs) < aiMaxImages {
+						imgs = append(imgs, u)
+					}
+				}
+			}
+			msgs = append(msgs, ai.Message{Role: m.Role, Content: m.Content, Images: imgs})
 		}
 	}
 	if len(msgs) == 1 || msgs[len(msgs)-1].Role != "user" {

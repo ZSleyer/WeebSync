@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -28,6 +29,7 @@ type fakeProvider struct {
 	// onRound runs before the reply of round i goes out - a test's chance
 	// to act while the loop is between rounds
 	onRound func(i int)
+	raw     []byte // the last request body as sent
 }
 
 type fakeReply struct {
@@ -41,7 +43,11 @@ func newFakeProvider(t *testing.T, script ...fakeReply) *fakeProvider {
 	fp := &fakeProvider{script: script}
 	fp.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/models" {
-			w.Write([]byte(`{"data":[{"id":"fake"},{"id":"bigger"}]}`))
+			w.Write([]byte(`{"data":[{"id":"fake"},{"id":"bigger"},{"id":"eyes","architecture":{"input_modalities":["text","image"]}}]}`))
+			return
+		}
+		if r.URL.Path == "/v1/model/info" {
+			w.Write([]byte(`{"data":[{"model_name":"bigger","model_info":{"supports_vision":false}},{"model_name":"fake","model_info":{"supports_vision":null}}]}`))
 			return
 		}
 		if r.URL.Path != "/v1/chat/completions" {
@@ -53,7 +59,8 @@ func newFakeProvider(t *testing.T, script ...fakeReply) *fakeProvider {
 			Messages []ai.Message `json:"messages"`
 			Tools    []ai.Tool    `json:"tools"`
 		}
-		json.NewDecoder(r.Body).Decode(&req)
+		fp.raw, _ = io.ReadAll(r.Body)
+		json.Unmarshal(fp.raw, &req)
 		fp.requests = req.Messages
 		fp.model = req.Model
 		if len(req.Tools) == 0 {
@@ -348,8 +355,12 @@ func TestAiModelsAndOverride(t *testing.T) {
 	fp := newFakeProvider(t, fakeReply{text: "hi there"})
 	mux, _, c := setupAiTest(t, fp)
 	rec := doReq(mux, "GET", "/api/ai/models", "", c)
-	if rec.Code != 200 || !jsonHas(rec.Body.Bytes(), `"models":["fake","bigger"]`) || !jsonHas(rec.Body.Bytes(), `"default":"fake"`) {
+	if rec.Code != 200 || !jsonHas(rec.Body.Bytes(), `"models":["fake","bigger","eyes"]`) || !jsonHas(rec.Body.Bytes(), `"default":"fake"`) {
 		t.Fatalf("models: %d %s", rec.Code, rec.Body)
+	}
+	// vision: the list's modalities, then LiteLLM's model info, else unknown
+	if !jsonHas(rec.Body.Bytes(), `"vision":{"bigger":false,"eyes":true,"fake":null}`) {
+		t.Errorf("vision flags: %s", rec.Body)
 	}
 	rec = doReq(mux, "POST", "/api/ai/chat", `{"model":"bigger","messages":[{"role":"user","content":"hi"}]}`, c)
 	if rec.Code != 200 || fp.model != "bigger" {
