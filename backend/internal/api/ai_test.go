@@ -527,8 +527,13 @@ func TestAiCardsForTitlesNamedWithoutRecommend(t *testing.T) {
 	}
 	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"what airs this season?"}]}`, c)
 	evs := events(t, rec.Body.String())
-	if got := types(evs); got != "tool,tool_done,delta,delta,cards,done" {
+	if got := types(evs); got != "tool,tool_done,delta,delta,cards,links,done" {
 		t.Fatalf("event order %s: %s", got, rec.Body)
+	}
+	// every named title links, the one cited inside a sentence too
+	links := evs[5]["cards"].([]any)
+	if len(links) != 3 {
+		t.Errorf("links: %v", links)
 	}
 	cards := evs[4]["cards"].([]any)
 	if len(cards) != 2 {

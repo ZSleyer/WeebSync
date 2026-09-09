@@ -220,7 +220,7 @@ func (s *Server) handleAiModels(w http.ResponseWriter, r *http.Request) {
 // reasoning (reasoning), a tool starting (tool: name + args) and finishing
 // (tool_done: name + a result excerpt), a vetted proposal, an error, done.
 type aiEvent struct {
-	Type    string   `json:"type"` // delta | reasoning | tool | tool_done | proposal | cards | upgrades | steer | error | done
+	Type    string   `json:"type"` // delta | reasoning | tool | tool_done | proposal | cards | upgrades | links | steer | error | done
 	Text    string   `json:"text,omitempty"`
 	Name    string   `json:"name,omitempty"`
 	Message string   `json:"message,omitempty"`
@@ -614,6 +614,13 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 					emit(aiEvent{Type: "cards", Cards: cards})
 				}
 			}
+			// every surfaced title the answer names, wherever it names it,
+			// becomes a link into the catalog on the client
+			if len(surfaced) > 0 {
+				if links := s.aiLinkedTitles(ctx, surfaced, reply.Content); len(links) > 0 {
+					emit(aiEvent{Type: "links", Cards: links})
+				}
+			}
 			// a follow-up that arrived while the answer was written gets the
 			// model back for another round, with its own answer in front of it
 			if reply.Content != "" {
@@ -640,7 +647,7 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 			}
 			b, _ := json.Marshal(out.result)
 			switch call.Function.Name {
-			case "my_lists", "suggestions", "seasonal":
+			case "my_lists", "suggestions", "seasonal", "search_media", "series_seasons":
 				surfaced = append(surfaced, b)
 			}
 			emit(aiEvent{Type: "tool_done", Name: call.Function.Name, Stats: toolStats(call.Function.Name, b)})
@@ -662,7 +669,7 @@ func (s *Server) aiSystemPrompt(userID int64) string {
 	}
 	return fmt.Sprintf(`You are the assistant inside WeebSync, a self-hosted app that keeps a media library in sync with the user's own remote servers (SFTP/FTP) and links it to AniList, TMDB, TVDB and Plex.
 Today is %s. The current anime season is %s %d.
-Answer in %s. Be concise. Plain text only: no markdown (no bold, headings or tables); short paragraphs and simple "-" bullet lists are fine.
+Answer in %s. Be concise. Simple markdown is fine: bold, a heading now and then, "-" bullet lists, numbered lists, links; no tables. Name titles as the tools spell them, so they become links.
 
 You can only READ through the tools and PROPOSE actions; the user confirms every proposal in a dialog. Rules:
 - Before each tool call, say in one short sentence what you are checking and why; that narration becomes the visible transcript.
@@ -1014,6 +1021,62 @@ func aiWrittenCall(text, name string) string {
 		return fmt.Sprintf("{%q: %s}", strings.TrimSpace(k), strings.TrimSpace(v))
 	}
 	return ""
+}
+
+// aiLinkedTitles finds every surfaced title the answer names anywhere and
+// returns it with its media record, for the client to turn the name into a
+// link into the catalog. Loose on purpose - a mention is enough for a link,
+// unlike a card (aiMentionedCards).
+func (s *Server) aiLinkedTitles(ctx context.Context, results [][]byte, text string) []aiCard {
+	folded := match.FoldKey(match.StripMarkers(text))
+	type ref struct {
+		src string
+		id  int
+	}
+	seen := map[ref]bool{}
+	var refs []ref
+	var walk func(v any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case map[string]any:
+			id, _ := x["id"].(float64)
+			title, _ := x["title"].(string)
+			fk := match.FoldKey(match.StripMarkers(title))
+			if id > 0 && len(fk) >= 5 && strings.Contains(folded, fk) {
+				src, _ := x["source"].(string)
+				if src == "" {
+					src = "anilist"
+				}
+				if r := (ref{src, int(id)}); !seen[r] {
+					seen[r] = true
+					refs = append(refs, r)
+				}
+			}
+			for _, c := range x {
+				walk(c)
+			}
+		case []any:
+			for _, c := range x {
+				walk(c)
+			}
+		}
+	}
+	for _, b := range results {
+		var v any
+		if json.Unmarshal(b, &v) == nil {
+			walk(v)
+		}
+	}
+	var out []aiCard
+	for _, r := range refs {
+		if len(out) >= 60 {
+			break
+		}
+		if m := s.aiMedia(ctx, r.src, r.id); m != nil {
+			out = append(out, aiCard{Source: r.src, Media: *m})
+		}
+	}
+	return out
 }
 
 // reasonAfter is what a list line says about the title heading it: the text
