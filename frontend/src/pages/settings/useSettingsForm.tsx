@@ -28,6 +28,7 @@ export interface SettingsState {
   aiModel: string
   aiApiKeySet: boolean
   aiApiKey?: string
+  aiSearchUrl: string
   plexUrl: string
   plexTokenSet: boolean
   plexToken?: string

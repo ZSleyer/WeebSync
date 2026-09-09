@@ -248,6 +248,18 @@ export default function Integrations() {
               <span className="mt-1 block">{t('settings.aiApiKeyHint')}</span>
             </label>
             <AiModelField value={form.aiModel} locked={locked('aiModel')} onChange={(m) => set('aiModel', m)} />
+            <label className="text-xs text-t-muted sm:col-span-2">
+              {t('settings.aiSearchUrl')}
+              <EnvBadge show={locked('aiSearchUrl')} />
+              <Input
+                className="mt-1 font-mono"
+                placeholder="http://searxng.example.com:8080"
+                value={form.aiSearchUrl}
+                disabled={locked('aiSearchUrl')}
+                onChange={(e) => set('aiSearchUrl', e.target.value)}
+              />
+              <span className="mt-1 block">{t('settings.aiSearchUrlHint')}</span>
+            </label>
           </div>
         </div>
       </Panel>
