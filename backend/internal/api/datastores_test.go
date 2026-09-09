@@ -29,6 +29,7 @@ var userDataTables = map[string]bool{
 	"user_totp":            true,
 	"webauthn_credentials": true,
 	"user_recovery_codes":  true,
+	"ai_chats":             true,
 	"push_subscriptions":   true,
 	"login_pending":        true,
 	"plex_stream_queue":    true,

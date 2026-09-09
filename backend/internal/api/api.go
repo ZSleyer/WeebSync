@@ -269,6 +269,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/ai/models", authed(http.HandlerFunc(s.handleAiModels)))
 	mux.Handle("POST /api/ai/chat", authed(http.HandlerFunc(s.handleAiChat)))
 	mux.Handle("POST /api/ai/steer", authed(http.HandlerFunc(s.handleAiSteer)))
+	mux.Handle("GET /api/ai/chats", authed(http.HandlerFunc(s.handleAiChatsList)))
+	mux.Handle("POST /api/ai/chats", authed(http.HandlerFunc(s.handleAiChatCreate)))
+	mux.Handle("GET /api/ai/chats/{id}", authed(http.HandlerFunc(s.handleAiChatGet)))
+	mux.Handle("PUT /api/ai/chats/{id}", authed(http.HandlerFunc(s.handleAiChatPut)))
+	mux.Handle("DELETE /api/ai/chats/{id}", authed(http.HandlerFunc(s.handleAiChatDelete)))
 	mux.Handle("POST /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismiss)))
 	mux.Handle("POST /api/suggestions/duplicates/trash", authed(adminOnly(http.HandlerFunc(s.handleDuplicateTrash))))
 	mux.Handle("DELETE /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismissRestore)))
@@ -353,13 +358,18 @@ func pathID(r *http.Request) int64 {
 }
 
 func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	return readJSONLimit(w, r, v, 1<<20)
+}
+
+// readJSONLimit is readJSON with the body cap the caller names.
+func readJSONLimit(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
 	// require a JSON content-type: HTML forms can only send text/plain or
 	// form-urlencoded, so this blocks simple-form CSRF on state-changing routes
 	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		writeErr(w, http.StatusUnsupportedMediaType, "content-type must be application/json")
 		return false
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(v); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit)).Decode(v); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid json")
 		return false
 	}
