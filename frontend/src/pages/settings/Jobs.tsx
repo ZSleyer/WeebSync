@@ -1072,7 +1072,7 @@ function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => v
       onClose={onClose}
       footer={
         result ? null : (
-          <Button variant="danger" cut disabled={reset.isPending} onClick={() => reset.mutate()}>
+          <Button variant="danger" disabled={reset.isPending} onClick={() => reset.mutate()}>
             <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('settings.jobs.data.reset.confirm')}
           </Button>

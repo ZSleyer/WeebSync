@@ -249,7 +249,7 @@ export default function Rename() {
           {preview && (
             <PageFooter>
               <ActionBar aria-label={t('rename.apply')}>
-                <Button variant="primary" cut disabled={picked.size === 0 || doApply.isPending} onClick={() => doApply.mutate()}>
+                <Button variant="primary" disabled={picked.size === 0 || doApply.isPending} onClick={() => doApply.mutate()}>
                   {t('rename.apply')}
                 </Button>
                 {previewBusy ? <Badge>{t('app.loading')}</Badge> : <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>}

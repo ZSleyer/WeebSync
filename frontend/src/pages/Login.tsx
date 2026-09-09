@@ -191,7 +191,7 @@ export default function Login() {
                 {t('login.redirecting')}
               </p>
             ) : null}
-            <ButtonLink variant="primary" cut className="block w-full" href="/api/auth/oidc/login">
+            <ButtonLink variant="primary" className="block w-full" href="/api/auth/oidc/login">
               <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {oidcLabel}
             </ButtonLink>
@@ -229,7 +229,7 @@ export default function Login() {
               </p>
             )}
             {twoFA.totp && (
-              <Button type="submit" variant="primary" cut className="w-full" disabled={busy}>
+              <Button type="submit" variant="primary" className="w-full" disabled={busy}>
                 {t('login.submitLogin')}
               </Button>
             )}
@@ -253,7 +253,6 @@ export default function Login() {
                   aria-pressed={mode === 'login'}
                   size="sm"
                   variant={mode === 'login' ? 'primary' : 'default'}
-                  cut={mode === 'login'}
                   className="flex-1"
                   onClick={() => setMode('login')}
                 >
@@ -263,7 +262,6 @@ export default function Login() {
                   aria-pressed={mode === 'register'}
                   size="sm"
                   variant={mode === 'register' ? 'primary' : 'default'}
-                  cut={mode === 'register'}
                   className="flex-1"
                   onClick={() => setMode('register')}
                 >
@@ -307,7 +305,7 @@ export default function Login() {
                 {error}
               </p>
             )}
-            <Button type="submit" variant="primary" cut className="w-full" disabled={busy}>
+            <Button type="submit" variant="primary" className="w-full" disabled={busy}>
               {mode === 'login' ? t('login.submitLogin') : t('login.submitRegister')}
             </Button>
             {mode === 'login' && !autofill && (

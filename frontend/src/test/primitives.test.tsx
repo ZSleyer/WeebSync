@@ -42,9 +42,9 @@ describe('buttonClass', () => {
     expect(buttonClass({ size: 'sm' })).toBe('t-btn t-btn--sm')
   })
 
-  it('adds t-cut for the clipped corner and keeps the extra className last', () => {
-    expect(buttonClass({ variant: 'primary', size: 'sm', cut: true, className: 'w-full' })).toBe(
-      't-btn t-btn--sm t-btn--primary t-cut w-full',
+  it('keeps the extra className last', () => {
+    expect(buttonClass({ variant: 'primary', size: 'sm', className: 'w-full' })).toBe(
+      't-btn t-btn--sm t-btn--primary w-full',
     )
   })
 
@@ -66,12 +66,12 @@ describe('Button', () => {
 
   it('renders the same classes as buttonClass for the same options', () => {
     render(
-      <Button variant="danger" size="sm" cut className="mt-2">
+      <Button variant="danger" size="sm" className="mt-2">
         Löschen
       </Button>,
     )
     const btn = screen.getByRole('button', { name: 'Löschen' })
-    expect(btn.className).toBe(buttonClass({ variant: 'danger', size: 'sm', cut: true, className: 'mt-2' }))
+    expect(btn.className).toBe(buttonClass({ variant: 'danger', size: 'sm', className: 'mt-2' }))
   })
 
   it('forwards the remaining button attributes', () => {
@@ -95,10 +95,10 @@ describe('ButtonLink and ButtonLabel', () => {
   })
 
   it('renders a real label so the wrapped file input keeps working', () => {
-    const { container } = render(<ButtonLabel cut>Datei wählen</ButtonLabel>)
+    const { container } = render(<ButtonLabel>Datei wählen</ButtonLabel>)
     const label = container.querySelector('label')
     expect(label).not.toBeNull()
-    expect(label).toHaveClass('t-btn', 't-cut', 'cursor-pointer')
+    expect(label).toHaveClass('t-btn', 'cursor-pointer')
   })
 })
 

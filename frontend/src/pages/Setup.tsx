@@ -244,7 +244,7 @@ export default function Setup({
               onChange={(e) => setPassword(e.target.value)}
             />
             {errorBox}
-            <Button type="submit" variant="primary" cut className="w-full" disabled={busy}>
+            <Button type="submit" variant="primary" className="w-full" disabled={busy}>
               {t('login.submitRegister')}
             </Button>
             <div className="mt-4 border-t border-border-subtle pt-4">
@@ -271,7 +271,7 @@ export default function Setup({
             <p className="mb-4 text-sm text-t-secondary" role="status">
               {t('setup.oidcReady')}
             </p>
-            <ButtonLink variant="primary" cut className="block w-full" href="/api/auth/oidc/login">
+            <ButtonLink variant="primary" className="block w-full" href="/api/auth/oidc/login">
               {oidc.oidcProviderName ? t('login.oidcNamed', { name: oidc.oidcProviderName }) : t('login.oidc')}
             </ButtonLink>
           </Panel>
@@ -343,7 +343,7 @@ export default function Setup({
               >
                 {t(oidcOnly ? 'setup.back' : 'setup.skip')}
               </Button>
-              <Button type="submit" variant="primary" cut className="flex-1" disabled={busy}>
+              <Button type="submit" variant="primary" className="flex-1" disabled={busy}>
                 {t('settings.save')}
               </Button>
             </div>
@@ -360,7 +360,7 @@ export default function Setup({
             <p className="mb-4 text-sm text-t-secondary" role="status">
               {t('setup.done')}
             </p>
-            <Button variant="primary" cut className="w-full" onClick={finish}>
+            <Button variant="primary" className="w-full" onClick={finish}>
               {t('setup.start')}
             </Button>
           </Panel>

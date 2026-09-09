@@ -169,7 +169,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
         </p>
         {errorBox}
         {/* the real input is sr-only, so mirror its focus ring onto the label */}
-        <ButtonLabel variant="primary" cut>
+        <ButtonLabel variant="primary">
           <Upload aria-hidden size="1em" className="mr-2" />
           {t('legacy.pickFile')}
           <input
@@ -341,7 +341,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
         <Button onClick={() => setPlan(null)} disabled={busy}>
           {t('legacy.restart')}
         </Button>
-        <Button type="submit" variant="primary" cut disabled={busy}>
+        <Button type="submit" variant="primary" disabled={busy}>
           {t('legacy.commit')}
         </Button>
       </div>

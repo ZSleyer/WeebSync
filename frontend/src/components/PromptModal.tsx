@@ -66,7 +66,7 @@ export default function PromptModal({
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {cancelLabel ?? t('common.cancel')}
           </Button>
-          <Button type="submit" variant="primary" cut>
+          <Button type="submit" variant="primary">
             <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {confirmLabel ?? t('common.confirm')}
           </Button>

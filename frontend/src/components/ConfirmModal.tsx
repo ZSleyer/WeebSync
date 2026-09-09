@@ -51,7 +51,7 @@ export default function ConfirmModal({
           <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {cancelLabel ?? t('common.cancel')}
         </Button>
-        <Button cut variant={destructive ? 'danger' : 'primary'} onClick={onConfirm}>
+        <Button variant={destructive ? 'danger' : 'primary'} onClick={onConfirm}>
           {destructive ? (
             <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           ) : (

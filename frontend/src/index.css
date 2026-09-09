@@ -365,58 +365,6 @@ a.t-label:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* Corner-cut CTA: clips top-right corner; focus ring via box-shadow
-   because the clip-path would clip an outline (WCAG 2.4.7). */
-.t-cut {
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
-  border-radius: 0;
-  position: relative;
-  --cut-edge: var(--border-subtle);
-}
-/* The clip cuts the border away along the diagonal and leaves the outline
-   open there. Patching just that one edge never lines up: a pseudo element
-   positions against the padding box while the clip works on the border box,
-   and a 1px border resolves to 0.667px at a device pixel ratio of 3, so any
-   correction is off by that remainder. So the whole outline is drawn as one
-   ring instead - an even-odd polygon with the same shape offset 1px inwards.
-   Corner and diagonal come from a single shape and cannot drift apart. */
-.t-btn.t-cut { border-color: transparent; }
-.t-btn.t-cut::after {
-  content: '';
-  position: absolute;
-  inset: -1px; /* the pseudo element's padding box = the button's border box */
-  background: var(--cut-edge);
-  /* 10.414 = 10 + 1*sqrt(2)/2 - the diagonal moves inwards along its normal,
-     so its intercepts shift by more than the 1px the straight edges do */
-  clip-path: polygon(
-    evenodd,
-    0 0,
-    calc(100% - 10px) 0,
-    100% 10px,
-    100% 100%,
-    0 100%,
-    0 0,
-    1px 1px,
-    calc(100% - 10.414px) 1px,
-    calc(100% - 1px) 10.414px,
-    calc(100% - 1px) calc(100% - 1px),
-    1px calc(100% - 1px),
-    1px 1px
-  );
-  pointer-events: none;
-}
-.t-btn.t-cut:hover { --cut-edge: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
-.t-btn--primary.t-cut { --cut-edge: var(--accent-blue); }
-.t-btn--primary.t-cut:hover { --cut-edge: color-mix(in srgb, var(--accent-blue) 85%, var(--bg-primary)); }
-.t-btn--danger.t-cut { --cut-edge: color-mix(in srgb, var(--accent-red) 45%, transparent); }
-.t-btn--danger.t-cut:hover { --cut-edge: var(--accent-red); }
-.kbd .t-cut:focus-visible {
-  outline: none;
-  box-shadow:
-    0 0 0 2px var(--bg-primary),
-    0 0 0 4px var(--accent-blue);
-}
-
 /* Buttons */
 .t-btn {
   /* inline-flex centers the label vertically whenever min-height (touch

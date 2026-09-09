@@ -96,7 +96,7 @@ export default function SetupSteps({
       <Button className="flex-1" onClick={next}>
         {skipLabel}
       </Button>
-      <Button variant="primary" cut className="flex-1" disabled={save.isPending} onClick={finish}>
+      <Button variant="primary" className="flex-1" disabled={save.isPending} onClick={finish}>
         {t('setup.finish')}
       </Button>
     </div>
@@ -155,7 +155,7 @@ export default function SetupSteps({
             <Input name="rootPath" className="font-mono" defaultValue="/" disabled={!!serverId} />
           </Field>
           {!serverId && (
-            <Button type="submit" variant="primary" cut className="sm:col-span-2" disabled={busy}>
+            <Button type="submit" variant="primary" className="sm:col-span-2" disabled={busy}>
               {t('setup.serverCreate')}
             </Button>
           )}

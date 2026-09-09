@@ -55,8 +55,6 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * inside a card too narrow for the small size
    */
   size?: 'md' | 'sm' | 'xs'
-  /** clip the top-right corner - reserved for the primary action */
-  cut?: boolean
 }
 
 /**
@@ -64,8 +62,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  * wrong element - a router link, a file-input label, a NavLink whose className
  * is a function - and where wrapping would break the element's semantics.
  */
-export function buttonClass(opts: Pick<ButtonProps, 'variant' | 'size' | 'cut'> & { className?: string } = {}) {
-  const { variant = 'default', size = 'md', cut, className } = opts
+export function buttonClass(opts: Pick<ButtonProps, 'variant' | 'size'> & { className?: string } = {}) {
+  const { variant = 'default', size = 'md', className } = opts
   return cx(
     't-btn',
     size === 'sm' && 't-btn--sm',
@@ -73,7 +71,6 @@ export function buttonClass(opts: Pick<ButtonProps, 'variant' | 'size' | 'cut'> 
     size === 'xs' && 't-btn--sm t-btn--xs',
     variant === 'primary' && 't-btn--primary',
     variant === 'danger' && 't-btn--danger',
-    cut && 't-cut',
     className,
   )
 }
@@ -81,18 +78,16 @@ export function buttonClass(opts: Pick<ButtonProps, 'variant' | 'size' | 'cut'> 
 export interface ButtonLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   variant?: ButtonVariant
   size?: 'md' | 'sm' | 'xs'
-  cut?: boolean
 }
 
 /** A link that looks like a button - navigation, not an action. */
-export function ButtonLink({ variant, size, cut, className, ...rest }: ButtonLinkProps) {
-  return <a {...rest} className={buttonClass({ variant, size, cut, className })} />
+export function ButtonLink({ variant, size, className, ...rest }: ButtonLinkProps) {
+  return <a {...rest} className={buttonClass({ variant, size, className })} />
 }
 
 export interface ButtonLabelProps extends LabelHTMLAttributes<HTMLLabelElement> {
   variant?: ButtonVariant
   size?: 'md' | 'sm' | 'xs'
-  cut?: boolean
 }
 
 /**
@@ -100,14 +95,13 @@ export interface ButtonLabelProps extends LabelHTMLAttributes<HTMLLabelElement> 
  * type="file">` is visually hidden inside, so the label must stay a label to
  * keep the click and the focus ring working.
  */
-export function ButtonLabel({ variant, size, cut, className, ...rest }: ButtonLabelProps) {
+export function ButtonLabel({ variant, size, className, ...rest }: ButtonLabelProps) {
   return (
     <label
       {...rest}
       className={buttonClass({
         variant,
         size,
-        cut,
         className: cx(
           'inline-flex cursor-pointer items-center',
           'focus-within:outline focus-within:outline-1 focus-within:outline-offset-2 focus-within:outline-accent',
@@ -118,7 +112,7 @@ export function ButtonLabel({ variant, size, cut, className, ...rest }: ButtonLa
   )
 }
 
-export function Button({ variant = 'default', size = 'md', cut, className, ...rest }: ButtonProps) {
+export function Button({ variant = 'default', size = 'md', className, ...rest }: ButtonProps) {
   return (
     <button
       type="button"
@@ -129,7 +123,6 @@ export function Button({ variant = 'default', size = 'md', cut, className, ...re
         size === 'xs' && 't-btn--sm t-btn--xs',
         variant === 'primary' && 't-btn--primary',
         variant === 'danger' && 't-btn--danger',
-        cut && 't-cut',
         className,
       )}
     />
