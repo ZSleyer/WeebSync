@@ -754,6 +754,7 @@
       "queue": "{{count}} in der Match-Queue",
       "watchSummary": "{{count}} Auto-Syncs, Prüfung alle {{min}} min",
       "caches": "Caches",
+      "jump": "Abschnitte",
       "remoteIndex": "Datei-Index (Server-Crawler)",
       "matchQuality": "Match-Qualität & Rematch",
       "empty": "Noch nichts vorhanden.",

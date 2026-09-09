@@ -552,8 +552,29 @@ export default function Jobs() {
   const stores = inventory?.stores ?? []
   const idle = data.running.length === 0
 
+  // one chip per section, linking down to it; amber with a count where the
+  // section holds work: paused jobs, stale rows, pending dirs, unmatched folders
+  const sum = (ns: number[]) => ns.reduce((a, b) => a + b, 0)
+  const jump: [string, string, number][] = [
+    ['activity', t('settings.jobs.activity'), (jobsStatus?.paused ?? []).length + data.matchQueue],
+    ['log', t('settings.jobs.logs.title'), 0],
+    ['caches', t('settings.jobs.caches'), 0],
+    ['data', t('settings.jobs.data.title'), sum(stores.map((s) => s.stale))],
+    ['index', t('settings.jobs.remoteIndex'), sum(data.index.servers.map((s) => s.pendingDirs))],
+    ['matches', t('settings.jobs.matchQuality'), sum(data.matches.map((m) => m.unmatched))],
+    ['import', t('legacy.title'), 0],
+  ]
+
   return (
     <>
+      <nav aria-label={t('settings.jobs.jump')} className="mb-4 flex flex-wrap gap-2">
+        {jump.map(([id, name, n]) => (
+          <Badge key={id} as="a" href={`#${id}`} tone={n > 0 ? 'warn' : 'neutral'} className="tabular-nums">
+            {name}
+            {n > 0 && ` · ${fmtNum(n)}`}
+          </Badge>
+        ))}
+      </nav>
       {error && (
         <p className="mb-3 text-xs text-err" role="alert">
           {error}
