@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Input, Panel, ROW_GRID, Select } from '@weebsync/design-system'
 import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
 import { useAiModels } from '../../hooks'
 import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
@@ -14,152 +14,175 @@ export default function Integrations() {
   const { form, set, save, saved, locked, dirty } = useSettingsForm()
   if (!form) return null
 
+  // one panel per provider, the connection status as its first row and the
+  // fields below it, so the page scans as "what is set up" before "how"
   return (
     <>
       <UnsavedGuard dirty={dirty} />
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.integrations')}>
-        <Badge tone="accent">{t('settings.integrations')}</Badge>
+      <Panel as="section" id="anilist" className="mb-4 p-5" aria-label="AniList">
+        <Badge tone="accent">AniList</Badge>
         <div className="mt-3 grid grid-cols-1 gap-4">
-          <Badge>AniList</Badge>
           <AnilistAccount />
           <AnilistOwnApp form={form} set={set} locked={locked} />
         </div>
-        <label className="mt-3 block text-xs text-t-muted">
-          {t('settings.tmdbApiKey')}
-          <EnvBadge show={locked('tmdbApiKey')} />
-          <Input
-            className="mt-1 font-mono"
-            type="password"
-            autoComplete="off"
-            placeholder={form.tmdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
-            value={form.tmdbApiKey ?? ''}
-            disabled={locked('tmdbApiKey')}
-            onChange={(e) => set('tmdbApiKey', e.target.value)}
-          />
-          <span className="mt-1 block">{t('settings.tmdbApiKeyHint')}</span>
-        </label>
-        <div className="mt-3">
+      </Panel>
+
+      <Panel as="section" id="tmdb" className="mb-4 p-5" aria-label="TMDB">
+        <Badge tone="accent">TMDB</Badge>
+        <div className="mt-3 grid grid-cols-1 gap-4">
           <TmdbAccount />
+          <label className="text-xs text-t-muted">
+            {t('settings.tmdbApiKey')}
+            <EnvBadge show={locked('tmdbApiKey')} />
+            <Input
+              className="mt-1 font-mono"
+              type="password"
+              autoComplete="off"
+              placeholder={form.tmdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
+              value={form.tmdbApiKey ?? ''}
+              disabled={locked('tmdbApiKey')}
+              onChange={(e) => set('tmdbApiKey', e.target.value)}
+            />
+            <span className="mt-1 block">{t('settings.tmdbApiKeyHint')}</span>
+          </label>
         </div>
-        <label className="mt-3 block text-xs text-t-muted">
-          {t('settings.tvdbApiKey')}
-          <EnvBadge show={locked('tvdbApiKey')} />
-          <Input
-            className="mt-1 font-mono"
-            type="password"
-            autoComplete="off"
-            placeholder={form.tvdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
-            value={form.tvdbApiKey ?? ''}
-            disabled={locked('tvdbApiKey')}
-            onChange={(e) => set('tvdbApiKey', e.target.value)}
-          />
-          <span className="mt-1 block">{t('settings.tvdbApiKeyHint')}</span>
-        </label>
-        <div className="mt-3">
+      </Panel>
+
+      <Panel as="section" id="tvdb" className="mb-4 p-5" aria-label="TVDB">
+        <Badge tone="accent">TVDB</Badge>
+        <div className="mt-3 grid grid-cols-1 gap-4">
           <TvdbAccount />
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 gap-4">
-          <Badge>{t('settings.ai')}</Badge>
           <label className="text-xs text-t-muted">
-            {t('settings.aiBaseUrl')}
-            <EnvBadge show={locked('aiBaseUrl')} />
-            <Input
-              className="mt-1 font-mono"
-              placeholder="http://litellm.example.com:4000/v1"
-              value={form.aiBaseUrl}
-              disabled={locked('aiBaseUrl')}
-              onChange={(e) => set('aiBaseUrl', e.target.value)}
-            />
-            <span className="mt-1 block">{t('settings.aiBaseUrlHint')}</span>
-          </label>
-          <label className="text-xs text-t-muted">
-            {t('settings.aiApiKey')}
-            <EnvBadge show={locked('aiApiKey')} />
+            {t('settings.tvdbApiKey')}
+            <EnvBadge show={locked('tvdbApiKey')} />
             <Input
               className="mt-1 font-mono"
               type="password"
               autoComplete="off"
-              placeholder={form.aiApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
-              value={form.aiApiKey ?? ''}
-              disabled={locked('aiApiKey')}
-              onChange={(e) => set('aiApiKey', e.target.value)}
+              placeholder={form.tvdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
+              value={form.tvdbApiKey ?? ''}
+              disabled={locked('tvdbApiKey')}
+              onChange={(e) => set('tvdbApiKey', e.target.value)}
             />
-            <span className="mt-1 block">{t('settings.aiApiKeyHint')}</span>
+            <span className="mt-1 block">{t('settings.tvdbApiKeyHint')}</span>
           </label>
-          <label className="text-xs text-t-muted">
-            {t('settings.aiModel')}
-            <EnvBadge show={locked('aiModel')} />
-            <Input
-              className="mt-1 font-mono"
-              placeholder="gpt-4o-mini"
-              value={form.aiModel}
-              disabled={locked('aiModel')}
-              onChange={(e) => set('aiModel', e.target.value)}
-            />
-            <span className="mt-1 block">{t('settings.aiModelHint')}</span>
-          </label>
-          <AiModelChips current={form.aiModel} locked={locked('aiModel')} onPick={(m) => set('aiModel', m)} />
-          <AiAccount />
         </div>
+      </Panel>
 
-        <div className="mt-5 grid grid-cols-1 gap-4">
-          <Badge>{t('settings.plex')}</Badge>
-          <label className="text-xs text-t-muted">
-            {t('settings.plexUrl')}
-            <EnvBadge show={locked('plexUrl')} />
-            <Input
-              className="mt-1 font-mono"
-              placeholder="https://plex.example.com"
-              value={form.plexUrl}
-              disabled={locked('plexUrl')}
-              onChange={(e) => set('plexUrl', e.target.value)}
-            />
-            <span className="mt-1 block">{t('settings.plexUrlHint')}</span>
-          </label>
-          <label className="text-xs text-t-muted">
-            {t('settings.plexToken')}
-            <EnvBadge show={locked('plexToken')} />
-            <Input
-              className="mt-1 font-mono"
-              type="password"
-              autoComplete="off"
-              placeholder={form.plexTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
-              value={form.plexToken ?? ''}
-              disabled={locked('plexToken')}
-              onChange={(e) => set('plexToken', e.target.value)}
-            />
-            <span className="mt-1 block">{t('settings.plexTokenHint')}</span>
-          </label>
+      <Panel as="section" id="plex" className="mb-4 p-5" aria-label={t('settings.plex')}>
+        <Badge tone="accent">{t('settings.plex')}</Badge>
+        <div className="mt-3 grid grid-cols-1 gap-4">
           <PlexAccount />
           <PlexWatchlistAccount />
-          {form.plexTokenSet && form.plexUrl && (
-            <>
-              <PlexSections
-                value={form.plexSections}
-                onChange={(v) => set('plexSections', v)}
-                sources={form.plexSectionSources}
-                onSources={(v) => set('plexSectionSources', v)}
-                anime={form.plexSectionAnime}
-                onAnime={(v) => set('plexSectionAnime', v)}
-                tvdb={form.tvdbApiKeySet}
-                libraries={form.plexLibraries}
+          <div className={ROW_GRID}>
+            <label className="text-xs text-t-muted">
+              {t('settings.plexUrl')}
+              <EnvBadge show={locked('plexUrl')} />
+              <Input
+                className="mt-1 font-mono"
+                placeholder="https://plex.example.com"
+                value={form.plexUrl}
+                disabled={locked('plexUrl')}
+                onChange={(e) => set('plexUrl', e.target.value)}
               />
-              <div className="text-xs text-t-muted">
-                {t('settings.plexRoots')}
-                <textarea
-                  className="t-input mt-1 font-mono"
-                  rows={3}
-                  placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
-                  value={form.plexRoots}
-                  onChange={(e) => set('plexRoots', e.target.value)}
+              <span className="mt-1 block">{t('settings.plexUrlHint')}</span>
+            </label>
+            <label className="text-xs text-t-muted">
+              {t('settings.plexToken')}
+              <EnvBadge show={locked('plexToken')} />
+              <Input
+                className="mt-1 font-mono"
+                type="password"
+                autoComplete="off"
+                placeholder={form.plexTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
+                value={form.plexToken ?? ''}
+                disabled={locked('plexToken')}
+                onChange={(e) => set('plexToken', e.target.value)}
+              />
+              <span className="mt-1 block">{t('settings.plexTokenHint')}</span>
+            </label>
+          </div>
+          {form.plexTokenSet && form.plexUrl && (
+            // the library block is the longest thing on the page: framed like
+            // the OIDC block on Security, so it reads as one unit
+            <fieldset className="border border-border-subtle p-3">
+              <Badge as="legend">{t('settings.plexSections')}</Badge>
+              <div className="grid grid-cols-1 gap-4">
+                <PlexSections
+                  value={form.plexSections}
+                  onChange={(v) => set('plexSections', v)}
+                  sources={form.plexSectionSources}
+                  onSources={(v) => set('plexSectionSources', v)}
+                  anime={form.plexSectionAnime}
+                  onAnime={(v) => set('plexSectionAnime', v)}
+                  tvdb={form.tvdbApiKeySet}
+                  libraries={form.plexLibraries}
                 />
-                <span className="mt-1 block">{t('settings.plexRootsHint')}</span>
+                <label className="text-xs text-t-muted">
+                  {t('settings.plexRoots')}
+                  <textarea
+                    className="t-input mt-1 font-mono"
+                    rows={3}
+                    placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
+                    value={form.plexRoots}
+                    onChange={(e) => set('plexRoots', e.target.value)}
+                  />
+                  <span className="mt-1 block">{t('settings.plexRootsHint')}</span>
+                </label>
               </div>
-            </>
+            </fieldset>
           )}
         </div>
       </Panel>
+
+      <Panel as="section" id="ai" className="mb-4 p-5" aria-label={t('settings.ai')}>
+        <Badge tone="accent">{t('settings.ai')}</Badge>
+        <div className="mt-3 grid grid-cols-1 gap-4">
+          <AiAccount />
+          <div className={ROW_GRID}>
+            <label className="text-xs text-t-muted sm:col-span-2">
+              {t('settings.aiBaseUrl')}
+              <EnvBadge show={locked('aiBaseUrl')} />
+              <Input
+                className="mt-1 font-mono"
+                placeholder="http://litellm.example.com:4000/v1"
+                value={form.aiBaseUrl}
+                disabled={locked('aiBaseUrl')}
+                onChange={(e) => set('aiBaseUrl', e.target.value)}
+              />
+              <span className="mt-1 block">{t('settings.aiBaseUrlHint')}</span>
+            </label>
+            <label className="text-xs text-t-muted">
+              {t('settings.aiApiKey')}
+              <EnvBadge show={locked('aiApiKey')} />
+              <Input
+                className="mt-1 font-mono"
+                type="password"
+                autoComplete="off"
+                placeholder={form.aiApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
+                value={form.aiApiKey ?? ''}
+                disabled={locked('aiApiKey')}
+                onChange={(e) => set('aiApiKey', e.target.value)}
+              />
+              <span className="mt-1 block">{t('settings.aiApiKeyHint')}</span>
+            </label>
+            <label className="text-xs text-t-muted">
+              {t('settings.aiModel')}
+              <EnvBadge show={locked('aiModel')} />
+              <Input
+                className="mt-1 font-mono"
+                placeholder="gpt-4o-mini"
+                value={form.aiModel}
+                disabled={locked('aiModel')}
+                onChange={(e) => set('aiModel', e.target.value)}
+              />
+              <span className="mt-1 block">{t('settings.aiModelHint')}</span>
+            </label>
+          </div>
+          <AiModelChips current={form.aiModel} locked={locked('aiModel')} onPick={(m) => set('aiModel', m)} />
+        </div>
+      </Panel>
+
       <Smtp form={form} set={set} locked={locked} />
       <SaveBar form={form} save={save} saved={saved} />
     </>
@@ -273,9 +296,8 @@ function PlexSections({
       </p>
     )
   return (
-    <fieldset className="text-xs text-t-muted">
-      <legend>{t('settings.plexSections')}</legend>
-      <ul className="mt-1 grid grid-cols-1 gap-1.5">
+    <div className="text-xs text-t-muted">
+      <ul className="grid grid-cols-1 gap-1.5">
         {sections.map((s) => (
           <li key={s.key} className="flex flex-wrap items-center gap-2">
             <label className="flex min-w-0 items-center gap-1.5 text-t-secondary">
@@ -355,7 +377,7 @@ function PlexSections({
         ))}
       </ul>
       <p className="mt-1.5">{t('settings.plexSectionsHint')}</p>
-    </fieldset>
+    </div>
   )
 }
 
