@@ -2424,8 +2424,23 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "mode": {
+                        "enum": [
+                            "",
+                            "research"
+                        ],
+                        "type": "string"
+                    },
                     "model": {
                         "type": "string"
+                    },
+                    "tools": {
+                        "description": "Tools the user switched on for this chat beyond the built-in ones:\n\"web_search\" (with fetch_page). Mode \"research\" turns the web tools on\nand briefs the model for a multi-step report with many more rounds.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -2482,6 +2497,10 @@
                     },
                     "model": {
                         "type": "string"
+                    },
+                    "webSearch": {
+                        "description": "WebSearch: a SearXNG is set, so the web tools can be switched on",
+                        "type": "boolean"
                     }
                 },
                 "type": "object"
@@ -3321,6 +3340,10 @@
                         "type": "string"
                     },
                     "aiModel": {
+                        "type": "string"
+                    },
+                    "aiSearchUrl": {
+                        "description": "SearXNG base for the assistant's web search; empty = off",
                         "type": "string"
                     },
                     "anilistClientId": {
