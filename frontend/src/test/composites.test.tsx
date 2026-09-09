@@ -37,7 +37,7 @@ describe('Cover', () => {
     const img = screen.getByRole('img', { name: 'Poster' })
     expect(img).toHaveAttribute('src', '/p.jpg')
     expect(img).toHaveAttribute('loading', 'lazy')
-    expect(img).toHaveClass('object-cover', 'h-14', 'w-10', 'shrink-0')
+    expect(img).toHaveClass('object-cover', 'h-14', 'w-10', 'shrink-0', 'rounded-xs')
   })
 
   it('drops shrink-0 for the fill size, which stretches to its grid cell', () => {
@@ -45,6 +45,8 @@ describe('Cover', () => {
     const img = screen.getByRole('img', { name: 'Poster' })
     expect(img).toHaveClass('aspect-2/3', 'w-full')
     expect(img).not.toHaveClass('shrink-0')
+    // flush with its tile, which clips it - no radius of its own
+    expect(img).not.toHaveClass('rounded-xs')
   })
 
   it('leaves the image out of the accessibility tree without an alt text', () => {
@@ -216,7 +218,10 @@ describe('Menu and MenuItem', () => {
         <MenuItem trailing={<span>y</span>}>Datum</MenuItem>
       </Menu>,
     )
-    expect(screen.getByRole('listbox', { name: 'Sortieren nach' })).toBeInTheDocument()
+    const list = screen.getByRole('listbox', { name: 'Sortieren nach' })
+    expect(list).toBeInTheDocument()
+    // rounded and clipped, so an item's hover fill cannot poke past the corners
+    expect(list).toHaveClass('rounded-lg', 'overflow-clip')
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
     expect(options[0]).toHaveClass('text-accent')
