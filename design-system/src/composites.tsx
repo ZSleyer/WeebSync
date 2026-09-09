@@ -584,7 +584,7 @@ export interface AppShellProps {
  */
 export function AppShell({ sidebar, bar, tabs, notice, footer, mainKey, before, children, className }: AppShellProps) {
   return (
-    <div className={cx('app-shell t-hatch flex min-h-dvh flex-col lg:flex-row', className)}>
+    <div className={cx('app-shell flex min-h-dvh flex-col lg:flex-row', className)}>
       {before}
       {sidebar}
       {bar}
