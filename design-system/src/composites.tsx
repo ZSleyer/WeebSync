@@ -20,10 +20,14 @@ export interface CoverProps {
   className?: string
 }
 
+// The radius follows the concentric rule against the panel each size sits
+// in: a calendar entry pads 8px around a small cover (10 - 8 = 2, floored to
+// the xs step), a media card 12px around a medium one. The fill size is flush
+// with its tile, which clips it - no radius of its own.
 const COVER_BOX = {
-  sm: 'h-14 w-10',
-  md: 'h-20 w-14',
-  lg: 'h-24 w-16',
+  sm: 'h-14 w-10 rounded-xs',
+  md: 'h-20 w-14 rounded-xs',
+  lg: 'h-24 w-16 rounded-xs',
   fill: 'aspect-2/3 w-full',
 } as const
 
@@ -339,7 +343,7 @@ export interface FileBrowserProps {
 /** Framed listing: path bar on top, scrollable rows below. */
 export function FileBrowser({ breadcrumb, children, empty, className }: FileBrowserProps) {
   return (
-    <div className={cx('flex max-h-56 flex-col overflow-hidden border border-border-subtle bg-bg-secondary/40', className)}>
+    <div className={cx('flex max-h-56 flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-secondary/40', className)}>
       {breadcrumb}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {empty ? <p className="p-2 text-xs text-t-muted">{empty}</p> : children}
@@ -358,7 +362,9 @@ export interface MenuProps {
 /** Dropdown list - sort pickers, overflow menus. Position it yourself. */
 export function Menu({ children, className, ...rest }: MenuProps) {
   return (
-    <ul role="listbox" {...rest} className={cx('min-w-44 border border-border-subtle bg-bg-card py-1 shadow-lg', className)}>
+    // overflow-clip: the py-1 lets the first and last item's hover fill reach
+    // the corners, which would poke past the curve otherwise
+    <ul role="listbox" {...rest} className={cx('min-w-44 overflow-clip rounded-lg border border-border-subtle bg-bg-card py-1 shadow-lg', className)}>
       {children}
     </ul>
   )
@@ -709,9 +715,11 @@ export function ActionBar({ sticky = true, floating = false, className, ...rest 
         // a prop, not a consumer override: two `lg:` utilities for the same
         // property resolve by stylesheet order, not by who asked last
         floating
-          ? 'lg:sticky lg:bottom-4 lg:z-10 lg:mx-auto lg:w-fit lg:max-w-full lg:border lg:bg-bg-card lg:shadow-lg'
+          ? 'lg:sticky lg:bottom-4 lg:z-10 lg:mx-auto lg:w-fit lg:max-w-full lg:rounded-lg lg:border lg:bg-bg-card lg:shadow-lg'
           : sticky
-            ? 'lg:sticky lg:bottom-0 lg:z-10 lg:bg-bg-card'
+            // the panel's footer: its square corners would paint over the
+            // panel's rounded bottom, so it inherits the radius there
+            ? 'lg:sticky lg:bottom-0 lg:z-10 lg:rounded-b-[inherit] lg:bg-bg-card'
             : 'lg:border-0 lg:bg-transparent lg:p-0',
         className,
       )}
