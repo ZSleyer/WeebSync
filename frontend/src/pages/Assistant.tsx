@@ -20,23 +20,16 @@ import {
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { usePersistedQuery } from '../hooks'
 import MediaDetail from '../components/MediaDetail'
+import Markdown from '../components/Markdown'
 import { useAiModels, useAiStatus, useAuth } from '../hooks'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, useWatchDefaults } from '../components/watchDefaults'
 import { useConfirm } from '../components/confirm'
 
-// plain strips the markdown a model emits anyway (bold, code spans, heading
-// marks): the page renders text, and the prompt asks for text. Also a tool
-// call a small model wrote out instead of calling it, recommend(titles=[...]):
-// the server turned that into cards already
-const plain = (s: string) =>
-  s
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/`([^`\n]*)`/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/\b(?:recommend|show_upgrades|propose)\((?:[^()]|\([^()]*\))*\)/g, '')
-    .trim()
+// stripWrittenCall drops a tool call a small model wrote out instead of
+// calling it, recommend(titles=[...]): the server turned that into cards
+const stripWrittenCall = (s: string) => s.replace(/\b(?:recommend|show_upgrades|propose)\((?:[^()]|\([^()]*\))*\)/g, '').trim()
 
 // One turn of the conversation as rendered. Proposals hang off the assistant
 // turn that produced them; `done` marks a card the user already confirmed.
@@ -53,6 +46,8 @@ interface Turn {
   images?: string[]
   proposals?: (AiProposal & { done?: boolean; error?: string })[]
   cards?: AiCard[]
+  /** titles the answer names, with their records: the names link into the catalog */
+  links?: AiCard[]
   upgrades?: UpgradeSuggestion[]
   steps?: Step[]
   stepsOpen?: boolean
@@ -290,6 +285,9 @@ export default function Assistant() {
             }
             case 'cards':
               pending.cards.push(...ev.cards)
+              break
+            case 'links':
+              patchLast((tr) => ({ ...tr, links: ev.cards }))
               break
             case 'upgrades': {
               // the upgrades tool and show_upgrades may both name a card
@@ -529,10 +527,16 @@ export default function Assistant() {
                       </details>
                     ) : null}
                     {tr.content && (
-                      <p className="whitespace-pre-wrap wrap-break-word">
-                        {plain(tr.content)}
+                      <Markdown
+                        text={stripWrittenCall(tr.content)}
+                        titles={(tr.links ?? []).flatMap((c) =>
+                          [c.media.title.preferred, c.media.title.english, c.media.title.romaji]
+                            .filter((x): x is string => !!x)
+                            .map((title) => ({ title, onClick: () => setCard(c) })),
+                        )}
+                      >
                         {streaming && ti === last && !tr.tool && <span className="ai-cursor" aria-hidden />}
-                      </p>
+                      </Markdown>
                     )}
                     {tr.tool && (
                       <p className="mt-2 flex items-center gap-2 text-sm text-accent">
