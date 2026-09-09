@@ -247,20 +247,8 @@ export default function Integrations() {
               />
               <span className="mt-1 block">{t('settings.aiApiKeyHint')}</span>
             </label>
-            <label className="text-xs text-t-muted">
-              {t('settings.aiModel')}
-              <EnvBadge show={locked('aiModel')} />
-              <Input
-                className="mt-1 font-mono"
-                placeholder="gpt-4o-mini"
-                value={form.aiModel}
-                disabled={locked('aiModel')}
-                onChange={(e) => set('aiModel', e.target.value)}
-              />
-              <span className="mt-1 block">{t('settings.aiModelHint')}</span>
-            </label>
+            <AiModelField value={form.aiModel} locked={locked('aiModel')} onChange={(m) => set('aiModel', m)} />
           </div>
-          <AiModelChips current={form.aiModel} locked={locked('aiModel')} onPick={(m) => set('aiModel', m)} />
         </div>
       </Panel>
 
@@ -666,44 +654,43 @@ function TvdbAccount() {
   )
 }
 
-// The endpoint's model list as chips: what it serves, one click to make it
-// the default. Loaded live from the saved endpoint, so a URL typed but not
-// saved yet does not show up here.
-function AiModelChips({ current, locked, onPick }: { current: string; locked: boolean; onPick: (m: string) => void }) {
+// The model field: a dropdown of what the saved endpoint serves, with the
+// stored value kept as an option when the list no longer has it; a plain
+// input while no list is available (endpoint not saved yet, or failing).
+function AiModelField({ value, locked, onChange }: { value: string; locked: boolean; onChange: (m: string) => void }) {
   const { t } = useTranslation()
   const { data, isFetching, refetch } = useAiModels()
-  if (!data) return null
+  const models = data?.models ?? []
+  const options = value && !models.includes(value) ? [value, ...models] : models
   return (
-    <div className="text-xs text-t-muted">
-      <div className="flex flex-wrap items-center gap-2">
-        <span>{t('settings.aiModels')}</span>
-        <Button size="xs" disabled={isFetching} onClick={() => refetch()}>
-          {t('settings.aiModelsReload')}
-        </Button>
-        {data.error && (
-          <span className="text-err" role="alert">
-            {data.error}
-          </span>
-        )}
-      </div>
-      {data.models.length > 0 && (
-        <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={t('settings.aiModels')}>
-          {data.models.map((m) => (
-            <li key={m}>
-              <Button
-                size="xs"
-                variant={m === current ? 'primary' : 'default'}
-                aria-pressed={m === current}
-                disabled={locked}
-                onClick={() => onPick(m)}
-              >
+    <label className="text-xs text-t-muted">
+      {t('settings.aiModel')}
+      <EnvBadge show={locked} />
+      <span className="mt-1 flex gap-2">
+        {options.length > 0 ? (
+          <Select className="font-mono" wrapperClassName="min-w-0 flex-1" value={value} disabled={locked} onChange={(e) => onChange(e.target.value)}>
+            {options.map((m) => (
+              <option key={m} value={m}>
                 {m}
-              </Button>
-            </li>
-          ))}
-        </ul>
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Input className="font-mono" placeholder="gpt-4o-mini" value={value} disabled={locked} onChange={(e) => onChange(e.target.value)} />
+        )}
+        {data && (
+          <Button size="sm" className="shrink-0" disabled={isFetching} onClick={() => refetch()}>
+            {t('settings.aiModelsReload')}
+          </Button>
+        )}
+      </span>
+      <span className="mt-1 block">{t('settings.aiModelHint')}</span>
+      {data?.error && (
+        <span className="mt-1 block text-err" role="alert">
+          {data.error}
+        </span>
       )}
-    </div>
+    </label>
   )
 }
 
