@@ -42,7 +42,7 @@ export default function About() {
         <p className="text-xs text-t-muted">{t('app.tagline')}</p>
 
         {data?.updateAvailable && (
-          <div className="border border-warn/40 bg-warn/5 px-4 py-3 text-sm">
+          <div className="rounded-md border border-warn/40 bg-warn/5 px-4 py-3 text-sm">
             <span className="text-warn">
               {dev ? t('about.updateDev') : t('about.updateStable', { version: data.latest })}
             </span>

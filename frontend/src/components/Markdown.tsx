@@ -144,7 +144,7 @@ export default function Markdown({ text, titles = [], children }: { text: string
             )
           case 'code':
             return (
-              <pre key={key} className="overflow-x-auto border border-border-subtle bg-bg-card p-2 font-mono text-sm">
+              <pre key={key} className="overflow-x-auto rounded-md border border-border-subtle bg-bg-card p-2 font-mono text-sm">
                 {b.text}
               </pre>
             )

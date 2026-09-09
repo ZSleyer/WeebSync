@@ -38,7 +38,7 @@ function VariantBox({ v, label, muted, accent }: { v: UpgradeVariant; label: str
     // both copies sit on their own recessed surface, so the pair reads as two
     // objects being compared instead of two paragraphs sharing the card
     <div
-      className={`min-w-0 border bg-bg-secondary p-2 ${accent ? 'border-accent' : 'border-border-subtle'} ${muted ? 'text-t-muted' : ''}`}
+      className={`min-w-0 rounded-lg border bg-bg-secondary p-2 ${accent ? 'border-accent' : 'border-border-subtle'} ${muted ? 'text-t-muted' : ''}`}
     >
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge tone={accent ? 'accent' : 'neutral'} className="shrink-0">
@@ -230,7 +230,7 @@ return (
                                 of them do not run together into one
                                 block. */}
                             <label
-                              className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 border p-2 ${
+                              className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 rounded-lg border p-2 ${
                                 isChosen(o)
                                   ? 'border-accent bg-bg-hover'
                                   : // hover only lifts the surface: an

@@ -93,7 +93,7 @@ export default function Security() {
             </Select>
           </label>
 
-          <fieldset className="border border-border-subtle p-3">
+          <fieldset className="rounded-lg border border-border-subtle p-3">
             <Badge as="legend">
               {t('settings.oidc')} ·{' '}
               <span className={form.oidcEnabled ? 'text-ok' : 'text-t-muted'}>

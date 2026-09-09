@@ -83,7 +83,7 @@ export function Hint({ text }: { text: string }) {
     <span ref={ref} className="relative ml-1 inline-block align-middle">
       <button
         type="button"
-        className="group/hint t-iconbtn rounded align-middle focus-visible:outline-1 focus-visible:outline-accent"
+        className="group/hint t-iconbtn align-middle focus-visible:outline-1 focus-visible:outline-accent"
         aria-label={text}
         onMouseEnter={show}
         onMouseLeave={() => setPos(null)}
@@ -104,7 +104,7 @@ export function Hint({ text }: { text: string }) {
           <span
             role="tooltip"
             style={{ position: 'fixed', top: pos.top, left: pos.left, width: 'min(256px, 70vw)' }}
-            className="pointer-events-none z-100 rounded border border-border-subtle bg-[#0d1117] p-2 text-[11px] font-normal normal-case leading-snug tracking-normal text-t-secondary shadow-lg"
+            className="pointer-events-none z-100 rounded-md border border-border-subtle bg-bg-primary p-2 text-[11px] font-normal normal-case leading-snug tracking-normal text-t-secondary shadow-lg"
           >
             {text}
           </span>,
@@ -150,7 +150,7 @@ export function SeriesPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
   return (
-    <div className="mt-2 border border-border-subtle p-2">
+    <div className="mt-2 rounded-lg border border-border-subtle p-2">
       <div className="mb-1 flex gap-1">
         <Input
           className="font-mono"
@@ -259,7 +259,7 @@ export function TitleSearch({ value, onChange }: { value: string; onChange: (v: 
         />
       </label>
       {open && results.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-50 max-h-48 overflow-y-auto border border-border-subtle bg-bg-card shadow-lg">
+        <ul className="absolute left-0 right-0 top-full z-50 max-h-48 overflow-y-auto rounded-lg border border-border-subtle bg-bg-card shadow-lg">
           {results.map((m) => (
             <li key={m.id}>
               <button

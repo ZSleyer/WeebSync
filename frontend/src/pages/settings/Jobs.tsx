@@ -226,7 +226,7 @@ function LogPanel({ level }: { level: LogLevel }) {
         </div>
       </div>
       <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.logs.hint')}</p>
-      <div className="mt-3 max-h-96 overflow-y-auto border border-border-subtle bg-bg-secondary/40 p-2 font-mono text-xs leading-relaxed">
+      <div className="mt-3 max-h-96 overflow-y-auto rounded-lg border border-border-subtle bg-bg-secondary/40 p-2 font-mono text-xs leading-relaxed">
         {shown.length === 0 ? (
           <p className="text-t-secondary">{t('settings.jobs.logs.empty')}</p>
         ) : (
@@ -1109,7 +1109,7 @@ function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => v
           </h4>
           <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.willRunWhat')}</p>
 
-          <div className="mt-4 border border-border-subtle bg-bg-secondary/40 p-3">
+          <div className="mt-4 rounded-lg border border-border-subtle bg-bg-secondary/40 p-3">
             <Checkbox
               checked={includeDecisions}
               onChange={(e) => setIncludeDecisions(e.target.checked)}
@@ -1294,7 +1294,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                 </span>
               </div>
               {correcting?.folder === m.folder && (
-                <div className="mt-2 border border-border-subtle bg-bg-secondary/40 p-2">
+                <div className="mt-2 rounded-lg border border-border-subtle bg-bg-secondary/40 p-2">
                   <div className="flex gap-2">
                     <label className="sr-only" htmlFor="correct-q">
                       {t('remote.search')}

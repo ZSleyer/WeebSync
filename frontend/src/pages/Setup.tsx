@@ -151,7 +151,7 @@ export default function Setup({
     </h2>
   )
   const errorBox = error && (
-    <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+    <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
       {error}
     </p>
   )

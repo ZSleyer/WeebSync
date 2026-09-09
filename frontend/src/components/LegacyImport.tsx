@@ -134,7 +134,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
   }
 
   const errorBox = error && (
-    <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+    <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
       {error}
     </p>
   )
@@ -188,7 +188,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
     <form className="space-y-5" onSubmit={commit}>
       {/* sits directly on the hatched wizard background, so it needs an opaque
           fill of its own - a 5% tint would let the pattern show through */}
-      <div className="border border-warn/40 bg-bg-card px-4 py-3" role="note">
+      <div className="rounded-md border border-warn/40 bg-bg-card px-4 py-3" role="note">
         <p className="flex items-start gap-2 text-sm text-warn">
           <AlertTriangle aria-hidden size="1em" className="mt-0.5 shrink-0" />
           <span>{t('legacy.warnFtp', { port: plan.server.oldPort || 21 })}</span>
@@ -282,7 +282,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
       <Panel as="section" className="space-y-3 p-5" aria-label={t('legacy.watchSection')}>
         <Badge tone="accent">{t('legacy.watchSection')}</Badge>
         <p className="text-xs text-t-muted">{t('legacy.filterInfo')}</p>
-        <ul className="divide-y divide-border-subtle border border-border-subtle">
+        <ul className="divide-y divide-border-subtle overflow-clip rounded-lg border border-border-subtle">
           {plan.watches.map((w) => (
             <li key={w.id} className="p-3">
               <label className="flex items-start gap-2 text-sm">

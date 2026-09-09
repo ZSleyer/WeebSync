@@ -41,7 +41,7 @@ export function FsErrorNote({ code, dir, className = '' }: { code: string; dir: 
   // would be just as broken for any other user
   const naming = code === 'permission_denied' && identity
   return (
-    <div className={`flex gap-2 border border-err/40 px-3 py-2 text-xs ${className}`}>
+    <div className={`flex gap-2 rounded-md border border-err/40 px-3 py-2 text-xs ${className}`}>
       <TriangleAlert aria-hidden size="1em" className="mt-0.5 shrink-0 text-err" />
       <p className="min-w-0 wrap-break-word">
         <span className="text-err">{t(`fsError.${code}.what`, { path: dir || '/' })}</span>{' '}

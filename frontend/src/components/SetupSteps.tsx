@@ -161,7 +161,7 @@ export default function SetupSteps({
           )}
         </form>
         {srvErr && (
-          <p className="mt-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+          <p className="mt-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
             {srvErr}
           </p>
         )}
@@ -171,7 +171,7 @@ export default function SetupSteps({
           </p>
         )}
         {keyConflict && (
-          <div className="mt-3 border border-warn/40 bg-warn/5 p-3 text-xs">
+          <div className="mt-3 rounded-lg border border-warn/40 bg-warn/5 p-3 text-xs">
             <p className="mb-2 text-warn">
               {t(keyConflict.code === 'host_key_mismatch' ? 'servers.hostKeyChanged' : 'servers.hostKeyUnknown')}
             </p>
@@ -202,11 +202,11 @@ export default function SetupSteps({
         {heading(t('setup.storageTitle'))}
         <p className="mb-4 text-sm text-t-secondary">{t('setup.storageHint')}</p>
         <Badge>{t('setup.roots')}</Badge>
-        <ul className="mb-2 mt-1 border border-border-subtle p-2 font-mono text-xs text-t-secondary">
+        <ul className="mb-2 mt-1 rounded-lg border border-border-subtle p-2 font-mono text-xs text-t-secondary">
           {form.downloadRoots?.map((r) => <li key={r}>{r}</li>)}
         </ul>
         {!form.downloadsEnvSet && (
-          <p className="mb-4 border border-warn/40 bg-warn/5 px-3 py-2 text-xs text-warn" role="note">
+          <p className="mb-4 rounded-md border border-warn/40 bg-warn/5 px-3 py-2 text-xs text-warn" role="note">
             {t('setup.rootsWarn')}
           </p>
         )}

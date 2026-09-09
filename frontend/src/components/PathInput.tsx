@@ -143,7 +143,7 @@ export default function PathInput({
           id={listId}
           role="listbox"
           aria-label={ariaLabel ?? t('remote.path')}
-          className="absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-y-auto border border-border-subtle bg-bg-card py-1 shadow-lg"
+          className="absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border-subtle bg-bg-card py-1 shadow-lg"
         >
           {options.map((p, i) => (
             <li key={p}>

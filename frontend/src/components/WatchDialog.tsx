@@ -205,7 +205,7 @@ export default function WatchDialog({
           </Button>
         </div>
         {browse === which && (
-          <div className="mt-2 flex max-h-56 flex-col overflow-hidden border border-border-subtle bg-bg-secondary/40">
+          <div className="mt-2 flex max-h-56 flex-col overflow-hidden rounded-lg border border-border-subtle bg-bg-secondary/40">
             {isRemote ? (
               <FileBrowser
                 queryKey={['watch-remote', serverId]}
@@ -423,7 +423,7 @@ export default function WatchDialog({
 
           {fsError && <FsErrorNote code={fsError.code} dir={fsError.dir} />}
           {error && (
-            <p className="border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+            <p className="rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
               {error}
             </p>
           )}
