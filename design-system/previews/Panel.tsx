@@ -5,7 +5,7 @@ export const Standard = () => (
     <Panel className="p-5">
       <Badge tone="accent">Server</Badge>
       <p className="mt-2 text-sm text-t-secondary">
-        Standardfläche für Formulare und Einstellungen. Die Eckklammern zeichnet das Panel selbst.
+        Standardfläche für Formulare und Einstellungen: Hairline-Rahmen, Radius aus --r-panel.
       </p>
     </Panel>
   </div>
@@ -15,7 +15,7 @@ export const Danger = () => (
   <div style={{ maxWidth: 420 }}>
     <Panel danger className="p-5">
       <Badge tone="err">Gefahrenzone</Badge>
-      <p className="mt-2 text-sm text-t-secondary">Rote Eckklammern markieren zerstörende Bereiche.</p>
+      <p className="mt-2 text-sm text-t-secondary">Ein rot getönter Rahmen markiert zerstörende Bereiche.</p>
     </Panel>
   </div>
 )

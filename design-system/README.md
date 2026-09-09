@@ -40,6 +40,34 @@ padding plus inherited text.
 `.t-toolbar` narrows both variables to `2rem` for its own row - that is the one
 sanctioned exception, and it works by overriding the variables, not the rules.
 
+## Radii
+
+One scale, tied to the control heights the same way. Every `t-*` class takes
+its radius from these variables, and Tailwind's `rounded-xs` … `rounded-2xl`
+are bridged onto the same steps (`@theme inline` in `index.css`), so a one-off
+box in the app lands on the scale too. Bare `rounded` is not bridged - use a
+step.
+
+| Variable | Desktop | Touch | Utility | Used by |
+|---|---|---|---|---|
+| `--r-xs` | 4px | 4px | `rounded-xs` | a cover inside a padded panel (concentric floor) |
+| `--r-chip` | 4px | 4px | `rounded-sm` | `.t-label`, checkbox |
+| `--r-ctl-sm` | 4px | 6px | - | `.t-btn--sm`, `.t-iconbtn`, `--sm` inputs, toolbar chips |
+| `--r-ctl` | 6px | 8px | `rounded-md` | `.t-btn`, `.t-input`, `.t-select`, `.t-tabs`, notes, tooltips |
+| `--r-menu` | 8px | 8px | `rounded-lg` | `Menu`, dropdown lists, sub-boxes, chat bubbles, floating `ActionBar` |
+| `--r-panel` | 10px | 10px | `rounded-xl` | `.t-panel`, composer, `FileBrowser` |
+| `--r-dialog` | 12px | 12px | `rounded-2xl` | `<dialog>`; the phone sheet is 0 |
+| full | - | - | `rounded-full` | dots, avatars, progress bars, the sheet's close button |
+
+Nested boxes follow the concentric rule: inner radius = outer radius minus the
+padding between them, never below `--r-xs`. A `Cover` in a `p-3` panel is
+`10 − 12 → 4`, in a `p-2` entry `10 − 8 → 4`; a flush cover in a catalog tile
+has no radius of its own and is clipped by the tile (`overflow-clip`).
+
+A new control class takes its radius from `--r-*` the way it takes its height
+from `--ctl-*`. `.t-toolbar` steps its controls down to `--r-ctl-sm` on touch,
+where its boxes are the small height.
+
 ## Layout conventions
 
 - Two-column form rows: one shared grid (`ROW_GRID` in `RenameOptions.tsx`), so
