@@ -1011,7 +1011,6 @@
     "aiConnected": "connected",
     "aiNotConfigured": "Save endpoint URL and model first.",
     "aiTest": "Test connection",
-    "aiModels": "Models the endpoint serves:",
     "aiModelsReload": "Reload",
     "envLockedHint": "Set via environment variable – not editable here",
     "plexWatchlistLink": "Link Plex watchlist",
