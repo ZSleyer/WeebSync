@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowLeft,
-  Bot,
   ChevronRight,
   Ellipsis,
   FolderOpen,
@@ -27,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar } from '@weebsync/design-system'
 import { api } from './api'
-import { useAiStatus, useAuth, useEvents, useUpdateHint } from './hooks'
+import { useAuth, useEvents, useUpdateHint } from './hooks'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
@@ -61,7 +60,6 @@ const TABS = [
   { to: '/files', key: 'nav.files', icon: FolderOpen },
 ]
 const OVERFLOW = [
-  { to: '/assistant', key: 'nav.assistant', icon: Bot },
   { to: '/rename', key: 'nav.rename', icon: PenLine },
   { to: '/settings', key: 'nav.settings', icon: Settings },
 ]
@@ -141,8 +139,9 @@ export const router = createBrowserRouter(
         <Route path="incomplete" element={<BucketSection bucket="incomplete" />} handle={inSuggestions('suggestions.tabIncomplete')} />
         <Route path="duplicates" element={<DuplicatesSection />} handle={inSuggestions('suggestions.tabDuplicates')} />
         <Route path="ignored" element={<IgnoredSection />} handle={inSuggestions('suggestions.ignored')} />
+        <Route path="assistant" element={<Assistant />} handle={inSuggestions('nav.assistant')} />
       </Route>
-      <Route path="/assistant" element={<Assistant />} handle={h('nav.assistant')} />
+      <Route path="/assistant" element={<Navigate to="/suggestions/assistant" replace />} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
       <Route path="/servers" element={<Navigate to="/settings/servers" replace />} />
       <Route path="/rename" element={<Rename />} handle={h('nav.rename')} />
@@ -220,10 +219,7 @@ function Shell({ email }: { email: string }) {
   const [actions, setActions] = useState<HTMLElement | null>(null)
   // the shell's footer row, same deal: a page's action bar portals in
   const [footer, setFooter] = useState<HTMLElement | null>(null)
-  // the assistant is optional: without a configured endpoint its entry stays
-  // out of the rail and the sheet (the page itself explains when opened directly)
-  const { data: aiStatus } = useAiStatus()
-  const overflow = aiStatus?.configured ? OVERFLOW : OVERFLOW.filter((n) => n.to !== '/assistant')
+  const overflow = OVERFLOW
   const moreActive = overflow.some((n) => onPath(n, location.pathname))
   // a newer build out: a dot on the Settings entry (and on the More tab that
   // hides it) and a line in the rail's foot, so an admin sees it without

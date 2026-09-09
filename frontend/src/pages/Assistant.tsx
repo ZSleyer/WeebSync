@@ -349,11 +349,7 @@ export default function Assistant() {
   // one layout for the empty and the running conversation, so the composer
   // never moves: header (desktop), the log, the composer as the last row
   return (
-    <div className="page-fill mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-      <header className="mb-6 hidden lg:block">
-        <h2 className="font-display text-xl font-semibold tracking-wider">{t('assistant.title')}</h2>
-        <Badge className="mt-1">{t('assistant.sub')}</Badge>
-      </header>
+    <div className="page-fill flex min-h-0 w-full max-w-3xl flex-1 flex-col">
       {actions}
 
       <div ref={logRef} role="log" aria-live="polite" aria-label={t('assistant.title')} className="min-h-0 flex-1 overflow-y-auto">
