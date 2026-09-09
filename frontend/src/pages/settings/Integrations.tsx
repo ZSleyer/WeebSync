@@ -9,6 +9,86 @@ import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSet
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import Smtp from './Smtp'
 
+
+// The five status queries, shared by the panels and the strip on top so
+// React Query serves both from one request.
+interface AnilistMe {
+  configured: boolean
+  clientId?: string
+  connected: boolean
+  name?: string
+  expiresAt?: string
+}
+interface TmdbMe {
+  configured: boolean
+  keyValid: boolean
+  connected: boolean
+  username?: string
+  error?: string
+}
+interface TvdbMe {
+  configured: boolean
+  connected: boolean
+  error?: string
+}
+interface PlexMe {
+  configured: boolean
+  connected: boolean
+  username?: string
+  server?: string
+  error?: string
+}
+interface AiStatus {
+  configured: boolean
+  connected?: boolean
+  error?: string
+}
+const ANILIST_ME = { queryKey: ['anilist-me'], queryFn: () => api.get<AnilistMe>('/api/anilist/me') }
+const TMDB_ME = { queryKey: ['tmdb-me'], queryFn: () => api.get<TmdbMe>('/api/tmdb/me') }
+const TVDB_ME = { queryKey: ['tvdb-me'], queryFn: () => api.get<TvdbMe>('/api/tvdb/me') }
+const PLEX_ME = { queryKey: ['plex-me'], queryFn: () => api.get<PlexMe>('/api/plex/me') }
+const AI_STATUS = { queryKey: ['ai-status'], queryFn: () => api.get<AiStatus>('/api/ai/status') }
+
+type Tone = 'ok' | 'err' | 'neutral'
+
+// One chip per provider, coloured by its state, linking to its panel: the
+// overview of a long page, and the way to reach the one that needs work.
+function StatusStrip({ smtp }: { smtp: boolean }) {
+  const { t } = useTranslation()
+  const anilist = useQuery(ANILIST_ME).data
+  const tmdb = useQuery(TMDB_ME).data
+  const tvdb = useQuery(TVDB_ME).data
+  const plex = useQuery(PLEX_ME).data
+  const ai = useQuery(AI_STATUS).data
+  // connected beats an error beats "set up but not tested yet" (the assistant
+  // and SMTP have no probe of their own until the user asks for one)
+  const state = (connected?: boolean, err?: boolean, configured?: boolean): [Tone, string] =>
+    connected
+      ? ['ok', t('settings.statusConnected')]
+      : err
+        ? ['err', t('settings.statusError')]
+        : configured
+          ? ['ok', t('settings.statusConfigured')]
+          : ['neutral', t('settings.statusUnset')]
+  const chips: [string, string, [Tone, string]][] = [
+    ['anilist', 'AniList', state(anilist?.connected)],
+    ['tmdb', 'TMDB', state(tmdb?.connected || tmdb?.keyValid, tmdb?.configured && !tmdb.keyValid)],
+    ['tvdb', 'TVDB', state(tvdb?.connected, tvdb?.configured)],
+    ['plex', t('settings.plex'), state(plex?.connected, plex?.configured)],
+    ['ai', t('settings.ai'), state(ai?.connected, !!ai?.error, ai?.configured)],
+    ['email', t('settings.email'), state(false, false, smtp)],
+  ]
+  return (
+    <nav aria-label={t('settings.integrationsJump')} className="mb-4 flex flex-wrap gap-2">
+      {chips.map(([id, name, [tone, word]]) => (
+        <Badge key={id} as="a" href={`#${id}`} tone={tone}>
+          {name} · {word}
+        </Badge>
+      ))}
+    </nav>
+  )
+}
+
 export default function Integrations() {
   const { t } = useTranslation()
   const { form, set, save, saved, locked, dirty } = useSettingsForm()
@@ -19,6 +99,7 @@ export default function Integrations() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
+      <StatusStrip smtp={!!form.smtpHost} />
       <Panel as="section" id="anilist" className="mb-4 p-5" aria-label="AniList">
         <Badge tone="accent">AniList</Badge>
         <div className="mt-3 grid grid-cols-1 gap-4">
@@ -394,10 +475,7 @@ function AnilistOwnApp({
   locked: (k: keyof SettingsState) => boolean
 }) {
   const { t } = useTranslation()
-  const { data } = useQuery<{ configured: boolean }>({
-    queryKey: ['anilist-me'],
-    queryFn: () => api.get('/api/anilist/me'),
-  })
+  const { data } = useQuery(ANILIST_ME)
   const [open, setOpen] = useState(
     !!form.anilistClientId || form.anilistSecretSet || !!form.anilistRedirectUrl,
   )
@@ -527,16 +605,7 @@ function PlexWatchlistAccount() {
 
 function PlexAccount() {
   const { t } = useTranslation()
-  const { data } = useQuery<{
-    configured: boolean
-    connected: boolean
-    username?: string
-    server?: string
-    error?: string
-  }>({
-    queryKey: ['plex-me'],
-    queryFn: () => api.get('/api/plex/me'),
-  })
+  const { data } = useQuery(PLEX_ME)
   if (!data) return null
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
@@ -565,16 +634,13 @@ function TvdbAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [testing, setTesting] = useState(false)
-  const { data } = useQuery<{ configured: boolean; connected: boolean; error?: string }>({
-    queryKey: ['tvdb-me'],
-    queryFn: () => api.get('/api/tvdb/me'),
-  })
+  const { data } = useQuery(TVDB_ME)
   // force=1 bypasses the backend's 24h token cache, so a changed key is
   // actually re-tested. fetchQuery writes into the same cache entry.
   const test = async () => {
     setTesting(true)
     try {
-      await qc.fetchQuery({ queryKey: ['tvdb-me'], queryFn: () => api.get('/api/tvdb/me?force=1'), staleTime: 0 })
+      await qc.fetchQuery({ queryKey: TVDB_ME.queryKey, queryFn: () => api.get<TvdbMe>('/api/tvdb/me?force=1'), staleTime: 0 })
     } finally {
       setTesting(false)
     }
@@ -647,14 +713,11 @@ function AiAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [testing, setTesting] = useState(false)
-  const { data } = useQuery<{ configured: boolean; connected?: boolean; error?: string }>({
-    queryKey: ['ai-status'],
-    queryFn: () => api.get('/api/ai/status'),
-  })
+  const { data } = useQuery(AI_STATUS)
   const test = async () => {
     setTesting(true)
     try {
-      await qc.fetchQuery({ queryKey: ['ai-status'], queryFn: () => api.get('/api/ai/status?force=1'), staleTime: 0 })
+      await qc.fetchQuery({ queryKey: AI_STATUS.queryKey, queryFn: () => api.get<AiStatus>('/api/ai/status?force=1'), staleTime: 0 })
     } finally {
       setTesting(false)
     }
@@ -686,16 +749,7 @@ function TmdbAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [error, setError] = useState('')
-  const { data } = useQuery<{
-    configured: boolean
-    keyValid: boolean
-    connected: boolean
-    username?: string
-    error?: string
-  }>({
-    queryKey: ['tmdb-me'],
-    queryFn: () => api.get('/api/tmdb/me'),
-  })
+  const { data } = useQuery(TMDB_ME)
   if (!data) return null
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
@@ -754,10 +808,7 @@ function AnilistAccount() {
   const qc = useQueryClient()
   const [error, setError] = useState('')
   const [pinToken, setPinToken] = useState('')
-  const { data } = useQuery<{ configured: boolean; clientId?: string; connected: boolean; name?: string; expiresAt?: string }>({
-    queryKey: ['anilist-me'],
-    queryFn: () => api.get('/api/anilist/me'),
-  })
+  const { data } = useQuery(ANILIST_ME)
   const connectPin = useMutation({
     mutationFn: () => api.post('/api/anilist/token', { token: pinToken }),
     onSuccess: () => {

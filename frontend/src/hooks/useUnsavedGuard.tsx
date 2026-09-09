@@ -9,7 +9,11 @@ import ConfirmModal from '../components/ConfirmModal'
 // "discard changes?" modal instead of the browser-native prompt.
 export function UnsavedGuard({ dirty }: { dirty: boolean }) {
   const { t } = useTranslation()
-  const blocker = useBlocker(dirty)
+  // a hash link on the same page (the status chips on Integrations) is not
+  // leaving the form, so only a change of path counts
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname,
+  )
 
   useEffect(() => {
     if (!dirty) return
