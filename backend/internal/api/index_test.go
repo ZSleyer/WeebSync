@@ -55,6 +55,13 @@ func TestIndexDirAndSearch(t *testing.T) {
 	if rec := doReq(mux, "GET", "/api/servers/1/search?q=episode+01", "", cookie); !jsonHasResult(rec.Body.Bytes()) {
 		t.Errorf("multi-word: %s", rec.Body)
 	}
+	// path scopes the search to the folder and what lies below it
+	if rec := doReq(mux, "GET", "/api/servers/1/search?q=episode&path=/x/Show+A", "", cookie); !jsonHasResult(rec.Body.Bytes()) {
+		t.Errorf("scoped inside: %s", rec.Body)
+	}
+	if rec := doReq(mux, "GET", "/api/servers/1/search?q=readme&path=/x/Show+A/", "", cookie); jsonHasResult(rec.Body.Bytes()) {
+		t.Errorf("scoped outside: %s", rec.Body)
+	}
 	// re-listing without the file removes it
 	s.indexDir(1, "/x/Show A", []remote.Entry{})
 	if rec := doReq(mux, "GET", "/api/servers/1/search?q=episode", "", cookie); jsonHasResult(rec.Body.Bytes()) {

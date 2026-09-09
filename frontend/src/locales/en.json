@@ -331,6 +331,7 @@
     "changeMatch": "Change match",
     "matchFor": "AniList match for {{name}}",
     "search": "Search…",
+    "searchIn": "Search in {{dir}}",
     "removeMatch": "Remove match",
     "close": "Close",
     "select": "select",
