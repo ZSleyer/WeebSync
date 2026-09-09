@@ -601,6 +601,9 @@ export type AiEvent =
   | ({ type: 'proposal' } & AiProposal)
   | { type: 'cards'; cards: AiCard[] }
   | { type: 'upgrades'; upgrades: UpgradeSuggestion[] }
+  // a follow-up the running answer took on: the client mirrors it as a
+  // user turn and the answer continues in a new bubble after it
+  | { type: 'steer'; text: string }
   | { type: 'error'; message: string }
   | { type: 'done' }
 

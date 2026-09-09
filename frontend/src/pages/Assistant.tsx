@@ -145,8 +145,12 @@ export default function Assistant() {
     const text = (raw ?? input).trim()
     if (!text) return
     if (streaming) {
+      // queued here, and offered to the running answer: taken on, it comes
+      // back as a steer event and leaves the queue; otherwise it goes out
+      // as a turn of its own once the stream ends
       setQueue((q) => [...q, text])
       setInput('')
+      api.post('/api/ai/steer', { text }).catch(() => {})
       return
     }
     const history: AiChatMessage[] = [...turns, { role: 'user' as const, content: text }]
@@ -209,6 +213,19 @@ export default function Assistant() {
               pending.upgrades.push(...ev.upgrades.filter((u) => !have.has(u.key)))
               break
             }
+            case 'steer':
+              // the answer so far stays as it is; the follow-up becomes a
+              // user turn and what the model says next lands after it
+              setQueue((q) => {
+                const i = q.indexOf(ev.text)
+                return i < 0 ? q : q.filter((_, j) => j !== i)
+              })
+              setTurns((prev) => [
+                ...prev.map((tr, i) => (i === prev.length - 1 ? { ...tr, tool: undefined, stepsOpen: tr.stepsTouched ? tr.stepsOpen : false } : tr)),
+                { role: 'user', content: ev.text },
+                { role: 'assistant', content: '' },
+              ])
+              break
             case 'error':
               patchLast((tr) => ({ ...tr, error: ev.message, tool: undefined }))
               break
