@@ -572,6 +572,17 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(reply.ToolCalls) == 0 {
+			// a small model that writes the call out as text instead of
+			// calling it - recommend(titles=[...]) in the answer - still
+			// gets its cards; the client hides the written call
+			if !cardsShown {
+				if args := aiWrittenCall(reply.Content, "recommend"); args != "" {
+					if out := s.aiTool(ctx, u.ID, "recommend", args); len(out.cards) > 0 {
+						cardsShown = true
+						emit(aiEvent{Type: "cards", Cards: out.cards})
+					}
+				}
+			}
 			if !cardsShown && len(surfaced) > 0 {
 				if cards := s.aiMentionedCards(ctx, u.ID, surfaced, reply.Content); len(cards) > 0 {
 					emit(aiEvent{Type: "cards", Cards: cards})
@@ -899,11 +910,14 @@ func (s *Server) aiMentionedCards(ctx context.Context, userID int64, results [][
 					src = "anilist"
 				}
 				r := ref{src, int(id)}
+				// the title has to head its line: named inside a sentence
+				// ("fans of Naruto will like this") it is evidence for a pick,
+				// not the pick
 				for i, fl := range folded {
-					if strings.Contains(fl, fk) && !seen[r] {
+					if strings.HasPrefix(fl, fk) && !seen[r] {
 						seen[r] = true
 						refs = append(refs, r)
-						why[r] = excerpt(strings.TrimLeft(strings.TrimSpace(lines[i]), "-*• "), 200)
+						why[r] = excerpt(reasonAfter(lines, i, fk), 200)
 						break
 					}
 				}
@@ -939,6 +953,67 @@ func (s *Server) aiMentionedCards(ctx context.Context, userID int64, results [][
 		cards = append(cards, aiCard{Source: r.src, Media: *m, Why: why[r]})
 	}
 	return cards
+}
+
+// aiWrittenCall finds a tool call the model wrote into its answer as text,
+// name(...) with the arguments as JSON or as one key=value pair, and returns
+// the arguments as the JSON the tool takes; "" when the answer has none.
+func aiWrittenCall(text, name string) string {
+	i := strings.Index(text, name+"(")
+	if i < 0 {
+		return ""
+	}
+	rest := text[i+len(name)+1:]
+	depth, end := 1, -1
+	for j, r := range rest {
+		switch r {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+		}
+		if depth == 0 {
+			end = j
+			break
+		}
+	}
+	if end < 0 {
+		return ""
+	}
+	args := strings.TrimSpace(rest[:end])
+	if strings.HasPrefix(args, "{") {
+		return args
+	}
+	if k, v, ok := strings.Cut(args, "="); ok && strings.TrimSpace(k) != "" && strings.HasPrefix(strings.TrimSpace(v), "[") {
+		return fmt.Sprintf("{%q: %s}", strings.TrimSpace(k), strings.TrimSpace(v))
+	}
+	return ""
+}
+
+// reasonAfter is what a list line says about the title heading it: the text
+// past the title, or the next line when the title stands alone on its own.
+// The cut is the longest prefix that folds to the title's key, so the season
+// marker and the punctuation after the title go with it.
+// ponytail: folds every prefix of one line, a few hundred short calls
+func reasonAfter(lines []string, i int, fk string) string {
+	line := strings.TrimLeft(strings.TrimSpace(lines[i]), "-*• ")
+	rest := line
+	for j := range line {
+		if match.FoldKey(match.StripMarkers(line[:j])) == fk {
+			rest = line[j:]
+		}
+	}
+	if match.FoldKey(match.StripMarkers(line)) == fk {
+		rest = ""
+	}
+	rest = strings.TrimSpace(strings.TrimLeft(rest, " -–—:*"))
+	if rest == "" && i+1 < len(lines) {
+		next := strings.TrimSpace(lines[i+1])
+		if next != "" && !strings.HasPrefix(next, "-") && !strings.HasPrefix(next, "*") && !strings.HasPrefix(next, "•") {
+			rest = next
+		}
+	}
+	return rest
 }
 
 func aiTitle(m anilist.Media) string {

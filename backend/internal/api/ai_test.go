@@ -14,6 +14,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/ai"
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/match"
 )
 
 // fakeProvider answers each chat round with the next scripted reply: either
@@ -495,7 +496,10 @@ func TestAiUpgradesToolShowsTopCards(t *testing.T) {
 func TestAiCardsForTitlesNamedWithoutRecommend(t *testing.T) {
 	fp := newFakeProvider(t,
 		fakeReply{tool: "seasonal", args: `{"season":"FALL","year":2026}`},
-		fakeReply{text: "Two picks:\n- Sousou no Frieren: quiet fantasy with a strong cast.\n- Dan Da Dan: loud and fun.\nShall I show details?"},
+		// a title heading a list line is a pick; one named inside a sentence
+		// is evidence and gets no card; a title alone on its line takes the
+		// next line as its reason
+		fakeReply{text: "Two picks:\n- Sousou no Frieren: quiet fantasy with a strong cast.\n- Dan Da Dan\nLoud and fun, like Unmentioned Show which you rated highly.\nShall I show details?"},
 	)
 	mux, s, c := setupAiTest(t, fp)
 	mk := func(id int, title string) anilist.Media {
@@ -520,7 +524,63 @@ func TestAiCardsForTitlesNamedWithoutRecommend(t *testing.T) {
 		t.Fatalf("cards: %v", cards)
 	}
 	first := cards[0].(map[string]any)
-	if first["media"].(map[string]any)["id"] != float64(154587) || first["why"] != "Sousou no Frieren: quiet fantasy with a strong cast." {
+	if first["media"].(map[string]any)["id"] != float64(154587) || first["why"] != "quiet fantasy with a strong cast." {
 		t.Errorf("first card: %v", first)
+	}
+	second := cards[1].(map[string]any)
+	if second["media"].(map[string]any)["id"] != float64(171018) || second["why"] != "Loud and fun, like Unmentioned Show which you rated highly." {
+		t.Errorf("second card: %v", second)
+	}
+}
+
+// The recommend call written out as text still yields the cards, without
+// the prose fallback picking anything else up.
+func TestAiCardsForRecommendWrittenAsText(t *testing.T) {
+	fp := newFakeProvider(t,
+		fakeReply{tool: "seasonal", args: `{"season":"FALL","year":2026}`},
+		fakeReply{text: "Hier sind zwei Titel:\n\nrecommend(titles=[{\"id\":154587,\"source\":\"anilist\",\"why\":\"quiet fantasy\"}, {\"id\":171018,\"why\":\"loud (and fun)\"}])"},
+	)
+	mux, s, c := setupAiTest(t, fp)
+	mk := func(id int, title string) anilist.Media {
+		m := anilist.Media{ID: id, Status: "FINISHED", Schema: anilist.MediaSchema, SeasonYear: 2026}
+		m.Title.Romaji = title
+		return m
+	}
+	list := []anilist.Media{mk(154587, "Sousou no Frieren"), mk(171018, "Dan Da Dan")}
+	payload, _ := json.Marshal(list)
+	s.cacheSet("season:FALL:2026", string(payload))
+	for _, m := range list {
+		p, _ := json.Marshal(m)
+		s.cacheSet(fmt.Sprintf("media:%d", m.ID), string(p))
+	}
+	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"what airs this season?"}]}`, c)
+	evs := events(t, rec.Body.String())
+	if got := types(evs); got != "tool,tool_done,delta,delta,cards,done" {
+		t.Fatalf("event order %s: %s", got, rec.Body)
+	}
+	cards := evs[4]["cards"].([]any)
+	if len(cards) != 2 || cards[0].(map[string]any)["why"] != "quiet fantasy" || cards[1].(map[string]any)["why"] != "loud (and fun)" {
+		t.Errorf("cards: %v", cards)
+	}
+	if got := aiWrittenCall("no call here", "recommend"); got != "" {
+		t.Errorf("no call: %q", got)
+	}
+	if got := aiWrittenCall(`x recommend({"titles":[{"id":1}]}) y`, "recommend"); got != `{"titles":[{"id":1}]}` {
+		t.Errorf("json args: %q", got)
+	}
+}
+
+func TestReasonAfter(t *testing.T) {
+	fk := match.FoldKey("Mushoku Tensei: Jobless Reincarnation")
+	lines := []string{"- Mushoku Tensei: Jobless Reincarnation Season 3 - the logical next step.", "- Other"}
+	if got := reasonAfter(lines, 0, fk); got != "the logical next step." {
+		t.Errorf("inline reason: %q", got)
+	}
+	lines = []string{"- **Mushoku Tensei: Jobless Reincarnation Season 3**", "You finished both seasons.", "- Other"}
+	if got := reasonAfter(lines, 0, fk); got != "You finished both seasons." {
+		t.Errorf("next-line reason: %q", got)
+	}
+	if got := reasonAfter([]string{"- Mushoku Tensei: Jobless Reincarnation", "- Other"}, 0, fk); got != "" {
+		t.Errorf("no reason: %q", got)
 	}
 }
