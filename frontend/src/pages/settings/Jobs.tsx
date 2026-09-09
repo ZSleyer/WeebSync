@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Checkbox, Dialog, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Checkbox, Dialog, Divider, Input, Panel, Select } from '@weebsync/design-system'
 import { api, fmtBytes, type JobsStatus, type Media } from '../../api'
 import { jobFamily, jobLabel } from '../../jobs'
 import { useConfirm } from '../../components/confirm'
@@ -175,7 +175,7 @@ function LogPanel({ level }: { level: LogLevel }) {
       : ''
 
   return (
-    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.logs.title')}>
+    <Panel as="section" id="log" className="mb-4 p-5" aria-label={t('settings.jobs.logs.title')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Badge tone="accent">{t('settings.jobs.logs.title')}</Badge>
         <div className="flex flex-wrap items-center gap-2">
@@ -560,7 +560,7 @@ export default function Jobs() {
         </p>
       )}
 
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.activity')}>
+      <Panel as="section" id="activity" className="mb-4 p-5" aria-label={t('settings.jobs.activity')}>
         <Badge tone="accent">{t('settings.jobs.activity')}</Badge>
         <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.hint')}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -612,55 +612,61 @@ export default function Jobs() {
 
       <LogPanel level={data.logLevel} />
 
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.anilistCaches')}>
-        <Badge tone="accent">{t('settings.jobs.anilistCaches')}</Badge>
-        {/* header rhythm shared by all cache panels: info line, then one
-            control row with buttons left and the TTL group right */}
-        <p className="mt-3 text-xs text-t-muted">{t('settings.jobs.accounts', { count: data.anilist.accounts })}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            disabled={data.anilist.accounts === 0 || run.isPending}
-            onClick={() => run.mutate({ name: 'anilist-suggestions' })}
-          >
-            {t('settings.jobs.rebuildSuggestions')}
-          </Button>
-          {ttlEdit('anilistH', 'ttl-anilist')}
-        </div>
-      </Panel>
-
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.tmdbCaches')}>
-        <Badge tone="accent">{t('settings.jobs.tmdbCaches')}</Badge>
-        <div className="mt-3 flex flex-wrap items-center gap-2">{ttlEdit('tmdbH', 'ttl-tmdb')}</div>
-      </Panel>
-
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.plex')}>
-        <Badge tone="accent">{t('settings.plex')}</Badge>
-        {/* info line: status + last build; control row: button left, TTL right */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge tone={data.plex.configured ? 'ok' : 'neutral'}>
-            {data.plex.configured ? t('settings.jobs.configured') : t('settings.jobs.notConfigured')}
-          </Badge>
-          <span className="font-mono text-xs tabular-nums text-t-muted">
-            {t('settings.jobs.suggestionsBuilt')}: {fmtTs(data.plex.suggestionsAt)}
-          </span>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            disabled={!data.plex.configured || run.isPending}
-            onClick={() => run.mutate({ name: 'plex-suggestions' })}
-          >
-            {t('settings.jobs.rebuild')}
-          </Button>
-          {ttlEdit('plexH', 'ttl-plex')}
-        </div>
+      {/* the three suggestion caches were three one-line panels; one panel,
+          one row each, the same grid as every other row on the page */}
+      <Panel as="section" id="caches" className="mb-4 p-5" aria-label={t('settings.jobs.caches')}>
+        <Badge tone="accent">{t('settings.jobs.caches')}</Badge>
+        <ul className="mt-2">
+          <li className={`${ROW_GRID} gap-y-2 py-3`}>
+            <span className={CELL_LEFT}>
+              <span className="font-semibold text-t-primary">AniList</span>
+              <span className="text-xs text-t-muted">{t('settings.jobs.accounts', { count: data.anilist.accounts })}</span>
+            </span>
+            <span className={CELL_RIGHT}>
+              <Button
+                size="sm"
+                disabled={data.anilist.accounts === 0 || run.isPending}
+                onClick={() => run.mutate({ name: 'anilist-suggestions' })}
+              >
+                {t('settings.jobs.rebuildSuggestions')}
+              </Button>
+              {ttlEdit('anilistH', 'ttl-anilist')}
+            </span>
+          </li>
+          <li className={`${ROW_GRID} gap-y-2 py-3`}>
+            <span className={CELL_LEFT}>
+              <span className="font-semibold text-t-primary">TMDB</span>
+            </span>
+            <span className={CELL_RIGHT}>{ttlEdit('tmdbH', 'ttl-tmdb')}</span>
+          </li>
+          <li className={`${ROW_GRID} gap-y-2 py-3`}>
+            <span className={CELL_LEFT}>
+              <span className="font-semibold text-t-primary">{t('settings.plex')}</span>
+              <Badge tone={data.plex.configured ? 'ok' : 'neutral'} className="shrink-0">
+                {data.plex.configured ? t('settings.jobs.configured') : t('settings.jobs.notConfigured')}
+              </Badge>
+              <span className="font-mono text-xs tabular-nums text-t-muted">
+                {t('settings.jobs.suggestionsBuilt')}: {fmtTs(data.plex.suggestionsAt)}
+              </span>
+            </span>
+            <span className={CELL_RIGHT}>
+              <Button
+                size="sm"
+                disabled={!data.plex.configured || run.isPending}
+                onClick={() => run.mutate({ name: 'plex-suggestions' })}
+              >
+                {t('settings.jobs.rebuild')}
+              </Button>
+              {ttlEdit('plexH', 'ttl-plex')}
+            </span>
+          </li>
+        </ul>
       </Panel>
 
       {/* The inventory: everything the app can rebuild, in one list. Before it
           existed only the AniList cache was reachable from here, so a wrongly
           folded series identity survived every reset the page offered. */}
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.data.title')}>
+      <Panel as="section" id="data" className="mb-4 p-5" aria-label={t('settings.jobs.data.title')}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Badge tone="accent">{t('settings.jobs.data.title')}</Badge>
           <Button size="sm" variant="danger" disabled={stores.length === 0} onClick={() => setResetOpen(true)}>
@@ -676,7 +682,7 @@ export default function Jobs() {
         )}
       </Panel>
 
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.remoteIndex')}>
+      <Panel as="section" id="index" className="mb-4 p-5" aria-label={t('settings.jobs.remoteIndex')}>
         <Badge tone="accent">{t('settings.jobs.remoteIndex')}</Badge>
         {data.index.servers.length === 0 ? (
           <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
@@ -764,7 +770,7 @@ export default function Jobs() {
         </p>
       </Panel>
 
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.jobs.matchQuality')}>
+      <Panel as="section" id="matches" className="mb-4 p-5" aria-label={t('settings.jobs.matchQuality')}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Badge tone="accent">{t('settings.jobs.matchQuality')}</Badge>
           <Button
@@ -844,13 +850,11 @@ export default function Jobs() {
       {cacheModal && <CacheEntriesModal store={cacheModal} onClose={() => setCacheModal(null)} />}
       {matchModal && <MatchesModal stat={matchModal} onClose={() => setMatchModal(null)} />}
       {resetOpen && <ResetModal stores={stores} onClose={() => setResetOpen(false)} />}
-      <div id="import" className="space-y-5">
-        <div>
-          <h3 className="font-display text-lg font-semibold tracking-wider">{t('legacy.title')}</h3>
-          <p className="mt-1 text-xs text-t-muted">{t('legacy.sub')}</p>
-        </div>
+      <section id="import" className="space-y-4" aria-label={t('legacy.title')}>
+        <Divider label={t('legacy.title')} />
+        <p className="text-xs text-t-muted">{t('legacy.sub')}</p>
         <LegacyImport />
-      </div>
+      </section>
     </>
   )
 }
