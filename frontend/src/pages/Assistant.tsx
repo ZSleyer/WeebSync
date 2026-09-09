@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { Check, ChevronDown, ChevronRight, Cpu, History, ImagePlus, Plus, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Cpu, History, ImagePlus, Mic, Plus, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Badge, Button, ButtonLabel, Dialog, EmptyState, MediaCard, Menu, MenuItem, Panel, Textarea, navItemClass, useMediaQuery, useMenu } from '@weebsync/design-system'
+import { Badge, Button, Dialog, EmptyState, MediaCard, Menu, MenuItem, Panel, navItemClass, useMediaQuery, useMenu } from '@weebsync/design-system'
 import {
   api,
   mediaTitle,
@@ -76,7 +76,7 @@ const EXAMPLES = ['seasonal', 'watch', 'upgrade'] as const
 // lives in sessionStorage per user: gone with the tab, never in the DB. The
 // model pick is per user too (localStorage), the admin's setting is the default.
 export default function Assistant() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const { data: user } = useAuth()
   const { data: status } = useAiStatus()
@@ -114,6 +114,10 @@ export default function Assistant() {
   })
   const [attachments, setAttachments] = useState<string[]>([])
   const [histOpen, setHistOpen] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const { open: addOpen, setOpen: setAddOpen, ref: addRef } = useMenu()
+  const dictation = useDictation(i18n.language)
   // follow-ups typed while an answer is still streaming: they wait here and
   // go out one by one once the stream ends, with the finished answer in
   // their history
@@ -639,88 +643,162 @@ export default function Assistant() {
           {notice}
         </Badge>
       )}
+      {/* the composer, one framed box: the add menu, the text, the mic and
+          the send arrow in a row; the model chip and stop in the row below.
+          Pictures land here by drop, paste, the menu or a phone's camera */}
       <form
-        className="mt-3 border-t border-border-subtle pt-3"
+        className={`mt-3 border ${dragging ? 'border-accent' : 'border-border-subtle'} bg-bg-card focus-within:border-accent/60`}
         onSubmit={(e) => {
           e.preventDefault()
           void send()
         }}
+        onDragOver={(e) => {
+          if (vision === false) return
+          e.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragging(false)
+          void addImages(e.dataTransfer.files)
+        }}
       >
-        <label className="flex min-w-0">
-          <span className="sr-only">{t('assistant.placeholder')}</span>
-          <Textarea
-            rows={2}
-            className="w-full resize-none"
-            placeholder={streaming ? t('assistant.placeholderQueue') : t('assistant.placeholder')}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKey}
-            onPaste={(e) => {
-              const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
-              if (files.length) {
-                e.preventDefault()
-                void addImages(files)
-              }
-            }}
-            // not on a phone: focusing on arrival raises the keyboard and
-            // shrinks the whole shell before anything was read
-            autoFocus={wide}
-          />
-        </label>
-        {/* the row under the text: pictures on the left, the model and the
-            send button on the right, as the chat apps have it */}
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <ButtonLabel
-            size="sm"
-            aria-disabled={vision === false}
-            title={vision === false ? t('assistant.attachNoVision') : t('assistant.attach')}
-            className={vision === false ? 'pointer-events-none opacity-50' : ''}
-          >
-            <ImagePlus aria-hidden size="1.2em" />
-            <span className="sr-only">{t('assistant.attach')}</span>
+        {attachments.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5 px-3 pt-3">
+            {attachments.map((src, i) => (
+              <li key={i} className="relative">
+                <img src={src} alt="" className="h-14 w-14 border border-border-subtle object-cover" />
+                <button
+                  type="button"
+                  className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center border border-border-subtle bg-bg-card text-t-muted hover:text-err"
+                  aria-label={t('assistant.removeImage')}
+                  onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}
+                >
+                  <X aria-hidden size="0.8em" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-end gap-1 px-2 pt-2">
+          <div className="relative" ref={addRef}>
+            <Button size="sm" aria-label={t('assistant.add')} title={t('assistant.add')} aria-haspopup="menu" aria-expanded={addOpen} onClick={() => setAddOpen((o) => !o)}>
+              <Plus aria-hidden size="1.2em" />
+            </Button>
+            {addOpen && (
+              <Menu className="absolute bottom-full left-0 z-20 mb-1" aria-label={t('assistant.add')}>
+                <MenuItem
+                  aria-disabled={vision === false}
+                  title={vision === false ? t('assistant.attachNoVision') : undefined}
+                  onClick={() => {
+                    setAddOpen(false)
+                    if (vision !== false) fileRef.current?.click()
+                  }}
+                >
+                  <ImagePlus aria-hidden size="1em" className={vision === false ? 'opacity-50' : ''} />
+                  <span className={vision === false ? 'opacity-50' : ''}>{t('assistant.addPhoto')}</span>
+                </MenuItem>
+              </Menu>
+            )}
             <input
+              ref={fileRef}
               type="file"
               accept="image/*"
               multiple
               className="sr-only"
-              disabled={vision === false}
+              tabIndex={-1}
               onChange={(e) => {
                 void addImages(e.target.files ?? [])
                 e.target.value = ''
               }}
             />
-          </ButtonLabel>
-          {attachments.length > 0 && (
-            <ul className="flex flex-wrap gap-1.5">
-              {attachments.map((src, i) => (
-                <li key={i} className="relative">
-                  <img src={src} alt="" className="h-10 w-10 border border-border-subtle object-cover" />
-                  <button
-                    type="button"
-                    className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center border border-border-subtle bg-bg-card text-t-muted hover:text-err"
-                    aria-label={t('assistant.removeImage')}
-                    onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}
-                  >
-                    <X aria-hidden size="0.8em" />
-                  </button>
-                </li>
-              ))}
-            </ul>
+          </div>
+          {dictation.active ? (
+            <p className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-2 text-base text-t-secondary" aria-live="polite">
+              <span className="ai-dots" aria-hidden>
+                <i />
+                <i />
+                <i />
+              </span>
+              <span className="min-w-0 flex-1 truncate">{dictation.text || t('assistant.listening')}</span>
+            </p>
+          ) : (
+            <label className="flex min-w-0 flex-1">
+              <span className="sr-only">{t('assistant.placeholder')}</span>
+              <textarea
+                rows={2}
+                className="w-full resize-none bg-transparent px-2 py-2 text-base text-t-primary outline-none placeholder:text-t-faint"
+                placeholder={streaming ? t('assistant.placeholderQueue') : t('assistant.placeholder')}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKey}
+                onPaste={(e) => {
+                  const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
+                  if (files.length) {
+                    e.preventDefault()
+                    void addImages(files)
+                  }
+                }}
+                // not on a phone: focusing on arrival raises the keyboard and
+                // shrinks the whole shell before anything was read
+                autoFocus={wide}
+              />
+            </label>
           )}
-          <span className="flex-1" />
+          {dictation.active ? (
+            <>
+              <Button size="sm" aria-label={t('assistant.dictateCancel')} title={t('assistant.dictateCancel')} onClick={dictation.cancel}>
+                <X aria-hidden size="1.2em" />
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                aria-label={t('assistant.dictateDone')}
+                title={t('assistant.dictateDone')}
+                onClick={() => {
+                  const said = dictation.accept()
+                  if (said) setInput((v) => (v ? `${v} ${said}` : said))
+                }}
+              >
+                <Check aria-hidden size="1.2em" />
+              </Button>
+            </>
+          ) : (
+            <>
+              {dictation.supported && (
+                <Button size="sm" aria-label={t('assistant.dictate')} title={t('assistant.dictate')} onClick={dictation.start}>
+                  <Mic aria-hidden size="1.2em" />
+                </Button>
+              )}
+              {(input.trim() || attachments.length > 0) && (
+                <Button type="submit" size="sm" variant="primary" aria-label={t('assistant.send')} title={t('assistant.send')}>
+                  <Send aria-hidden size="1.2em" />
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 px-2 pb-2">
+          {streaming && (
+            <Button type="button" size="xs" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
+              <Square aria-hidden size="1em" />
+              <span className="ml-1">{t('assistant.stop')}</span>
+            </Button>
+          )}
           {modelList.length > 1 && (
             <div className="relative" ref={modelRef}>
               <Button
-                size="sm"
+                size="xs"
                 aria-haspopup="listbox"
                 aria-expanded={modelOpen}
                 aria-label={t('assistant.model')}
                 title={modelInUse}
                 onClick={() => setModelOpen((o) => !o)}
               >
-                <Cpu aria-hidden size="1.2em" />
-                <span className="mx-1 hidden max-w-48 truncate sm:inline">{modelInUse}</span>
-                <ChevronDown aria-hidden size="1em" />
+                <Cpu aria-hidden size="1em" />
+                <span className="mx-1 max-w-48 truncate">{modelInUse}</span>
+                <ChevronDown aria-hidden size="0.9em" />
               </Button>
               {modelOpen && (
                 <Menu className="absolute right-0 bottom-full z-20 mb-1 max-w-72" aria-label={t('assistant.model')}>
@@ -741,14 +819,6 @@ export default function Assistant() {
               )}
             </div>
           )}
-          {streaming && (
-            <Button type="button" size="sm" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
-              <Square aria-hidden size="1.2em" />
-            </Button>
-          )}
-          <Button type="submit" size="sm" variant="primary" aria-label={t('assistant.send')} title={t('assistant.send')} disabled={!input.trim() && attachments.length === 0}>
-            <Send aria-hidden size="1.2em" />
-          </Button>
         </div>
       </form>
 
@@ -931,4 +1001,79 @@ async function shrinkImage(file: File): Promise<string> {
   canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height)
   bmp.close()
   return canvas.toDataURL('image/jpeg', 0.85)
+}
+
+// useDictation wraps the browser's speech recognition (Chrome, Edge, Safari;
+// Firefox has none, then the mic stays hidden). Words arrive as they are
+// spoken; accept hands them over, cancel drops them.
+// ponytail: the browser's own recognition, a transcription model behind
+// the endpoint if a browser without it matters
+interface Recognizer {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null
+  onend: (() => void) | null
+  onerror: (() => void) | null
+  start: () => void
+  stop: () => void
+  abort: () => void
+}
+function useDictation(lang: string) {
+  const Ctor = (window as unknown as { SpeechRecognition?: new () => Recognizer; webkitSpeechRecognition?: new () => Recognizer }).SpeechRecognition ??
+    (window as unknown as { webkitSpeechRecognition?: new () => Recognizer }).webkitSpeechRecognition
+  const [active, setActive] = useState(false)
+  const [text, setText] = useState('')
+  const rec = useRef<Recognizer | null>(null)
+  const final = useRef('')
+  useEffect(() => () => rec.current?.abort(), [])
+  const stop = () => {
+    rec.current?.abort()
+    rec.current = null
+    setActive(false)
+  }
+  return {
+    supported: !!Ctor,
+    active,
+    text,
+    start: () => {
+      if (!Ctor) return
+      const r = new Ctor()
+      r.lang = lang.startsWith('de') ? 'de-DE' : 'en-US'
+      r.continuous = true
+      r.interimResults = true
+      final.current = ''
+      setText('')
+      r.onresult = (e) => {
+        let interim = ''
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const res = e.results[i]
+          if (res.isFinal) final.current += res[0].transcript
+          else interim += res[0].transcript
+        }
+        setText((final.current + interim).trim())
+      }
+      // the browser ends a session on its own after a silence: what was
+      // said stays on screen until it is accepted or dropped
+      r.onend = () => {
+        rec.current = null
+      }
+      r.onerror = () => {
+        rec.current = null
+      }
+      rec.current = r
+      setActive(true)
+      r.start()
+    },
+    accept: () => {
+      const said = text
+      stop()
+      setText('')
+      return said
+    },
+    cancel: () => {
+      stop()
+      setText('')
+    },
+  }
 }
