@@ -349,7 +349,7 @@ export default function Assistant() {
   // one layout for the empty and the running conversation, so the composer
   // never moves: header (desktop), the log, the composer as the last row
   return (
-    <div className="page-fill flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+    <div className="page-fill flex min-h-0 w-full flex-1 flex-col">
       {actions}
 
       <div ref={logRef} role="log" aria-live="polite" aria-label={t('assistant.title')} className="min-h-0 flex-1 overflow-y-auto">
