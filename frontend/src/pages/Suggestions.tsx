@@ -124,6 +124,7 @@ function useGroups(): SectionGroup[] {
 export default function SuggestionsLayout() {
   const { t } = useTranslation()
   const groups = useGroups()
+  const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
   // the wrappers are flex columns down to the section, so a section that
   // fills the screen by design (the assistant's log and composer) can claim
   // the remaining height; a list section is unaffected
@@ -136,6 +137,14 @@ export default function SuggestionsLayout() {
       <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
         <SectionNav label={t('suggestions.navLabel')} groups={groups} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* the blob is assembled in the background every half hour; while it
+              is, the counts in the menu are missing and a bucket may be short */}
+          {data?.building && (
+            <Badge multiline role="status" className="mb-4 self-start">
+              <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
+              {t('suggestions.building')}
+            </Badge>
+          )}
           <Outlet />
         </div>
       </div>
@@ -177,6 +186,7 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
 
   if (isLoading) return <SkeletonCards />
   const items = (data?.[bucket] ?? []) as SuggestionItem[]
+  if (!items.length && data?.building) return <SkeletonCards />
   if (!items.length) return <Badge multiline>{t(bucket === 'recommended' ? 'suggestions.emptyRecommended' : 'suggestions.empty')}</Badge>
 
   const cards = (list: SuggestionItem[]) => (

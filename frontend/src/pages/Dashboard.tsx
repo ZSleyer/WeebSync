@@ -672,7 +672,9 @@ function BackgroundWork() {
     queryFn: () => api.get('/api/jobs'),
     refetchInterval: 10_000,
   })
-  const running = data?.running ?? []
+  // the suggestion blob is a per-user cache that rebuilds every half hour;
+  // the suggestions screen says so itself, the dashboard names the heavy work
+  const running = (data?.running ?? []).filter((f) => f !== 'suggestions')
   const paused = data?.paused ?? []
   if (running.length === 0 && paused.length === 0) return null
   return (
