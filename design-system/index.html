@@ -41,7 +41,7 @@
 <div class="row" data-family="sm">
   <button class="t-btn t-btn--sm">klein</button>
   <button class="t-btn t-btn--sm t-btn--primary">klein primär</button>
-  <button class="t-iconbtn rounded" aria-label="Hilfe">
+  <button class="t-iconbtn" aria-label="Hilfe">
     <span class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border-subtle text-[10px] leading-none text-t-secondary">?</span>
   </button>
 </div>
@@ -77,7 +77,7 @@
 <div class="grid gap-3 sm:grid-cols-2" style="max-width:640px">
   <label class="t-field text-xs text-t-muted">
     <span class="block">Beschriftung mit Hinweis
-      <button class="t-iconbtn rounded align-middle" aria-label="Hilfe"><span class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border-subtle text-[10px] leading-none text-t-secondary">?</span></button>
+      <button class="t-iconbtn align-middle" aria-label="Hilfe"><span class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border-subtle text-[10px] leading-none text-t-secondary">?</span></button>
     </span>
     <span class="t-select-wrap block"><select class="t-select"><option>Auswahl</option></select></span>
   </label>
@@ -126,6 +126,17 @@
   </div>
 </div>
 
+<h2>Radien (--r-*, eine Stufe je Höhe)</h2>
+<div class="row">
+  <span class="t-label">CHIP 4</span>
+  <button class="t-btn t-btn--sm">klein 4</button>
+  <button class="t-btn">button 6</button>
+  <input class="t-input" style="width:120px" value="input 6">
+  <span class="t-tabs" style="display:inline-flex"><button class="t-tab" aria-selected="true">tabs 6</button></span>
+  <span class="t-panel px-3 py-1 text-xs">panel 10</span>
+  <span class="rounded-lg border border-border-subtle px-3 py-1 text-xs">menu 8</span>
+  <span class="rounded-2xl border border-border-subtle px-3 py-1 text-xs">dialog 12</span>
+</div>
 <h2>Tabs</h2>
 <div class="t-tabs" style="max-width:460px">
   <button class="t-tab" aria-selected="true">Aktiv</button>
