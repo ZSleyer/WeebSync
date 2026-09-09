@@ -46,6 +46,7 @@
   --color-warn: var(--accent-yellow);
   --color-err: var(--accent-red);
   --color-border-subtle: var(--border-subtle);
+  --color-border-input: var(--border-input);
   --color-border-active: var(--border-active);
   --color-t-primary: var(--text-primary);
   --color-t-secondary: var(--text-secondary);
@@ -71,6 +72,10 @@
   --accent-yellow: #ffb020;
   --accent-red: #f56b6b;
   --border-subtle: #2a2a30;
+  /* the edge of a text field or an unchecked box is its only boundary, so
+     it needs 3:1 against every surface it sits on (WCAG 1.4.11) - the
+     hairline is decorative and stays at 1.5 */
+  --border-input: #6a6a74;
   --border-active: var(--accent-blue);
   --text-primary: #e6ebf0;
   --text-secondary: #b7c5d3;
@@ -92,6 +97,7 @@
   --accent-yellow: #854307;
   --accent-red: #b91c1c;
   --border-subtle: #c3ccd6;
+  --border-input: #767f8b;
   --border-active: var(--accent-blue);
   --text-primary: #0a1628;
   --text-secondary: #2d4059;
@@ -146,6 +152,7 @@
   --color-warn: var(--accent-yellow);
   --color-err: var(--accent-red);
   --color-border-subtle: var(--border-subtle);
+  --color-border-input: var(--border-input);
   --color-border-active: var(--border-active);
   --color-t-primary: var(--text-primary);
   --color-t-secondary: var(--text-secondary);
@@ -512,7 +519,7 @@ summary::-webkit-details-marker { display: none; }
   min-height: var(--ctl-h);
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-input);
   border-radius: var(--r-ctl);
   padding: 7px 10px;
   width: 100%;
@@ -565,7 +572,7 @@ summary::-webkit-details-marker { display: none; }
   appearance: none;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-input);
   border-radius: var(--r-ctl);
   padding: 7px 30px 7px 10px;
   width: 100%;
@@ -688,7 +695,7 @@ input[type='checkbox'] {
   height: 1.5rem;
   flex-shrink: 0;
   position: relative;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-input);
   border-radius: var(--r-chip);
   background: var(--bg-card);
   cursor: pointer;
@@ -746,7 +753,7 @@ input[type='radio'] {
   height: 1.5rem;
   flex-shrink: 0;
   position: relative;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-input);
   border-radius: 50%;
   background: var(--bg-card);
   cursor: pointer;
