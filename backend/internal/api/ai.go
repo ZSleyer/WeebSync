@@ -166,6 +166,10 @@ func (s *Server) handleAiSteer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, aiSteerResponse{Queued: s.aiSteerPush(u.ID, text)})
 }
 
+// aiChatBodyLimit: a conversation with a few pictures in its history is
+// bigger than the megabyte every other body gets.
+const aiChatBodyLimit = 12 << 20
+
 // aiModelsResponse lists what the endpoint serves and which id is the default.
 type aiModelsResponse struct {
 	Models  []string `json:"models"`
