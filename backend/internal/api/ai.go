@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,7 +36,9 @@ type aiStatusResponse struct {
 	Configured bool   `json:"configured"`
 	Model      string `json:"model,omitempty"`
 	Connected  bool   `json:"connected,omitempty"`
-	Error      string `json:"error,omitempty"`
+	// WebSearch: a SearXNG is set, so the web tools can be switched on
+	WebSearch bool   `json:"webSearch,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // handleAiStatus reports the assistant's configuration state.
@@ -53,7 +56,7 @@ func (s *Server) handleAiStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, aiStatusResponse{})
 		return
 	}
-	out := aiStatusResponse{Configured: true, Model: s.AI.Model()}
+	out := aiStatusResponse{Configured: true, Model: s.AI.Model(), WebSearch: s.aiSearchURL() != ""}
 	if r.URL.Query().Get("force") != "" {
 		if err := s.AI.Ping(r.Context()); err != nil {
 			out.Error = logSafe(err.Error())
@@ -88,6 +91,11 @@ const (
 type aiChatRequest struct {
 	Messages []aiChatMessage `json:"messages"`
 	Model    string          `json:"model,omitempty"`
+	// Tools the user switched on for this chat beyond the built-in ones:
+	// "web_search" (with fetch_page). Mode "research" turns the web tools on
+	// and briefs the model for a multi-step report with many more rounds.
+	Tools []string `json:"tools,omitempty"`
+	Mode  string   `json:"mode,omitempty" enums:",research"`
 }
 
 // aiSteerRequest is a follow-up typed while an answer streams.
@@ -350,8 +358,10 @@ func toolStats(name string, result []byte) map[string]any {
 		st["count"], st["names"] = count("upgrades"), firstTitles("upgrades", 3)
 	case "my_watches":
 		st["count"], st["names"] = count("watches"), firstTitles("watches", 3)
-	case "search_media":
+	case "search_media", "web_search":
 		st["count"], st["names"], st["query"] = count("results"), firstTitles("results", 3), r["query"]
+	case "fetch_page":
+		st["url"], st["chars"] = r["url"], r["chars"]
 	case "library":
 		st["count"], st["names"] = count("folders"), firstTitles("folders", 3)
 	case "downloads":
@@ -465,6 +475,8 @@ type aiWatchFields struct {
 const (
 	aiMaxHistory = 30 // turns kept from the client's history
 	aiMaxRounds  = 12 // model↔tool round trips per request; the last one gets no tools
+	// research mode searches, reads and searches again before it reports
+	aiResearchRounds = 30
 )
 
 // handleAiChat streams one assistant answer for the given conversation.
@@ -501,7 +513,19 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "model too long")
 		return
 	}
-	msgs := []ai.Message{{Role: "system", Content: s.aiSystemPrompt(u.ID)}}
+	// the web tools join when the user switched them on and a search is set;
+	// research mode implies them and gets the longer leash
+	research := in.Mode == "research"
+	web := (research || slices.Contains(in.Tools, "web_search")) && s.aiSearchURL() != ""
+	toolSet := aiTools
+	maxRounds := aiMaxRounds
+	if web {
+		toolSet = append(append([]ai.Tool{}, aiTools...), aiWebTools...)
+	}
+	if research && web {
+		maxRounds = aiResearchRounds
+	}
+	msgs := []ai.Message{{Role: "system", Content: s.aiSystemPrompt(u.ID) + aiWebPrompt(web, research && web)}}
 	hist := in.Messages
 	if len(hist) > aiMaxHistory {
 		hist = hist[len(hist)-aiMaxHistory:]
@@ -574,13 +598,13 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 	// gets its cards (see aiMentionedCards)
 	var surfaced [][]byte
 	cardsShown := false
-	for round := 0; round < aiMaxRounds; round++ {
+	for round := 0; round < maxRounds; round++ {
 		// a model that is still calling tools on the last round has to
 		// answer with what it has: without tools the reply is plain text,
 		// and the work it did (accepted proposals, cards) is not thrown away.
 		// A provider that calls tools anyway ends at the loop bound.
-		tools := aiTools
-		if round == aiMaxRounds-1 {
+		tools := toolSet
+		if round == maxRounds-1 {
 			tools = nil
 		}
 		reply, err := s.AI.Stream(ctx, model, msgs, tools, func(d ai.Delta) {
@@ -634,7 +658,7 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		msgs = append(msgs, reply)
 		for _, call := range reply.ToolCalls {
 			emit(aiEvent{Type: "tool", Name: call.Function.Name, Params: toolParams(call.Function.Arguments)})
-			out := s.aiTool(ctx, u.ID, call.Function.Name, call.Function.Arguments)
+			out := s.aiToolFor(ctx, u.ID, call.Function.Name, call.Function.Arguments, web)
 			if out.proposal != nil {
 				emit(aiEvent{Type: "proposal", aiProposal: out.proposal})
 			}
@@ -721,6 +745,44 @@ var aiTools = []ai.Tool{
 
 func fn(name, desc, params string) ai.Tool {
 	return ai.Tool{Type: "function", Function: ai.ToolFunction{Name: name, Description: desc, Parameters: json.RawMessage(params)}}
+}
+
+// aiWebPrompt is what the system prompt adds when the web tools are on.
+func aiWebPrompt(web, research bool) string {
+	if !web {
+		return ""
+	}
+	p := `
+- web_search finds current information the other tools cannot know (news, release dates, reviews, what a title is about); fetch_page reads a page from its results. Name the source url next to what you took from it.`
+	if research {
+		p += `
+
+Research mode: work like a researcher, not a search box. Plan three to six searches from different angles, run them, open the most useful pages with fetch_page, and search again where the sources disagree or leave gaps. Then write a report in markdown: a short summary, the findings in sections, what is uncertain, and a Sources section listing the urls you used. Take the rounds you need before you write.`
+	}
+	return p
+}
+
+// aiToolFor dispatches a call, the web tools only while they are switched on:
+// a model that names them anyway gets the same refusal as an unknown tool.
+func (s *Server) aiToolFor(ctx context.Context, userID int64, name, rawArgs string, web bool) aiToolOut {
+	switch name {
+	case "web_search", "fetch_page":
+		if !web {
+			return aiToolOut{result: map[string]any{"error": "unknown tool " + name}}
+		}
+		var a struct {
+			Query string `json:"query"`
+			URL   string `json:"url"`
+		}
+		if err := json.Unmarshal([]byte(rawArgs), &a); err != nil {
+			return aiToolOut{result: map[string]any{"error": "arguments must be a JSON object"}}
+		}
+		if name == "web_search" {
+			return aiToolOut{result: s.aiWebSearch(ctx, a.Query, strings.ToLower(s.userLocale(userID)))}
+		}
+		return aiToolOut{result: s.aiFetchPage(ctx, a.URL)}
+	}
+	return s.aiTool(ctx, userID, name, rawArgs)
 }
 
 // aiTool runs one tool for this user. The result goes back to the model; a

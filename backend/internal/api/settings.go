@@ -69,6 +69,7 @@ var envSettings = []struct{ key, env, field string }{
 	{"ai_base_url", "AI_BASE_URL", "aiBaseUrl"},
 	{"ai_api_key", "AI_API_KEY", "aiApiKey"},
 	{"ai_model", "AI_MODEL", "aiModel"},
+	{"ai_search_url", "AI_SEARCH_URL", "aiSearchUrl"},
 	{"plex_url", "PLEX_URL", "plexUrl"},
 	{"plex_token", "PLEX_TOKEN", "plexToken"},
 	{"oidc_provider_name", "OIDC_PROVIDER_NAME", "oidcProviderName"},
@@ -147,6 +148,7 @@ type settingsPayload struct {
 	AiModel              string         `json:"aiModel"`
 	AiApiKeySet          bool           `json:"aiApiKeySet"`
 	AiApiKey             string         `json:"aiApiKey,omitempty"` // write-only, optional (local servers need none)
+	AiSearchURL          string         `json:"aiSearchUrl"`        // SearXNG base for the assistant's web search; empty = off
 	PlexURL              string         `json:"plexUrl"`
 	PlexTokenSet         bool           `json:"plexTokenSet"`
 	PlexToken            string         `json:"plexToken,omitempty"` // write-only
@@ -207,6 +209,7 @@ func (s *Server) settingsState() settingsPayload {
 		AiBaseURL:            db.SettingOrEnv(s.DB, "ai_base_url", "AI_BASE_URL"),
 		AiModel:              db.SettingOrEnv(s.DB, "ai_model", "AI_MODEL"),
 		AiApiKeySet:          secret.SettingOrEnv(s.DB, "ai_api_key", "AI_API_KEY") != "",
+		AiSearchURL:          db.SettingOrEnv(s.DB, "ai_search_url", "AI_SEARCH_URL"),
 		PlexURL:              db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
 		PlexTokenSet:         secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
 		PlexSections:         db.Setting(s.DB, "plex_sections"),
@@ -386,6 +389,20 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	setSetting(s.DB, "ai_base_url", aiURL)
+	// the web search's SearXNG: same rule as the endpoint
+	searchURL := strings.TrimRight(strings.TrimSpace(in.AiSearchURL), "/")
+	if searchURL != "" {
+		u, err := url.Parse(searchURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			writeErr(w, http.StatusBadRequest, "aiSearchUrl must be an absolute http(s) URL")
+			return
+		}
+		if err := netguard.Allowed(u.Hostname()); err != nil {
+			writeErr(w, http.StatusBadRequest, "aiSearchUrl: "+err.Error())
+			return
+		}
+	}
+	setSetting(s.DB, "ai_search_url", searchURL)
 	setSetting(s.DB, "ai_model", strings.TrimSpace(in.AiModel))
 	setSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
 	setSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
