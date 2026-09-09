@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -432,10 +431,8 @@ func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
 	// the cached suggestions were ranked under the old axes: age them and
 	// rebuild now, so the page keeps showing the old order only until the
 	// rebuild lands rather than nothing at all in the meantime
-	key := fmt.Sprintf("suggestions:%d", u.ID)
 	s.staleSuggestions()
-	uid := u.ID
-	s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, uid) })
+	s.rebuildSuggestions(u.ID)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 

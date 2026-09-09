@@ -260,8 +260,7 @@ func (s *Server) warmSuggestions() {
 			stale = time.Since(t) > suggestTTL
 		}
 		if stale {
-			uid := id
-			s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, uid) })
+			s.rebuildSuggestions(id)
 		}
 	}
 }
