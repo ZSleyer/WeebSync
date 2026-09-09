@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { Check, ChevronRight, Cpu, RefreshCw, Send, Sparkles, Square, Trash2 } from 'lucide-react'
+import { Check, ChevronRight, Cpu, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -97,6 +97,10 @@ export default function Assistant() {
   })
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
+  // follow-ups typed while an answer is still streaming: they wait here and
+  // go out one by one once the stream ends, with the finished answer in
+  // their history
+  const [queue, setQueue] = useState<string[]>([])
   const [notice, setNotice] = useState('')
   const [open, setOpen] = useState<{ turn: number; idx: number } | null>(null)
   const [card, setCard] = useState<AiCard | null>(null)
@@ -139,7 +143,12 @@ export default function Assistant() {
 
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim()
-    if (!text || streaming) return
+    if (!text) return
+    if (streaming) {
+      setQueue((q) => [...q, text])
+      setInput('')
+      return
+    }
     const history: AiChatMessage[] = [...turns, { role: 'user' as const, content: text }]
       .filter((tr) => tr.content.trim())
       .map((tr) => ({ role: tr.role, content: tr.content }))
@@ -229,6 +238,16 @@ export default function Assistant() {
       abortRef.current = null
     }
   }
+
+  // the next waiting follow-up goes out as soon as the stream is over; an
+  // effect rather than a call from the stream's end, so it sees the turns
+  // the stream left behind
+  useEffect(() => {
+    if (streaming || queue.length === 0) return
+    const [next, ...rest] = queue
+    setQueue(rest)
+    void send(next)
+  }, [streaming, queue])
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -498,6 +517,22 @@ export default function Assistant() {
             ))}
           </ol>
         )}
+        {queue.length > 0 && (
+          <ol className="mt-5 space-y-3" aria-label={t('assistant.queued')}>
+            {queue.map((q, i) => (
+              <li key={`${i}-${q}`} className="ai-turn flex items-start justify-end gap-2">
+                <p className="max-w-[85%] whitespace-pre-wrap wrap-break-word border border-dashed border-border-subtle px-3 py-2 text-base text-t-secondary">
+                  <span className="sr-only">{t('assistant.you')}: </span>
+                  {q}
+                  <span className="mt-1 block text-xs text-t-muted">{t('assistant.queued')}</span>
+                </p>
+                <Button size="sm" aria-label={t('assistant.dequeue')} title={t('assistant.dequeue')} onClick={() => setQueue((qs) => qs.filter((_, j) => j !== i))}>
+                  <X aria-hidden size="1em" />
+                </Button>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
 
       {notice && (
@@ -517,7 +552,7 @@ export default function Assistant() {
           <Textarea
             rows={2}
             className="w-full resize-none"
-            placeholder={t('assistant.placeholder')}
+            placeholder={streaming ? t('assistant.placeholderQueue') : t('assistant.placeholder')}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
@@ -528,15 +563,16 @@ export default function Assistant() {
         </label>
         {/* the button matches the two-row textarea: it stretches to the row,
             square, the height and padding utilities need the ! because .t-btn is unlayered */}
-        {streaming ? (
+        {/* while an answer streams the stop button joins the send button:
+            sending then queues the question rather than interrupting */}
+        {streaming && (
           <Button type="button" className="aspect-square h-auto! self-stretch px-0!" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
             <Square aria-hidden size="1.2em" />
           </Button>
-        ) : (
-          <Button type="submit" variant="primary" className="aspect-square h-auto! self-stretch px-0!" aria-label={t('assistant.send')} title={t('assistant.send')} disabled={!input.trim()}>
-            <Send aria-hidden size="1.2em" />
-          </Button>
         )}
+        <Button type="submit" variant="primary" className="aspect-square h-auto! self-stretch px-0!" aria-label={t('assistant.send')} title={t('assistant.send')} disabled={!input.trim()}>
+          <Send aria-hidden size="1.2em" />
+        </Button>
       </form>
 
       {card && (
