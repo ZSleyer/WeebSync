@@ -317,7 +317,7 @@ export default function Files() {
                 className="w-40 sm:w-56"
                 size="sm"
                 type="search"
-                placeholder={t('remote.search')}
+                placeholder={path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')}
                 aria-label={t('remote.search')}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -332,6 +332,7 @@ export default function Files() {
           {!isLocal && query.trim() ? (
             <SearchResults
               serverId={active}
+              path={path}
               query={query}
               onOpenDir={(p) => {
                 navigate(p)
@@ -459,15 +460,17 @@ export default function Files() {
 }
 
 // Search over the server's remote index (built passively + by the crawler,
-// may be incomplete while it grows).
+// may be incomplete while it grows), below the folder the browser stands in.
 function SearchResults({
   serverId,
+  path,
   query,
   onOpenDir,
   onSelect,
   selected,
 }: {
   serverId: number
+  path: string
   query: string
   onOpenDir: (path: string) => void
   onSelect: (e: Entry) => void
@@ -480,8 +483,8 @@ function SearchResults({
     return () => clearTimeout(id)
   }, [query])
   const { data, isLoading } = useQuery<SearchResult>({
-    queryKey: ['search', serverId, q],
-    queryFn: () => api.get(`/api/servers/${serverId}/search?q=${encodeURIComponent(q)}`),
+    queryKey: ['search', serverId, path, q],
+    queryFn: () => api.get(`/api/servers/${serverId}/search?q=${encodeURIComponent(q)}${path ? `&path=${encodeURIComponent('/' + path)}` : ''}`),
     enabled: !!q.trim(),
   })
 

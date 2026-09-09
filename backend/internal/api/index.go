@@ -224,7 +224,8 @@ type ServerSearchResponse struct {
 // @Tags         Browse
 // @Produce      json
 // @Param        id  path   int     true   "Server ID"
-// @Param        q   query  string  false  "Search query; space-separated words AND-match the name"
+// @Param        q     query  string  false  "Search query; space-separated words AND-match the name"
+// @Param        path  query  string  false  "Only entries below this folder"
 // @Success      200  {object}  ServerSearchResponse
 // @Failure      404  {object}  ErrorResponse
 // @Security     CookieAuth
@@ -249,6 +250,12 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 			// not treated as a LIKE wildcard (behavioural, not a security fix).
 			q += ` AND name LIKE '%' || ? || '%' ESCAPE '\' COLLATE NOCASE`
 			args = append(args, escapeLike(wd))
+		}
+		// the folder the browser stands in scopes the search: what is above
+		// or beside it is not what the user is looking at
+		if dir := strings.TrimRight(r.URL.Query().Get("path"), "/"); dir != "" {
+			q += ` AND path LIKE ? || '/%' ESCAPE '\'`
+			args = append(args, escapeLike(dir))
 		}
 		q += ` ORDER BY is_dir DESC, name COLLATE NOCASE LIMIT 50`
 		rows, err := s.DB.Query(q, args...)
