@@ -546,7 +546,7 @@ export default function Assistant() {
                 <Plus aria-hidden size="1.4em" />
               </IconButton>
               {addOpen && (
-                <Menu className="absolute bottom-full left-0 z-20 mb-1" aria-label={t('assistant.add')}>
+                <Menu className="t-pop--up absolute bottom-full left-0 z-20 mb-1" aria-label={t('assistant.add')}>
                   <MenuItem
                     aria-disabled={vision === false}
                     title={vision === false ? t('assistant.attachNoVision') : undefined}
@@ -707,7 +707,7 @@ export default function Assistant() {
                 <ChevronDown aria-hidden size="0.9em" className="shrink-0" />
               </button>
               {modelOpen && (
-                <Menu className="absolute right-0 bottom-full z-20 mb-1 max-w-72" aria-label={t('assistant.model')}>
+                <Menu className="t-pop--up absolute right-0 bottom-full z-20 mb-1 max-w-72" aria-label={t('assistant.model')}>
                   {['', ...modelList.filter((m) => m !== defaultModel)].map((m) => (
                     <MenuItem
                       key={m}

@@ -186,6 +186,14 @@
   --r-menu: 8px; /* menus, dropdown lists, sub-boxes, chat bubbles */
   --r-panel: 10px; /* .t-panel, composer, file browser */
   --r-dialog: 12px; /* dialog; the phone sheet is 0 */
+  /* Motion: enter eases out, exit eases in and is shorter; nothing over
+     300ms, nothing moves more than 8px or scales below 0.98, nothing
+     transforms on hover. All of it sits under the reduced-motion gate. */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --dur-1: 120ms; /* hover, tick, popover */
+  --dur-2: 200ms; /* route, panel, toast, every exit */
+  --dur-3: 280ms; /* dialog, sheet */
   /* height of the mobile tab bar - the bar sets it, <main> reserves it */
   --nav-h: 3.33rem;
   /* System-bar insets. Both engines report a bottom inset in a browser tab on a
@@ -398,8 +406,11 @@ a.t-label:hover {
   color: var(--text-primary);
   padding: 7px 14px;
   cursor: pointer;
-  transition: border-color 150ms, background-color 150ms;
+  transition: border-color 150ms, background-color 150ms, transform 80ms var(--ease-out);
 }
+/* press feedback on the weighted buttons; no transform on hover */
+.t-btn--primary:active:not(:disabled),
+.t-btn--danger:active:not(:disabled) { transform: scale(0.98); }
 .t-btn:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); background: var(--bg-hover); }
 .t-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .t-btn--primary {
@@ -717,6 +728,7 @@ input[type='checkbox']:checked::after {
   border-left: 2px solid var(--bg-primary);
   border-bottom: 2px solid var(--bg-primary);
   transform: translate(-50%, -70%) rotate(-45deg);
+  animation: t-tick var(--dur-1) var(--ease-out);
 }
 input[type='checkbox']:indeterminate::after {
   content: '';
@@ -770,6 +782,7 @@ input[type='radio']:checked::after {
   border-radius: 50%;
   background: var(--accent-blue);
   transform: translate(-50%, -50%);
+  animation: t-tick var(--dur-1) var(--ease-out);
 }
 input[type='radio']:focus-visible {
   outline: none;
@@ -872,13 +885,16 @@ dialog {
      exceed clientHeight - a scrollbar down the side of a four-line confirm
      box. The content box scrolls instead, where the maths is whole. */
   overflow: hidden;
-  clip-path: inset(-2px); /* -2px keeps the hairline border visible */
   opacity: 1;
+  transform: none;
+  /* enter: rise 8px and settle from 98%, ease-out; the exit below is shorter
+     and eases in. No clip-path any more: it cut the shadow off, which now
+     follows the rounded corners instead. */
   transition:
-    clip-path 240ms cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 200ms ease-out,
-    overlay 240ms allow-discrete,
-    display 240ms allow-discrete;
+    opacity var(--dur-3) var(--ease-out),
+    transform var(--dur-3) var(--ease-out),
+    overlay var(--dur-3) allow-discrete,
+    display var(--dur-3) allow-discrete;
 }
 /* The box inside inherits the cap, so a dialog whose content outgrows the
    screen scrolls there instead of at the dialog (whose fractional border
@@ -912,8 +928,8 @@ dialog .overflow-y-auto {
 }
 
 /* Detail modal: fullscreen sheet on phones (same cascade context as the
-   base dialog rules above, so it wins without !important and the CRT
-   reveal transition stays intact) */
+   base dialog rules above, so it wins without !important and the enter
+   transition stays intact) */
 @media (max-width: 40rem) {
   dialog.dialog-sheet {
     width: 100vw;
@@ -946,35 +962,74 @@ dialog .overflow-y-auto {
 dialog::backdrop {
   background: color-mix(in srgb, #000 70%, transparent);
   backdrop-filter: blur(6px);
-  transition: opacity 240ms ease-out;
+  transition: opacity var(--dur-3) var(--ease-out);
   opacity: 1;
 }
 dialog[open] {
   box-shadow: 0 24px 48px -12px rgb(0 0 0 / 0.6);
 }
-dialog:not([open]) { clip-path: inset(50% 0 50% 0); opacity: 0; }
+dialog:not([open]) {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  transition-duration: var(--dur-2);
+  transition-timing-function: var(--ease-in);
+}
 dialog:not([open])::backdrop { opacity: 0; }
 @starting-style {
-  dialog[open] { clip-path: inset(50% 0 50% 0); opacity: 0; }
+  dialog[open] { opacity: 0; transform: translateY(8px) scale(0.98); }
   dialog[open]::backdrop { opacity: 0; }
 }
-
-/* ── Tempest micro-transitions (direction-aware wipe) ── */
-@keyframes t-reveal {
-  from { clip-path: inset(0 100% 0 0); transform: translateX(-20px); opacity: 0.4; }
-  to   { clip-path: inset(0); transform: none; opacity: 1; }
+/* the phone sheet slides up from the bottom edge instead of settling */
+@media (max-width: 40rem) {
+  dialog.dialog-sheet:not([open]) { opacity: 1; transform: translateY(100%); }
+  @starting-style {
+    dialog.dialog-sheet[open] { opacity: 1; transform: translateY(100%); }
+  }
 }
-.anim-t-reveal { animation: t-reveal 240ms cubic-bezier(0.7, 0, 0.2, 1) both; }
+
+/* ── Popover entry: menus, dropdown lists, the toast ──
+   These mount straight into the DOM, so @starting-style is the whole
+   animation; an unmount is instant, which reads fine at this size. */
+.t-pop {
+  transform-origin: top;
+  transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.t-pop--up { transform-origin: bottom; }
+@starting-style {
+  .t-pop { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  .t-pop--up { transform: translateY(4px) scale(0.98); }
+}
+
+/* A disclosure's body eases open where the engine can animate to auto
+   (Chromium); elsewhere it still snaps, which is what it did before. */
+details { interpolate-size: allow-keywords; }
+details::details-content {
+  height: 0;
+  overflow: clip;
+  transition: height var(--dur-2) var(--ease-out), content-visibility var(--dur-2) allow-discrete;
+}
+details[open]::details-content { height: auto; }
+
+/* ── Micro-transitions: a page rises 6px into place ── */
+@keyframes t-reveal {
+  from { transform: translateY(6px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+.anim-t-reveal { animation: t-reveal var(--dur-2) var(--ease-out) both; }
 
 /* directional route slide: matches nav order - moving to a lower-numbered
    tab enters from the right, a higher-numbered one from the left */
-@keyframes t-slide-from-right { from { transform: translateX(28px); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes t-slide-from-left  { from { transform: translateX(-28px); opacity: 0; } to { transform: none; opacity: 1; } }
-.anim-slide-from-right { animation: t-slide-from-right 240ms cubic-bezier(0.7, 0, 0.2, 1) both; }
-.anim-slide-from-left  { animation: t-slide-from-left 240ms cubic-bezier(0.7, 0, 0.2, 1) both; }
+@keyframes t-slide-from-right { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes t-slide-from-left  { from { transform: translateX(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
+.anim-slide-from-right { animation: t-slide-from-right var(--dur-2) var(--ease-out) both; }
+.anim-slide-from-left  { animation: t-slide-from-left var(--dur-2) var(--ease-out) both; }
 
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.animate-fadeIn { animation: fadeIn var(--dur-2) var(--ease-out); }
+
+/* a check mark grows in; `scale` is its own property, so the centring
+   transform underneath stays untouched */
+@keyframes t-tick { from { opacity: 0; scale: 0.6; } }
 
 /* Loading indicator: three staggered pulsing bars (see components/Loading) */
 @keyframes t-load {
@@ -1029,7 +1084,7 @@ dialog:not([open])::backdrop { opacity: 0; }
 
 /* ── Assistant: turn reveal, thinking dots, stream cursor. Motion sits under
    the global reduced-motion gate. ── */
-.ai-turn { animation: t-reveal 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.ai-turn { animation: t-reveal var(--dur-2) var(--ease-out) both; }
 
 /* thinking dots and the streaming cursor */
 .ai-dots { display: inline-flex; gap: 4px; }

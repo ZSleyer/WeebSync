@@ -259,7 +259,7 @@ export function TitleSearch({ value, onChange }: { value: string; onChange: (v: 
         />
       </label>
       {open && results.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-50 max-h-48 overflow-y-auto rounded-lg border border-border-subtle bg-bg-card shadow-lg">
+        <ul className="t-pop absolute left-0 right-0 top-full z-50 max-h-48 overflow-y-auto rounded-lg border border-border-subtle bg-bg-card shadow-lg">
           {results.map((m) => (
             <li key={m.id}>
               <button
