@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { Check, ChevronRight, Cpu, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
+import { Check, ChevronDown, ChevronRight, Cpu, History, ImagePlus, Plus, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Badge, Button, Dialog, EmptyState, MediaCard, Menu, MenuItem, Panel, Textarea, navItemClass, useMediaQuery, useMenu } from '@weebsync/design-system'
+import { Badge, Button, ButtonLabel, Dialog, EmptyState, MediaCard, Menu, MenuItem, Panel, Textarea, navItemClass, useMediaQuery, useMenu } from '@weebsync/design-system'
 import {
   api,
   mediaTitle,
   streamAiChat,
   syncOutcome,
-  type AiCard,
+  type AiCard, type AiChatSummary,
   type AiChatMessage,
   type AiProposal,
   type SyncResult,
@@ -49,6 +49,8 @@ type Step =
 interface Turn {
   role: 'user' | 'assistant'
   content: string
+  /** data URLs of the pictures on a user turn */
+  images?: string[]
   proposals?: (AiProposal & { done?: boolean; error?: string })[]
   cards?: AiCard[]
   upgrades?: UpgradeSuggestion[]
@@ -105,6 +107,18 @@ export default function Assistant() {
   })
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
+  // the saved chat this conversation belongs to; null until the first save
+  const chatKey = `weebsync.ai.chat.${uid}`
+  const [chatId, setChatId] = useState<number | null>(() => {
+    try {
+      const v = sessionStorage.getItem(chatKey)
+      return v ? Number(v) : null
+    } catch {
+      return null
+    }
+  })
+  const [attachments, setAttachments] = useState<string[]>([])
+  const [histOpen, setHistOpen] = useState(false)
   // follow-ups typed while an answer is still streaming: they wait here and
   // go out one by one once the stream ends, with the finished answer in
   // their history
@@ -146,12 +160,73 @@ export default function Assistant() {
     }
   }
 
+  // the conversation is saved once a stream is over: a new chat gets its row,
+  // a known one is replaced. Nothing is written while an answer streams.
+  const savedRef = useRef('')
+  useEffect(() => {
+    try {
+      if (chatId) sessionStorage.setItem(chatKey, String(chatId))
+      else sessionStorage.removeItem(chatKey)
+    } catch {
+      /* best effort */
+    }
+  }, [chatId, chatKey])
+  useEffect(() => {
+    if (streaming || turns.length === 0) return
+    const json = JSON.stringify(turns)
+    if (json === savedRef.current) return
+    const timer = setTimeout(async () => {
+      savedRef.current = json
+      const first = turns.find((tr) => tr.role === 'user')
+      const title = (first?.content.trim() || t('assistant.untitled')).slice(0, 80)
+      try {
+        if (chatId) await api.put(`/api/ai/chats/${chatId}`, { title, turns })
+        else {
+          const { id } = await api.post<{ id: number }>('/api/ai/chats', { title, turns })
+          setChatId(id)
+        }
+        qc.invalidateQueries({ queryKey: ['ai-chats'] })
+      } catch {
+        savedRef.current = '' // try again with the next change
+      }
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [turns, streaming, chatId, qc, t])
+
+  const newChat = () => {
+    abortRef.current?.abort()
+    setTurns([])
+    setQueue([])
+    setAttachments([])
+    setChatId(null)
+    savedRef.current = ''
+    setNotice('')
+  }
+  const openChat = async (id: number) => {
+    const c = await api.get<{ id: number; turns: Turn[] }>(`/api/ai/chats/${id}`)
+    abortRef.current?.abort()
+    setQueue([])
+    setTurns(c.turns)
+    savedRef.current = JSON.stringify(c.turns)
+    setChatId(c.id)
+    setHistOpen(false)
+  }
+  const deleteChat = async (id: number) => {
+    if (!(await confirm({ message: t('assistant.deleteChatConfirm'), destructive: true }))) return
+    await api.del(`/api/ai/chats/${id}`)
+    qc.invalidateQueries({ queryKey: ['ai-chats'] })
+    if (id === chatId) newChat()
+  }
+
   const patchLast = (fn: (turn: Turn) => Turn) =>
     setTurns((prev) => prev.map((tr, i) => (i === prev.length - 1 ? fn(tr) : tr)))
 
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim()
-    if (!text) return
+    // pictures go with the message typed now; a follow-up during a stream
+    // is text only, its pictures stay in the composer for the next turn
+    const images = raw === undefined && !streaming ? attachments : []
+    if (!text && images.length === 0) return
     if (streaming) {
       // queued here, and offered to the running answer: taken on, it comes
       // back as a steer event and leaves the queue; otherwise it goes out
@@ -161,11 +236,12 @@ export default function Assistant() {
       api.post('/api/ai/steer', { text }).catch(() => {})
       return
     }
-    const history: AiChatMessage[] = [...turns, { role: 'user' as const, content: text }]
-      .filter((tr) => tr.content.trim())
-      .map((tr) => ({ role: tr.role, content: tr.content }))
+    const history: AiChatMessage[] = [...turns, { role: 'user' as const, content: text, images }]
+      .filter((tr) => tr.content.trim() || tr.images?.length)
+      .map((tr) => ({ role: tr.role, content: tr.content, images: tr.images?.length ? tr.images : undefined }))
     setInput('')
-    setTurns((prev) => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '' }])
+    if (images.length) setAttachments([])
+    setTurns((prev) => [...prev, { role: 'user', content: text, images: images.length ? images : undefined }, { role: 'assistant', content: '' }])
     setStreaming(true)
     const ac = new AbortController()
     abortRef.current = ac
@@ -281,12 +357,6 @@ export default function Assistant() {
     }
   }
 
-  const clear = () => {
-    abortRef.current?.abort()
-    setTurns([])
-    setNotice('')
-  }
-
   // every open proposal of one answer in one go, after one confirm that
   // lists the targets. Each goes through the same endpoint the dialog
   // uses, one after the other; a failure lands on its card, the rest go on.
@@ -343,6 +413,25 @@ export default function Assistant() {
   const last = turns.length - 1
   const empty = turns.length === 0
   const defaultModel = models?.default ?? status?.model ?? ''
+  // whether the model in use reads pictures: true, false, or null when the
+  // endpoint does not say - then attaching is allowed and the model's error
+  // is the answer
+  const modelInUse = effectiveModel || defaultModel
+  const vision: boolean | null = models?.vision?.[modelInUse] ?? null
+  const addImages = async (files: Iterable<File>) => {
+    if (vision === false) return
+    const next: string[] = []
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) continue
+      try {
+        next.push(await shrinkImage(f))
+      } catch {
+        /* unreadable picture: skipped */
+      }
+    }
+    if (next.length) setAttachments((a) => [...a, ...next].slice(0, 4))
+  }
+
 
   // the page's secondary controls, in the app bar on a phone and in a row
   // under the header on desktop: the model menu only when there is a choice,
@@ -350,40 +439,12 @@ export default function Assistant() {
   const actions = (
     <PageActions>
       <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
-        {modelList.length > 1 && (
-          <div className="relative" ref={modelRef}>
-            <Button
-              size="sm"
-              aria-haspopup="listbox"
-              aria-expanded={modelOpen}
-              aria-label={t('assistant.model')}
-              title={effectiveModel || defaultModel}
-              onClick={() => setModelOpen((o) => !o)}
-            >
-              <Cpu aria-hidden size="1.2em" />
-            </Button>
-            {modelOpen && (
-              <Menu className="absolute right-0 z-20 mt-1 max-w-72" aria-label={t('assistant.model')}>
-                {['', ...modelList.filter((m) => m !== defaultModel)].map((m) => (
-                  <MenuItem
-                    key={m}
-                    selected={effectiveModel === m}
-                    trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
-                    onClick={() => {
-                      pickModel(m)
-                      setModelOpen(false)
-                    }}
-                  >
-                    <span className="truncate font-mono text-xs">{m || t('assistant.modelDefault', { model: defaultModel })}</span>
-                  </MenuItem>
-                ))}
-              </Menu>
-            )}
-          </div>
-        )}
+        <Button size="sm" aria-label={t('assistant.history')} title={t('assistant.history')} onClick={() => setHistOpen(true)}>
+          <History aria-hidden size="1.2em" />
+        </Button>
         {!empty && (
-          <Button size="sm" aria-label={t('assistant.clear')} title={t('assistant.clear')} onClick={clear}>
-            <Trash2 aria-hidden size="1.2em" />
+          <Button size="sm" aria-label={t('assistant.clear')} title={t('assistant.clear')} onClick={newChat}>
+            <Plus aria-hidden size="1.2em" />
           </Button>
         )}
       </div>
@@ -416,10 +477,19 @@ export default function Assistant() {
             {turns.map((tr, ti) => (
               <li key={ti} className={tr.role === 'user' ? 'ai-turn flex justify-end' : 'ai-turn'}>
                 {tr.role === 'user' ? (
-                  <p className="max-w-[85%] whitespace-pre-wrap wrap-break-word bg-bg-hover px-3 py-2 text-base">
+                  <div className="max-w-[85%] bg-bg-hover px-3 py-2 text-base">
                     <span className="sr-only">{t('assistant.you')}: </span>
-                    {tr.content}
-                  </p>
+                    {tr.images?.length ? (
+                      <ul className="mb-2 flex flex-wrap gap-2">
+                        {tr.images.map((src, i) => (
+                          <li key={i}>
+                            <img src={src} alt="" className="max-h-40 max-w-full border border-border-subtle" />
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {tr.content && <p className="whitespace-pre-wrap wrap-break-word">{tr.content}</p>}
+                  </div>
                 ) : (
                   <div className="min-w-0 text-base leading-relaxed">
                     {/* the words in a bubble like the user's, so they read
@@ -566,13 +636,13 @@ export default function Assistant() {
         </Badge>
       )}
       <form
-        className="mt-3 flex items-end gap-2 border-t border-border-subtle pt-3"
+        className="mt-3 border-t border-border-subtle pt-3"
         onSubmit={(e) => {
           e.preventDefault()
           void send()
         }}
       >
-        <label className="flex min-w-0 flex-1">
+        <label className="flex min-w-0">
           <span className="sr-only">{t('assistant.placeholder')}</span>
           <Textarea
             rows={2}
@@ -581,25 +651,108 @@ export default function Assistant() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
+            onPaste={(e) => {
+              const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
+              if (files.length) {
+                e.preventDefault()
+                void addImages(files)
+              }
+            }}
             // not on a phone: focusing on arrival raises the keyboard and
             // shrinks the whole shell before anything was read
             autoFocus={wide}
           />
         </label>
-        {/* the button matches the two-row textarea: it stretches to the row,
-            square, the height and padding utilities need the ! because .t-btn is unlayered */}
-        {/* while an answer streams the stop button joins the send button:
-            sending then queues the question rather than interrupting */}
-        {streaming && (
-          <Button type="button" className="aspect-square h-auto! self-stretch px-0!" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
-            <Square aria-hidden size="1.2em" />
+        {/* the row under the text: pictures on the left, the model and the
+            send button on the right, as the chat apps have it */}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <ButtonLabel
+            size="sm"
+            aria-disabled={vision === false}
+            title={vision === false ? t('assistant.attachNoVision') : t('assistant.attach')}
+            className={vision === false ? 'pointer-events-none opacity-50' : ''}
+          >
+            <ImagePlus aria-hidden size="1.2em" />
+            <span className="sr-only">{t('assistant.attach')}</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="sr-only"
+              disabled={vision === false}
+              onChange={(e) => {
+                void addImages(e.target.files ?? [])
+                e.target.value = ''
+              }}
+            />
+          </ButtonLabel>
+          {attachments.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5">
+              {attachments.map((src, i) => (
+                <li key={i} className="relative">
+                  <img src={src} alt="" className="h-10 w-10 border border-border-subtle object-cover" />
+                  <button
+                    type="button"
+                    className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center border border-border-subtle bg-bg-card text-t-muted hover:text-err"
+                    aria-label={t('assistant.removeImage')}
+                    onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}
+                  >
+                    <X aria-hidden size="0.8em" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <span className="flex-1" />
+          {modelList.length > 1 && (
+            <div className="relative" ref={modelRef}>
+              <Button
+                size="sm"
+                aria-haspopup="listbox"
+                aria-expanded={modelOpen}
+                aria-label={t('assistant.model')}
+                title={modelInUse}
+                onClick={() => setModelOpen((o) => !o)}
+              >
+                <Cpu aria-hidden size="1.2em" />
+                <span className="mx-1 hidden max-w-48 truncate sm:inline">{modelInUse}</span>
+                <ChevronDown aria-hidden size="1em" />
+              </Button>
+              {modelOpen && (
+                <Menu className="absolute right-0 bottom-full z-20 mb-1 max-w-72" aria-label={t('assistant.model')}>
+                  {['', ...modelList.filter((m) => m !== defaultModel)].map((m) => (
+                    <MenuItem
+                      key={m}
+                      selected={effectiveModel === m}
+                      trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
+                      onClick={() => {
+                        pickModel(m)
+                        setModelOpen(false)
+                      }}
+                    >
+                      <span className="truncate font-mono text-xs">{m || t('assistant.modelDefault', { model: defaultModel })}</span>
+                    </MenuItem>
+                  ))}
+                </Menu>
+              )}
+            </div>
+          )}
+          {streaming && (
+            <Button type="button" size="sm" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
+              <Square aria-hidden size="1.2em" />
+            </Button>
+          )}
+          <Button type="submit" size="sm" variant="primary" aria-label={t('assistant.send')} title={t('assistant.send')} disabled={!input.trim() && attachments.length === 0}>
+            <Send aria-hidden size="1.2em" />
           </Button>
-        )}
-        <Button type="submit" variant="primary" className="aspect-square h-auto! self-stretch px-0!" aria-label={t('assistant.send')} title={t('assistant.send')} disabled={!input.trim()}>
-          <Send aria-hidden size="1.2em" />
-        </Button>
+        </div>
       </form>
 
+      {histOpen && (
+        <Dialog aria-label={t('assistant.history')} onClose={() => setHistOpen(false)}>
+          <ChatHistory current={chatId} onOpen={(id) => void openChat(id)} onDelete={(id) => void deleteChat(id)} />
+        </Dialog>
+      )}
       {card && (
         <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: mediaTitle(card.media) })} onClose={() => setCard(null)}>
           <MediaDetail media={card.media} source={card.source} />
@@ -730,4 +883,48 @@ function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean; error?:
       )}
     </Panel>
   )
+}
+
+// ChatHistory lists the saved chats, newest change first: open one, or
+// delete it. The one on screen is marked.
+function ChatHistory({ current, onOpen, onDelete }: { current: number | null; onOpen: (id: number) => void; onDelete: (id: number) => void }) {
+  const { t } = useTranslation()
+  const { data: chats } = useQuery<AiChatSummary[]>({ queryKey: ['ai-chats'], queryFn: () => api.get('/api/ai/chats') })
+  return (
+    <div className="p-4">
+      <h3 className="font-display font-semibold tracking-wider">{t('assistant.history')}</h3>
+      {chats && chats.length === 0 && <p className="mt-3 text-sm text-t-muted">{t('assistant.historyEmpty')}</p>}
+      <ul className="mt-3 max-h-[60vh] divide-y divide-border-subtle overflow-y-auto">
+        {chats?.map((c) => (
+          <li key={c.id} className="flex items-center gap-2 py-1">
+            <button
+              type="button"
+              className={`flex min-w-0 flex-1 flex-col py-1.5 text-left ${c.id === current ? 'text-accent' : 'text-t-secondary hover:text-t-primary'}`}
+              onClick={() => onOpen(c.id)}
+            >
+              <span className="truncate text-sm">{c.title || t('assistant.untitled')}</span>
+              <span className="font-mono text-[11px] text-t-muted">{new Date(c.updatedAt.replace(' ', 'T') + 'Z').toLocaleString()}</span>
+            </button>
+            <Button size="sm" aria-label={t('assistant.deleteChat')} title={t('assistant.deleteChat')} onClick={() => onDelete(c.id)}>
+              <Trash2 aria-hidden size="1em" />
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// shrinkImage scales a picture to at most 1280px on its long side and
+// returns it as a JPEG data URL: what a vision model needs, and small enough
+// to travel in the history with every later message.
+async function shrinkImage(file: File): Promise<string> {
+  const bmp = await createImageBitmap(file)
+  const scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bmp.width * scale)
+  canvas.height = Math.round(bmp.height * scale)
+  canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height)
+  bmp.close()
+  return canvas.toDataURL('image/jpeg', 0.85)
 }
