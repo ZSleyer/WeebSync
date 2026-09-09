@@ -1171,6 +1171,7 @@
     "cat_animation-movie": "Animationsfilme",
     "cat_movie": "Filme",
     "empty": "Keine Vorschläge.",
+    "building": "Vorschläge werden gerade aufgebaut, das dauert ein paar Minuten.",
     "haveNeed": "{{have}}/{{need}} Folgen",
     "missing": "Fehlt",
     "rematch": "Neu matchen",
