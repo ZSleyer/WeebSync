@@ -378,6 +378,10 @@ export default function Assistant() {
                   </p>
                 ) : (
                   <div className="min-w-0 text-base leading-relaxed">
+                    {/* the words in a bubble like the user's, so they read
+                        against a plain ground and not the shell's hatching;
+                        the cards stay outside, they are tiles of their own */}
+                    <div className="max-w-[85%] bg-bg-hover px-3 py-2">
                     <span className="sr-only">{t('assistant.title')}: </span>
                     {tr.steps?.length ? (
                       <details
@@ -437,6 +441,7 @@ export default function Assistant() {
                         {t('assistant.error')}: {tr.error}
                       </p>
                     )}
+                    </div>
                     {/* min-w-0 on the items: a grid item's automatic minimum is
                         its content's min-content width, and a truncated title
                         reports its full text there - the card grew past a phone's
