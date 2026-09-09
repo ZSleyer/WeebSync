@@ -515,15 +515,15 @@ export default function Assistant() {
           void addImages(e.dataTransfer.files)
         }}
       >
-        <div className={`border bg-bg-card transition-colors ${dragging ? 'border-accent' : 'border-border-subtle focus-within:border-accent/60'}`}>
+        <div className={`rounded-xl border bg-bg-card transition-colors ${dragging ? 'border-accent' : 'border-border-subtle focus-within:border-accent/60'}`}>
           {attachments.length > 0 && (
             <ul className="flex flex-wrap gap-1.5 px-3 pt-3">
               {attachments.map((src, i) => (
                 <li key={i} className="relative">
-                  <img src={src} alt="" className="h-14 w-14 border border-border-subtle object-cover" />
+                  <img src={src} alt="" className="h-14 w-14 rounded-xs border border-border-subtle object-cover" />
                   <button
                     type="button"
-                    className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center border border-border-subtle bg-bg-card text-t-muted hover:text-err"
+                    className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full border border-border-subtle bg-bg-card text-t-muted hover:text-err"
                     aria-label={t('assistant.removeImage')}
                     onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}
                   >
@@ -761,13 +761,13 @@ export default function Assistant() {
               {turns.map((tr, ti) => (
                 <li key={ti} className={tr.role === 'user' ? 'ai-turn flex justify-end' : 'ai-turn'}>
                   {tr.role === 'user' ? (
-                    <div className="max-w-[85%] bg-bg-hover px-3 py-2 text-base">
+                    <div className="max-w-[85%] rounded-lg bg-bg-hover px-3 py-2 text-base">
                       <span className="sr-only">{t('assistant.you')}: </span>
                       {tr.images?.length ? (
                         <ul className="mb-2 flex flex-wrap gap-2">
                           {tr.images.map((src, i) => (
                             <li key={i}>
-                              <img src={src} alt="" className="max-h-40 max-w-full border border-border-subtle" />
+                              <img src={src} alt="" className="max-h-40 max-w-full rounded-xs border border-border-subtle" />
                             </li>
                           ))}
                         </ul>
@@ -779,7 +779,7 @@ export default function Assistant() {
                       {/* the words in a bubble like the user's, so they read
                           against a plain ground and not the shell's hatching;
                           the cards stay outside, they are tiles of their own */}
-                      <div className="max-w-[85%] bg-bg-hover px-3 py-2">
+                      <div className="max-w-[85%] rounded-lg bg-bg-hover px-3 py-2">
                       <span className="sr-only">{t('assistant.title')}: </span>
                       {tr.steps?.length ? (
                         <details
@@ -905,7 +905,7 @@ export default function Assistant() {
             <ol className="mt-5 space-y-3" aria-label={t('assistant.queued')}>
               {queue.map((q, i) => (
                 <li key={`${i}-${q}`} className="ai-turn flex items-start justify-end gap-2">
-                  <p className="max-w-[85%] whitespace-pre-wrap wrap-break-word border border-dashed border-border-subtle px-3 py-2 text-base text-t-secondary">
+                  <p className="max-w-[85%] whitespace-pre-wrap wrap-break-word rounded-lg border border-dashed border-border-subtle px-3 py-2 text-base text-t-secondary">
                     <span className="sr-only">{t('assistant.you')}: </span>
                     {q}
                     <span className="mt-1 block text-xs text-t-muted">{t('assistant.queued')}</span>

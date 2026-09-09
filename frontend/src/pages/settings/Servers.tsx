@@ -132,7 +132,7 @@ export default function Servers() {
               </p>
             )}
             {keyConflict[s.id] && (
-              <div className="mt-2 border border-err/40 p-3">
+              <div className="mt-2 rounded-lg border border-err/40 p-3">
                 <p className="mb-2 text-xs text-t-muted">
                   {t(keyConflict[s.id]!.code === 'host_key_unknown' ? 'servers.hostKeyUnknown' : 'servers.hostKeyChanged')}
                 </p>
@@ -303,14 +303,14 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             />
           </Field>
 			{protocol === 'ftp' && (
-				<p className="sm:col-span-2 border border-warn/50 px-3 py-2 text-sm text-warn" role="status">
+				<p className="sm:col-span-2 rounded-md border border-warn/50 px-3 py-2 text-sm text-warn" role="status">
 					{t('servers.ftpWarning')}
 				</p>
 			)}
           <p className="sm:col-span-2 text-xs text-t-muted">{t('servers.maxConnectionsHint')}</p>
         </div>
         {error && (
-          <p className="mt-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+          <p className="mt-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
             {error}
           </p>
         )}

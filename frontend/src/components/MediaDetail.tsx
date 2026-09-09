@@ -133,13 +133,13 @@ export default function MediaDetail({ media: m, source, children }: { media: Med
               {(allReviews ? rev.reviews : rev.reviews.slice(0, 5)).map((r, i) => (
                 <li key={i} className="flex items-start gap-3">
                   {r.user.avatar?.medium ? (
-                    <img src={r.user.avatar.medium} alt="" className="h-9 w-9 shrink-0 object-cover" />
+                    <img src={r.user.avatar.medium} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
                   ) : (
-                    <div aria-hidden className="t-hatch flex h-9 w-9 shrink-0 items-center justify-center font-display text-xs text-t-muted">
+                    <div aria-hidden className="t-hatch flex h-9 w-9 shrink-0 items-center rounded-full justify-center font-display text-xs text-t-muted">
                       {r.user.name.slice(0, 1).toUpperCase()}
                     </div>
                   )}
-                  <div className="min-w-0 flex-1 border border-border-subtle bg-bg-secondary p-3 text-sm text-t-secondary">
+                  <div className="min-w-0 flex-1 rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-t-secondary">
                     <p className="mb-1 flex flex-wrap items-center gap-2">
                       <Badge>{r.user.name}</Badge>
                       {r.score > 0 && <Badge tone="accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{r.score}</Badge>}

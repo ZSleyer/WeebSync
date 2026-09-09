@@ -889,7 +889,7 @@ function DownloadRow({
         <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
       </div>
       <div
-        className="h-2 w-full bg-bg-secondary"
+        className="h-2 w-full overflow-hidden rounded-full bg-bg-secondary"
         role="progressbar"
         aria-valuenow={Math.round(pct)}
         aria-valuemin={0}
@@ -897,7 +897,7 @@ function DownloadRow({
         aria-label={t('dash.progressOf', { name })}
       >
         <div
-          className={`h-full bg-accent transition-[width] duration-500 ${d.status === 'running' ? 't-progress-running' : ''}`}
+          className={`h-full rounded-full bg-accent transition-[width] duration-500 ${d.status === 'running' ? 't-progress-running' : ''}`}
           style={{ width: `${pct}%` }}
         />
       </div>

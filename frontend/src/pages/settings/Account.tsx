@@ -152,7 +152,7 @@ function TotpSection() {
       <p className="mt-2 text-xs text-t-muted">{t('account.totpHint')}</p>
 
       {recovery && (
-        <div className="mt-4 border border-warn/40 bg-warn/5 p-4">
+        <div className="mt-4 rounded-lg border border-warn/40 bg-warn/5 p-4">
           <p className="mb-2 text-sm text-warn">{t('account.recoveryTitle')}</p>
           <p className="mb-3 text-xs text-t-muted">{t('account.recoveryHint')}</p>
           <ul className="grid grid-cols-2 gap-1 font-mono text-sm">

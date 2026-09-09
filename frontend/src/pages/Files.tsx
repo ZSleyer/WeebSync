@@ -741,7 +741,7 @@ export function CatalogGrid({
             <Panel
               as="article"
               key={g.key}
-              className={`group relative flex flex-col ${isSelected ? 'outline-2 outline-accent' : ''}`}
+              className={`group relative flex flex-col overflow-clip ${isSelected ? 'outline-2 outline-accent' : ''}`}
             >
               {/* rematch tucked away as a pencil over the cover (hover/focus);
                   unmatched folders keep the explicit button below instead */}
@@ -1098,7 +1098,7 @@ function SyncDialog({
               </Button>
             </div>
             {browse && (
-              <div className="mt-2 flex max-h-56 flex-col overflow-hidden border border-border-subtle bg-bg-secondary/40">
+              <div className="mt-2 flex max-h-56 flex-col overflow-hidden rounded-lg border border-border-subtle bg-bg-secondary/40">
                 <LocalPicker path={localPath} onNavigate={onLocalPath} />
               </div>
             )}

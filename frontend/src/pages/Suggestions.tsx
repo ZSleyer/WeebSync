@@ -792,7 +792,7 @@ export function DuplicatesSection() {
           </p>
           <ul className="mt-2 space-y-1">
             {d.copies.map((c) => (
-              <li key={c.folder} className={`border p-2 text-xs ${c.folder === d.keep ? 'border-accent' : 'border-border-subtle'}`}>
+              <li key={c.folder} className={`rounded-lg border p-2 text-xs ${c.folder === d.keep ? 'border-accent' : 'border-border-subtle'}`}>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {c.folder === d.keep && d.copies.length > 1 && <Badge tone="accent">{t('suggestions.dupKeep')}</Badge>}
                   <span className="text-t-muted">
@@ -809,7 +809,7 @@ export function DuplicatesSection() {
           {d.twice?.length ? (
             <ul className="mt-2 space-y-1">
               {d.twice.map((e) => (
-                <li key={e.episode} className="border border-border-subtle p-2 text-xs">
+                <li key={e.episode} className="rounded-lg border border-border-subtle p-2 text-xs">
                   <Badge tone="warn">{t('suggestions.dupEpisode', { n: e.episode })}</Badge>
                   <ul className="mt-1 space-y-1">
                     {e.files.map((f) => (

@@ -224,7 +224,7 @@ export default function Login() {
               </>
             )}
             {error && (
-              <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+              <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
                 {error}
               </p>
             )}
@@ -296,12 +296,12 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
             />
             {notice && (
-              <p className="mb-3 border border-ok/40 px-3 py-2 text-sm text-ok" role="status">
+              <p className="mb-3 rounded-md border border-ok/40 px-3 py-2 text-sm text-ok" role="status">
                 {notice}
               </p>
             )}
             {error && (
-              <p className="mb-3 border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+              <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
                 {error}
               </p>
             )}

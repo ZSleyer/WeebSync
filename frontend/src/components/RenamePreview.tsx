@@ -39,7 +39,7 @@ export default function RenamePreview({
         {replaced > 0 && <Badge tone="warn">{t('rename.targetReplacesCount', { count: replaced })}</Badge>}
       </div>
       {pairs && (
-        <div className="max-h-56 overflow-y-auto border border-border-subtle">
+        <div className="max-h-56 overflow-y-auto rounded-lg border border-border-subtle">
           {pairs.length === 0 && <p className="p-2 text-xs text-t-muted">{t('remote.emptyDir')}</p>}
           {pairs.map((p) => (
             <p

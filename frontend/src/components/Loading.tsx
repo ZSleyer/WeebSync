@@ -24,7 +24,7 @@ export function SkeletonCards({ count = 3, className = '' }: { count?: number; c
     <div role="status" aria-label={t('app.loading')} className={`grid grid-cols-1 gap-3 ${className}`}>
       {Array.from({ length: count }, (_, i) => (
         <Panel key={i} className="flex animate-pulse gap-4 p-4" aria-hidden>
-          <div className="t-hatch h-24 w-16 shrink-0" />
+          <div className="t-hatch h-24 w-16 shrink-0 rounded-xs" />
           <div className="min-w-0 flex-1 space-y-2.5 py-1">
             <div className="h-3.5 w-2/3 bg-bg-hover" />
             <div className="h-3 w-1/3 bg-bg-hover" />

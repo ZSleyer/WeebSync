@@ -186,7 +186,7 @@ export default function Integrations() {
           {form.plexTokenSet && form.plexUrl && (
             // the library block is the longest thing on the page: framed like
             // the OIDC block on Security, so it reads as one unit
-            <fieldset className="border border-border-subtle p-3">
+            <fieldset className="rounded-lg border border-border-subtle p-3">
               <Badge as="legend">{t('settings.plexSections')}</Badge>
               <div className="grid grid-cols-1 gap-4">
                 <PlexSections
@@ -495,7 +495,7 @@ function AnilistOwnApp({
         <span>{t('settings.anilistOwnApp')}</span>
       </button>
       {open && (
-        <div className="mt-2 grid grid-cols-1 gap-3 border border-border-subtle bg-bg-secondary/40 p-2">
+        <div className="mt-2 grid grid-cols-1 gap-3 rounded-lg border border-border-subtle bg-bg-secondary/40 p-2">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs text-t-muted">
               {t('settings.anilistClientId')}
