@@ -442,7 +442,7 @@ export default function WatchDialog({
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.cancel')}
           </Button>
-          <Button type="submit" variant="primary" cut disabled={busy}>
+          <Button type="submit" variant="primary" disabled={busy}>
             <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {saveLabel ?? t('settings.save')}
           </Button>

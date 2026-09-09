@@ -414,7 +414,7 @@ export default function Files() {
                 <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('watch.add')}
               </Button>
-              <Button size="sm" variant="primary" cut onClick={() => setSyncEntry(selection)}>
+              <Button size="sm" variant="primary" onClick={() => setSyncEntry(selection)}>
                 <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.syncOpen')}
               </Button>
@@ -1152,7 +1152,6 @@ function SyncDialog({
           </Button>
           <Button
             variant="primary"
-            cut
             disabled={pending}
             onClick={() => onConfirm(renameOn && hasRule ? rule : null)}
           >

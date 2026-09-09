@@ -89,7 +89,7 @@ function PasskeySection() {
         </ul>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="primary" cut disabled={busy} onClick={add('passkey')}>
+        <Button size="sm" variant="primary" disabled={busy} onClick={add('passkey')}>
           {t('account.passkeyAdd')}
         </Button>
         <Button size="sm" disabled={busy} onClick={add('key')}>
@@ -191,7 +191,7 @@ function TotpSection() {
       )}
 
       {!recovery && !data?.enabled && !setup && (
-        <Button size="sm" variant="primary" cut className="mt-4" disabled={busy} onClick={start}>
+        <Button size="sm" variant="primary" className="mt-4" disabled={busy} onClick={start}>
           {t('account.totpEnable')}
         </Button>
       )}
@@ -212,7 +212,7 @@ function TotpSection() {
               onChange={(e) => setCode(e.target.value)}
             />
           </label>
-          <Button size="sm" variant="primary" cut disabled={busy || !code} onClick={confirm}>
+          <Button size="sm" variant="primary" disabled={busy || !code} onClick={confirm}>
             {t('account.totpConfirm')}
           </Button>
         </div>

@@ -7,7 +7,7 @@ export const EditDialog = () => (
     footer={
       <>
         <Button size="sm">Abbrechen</Button>
-        <Button size="sm" variant="primary" cut>Speichern</Button>
+        <Button size="sm" variant="primary">Speichern</Button>
       </>
     }
   >

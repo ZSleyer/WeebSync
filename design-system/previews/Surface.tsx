@@ -7,7 +7,7 @@ export const Dark = () => (
       <p className="mt-2 text-sm text-t-secondary">Die Grundfläche, auf der WeebSync gebaut ist.</p>
       <div className="mt-3 flex gap-2">
         <Button size="sm">Abbrechen</Button>
-        <Button size="sm" variant="primary" cut>Speichern</Button>
+        <Button size="sm" variant="primary">Speichern</Button>
       </div>
     </Panel>
   </Surface>
@@ -20,7 +20,7 @@ export const Light = () => (
       <p className="mt-2 text-sm text-t-secondary">Dieselbe Fläche, helle Palette - Kontraste bleiben AA.</p>
       <div className="mt-3 flex gap-2">
         <Button size="sm">Abbrechen</Button>
-        <Button size="sm" variant="primary" cut>Speichern</Button>
+        <Button size="sm" variant="primary">Speichern</Button>
       </div>
     </Panel>
   </Surface>

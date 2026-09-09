@@ -77,7 +77,7 @@ export default function Servers() {
             does not hide it there) */}
         <PageFooter>
           <ActionBar aria-label={t('servers.add')} sticky={false}>
-            <Button variant="primary" cut onClick={() => openDialog(null)}>
+            <Button variant="primary" onClick={() => openDialog(null)}>
               <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {t('servers.add')}
             </Button>
@@ -319,7 +319,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.cancel')}
           </Button>
-          <Button type="submit" variant="primary" cut>
+          <Button type="submit" variant="primary">
             <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.save')}
           </Button>

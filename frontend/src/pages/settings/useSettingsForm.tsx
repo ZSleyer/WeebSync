@@ -151,7 +151,7 @@ export function SaveBar({
     // button below the fold; in flow after the panels on desktop as before
     <PageFooter>
       <ActionBar aria-label={t('settings.save')} sticky={false} className="lg:mb-6">
-        <Button variant="primary" cut onClick={() => save.mutate(form)} disabled={save.isPending}>
+        <Button variant="primary" onClick={() => save.mutate(form)} disabled={save.isPending}>
           {t('settings.save')}
         </Button>
         {saved && (

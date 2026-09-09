@@ -6,7 +6,7 @@ export const FromWatchlist = () => (
     year={2023}
     badges={<><Badge tone="accent">Watchlist</Badge><Badge>AniList</Badge></>}
     detail="Steht auf deiner Merkliste und liegt auf dem Server bereit."
-    actions={<><Button size="sm" variant="primary" cut>Synchronisieren</Button><Button size="sm">Ignorieren</Button></>}
+    actions={<><Button size="sm" variant="primary">Synchronisieren</Button><Button size="sm">Ignorieren</Button></>}
   />
 )
 
@@ -17,7 +17,7 @@ export const Upgrade = () => (
     year={2016}
     badges={<><Badge tone="warn">Bessere Quelle</Badge><Badge tone="ok">1080p statt 720p</Badge></>}
     detail="Lokal in 720p, auf dem Server als 1080p mit deutschem Ton verfügbar."
-    actions={<Button size="sm" variant="primary" cut>Ersetzen</Button>}
+    actions={<Button size="sm" variant="primary">Ersetzen</Button>}
   />
 )
 

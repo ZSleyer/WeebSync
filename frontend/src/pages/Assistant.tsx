@@ -892,7 +892,7 @@ export default function Assistant() {
                         <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
                       ))}
                       {(tr.proposals?.filter((p) => !p.done && !p.unverified).length ?? 0) >= 2 && (
-                        <Button variant="primary" cut className="mt-3" onClick={() => void createAll(ti)}>
+                        <Button variant="primary" className="mt-3" onClick={() => void createAll(ti)}>
                           {t('assistant.createAll', { count: tr.proposals!.filter((p) => !p.done && !p.unverified).length })}
                         </Button>
                       )}

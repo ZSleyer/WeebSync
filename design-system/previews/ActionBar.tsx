@@ -47,7 +47,7 @@ export const SaveBar = () => (
   <div style={{ maxWidth: 380 }}>
     <Panel className="p-4">Formular</Panel>
     <ActionBar aria-label="Speichern" sticky={false}>
-      <Button variant="primary" cut>
+      <Button variant="primary">
         Speichern
       </Button>
       <Badge tone="ok">Gespeichert</Badge>
