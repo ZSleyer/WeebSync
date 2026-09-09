@@ -27,8 +27,16 @@ import { applyDefaults, useWatchDefaults } from '../components/watchDefaults'
 import { useConfirm } from '../components/confirm'
 
 // plain strips the markdown a model emits anyway (bold, code spans, heading
-// marks): the page renders text, and the prompt asks for text.
-const plain = (s: string) => s.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`([^`\n]*)`/g, '$1').replace(/^#{1,6}\s+/gm, '')
+// marks): the page renders text, and the prompt asks for text. Also a tool
+// call a small model wrote out instead of calling it, recommend(titles=[...]):
+// the server turned that into cards already
+const plain = (s: string) =>
+  s
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/`([^`\n]*)`/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\b(?:recommend|show_upgrades|propose)\((?:[^()]|\([^()]*\))*\)/g, '')
+    .trim()
 
 // One turn of the conversation as rendered. Proposals hang off the assistant
 // turn that produced them; `done` marks a card the user already confirmed.
