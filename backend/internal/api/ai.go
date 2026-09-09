@@ -78,6 +78,94 @@ type aiChatRequest struct {
 	Model    string          `json:"model,omitempty"`
 }
 
+// aiSteerRequest is a follow-up typed while an answer streams.
+type aiSteerRequest struct {
+	Text string `json:"text"`
+}
+
+// aiSteerResponse says whether a running answer took the follow-up on. When
+// not, the client sends it as a turn of its own once the stream is over.
+type aiSteerResponse struct {
+	Queued bool `json:"queued"`
+}
+
+// aiSteer is the slot of one user's running answer: follow-ups wait here
+// until the loop reaches a point where the model can read them - after a
+// round of tools, or after a text-only reply, which then gets another round
+// to revise itself. One slot per user: a user has one answer streaming at a
+// time, a second chat in another tab would share it.
+type aiSteer struct {
+	texts []string
+}
+
+// aiSteerOpen claims the user's slot for a streaming answer; the returned
+// close drops whatever was not taken up, the client resends that itself.
+func (s *Server) aiSteerOpen(userID int64) (close func()) {
+	s.aiSteerMu.Lock()
+	if s.aiSteers == nil {
+		s.aiSteers = map[int64]*aiSteer{}
+	}
+	s.aiSteers[userID] = &aiSteer{}
+	s.aiSteerMu.Unlock()
+	return func() {
+		s.aiSteerMu.Lock()
+		delete(s.aiSteers, userID)
+		s.aiSteerMu.Unlock()
+	}
+}
+
+// aiSteerPush hands a follow-up to the running answer; false when none runs.
+func (s *Server) aiSteerPush(userID int64, text string) bool {
+	s.aiSteerMu.Lock()
+	defer s.aiSteerMu.Unlock()
+	st := s.aiSteers[userID]
+	if st == nil {
+		return false
+	}
+	st.texts = append(st.texts, text)
+	return true
+}
+
+// aiSteerTake drains the follow-ups that arrived so far.
+func (s *Server) aiSteerTake(userID int64) []string {
+	s.aiSteerMu.Lock()
+	defer s.aiSteerMu.Unlock()
+	st := s.aiSteers[userID]
+	if st == nil || len(st.texts) == 0 {
+		return nil
+	}
+	out := st.texts
+	st.texts = nil
+	return out
+}
+
+// handleAiSteer takes a follow-up for the answer streaming to this user.
+//
+//	@Summary		Steer the running answer
+//	@Description	A follow-up typed while an answer streams. The running loop reads it between its rounds and the model continues with it; the stream reports it as a steer event. Not queued when no answer is streaming.
+//	@Tags			Assistant
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		aiSteerRequest	true	"the follow-up"
+//	@Success		200		{object}	aiSteerResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		415		{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/ai/steer [post]
+func (s *Server) handleAiSteer(w http.ResponseWriter, r *http.Request) {
+	var in aiSteerRequest
+	if !readJSON(w, r, &in) {
+		return
+	}
+	text := strings.TrimSpace(in.Text)
+	if text == "" || len(text) > 20000 {
+		writeErr(w, http.StatusBadRequest, "text missing or too long")
+		return
+	}
+	u := auth.UserFrom(r.Context())
+	writeJSON(w, http.StatusOK, aiSteerResponse{Queued: s.aiSteerPush(u.ID, text)})
+}
+
 // aiModelsResponse lists what the endpoint serves and which id is the default.
 type aiModelsResponse struct {
 	Models  []string `json:"models"`
@@ -114,7 +202,7 @@ func (s *Server) handleAiModels(w http.ResponseWriter, r *http.Request) {
 // reasoning (reasoning), a tool starting (tool: name + args) and finishing
 // (tool_done: name + a result excerpt), a vetted proposal, an error, done.
 type aiEvent struct {
-	Type    string   `json:"type"` // delta | reasoning | tool | tool_done | proposal | cards | upgrades | error | done
+	Type    string   `json:"type"` // delta | reasoning | tool | tool_done | proposal | cards | upgrades | steer | error | done
 	Text    string   `json:"text,omitempty"`
 	Name    string   `json:"name,omitempty"`
 	Message string   `json:"message,omitempty"`
@@ -442,6 +530,18 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 	}()
 	fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
+	defer s.aiSteerOpen(u.ID)()
+
+	// follow-ups typed meanwhile join the conversation as user turns; the
+	// client mirrors each steer event, so the transcript on both ends agrees
+	steer := func() bool {
+		texts := s.aiSteerTake(u.ID)
+		for _, t := range texts {
+			msgs = append(msgs, ai.Message{Role: "user", Content: t})
+			emit(aiEvent{Type: "steer", Text: t})
+		}
+		return len(texts) > 0
+	}
 
 	// what the list tools surfaced this request, and whether cards went out:
 	// a model that names titles in prose instead of calling recommend still
@@ -477,6 +577,14 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 					emit(aiEvent{Type: "cards", Cards: cards})
 				}
 			}
+			// a follow-up that arrived while the answer was written gets the
+			// model back for another round, with its own answer in front of it
+			if reply.Content != "" {
+				msgs = append(msgs, reply)
+			}
+			if steer() {
+				continue
+			}
 			break
 		}
 		msgs = append(msgs, reply)
@@ -501,6 +609,7 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 			emit(aiEvent{Type: "tool_done", Name: call.Function.Name, Stats: toolStats(call.Function.Name, b)})
 			msgs = append(msgs, ai.Message{Role: "tool", ToolCallID: call.ID, Content: string(b)})
 		}
+		steer()
 	}
 	emit(aiEvent{Type: "done"})
 }

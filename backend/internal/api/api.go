@@ -56,6 +56,11 @@ type Server struct {
 	matchCh   chan matchJob
 	matchOnce sync.Once
 
+	// follow-ups the user typed while an assistant answer streams, taken up
+	// by the running loop between its rounds (see aiSteer in ai.go)
+	aiSteerMu sync.Mutex
+	aiSteers  map[int64]*aiSteer
+
 	// serialises series bundling so concurrent matchers do not create two
 	// series rows for the same fold key (see linkSeries)
 	seriesMu sync.Mutex
@@ -263,6 +268,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/ai/status", authed(http.HandlerFunc(s.handleAiStatus)))
 	mux.Handle("GET /api/ai/models", authed(http.HandlerFunc(s.handleAiModels)))
 	mux.Handle("POST /api/ai/chat", authed(http.HandlerFunc(s.handleAiChat)))
+	mux.Handle("POST /api/ai/steer", authed(http.HandlerFunc(s.handleAiSteer)))
 	mux.Handle("POST /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismiss)))
 	mux.Handle("POST /api/suggestions/duplicates/trash", authed(adminOnly(http.HandlerFunc(s.handleDuplicateTrash))))
 	mux.Handle("DELETE /api/suggestions/dismiss", authed(http.HandlerFunc(s.handleDismissRestore)))

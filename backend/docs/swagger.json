@@ -2411,6 +2411,22 @@
                 },
                 "type": "object"
             },
+            "api.aiSteerRequest": {
+                "properties": {
+                    "text": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.aiSteerResponse": {
+                "properties": {
+                    "queued": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
             "api.aiWatchFields": {
                 "properties": {
                     "airedMapping": {
@@ -5240,6 +5256,72 @@
                     }
                 ],
                 "summary": "Assistant status",
+                "tags": [
+                    "Assistant"
+                ]
+            }
+        },
+        "/api/ai/steer": {
+            "post": {
+                "description": "A follow-up typed while an answer streams. The running loop reads it between its rounds and the model continues with it; the stream reports it as a steer event. Not queued when no answer is streaming.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.aiSteerRequest",
+                                        "summary": "body",
+                                        "description": "the follow-up"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "the follow-up",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.aiSteerResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Steer the running answer",
                 "tags": [
                     "Assistant"
                 ]

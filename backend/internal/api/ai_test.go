@@ -24,6 +24,9 @@ type fakeProvider struct {
 	script   []fakeReply
 	requests []ai.Message
 	model    string
+	// onRound runs before the reply of round i goes out - a test's chance
+	// to act while the loop is between rounds
+	onRound func(i int)
 }
 
 type fakeReply struct {
@@ -62,6 +65,9 @@ func newFakeProvider(t *testing.T, script ...fakeReply) *fakeProvider {
 			return
 		}
 		rep := fp.script[i]
+		if fp.onRound != nil {
+			fp.onRound(i)
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		if rep.tool != "" {
 			args, _ := json.Marshal(rep.args)
@@ -174,6 +180,50 @@ func TestAiChatToolLoopProposesExistingFolder(t *testing.T) {
 	}
 	if fp.requests[0].Role != "system" || !strings.Contains(fp.requests[0].Content, "WeebSync") {
 		t.Errorf("system prompt missing: %+v", fp.requests[0])
+	}
+}
+
+// A follow-up pushed while the answer streams joins the conversation as a
+// user turn: after a tool round, and after a text-only reply, which then gets
+// another round. The stream reports each as a steer event.
+func TestAiChatSteerJoinsBetweenRounds(t *testing.T) {
+	fp := newFakeProvider(t,
+		fakeReply{tool: "search_remote", args: `{"query":"Frieren"}`},
+		fakeReply{text: "Found Frieren."},
+		fakeReply{text: "Yes, on srv."},
+	)
+	mux, s, c := setupAiTest(t, fp)
+	fp.onRound = func(i int) {
+		switch i {
+		case 0:
+			s.aiSteerPush(1, "only shows, no movies") // read after the tool round
+		case 1:
+			s.aiSteerPush(1, "and where is it?") // read after the text reply
+		}
+	}
+	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"find Frieren"}]}`, c)
+	evs := events(t, rec.Body.String())
+	if got := types(evs); got != "tool,tool_done,steer,delta,delta,steer,delta,delta,done" {
+		t.Fatalf("event order %s: %s", got, rec.Body)
+	}
+	if evs[2]["text"] != "only shows, no movies" || evs[5]["text"] != "and where is it?" {
+		t.Errorf("steer texts: %v %v", evs[2], evs[5])
+	}
+	// the last request carried the whole exchange in order: user, the tool
+	// round, the first follow-up, the first answer, the second follow-up
+	var roles []string
+	for _, m := range fp.requests[1:] {
+		roles = append(roles, m.Role)
+	}
+	if got := strings.Join(roles, ","); got != "user,assistant,tool,user,assistant,user" {
+		t.Errorf("roles %s", got)
+	}
+	if n := len(fp.requests); fp.requests[n-1].Content != "and where is it?" || fp.requests[n-2].Content != "Found Frieren." {
+		t.Errorf("tail: %+v", fp.requests[n-2:])
+	}
+	// the slot is gone with the stream
+	if s.aiSteerPush(1, "late") {
+		t.Error("steer accepted after the stream ended")
 	}
 }
 
