@@ -610,6 +610,8 @@ export type AiEvent =
   | { type: 'tool_done'; name: string; stats?: Record<string, unknown> }
   | ({ type: 'proposal' } & AiProposal)
   | { type: 'cards'; cards: AiCard[] }
+  // titles the answer names, with their records: the client links the names
+  | { type: 'links'; cards: AiCard[] }
   | { type: 'upgrades'; upgrades: UpgradeSuggestion[] }
   // a follow-up the running answer took on: the client mirrors it as a
   // user turn and the answer continues in a new bubble after it
