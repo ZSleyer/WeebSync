@@ -5,7 +5,7 @@ import { FolderOpen } from 'lucide-react'
 import { ActionBar, Badge, Button, Field, Input, Panel, Segmented, Select } from '@weebsync/design-system'
 import { api, type KindDefaults, type WatchDefaults } from '../../api'
 import { LocalPicker } from '../../components/FileBrowser'
-import PathInput from '../../components/PathInput'
+import PathInput, { trimSlashes } from '../../components/PathInput'
 import { PageFooter } from '../../components/PageActions'
 import { PRESETS, ROW_GRID, TITLE_LANGS } from '../../components/RenameOptions'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
@@ -36,7 +36,6 @@ export default function SyncDefaults() {
   const [loaded, setLoaded] = useState<string>('')
   const [kind, setKind] = useState<Kind>('anime-series')
   const [browse, setBrowse] = useState(false)
-  const [draft, setDraft] = useState('')
   const [saved, setSaved] = useState(false)
   useEffect(() => {
     if (data) {
@@ -46,8 +45,13 @@ export default function SyncDefaults() {
     }
   }, [data])
   const dirty = loaded !== '' && JSON.stringify(form) !== loaded
+  // a path still carrying the slash the picker appends is stored clean
+  const tidy = (d: WatchDefaults): WatchDefaults => ({
+    ...d,
+    kinds: Object.fromEntries(Object.entries(d.kinds).map(([c, k]) => [c, { ...k, localPath: trimSlashes(k.localPath) }])),
+  })
   const save = useMutation({
-    mutationFn: (d: WatchDefaults) => api.put('/api/auth/watch-defaults', d),
+    mutationFn: (d: WatchDefaults) => api.put('/api/auth/watch-defaults', tidy(d)),
     onSuccess: () => {
       setSaved(true)
       setLoaded(JSON.stringify(form))
@@ -71,22 +75,18 @@ export default function SyncDefaults() {
           aria-label={t('settings.sync.targets')}
           className="mb-4"
           value={kind}
-          onChange={(v) => {
-            setKind(v)
-            setDraft('')
-          }}
+          onChange={setKind}
           options={KINDS.map((c) => ({ value: c, label: t(`watch.cat.${c}`) }))}
         />
         <div className="space-y-3">
           <Field label={t('watch.localPath')}>
             <div className="flex items-start gap-2">
+              {/* the typed path is the form value itself: a value that only
+                  landed on Enter was lost when Save was clicked instead */}
               <PathInput
-                value={draft || k.localPath}
-                onChange={setDraft}
-                onCommit={(p) => {
-                  setKindField({ localPath: p.replace(/^\//, '') })
-                  setDraft('')
-                }}
+                value={k.localPath}
+                onChange={(p) => setKindField({ localPath: p.replace(/^\//, '') })}
+                onCommit={(p) => setKindField({ localPath: p.replace(/^\//, '') })}
                 fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p)}`}
                 queryKey={['local']}
                 ariaLabel={t('watch.localPath')}
