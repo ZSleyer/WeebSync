@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { Check, ChevronDown, ChevronRight, Cpu, History, ImagePlus, Mic, Plus, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, History, ImagePlus, Mic, Plus, RefreshCw, Send, Sparkles, Square, Trash2, X } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Badge, Button, Dialog, EmptyState, MediaCard, Menu, MenuItem, Panel, navItemClass, useMediaQuery, useMenu } from '@weebsync/design-system'
+import { Badge, Button, Dialog, EmptyState, IconButton, MediaCard, Menu, MenuItem, Panel, navItemClass, useMediaQuery, useMenu } from '@weebsync/design-system'
 import {
   api,
   mediaTitle,
@@ -116,6 +116,14 @@ export default function Assistant() {
   const [histOpen, setHistOpen] = useState(false)
   const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  // one line that grows with the text, up to a few lines, then scrolls
+  const taRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    const ta = taRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`
+  }, [input])
   const { open: addOpen, setOpen: setAddOpen, ref: addRef } = useMenu()
   const dictation = useDictation(i18n.language)
   // follow-ups typed while an answer is still streaming: they wait here and
@@ -643,11 +651,11 @@ export default function Assistant() {
           {notice}
         </Badge>
       )}
-      {/* the composer, one framed box: the add menu, the text, the mic and
-          the send arrow in a row; the model chip and stop in the row below.
+      {/* the composer: one quiet box, the add menu, the text, the mic and the
+          send arrow in a single row, the model as a line of small text below.
           Pictures land here by drop, paste, the menu or a phone's camera */}
       <form
-        className={`mt-3 border ${dragging ? 'border-accent' : 'border-border-subtle'} bg-bg-card focus-within:border-accent/60`}
+        className="mt-3"
         onSubmit={(e) => {
           e.preventDefault()
           void send()
@@ -664,142 +672,151 @@ export default function Assistant() {
           void addImages(e.dataTransfer.files)
         }}
       >
-        {attachments.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5 px-3 pt-3">
-            {attachments.map((src, i) => (
-              <li key={i} className="relative">
-                <img src={src} alt="" className="h-14 w-14 border border-border-subtle object-cover" />
-                <button
-                  type="button"
-                  className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center border border-border-subtle bg-bg-card text-t-muted hover:text-err"
-                  aria-label={t('assistant.removeImage')}
-                  onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}
-                >
-                  <X aria-hidden size="0.8em" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="flex items-end gap-1 px-2 pt-2">
-          <div className="relative" ref={addRef}>
-            <Button size="sm" aria-label={t('assistant.add')} title={t('assistant.add')} aria-haspopup="menu" aria-expanded={addOpen} onClick={() => setAddOpen((o) => !o)}>
-              <Plus aria-hidden size="1.2em" />
-            </Button>
-            {addOpen && (
-              <Menu className="absolute bottom-full left-0 z-20 mb-1" aria-label={t('assistant.add')}>
-                <MenuItem
-                  aria-disabled={vision === false}
-                  title={vision === false ? t('assistant.attachNoVision') : undefined}
+        <div className={`border bg-bg-card transition-colors ${dragging ? 'border-accent' : 'border-border-subtle focus-within:border-accent/60'}`}>
+          {attachments.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5 px-3 pt-3">
+              {attachments.map((src, i) => (
+                <li key={i} className="relative">
+                  <img src={src} alt="" className="h-14 w-14 border border-border-subtle object-cover" />
+                  <button
+                    type="button"
+                    className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center border border-border-subtle bg-bg-card text-t-muted hover:text-err"
+                    aria-label={t('assistant.removeImage')}
+                    onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}
+                  >
+                    <X aria-hidden size="0.8em" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex items-end gap-2 px-3 py-2">
+            <div className="relative" ref={addRef}>
+              <IconButton
+                aria-label={t('assistant.add')}
+                title={t('assistant.add')}
+                aria-haspopup="menu"
+                aria-expanded={addOpen}
+                className="size-9! text-t-muted hover:text-accent"
+                onClick={() => setAddOpen((o) => !o)}
+              >
+                <Plus aria-hidden size="1.4em" />
+              </IconButton>
+              {addOpen && (
+                <Menu className="absolute bottom-full left-0 z-20 mb-1" aria-label={t('assistant.add')}>
+                  <MenuItem
+                    aria-disabled={vision === false}
+                    title={vision === false ? t('assistant.attachNoVision') : undefined}
+                    onClick={() => {
+                      setAddOpen(false)
+                      if (vision !== false) fileRef.current?.click()
+                    }}
+                  >
+                    <ImagePlus aria-hidden size="1em" className={vision === false ? 'opacity-50' : ''} />
+                    <span className={vision === false ? 'opacity-50' : ''}>{t('assistant.addPhoto')}</span>
+                  </MenuItem>
+                </Menu>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="sr-only"
+                tabIndex={-1}
+                onChange={(e) => {
+                  void addImages(e.target.files ?? [])
+                  e.target.value = ''
+                }}
+              />
+            </div>
+            {dictation.active ? (
+              <p className="flex min-h-9 min-w-0 flex-1 items-center gap-3 px-1 text-base" aria-live="polite">
+                <span className={`min-w-0 flex-1 truncate ${dictation.text ? 'text-t-primary' : 'text-t-muted italic'}`}>{dictation.text || t('assistant.listening')}</span>
+                <span className="ai-dots" aria-hidden>
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </p>
+            ) : (
+              <label className="flex min-w-0 flex-1">
+                <span className="sr-only">{t('assistant.placeholder')}</span>
+                <textarea
+                  ref={taRef}
+                  rows={1}
+                  className="max-h-40 w-full resize-none bg-transparent px-1 py-1.5 text-base leading-6 text-t-primary outline-none placeholder:text-t-faint"
+                  placeholder={streaming ? t('assistant.placeholderQueue') : t('assistant.placeholder')}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={onKey}
+                  onPaste={(e) => {
+                    const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
+                    if (files.length) {
+                      e.preventDefault()
+                      void addImages(files)
+                    }
+                  }}
+                  // not on a phone: focusing on arrival raises the keyboard and
+                  // shrinks the whole shell before anything was read
+                  autoFocus={wide}
+                />
+              </label>
+            )}
+            {dictation.active ? (
+              <>
+                <IconButton aria-label={t('assistant.dictateCancel')} title={t('assistant.dictateCancel')} className="size-9! text-t-muted hover:text-err" onClick={dictation.cancel}>
+                  <X aria-hidden size="1.3em" />
+                </IconButton>
+                <IconButton
+                  aria-label={t('assistant.dictateDone')}
+                  title={t('assistant.dictateDone')}
+                  className="size-9! bg-accent text-bg-primary"
                   onClick={() => {
-                    setAddOpen(false)
-                    if (vision !== false) fileRef.current?.click()
+                    const said = dictation.accept()
+                    if (said) setInput((v) => (v ? `${v} ${said}` : said))
                   }}
                 >
-                  <ImagePlus aria-hidden size="1em" className={vision === false ? 'opacity-50' : ''} />
-                  <span className={vision === false ? 'opacity-50' : ''}>{t('assistant.addPhoto')}</span>
-                </MenuItem>
-              </Menu>
+                  <Check aria-hidden size="1.3em" />
+                </IconButton>
+              </>
+            ) : (
+              <>
+                {dictation.supported && (
+                  <IconButton aria-label={t('assistant.dictate')} title={t('assistant.dictate')} className="size-9! text-t-muted hover:text-accent" onClick={dictation.start}>
+                    <Mic aria-hidden size="1.3em" />
+                  </IconButton>
+                )}
+                {(input.trim() || attachments.length > 0) && (
+                  <button type="submit" className="t-iconbtn size-9! bg-accent text-bg-primary" aria-label={t('assistant.send')} title={t('assistant.send')}>
+                    <Send aria-hidden size="1.3em" />
+                  </button>
+                )}
+              </>
             )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="sr-only"
-              tabIndex={-1}
-              onChange={(e) => {
-                void addImages(e.target.files ?? [])
-                e.target.value = ''
-              }}
-            />
           </div>
-          {dictation.active ? (
-            <p className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-2 text-base text-t-secondary" aria-live="polite">
-              <span className="ai-dots" aria-hidden>
-                <i />
-                <i />
-                <i />
-              </span>
-              <span className="min-w-0 flex-1 truncate">{dictation.text || t('assistant.listening')}</span>
-            </p>
-          ) : (
-            <label className="flex min-w-0 flex-1">
-              <span className="sr-only">{t('assistant.placeholder')}</span>
-              <textarea
-                rows={2}
-                className="w-full resize-none bg-transparent px-2 py-2 text-base text-t-primary outline-none placeholder:text-t-faint"
-                placeholder={streaming ? t('assistant.placeholderQueue') : t('assistant.placeholder')}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKey}
-                onPaste={(e) => {
-                  const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
-                  if (files.length) {
-                    e.preventDefault()
-                    void addImages(files)
-                  }
-                }}
-                // not on a phone: focusing on arrival raises the keyboard and
-                // shrinks the whole shell before anything was read
-                autoFocus={wide}
-              />
-            </label>
-          )}
-          {dictation.active ? (
-            <>
-              <Button size="sm" aria-label={t('assistant.dictateCancel')} title={t('assistant.dictateCancel')} onClick={dictation.cancel}>
-                <X aria-hidden size="1.2em" />
-              </Button>
-              <Button
-                size="sm"
-                variant="primary"
-                aria-label={t('assistant.dictateDone')}
-                title={t('assistant.dictateDone')}
-                onClick={() => {
-                  const said = dictation.accept()
-                  if (said) setInput((v) => (v ? `${v} ${said}` : said))
-                }}
-              >
-                <Check aria-hidden size="1.2em" />
-              </Button>
-            </>
-          ) : (
-            <>
-              {dictation.supported && (
-                <Button size="sm" aria-label={t('assistant.dictate')} title={t('assistant.dictate')} onClick={dictation.start}>
-                  <Mic aria-hidden size="1.2em" />
-                </Button>
-              )}
-              {(input.trim() || attachments.length > 0) && (
-                <Button type="submit" size="sm" variant="primary" aria-label={t('assistant.send')} title={t('assistant.send')}>
-                  <Send aria-hidden size="1.2em" />
-                </Button>
-              )}
-            </>
-          )}
         </div>
-        <div className="flex items-center justify-end gap-2 px-2 pb-2">
+        <div className="mt-1.5 flex min-h-6 items-center justify-end gap-4 px-1 text-xs text-t-muted">
           {streaming && (
-            <Button type="button" size="xs" aria-label={t('assistant.stop')} title={t('assistant.stop')} onClick={() => abortRef.current?.abort()}>
-              <Square aria-hidden size="1em" />
-              <span className="ml-1">{t('assistant.stop')}</span>
-            </Button>
+            <button type="button" className="inline-flex min-h-6 items-center gap-1 hover:text-t-primary" onClick={() => abortRef.current?.abort()}>
+              <Square aria-hidden size="0.9em" />
+              {t('assistant.stop')}
+            </button>
           )}
           {modelList.length > 1 && (
             <div className="relative" ref={modelRef}>
-              <Button
-                size="xs"
+              <button
+                type="button"
+                className="inline-flex min-h-6 max-w-64 items-center gap-1 hover:text-t-primary"
                 aria-haspopup="listbox"
                 aria-expanded={modelOpen}
                 aria-label={t('assistant.model')}
                 title={modelInUse}
                 onClick={() => setModelOpen((o) => !o)}
               >
-                <Cpu aria-hidden size="1em" />
-                <span className="mx-1 max-w-48 truncate">{modelInUse}</span>
-                <ChevronDown aria-hidden size="0.9em" />
-              </Button>
+                <span className="truncate">{modelInUse}</span>
+                <ChevronDown aria-hidden size="0.9em" className="shrink-0" />
+              </button>
               {modelOpen && (
                 <Menu className="absolute right-0 bottom-full z-20 mb-1 max-w-72" aria-label={t('assistant.model')}>
                   {['', ...modelList.filter((m) => m !== defaultModel)].map((m) => (
