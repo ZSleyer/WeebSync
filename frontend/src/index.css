@@ -53,26 +53,32 @@
   --color-t-faint: var(--text-faint);
 }
 
-/* ── Theme variables (WCAG AA pairs, see Encounty Tempest README) ── */
+/* ── Theme variables (WCAG AA pairs) ──
+   Dark is OLED black: a true black page, neutral grey surfaces stepping up
+   from it, no blue cast. The text is an off-white rather than #eef3f8 - on
+   black, pure white halates. Every text and accent token clears 4.5:1 on all
+   four surfaces, checked with the contrast script in the plan; the hover
+   surface is the tightest pair (crimson accent on a selected row, 4.6:1),
+   so it must not get lighter. */
 :root,
 [data-theme="dark"] {
-  --bg-primary: #0d1117;
-  --bg-secondary: #131922;
-  --bg-card: #161e28;
-  --bg-hover: #1e2836;
+  --bg-primary: #000000;
+  --bg-secondary: #0b0b0d;
+  --bg-card: #141417;
+  --bg-hover: #1c1c20;
   --accent-blue: #a685f0; /* user-themable via [data-accent] */
   --accent-green: #34d67a;
   --accent-yellow: #ffb020;
-  --accent-red: #f05050;
-  --border-subtle: #2a3644;
+  --accent-red: #f56b6b;
+  --border-subtle: #2a2a30;
   --border-active: var(--accent-blue);
-  --text-primary: #eef3f8;
+  --text-primary: #e6ebf0;
   --text-secondary: #b7c5d3;
   --text-muted: #8fa3b5;
-  --text-faint: #7a8ea0;
-  --scrollbar-track: #0d1117;
-  --scrollbar-thumb: #2a3644;
-  --scrollbar-thumb-hover: #4a5f73;
+  --text-faint: #8899ab;
+  --scrollbar-track: #000000;
+  --scrollbar-thumb: #2a2a30;
+  --scrollbar-thumb-hover: #4a4a54;
   color-scheme: dark;
 }
 
@@ -931,7 +937,7 @@ dialog .overflow-y-auto {
    blur makes the boundary the shape, not the line). The box lifts with a
    shadow for the same reason. */
 dialog::backdrop {
-  background: color-mix(in srgb, #05070a 70%, transparent);
+  background: color-mix(in srgb, #000 70%, transparent);
   backdrop-filter: blur(6px);
   transition: opacity 240ms ease-out;
   opacity: 1;
