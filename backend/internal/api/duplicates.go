@@ -1,8 +1,6 @@
 package api
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -54,8 +52,6 @@ func (s *Server) handleDuplicateTrash(w http.ResponseWriter, r *http.Request) {
 	s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0 AND (folder = ? OR folder LIKE ? || '/%')`, in.Path, in.Path)
 	// every user's suggestions counted that copy
 	s.staleSuggestions()
-	uid := u.ID
-	key := fmt.Sprintf("suggestions:%d", uid)
-	s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, uid) })
+	s.rebuildSuggestions(u.ID)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

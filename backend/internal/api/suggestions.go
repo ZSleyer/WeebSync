@@ -402,8 +402,7 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	building := false
 	if payload == "" || !fresh || force {
 		building = true
-		uid := u.ID
-		s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, uid) })
+		s.rebuildSuggestions(u.ID)
 	}
 
 	var resp SuggestionsResponse
@@ -461,12 +460,25 @@ func filterDismissed(items []SugItem, dismissed map[string]bool) []SugItem {
 // a background rebuild. The underlying provider data has its own longer TTLs.
 const suggestTTL = 30 * time.Minute
 
+// suggestBuildLimit is the build's own time budget. Under the general
+// five-minute job limit the recommended bucket, assembled last, ran into
+// the deadline on a large library and stayed empty in every blob.
+const suggestBuildLimit = 20 * time.Minute
+
+// rebuildSuggestions schedules a user's blob for assembly in the background;
+// a build already running for the user is left alone.
+func (s *Server) rebuildSuggestions(userID int64) {
+	key := fmt.Sprintf("suggestions:%d", userID)
+	s.runJobFor(key, suggestBuildLimit, func(ctx context.Context) { s.buildUserSuggestions(ctx, userID) })
+}
+
 // buildUserSuggestions assembles a user's three suggestion buckets from the
 // (cached) provider builders and stores the merged result under
 // suggestions:{userID}. This is the slow path - run in the background by the
 // endpoint and the warm loop, never on the request. No dismiss filter: that is
 // applied per-request at read time.
 func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) SuggestionsResponse {
+	start := time.Now()
 	bySrc, bySeries := s.seriesProviderMaps()
 	locale := s.userLocale(userID)
 
@@ -551,6 +563,11 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	if b, err := json.Marshal(resp); err == nil {
 		s.cacheSet(fmt.Sprintf("suggestions:%d", userID), string(b))
 	}
+	// the duration is what tells whether the budget above still fits
+	slog.Info("suggestions built", "user", userID, "took", time.Since(start).Round(time.Second),
+		"watchlist", len(resp.Watchlist), "recommended", len(resp.Recommended), "trending", len(resp.Trending),
+		"incomplete", len(resp.Incomplete), "upgrades", len(resp.Upgrades), "duplicates", len(resp.Duplicates),
+		"timedOut", ctx.Err() != nil)
 	return resp
 }
 

@@ -979,7 +979,7 @@ func (s *Server) aiSuggestionBlob(ctx context.Context, userID int64) (resp Sugge
 	key := fmt.Sprintf("suggestions:%d", userID)
 	payload, fresh := s.cacheGet(key, suggestTTL)
 	if !fresh {
-		s.runJob(key, func(ctx context.Context) { s.buildUserSuggestions(ctx, userID) })
+		s.rebuildSuggestions(userID)
 		payload, _ = s.cacheGet(key, 365*24*time.Hour) // whatever is there beats nothing
 		building = true
 	}
