@@ -741,7 +741,7 @@ export function CatalogGrid({
             <Panel
               as="article"
               key={g.key}
-              className={`group relative flex flex-col overflow-clip ${isSelected ? 'outline-2 outline-accent' : ''}`}
+              className={`group relative flex flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
             >
               {/* rematch tucked away as a pencil over the cover (hover/focus);
                   unmatched folders keep the explicit button below instead */}
