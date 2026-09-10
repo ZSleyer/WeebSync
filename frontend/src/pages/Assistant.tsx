@@ -69,6 +69,12 @@ function addStep(tr: Turn, step: Step): Turn {
   return { ...tr, steps }
 }
 
+// modelChip is the name on the composer's pill. The list spells a model as
+// "DeepSeek V4 Pro (Cloud Deep-Reasoning)" - the parenthesis says what it is
+// good for, which belongs in the menu, not in a chip beside the text field.
+// The full name stays in the pill's title and in the menu.
+const modelChip = (m: string) => m.replace(/\s*\([^()]*\)\s*$/, '') || m
+
 const EXAMPLES = ['seasonal', 'watch', 'upgrade'] as const
 const EXAMPLE_ICON = { seasonal: Sparkles, watch: RefreshCw, upgrade: CircleArrowUp } as const
 
@@ -660,7 +666,7 @@ export default function Assistant() {
                   title={modelInUse}
                   onClick={() => setModelOpen((o) => !o)}
                 >
-                  <span className="truncate">{modelInUse}</span>
+                  <span className="truncate">{modelChip(modelInUse)}</span>
                   <ChevronDown aria-hidden size="0.9em" className="shrink-0" />
                 </button>
                 {modelOpen && (
@@ -747,13 +753,16 @@ export default function Assistant() {
     <div className="page-fill flex min-h-0 w-full flex-1 flex-col">
       {actions}
       {empty ? (
-        <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center pb-10">
-          <h2 className="mb-5 text-center font-display text-2xl font-semibold tracking-wider">
+        // on a phone the greeting and its chips sit in the middle of the
+        // screen and the composer stays at the bottom, where the thumb and the
+        // keyboard are; from lg on the three are one centered group, greeting
+        // over composer over chips
+        <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col lg:justify-center lg:pb-10">
+          <h2 className="mt-auto mb-5 text-center font-display text-2xl font-semibold tracking-wider lg:mt-0">
             <Sparkles aria-hidden size="0.9em" className="mr-2 inline align-[-0.1em] text-accent" />
             {t('assistant.greeting')}
           </h2>
-          {composer}
-          <ul className="mt-5 flex flex-wrap justify-center gap-2">
+          <ul className="mb-auto flex flex-wrap justify-center gap-2 lg:order-last lg:mt-5 lg:mb-0">
             {EXAMPLES.map((k) => {
               const Icon = EXAMPLE_ICON[k]
               return (
@@ -766,6 +775,7 @@ export default function Assistant() {
               )
             })}
           </ul>
+          {composer}
         </div>
       ) : (
         <>
