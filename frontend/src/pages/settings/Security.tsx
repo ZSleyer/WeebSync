@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Checkbox, Input, Panel, Select } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
@@ -33,14 +33,12 @@ export default function Security() {
       <Panel as="section" className="mb-4 p-5" aria-label={t('settings.auth')}>
         <Badge tone="accent">{t('settings.auth')}</Badge>
         <div className="mt-3 grid grid-cols-1 gap-4">
-          <label className="flex items-center gap-2 text-sm text-t-secondary">
-            <input
-              type="checkbox"
-              checked={form.registrationDisabled}
-              onChange={(e) => set('registrationDisabled', e.target.checked)}
-            />
-            {t('settings.registrationDisabled')}
-          </label>
+          <Checkbox
+            label={t('settings.registrationDisabled')}
+            labelClassName="text-t-secondary"
+            checked={form.registrationDisabled}
+            onChange={(e) => set('registrationDisabled', e.target.checked)}
+          />
           <label className="text-xs text-t-muted">
             {t('settings.trustedNetworks')}
             <Input
@@ -65,16 +63,18 @@ export default function Security() {
             />
             <span className="mt-1 block text-xs text-t-muted">{t('settings.trustedProxiesHint')}</span>
           </label>
-          <label className="flex items-center gap-2 text-xs text-t-muted">
-            <input
-              type="checkbox"
-              checked={form.forceHttps}
-              disabled={locked('forceHttps')}
-              onChange={(e) => set('forceHttps', e.target.checked)}
-            />
-            {t('settings.forceHttps')}
-            <EnvBadge show={locked('forceHttps')} />
-          </label>
+          <Checkbox
+            label={
+              <>
+                {t('settings.forceHttps')}
+                <EnvBadge show={locked('forceHttps')} />
+              </>
+            }
+            labelClassName="text-t-secondary"
+            checked={form.forceHttps}
+            disabled={locked('forceHttps')}
+            onChange={(e) => set('forceHttps', e.target.checked)}
+          />
           <span className="-mt-2 block text-xs text-t-muted">{t('settings.forceHttpsHint')}</span>
           <label className="text-xs text-t-muted">
             {t('settings.authMode')}

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Activity, ArrowDownUp, Bell, Database, Link2, LogOut, Plug, RefreshCw, Server, Settings2, Shield, UserRound } from 'lucide-react'
 import { Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
+import { Button, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useAuth, useUpdateHint } from '../../hooks'
 import { WIDE_MQ } from '../../components/PageActions'
@@ -88,7 +88,6 @@ export default function SettingsLayout() {
           title and a back link to the hub */}
       <header className="mb-6 hidden lg:block">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('settings.title')}</h2>
-        <Badge className="mt-1">{t('settings.sub')}</Badge>
       </header>
 
       <div className="flex flex-col gap-6 lg:flex-row">
