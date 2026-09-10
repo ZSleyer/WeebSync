@@ -30,6 +30,7 @@ var userDataTables = map[string]bool{
 	"webauthn_credentials": true,
 	"user_recovery_codes":  true,
 	"ai_chats":             true,
+	"ai_refs":              true, // the model's folder handles, minted per user (see ai_refs.go)
 	"push_subscriptions":   true,
 	"login_pending":        true,
 	"plex_stream_queue":    true,
