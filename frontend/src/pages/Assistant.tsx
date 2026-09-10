@@ -25,6 +25,7 @@ import { useAiModels, useAiStatus, useAuth } from '../hooks'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, useWatchDefaults } from '../components/watchDefaults'
+import { subfolderMode, subfolderTargetDir } from '../components/useTargetFolder'
 import { useConfirm } from '../components/confirm'
 
 // stripWrittenCall drops a tool call a small model wrote out instead of
@@ -1008,12 +1009,19 @@ function toolSentence(
   return t(key, { ...d, defaultValue: generic })
 }
 
-// targetOf is where a proposal lands: the target folder, plus the remote
-// folder's name when the sync writes into a subfolder.
+// targetOf is where a proposal lands: the target folder plus the subfolder the
+// sync creates - the remote folder's name, or the series title. Same rule the
+// dialog applies when the user confirms, so the card cannot promise a folder
+// the sync does not use.
 function targetOf(p: AiProposal): string {
   const f = p.fields
-  const sub = f.subfolder ? '/' + (p.remotePath.split('/').filter(Boolean).pop() ?? '') : ''
-  return (f.localPath || '?') + sub
+  return subfolderTargetDir(
+    f.localPath || '?',
+    p.remotePath,
+    subfolderMode(f),
+    p.title,
+    f.subfolderSeparator ?? '',
+  )
 }
 
 function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean; error?: string }; onOpen: () => void }) {

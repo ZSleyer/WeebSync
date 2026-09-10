@@ -47,6 +47,13 @@ export function subfolderTargetDir(
   return [localPath, seg].filter(Boolean).join('/')
 }
 
+// syncRequestPath is the local path a sync request carries. Only a title folder
+// travels as a path: the remote one is the server's own join (transfer.Enqueue
+// appends the remote base itself), and sending it too would append it twice.
+export function syncRequestPath(mode: SubfolderMode, localPath: string, target: string): string {
+  return mode === 'title' ? target : localPath
+}
+
 // useTargetFolder lists the folder a sync would write into. entries === null
 // means it is not there yet (the download creates it on the way), undefined
 // means unknown - outside the roots, or the listing failed - and then the UI

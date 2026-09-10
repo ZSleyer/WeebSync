@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { FolderOpen } from 'lucide-react'
 import { ActionBar, Badge, Button, Field, Input, Panel, Segmented, Select } from '@weebsync/design-system'
 import { api, type KindDefaults, type WatchDefaults } from '../../api'
+import SubfolderChoice from '../../components/SubfolderChoice'
 import { LocalPicker } from '../../components/FileBrowser'
 import PathInput, { trimSlashes } from '../../components/PathInput'
 import { PageFooter } from '../../components/PageActions'
@@ -12,7 +13,7 @@ import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
 const KINDS = ['anime-series', 'anime-movie', 'series', 'movie'] as const
 type Kind = (typeof KINDS)[number]
-const EMPTY_KIND: KindDefaults = { localPath: '', subfolder: false, template: '', separator: '' }
+const EMPTY_KIND: KindDefaults = { localPath: '', subfolder: false, subfolderSource: 'none', subfolderSeparator: '', template: '', separator: '' }
 const EMPTY: WatchDefaults = {
   kinds: {},
   common: { renameProvider: '', renameOrdering: '', renameTitleLang: '', airedMapping: false, wantDub: '', wantSub: '', plexAudioLang: '', plexSubLang: '' },
@@ -101,10 +102,14 @@ export default function SyncDefaults() {
               </div>
             )}
           </Field>
-          <label className="flex items-center gap-2 text-sm text-t-secondary">
-            <input type="checkbox" checked={k.subfolder} onChange={(e) => setKindField({ subfolder: e.target.checked })} />
-            {t('watch.subfolder')}
-          </label>
+          {/* subfolder mirrors the mode so a client reading only the bool
+              still gets the remote-folder behaviour it knows */}
+          <SubfolderChoice
+            value={k.subfolderSource ?? (k.subfolder ? 'remote' : 'none')}
+            onChange={(m) => setKindField({ subfolderSource: m, subfolder: m === 'remote' })}
+            separator={k.subfolderSeparator ?? ''}
+            onSeparator={(sep) => setKindField({ subfolderSeparator: sep })}
+          />
           <div className={ROW_GRID}>
             <Field label={t('rename.template')}>
               <Input className="font-mono" value={k.template} placeholder="{title} - S{season:02}E{episode:02}" onChange={(e) => setKindField({ template: e.target.value })} />
