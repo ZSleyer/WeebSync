@@ -158,6 +158,72 @@ export function SuggestionCard({
   )
 }
 
+export interface SparklineProps {
+  /** oldest first; fewer than two values draw nothing */
+  values: number[]
+  /** ceiling of the y scale, default the largest value (at least 1) */
+  max?: number
+  /** accessible name: what the line shows */
+  label: string
+  width?: number
+  height?: number
+  className?: string
+}
+
+/**
+ * A trend without axes: the number beside it is the label, the line only
+ * says rising or falling. Strokes in the current text colour, so a tile sets
+ * the tone with a text class; no fill, no glow.
+ */
+export function Sparkline({ values, max, label, width = 96, height = 24, className }: SparklineProps) {
+  const top = Math.max(max ?? 0, ...values, 1)
+  const last = values.length - 1
+  const points = values.map((v, i) => `${(i / Math.max(last, 1)) * width},${height - (v / top) * (height - 2) - 1}`).join(' ')
+  return (
+    <svg
+      role="img"
+      aria-label={label}
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      className={cx('shrink-0', className)}
+    >
+      {values.length > 1 && (
+        <polyline points={points} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      )}
+    </svg>
+  )
+}
+
+export interface StatTileProps {
+  /** the chip caption */
+  label: ReactNode
+  /** the number, monospaced */
+  value: ReactNode
+  /** one muted line under the value, e.g. "über 3 Downloads" */
+  detail?: ReactNode
+  /** right of the value: a Sparkline, or a Progress for a meter */
+  trend?: ReactNode
+  /** spans two columns of a tile grid */
+  wide?: boolean
+  className?: string
+}
+
+/** One figure with a caption, and room for the trend that gives it meaning. */
+export function StatTile({ label, value, detail, trend, wide, className }: StatTileProps) {
+  return (
+    <Panel className={cx('min-w-0 px-3 py-2 sm:px-4', wide && 'sm:col-span-2', className)}>
+      <Badge>{label}</Badge>
+      <div className="mt-1 flex items-end gap-3">
+        <p className="min-w-0 flex-1 truncate font-mono text-lg text-t-primary tabular-nums">{value}</p>
+        {trend}
+      </div>
+      {detail && <p className="mt-0.5 text-[11px] text-t-muted">{detail}</p>}
+    </Panel>
+  )
+}
+
 export interface CalendarEntryProps {
   title: ReactNode
   /** which episode airs, e.g. "Folge 12" */

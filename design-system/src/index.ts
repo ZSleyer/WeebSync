@@ -67,6 +67,8 @@ export {
   NavItem,
   navItemClass,
   Segmented,
+  Sparkline,
+  StatTile,
   SuggestionCard,
   TabBar,
 } from './composites'
@@ -91,6 +93,8 @@ export type {
   NavVariant,
   SegmentedOption,
   SegmentedProps,
+  SparklineProps,
+  StatTileProps,
   SuggestionCardProps,
   TabBarProps,
 } from './composites'
