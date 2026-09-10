@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
-import { Badge, buttonClass, COVER_BOX, Panel } from './primitives'
+import { Badge, buttonClass, COVER_BOX, Panel, Progress } from './primitives'
 
 // The composed surfaces WeebSync reuses across pages: media tiles, the file
 // browser, calendar entries, menus and modals. Same markup the app renders,
@@ -220,6 +220,97 @@ export function StatTile({ label, value, detail, trend, wide, className }: StatT
         {trend}
       </div>
       {detail && <p className="mt-0.5 text-[11px] text-t-muted">{detail}</p>}
+    </Panel>
+  )
+}
+
+export interface TransferCardProps {
+  /**
+   * hero: the transfer in progress - a medium poster, the larger title and a
+   * stats line. row: the rest of the queue at the small poster and thin bar.
+   */
+  variant?: 'hero' | 'row'
+  /** the selection checkbox */
+  leading?: ReactNode
+  cover?: string
+  title: ReactNode
+  /** the file name when it differs from the title */
+  subtitle?: ReactNode
+  /** status chip, episode chip, retry chip */
+  badges?: ReactNode
+  /** one line about the series: year, studio, score */
+  meta?: ReactNode
+  /** "1,2 GiB / 4,0 GiB · 2,4 MiB/s · in 4 Min" */
+  stats?: ReactNode
+  /** the details toggle, at the end of the title row */
+  trailing?: ReactNode
+  /** 0..100 */
+  percent: number
+  /** accessible name of the progress bar */
+  progressLabel: string
+  /** bytes are flowing */
+  active?: boolean
+  /** pause and cancel, the limit control: one row that never wraps */
+  actions?: ReactNode
+  /** the expanded details */
+  children?: ReactNode
+  selected?: boolean
+  className?: string
+}
+
+/**
+ * A download in the queue. The hero form leads the dashboard with the poster
+ * and the series, like a media card with a progress footer (M3 and Spectrum
+ * card anatomy: media, headline, supporting text, footer); the row form is
+ * the same card at list density for everything queued behind it.
+ */
+export function TransferCard({
+  variant = 'hero',
+  leading,
+  cover,
+  title,
+  subtitle,
+  badges,
+  meta,
+  stats,
+  trailing,
+  percent,
+  progressLabel,
+  active,
+  actions,
+  children,
+  selected,
+  className,
+}: TransferCardProps) {
+  const hero = variant === 'hero'
+  return (
+    <Panel as="article" className={cx(hero ? 'p-4' : 'p-3', selected && 'bg-bg-hover', className)}>
+      <div className={cx('flex items-start', hero ? 'gap-4' : 'gap-3')}>
+        {leading}
+        {/* only a real poster earns the slot: a hatched placeholder on every
+            unmatched row would be noise */}
+        {cover && <Cover src={cover} size={hero ? 'md' : 'sm'} loading={hero ? undefined : 'lazy'} />}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              {/* the hero may take a second line: it is the one card whose
+                  title is the point, and a phone column cuts it after a
+                  couple of words otherwise */}
+              <h3 className={cx('text-t-primary', hero ? 'line-clamp-2 text-base font-medium' : 'truncate text-sm')}>{title}</h3>
+              {subtitle && <p className="truncate font-mono text-[11px] text-t-muted">{subtitle}</p>}
+            </div>
+            {trailing}
+          </div>
+          {badges && <div className="mt-1.5 flex flex-wrap items-center gap-1.5">{badges}</div>}
+          {meta && <p className="mt-1 truncate text-[11px] text-t-muted">{meta}</p>}
+          {stats && <p className={cx('mt-1 font-mono text-xs text-t-secondary', hero && 'sm:text-sm')}>{stats}</p>}
+        </div>
+      </div>
+      <Progress value={percent} size={hero ? 'md' : 'sm'} active={active} label={progressLabel} className="mt-3" />
+      {children}
+      {/* one row at every width: on a phone the buttons keep their icons and
+          drop the captions, which is what leaves the limit control its place */}
+      {actions && <div className="mt-2 flex flex-nowrap items-center gap-2">{actions}</div>}
     </Panel>
   )
 }
