@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ApiError, api, type Entry, type RenamePair } from '../api'
+import { ApiError, api, type Entry, type RenamePair, type SubfolderMode } from '../api'
 
 // syncTargetDir is the folder a sync actually writes into: with the subfolder
 // option a directory sync creates a folder named after the remote one, without
@@ -9,6 +9,42 @@ import { ApiError, api, type Entry, type RenamePair } from '../api'
 export function syncTargetDir(localPath: string, remotePath: string, subfolder: boolean): string {
   const base = remotePath.split('/').filter(Boolean).pop() ?? ''
   return subfolder && base ? [localPath, base].filter(Boolean).join('/') : localPath
+}
+
+// titleFolder is the folder name a "by series title" subfolder gets. Same
+// order as the rename engine (sanitize the segment, then replace spaces, then
+// trim " ."), so a folder built here is spelled like the files that land in it.
+export function titleFolder(title: string, separator: string): string {
+  let seg = title.replace(/[/\\:*?"<>|]/g, '')
+  if (separator && separator !== ' ') seg = seg.split(' ').join(separator)
+  return seg.replace(/^[ .]+|[ .]+$/g, '')
+}
+
+// subfolderMode reads the three-way choice off the fields a dialog starts
+// from: a saved watch only carries the boolean, and its folder is already part
+// of localPath.
+export function subfolderMode(f: { subfolder: boolean; subfolderSource?: SubfolderMode }): SubfolderMode {
+  return f.subfolderSource ?? (f.subfolder ? 'remote' : 'none')
+}
+
+// subfolderTargetDir is syncTargetDir for the three-way choice. A title folder
+// is resolved here and once only - it becomes part of the stored localPath, so
+// a later title change cannot strand the series in a second folder. Without a
+// title the remote folder's name stands in, so a sync never lands loose in the
+// library root; re-picking "title" on an already resolved path is a no-op.
+export function subfolderTargetDir(
+  localPath: string,
+  remotePath: string,
+  mode: SubfolderMode,
+  title: string,
+  separator: string,
+): string {
+  if (mode !== 'title') return syncTargetDir(localPath, remotePath, mode === 'remote')
+  const seg = titleFolder(title, separator)
+  if (!seg) return syncTargetDir(localPath, remotePath, true)
+  const last = localPath.split('/').filter(Boolean).pop() ?? ''
+  if (last.toLowerCase() === seg.toLowerCase()) return localPath
+  return [localPath, seg].filter(Boolean).join('/')
 }
 
 // useTargetFolder lists the folder a sync would write into. entries === null

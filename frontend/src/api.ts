@@ -26,10 +26,18 @@ export interface ServerInfo {
   icon: string
 }
 
+// Which folder a sync creates below the target: none, one named after the
+// remote folder, or one named after the series title.
+export type SubfolderMode = 'none' | 'remote' | 'title'
+
 // What a new auto-sync starts from, per media kind and shared.
 export interface KindDefaults {
   localPath: string
+  /** mirrors subfolderSource === 'remote'; kept for older clients */
   subfolder: boolean
+  subfolderSource: SubfolderMode
+  /** replaces spaces in a title folder; '' keeps them */
+  subfolderSeparator: string
   template: string
   separator: string
 }
@@ -592,7 +600,14 @@ export interface AiProposal {
   serverId: number
   serverName: string
   remotePath: string
-  fields: { localPath: string; template: string; subfolder: boolean; replaceOld?: boolean } & Record<string, unknown>
+  fields: {
+    localPath: string
+    template: string
+    subfolder: boolean
+    subfolderSource?: SubfolderMode
+    subfolderSeparator?: string
+    replaceOld?: boolean
+  } & Record<string, unknown>
   info?: string[]
   unverified?: boolean
 }

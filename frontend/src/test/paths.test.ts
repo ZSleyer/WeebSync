@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Entry } from '../api'
 import { suggestDirs, trimSlashes } from '../components/PathInput'
 import { isSeasonFolder } from '../components/RenameOptions'
-import { classifyTargets, syncTargetDir } from '../components/useTargetFolder'
+import { classifyTargets, subfolderTargetDir, syncTargetDir, titleFolder } from '../components/useTargetFolder'
 
 const dir = (name: string): Entry => ({ name, path: name, size: 0, isDir: true, modTime: '' })
 const file = (name: string): Entry => ({ ...dir(name), isDir: false })
@@ -62,6 +62,42 @@ describe('isSeasonFolder', () => {
 
   it.each(['Detective Conan', 'Movies', 'Season', 'S123', 'Extras'])('leaves %s alone', (name) => {
     expect(isSeasonFolder(name)).toBe(false)
+  })
+})
+
+describe('titleFolder', () => {
+  it('strips what a path segment cannot hold', () => {
+    expect(titleFolder('Fate/stay night', '')).toBe('Fatestay night')
+    expect(titleFolder('Re:Zero', '')).toBe('ReZero')
+  })
+
+  it('replaces spaces only when a separator is given', () => {
+    expect(titleFolder('Detective Conan', '_')).toBe('Detective_Conan')
+    expect(titleFolder('Detective Conan', ' ')).toBe('Detective Conan')
+    expect(titleFolder('Detective Conan', '')).toBe('Detective Conan')
+  })
+
+  it('trims the spaces and dots a folder must not end on', () => {
+    expect(titleFolder(' Dr. Stone. ', '')).toBe('Dr. Stone')
+  })
+})
+
+describe('subfolderTargetDir', () => {
+  it('names the folder after the title', () => {
+    expect(subfolderTargetDir('Anime', '/ftp/Meitantei Conan [GerSub]', 'title', 'Detective Conan', '_')).toBe('Anime/Detective_Conan')
+  })
+
+  it('falls back to the remote folder when no title is known', () => {
+    expect(subfolderTargetDir('Anime', '/ftp/Show S02', 'title', '', '')).toBe('Anime/Show S02')
+  })
+
+  it('does not append a title the path already ends on', () => {
+    expect(subfolderTargetDir('Anime/Frieren', '/ftp/Frieren S01', 'title', 'Frieren', '')).toBe('Anime/Frieren')
+  })
+
+  it('is the remote name or nothing for the other two modes', () => {
+    expect(subfolderTargetDir('Anime', '/ftp/Show S02', 'remote', 'Show', '')).toBe('Anime/Show S02')
+    expect(subfolderTargetDir('Anime', '/ftp/Show S02', 'none', 'Show', '')).toBe('Anime')
   })
 })
 
