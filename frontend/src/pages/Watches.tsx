@@ -30,7 +30,7 @@ const GROUP_ICON: Record<string, LucideIcon> = {
 }
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import {
   Badge,
   Button,
@@ -49,6 +49,7 @@ import {
   useMenu,
 } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, type Watch } from '../api'
+import { upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import WatchEpisodesModal from '../components/WatchEpisodesModal'
@@ -58,7 +59,6 @@ import { SkeletonCards } from '../components/Loading'
 
 type CalCategory = 'anime-series' | 'anime-movie' | 'series' | 'movie'
 const CAL_CATEGORIES: readonly CalCategory[] = ['anime-series', 'anime-movie', 'series', 'movie']
-type CalEvent = { at: number; episode: number; episodeAbs?: number; watch: Watch }
 
 // Watches: persistent auto-sync overview. Each watch re-checks its remote
 // folder on an interval; the list polls so check results appear live.
@@ -142,7 +142,9 @@ export default function Watches() {
   // per-day events - not just each watch's single next airing, so it reaches as
   // far ahead as AniList's airingSchedule / TMDB's season episodes are dated.
   const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
-  const [view, setView] = useState<'list' | 'calendar'>('list')
+  // the dashboard links straight into the calendar
+  const [searchParams] = useSearchParams()
+  const [view, setView] = useState<'list' | 'calendar'>(() => (searchParams.get('view') === 'calendar' ? 'calendar' : 'list'))
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
   // 1s tick so today's countdowns/clocks stay live (calendar view only)
   const [, setTick] = useState(0)
@@ -152,13 +154,10 @@ export default function Watches() {
     const id = setInterval(() => setTick((n) => n + 1), 1000)
     return () => clearInterval(id)
   }, [view, hasToday])
-  const calEvents: CalEvent[] = watches
-    .flatMap((w) => (w.airings ?? []).map((a) => ({ at: a.at, episode: a.episode, episodeAbs: a.episodeAbs, watch: w })))
-    .filter((e) => e.at * 1000 > Date.now())
-    .sort((a, b) => a.at - b.at)
+  const calEvents = upcomingAirings(watches)
   const calCats = CAL_CATEGORIES.filter((c) => calEvents.some((e) => e.watch.category === c))
   const calShown = calCat === 'all' ? calEvents : calEvents.filter((e) => e.watch.category === calCat)
-  const calGroups: { day: string; items: CalEvent[] }[] = []
+  const calGroups: { day: string; items: Airing[] }[] = []
   for (const e of calShown) {
     const day = calDayKey(e.at)
     const g = calGroups.find((x) => x.day === day)
