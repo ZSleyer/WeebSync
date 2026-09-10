@@ -15,7 +15,16 @@ registerServiceWorker()
 // apply persisted look before first paint
 const root = document.documentElement
 applyTheme(readThemePref())
-root.dataset.accent = localStorage.getItem('weebsync.accent') ?? 'violet'
+// orange is the default accent. Violet was, and a stored violet is far more
+// likely the old default than a choice, so it becomes orange once. Picking
+// violet after that sticks.
+let accent = localStorage.getItem('weebsync.accent')
+if (accent === 'violet' && !localStorage.getItem('weebsync.accent.v2')) {
+  accent = 'orange'
+  localStorage.setItem('weebsync.accent', accent)
+}
+localStorage.setItem('weebsync.accent.v2', '1')
+root.dataset.accent = accent ?? 'orange'
 if (localStorage.getItem('weebsync.motion') === 'off') root.dataset.motion = 'off'
 
 // keyboard-modality tracking (what-input pattern): focus rings appear only
