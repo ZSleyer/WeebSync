@@ -26,7 +26,7 @@
     "updateCheckToggle": "Automatisch auf Updates prüfen (GitHub)"
   },
   "app": {
-    "tagline": "weeb your sync",
+    "tagline": "かしら",
     "updateHint": "Update verfügbar",
     "loading": "lädt",
     "logout": "Abmelden",
@@ -150,7 +150,7 @@
     "target": "Ziel"
   },
   "login": {
-    "tagline": "weeb your sync",
+    "tagline": "かしら",
     "login": "Login",
     "register": "Registrieren",
     "email": "Email",
