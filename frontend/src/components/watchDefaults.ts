@@ -13,7 +13,7 @@ export function useWatchDefaults() {
 // The media kind the catalog matched a remote folder to, from the same
 // endpoint; anime series when unmatched.
 export function useFolderKind(serverId: number, path: string | undefined) {
-  return useQuery<{ kind?: string }>({
+  return useQuery<{ kind?: string; title?: string }>({
     queryKey: ['watch-defaults', serverId, path],
     queryFn: () => api.get(`/api/auth/watch-defaults?serverId=${serverId}&path=${encodeURIComponent(path ?? '')}`),
     enabled: !!path,
@@ -40,6 +40,9 @@ export function applyDefaults(f: WatchFields, kind: string | undefined, d: Watch
   if (k && !out.localPath && k.localPath) {
     out.localPath = k.localPath
     out.subfolder = k.subfolder
+    // the choice travels, the folder is named where the series is known
+    out.subfolderSource = k.subfolderSource
+    out.subfolderSeparator = k.subfolderSeparator
     if (!out.template) {
       out.template = k.template
       out.separator = k.separator

@@ -9,7 +9,10 @@ const blank: WatchFields = {
   renameTitleLang: '', renameSeriesId: 0, wantDub: '', wantSub: '', plexAudioLang: '', plexSubLang: '',
 }
 const d: WatchDefaults = {
-  kinds: { 'anime-series': { localPath: 'Anime', subfolder: true, template: '{title} - {episode:02}', separator: '.' }, movie: { localPath: 'Filme', subfolder: false, template: '{title}', separator: '' } },
+  kinds: {
+    'anime-series': { localPath: 'Anime', subfolder: false, subfolderSource: 'title', subfolderSeparator: '_', template: '{title} - {episode:02}', separator: '.' },
+    movie: { localPath: 'Filme', subfolder: false, subfolderSource: 'none', subfolderSeparator: '', template: '{title}', separator: '' },
+  },
   common: { renameProvider: 'tvdb', renameOrdering: 'official', renameTitleLang: 'de-DE', airedMapping: true, wantDub: 'Ger', wantSub: '', plexAudioLang: '', plexSubLang: 'off' },
 }
 
@@ -22,6 +25,10 @@ describe('applyDefaults', () => {
   it('keeps a folder a plan already found and a value already set', () => {
     const f = applyDefaults({ ...blank, localPath: '/lib/Frieren/Season 1', template: '{title} - S01E{episode:02}', wantDub: 'Jap' }, 'anime-series', d)
     expect([f.localPath, f.subfolder, f.template, f.wantDub]).toEqual(['/lib/Frieren/Season 1', false, '{title} - S01E{episode:02}', 'Jap'])
+  })
+  it('passes the subfolder choice on instead of resolving it', () => {
+    const f = applyDefaults(blank, 'anime-series', d)
+    expect([f.localPath, f.subfolder, f.subfolderSource, f.subfolderSeparator]).toEqual(['Anime', false, 'title', '_'])
   })
   it('falls back to the anime series entry for an unknown kind and does nothing without defaults', () => {
     expect(applyDefaults(blank, 'weird', d).localPath).toBe('Anime')
