@@ -81,6 +81,7 @@ export type {
   MediaCardProps,
   MenuItemProps,
   MenuProps,
+  MenuPlacement,
   ModalProps,
   NavItemProps,
   NavVariant,

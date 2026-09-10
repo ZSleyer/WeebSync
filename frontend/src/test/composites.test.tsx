@@ -241,6 +241,54 @@ describe('Menu and MenuItem', () => {
     expect(screen.getByText('haken')).toBeInTheDocument()
     expect(screen.queryByText('nicht sichtbar')).toBeNull()
   })
+
+  it('opens as an anchored popover where the engine can show one', () => {
+    // jsdom says yes to every CSS.supports question but has no popover; an
+    // engine with both shows the list on mount
+    const show = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'showPopover', { value: show, configurable: true })
+    try {
+      render(
+        <Menu aria-label="Aktionen" anchor="--menu-a" placement="top-end">
+          <MenuItem>Alle</MenuItem>
+        </Menu>,
+      )
+      // jsdom's sheet hides a popover that was never shown for real
+      const list = screen.getByRole('listbox', { hidden: true })
+      expect(list).toHaveAttribute('aria-label', 'Aktionen')
+      expect(list).toHaveAttribute('popover', 'manual')
+      expect(list).toHaveAttribute('data-placement', 'top-end')
+      expect(list).toHaveClass('t-menu', 't-pop--up')
+      expect(list.style.positionAnchor).toBe('--menu-a')
+      expect(list).not.toHaveClass('absolute')
+      expect(show).toHaveBeenCalledOnce()
+    } finally {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).showPopover
+    }
+  })
+
+  it('falls back to the wrapper-positioned block without popover support', () => {
+    render(
+      <Menu aria-label="Aktionen" anchor="--menu-a" placement="bottom-end">
+        <MenuItem>Alle</MenuItem>
+      </Menu>,
+    )
+    const list = screen.getByRole('listbox', { name: 'Aktionen' })
+    expect(list).not.toHaveAttribute('popover')
+    expect(list).toHaveClass('absolute', 'top-full', 'right-0', 'w-max')
+    expect(list).not.toHaveClass('t-menu')
+  })
+
+  it('stays a plain block without an anchor, for callers that place it', () => {
+    render(
+      <Menu aria-label="Aktionen">
+        <MenuItem>Alle</MenuItem>
+      </Menu>,
+    )
+    const list = screen.getByRole('listbox', { name: 'Aktionen' })
+    expect(list).not.toHaveAttribute('popover')
+    expect(list).not.toHaveClass('absolute', 't-menu')
+  })
 })
 
 describe('navItemClass and NavItem', () => {

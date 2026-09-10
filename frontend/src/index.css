@@ -1000,6 +1000,25 @@ dialog:not([open])::backdrop { opacity: 0; }
   .t-pop--up { transform: translateY(4px) scale(0.98); }
 }
 
+/* An anchored menu: a popover in the top layer, so no overflow clip between
+   its wrapper and the viewport can cut it, placed by anchor positioning and
+   flipped when it would leave the viewport. The UA sheet centres a popover
+   (inset 0, margin auto) and gives it its own padding and colour - reset. */
+.t-menu[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0.25rem 0 0;
+  padding-inline: 0;
+  color: inherit;
+  max-width: min(70vw, 20rem);
+  position-area: bottom span-right;
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+}
+.t-menu[popover][data-placement="bottom-end"] { position-area: bottom span-left; }
+.t-menu[popover][data-placement^="top"] { margin: 0 0 0.25rem; }
+.t-menu[popover][data-placement="top-start"] { position-area: top span-right; }
+.t-menu[popover][data-placement="top-end"] { position-area: top span-left; }
+
 /* A disclosure's body eases open where the engine can animate to auto
    (Chromium); elsewhere it still snaps, which is what it did before. */
 details { interpolate-size: allow-keywords; }
