@@ -781,8 +781,10 @@ function Attention({ watches }: { watches: Watch[] }) {
   )
 }
 
-// How full the download disk is, for the admin who can do something about
-// it. The status endpoint is admin-gated, so nobody else asks.
+// How full the disks are, for the admin who can do something about it: one
+// row per filesystem the library spans, since a library often reaches onto a
+// second drive through a mount or a symlink. The status endpoint is
+// admin-gated, so nobody else asks.
 function StorageTile() {
   const { t } = useTranslation()
   const { data: user } = useAuth()
@@ -792,24 +794,37 @@ function StorageTile() {
     refetchInterval: 60_000,
     enabled: !!user?.isAdmin,
   })
-  const disk = data?.disk
-  if (!disk?.totalBytes) return null
-  const pct = (disk.usedBytes / disk.totalBytes) * 100
+  const disks = (data?.disks ?? (data?.disk ? [data.disk] : [])).filter((d) => d.totalBytes > 0)
+  if (disks.length === 0) return null
   return (
-    <StatTile
-      label={t('dash.storage')}
-      value={t('dash.storageFree', { size: fmtBytes(disk.freeBytes) })}
-      detail={t('dash.storageOf', { used: fmtBytes(disk.usedBytes), total: fmtBytes(disk.totalBytes) })}
-      trend={
-        <Progress
-          value={pct}
-          tone={pct >= 95 ? 'err' : pct >= 85 ? 'warn' : 'ok'}
-          size="sm"
-          label={t('dash.storageUsed', { pct: Math.round(pct) })}
-          className="mb-2 w-20"
-        />
-      }
-    />
+    <Panel className="px-3 py-2 sm:px-4">
+      <Badge>{t('dash.storage')}</Badge>
+      <ul className="mt-1 divide-y divide-border-subtle">
+        {disks.map((disk) => {
+          const pct = (disk.usedBytes / disk.totalBytes) * 100
+          return (
+            <li key={disk.path} className="py-1.5">
+              <p className="truncate font-mono text-[11px] text-t-muted" title={disk.path}>
+                {disk.path}
+              </p>
+              <div className="flex items-end gap-3">
+                <p className="min-w-0 flex-1 truncate font-mono text-lg text-t-primary tabular-nums">
+                  {t('dash.storageFree', { size: fmtBytes(disk.freeBytes) })}
+                </p>
+                <Progress
+                  value={pct}
+                  tone={pct >= 95 ? 'err' : pct >= 85 ? 'warn' : 'ok'}
+                  size="sm"
+                  label={t('dash.storageUsed', { path: disk.path, pct: Math.round(pct) })}
+                  className="mb-2 w-20"
+                />
+              </div>
+              <p className="text-[11px] text-t-muted">{t('dash.storageOf', { used: fmtBytes(disk.usedBytes), total: fmtBytes(disk.totalBytes) })}</p>
+            </li>
+          )
+        })}
+      </ul>
+    </Panel>
   )
 }
 

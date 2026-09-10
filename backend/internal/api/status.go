@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"syscall"
 )
 
@@ -62,8 +63,55 @@ type StatusResponse struct {
 	} `json:"downloads"`
 	LastFinished []statusFinished `json:"lastFinished"`
 	Watches      []statusWatch    `json:"watches"`
-	Disk         statusDisk       `json:"disk"`
-	Container    statusContainer  `json:"container"`
+	// Disk is the download root's filesystem, kept for consumers that read
+	// one value; Disks is every filesystem the library spans, the root first
+	Disk      statusDisk      `json:"disk"`
+	Disks     []statusDisk    `json:"disks"`
+	Container statusContainer `json:"container"`
+}
+
+// diskUsage is one entry per filesystem the library lives on: the download
+// root, every configured local root, and whatever a symlink directly under
+// the root points at - a library reaches onto a second drive that way. The
+// same filesystem seen through two paths is reported once, under the first.
+func (s *Server) diskUsage() []statusDisk {
+	paths := append([]string{s.DownloadRoot}, s.localRoots()...)
+	if entries, err := os.ReadDir(s.DownloadRoot); err == nil {
+		for _, e := range entries {
+			if e.Type()&os.ModeSymlink != 0 {
+				paths = append(paths, filepath.Join(s.DownloadRoot, e.Name()))
+			}
+		}
+	}
+	seen := map[uint64]bool{}
+	var out []statusDisk
+	for _, p := range paths {
+		// best effort - a missing mount must not break the endpoint
+		info, err := os.Stat(p)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		dev := uint64(0)
+		if st, ok := info.Sys().(*syscall.Stat_t); ok {
+			dev = uint64(st.Dev)
+		}
+		if seen[dev] {
+			continue
+		}
+		var st syscall.Statfs_t
+		if syscall.Statfs(p, &st) != nil {
+			continue
+		}
+		seen[dev] = true
+		bsize := uint64(st.Bsize)
+		out = append(out, statusDisk{
+			Path:       p,
+			TotalBytes: st.Blocks * bsize,
+			FreeBytes:  st.Bavail * bsize,
+			UsedBytes:  (st.Blocks - st.Bfree) * bsize,
+		})
+	}
+	return out
 }
 
 // handleStatus is the aggregate machine-readable status (Home Assistant etc.):
@@ -164,14 +212,13 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	// on a bind-mounted media directory
 	out.Container.UID, out.Container.GID = os.Getuid(), os.Getgid()
 
-	// best effort - a failed statfs must not break the endpoint
+	out.Disks = s.diskUsage()
+	if out.Disks == nil {
+		out.Disks = []statusDisk{}
+	}
 	out.Disk.Path = s.DownloadRoot
-	var st syscall.Statfs_t
-	if syscall.Statfs(s.DownloadRoot, &st) == nil {
-		bsize := uint64(st.Bsize)
-		out.Disk.TotalBytes = st.Blocks * bsize
-		out.Disk.FreeBytes = st.Bavail * bsize
-		out.Disk.UsedBytes = (st.Blocks - st.Bfree) * bsize
+	if len(out.Disks) > 0 {
+		out.Disk = out.Disks[0]
 	}
 
 	writeJSON(w, http.StatusOK, out)

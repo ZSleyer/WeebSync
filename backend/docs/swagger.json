@@ -1269,6 +1269,13 @@
                     "disk": {
                         "$ref": "#/components/schemas/api.statusDisk"
                     },
+                    "disks": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.statusDisk"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "downloads": {
                         "properties": {
                             "active": {
@@ -3569,6 +3576,7 @@
                 "type": "object"
             },
             "api.statusDisk": {
+                "description": "Disk is the download root's filesystem, kept for consumers that read\none value; Disks is every filesystem the library spans, the root first",
                 "properties": {
                     "freeBytes": {
                         "type": "integer"
