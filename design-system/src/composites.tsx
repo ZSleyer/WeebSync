@@ -45,6 +45,10 @@ export interface MediaCardProps {
   meta?: ReactNode
   /** poster URL */
   cover?: string
+  /** with it the poster is a button, e.g. opening the title's card */
+  onCover?: () => void
+  /** the poster button's accessible name */
+  coverLabel?: string
   /** status chips - use Badge with the tone that fits */
   badges?: ReactNode
   /** right-aligned counters between the text block and the actions */
@@ -64,6 +68,8 @@ export function MediaCard({
   pathTitle,
   meta,
   cover,
+  onCover,
+  coverLabel,
   badges,
   status,
   actions,
@@ -71,7 +77,13 @@ export function MediaCard({
 }: MediaCardProps) {
   return (
     <Panel className={cx('flex flex-wrap items-center gap-4 p-3', className)}>
-      <Cover src={cover} />
+      {onCover ? (
+        <button type="button" aria-label={coverLabel} onClick={onCover} className="shrink-0 cursor-pointer rounded-xs">
+          <Cover src={cover} />
+        </button>
+      ) : (
+        <Cover src={cover} />
+      )}
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium text-t-primary">{title}</h3>
         {path && (

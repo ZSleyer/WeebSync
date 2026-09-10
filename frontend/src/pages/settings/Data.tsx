@@ -144,7 +144,7 @@ export default function Data() {
       <button
         type="button"
         onClick={() => setStoreModal(s)}
-        className="flex min-h-12 w-full items-center gap-3 border-b border-border-subtle px-1 text-left text-sm transition-colors hover:bg-bg-hover"
+        className="flex min-h-12 w-full cursor-pointer items-center gap-3 border-b border-border-subtle px-1 text-left text-sm transition-colors hover:bg-bg-hover"
       >
         <span className="min-w-0 flex-1 break-words font-semibold text-t-primary">{storeLabel(t, s.name)}</span>
         {staleBadge(s.stale)}
