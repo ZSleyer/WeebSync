@@ -22,6 +22,7 @@ import {
   Segmented,
   Sparkline,
   StatTile,
+  TransferCard,
   SuggestionCard,
 } from '@weebsync/design-system'
 
@@ -535,5 +536,58 @@ describe('StatTile', () => {
     expect(container.firstElementChild).not.toHaveClass('sm:col-span-2')
     rerender(<StatTile wide label="Speed" value="0" />)
     expect(container.firstElementChild).toHaveClass('t-panel', 'sm:col-span-2')
+  })
+})
+
+describe('TransferCard', () => {
+  it('leads with the medium poster and a named full-size bar as the hero', () => {
+    const { container } = render(
+      <TransferCard cover="https://x/p.jpg" title="Frieren" percent={30} progressLabel="Fortschritt Frieren" active stats="1 / 4 GiB" />,
+    )
+    expect(container.querySelector('img')).toHaveClass('h-20', 'w-14')
+    const bar = screen.getByRole('progressbar', { name: 'Fortschritt Frieren' })
+    expect(bar).toHaveAttribute('aria-valuenow', '30')
+    expect(bar).not.toHaveClass('t-progress--sm')
+    expect(bar.firstElementChild).toHaveClass('t-progress-running')
+    expect(screen.getByText('1 / 4 GiB')).toHaveClass('font-mono')
+  })
+
+  it('is a row at list density with the small poster and the thin bar', () => {
+    const { container } = render(
+      <TransferCard variant="row" cover="https://x/p.jpg" title="Frieren" percent={0} progressLabel="Fortschritt Frieren" />,
+    )
+    expect(container.querySelector('img')).toHaveClass('h-14', 'w-10')
+    expect(screen.getByRole('progressbar')).toHaveClass('t-progress--sm')
+    expect(container.firstElementChild).toHaveClass('p-3')
+  })
+
+  it('renders no poster frame without a cover', () => {
+    const { container } = render(<TransferCard title="Frieren" percent={0} progressLabel="Fortschritt" />)
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector('.t-hatch')).toBeNull()
+  })
+
+  it('places every slot and marks a selected card', () => {
+    const { container } = render(
+      <TransferCard
+        selected
+        leading={<span>box</span>}
+        title="Frieren"
+        subtitle="file.mkv"
+        badges={<span>chip</span>}
+        meta="2023 · Madhouse"
+        trailing={<span>toggle</span>}
+        actions={<span>pause</span>}
+        percent={50}
+        progressLabel="Fortschritt"
+      >
+        <span>details</span>
+      </TransferCard>,
+    )
+    for (const text of ['box', 'file.mkv', 'chip', '2023 · Madhouse', 'toggle', 'pause', 'details']) {
+      expect(screen.getByText(text)).toBeInTheDocument()
+    }
+    expect(container.firstElementChild).toHaveClass('bg-bg-hover')
+    expect(container.firstElementChild!.tagName).toBe('ARTICLE')
   })
 })

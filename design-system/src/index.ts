@@ -71,6 +71,7 @@ export {
   StatTile,
   SuggestionCard,
   TabBar,
+  TransferCard,
 } from './composites'
 export type {
   ActionBarProps,
@@ -96,6 +97,7 @@ export type {
   SparklineProps,
   StatTileProps,
   SuggestionCardProps,
+  TransferCardProps,
   TabBarProps,
 } from './composites'
 
