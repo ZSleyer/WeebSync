@@ -24,7 +24,9 @@ import {
   Input,
   Panel,
   Select,
+  Skeleton,
   Toolbar,
+  TransferCard,
   useMediaQuery,
   type BadgeTone,
 } from '@weebsync/design-system'
@@ -32,9 +34,9 @@ import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Do
 import { countdown } from '../countdown'
 import { jobLabel } from '../jobs'
 import { useConfirm } from '../components/confirm'
-import { PageFooter } from '../components/PageActions'
+import PageActions, { PageFooter } from '../components/PageActions'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
-import { useAuth } from '../hooks'
+import { useAuth, usePersistedQuery } from '../hooks'
 import { ProviderBadges } from '../components/ProviderBadges'
 
 // history-only status filter: the active queue is short and searchable, its
@@ -44,16 +46,26 @@ const HISTORY_STATUSES: Download['status'][] = ['done', 'error', 'canceled']
 // isRetrying: the download failed on something transient and is waiting out its
 // backoff. It stays 'queued' - the wait is what tells the two apart.
 const isRetrying = (d: Download) => (d.retryAt ?? 0) * 1000 > Date.now()
+// remaining puts a duration into the countdown's words. Under a minute it
+// counts seconds - "in 0 min" is what the last stretch of every download
+// read otherwise - and a duration already spent is no time at all.
+const remaining = (t: Parameters<typeof countdown>[0], secs: number) => (secs > 0 ? countdown(t, Date.now() / 1000 + secs, secs < 60) : null)
 
 export default function Dashboard() {
   const { t } = useTranslation()
   const confirm = useConfirm()
   const qc = useQueryClient()
   const { data: user } = useAuth()
-  const { data: downloads = [] } = useQuery<Download[]>({
+  const { data: downloads = [], isLoading } = useQuery<Download[]>({
     queryKey: ['downloads'],
     queryFn: () => api.get('/api/downloads'),
     refetchInterval: 5000,
+  })
+  // the series behind a download, for the hero's line about it: the watch
+  // list is what knows the year, the studio and the score. Persisted, so a
+  // return to the page never waits on it.
+  const { data: watches = [] } = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'), {
+    refetchInterval: () => 30_000,
   })
   // series metadata lives behind its own key: the list above is patched in
   // place by the event stream (whole object per progress tick) and polled every
@@ -83,9 +95,14 @@ export default function Dashboard() {
   const historyFiltering = historyQuery.trim() !== '' || statusFilter.size > 0
   const nameMatch = (d: Download, q: string) => q.trim() === '' || d.remotePath.toLowerCase().includes(q.trim().toLowerCase())
 
-  const active = downloads.filter(
-    (d) => (d.status === 'running' || d.status === 'queued' || d.status === 'paused') && nameMatch(d, query),
-  )
+  const activeAll = downloads.filter((d) => d.status === 'running' || d.status === 'queued' || d.status === 'paused')
+  const matched = activeAll.filter((d) => nameMatch(d, query))
+  // the transfer in progress leads the queue as the hero card, ahead of the
+  // list's newest-first order; while nothing runs, the first one waiting
+  // takes its place
+  const hero = matched.find((d) => d.status === 'running') ?? matched[0]
+  const rank = (d: Download) => (d === hero ? 0 : d.status === 'running' ? 1 : d.status === 'paused' ? 2 : 3)
+  const active = [...matched].sort((a, b) => rank(a) - rank(b))
   // section visibility keys off the unfiltered set: a filter with zero hits
   // must not hide the section (and with it the very chips to undo the filter)
   const finishedAll = downloads.filter((d) => d.status !== 'running' && d.status !== 'queued' && d.status !== 'paused')
@@ -191,9 +208,28 @@ export default function Dashboard() {
 
   return (
     <div>
-      <header className="mb-6 hidden lg:block">
-        <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
-        <Badge className="mt-1">{t('dash.sub')}</Badge>
+      <header className="mb-6 hidden items-start justify-between gap-4 lg:flex">
+        <div>
+          <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
+          <Badge className="mt-1">{t('dash.sub')}</Badge>
+        </div>
+        {/* the page-wide, reversible actions: top right of the header on
+            desktop, the app bar on a phone. Cancelling everything is
+            destructive and stays down at the queue's toolbar */}
+        <PageActions>
+          {anyActive && (
+            <Button size="sm" disabled={bulk.isPending} aria-label={t('dash.pauseAll')} onClick={() => bulk.mutate({ a: 'pause' })}>
+              <Pause aria-hidden size="1em" className="inline align-[-0.125em] lg:mr-1" />
+              <span className="hidden lg:inline">{t('dash.pauseAll')}</span>
+            </Button>
+          )}
+          {anyPaused && (
+            <Button size="sm" disabled={bulk.isPending} aria-label={t('dash.resumeAll')} onClick={() => bulk.mutate({ a: 'resume' })}>
+              <Play aria-hidden size="1em" className="inline align-[-0.125em] lg:mr-1" />
+              <span className="hidden lg:inline">{t('dash.resumeAll')}</span>
+            </Button>
+          )}
+        </PageActions>
       </header>
 
       <BackgroundWork />
@@ -214,18 +250,22 @@ export default function Dashboard() {
         </aside>
 
         <div className="min-w-0 lg:order-1">
-          <section aria-label={t('dash.activeSection')}>
+          <section aria-label={t('dash.transferSection')}>
             <Divider
               className="mb-3"
               label={
                 <>
                   <DownloadIcon aria-hidden size="1em" />
-                  {t('dash.activeSection')}
+                  {t('dash.transferSection')}
                 </>
               }
-              count={active.length}
+              count={activeAll.length}
             />
 
+            {/* the toolbar earns its row from the second download on:
+                select-all, search and cancel-everything over a single card
+                are chrome in front of the one thing on screen */}
+            {activeAll.length > 1 && (
             <Toolbar className="mb-3">
               <input
                 ref={activeAllRef}
@@ -246,44 +286,58 @@ export default function Dashboard() {
                 onChange={(e) => setQuery(e.target.value)}
               />
               <Toolbar className="ml-auto basis-full sm:basis-auto">
-                {anyActive && (
-                  <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause' })}>
-                    <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('dash.pauseAll')}
-                  </Button>
-                )}
-                {anyPaused && (
-                  <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume' })}>
-                    <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('dash.resumeAll')}
-                  </Button>
-                )}
-                {(anyActive || anyPaused) && (
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    disabled={bulk.isPending}
-                    onClick={async () => {
-                      if (await confirm({ message: t('dash.cancelAllConfirm'), destructive: true })) bulk.mutate({ a: 'cancel' })
-                    }}
-                  >
-                    <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('dash.cancelAll')}
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={bulk.isPending}
+                  onClick={async () => {
+                    if (await confirm({ message: t('dash.cancelAllConfirm'), destructive: true })) bulk.mutate({ a: 'cancel' })
+                  }}
+                >
+                  <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('dash.cancelAll')}
+                </Button>
                 {!!user?.isAdmin && <GlobalLimitInput />}
               </Toolbar>
             </Toolbar>
+            )}
 
-            {active.length === 0 &&
+            {/* the first answer is still out: a card in the hero's shape and
+                two rows, so the page does not jump when it lands. Only then -
+                a refetch never shows this */}
+            {isLoading && (
+              <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-3">
+                <Panel className="flex gap-4 p-4">
+                  <Skeleton shape="cover" />
+                  <div className="min-w-0 flex-1 space-y-2.5 py-1">
+                    <Skeleton className="w-2/3" />
+                    <Skeleton className="w-1/3" />
+                    <Skeleton shape="block" className="mt-4 h-2 w-full" />
+                  </div>
+                </Panel>
+                {[0, 1].map((i) => (
+                  <Panel key={i} className="flex gap-3 p-3">
+                    <Skeleton shape="cover" size="sm" />
+                    <div className="min-w-0 flex-1 space-y-2 py-1">
+                      <Skeleton className="w-1/2" />
+                      <Skeleton shape="block" className="h-1 w-full" />
+                    </div>
+                  </Panel>
+                ))}
+              </div>
+            )}
+            {!isLoading &&
+              active.length === 0 &&
               (filtering ? (
                 <EmptyState>{t('dash.noMatches')}</EmptyState>
               ) : (
-                <EmptyState>
-                  <Trans i18nKey="dash.empty">
-                    Keine aktiven Downloads. Zum Syncen in die <Link to="/files" className="text-accent underline">Remote</Link>-Ansicht wechseln.
+                // idle is the normal state, and it must not cost a screen: one
+                // line with the way to the next download, not a tall blank
+                <Panel className="p-3 text-sm text-t-muted">
+                  <Trans i18nKey="dash.idle">
+                    Nichts wird übertragen. <Link to="/files" className="text-accent underline">Dateien</Link> öffnen, um etwas zu laden.
                   </Trans>
-                </EmptyState>
+                </Panel>
               ))}
             <div className="flex flex-col gap-3">
               {active.map((d) => (
@@ -291,6 +345,8 @@ export default function Dashboard() {
                   key={d.id}
                   d={d}
                   meta={meta}
+                  watches={watches}
+                  variant={d === hero ? 'hero' : 'row'}
                   selected={selected.has(d.id)}
                   onSelect={(shift) => selectRow(d.id, shift)}
                   onAction={(verb) => action.mutate({ id: d.id, verb })}
@@ -831,12 +887,16 @@ function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
 function DownloadRow({
   d,
   meta,
+  watches,
+  variant,
   selected,
   onSelect,
   onAction,
 }: {
   d: Download
   meta?: DownloadMeta
+  watches: Watch[]
+  variant: 'hero' | 'row'
   selected: boolean
   onSelect: (shift: boolean) => void
   onAction: (verb: string) => void
@@ -845,91 +905,95 @@ function DownloadRow({
   const [open, setOpen] = useState(false)
   const pct = d.size > 0 ? Math.min(100, (d.transferred / d.size) * 100) : 0
   const { label, ep, name, group } = downloadLabel(d, meta)
+  const running = d.status === 'running'
+  // the hero says what it is loading: year, studio and score of the series,
+  // which only the watch behind the folder knows
+  const media = variant === 'hero' && group?.watchId ? watches.find((w) => w.id === group.watchId)?.media : undefined
+  const about = media
+    ? [media.seasonYear || null, media.studios?.[0], media.averageScore ? `${media.averageScore} %` : null].filter(Boolean).join(' · ')
+    : undefined
+  // the arrival, from the backend's own smoothed rate; nothing while the
+  // rate is still zero, a division by that is not a time
+  const eta = running && d.bytesPerSec ? remaining(t, (d.size - d.transferred) / d.bytesPerSec) : null
+  // each figure keeps to one piece: a phone breaks the line, and "26.7 /
+  // KiB/s" split across two is not a rate
+  const stats = [`${fmtBytes(d.transferred)} / ${fmtBytes(d.size)}`, running && d.bytesPerSec != null ? fmtSpeed(d.bytesPerSec) : null, eta]
+    .filter(Boolean)
+    .map((part, i) => (
+      <span key={i} className="whitespace-nowrap">
+        {i > 0 && <span aria-hidden> · </span>}
+        {part}
+      </span>
+    ))
   return (
-    <Panel className={`p-4 ${selected ? 'bg-bg-hover' : ''}`}>
-      <div className="mb-2 flex flex-wrap items-center gap-3">
-        <SelectBox checked={selected} name={name} onSelect={onSelect} />
-        {/* only a real poster earns the slot; the hatched placeholder on every
-            unmatched row would be noise */}
-        {group?.cover && <Cover src={group.cover} size="sm" loading="lazy" />}
-        {/* a waiting retry is still 'queued', and "queued" alone would hide
-            that this download already failed once. The countdown replaces the
-            status chip rather than joining it: two chips saying when this row
-            will run is one too many for a phone line. */}
-        {isRetrying(d) ? (
-          <Badge tone="warn">
-            <RefreshCw aria-hidden size="1em" />
-            {t('dash.retryIn', { n: d.attempts ?? 1, when: countdown(t, d.retryAt!, true) })}
-          </Badge>
-        ) : (
-          <StatusChip status={d.status} />
-        )}
-        {ep && <Badge tone="accent">{ep}</Badge>}
-        {/* own line on a phone: cover, status chip and episode badge leave the
-            title a few characters otherwise. From sm on it only takes what is
-            left (basis 0), so a long title truncates instead of wrapping the
-            controls onto a second line */}
-        <span className="min-w-0 basis-full truncate text-sm text-t-primary sm:flex-1 sm:basis-0" title={d.remotePath}>
-          {label}
-          {label !== name && <span className="block truncate font-mono text-xs text-t-muted">{name}</span>}
-        </span>
-        <span className="font-mono text-xs text-t-muted">
-          {fmtBytes(d.transferred)} / {fmtBytes(d.size)}
-        </span>
-        {d.status === 'running' && d.bytesPerSec != null && (
-          <span className="font-mono text-xs text-accent">{fmtSpeed(d.bytesPerSec)}</span>
-        )}
-        {/* why it is waiting, in the row's own words - a countdown without a
-            reason is an unexplained pause */}
-        {isRetrying(d) && d.error && (
-          <span className="max-w-64 truncate text-xs text-err" title={d.error}>
-            {d.error}
-          </span>
-        )}
-        <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
-      </div>
-      <div
-        className="h-2 w-full overflow-hidden rounded-full bg-bg-secondary"
-        role="progressbar"
-        aria-valuenow={Math.round(pct)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={t('dash.progressOf', { name })}
-      >
-        <div
-          className={`h-full rounded-full bg-accent transition-[width] duration-500 ${d.status === 'running' ? 't-progress-running' : ''}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+    <TransferCard
+      variant={variant}
+      selected={selected}
+      leading={<SelectBox checked={selected} name={name} onSelect={onSelect} />}
+      cover={group?.cover}
+      title={label}
+      subtitle={label !== name ? name : undefined}
+      badges={
+        <>
+          {/* a waiting retry is still 'queued', and "queued" alone would hide
+              that this download already failed once. The countdown replaces
+              the status chip rather than joining it: two chips saying when
+              this row will run is one too many for a phone line. */}
+          {isRetrying(d) ? (
+            <Badge tone="warn">
+              <RefreshCw aria-hidden size="1em" />
+              {t('dash.retryIn', { n: d.attempts ?? 1, when: countdown(t, d.retryAt!, true) })}
+            </Badge>
+          ) : (
+            <StatusChip status={d.status} />
+          )}
+          {ep && <Badge tone="accent">{ep}</Badge>}
+          {/* why it is waiting, in the row's own words - a countdown without
+              a reason is an unexplained pause */}
+          {isRetrying(d) && d.error && (
+            <span className="max-w-64 truncate text-xs text-err" title={d.error}>
+              {d.error}
+            </span>
+          )}
+        </>
+      }
+      meta={about}
+      stats={stats}
+      trailing={<DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />}
+      percent={pct}
+      progressLabel={t('dash.progressOf', { name })}
+      active={running}
+      actions={
+        <>
+          {/* on a phone the buttons drop their captions and keep the icon,
+              which is what leaves the limit control room to stay on the line */}
+          {running || d.status === 'queued' ? (
+            <Button size="sm" className="shrink-0" aria-label={t('dash.pause')} onClick={() => onAction('pause')}>
+              <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+              <span className="hidden sm:inline">{t('dash.pause')}</span>
+            </Button>
+          ) : (
+            <Button size="sm" className="shrink-0" aria-label={t('dash.resume')} onClick={() => onAction('resume')}>
+              <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+              <span className="hidden sm:inline">{t('dash.resume')}</span>
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="danger"
+            className="shrink-0"
+            aria-label={t('dash.cancel')}
+            onClick={() => onAction('cancel')}
+          >
+            <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+            <span className="hidden sm:inline">{t('dash.cancel')}</span>
+          </Button>
+          <RateLimitInput d={d} />
+        </>
+      }
+    >
       {open && <DownloadDetails d={d} meta={meta} />}
-      {/* one row at every width. On a phone the buttons drop their captions and
-          keep the icon, which is what leaves the limit control room to stay on
-          the line instead of claiming one of its own */}
-      <div className="mt-2 flex flex-nowrap items-center gap-2">
-        {d.status === 'running' || d.status === 'queued' ? (
-          <Button size="sm" className="shrink-0" aria-label={t('dash.pause')} onClick={() => onAction('pause')}>
-            <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-            <span className="hidden sm:inline">{t('dash.pause')}</span>
-          </Button>
-        ) : (
-          <Button size="sm" className="shrink-0" aria-label={t('dash.resume')} onClick={() => onAction('resume')}>
-            <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-            <span className="hidden sm:inline">{t('dash.resume')}</span>
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="danger"
-          className="shrink-0"
-          aria-label={t('dash.cancel')}
-          onClick={() => onAction('cancel')}
-        >
-          <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-          <span className="hidden sm:inline">{t('dash.cancel')}</span>
-        </Button>
-        <RateLimitInput d={d} />
-      </div>
-    </Panel>
+    </TransferCard>
   )
 }
 
