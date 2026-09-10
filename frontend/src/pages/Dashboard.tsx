@@ -25,6 +25,7 @@ import {
   Input,
   Panel,
   Progress,
+  Segmented,
   Select,
   Skeleton,
   Sparkline,
@@ -1287,16 +1288,18 @@ function LimitInput({
         onBlur={save}
         onKeyDown={(e) => e.key === 'Enter' && save()}
       />
-      <Select
-        size="sm"
-        wrapperClassName="shrink-0"
+      {/* the unit as two pressed chips, not a select: one tap, both choices
+          in view, and the same control the catalog's view switch is */}
+      <Segmented
         aria-label={t('dash.limitUnit')}
         value={unit}
-        onChange={(e) => setUnit(e.target.value as 'KiB' | 'MiB')}
-      >
-        <option value="KiB">KiB/s</option>
-        <option value="MiB">MiB/s</option>
-      </Select>
+        onChange={setUnit}
+        className="shrink-0 flex-nowrap"
+        options={[
+          { value: 'KiB', label: 'KiB/s' },
+          { value: 'MiB', label: 'MiB/s' },
+        ]}
+      />
     </label>
   )
 }
