@@ -119,6 +119,13 @@ func PublicClient(timeout time.Duration) *http.Client {
 	return client(timeout, publicBlocked, true)
 }
 
+// PublicFetchClient is PublicClient without the HTTPS requirement, for
+// reading arbitrary web pages: an http:// page is still a page, but a LAN or
+// loopback target is never one the caller may name.
+func PublicFetchClient(timeout time.Duration) *http.Client {
+	return client(timeout, publicBlocked, false)
+}
+
 func client(timeout time.Duration, deny func(net.IP) bool, httpsOnly bool) *http.Client {
 	dialer := &net.Dialer{Timeout: timeout}
 	tr := &http.Transport{
