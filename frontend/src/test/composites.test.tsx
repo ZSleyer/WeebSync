@@ -220,8 +220,9 @@ describe('Menu and MenuItem', () => {
     )
     const list = screen.getByRole('listbox', { name: 'Sortieren nach' })
     expect(list).toBeInTheDocument()
-    // rounded and clipped, so an item's hover fill cannot poke past the corners
-    expect(list).toHaveClass('rounded-lg', 'overflow-clip')
+    // rounded and clipped sideways, so an item's hover fill cannot poke past
+    // the corners; upright it scrolls, so a long list keeps its first entries
+    expect(list).toHaveClass('rounded-lg', 'overflow-x-clip', 'overflow-y-auto')
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
     expect(options[0]).toHaveClass('text-accent')
