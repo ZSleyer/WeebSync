@@ -446,27 +446,33 @@ type aiProposal struct {
 // aiWatchFields mirrors the frontend's WatchFields: what the watch dialog
 // takes as its initial state.
 type aiWatchFields struct {
-	RemotePath      string `json:"remotePath"`
-	LocalPath       string `json:"localPath"`
-	Mode            string `json:"mode"`
-	Template        string `json:"template"`
-	Separator       string `json:"separator"`
-	TitleOverride   string `json:"titleOverride"`
-	Pattern         string `json:"pattern"`
-	Replacement     string `json:"replacement"`
-	Subfolder       bool   `json:"subfolder"`
-	MediaID         int    `json:"mediaId"`
-	MediaSource     string `json:"mediaSource"`
-	FromEpisode     int    `json:"fromEpisode"`
-	AiredMapping    bool   `json:"airedMapping"`
-	RenameProvider  string `json:"renameProvider"`
-	RenameOrdering  string `json:"renameOrdering"`
-	RenameTitleLang string `json:"renameTitleLang"`
-	RenameSeriesID  int    `json:"renameSeriesId"`
-	WantDub         string `json:"wantDub"`
-	WantSub         string `json:"wantSub"`
-	PlexAudioLang   string `json:"plexAudioLang"`
-	PlexSubLang     string `json:"plexSubLang"`
+	RemotePath    string `json:"remotePath"`
+	LocalPath     string `json:"localPath"`
+	Mode          string `json:"mode"`
+	Template      string `json:"template"`
+	Separator     string `json:"separator"`
+	TitleOverride string `json:"titleOverride"`
+	Pattern       string `json:"pattern"`
+	Replacement   string `json:"replacement"`
+	Subfolder     bool   `json:"subfolder"`
+	// SubfolderSource and SubfolderSeparator travel to the dialog only: it
+	// names a "title" subfolder from the title in front of the user and folds
+	// it into LocalPath before saving, so no watch ever carries them. A reader
+	// that ignores them still gets the right folder from Subfolder.
+	SubfolderSource    string `json:"subfolderSource,omitempty"`
+	SubfolderSeparator string `json:"subfolderSeparator,omitempty"`
+	MediaID            int    `json:"mediaId"`
+	MediaSource        string `json:"mediaSource"`
+	FromEpisode        int    `json:"fromEpisode"`
+	AiredMapping       bool   `json:"airedMapping"`
+	RenameProvider     string `json:"renameProvider"`
+	RenameOrdering     string `json:"renameOrdering"`
+	RenameTitleLang    string `json:"renameTitleLang"`
+	RenameSeriesID     int    `json:"renameSeriesId"`
+	WantDub            string `json:"wantDub"`
+	WantSub            string `json:"wantSub"`
+	PlexAudioLang      string `json:"plexAudioLang"`
+	PlexSubLang        string `json:"plexSubLang"`
 	// ReplaceOld is set on upgrades only: the dialog offers to trash the copy
 	// the sync improves on (see replaceOldCopy).
 	ReplaceOld bool `json:"replaceOld,omitempty"`

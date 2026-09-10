@@ -3,24 +3,42 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/match"
 )
 
 // watchKinds are the media kinds a default can be set for; the same names
 // the calendar filter uses (watchCategory).
 var watchKinds = []string{"anime-series", "anime-movie", "series", "movie"}
 
+// subfolderSources name the folder a sync creates below LocalPath: the remote
+// folder it came from, or the series title. An empty value is a default stored
+// before the choice existed and reads as none/remote via the Subfolder bool.
+var subfolderSources = []string{"", "none", "remote", "title"}
+
+// subfolderSeparators are the space replacements a title folder may use. A
+// whitelist rather than a sanitizer: the value becomes a path segment, and "/"
+// would open a second folder.
+var subfolderSeparators = []string{"", " ", "_", ".", "-"}
+
 // KindDefaults is where a new sync of one media kind goes and how its files
 // are named.
 type KindDefaults struct {
 	LocalPath string `json:"localPath"`
-	Subfolder bool   `json:"subfolder"`
-	Template  string `json:"template"`
-	Separator string `json:"separator"`
+	Subfolder bool   `json:"subfolder"` // mirrors SubfolderSource == "remote"
+	// SubfolderSource names the subfolder: "remote" after the remote folder,
+	// "title" after the series title, "none" for none at all. The title is
+	// resolved once, in the dialog that creates the sync, and lands in the
+	// watch as part of LocalPath - see aiWatchFields.
+	SubfolderSource    string `json:"subfolderSource"`
+	SubfolderSeparator string `json:"subfolderSeparator"` // replaces spaces in a title folder; "" keeps them
+	Template           string `json:"template"`
+	Separator          string `json:"separator"`
 }
 
 // CommonDefaults are the rename and language settings every kind shares.
@@ -47,7 +65,11 @@ type WatchDefaults struct {
 // applied.
 type WatchDefaultsResponse struct {
 	WatchDefaults
-	Kind   string         `json:"kind,omitempty"`
+	Kind string `json:"kind,omitempty"`
+	// Title is the series title of that folder - the catalog match, or the
+	// guess from the folder name when it is unmatched. It is what a "title"
+	// subfolder is named after.
+	Title  string         `json:"title,omitempty"`
 	Fields *aiWatchFields `json:"fields,omitempty"`
 }
 
@@ -63,6 +85,16 @@ func (s *Server) watchDefaultsFor(userID int64) WatchDefaults {
 	if d.Kinds == nil {
 		d.Kinds = map[string]KindDefaults{}
 	}
+	// defaults stored before the three-way choice existed carry the bool only
+	for kind, k := range d.Kinds {
+		if k.SubfolderSource == "" {
+			k.SubfolderSource = "none"
+			if k.Subfolder {
+				k.SubfolderSource = "remote"
+			}
+			d.Kinds[kind] = k
+		}
+	}
 	return d
 }
 
@@ -70,12 +102,17 @@ func (s *Server) watchDefaultsFor(userID int64) WatchDefaults {
 // folder and template (only when no folder was chosen yet, so a plan that
 // found the existing library folder keeps it), then the common part. Unknown
 // kinds fall back to the anime series entry.
+//
+// The subfolder choice is passed on, not resolved: a "title" subfolder is
+// named by the dialog, which knows the title the user is looking at and can
+// still change it. What reaches a watch is the finished LocalPath.
 func (d WatchDefaults) apply(kind string, f *aiWatchFields) {
 	if !slices.Contains(watchKinds, kind) {
 		kind = "anime-series"
 	}
 	if k, ok := d.Kinds[kind]; ok && f.LocalPath == "" && k.LocalPath != "" {
 		f.LocalPath, f.Subfolder = k.LocalPath, k.Subfolder
+		f.SubfolderSource, f.SubfolderSeparator = k.SubfolderSource, k.SubfolderSeparator
 		if f.Template == "" {
 			f.Template, f.Separator = k.Template, k.Separator
 		}
@@ -101,11 +138,20 @@ func (d WatchDefaults) apply(kind string, f *aiWatchFields) {
 // matchedKind is the media kind a remote or local folder was matched to, from
 // the catalog; "" when it is unmatched.
 func (s *Server) matchedKind(serverID int64, folder string) string {
+	kind, _ := s.matchedKindTitle(serverID, folder)
+	return kind
+}
+
+// matchedKindTitle is matchedKind plus the folder's series title: the matched
+// media's display title, or the guess from the folder name when the catalog
+// has no match. The title is never empty, so a title subfolder can be named
+// for an uncatalogued folder too.
+func (s *Server) matchedKindTitle(serverID int64, folder string) (kind, title string) {
 	source, m := s.aiMatchedMedia(serverID, folder)
-	if source == "" {
-		return ""
+	if source != "" && m != nil {
+		return watchCategory(source, m), aiTitle(*m)
 	}
-	return watchCategory(source, m)
+	return "", match.GuessTitle(path.Base(folder))
 }
 
 // handleWatchDefaultsGet returns the caller's defaults; with serverId and
@@ -124,7 +170,7 @@ func (s *Server) handleWatchDefaultsGet(w http.ResponseWriter, r *http.Request) 
 	out := WatchDefaultsResponse{WatchDefaults: s.watchDefaultsFor(u.ID)}
 	if p := r.URL.Query().Get("path"); p != "" {
 		serverID, _ := strconv.ParseInt(r.URL.Query().Get("serverId"), 10, 64)
-		out.Kind = s.matchedKind(serverID, p)
+		out.Kind, out.Title = s.matchedKindTitle(serverID, p)
 		if out.Kind == "" {
 			out.Kind = "anime-series"
 		}
@@ -171,6 +217,21 @@ func (s *Server) handleWatchDefaultsPut(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 		}
+		if !slices.Contains(subfolderSources, k.SubfolderSource) {
+			writeErr(w, http.StatusBadRequest, kind+": invalid subfolderSource")
+			return
+		}
+		if !slices.Contains(subfolderSeparators, k.SubfolderSeparator) {
+			writeErr(w, http.StatusBadRequest, kind+": invalid subfolderSeparator")
+			return
+		}
+		if k.SubfolderSource == "" { // a client that only knows the old bool
+			k.SubfolderSource = "none"
+			if k.Subfolder {
+				k.SubfolderSource = "remote"
+			}
+		}
+		k.Subfolder = k.SubfolderSource == "remote"
 		if k.LocalPath == "" && k.Template == "" {
 			continue // nothing set for this kind
 		}

@@ -18,7 +18,9 @@ func TestWatchDefaultsRoundTripAndValidation(t *testing.T) {
 	}
 	rec = doReq(mux, "GET", "/api/auth/watch-defaults?serverId=1&path=/anime/Frieren", "", c)
 	got := rec.Body.String()
-	for _, want := range []string{`"anime-series":{"localPath":"Anime"`, `"renameProvider":"tvdb"`, `"kind":"anime-series"`, `"fields":{`, `"wantDub":"Ger"`, `"airedMapping":true`} {
+	for _, want := range []string{`"anime-series":{"localPath":"Anime"`, `"renameProvider":"tvdb"`, `"kind":"anime-series"`, `"fields":{`, `"wantDub":"Ger"`, `"airedMapping":true`,
+		// stored without the three-way choice: read back as the remote folder
+		`"subfolderSource":"remote"`, `"title":"Frieren"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("get: missing %s in %s", want, got)
 		}
@@ -31,6 +33,8 @@ func TestWatchDefaultsRoundTripAndValidation(t *testing.T) {
 		`{"kinds":{"movie":{"localPath":"../x"}}}`,
 		`{"common":{"renameProvider":"imdb"}}`,
 		`{"common":{"renameOrdering":"random"}}`,
+		`{"kinds":{"movie":{"localPath":"x","subfolderSource":"bogus"}}}`,
+		`{"kinds":{"movie":{"localPath":"x","subfolderSource":"title","subfolderSeparator":"/"}}}`,
 	} {
 		if rec = doReq(mux, "PUT", "/api/auth/watch-defaults", bad, c); rec.Code != 400 {
 			t.Errorf("%s: want 400, got %d %s", bad, rec.Code, rec.Body)
@@ -58,5 +62,31 @@ func TestAiProposeCarriesTheUsersDefaults(t *testing.T) {
 	}
 	if f.TitleOverride != "Frieren" || f.RemotePath != "/anime/Frieren" {
 		t.Errorf("proposal fields lost: %+v", f)
+	}
+}
+
+// A title subfolder is a choice, not a path: the defaults carry the mode and
+// the separator, and the dialog that knows the series builds the folder.
+func TestWatchDefaultsTitleSubfolderIsPassedOn(t *testing.T) {
+	mux, s, c := setupAiTest(t, nil)
+	body := `{"kinds":{"anime-series":{"localPath":"Anime","subfolderSource":"title","subfolderSeparator":"_"}},"common":{}}`
+	if rec := doReq(mux, "PUT", "/api/auth/watch-defaults", body, c); rec.Code != 200 {
+		t.Fatalf("put: %d %s", rec.Code, rec.Body)
+	}
+	// the assistant's proposals inherit the choice the same way a dialog does
+	if p, reason := s.aiPropose(context.Background(), 1, "watch", 1, "/anime/Frieren", "Frieren", "", ""); reason != "" ||
+		p.Fields.SubfolderSource != "title" || p.Fields.SubfolderSeparator != "_" || p.Fields.LocalPath != "Anime" {
+		t.Errorf("proposal did not carry the choice: %+v %q", p.Fields, reason)
+	}
+	rec := doReq(mux, "GET", "/api/auth/watch-defaults?serverId=1&path=/anime/Frieren", "", c)
+	got := rec.Body.String()
+	for _, want := range []string{`"subfolderSource":"title"`, `"subfolderSeparator":"_"`, `"title":"Frieren"`, `"localPath":"Anime"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("get: missing %s in %s", want, got)
+		}
+	}
+	// the bool stays coherent, and nothing was baked into the target
+	if strings.Contains(got, `"localPath":"Anime/Frieren"`) || strings.Contains(got, `"subfolder":true`) {
+		t.Errorf("defaults must not resolve the folder themselves: %s", got)
 	}
 }

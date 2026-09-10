@@ -726,7 +726,16 @@
                         "type": "string"
                     },
                     "subfolder": {
+                        "description": "mirrors SubfolderSource == \"remote\"",
                         "type": "boolean"
+                    },
+                    "subfolderSeparator": {
+                        "description": "replaces spaces in a title folder; \"\" keeps them",
+                        "type": "string"
+                    },
+                    "subfolderSource": {
+                        "description": "SubfolderSource names the subfolder: \"remote\" after the remote folder,\n\"title\" after the series title, \"none\" for none at all. The title is\nresolved once, in the dialog that creates the sync, and lands in the\nwatch as part of LocalPath - see aiWatchFields.",
+                        "type": "string"
                     },
                     "template": {
                         "type": "string"
@@ -1928,6 +1937,10 @@
                             "$ref": "#/components/schemas/api.KindDefaults"
                         },
                         "type": "object"
+                    },
+                    "title": {
+                        "description": "Title is the series title of that folder - the catalog match, or the\nguess from the folder name when it is unmatched. It is what a \"title\"\nsubfolder is named after.",
+                        "type": "string"
                     }
                 },
                 "type": "object"
@@ -2577,6 +2590,13 @@
                     },
                     "subfolder": {
                         "type": "boolean"
+                    },
+                    "subfolderSeparator": {
+                        "type": "string"
+                    },
+                    "subfolderSource": {
+                        "description": "SubfolderSource and SubfolderSeparator travel to the dialog only: it\nnames a \"title\" subfolder from the title in front of the user and folds\nit into LocalPath before saving, so no watch ever carries them. A reader\nthat ignores them still gets the right folder from Subfolder.",
+                        "type": "string"
                     },
                     "template": {
                         "type": "string"
