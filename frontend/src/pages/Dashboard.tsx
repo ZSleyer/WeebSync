@@ -131,6 +131,7 @@ export default function Dashboard() {
   // the series behind a download, for the hero's line about it: the watch
   // list is what knows the year, the studio and the score. Persisted, so a
   // return to the page never waits on it.
+  const [historyDetail, setHistoryDetail] = useState<Watch | null>(null)
   const { data: watches = [], isLoading: watchesLoading } = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'), {
     refetchInterval: () => 30_000,
   })
@@ -282,6 +283,7 @@ export default function Dashboard() {
 
   return (
     <div>
+      <WatchDetail watch={historyDetail} onClose={() => setHistoryDetail(null)} />
       <header className="mb-6 hidden items-start justify-between gap-4 lg:flex">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
@@ -580,6 +582,10 @@ export default function Dashboard() {
                         const key = `${d.errorCode} ${dirOf(d.localPath)}`
                         const first = isFsErrorCode(d.errorCode) && !explained.has(key)
                         if (first) explained.add(key)
+                        // the cover opens the title's card where the download
+                        // belongs to a watch that carries one
+                        const watchId = downloadLabel(d, meta).group?.watchId
+                        const watch = watchId ? watches.find((w) => w.id === watchId) : undefined
                         return (
                           <HistoryRow
                             key={d.id}
@@ -589,6 +595,8 @@ export default function Dashboard() {
                             selected={selected.has(d.id)}
                             onSelect={(shift) => selectRow(d.id, shift)}
                             onAction={(verb) => action.mutate({ id: d.id, verb })}
+                            onCover={watch?.media ? () => setHistoryDetail(watch) : undefined}
+                            coverLabel={watch ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
                           />
                         )
                       })
@@ -700,6 +708,18 @@ function SpeedPanel({ downloads }: { downloads: Download[] }) {
   )
 }
 
+// The title's card, the same one the catalog shows: opened from an upcoming
+// release and from a cover in the history.
+function WatchDetail({ watch, onClose }: { watch: Watch | null; onClose: () => void }) {
+  const { t } = useTranslation()
+  if (!watch?.media) return null
+  return (
+    <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: watchTitle(watch) })} onClose={onClose}>
+      <MediaDetail media={watch.media} source={watch.mediaSource || undefined} />
+    </Dialog>
+  )
+}
+
 // The next releases the providers know of, for the coming week: the reason
 // to open the app between downloads, two taps closer than the calendar.
 function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
@@ -711,11 +731,7 @@ function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
   const [detail, setDetail] = useState<Watch | null>(null)
   return (
     <section aria-label={t('dash.upNext')}>
-      {detail?.media && (
-        <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: watchTitle(detail) })} onClose={() => setDetail(null)}>
-          <MediaDetail media={detail.media} source={detail.mediaSource || undefined} />
-        </Dialog>
-      )}
+      <WatchDetail watch={detail} onClose={() => setDetail(null)} />
       <FoldHeader
         className="mb-2"
         icon={<CalendarDays aria-hidden size="1em" />}
@@ -1243,6 +1259,8 @@ function HistoryRow({
   selected,
   onSelect,
   onAction,
+  onCover,
+  coverLabel,
 }: {
   d: Download
   meta?: DownloadMeta
@@ -1252,6 +1270,9 @@ function HistoryRow({
   selected: boolean
   onSelect: (shift: boolean) => void
   onAction: (verb: string) => void
+  /** with it the cover is a button opening the title's card */
+  onCover?: () => void
+  coverLabel?: string
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -1267,7 +1288,17 @@ function HistoryRow({
         <SelectBox checked={selected} name={name} onSelect={onSelect} />
         {/* a spacer keeps the text column flush down a divided list; the
             hatched placeholder on every unmatched row would be noise */}
-        {group?.cover ? <Cover src={group.cover} size="sm" loading="lazy" /> : <span aria-hidden className="w-10 shrink-0" />}
+        {group?.cover ? (
+          onCover ? (
+            <button type="button" aria-label={coverLabel} onClick={onCover} className="shrink-0 rounded-xs">
+              <Cover src={group.cover} size="sm" loading="lazy" />
+            </button>
+          ) : (
+            <Cover src={group.cover} size="sm" loading="lazy" />
+          )
+        ) : (
+          <span aria-hidden className="w-10 shrink-0" />
+        )}
         {/* no aria-label: the visible title and meta line are the button's
             name, aria-expanded says what it does */}
         <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
