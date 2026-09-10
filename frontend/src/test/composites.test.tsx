@@ -631,3 +631,20 @@ describe('TrendChart', () => {
     expect(svg.querySelector('line')).toBeNull()
   })
 })
+
+describe('CalendarEntry as a button', () => {
+  it('is one button around the whole tile when it opens something', () => {
+    const onClick = vi.fn()
+    render(<CalendarEntry title="Frieren" time="20:00" onClick={onClick} aria-label="Details zu Frieren" />)
+    const btn = screen.getByRole('button', { name: 'Details zu Frieren' })
+    expect(btn).toHaveTextContent('Frieren')
+    expect(btn).toHaveTextContent('20:00')
+    fireEvent.click(btn)
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
+  it('stays a plain tile without a handler', () => {
+    render(<CalendarEntry title="Frieren" time="20:00" />)
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+})
