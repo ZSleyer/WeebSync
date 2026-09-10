@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, FolderOpen, Pause, Play, RefreshCw, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, Eye, FolderOpen, Pause, Play, RefreshCw, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
 
 // icon per download status, shown inside the t-label chips (inline-flex, 4px gap)
 const STATUS_ICON: Record<Download['status'], LucideIcon> = {
@@ -17,24 +17,30 @@ import {
   ActionBar,
   Badge,
   Button,
+  CalendarEntry,
   Count,
   Cover,
   Divider,
   EmptyState,
   Input,
   Panel,
+  Progress,
   Select,
   Skeleton,
+  Sparkline,
+  StatTile,
   Toolbar,
   TransferCard,
   useMediaQuery,
   type BadgeTone,
 } from '@weebsync/design-system'
-import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type JobsStatus, type Watch } from '../api'
+import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type JobsStatus, type SystemStatus, type Watch } from '../api'
+import { upcomingAirings } from '../airings'
+import { avgSpeed, useSpeedHistory } from '../speedHistory'
 import { countdown } from '../countdown'
 import { jobLabel } from '../jobs'
 import { useConfirm } from '../components/confirm'
-import PageActions, { PageFooter } from '../components/PageActions'
+import PageActions, { PageFooter, WIDE_MQ } from '../components/PageActions'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth, usePersistedQuery } from '../hooks'
 import { ProviderBadges } from '../components/ProviderBadges'
@@ -64,7 +70,7 @@ export default function Dashboard() {
   // the series behind a download, for the hero's line about it: the watch
   // list is what knows the year, the studio and the score. Persisted, so a
   // return to the page never waits on it.
-  const { data: watches = [] } = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'), {
+  const { data: watches = [], isLoading: watchesLoading } = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'), {
     refetchInterval: () => 30_000,
   })
   // series metadata lives behind its own key: the list above is patched in
@@ -110,7 +116,6 @@ export default function Dashboard() {
     (d) => (statusFilter.size === 0 || statusFilter.has(d.status)) && nameMatch(d, historyQuery),
   )
   const finishedShown = finished.slice(0, historyFiltering || showAllHistory ? finished.length : 20)
-  const totalSpeed = downloads.reduce((s, d) => s + (d.status === 'running' ? (d.bytesPerSec ?? 0) : 0), 0)
   const anyActive = downloads.some((d) => d.status === 'running' || d.status === 'queued')
   const anyPaused = downloads.some((d) => d.status === 'paused')
   // 1s tick so the retry countdowns stay live, gated on there being one: an
@@ -176,6 +181,9 @@ export default function Dashboard() {
   // clear. The search keeps what is left, which is too little for the full
   // placeholder - a short one there, the aria-label stays the full sentence
   const phone = useMediaQuery('(width < 40rem)')
+  // the speed tiles are the desktop aside's; on a phone the hero carries the
+  // rate itself, and the tiles' every-second render would be for nothing
+  const wide = useMediaQuery(WIDE_MQ)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setSelected(new Set())
@@ -234,23 +242,42 @@ export default function Dashboard() {
 
       <BackgroundWork />
 
-      {/* phones stack status overview on top; from lg it becomes the right
-          column next to the transfer queue */}
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
-        <aside className="flex flex-col gap-4 lg:order-2">
-          {/* one row of three on a phone, so the queue starts above the fold */}
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-2">
-            <StatTile label={t('dash.active')} value={String(active.filter((d) => d.status === 'running').length)} />
-            <StatTile label={t('dash.queue')} value={String(active.filter((d) => d.status === 'queued').length)} />
-            <StatTile label={t('dash.speed')} value={fmtSpeed(totalSpeed)} wide>
-              <SpeedSparkline current={totalSpeed} />
-            </StatTile>
-          </div>
-          <SyncSummary />
+      {/* a phone reads top to bottom: the queue, then what is coming and what
+          needs a hand, then the history. From lg the middle part is the
+          right column beside both (a main pane and a supporting pane), so
+          the three are grid siblings placed by breakpoint rather than one
+          column nested in another */}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <aside className="order-2 flex min-w-0 flex-col gap-5 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+          {wide && activeAll.some((d) => d.status === 'running') && <SpeedTiles downloads={activeAll} />}
+          {watchesLoading ? (
+            <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-2">
+              {[0, 1, 2].map((i) => (
+                <Panel key={i} className="flex items-center gap-3 p-2">
+                  <Skeleton shape="cover" size="sm" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="w-2/3" />
+                    <Skeleton className="w-1/3" />
+                  </div>
+                </Panel>
+              ))}
+            </div>
+          ) : watches.length === 0 ? (
+            <EmptyState>
+              <Trans i18nKey="dash.noWatches">
+                Noch keine Serie überwacht. In <Link to="/files" className="text-accent underline">Dateien</Link> einen Ordner beobachten.
+              </Trans>
+            </EmptyState>
+          ) : (
+            <>
+              <UpNext watches={watches} limit={wide ? 5 : 3} />
+              <Attention watches={watches} />
+            </>
+          )}
+          <StorageTile />
         </aside>
 
-        <div className="min-w-0 lg:order-1">
-          <section aria-label={t('dash.transferSection')}>
+          <section aria-label={t('dash.transferSection')} className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
             <Divider
               className="mb-3"
               label={
@@ -356,7 +383,7 @@ export default function Dashboard() {
           </section>
 
           {finishedAll.length > 0 && (
-            <section aria-label={t('dash.finishedSection')} className="mt-8">
+            <section aria-label={t('dash.finishedSection')} className="order-3 min-w-0 lg:col-start-1 lg:row-start-2">
               {/* divider header doubles as the collapse toggle, like the
                   watch-list groups - hand-rolled because <Divider> always
                   renders its label as a non-interactive chip */}
@@ -525,6 +552,7 @@ export default function Dashboard() {
               bar sat at its foot with a screen's worth of nothing between it
               and the rows */}
           {selected.size > 0 && (
+            <div className="order-4 lg:col-start-1">
             <PageFooter>
               <ActionBar aria-label={t('dash.selectionActions')} floating>
                 <Badge tone="accent">{t('dash.selectedCount', { count: selected.size })}</Badge>
@@ -562,157 +590,213 @@ export default function Dashboard() {
                 </Button>
               </ActionBar>
             </PageFooter>
+            </div>
           )}
-        </div>
       </div>
-
     </div>
   )
 }
 
-// Compact auto-sync overview on the dashboard: status counters + only the
-// watches that need attention (behind, waiting, or blocked on a dub/sub).
-function SyncSummary() {
+// what to call a watch: the override, else the matched title, else the folder
+const watchTitle = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
+
+// The rate over the last minute and how long the queue has left, beside the
+// queue on desktop. Only while something runs: a tile saying 0 B/s says
+// nothing, and the hero already carries its own rate on a phone.
+function SpeedTiles({ downloads }: { downloads: Download[] }) {
   const { t } = useTranslation()
-  const { data: watches = [] } = useQuery<Watch[]>({
-    queryKey: ['watches'],
-    queryFn: () => api.get('/api/watches'),
-    refetchInterval: 30_000,
-  })
-  if (watches.length === 0) return null
-
-  const waiting = watches.filter((w) => w.waiting).length
-  const complete = watches.filter((w) => w.complete).length
-  const behind = watches.reduce((s, w) => s + (w.behind ?? 0), 0)
-  const title = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
-  const airFmt = (ts: number) => new Date(ts * 1000).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-  // "interesting" = actionable: behind, waiting for an airing, dub/sub-gated, or a gap
-  const interesting = watches.filter(
-    (w) => (w.behind ?? 0) > 0 || w.waiting || (w.langWaiting ?? 0) > 0 || (w.missing?.length ?? 0) > 0,
-  )
-
+  const hist = useSpeedHistory()
+  const running = downloads.filter((d) => d.status === 'running')
+  const total = running.reduce((s, d) => s + (d.bytesPerSec ?? 0), 0)
+  const open = downloads.reduce((s, d) => s + Math.max(0, d.size - d.transferred), 0)
+  // the mean of the last ten seconds, not the instant: a burst would swing
+  // the arrival by hours. Nothing while it is still zero
+  const avg = avgSpeed(10)
   return (
-    <section aria-label={t('dash.syncSummary')}>
-      <Panel className="p-4">
-        {/* same divider anatomy as the section headers on the left, so the
-            chip never has to share its row with the counters (it used to
-            wrap onto two lines in the narrow column). nowrap sits on the
-            divider and is inherited - the chip itself takes no class */}
-        <Divider
-          className="mb-2 whitespace-nowrap"
-          label={
-            <>
-              <RefreshCw aria-hidden size="1em" />
-              {t('dash.syncSummary')}
-            </>
-          }
-          trailing={
-            /* inline-flex + min-h keeps the 24px target size (WCAG 2.5.8) */
-            <Link
-              to="/watches"
-              className="inline-flex min-h-6 items-center whitespace-nowrap text-[11px] text-accent hover:underline"
-            >
-              {t('dash.syncAll')} →
-            </Link>
-          }
+    <div className="flex flex-col gap-3">
+      <StatTile
+        label={t('dash.speed')}
+        value={fmtSpeed(total)}
+        detail={t('dash.speedOver', { count: running.length })}
+        trend={<Sparkline values={hist} label={t('dash.speedChart')} className="mb-1.5 text-accent" />}
+      />
+      {avg > 0 && (
+        <StatTile
+          label={t('dash.remaining')}
+          value={remaining(t, open / avg)}
+          detail={t('dash.remainingOpen', { size: fmtBytes(open) })}
         />
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-t-muted">
-          <span>{t('dash.syncWatched', { count: watches.length })}</span>
-          {waiting > 0 && <span>{t('dash.syncWaiting', { count: waiting })}</span>}
-          {complete > 0 && <span>{t('dash.syncComplete', { count: complete })}</span>}
-          {behind > 0 && <span className="text-warn">{t('dash.syncBehind', { count: behind })}</span>}
-        </div>
-        {interesting.length === 0 ? (
-          <p className="text-xs text-t-muted">{t('dash.syncAllGood')}</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-border-subtle/50">
-            {interesting.slice(0, 8).map((w) => (
-              <li key={w.id} className="flex items-center gap-2 py-1.5 text-sm">
-                <span className="min-w-0 flex-1 truncate text-t-secondary" title={w.remotePath}>
-                  {title(w)}
-                </span>
-                {/* compact chips: icon + count only, the sidebar column is too
-                    narrow for the full sentences - they live in the tooltip */}
-                {(w.behind ?? 0) > 0 && (
-                  <Badge tone="warn" className="shrink-0" title={t('watch.behind', { count: w.behind })}>
-                    <Clock aria-hidden size="1em" />
-                    {w.behind}
-                  </Badge>
-                )}
-                {(w.missing?.length ?? 0) > 0 && (
-                  <Badge
-                    tone="err"
-                    className="shrink-0"
-                    title={`${t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })} (${w.missing!.join(', ')})`}
-                  >
-                    <TriangleAlert aria-hidden size="1em" />
-                    {w.missing!.length}
-                  </Badge>
-                )}
-                {(w.langWaiting ?? 0) > 0 && (
-                  <Badge
-                    tone="warn"
-                    className="shrink-0"
-                    title={t('watch.langWaiting', {
-                      count: w.langWaiting,
-                      lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
-                    })}
-                  >
-                    <Clock aria-hidden size="1em" />
-                    {w.langWaiting}
-                  </Badge>
-                )}
-                {w.waiting && w.nextAiringAt ? (
-                  <span className="shrink-0 font-mono text-[11px] text-t-muted">{airFmt(w.nextAiringAt)}</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-        {interesting.length > 8 && (
-          <p className="mt-2 text-[11px] text-t-muted">{t('dash.syncMore', { count: interesting.length - 8 })}</p>
-        )}
-      </Panel>
+      )}
+    </div>
+  )
+}
+
+// The next releases the providers know of, for the coming week: the reason
+// to open the app between downloads, two taps closer than the calendar.
+function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
+  const { t } = useTranslation()
+  const events = upcomingAirings(watches, Date.now(), 7).slice(0, limit)
+  const when = (ts: number) => new Date(ts * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+  return (
+    <section aria-label={t('dash.upNext')}>
+      <Divider
+        className="mb-2 whitespace-nowrap"
+        label={
+          <>
+            <CalendarDays aria-hidden size="1em" />
+            {t('dash.upNext')}
+          </>
+        }
+        trailing={
+          /* inline-flex + min-h keeps the 24px target size (WCAG 2.5.8) */
+          <Link
+            to="/watches?view=calendar"
+            className="inline-flex min-h-6 items-center whitespace-nowrap text-[11px] text-accent hover:underline"
+          >
+            {t('dash.calendar')} →
+          </Link>
+        }
+      />
+      {events.length === 0 ? (
+        <p className="text-xs text-t-muted">{t('dash.upNextEmpty')}</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {events.map((e) => (
+            <li key={`${e.watch.id}-${e.episode}-${e.at}`}>
+              <CalendarEntry
+                cover={e.watch.media?.coverImage?.large}
+                title={watchTitle(e.watch)}
+                episode={
+                  <>
+                    {t('watch.nextEp', { n: e.episode })}
+                    {e.episodeAbs && e.episodeAbs !== e.episode ? ` (${e.episodeAbs})` : ''}
+                  </>
+                }
+                time={when(e.at)}
+                countdown={countdown(t, e.at)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
 
-function StatTile({ label, value, wide, children }: { label: string; value: string; wide?: boolean; children?: React.ReactNode }) {
+// The watches that need a hand: behind the broadcast, a gap, waiting on a
+// dub or sub, or a failed check. Counters alone were what this used to be;
+// a number of watched series is not something anyone acts on.
+function Attention({ watches }: { watches: Watch[] }) {
+  const { t } = useTranslation()
+  const needy = watches.filter(
+    (w) => (w.behind ?? 0) > 0 || (w.missing?.length ?? 0) > 0 || (w.langWaiting ?? 0) > 0 || w.lastResult !== '',
+  )
+  const shown = needy.slice(0, 5)
   return (
-    <Panel className={`min-w-0 px-3 py-2 sm:px-4 ${wide ? 'sm:col-span-2 sm:min-w-44' : 'sm:min-w-20'}`}>
-      <Badge>{label}</Badge>
-      <div className="flex items-end gap-2">
-        <p className="truncate font-mono text-base text-t-primary sm:text-lg">{value}</p>
-        {children}
-      </div>
-    </Panel>
+    <section aria-label={t('dash.attention')}>
+      <Divider
+        className="mb-2 whitespace-nowrap"
+        label={
+          <>
+            <Eye aria-hidden size="1em" />
+            {t('dash.attention')}
+          </>
+        }
+        count={needy.length}
+      />
+      {needy.length === 0 ? (
+        <p className="text-xs text-t-muted">{t('dash.attentionEmpty', { count: watches.length })}</p>
+      ) : (
+        <Panel>
+          <ul className="divide-y divide-border-subtle">
+            {shown.map((w) => (
+              <li key={w.id}>
+                <Link to="/watches" className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-bg-hover">
+                  {w.media?.coverImage?.large && <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />}
+                  <span className="min-w-0 flex-1 truncate text-t-secondary" title={w.remotePath}>
+                    {watchTitle(w)}
+                  </span>
+                  {/* compact chips: icon + count only, the column is too narrow
+                      for the sentences - they live in the tooltip */}
+                  {(w.behind ?? 0) > 0 && (
+                    <Badge tone="warn" className="shrink-0" title={t('watch.behind', { count: w.behind })}>
+                      <Clock aria-hidden size="1em" />
+                      {w.behind}
+                    </Badge>
+                  )}
+                  {(w.missing?.length ?? 0) > 0 && (
+                    <Badge
+                      tone="err"
+                      className="shrink-0"
+                      title={`${t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })} (${w.missing!.join(', ')})`}
+                    >
+                      <TriangleAlert aria-hidden size="1em" />
+                      {w.missing!.length}
+                    </Badge>
+                  )}
+                  {(w.langWaiting ?? 0) > 0 && (
+                    <Badge
+                      tone="warn"
+                      className="shrink-0"
+                      title={t('watch.langWaiting', {
+                        count: w.langWaiting,
+                        lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
+                      })}
+                    >
+                      <Clock aria-hidden size="1em" />
+                      {w.langWaiting}
+                    </Badge>
+                  )}
+                  {w.lastResult !== '' && (
+                    <Badge tone="err" className="shrink-0" title={w.lastResult}>
+                      <X aria-hidden size="1em" />
+                      {t('dash.checkFailed')}
+                    </Badge>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+      {needy.length > shown.length && (
+        <Link to="/watches" className="mt-2 inline-flex min-h-6 items-center text-[11px] text-accent hover:underline">
+          {t('dash.attentionMore', { count: needy.length - shown.length })}
+        </Link>
+      )}
+    </section>
   )
 }
 
-// Single-series live sparkline (last 60 samples), accent stroke on the
-// panel surface; the tile's number is the direct label.
-function SpeedSparkline({ current }: { current: number }) {
+// How full the download disk is, for the admin who can do something about
+// it. The status endpoint is admin-gated, so nobody else asks.
+function StorageTile() {
   const { t } = useTranslation()
-  const [hist, setHist] = useState<number[]>([])
-  const latest = useRef(current)
-  latest.current = current
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setHist((h) => [...h.slice(-59), latest.current])
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [])
-  const max = Math.max(...hist, 1)
-  const w = 96
-  const h = 24
-  const points = hist.map((v, i) => `${(i / 59) * w},${h - (v / max) * (h - 2) - 1}`).join(' ')
+  const { data: user } = useAuth()
+  const { data } = useQuery<SystemStatus>({
+    queryKey: ['status'],
+    queryFn: () => api.get('/api/status'),
+    refetchInterval: 60_000,
+    enabled: !!user?.isAdmin,
+  })
+  const disk = data?.disk
+  if (!disk?.totalBytes) return null
+  const pct = (disk.usedBytes / disk.totalBytes) * 100
   return (
-    // hidden on a phone: the third tile of the row has no room for it
-    <svg width={w} height={h} className="mb-1 hidden shrink-0 sm:block" role="img" aria-label={t('dash.speedChart')}>
-      {hist.length > 1 && (
-        <polyline points={points} fill="none" stroke="var(--accent-blue)" strokeWidth="2" strokeLinejoin="round" />
-      )}
-    </svg>
+    <StatTile
+      label={t('dash.storage')}
+      value={t('dash.storageFree', { size: fmtBytes(disk.freeBytes) })}
+      detail={t('dash.storageOf', { used: fmtBytes(disk.usedBytes), total: fmtBytes(disk.totalBytes) })}
+      trend={
+        <Progress
+          value={pct}
+          tone={pct >= 95 ? 'err' : pct >= 85 ? 'warn' : 'ok'}
+          size="sm"
+          label={t('dash.storageUsed', { pct: Math.round(pct) })}
+          className="mb-2 w-20"
+        />
+      }
+    />
   )
 }
 
