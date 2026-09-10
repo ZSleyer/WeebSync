@@ -648,3 +648,14 @@ describe('CalendarEntry as a button', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 })
+
+describe('MediaCard cover button', () => {
+  it('makes the poster a named button when given onCover, and nothing otherwise', () => {
+    const onCover = vi.fn()
+    const { rerender } = render(<MediaCard title="Frieren" cover="/c.jpg" onCover={onCover} coverLabel="Details zu Frieren" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Details zu Frieren' }))
+    expect(onCover).toHaveBeenCalledTimes(1)
+    rerender(<MediaCard title="Frieren" cover="/c.jpg" />)
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+})

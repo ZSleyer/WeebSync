@@ -1294,7 +1294,7 @@ function HistoryRow({
             hatched placeholder on every unmatched row would be noise */}
         {group?.cover ? (
           onCover ? (
-            <button type="button" aria-label={coverLabel} onClick={onCover} className="shrink-0 rounded-xs">
+            <button type="button" aria-label={coverLabel} onClick={onCover} className="shrink-0 cursor-pointer rounded-xs">
               <Cover src={group.cover} size="sm" loading="lazy" />
             </button>
           ) : (
@@ -1305,7 +1305,7 @@ function HistoryRow({
         )}
         {/* no aria-label: the visible title and meta line are the button's
             name, aria-expanded says what it does */}
-        <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm text-t-primary" title={d.remotePath}>
               {label}

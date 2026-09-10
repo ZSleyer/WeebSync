@@ -382,6 +382,10 @@ export default function Watches() {
                   <li key={w.id}>
                     <MediaCard
                       cover={w.media?.coverImage?.large}
+                      onCover={w.media ? () => setCalDetail(w) : undefined}
+                      coverLabel={
+                        w.media ? t('remote.detailsFor', { name: w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '') }) : undefined
+                      }
                       title={w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')}
                       pathTitle={w.remotePath}
                       path={
