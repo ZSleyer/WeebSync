@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { Check, ChevronDown, ChevronRight, CircleArrowUp, Globe, History, ImagePlus, Mic, Plus, RefreshCw, Send, Sparkles, Square, Telescope, Trash2, X } from 'lucide-react'
+import { ArrowUp, Check, ChevronDown, ChevronRight, CircleArrowUp, Globe, History, ImagePlus, Mic, Plus, RefreshCw, Sparkles, Square, Telescope, Trash2, X } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -495,8 +495,9 @@ export default function Assistant() {
           {notice}
         </Badge>
       )}
-      {/* the composer: one quiet box, the add menu, the text, the mic and the
-          send arrow in a single row, the model as a line of small text below.
+      {/* the composer: one quiet box - the text on top, and under it the add
+          menu, the model pill and, at the right end, dictation and the round
+          send button (stop while an answer runs).
           Pictures land here by drop, paste, the menu or a phone's camera */}
       <form
         className="mt-3"
@@ -516,7 +517,12 @@ export default function Assistant() {
           void addImages(e.dataTransfer.files)
         }}
       >
-        <div className={`rounded-xl border bg-bg-card transition-colors ${dragging ? 'border-accent' : 'border-border-input focus-within:border-accent/60'}`}>
+        {/* relative: both menus open above the whole box. Anchored at their
+            button they would grow past the screen, and <main> clips - which is
+            what cut the model names */}
+        <div
+          className={`relative rounded-xl border bg-bg-card transition-colors ${dragging ? 'border-accent' : 'border-border-input focus-within:border-accent/60'}`}
+        >
           {attachments.length > 0 && (
             <ul className="flex flex-wrap gap-1.5 px-3 pt-3">
               {attachments.map((src, i) => (
@@ -534,20 +540,55 @@ export default function Assistant() {
               ))}
             </ul>
           )}
-          <div className="flex items-end gap-2 px-3 py-2">
-            <div className="relative" ref={addRef}>
+          {/* the text on its own line, the controls under it: on a phone a
+              row of buttons beside the field left it two words wide */}
+          {dictation.active ? (
+            <p className="flex min-h-9 min-w-0 items-center gap-3 px-3 pt-2 text-base" aria-live="polite">
+              <span className={`min-w-0 flex-1 truncate ${dictation.text ? 'text-t-primary' : 'text-t-muted italic'}`}>{dictation.text || t('assistant.listening')}</span>
+              <span className="ai-dots" aria-hidden>
+                <i />
+                <i />
+                <i />
+              </span>
+            </p>
+          ) : (
+            <label className="flex">
+              <span className="sr-only">{t('assistant.placeholder')}</span>
+              <textarea
+                ref={taRef}
+                rows={1}
+                className="max-h-40 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-base leading-6 text-t-primary outline-none placeholder:text-t-faint"
+                placeholder={streaming ? t('assistant.placeholderQueue') : t('assistant.placeholder')}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKey}
+                onPaste={(e) => {
+                  const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
+                  if (files.length) {
+                    e.preventDefault()
+                    void addImages(files)
+                  }
+                }}
+                // not on a phone: focusing on arrival raises the keyboard and
+                // shrinks the whole shell before anything was read
+                autoFocus={wide}
+              />
+            </label>
+          )}
+          <div className="flex items-center gap-2 px-2 pt-1 pb-2">
+            <div ref={addRef}>
               <IconButton
                 aria-label={t('assistant.add')}
                 title={t('assistant.add')}
                 aria-haspopup="menu"
                 aria-expanded={addOpen}
-                className="size-9! text-t-muted hover:text-accent"
+                className="size-9! rounded-full! border border-border-input text-t-muted hover:text-accent"
                 onClick={() => setAddOpen((o) => !o)}
               >
-                <Plus aria-hidden size="1.4em" />
+                <Plus aria-hidden size="1.3em" />
               </IconButton>
               {addOpen && (
-                <Menu className="t-pop--up absolute bottom-full left-0 z-20 mb-1" aria-label={t('assistant.add')}>
+                <Menu className="t-pop--up absolute bottom-full left-0 z-20 mb-1 w-max max-w-full" aria-label={t('assistant.add')}>
                   <MenuItem
                     aria-disabled={vision === false}
                     title={vision === false ? t('assistant.attachNoVision') : undefined}
@@ -608,127 +649,98 @@ export default function Assistant() {
                 }}
               />
             </div>
-            {dictation.active ? (
-              <p className="flex min-h-9 min-w-0 flex-1 items-center gap-3 px-1 text-base" aria-live="polite">
-                <span className={`min-w-0 flex-1 truncate ${dictation.text ? 'text-t-primary' : 'text-t-muted italic'}`}>{dictation.text || t('assistant.listening')}</span>
-                <span className="ai-dots" aria-hidden>
-                  <i />
-                  <i />
-                  <i />
-                </span>
-              </p>
-            ) : (
-              <label className="flex min-w-0 flex-1">
-                <span className="sr-only">{t('assistant.placeholder')}</span>
-                <textarea
-                  ref={taRef}
-                  rows={1}
-                  className="max-h-40 w-full resize-none bg-transparent px-1 py-1.5 text-base leading-6 text-t-primary outline-none placeholder:text-t-faint"
-                  placeholder={streaming ? t('assistant.placeholderQueue') : t('assistant.placeholder')}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={onKey}
-                  onPaste={(e) => {
-                    const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
-                    if (files.length) {
-                      e.preventDefault()
-                      void addImages(files)
-                    }
-                  }}
-                  // not on a phone: focusing on arrival raises the keyboard and
-                  // shrinks the whole shell before anything was read
-                  autoFocus={wide}
-                />
-              </label>
-            )}
-            {dictation.active ? (
-              <>
-                <IconButton aria-label={t('assistant.dictateCancel')} title={t('assistant.dictateCancel')} className="size-9! text-t-muted hover:text-err" onClick={dictation.cancel}>
-                  <X aria-hidden size="1.3em" />
-                </IconButton>
-                <IconButton
-                  aria-label={t('assistant.dictateDone')}
-                  title={t('assistant.dictateDone')}
-                  className="size-9! bg-accent text-bg-primary"
-                  onClick={() => {
-                    const said = dictation.accept()
-                    if (said) setInput((v) => (v ? `${v} ${said}` : said))
-                  }}
+            {modelList.length > 1 && (
+              <div className="min-w-0" ref={modelRef}>
+                <button
+                  type="button"
+                  className="flex min-h-8 max-w-full items-center gap-1 rounded-full border border-border-input px-3 text-xs text-t-secondary hover:text-t-primary"
+                  aria-haspopup="listbox"
+                  aria-expanded={modelOpen}
+                  aria-label={t('assistant.model')}
+                  title={modelInUse}
+                  onClick={() => setModelOpen((o) => !o)}
                 >
-                  <Check aria-hidden size="1.3em" />
-                </IconButton>
-              </>
-            ) : (
-              <>
-                {dictation.supported && (
-                  <IconButton aria-label={t('assistant.dictate')} title={t('assistant.dictate')} className="size-9! text-t-muted hover:text-accent" onClick={dictation.start}>
-                    <Mic aria-hidden size="1.3em" />
-                  </IconButton>
+                  <span className="truncate">{modelInUse}</span>
+                  <ChevronDown aria-hidden size="0.9em" className="shrink-0" />
+                </button>
+                {modelOpen && (
+                  // as wide as the longest name, capped at the box: the old
+                  // fixed cap cut every cloud model to "… (Cloud Codin…"
+                  <Menu
+                    className="t-pop--up absolute bottom-full left-0 z-20 mb-1 w-max max-w-full"
+                    aria-label={t('assistant.model')}
+                  >
+                    {['', ...modelList.filter((m) => m !== defaultModel)].map((m) => (
+                      <MenuItem
+                        key={m}
+                        selected={effectiveModel === m}
+                        trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
+                        onClick={() => {
+                          pickModel(m)
+                          setModelOpen(false)
+                        }}
+                      >
+                        <span className="font-mono text-xs wrap-anywhere">{m || t('assistant.modelDefault', { model: defaultModel })}</span>
+                      </MenuItem>
+                    ))}
+                  </Menu>
                 )}
-                {(input.trim() || attachments.length > 0) && (
-                  <button type="submit" className="t-iconbtn size-9! bg-accent text-bg-primary" aria-label={t('assistant.send')} title={t('assistant.send')}>
-                    <Send aria-hidden size="1.3em" />
-                  </button>
-                )}
-              </>
+              </div>
             )}
+            {webReady && (webTools.search || webTools.research) && (
+              <span className="inline-flex shrink-0 items-center gap-1 text-xs text-accent">
+                {webTools.research ? <Telescope aria-hidden size="0.9em" /> : <Globe aria-hidden size="0.9em" />}
+                <span className="sr-only">{t(webTools.research ? 'assistant.research' : 'assistant.webSearch')}</span>
+              </span>
+            )}
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">
+              {dictation.active ? (
+                <>
+                  <IconButton aria-label={t('assistant.dictateCancel')} title={t('assistant.dictateCancel')} className="size-9! rounded-full! text-t-muted hover:text-err" onClick={dictation.cancel}>
+                    <X aria-hidden size="1.3em" />
+                  </IconButton>
+                  <IconButton
+                    aria-label={t('assistant.dictateDone')}
+                    title={t('assistant.dictateDone')}
+                    className="size-9! rounded-full! bg-accent text-bg-primary"
+                    onClick={() => {
+                      const said = dictation.accept()
+                      if (said) setInput((v) => (v ? `${v} ${said}` : said))
+                    }}
+                  >
+                    <Check aria-hidden size="1.3em" />
+                  </IconButton>
+                </>
+              ) : (
+                <>
+                  {dictation.supported && !streaming && (
+                    <IconButton aria-label={t('assistant.dictate')} title={t('assistant.dictate')} className="size-9! rounded-full! text-t-muted hover:text-accent" onClick={dictation.start}>
+                      <Mic aria-hidden size="1.3em" />
+                    </IconButton>
+                  )}
+                  {/* stop sits where send does, at the end of the row: on a
+                      phone a text button under the box was easy to miss */}
+                  {streaming && (
+                    <IconButton
+                      aria-label={t('assistant.stop')}
+                      title={t('assistant.stop')}
+                      className="size-9! rounded-full! border border-border-input text-t-primary hover:text-err"
+                      onClick={() => abortRef.current?.abort()}
+                    >
+                      <Square aria-hidden size="1.1em" />
+                    </IconButton>
+                  )}
+                  {(input.trim() || attachments.length > 0) && (
+                    <button type="submit" className="t-iconbtn size-9! rounded-full! bg-accent text-bg-primary" aria-label={t('assistant.send')} title={t('assistant.send')}>
+                      <ArrowUp aria-hidden size="1.3em" />
+                    </button>
+                  )}
+                </>
+              )}
+            </span>
           </div>
         </div>
-        <div className="mt-1.5 flex min-h-6 items-center justify-end gap-4 px-1 text-xs text-t-muted">
-          {webReady && webTools.research && (
-            <span className="inline-flex items-center gap-1 text-accent">
-              <Telescope aria-hidden size="0.9em" />
-              {t('assistant.research')}
-            </span>
-          )}
-          {webReady && webTools.search && !webTools.research && (
-            <span className="inline-flex items-center gap-1 text-accent">
-              <Globe aria-hidden size="0.9em" />
-              {t('assistant.webSearch')}
-            </span>
-          )}
-          {streaming && (
-            <button type="button" className="inline-flex min-h-6 items-center gap-1 hover:text-t-primary" onClick={() => abortRef.current?.abort()}>
-              <Square aria-hidden size="0.9em" />
-              {t('assistant.stop')}
-            </button>
-          )}
-          {modelList.length > 1 && (
-            <div className="relative" ref={modelRef}>
-              <button
-                type="button"
-                className="inline-flex min-h-6 max-w-64 items-center gap-1 hover:text-t-primary"
-                aria-haspopup="listbox"
-                aria-expanded={modelOpen}
-                aria-label={t('assistant.model')}
-                title={modelInUse}
-                onClick={() => setModelOpen((o) => !o)}
-              >
-                <span className="truncate">{modelInUse}</span>
-                <ChevronDown aria-hidden size="0.9em" className="shrink-0" />
-              </button>
-              {modelOpen && (
-                <Menu className="t-pop--up absolute right-0 bottom-full z-20 mb-1 max-w-72" aria-label={t('assistant.model')}>
-                  {['', ...modelList.filter((m) => m !== defaultModel)].map((m) => (
-                    <MenuItem
-                      key={m}
-                      selected={effectiveModel === m}
-                      trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
-                      onClick={() => {
-                        pickModel(m)
-                        setModelOpen(false)
-                      }}
-                    >
-                      <span className="truncate font-mono text-xs">{m || t('assistant.modelDefault', { model: defaultModel })}</span>
-                    </MenuItem>
-                  ))}
-                </Menu>
-              )}
-            </div>
-          )}
-        </div>
       </form>
-
     </>
   )
   return (

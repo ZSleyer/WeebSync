@@ -56,7 +56,7 @@
     "intro": "Frag nach deiner Liste, der aktuellen Season oder besseren Kopien. Jeden Vorschlag bestätigst du im gewohnten Dialog.",
     "placeholder": "Wie kann ich dir heute helfen?",
     "send": "Senden",
-    "placeholderQueue": "Nachfrage stellen, sie geht raus, sobald die Antwort fertig ist",
+    "placeholderQueue": "Nachfrage einreihen …",
     "queued": "wartet auf das Ende der Antwort",
     "dequeue": "Nachfrage verwerfen",
     "stop": "Stopp",
