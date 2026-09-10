@@ -5,7 +5,7 @@ import { Badge, Checkbox, Panel, Segmented } from '@weebsync/design-system'
 import { LOCALES } from '../../locales'
 import { applyTheme, readThemePref, THEME_KEY, type ThemePref } from '../../theme'
 
-const ACCENTS = ['violet', 'acid', 'crimson', 'cyan', 'blue', 'green', 'pink', 'orange'] as const
+const ACCENTS = ['orange', 'acid', 'crimson', 'cyan', 'blue', 'green', 'pink', 'violet'] as const
 const THEMES: ThemePref[] = ['system', 'dark', 'light']
 
 // label above its control on a phone, in a column beside it from sm up
@@ -18,7 +18,7 @@ export default function Look() {
   const { t, i18n } = useTranslation()
   const root = document.documentElement
   const [theme, setTheme] = useState<ThemePref>(readThemePref)
-  const [accent, setAccent] = useState(root.dataset.accent ?? 'violet')
+  const [accent, setAccent] = useState(root.dataset.accent ?? 'orange')
   const [motion, setMotion] = useState(root.dataset.motion !== 'off')
   const lang = LOCALES.find((l) => i18n.language.startsWith(l.code))?.code ?? LOCALES[0].code
 

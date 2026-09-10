@@ -67,7 +67,7 @@
   --bg-secondary: #0b0b0d;
   --bg-card: #141417;
   --bg-hover: #1c1c20;
-  --accent-blue: #a685f0; /* user-themable via [data-accent] */
+  --accent-blue: #ffa14a; /* orange, the default; user-themable via [data-accent] */
   --accent-green: #34d67a;
   --accent-yellow: #ffb020;
   --accent-red: #f56b6b;
@@ -92,7 +92,7 @@
   --bg-secondary: #f8fafb;
   --bg-card: #ffffff;
   --bg-hover: #e2e7ed;
-  --accent-blue: #6d28d9;
+  --accent-blue: #b03a0b;
   --accent-green: #0c5f2c;
   --accent-yellow: #854307;
   --accent-red: #b91c1c;
