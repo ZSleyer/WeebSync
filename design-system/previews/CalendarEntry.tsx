@@ -12,3 +12,10 @@ export const Today = () => (
     <CalendarEntry title="Dr. Stone" episode="Folge 51" time="17:30:00" countdown="in 3 Min" />
   </div>
 )
+
+/** Given onClick the whole tile is a button, e.g. for the title's card. */
+export const Clickable = () => (
+  <div style={{ maxWidth: 480 }}>
+    <CalendarEntry title="One Piece" episode="Folge 1157 (1157)" time="09:30" countdown="in 2 Std 14 Min" onClick={() => {}} aria-label="Details zu One Piece" />
+  </div>
+)

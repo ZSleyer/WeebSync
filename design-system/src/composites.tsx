@@ -405,13 +405,20 @@ export interface CalendarEntryProps {
   time: ReactNode
   /** countdown under the time, in the accent colour */
   countdown?: ReactNode
+  /** with it the whole entry is a button, e.g. opening the title's card */
+  onClick?: () => void
+  /** the button's accessible name, when the title alone would not say what opens */
+  'aria-label'?: string
   className?: string
 }
 
-/** One scheduled release inside a calendar day. */
-export function CalendarEntry({ title, episode, cover, time, countdown, className }: CalendarEntryProps) {
-  return (
-    <Panel className={cx('flex items-center gap-3 p-2', className)}>
+/**
+ * One scheduled release inside a calendar day. Given onClick the entry is
+ * one button, the whole tile its target, so a thumb on a phone hits it.
+ */
+export function CalendarEntry({ title, episode, cover, time, countdown, onClick, className, ...aria }: CalendarEntryProps) {
+  const body = (
+    <>
       <Cover src={cover} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-t-primary">{title}</p>
@@ -421,8 +428,23 @@ export function CalendarEntry({ title, episode, cover, time, countdown, classNam
         <p className="font-mono text-sm text-t-secondary">{time}</p>
         {countdown && <p className="text-[11px] text-accent">{countdown}</p>}
       </div>
-    </Panel>
+    </>
   )
+  if (onClick) {
+    return (
+      <Panel className={cx('overflow-clip', className)}>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={aria['aria-label']}
+          className="flex w-full cursor-pointer items-center gap-3 p-2 text-left hover:bg-bg-hover"
+        >
+          {body}
+        </button>
+      </Panel>
+    )
+  }
+  return <Panel className={cx('flex items-center gap-3 p-2', className)}>{body}</Panel>
 }
 
 export interface CalendarDayProps {
