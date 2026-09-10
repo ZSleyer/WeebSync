@@ -32,10 +32,10 @@ export default function PillSelect<T extends string>({
   icon?: ReactNode
   className?: string
 }) {
-  const { open, setOpen, ref } = useMenu()
+  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   const current = options.find((o) => o.value === value)
   return (
-    <div className={`relative min-w-0 ${className ?? ''}`} ref={ref}>
+    <div className={`relative min-w-0 ${className ?? ''}`} ref={ref} style={anchorStyle}>
       <button
         type="button"
         className="flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-border-input px-3 text-sm text-t-primary hover:border-accent/60"
@@ -50,7 +50,7 @@ export default function PillSelect<T extends string>({
         <ChevronDown aria-hidden size="0.9em" className="shrink-0 text-t-muted" />
       </button>
       {open && (
-        <Menu className="t-pop--up absolute top-full left-0 z-20 mt-1 w-max max-w-[70vw]" aria-label={label}>
+        <Menu anchor={anchor} aria-label={label}>
           {options.map((o) => (
             <MenuItem
               key={o.value}

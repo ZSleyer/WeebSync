@@ -988,10 +988,10 @@ function CatalogActions({
   onClearScope?: () => void
 }) {
   const { t } = useTranslation()
-  const { open, setOpen, ref } = useMenu()
+  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   if (!canRematch && !onClearScope) return null
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={ref} style={anchorStyle}>
       <IconButton
         aria-label={t('remote.catalogActions')}
         title={t('remote.catalogActions')}
@@ -1003,7 +1003,7 @@ function CatalogActions({
         <MoreHorizontal aria-hidden size="1.1em" />
       </IconButton>
       {open && (
-        <Menu className="t-pop--up absolute top-full left-0 z-20 mt-1 w-max max-w-[70vw]" aria-label={t('remote.catalogActions')}>
+        <Menu anchor={anchor} aria-label={t('remote.catalogActions')}>
           {canRematch && noMatchCount > 0 && (
             <MenuItem
               onClick={() => {
@@ -1069,13 +1069,13 @@ const CARD_ACTIONS = 'relative mx-2 mb-2 mt-auto flex gap-1.5 [&_.t-btn]:min-w-6
 
 function TileActions({ actions }: { actions: TileAction[] }) {
   const { t } = useTranslation()
-  const { open, setOpen, ref } = useMenu()
+  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   if (actions.length === 0) return null
   const inline = actions.length > 3 ? actions.slice(0, 2) : actions
   const rest = actions.slice(inline.length)
   const more = t('remote.tileActions')
   return (
-    <div className={CARD_ACTIONS} ref={ref}>
+    <div className={CARD_ACTIONS} ref={ref} style={anchorStyle}>
       {inline.map((a) => (
         <Button
           key={a.key}
@@ -1103,7 +1103,7 @@ function TileActions({ actions }: { actions: TileAction[] }) {
             <MoreHorizontal aria-hidden size="1.2em" />
           </Button>
           {open && (
-            <Menu className="t-pop--up absolute right-0 bottom-full z-20 mb-1 w-max max-w-[70vw]" aria-label={more}>
+            <Menu anchor={anchor} placement="top-end" aria-label={more}>
               {rest.map((a) => (
                 <MenuItem
                   key={a.key}

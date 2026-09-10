@@ -25,7 +25,7 @@ export default function SourcePicker({
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { open, setOpen, ref } = useMenu()
+  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   const current = typeof value === 'number' ? servers.find((s) => s.id === value) : undefined
   const label = value === 'local' ? t('files.local') : (current?.name ?? t('remote.source'))
   // a server draws its own picture when it picked one, the plain server
@@ -39,7 +39,7 @@ export default function SourcePicker({
   }
 
   return (
-    <div className={`relative min-w-0 ${className ?? ''}`} ref={ref}>
+    <div className={`relative min-w-0 ${className ?? ''}`} ref={ref} style={anchorStyle}>
       <button
         type="button"
         className="flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-border-input px-3 text-sm text-t-primary hover:border-accent/60"
@@ -54,7 +54,7 @@ export default function SourcePicker({
         <ChevronDown aria-hidden size="0.9em" className="shrink-0 text-t-muted" />
       </button>
       {open && (
-        <Menu className="t-pop--up absolute top-full left-0 z-20 mt-1 w-max max-w-[70vw]" aria-label={t('remote.source')}>
+        <Menu anchor={anchor} aria-label={t('remote.source')}>
           <MenuItem selected={value === 'local'} onClick={() => pick('local')}>
             <span className="flex items-center gap-2">
               {mark(undefined, true)}
