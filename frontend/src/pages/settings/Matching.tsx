@@ -1,9 +1,9 @@
-import { Check, Search, Trash2, X } from 'lucide-react'
+import { Check, MoreHorizontal, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Panel } from '@weebsync/design-system'
+import { Badge, Button, Input, Menu, MenuItem, Panel, useMenu } from '@weebsync/design-system'
 import { api, type Media } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import {
@@ -16,7 +16,6 @@ import {
   fmtTs,
   INDEX_DEFAULTS,
   Modal,
-  NUM,
   NUMEDIT_GRID,
   NumEdit,
   PAGE,
@@ -24,16 +23,27 @@ import {
   ROW_GRID,
   useAdminJobs,
   useDebounced,
+  type IndexServer,
   type MatchEntry,
   type MatchesResp,
   type MatchStat,
 } from './maintenance'
 
-// The file index of every server and how well its folders are matched to
-// a title: crawl, rematch, and the per-folder correction dialog.
+type Run = UseMutationResult<unknown, Error, { name: string; body?: unknown }>
+
+interface ServerCardData {
+  id: number
+  name: string
+  index?: IndexServer
+  matches: MatchStat[]
+}
+
+// The file index of every server and how well its folders are matched:
+// one card per server with the crawler's numbers and settings, a line per
+// metadata source, the everyday actions in view and the two destructive
+// ones behind the card's menu. Rematching every server sits apart below.
 export default function Matching() {
   const { t } = useTranslation()
-  const confirm = useConfirm()
   const qc = useQueryClient()
   const [error, setError] = useState('')
   const [matchModal, setMatchModal] = useState<MatchStat | null>(null)
@@ -60,8 +70,18 @@ export default function Matching() {
       api.put(`/api/admin/index/${id}/config`, body),
     ...opts,
   })
+  const confirm = useConfirm()
 
   if (!data) return null
+
+  // the index lists the servers, the match stats come per server and source;
+  // a server with matches but no index (the local library) still gets a card
+  const byServer = new Map<number, MatchStat[]>()
+  for (const m of data.matches) byServer.set(m.serverId, [...(byServer.get(m.serverId) ?? []), m])
+  const cards: ServerCardData[] = data.index.servers.map((s) => ({ id: s.id, name: s.name, index: s, matches: byServer.get(s.id) ?? [] }))
+  for (const [id, matches] of byServer) {
+    if (!cards.some((c) => c.id === id)) cards.push({ id, name: matches[0].name, matches })
+  }
 
   return (
     <>
@@ -70,172 +90,183 @@ export default function Matching() {
           {error}
         </p>
       )}
-      <Panel as="section" id="index" className="mb-4 p-5" aria-label={t('settings.jobs.remoteIndex')}>
-        <Badge tone="accent">{t('settings.jobs.remoteIndex')}</Badge>
-        {data.index.servers.length === 0 ? (
-          <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
-        ) : (
-          <ul className="mt-2">
-            {/* one delimited block per server: name/stats line, config/actions
-                line - same grid geometry as every other row on the page */}
-            {data.index.servers.map((s) => (
-              <li key={s.id} className={`${ROW_GRID} gap-y-2 py-3`}>
-                <span className={CELL_LEFT}>
-                  <span
-                    className="min-w-0 truncate font-semibold text-t-primary"
-                    title={`${s.name} · ${t('settings.jobs.oldestListing')}: ${fmtTs(s.stalestListedAt)}`}
-                  >
-                    {s.name}
-                  </span>
-                  {s.pendingDirs > 0 && (
-                    <Badge tone="warn" className="shrink-0 tabular-nums">
-                      {t('settings.jobs.pending', { count: s.pendingDirs })}
-                    </Badge>
-                  )}
-                </span>
-                <span className={CELL_RIGHT}>
-                  <span className={NUM}>
-                    {t('settings.jobs.entries', { n: fmtNum(s.rows) })} ·{' '}
-                    {t('settings.jobs.dirs', { n: fmtNum(s.dirs) })}
-                  </span>
-                </span>
-                <span className={`${NUMEDIT_GRID} col-span-full self-start md:col-span-1`}>
-                  <NumEdit
-                    id={`idx-interval-${s.id}`}
-                    label={t('settings.jobs.interval')}
-                    value={s.intervalMin ?? INDEX_DEFAULTS.intervalMin}
-                    onCommit={(n) =>
-                      setIndexCfg.mutate({
-                        id: s.id,
-                        body: { intervalMin: n, batch: s.batch ?? INDEX_DEFAULTS.batch },
-                      })
-                    }
-                  />
-                  <NumEdit
-                    id={`idx-batch-${s.id}`}
-                    label={t('settings.jobs.batch')}
-                    value={s.batch ?? INDEX_DEFAULTS.batch}
-                    hint={t('settings.jobs.batchHint')}
-                    onCommit={(n) =>
-                      setIndexCfg.mutate({
-                        id: s.id,
-                        body: { intervalMin: s.intervalMin ?? INDEX_DEFAULTS.intervalMin, batch: n },
-                      })
-                    }
-                  />
-                </span>
-                {/* buttons top-align with the first input row (self-start) and
-                    share its 24px control height - anchored to the input grid,
-                    not floating vertically centered beside it */}
-                <span className={`${CELL_RIGHT} md:self-start`}>
-                  <Button
-                    size="sm"
-                    className="flex-1 md:flex-none"
-                    disabled={run.isPending}
-                    onClick={() => run.mutate({ name: 'index-crawl', body: { serverId: s.id } })}
-                  >
-                    {t('settings.jobs.crawlNow')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    className="flex-1 md:flex-none"
-                    disabled={flushIndex.isPending}
-                    onClick={async () => {
-                      if (await confirm({ message: t('settings.jobs.confirmFlushIndex', { name: s.name }), destructive: true }))
-                        flushIndex.mutate(s.id)
-                    }}
-                  >
-                    {t('settings.jobs.flushIndex')}
-                  </Button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="mt-2 text-xs text-t-muted">
-          {t('settings.jobs.indexHint')}
-        </p>
-      </Panel>
-      <Panel as="section" id="matches" className="mb-4 p-5" aria-label={t('settings.jobs.matchQuality')}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Badge tone="accent">{t('settings.jobs.matchQuality')}</Badge>
-          <Button
-            size="sm"
-            variant="danger"
-            disabled={run.isPending}
-            onClick={async () => {
-              if (await confirm({ message: t('settings.jobs.confirmRematchAllServers'), destructive: true }))
-                run.mutate({ name: 'rematch-all', body: { all: true } })
+      <p className="mb-4 text-xs text-t-muted">{t('settings.jobs.indexHint')}</p>
+
+      {cards.length === 0 ? (
+        <Panel className="mb-4 p-5 text-sm text-t-secondary">{t('settings.jobs.empty')}</Panel>
+      ) : (
+        cards.map((c) => (
+          <ServerCard
+            key={c.id}
+            card={c}
+            run={run}
+            onView={setMatchModal}
+            onFlush={async () => {
+              if (await confirm({ message: t('settings.jobs.confirmFlushIndex', { name: c.name }), destructive: true }))
+                flushIndex.mutate(c.id)
             }}
-          >
-            {t('settings.jobs.rematchAllServers')}
-          </Button>
-        </div>
-        <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.rematchAllServersHint')}</p>
-        {data.matches.length === 0 ? (
-          <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
-        ) : (
-          <ul className="mt-2">
-            {/* per-mockup block: name line, then ONE 3-column grid shared by
-                the badge row and the button row. Auto tracks size to the
-                widest of badge/button per column and grid items stretch to
-                their cell, so badge edges sit exactly flush over the buttons
-                below (col 1 stays empty above "Ansehen"). Button labels are
-                constant, so the tracks are identical across server blocks.
-                The name lives outside the grid so long names cannot widen
-                the tracks. Below md the grid collapses to one column: badges
-                stack directly above the buttons, all full-width. */}
-            {data.matches.map((m) => (
-              <li key={`${m.serverId}-${m.source}`} className="border-b border-border-subtle py-3 text-sm">
-                <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="min-w-0 truncate font-semibold text-t-primary" title={m.name}>
-                    {m.name}
-                  </span>
-                  <Badge className="shrink-0">{m.source}</Badge>
-                </span>
-                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-[auto_auto_auto] md:justify-end">
-                  <Badge tone="ok" className={`${COUNT_BADGE} md:col-start-2 md:row-start-1`}>
-                    {t('settings.jobs.matched', { n: fmtNum(m.matched) })}
-                  </Badge>
-                  <Badge
-                    tone={m.unmatched > 0 ? 'warn' : 'neutral'}
-                    className={`${COUNT_BADGE} md:col-start-3 md:row-start-1`}
-                  >
-                    {t('settings.jobs.unmatched', { n: fmtNum(m.unmatched) })}
-                  </Badge>
-                  <Button size="sm" className="md:col-start-1 md:row-start-2" onClick={() => setMatchModal(m)}>
-                    {t('settings.jobs.view')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="md:col-start-2 md:row-start-2"
-                    disabled={run.isPending}
-                    onClick={() => run.mutate({ name: 'rematch', body: { serverId: m.serverId, all: false } })}
-                  >
-                    {t('settings.jobs.rematchMissing')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    className="md:col-start-3 md:row-start-2"
-                    disabled={run.isPending}
-                    onClick={async () => {
-                      if (await confirm({ message: t('settings.jobs.confirmRematchAll', { name: m.name }), destructive: true }))
-                        run.mutate({ name: 'rematch', body: { serverId: m.serverId, all: true } })
-                    }}
-                  >
-                    {t('settings.jobs.rematchAll')}
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+            onRematchAll={async () => {
+              if (await confirm({ message: t('settings.jobs.confirmRematchAll', { name: c.name }), destructive: true }))
+                run.mutate({ name: 'rematch', body: { serverId: c.id, all: true } })
+            }}
+            onConfig={(body) => setIndexCfg.mutate({ id: c.id, body })}
+          />
+        ))
+      )}
+
+      <Panel danger as="section" className="mb-4 p-5" aria-label={t('settings.jobs.rematchAllServers')}>
+        <Badge tone="err">{t('settings.jobs.rematchAllServers')}</Badge>
+        <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.rematchAllServersHint')}</p>
+        <Button
+          size="sm"
+          variant="danger"
+          className="mt-3"
+          disabled={run.isPending || cards.length === 0}
+          onClick={async () => {
+            if (await confirm({ message: t('settings.jobs.confirmRematchAllServers'), destructive: true }))
+              run.mutate({ name: 'rematch-all', body: { all: true } })
+          }}
+        >
+          {t('settings.jobs.rematchAllServers')}
+        </Button>
       </Panel>
 
       {matchModal && <MatchesModal stat={matchModal} onClose={() => setMatchModal(null)} />}
     </>
+  )
+}
+
+function ServerCard({
+  card: c,
+  run,
+  onView,
+  onFlush,
+  onRematchAll,
+  onConfig,
+}: {
+  card: ServerCardData
+  run: Run
+  onView: (m: MatchStat) => void
+  onFlush: () => void
+  onRematchAll: () => void
+  onConfig: (body: { intervalMin: number; batch: number }) => void
+}) {
+  const { t } = useTranslation()
+  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
+  const more = t('settings.jobs.moreActions')
+  const s = c.index
+  const first = c.matches[0]
+  return (
+    <Panel as="section" className="mb-4 p-4 sm:p-5" aria-label={c.name}>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <h3 className="flex min-w-0 flex-wrap items-center gap-2 font-display text-sm font-semibold tracking-wider text-t-primary">
+            <span className="min-w-0 truncate">{c.name}</span>
+            {s && s.pendingDirs > 0 && (
+              <Badge tone="warn" className="shrink-0 tabular-nums">
+                {t('settings.jobs.pending', { count: s.pendingDirs })}
+              </Badge>
+            )}
+          </h3>
+          {s && (
+            <p className="mt-1 font-mono text-xs tabular-nums text-t-muted">
+              {t('settings.jobs.entries', { n: fmtNum(s.rows) })} · {t('settings.jobs.dirs', { n: fmtNum(s.dirs) })} ·{' '}
+              {t('settings.jobs.oldestListing')}: {fmtTs(s.stalestListedAt)}
+            </p>
+          )}
+        </div>
+        {/* the everyday actions in view, the two that throw work away behind
+            the menu, so a thumb on a phone cannot land on them by accident */}
+        <div ref={ref} style={anchorStyle} className="flex flex-wrap items-center gap-2">
+          {first && (
+            <>
+              <Button size="sm" onClick={() => onView(first)}>
+                {t('settings.jobs.view')}
+              </Button>
+              <Button
+                size="sm"
+                disabled={run.isPending}
+                onClick={() => run.mutate({ name: 'rematch', body: { serverId: c.id, all: false } })}
+              >
+                {t('settings.jobs.rematchMissing')}
+              </Button>
+            </>
+          )}
+          {s && (
+            <Button size="sm" disabled={run.isPending} onClick={() => run.mutate({ name: 'index-crawl', body: { serverId: c.id } })}>
+              {t('settings.jobs.crawlNow')}
+            </Button>
+          )}
+          <Button size="sm" aria-label={more} title={more} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            <MoreHorizontal aria-hidden size="1.2em" />
+          </Button>
+          {open && (
+            <Menu anchor={anchor} placement="bottom-end" aria-label={more}>
+              {s && (
+                <MenuItem
+                  className="text-err"
+                  onClick={() => {
+                    setOpen(false)
+                    onFlush()
+                  }}
+                >
+                  {t('settings.jobs.flushIndex')}
+                </MenuItem>
+              )}
+              {first && (
+                <MenuItem
+                  className="text-err"
+                  onClick={() => {
+                    setOpen(false)
+                    onRematchAll()
+                  }}
+                >
+                  {t('settings.jobs.rematchAll')}
+                </MenuItem>
+              )}
+            </Menu>
+          )}
+        </div>
+      </div>
+
+      {s && (
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+          <span className={NUMEDIT_GRID}>
+            <NumEdit
+              id={`idx-interval-${s.id}`}
+              label={t('settings.jobs.interval')}
+              value={s.intervalMin ?? INDEX_DEFAULTS.intervalMin}
+              onCommit={(n) => onConfig({ intervalMin: n, batch: s.batch ?? INDEX_DEFAULTS.batch })}
+            />
+          </span>
+          <span className={NUMEDIT_GRID}>
+            <NumEdit
+              id={`idx-batch-${s.id}`}
+              label={t('settings.jobs.batch')}
+              value={s.batch ?? INDEX_DEFAULTS.batch}
+              hint={t('settings.jobs.batchHint')}
+              onCommit={(n) => onConfig({ intervalMin: s.intervalMin ?? INDEX_DEFAULTS.intervalMin, batch: n })}
+            />
+          </span>
+        </div>
+      )}
+
+      {c.matches.length > 0 && (
+        <ul className="mt-3 border-t border-border-subtle">
+          {c.matches.map((m) => (
+            <li key={m.source} className="flex flex-wrap items-center gap-2 border-b border-border-subtle py-2 text-sm">
+              <Badge className="shrink-0">{m.source}</Badge>
+              <Badge tone="ok" className={COUNT_BADGE}>
+                {t('settings.jobs.matched', { n: fmtNum(m.matched) })}
+              </Badge>
+              <Badge tone={m.unmatched > 0 ? 'warn' : 'neutral'} className={COUNT_BADGE}>
+                {t('settings.jobs.unmatched', { n: fmtNum(m.unmatched) })}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
   )
 }
 
