@@ -671,10 +671,13 @@ export function CatalogGrid({
     <div className="flex min-h-0 flex-1 flex-col">
       {crumbs}
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      {/* on a phone each control sits under its own label and spans the row:
+          side by side the two selects started at different x, because the
+          labels differ in width */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-xs text-t-muted">
+        <label className="flex w-full flex-col gap-1 text-xs text-t-muted sm:w-auto sm:flex-row sm:items-center sm:gap-2">
           {t('remote.scope')}
-          <Select wrapperClassName="w-44" value={data?.scope ?? ''} onChange={(e) => setScope(e.target.value)}>
+          <Select wrapperClassName="w-full sm:w-44" value={data?.scope ?? ''} onChange={(e) => setScope(e.target.value)}>
             <option value="" disabled>
               {t('remote.scopeNone')}
             </option>
@@ -685,9 +688,9 @@ export function CatalogGrid({
           </Select>
         </label>
         {groups.length > 1 && (
-          <label className="flex items-center gap-2 text-xs text-t-muted">
+          <label className="flex w-full flex-col gap-1 text-xs text-t-muted sm:w-auto sm:flex-row sm:items-center sm:gap-2">
             {t('remote.sort')}
-            <Select wrapperClassName="w-44" value={sort} onChange={(e) => setSort(e.target.value as CatalogSort)}>
+            <Select wrapperClassName="w-full sm:w-44" value={sort} onChange={(e) => setSort(e.target.value as CatalogSort)}>
               {CATALOG_SORTS.map((s) => (
                 <option key={s} value={s}>
                   {t(`remote.sort_${s}`)}
