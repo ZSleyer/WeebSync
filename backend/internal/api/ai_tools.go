@@ -62,7 +62,7 @@ func (s *Server) aiSearchMedia(ctx context.Context, userID int64, query, kind st
 // ── library ──
 
 type aiLocalFolder struct {
-	Folder     string   `json:"folder"`
+	Name       string   `json:"name"`
 	Title      string   `json:"title,omitempty"` // what the catalog matched it to
 	Season     int      `json:"season,omitempty"`
 	IsMovie    bool     `json:"isMovie,omitempty"`
@@ -107,10 +107,12 @@ func (s *Server) aiLibrary(userID int64, query string) any {
 		var f aiLocalFolder
 		var res, isMovie int
 		var dub, sub string
-		if rows.Scan(&f.Folder, &res, &dub, &sub, &f.Season, &isMovie) != nil {
+		var folder string
+		if rows.Scan(&folder, &res, &dub, &sub, &f.Season, &isMovie) != nil {
 			continue
 		}
-		f.Title = s.aiMatchedTitle(0, f.Folder)
+		f.Name = aiLocalName(folder)
+		f.Title = s.aiMatchedTitle(0, folder)
 		if res > 0 {
 			f.Resolution = fmtRes(res)
 		}
@@ -148,7 +150,6 @@ func (s *Server) aiDownloads(userID int64, status string) any {
 		ID        int64  `json:"id"`
 		File      string `json:"file"`
 		Folder    string `json:"folder"`
-		LocalPath string `json:"localPath"`
 		Status    string `json:"status"`
 		Error     string `json:"error,omitempty"`
 		ErrorCode string `json:"errorCode,omitempty"`
@@ -160,12 +161,12 @@ func (s *Server) aiDownloads(userID int64, status string) any {
 	counts := map[string]int{}
 	for rows.Next() {
 		var d dl
-		var remote string
+		var remote, local string
 		var size, done int64
-		if rows.Scan(&d.ID, &remote, &d.LocalPath, &size, &done, &d.Status, &d.Error, &d.ErrorCode, &d.CreatedAt) != nil {
+		if rows.Scan(&d.ID, &remote, &local, &size, &done, &d.Status, &d.Error, &d.ErrorCode, &d.CreatedAt) != nil {
 			continue
 		}
-		d.File, d.Folder = path.Base(remote), path.Dir(remote)
+		d.File, d.Folder = path.Base(remote), aiName(path.Dir(remote))
 		if size > 0 {
 			d.Size = fmtBytes(size)
 			if d.Status == "running" || d.Status == "paused" {
@@ -318,19 +319,24 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 	if err == nil {
 		for vrows.Next() {
 			var f aiFolder
+			var serverID int64
+			var folder string
 			var res, isMovie int
 			var dub, sub string
-			if vrows.Scan(&f.ServerID, &f.ServerName, &f.Path, &f.Season, &res, &dub, &sub, &isMovie) != nil {
+			if vrows.Scan(&serverID, &f.ServerName, &folder, &f.Season, &res, &dub, &sub, &isMovie) != nil {
 				continue
 			}
+			f.Name = aiName(folder)
 			if res > 0 {
 				f.Resolution = fmtRes(res)
 			}
 			f.Dub, f.Sub, f.IsMovie = splitCSV(dub), splitCSV(sub), isMovie == 1
 			se := at(f.Season)
-			if f.ServerID == 0 {
+			if serverID == 0 {
+				f.Name = aiLocalName(folder)
 				se.Local = append(se.Local, f)
 			} else {
+				f.Ref = s.aiRefFor(userID, serverID, folder)
 				se.Remote = append(se.Remote, f)
 			}
 		}
@@ -415,9 +421,9 @@ func (s *Server) aiRelationChain(ctx context.Context, userID int64, mediaID int)
 	for i, m := range chain {
 		se := aiSeason{Season: i + 1, Title: aiTitle(m), Year: m.SeasonYear, AnilistID: m.ID, InAutoSync: have.inSync(m, "anilist")}
 		if have.owned(m, "anilist") {
-			se.Local = []aiFolder{{Path: "(in the Plex library)"}}
+			se.Local = []aiFolder{{Name: "(in the Plex library)"}}
 		}
-		se.Candidates = aiCands(s.remoteCandidates(userID, m))
+		se.Candidates = s.aiCands(userID, s.remoteCandidates(userID, m))
 		out = append(out, se)
 	}
 	return map[string]any{"series": aiTitle(chain[0]), "seasons": out, "note": "seasons numbered along AniList's prequel/sequel chain"}
