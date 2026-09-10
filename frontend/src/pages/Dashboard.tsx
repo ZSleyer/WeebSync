@@ -979,6 +979,40 @@ function SelectBox({ checked, name, onSelect }: { checked: boolean; name: string
 // dirOf is the folder a path lives in, for the browser deep links.
 const dirOf = (p: string) => p.slice(0, p.lastIndexOf('/')) || '/'
 
+// softBreak marks where a long name may wrap: after a bracket, an
+// underscore, a dot or a dash. Without the marks a phone broke a file name
+// wherever the column ended, "[10" on one line and "80p]" on the next.
+const softBreak = (text: string) =>
+  text.split(/(?<=[\]_.\-\s)])/).map((part, i) => (
+    <span key={i}>
+      {i > 0 && <wbr />}
+      {part}
+    </span>
+  ))
+
+// PathLink is a path as its segments: the folders on the way in the muted
+// ink, the folder itself in the accent, a break only at a slash. A path in
+// one underlined run broke mid-word and read as one long unknown string.
+function PathLink({ path, to }: { path: string; to: string }) {
+  const parts = path.split('/').filter(Boolean)
+  const last = parts.length - 1
+  return (
+    <Link to={to} className="break-words font-mono text-t-muted hover:underline" title={path}>
+      {path.startsWith('/') && '/'}
+      {parts.map((seg, i) => (
+        <span key={i}>
+          {i > 0 && (
+            <>
+              /<wbr />
+            </>
+          )}
+          <span className={i === last ? 'text-accent' : undefined}>{seg}</span>
+        </span>
+      ))}
+    </Link>
+  )
+}
+
 // DetailsToggle is the chevron that opens a download's metadata: a square
 // small button, the same box as the row's other actions.
 function DetailsToggle({ open, name, onToggle }: { open: boolean; name: string; onToggle: () => void }) {
@@ -1019,31 +1053,32 @@ function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
         )}
         <div className="min-w-0">
           <dt className={caption}>{t('dash.source')}</dt>
-          <dd className="break-all">
-            {group?.serverName && <span className="mr-2 text-t-muted">{group.serverName}</span>}
-            <Link to={remoteLink(remoteDir)} className="font-mono text-accent underline">
-              {remoteDir}
-            </Link>
+          <dd>
+            {group?.serverName && (
+              <Badge size="sm" className="mr-1.5 align-[-0.2em]">
+                {group.serverName}
+              </Badge>
+            )}
+            <PathLink path={remoteDir} to={remoteLink(remoteDir)} />
           </dd>
         </div>
         <div className="min-w-0">
           <dt className={caption}>{t('dash.target')}</dt>
-          <dd className="break-all">
-            <Link to={`/files?source=local&path=${encodeURIComponent(localDir)}`} className="font-mono text-accent underline">
-              {localDir}
-            </Link>
+          <dd>
+            <PathLink path={localDir} to={`/files?source=local&path=${encodeURIComponent(localDir)}`} />
           </dd>
         </div>
         {remoteBase !== localBase && (
           <div className="min-w-0 sm:col-span-2">
             <dt className={caption}>{t('dash.renamedTo')}</dt>
-            {/* two lines, the new name under the old: file names are long,
-                and inline the arrow vanished somewhere in the middle */}
-            <dd className="break-all font-mono">
-              <span className="block text-t-muted">{remoteBase}</span>
-              <span className="block text-t-secondary">
+            {/* the name it gets is the point, so it stands in the primary
+                ink with the arrow; the name it had sits above, small and
+                muted. Both wrap at their own joints, not mid-word */}
+            <dd className="break-words font-mono">
+              <span className="block text-[11px] text-t-muted">{softBreak(remoteBase)}</span>
+              <span className="block text-t-primary">
                 <ArrowRight aria-hidden size="1em" className="mr-1 inline align-[-0.125em] text-accent" />
-                {localBase}
+                {softBreak(localBase)}
               </span>
             </dd>
           </div>
