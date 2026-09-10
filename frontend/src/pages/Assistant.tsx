@@ -132,8 +132,15 @@ export default function Assistant() {
     ta.style.height = 'auto'
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`
   }, [input])
+  // the dictation line wraps and scrolls; what was said last is what the
+  // speaker is checking, so it stays in view
+  const sayRef = useRef<HTMLSpanElement>(null)
   const { open: addOpen, setOpen: setAddOpen, ref: addRef } = useMenu()
   const dictation = useDictation(i18n.language)
+  useEffect(() => {
+    const el = sayRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [dictation.text])
   // web search and research are switched on per user from the add menu and
   // stay on; research implies the search. Only offered with a search set up.
   const toolsKey = `weebsync.ai.tools.${uid}`
@@ -549,9 +556,17 @@ export default function Assistant() {
           {/* the text on its own line, the controls under it: on a phone a
               row of buttons beside the field left it two words wide */}
           {dictation.active ? (
-            <p className="flex min-h-9 min-w-0 items-center gap-3 px-3 pt-2 text-base" aria-live="polite">
-              <span className={`min-w-0 flex-1 truncate ${dictation.text ? 'text-t-primary' : 'text-t-muted italic'}`}>{dictation.text || t('assistant.listening')}</span>
-              <span className="ai-dots" aria-hidden>
+            // three lines at most, scrolled to the end: a long dictation cut
+            // at "..." hid the words just spoken, which are the ones being
+            // checked. The dots sit on the last line, where the text is
+            <p className="flex min-h-9 min-w-0 items-end gap-3 px-3 pt-3 pb-1 text-base" aria-live="polite">
+              <span
+                ref={sayRef}
+                className={`max-h-[4.5rem] min-w-0 flex-1 overflow-y-auto leading-6 ${dictation.text ? 'text-t-primary' : 'text-t-muted italic'}`}
+              >
+                {dictation.text || t('assistant.listening')}
+              </span>
+              <span className="ai-dots mb-1.5 shrink-0" aria-hidden>
                 <i />
                 <i />
                 <i />
