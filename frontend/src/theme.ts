@@ -1,3 +1,5 @@
+import { setFavicon } from './favicon'
+
 // The look's theme choice. "system" follows the OS and keeps following it
 // while the tab is open, the other two are fixed. Nothing stored means system.
 export type ThemePref = 'system' | 'dark' | 'light'
@@ -28,6 +30,8 @@ let unwatch: (() => void) | undefined
 function paint(theme: Theme) {
   document.documentElement.dataset.theme = theme
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', BAR_COLOR[theme])
+  // the accent has a shade per mode, and the tab icon carries the accent
+  setFavicon()
 }
 
 /** Apply a preference to the document: sets the theme and, for "system", follows the OS from then on. */

@@ -381,7 +381,8 @@ const run = async (name, browserType) => {
   const browser = await browserType.launch()
   const findings = []
   for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
-    const ctx = await browser.newContext(vp)
+    // the app follows the OS scheme unless a choice is stored: WS_THEME=dark runs the dark look
+    const ctx = await browser.newContext({ ...vp, colorScheme: process.env.WS_THEME === 'dark' ? 'dark' : 'light' })
     const page = await ctx.newPage()
     const errors = []
     // a navigation aborts the app's open SSE streams; that is expected noise

@@ -801,10 +801,10 @@
     },
     "jobs": {
       "activity": "Active tasks",
-      "hint": "Background jobs, caches and index health. Refreshes every 5 seconds.",
+      "hint": "What runs right now and what is on hold. Refreshes every 5 seconds.",
       "logs": {
         "title": "Live log",
-        "hint": "Live stream of backend activity. A higher level (debug/trace) shows decisions and their reasoning; applies immediately, no restart.",
+        "hint": "Live stream of backend activity. A higher level (debug/trace) shows decisions and reasons, applies at once and without a restart.",
         "level": "Level",
         "filter": "Filter",
         "all": "all",
@@ -870,7 +870,6 @@
       "rematchAllServersHint": "Rematches every automatic match on every server and spends many API requests doing so.",
       "confirmRematchAllServers": "Really re-queue every automatic match on ALL servers? This can take a while and use many API requests.",
       "data": {
-        "title": "Data stores",
         "kindTitle": {
           "cache": "Caches",
           "derived": "Derived data",

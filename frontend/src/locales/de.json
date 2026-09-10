@@ -801,10 +801,10 @@
     },
     "jobs": {
       "activity": "Aktive Aufgaben",
-      "hint": "Hintergrund-Jobs, Caches und Index-Zustand. Aktualisiert sich alle 5 Sekunden.",
+      "hint": "Was gerade läuft und was angehalten ist. Aktualisiert sich alle 5 Sekunden.",
       "logs": {
         "title": "Live-Log",
-        "hint": "Live-Strom der Backend-Aktivität. Höheres Level (debug/trace) zeigt Entscheidungen und Begründungen; gilt sofort, ohne Neustart.",
+        "hint": "Live-Strom der Backend-Aktivität. Höheres Level (debug/trace) zeigt Entscheidungen und Begründungen, gilt sofort und ohne Neustart.",
         "level": "Level",
         "filter": "Filter",
         "all": "alle",
@@ -870,7 +870,6 @@
       "rematchAllServersHint": "Zieht alle automatischen Matches aller Server neu und nutzt dafür viele API-Anfragen.",
       "confirmRematchAllServers": "Wirklich alle automatischen Matches auf ALLEN Servern neu ziehen? Das kann dauern und viele API-Anfragen verursachen.",
       "data": {
-        "title": "Datenbestände",
         "kindTitle": {
           "cache": "Caches",
           "derived": "Abgeleitete Daten",

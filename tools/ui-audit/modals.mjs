@@ -133,6 +133,7 @@ const TRIGGERS = [
       await page.waitForTimeout(400)
       return true
     },
+    role: 'option',
     names: [/^Index leeren$|^Flush index$/],
   },
   // a store row is a button named by the store plus its numbers
@@ -294,13 +295,14 @@ const run = async (browserName, type) => {
   const browser = await type.launch()
   const found = []
   for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
-    const ctx = await browser.newContext(vp)
+    // the app follows the OS scheme unless a choice is stored: WS_THEME=dark runs the dark look
+    const ctx = await browser.newContext({ ...vp, colorScheme: process.env.WS_THEME === 'dark' ? 'dark' : 'light' })
     if (TOKEN)
       await ctx.addCookies([
         { name: 'weebsync_session', value: TOKEN, domain: new URL(BASE).hostname, path: '/', httpOnly: true, sameSite: 'Lax' },
       ])
     const page = await ctx.newPage()
-    for (const { route, names, setup, label } of TRIGGERS) {
+    for (const { route, names, setup, label, role = 'button' } of TRIGGERS) {
       await page.goto(BASE + route, { waitUntil: 'load' })
       // long enough for the list requests behind a route to land: a row action
       // that is not on the page yet reads exactly like a dialog that does not
@@ -308,7 +310,8 @@ const run = async (browserName, type) => {
       await page.waitForTimeout(1500)
       if (setup && !(await setup(page))) continue
       for (const re of names) {
-        const btn = page.getByRole('button', { name: re }).first()
+        // a menu entry is an option, not a button: the trigger says so
+        const btn = page.getByRole(role, { name: re }).first()
         // wait for the control rather than for a round number of milliseconds:
         // a row action that the list has not rendered yet is indistinguishable
         // from one that does not exist, and the coverage report below would

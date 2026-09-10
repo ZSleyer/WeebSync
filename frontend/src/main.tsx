@@ -9,13 +9,11 @@ import { ConfirmProvider } from './components/confirm'
 import { PromptProvider } from './components/prompt'
 import { registerServiceWorker } from './push'
 import { applyTheme, readThemePref } from './theme'
-import { setFavicon } from './favicon'
 
 registerServiceWorker()
 
 // apply persisted look before first paint
 const root = document.documentElement
-applyTheme(readThemePref())
 // orange is the default accent. Violet was, and a stored violet is far more
 // likely the old default than a choice, so it becomes orange once. Picking
 // violet after that sticks.
@@ -26,7 +24,7 @@ if (accent === 'violet' && !localStorage.getItem('weebsync.accent.v2')) {
 }
 localStorage.setItem('weebsync.accent.v2', '1')
 root.dataset.accent = accent ?? 'orange'
-setFavicon()
+applyTheme(readThemePref())
 if (localStorage.getItem('weebsync.motion') === 'off') root.dataset.motion = 'off'
 
 // keyboard-modality tracking (what-input pattern): focus rings appear only
