@@ -1,6 +1,10 @@
 package api
 
 import (
+	"bytes"
+	"encoding/base64"
+	"image"
+	"image/png"
 	"net/http"
 	"strings"
 	"testing"
@@ -52,16 +56,20 @@ func TestAiChatsRoundTripAndOwnership(t *testing.T) {
 }
 
 // A picture on the user's message reaches the provider as an image part
-// next to the text; a picture that is not a data:image URL is dropped.
+// next to the text, re-encoded as a plain JPEG; a picture that is not a
+// decodable data:image URL is dropped.
 func TestAiChatImagesBecomeContentParts(t *testing.T) {
 	fp := newFakeProvider(t, fakeReply{text: "A cat."})
 	mux, _, c := setupAiTest(t, fp)
-	body := `{"messages":[{"role":"user","content":"what is this?","images":["data:image/png;base64,iVBORw0KGgo=","https://example.com/x.png"]}]}`
+	var buf bytes.Buffer
+	png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 2, 2)))
+	pic := "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+	body := `{"messages":[{"role":"user","content":"what is this?","images":["` + pic + `","data:image/png;base64,iVBORw0KGgo=","https://example.com/x.png"]}]}`
 	if rec := doReq(mux, "POST", "/api/ai/chat", body, c); rec.Code != 200 {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body)
 	}
 	raw := string(fp.raw)
-	if !strings.Contains(raw, `"type":"image_url"`) || !strings.Contains(raw, `data:image/png;base64,iVBORw0KGgo=`) || !strings.Contains(raw, `"type":"text","text":"what is this?"`) {
+	if strings.Count(raw, `"type":"image_url"`) != 1 || !strings.Contains(raw, `data:image/jpeg;base64,`) || !strings.Contains(raw, `"type":"text","text":"what is this?"`) {
 		t.Errorf("parts missing: %s", raw)
 	}
 	if strings.Contains(raw, "example.com") {
