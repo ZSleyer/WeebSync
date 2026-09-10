@@ -81,6 +81,7 @@ export interface ContainerIdentity {
 // non-admin session gets a 403 and the UI has to stay useful without it.
 export interface SystemStatus {
   container: ContainerIdentity
+  disk?: { path: string; totalBytes: number; freeBytes: number; usedBytes: number }
 }
 
 // Background job families, as /api/jobs reports them. Every signed-in user may
