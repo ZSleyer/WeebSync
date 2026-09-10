@@ -177,6 +177,9 @@ export default function Dashboard() {
       return next
     })
   const [historyOpen, setHistoryOpen] = useState(true)
+  // the queue folds like the history does: on a phone a long queue is what
+  // stands between the top of the page and the week's releases
+  const [queueOpen, setQueueOpen] = useState(true)
   // the history toolbar is one row on a phone: box, search, status select,
   // clear. The search keeps what is left, which is too little for the full
   // placeholder - a short one there, the aria-label stays the full sentence
@@ -278,17 +281,25 @@ export default function Dashboard() {
         </aside>
 
           <section aria-label={t('dash.transferSection')} className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
-            <Divider
-              className="mb-3"
-              label={
-                <>
-                  <DownloadIcon aria-hidden size="1em" />
-                  {t('dash.transferSection')}
-                </>
-              }
-              count={activeAll.length}
-            />
-
+            {/* divider header doubles as the collapse toggle, like the
+                history's - hand-rolled because <Divider> always renders its
+                label as a non-interactive chip */}
+            <div className="t-divider mb-3">
+              <button
+                type="button"
+                className="t-label t-label--accent cursor-pointer"
+                aria-expanded={queueOpen}
+                onClick={() => setQueueOpen((o) => !o)}
+              >
+                {queueOpen ? <ChevronDown aria-hidden size="1em" /> : <ChevronRight aria-hidden size="1em" />}
+                <DownloadIcon aria-hidden size="1em" />
+                {t('dash.transferSection')}
+              </button>
+              <span className="t-divider-rule" />
+              <Count>{activeAll.length}</Count>
+            </div>
+            {queueOpen && (
+            <>
             {/* the toolbar earns its row from the second download on:
                 select-all, search and cancel-everything over a single card
                 are chrome in front of the one thing on screen */}
@@ -380,6 +391,8 @@ export default function Dashboard() {
                 />
               ))}
             </div>
+            </>
+            )}
           </section>
 
           {finishedAll.length > 0 && (
