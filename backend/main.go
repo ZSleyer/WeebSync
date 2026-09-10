@@ -229,7 +229,12 @@ func harden(next http.Handler) http.Handler {
 				"style-src 'self' 'unsafe-inline'; connect-src 'self'; "+
 				"frame-src https://www.youtube-nocookie.com; "+
 				"frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")
-		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		// the assistant's dictation is the browser's own speech recognition,
+		// and that needs the microphone: with microphone=() the recognizer is
+		// refused before it hears anything, which looks exactly like a
+		// dictation that recognises nothing. Only our own origin, and only the
+		// microphone - camera and location stay off.
+		h.Set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			h.Set("Cache-Control", "no-store")
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
