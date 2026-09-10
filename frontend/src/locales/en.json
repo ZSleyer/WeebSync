@@ -355,6 +355,7 @@
     },
     "retryUnmatched": "Retry {{count}} unmatched",
     "catalogActions": "Catalog actions",
+    "tileActions": "More actions",
     "rematchAll": "Re-match all",
     "confirmRematchAll": "Re-search all automatic matches in this folder? Manual assignments are kept.",
     "searchHint": "Title, AniList ID or anilist.co link",
