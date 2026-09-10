@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bufio"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,6 +11,54 @@ import (
 	"strings"
 	"syscall"
 )
+
+// mountSources maps every mount point to the device it is mounted from, read
+// from /proc/self/mountinfo. It is what tells two btrfs subvolumes of one
+// drive apart from two drives: the kernel gives each subvolume a device
+// number and a statfs id of its own, but both come from the same /dev node.
+// Missing or unreadable (not Linux, AppArmor), the map is empty.
+func mountSources() map[string]string {
+	out := map[string]string{}
+	f, err := os.Open("/proc/self/mountinfo")
+	if err != nil {
+		return out
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		// mountID parentID major:minor root mountpoint opts [tags...] - fstype source superopts
+		fields := strings.Fields(sc.Text())
+		sep := slices.Index(fields, "-")
+		if sep < 5 || sep+2 >= len(fields) {
+			continue
+		}
+		mp := strings.NewReplacer(`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, `\`).Replace(fields[4])
+		out[mp] = fields[sep+2]
+	}
+	return out
+}
+
+// mountSource is the device behind a path, "" when it is unknown or not a
+// device node (tmpfs, overlay and the like share one name across mounts).
+func mountSource(mounts map[string]string, p string) string {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = resolved
+	}
+	best, src := -1, ""
+	for mp, dev := range mounts {
+		if (abs == mp || strings.HasPrefix(abs, strings.TrimSuffix(mp, "/")+"/")) && len(mp) > best {
+			best, src = len(mp), dev
+		}
+	}
+	if !strings.HasPrefix(src, "/dev/") {
+		return ""
+	}
+	return src
+}
 
 type statusRunning struct {
 	ID          int64   `json:"id"`
@@ -80,9 +129,12 @@ type StatusResponse struct {
 // there. The same filesystem seen through several paths is reported once,
 // under its shortest path with the others listed, which is what folds the
 // root's plain folders back into the root and a Plex root into its drive.
-// Filesystems are told apart by statfs's id, not the device number: a btrfs
-// subvolume carries a device number of its own and would count as a drive.
+// Drives are told apart by the device they are mounted from: a btrfs
+// subvolume carries a device number and a statfs id of its own, so either
+// would count every subvolume as a drive. Where the mount table says nothing
+// the statfs id stands in, and the device number where that is zero.
 func (s *Server) diskUsage() []statusDisk {
+	mounts := mountSources()
 	paths := append([]string{s.DownloadRoot}, s.localRoots()...)
 	if entries, err := os.ReadDir(s.DownloadRoot); err == nil {
 		for _, e := range entries {
@@ -91,7 +143,7 @@ func (s *Server) diskUsage() []statusDisk {
 			}
 		}
 	}
-	index := map[[3]uint64]int{}
+	index := map[string]int{}
 	var out []statusDisk
 	for _, p := range paths {
 		// best effort - a missing mount must not break the endpoint
@@ -103,12 +155,13 @@ func (s *Server) diskUsage() []statusDisk {
 		if syscall.Statfs(p, &st) != nil {
 			continue
 		}
-		key := [3]uint64{uint64(st.Fsid.X__val[0]), uint64(st.Fsid.X__val[1])}
-		if key[0] == 0 && key[1] == 0 {
-			// a filesystem without an id (overlay, some fuse): fall back to
-			// the device number, which at least keeps distinct mounts apart
-			if sys, ok := info.Sys().(*syscall.Stat_t); ok {
-				key[2] = uint64(sys.Dev)
+		key := mountSource(mounts, p)
+		if key == "" {
+			key = fmt.Sprintf("fsid:%d:%d", st.Fsid.X__val[0], st.Fsid.X__val[1])
+			if st.Fsid.X__val[0] == 0 && st.Fsid.X__val[1] == 0 {
+				if sys, ok := info.Sys().(*syscall.Stat_t); ok {
+					key = fmt.Sprintf("dev:%d", sys.Dev)
+				}
 			}
 		}
 		if i, ok := index[key]; ok {
