@@ -1048,16 +1048,22 @@ function DownloadRow({
   // the arrival, from the backend's own smoothed rate; nothing while the
   // rate is still zero, a division by that is not a time
   const eta = running && d.bytesPerSec ? remaining(t, (d.size - d.transferred) / d.bytesPerSec) : null
-  // each figure keeps to one piece: a phone breaks the line, and "26.7 /
-  // KiB/s" split across two is not a rate
+  // each figure keeps to one piece and the line breaks only at the dots: a
+  // phone breaks the line, and "26.7 / KiB/s" split across two is not a
+  // rate. The separators sit between the pieces, not inside them - inside,
+  // the whole line was one unbreakable run and ran off the card
   const stats = [`${fmtBytes(d.transferred)} / ${fmtBytes(d.size)}`, running && d.bytesPerSec != null ? fmtSpeed(d.bytesPerSec) : null, eta]
     .filter(Boolean)
-    .map((part, i) => (
+    .flatMap((part, i) => [
+      i > 0 ? (
+        <span key={`sep${i}`} aria-hidden>
+          {' · '}
+        </span>
+      ) : null,
       <span key={i} className="whitespace-nowrap">
-        {i > 0 && <span aria-hidden> · </span>}
         {part}
-      </span>
-    ))
+      </span>,
+    ])
   return (
     <TransferCard
       variant={variant}
