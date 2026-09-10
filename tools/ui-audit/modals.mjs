@@ -121,8 +121,22 @@ const TRIGGERS = [
   // a chip, and the longest of those labels is what a phone has to fit
   // `Ansehen` opens the cache viewer (a list dialog), `Index leeren` the
   // confirm box, and the reset dialog is the widest one in the app
-  { route: '/settings/matching', names: [/^Ansehen$|^View$/, /^Index leeren$|^Flush index$/] },
-  { route: '/settings/data', names: [/^AniList-Suche$|^AniList search$/, /Alles neu aufbauen|Rebuild everything/] },
+  { route: '/settings/matching', names: [/^Ansehen$|^View$/] },
+  // flushing the index sits behind the server card's menu
+  {
+    route: '/settings/matching',
+    label: 'Menü',
+    setup: async (page) => {
+      const more = page.getByRole('button', { name: /Weitere Aktionen|More actions/ }).first()
+      if (!(await more.count().catch(() => 0))) return false
+      await more.click({ timeout: 3000 }).catch(() => {})
+      await page.waitForTimeout(400)
+      return true
+    },
+    names: [/^Index leeren$|^Flush index$/],
+  },
+  // a store row is a button named by the store plus its numbers
+  { route: '/settings/data', names: [/^AniList-Suche|^AniList search/, /Alles neu aufbauen|Rebuild everything/] },
 ]
 
 const VIEWPORTS = {

@@ -834,7 +834,7 @@
       "crawlNow": "Jetzt crawlen",
       "flushIndex": "Index leeren",
       "confirmFlushIndex": "Index für \"{{name}}\" leeren? Der Crawler baut ihn schrittweise neu auf.",
-      "indexHint": "Nach dem Leeren wird der Index schrittweise neu aufgebaut, im oben je Server eingestellten Intervall.",
+      "indexHint": "Nach dem Leeren baut der Crawler den Index schrittweise neu auf, im je Server eingestellten Intervall.",
       "oldestListing": "älteste Auflistung",
       "matched": "{{n}} gematcht",
       "unmatched": "{{n}} ohne Match",
@@ -937,6 +937,10 @@
             "anilist-media": {
               "name": "AniList-Medien",
               "desc": "Stammdaten einzelner Serien von AniList: Titel, Format, Episodenzahl, Cover."
+            },
+            "anilist-recommendations": {
+              "name": "AniList-Empfehlungen",
+              "desc": "Empfehlungen zu einzelnen Serien von AniList, wie sie die Vorschlagsseite zeigt."
             },
             "anilist-relations": {
               "name": "AniList-Relationen",

@@ -109,7 +109,7 @@ function LogPanel({ level }: { level: LogLevel }) {
         </div>
       </div>
       <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.logs.hint')}</p>
-      <div className="mt-3 max-h-96 overflow-y-auto rounded-lg border border-border-subtle bg-bg-secondary/40 p-2 font-mono text-xs leading-relaxed">
+      <div className="mt-3 h-[50dvh] overflow-y-auto rounded-lg border border-border-subtle bg-bg-secondary p-2 font-mono text-xs leading-relaxed lg:h-auto lg:max-h-[60dvh]">
         {shown.length === 0 ? (
           <p className="text-t-secondary">{t('settings.jobs.logs.empty')}</p>
         ) : (

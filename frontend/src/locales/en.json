@@ -834,7 +834,7 @@
       "crawlNow": "Crawl now",
       "flushIndex": "Flush index",
       "confirmFlushIndex": "Flush the index for \"{{name}}\"? The crawler rebuilds it gradually.",
-      "indexHint": "After a flush the index rebuilds gradually, at the per-server interval set above.",
+      "indexHint": "After a flush the crawler rebuilds the index step by step, at the interval set per server.",
       "oldestListing": "oldest listing",
       "matched": "{{n}} matched",
       "unmatched": "{{n}} unmatched",
@@ -937,6 +937,10 @@
             "anilist-media": {
               "name": "AniList media",
               "desc": "Per-series details from AniList: title, format, episode count, cover."
+            },
+            "anilist-recommendations": {
+              "name": "AniList recommendations",
+              "desc": "Recommendations for single series from AniList, as the suggestions page shows them."
             },
             "anilist-relations": {
               "name": "AniList relations",
