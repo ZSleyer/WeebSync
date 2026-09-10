@@ -266,6 +266,80 @@ export function Panel({ as: Tag = 'div', danger, className, ...rest }: PanelProp
   return <Tag {...rest} className={cx('t-panel', danger && 't-panel--danger', className)} />
 }
 
+export interface ProgressProps {
+  /** 0..100 */
+  value: number
+  /** accessible name, e.g. "Fortschritt Frieren S01E12" */
+  label: string
+  /** the thin bar for compact rows */
+  size?: 'md' | 'sm'
+  /** stripes move while data is flowing */
+  active?: boolean
+  tone?: 'accent' | 'ok' | 'warn' | 'err'
+  className?: string
+}
+
+/**
+ * Determinate progress: a rounded track with the accent bar, the same bar
+ * whether it measures a download or a disk. Reads its own name, so a row of
+ * them stays tellable apart to a screen reader.
+ */
+export function Progress({ value, label, size = 'md', active, tone = 'accent', className }: ProgressProps) {
+  const pct = Math.max(0, Math.min(100, value))
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuenow={Math.round(pct)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      className={cx('t-progress', size === 'sm' && 't-progress--sm', tone !== 'accent' && `t-progress--${tone}`, className)}
+    >
+      <div className={cx('t-progress-bar', active && 't-progress-running')} style={{ width: `${pct}%` }} />
+    </div>
+  )
+}
+
+// The poster frames, shared by Cover and the cover-shaped Skeleton. The
+// radius follows the concentric rule against the panel each size sits in: a
+// calendar entry pads 8px around a small cover (10 - 8 = 2, floored to the xs
+// step), a media card 12px around a medium one. The fill size is flush with
+// its tile, which clips it - no radius of its own.
+export const COVER_BOX = {
+  sm: 'h-14 w-10 rounded-xs',
+  md: 'h-20 w-14 rounded-xs',
+  lg: 'h-24 w-16 rounded-xs',
+  fill: 'aspect-2/3 w-full',
+} as const
+
+export interface SkeletonProps {
+  /** line: a bar of text, cover: a poster frame, block: any box the caller sizes */
+  shape?: 'line' | 'cover' | 'block'
+  /** the poster frame, same steps as Cover */
+  size?: 'sm' | 'md' | 'lg'
+  className?: string
+}
+
+/**
+ * A placeholder the shape of what is loading. Hidden from assistive tech: the
+ * container around a set of these carries role="status" and the loading
+ * label. The pulse is the container's (animate-pulse), so a card's pieces
+ * breathe together.
+ */
+export function Skeleton({ shape = 'line', size = 'md', className }: SkeletonProps) {
+  return (
+    <div
+      aria-hidden
+      className={cx(
+        shape === 'line' && 'h-3 w-full rounded-xs bg-bg-hover',
+        shape === 'block' && 'rounded-xs bg-bg-hover',
+        shape === 'cover' && cx('t-hatch shrink-0', COVER_BOX[size]),
+        className,
+      )}
+    />
+  )
+}
+
 export type BadgeTone = 'neutral' | 'accent' | 'ok' | 'warn' | 'err'
 
 export interface BadgeProps extends HTMLAttributes<HTMLElement> {

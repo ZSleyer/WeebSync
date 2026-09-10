@@ -14,7 +14,9 @@ import {
   IconButton,
   Input,
   Panel,
+  Progress,
   ROW_GRID,
+  Skeleton,
   Select,
   Surface,
   Tab,
@@ -418,5 +420,52 @@ describe('Surface, Toolbar, Tabs and Count', () => {
   it('renders a tabular-number span', () => {
     render(<Count>42</Count>)
     expect(screen.getByText('42')).toHaveClass('t-count')
+  })
+})
+
+describe('Progress', () => {
+  it('is a named progressbar with its value clamped into 0..100', () => {
+    render(<Progress value={142.4} label="Fortschritt Frieren" />)
+    const bar = screen.getByRole('progressbar', { name: 'Fortschritt Frieren' })
+    expect(bar).toHaveAttribute('aria-valuenow', '100')
+    expect(bar).toHaveAttribute('aria-valuemin', '0')
+    expect(bar).toHaveAttribute('aria-valuemax', '100')
+    expect(bar).toHaveClass('t-progress')
+    expect(bar.firstElementChild).toHaveStyle({ width: '100%' })
+  })
+
+  it('takes the thin step, the tone and the moving stripes from its props', () => {
+    render(<Progress value={30} size="sm" tone="warn" active label="Speicher" />)
+    const bar = screen.getByRole('progressbar', { name: 'Speicher' })
+    expect(bar).toHaveClass('t-progress--sm', 't-progress--warn')
+    expect(bar.firstElementChild).toHaveClass('t-progress-running')
+    expect(bar.firstElementChild).toHaveStyle({ width: '30%' })
+  })
+
+  it('keeps the plain bar when idle and in the accent tone', () => {
+    render(<Progress value={30} label="Speicher" />)
+    const bar = screen.getByRole('progressbar', { name: 'Speicher' })
+    expect(bar.className).not.toMatch(/t-progress--/)
+    expect(bar.firstElementChild).not.toHaveClass('t-progress-running')
+  })
+})
+
+describe('Skeleton', () => {
+  it('is hidden from assistive tech and a text line by default', () => {
+    const { container } = render(<Skeleton />)
+    const el = container.firstElementChild!
+    expect(el).toHaveAttribute('aria-hidden', 'true')
+    expect(el).toHaveClass('h-3', 'rounded-xs', 'bg-bg-hover')
+  })
+
+  it('takes the poster frame of the matching cover size', () => {
+    const { container } = render(<Skeleton shape="cover" size="sm" />)
+    expect(container.firstElementChild).toHaveClass('t-hatch', 'h-14', 'w-10', 'rounded-xs')
+  })
+
+  it('leaves a block to the caller to size', () => {
+    const { container } = render(<Skeleton shape="block" className="h-2 w-1/2" />)
+    expect(container.firstElementChild).toHaveClass('rounded-xs', 'h-2', 'w-1/2')
+    expect(container.firstElementChild).not.toHaveClass('h-3')
   })
 })

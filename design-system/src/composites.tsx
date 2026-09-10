@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
-import { Badge, buttonClass, Panel } from './primitives'
+import { Badge, buttonClass, COVER_BOX, Panel } from './primitives'
 
 // The composed surfaces WeebSync reuses across pages: media tiles, the file
 // browser, calendar entries, menus and modals. Same markup the app renders,
@@ -19,17 +19,6 @@ export interface CoverProps {
   children?: ReactNode
   className?: string
 }
-
-// The radius follows the concentric rule against the panel each size sits
-// in: a calendar entry pads 8px around a small cover (10 - 8 = 2, floored to
-// the xs step), a media card 12px around a medium one. The fill size is flush
-// with its tile, which clips it - no radius of its own.
-const COVER_BOX = {
-  sm: 'h-14 w-10 rounded-xs',
-  md: 'h-20 w-14 rounded-xs',
-  lg: 'h-24 w-16 rounded-xs',
-  fill: 'aspect-2/3 w-full',
-} as const
 
 /**
  * Poster thumbnail in a fixed frame. The frame decides the size and the image
