@@ -248,8 +248,6 @@
     "upNextEmpty": "Keine Folge in den nächsten 7 Tagen.",
     "calendar": "Kalender",
     "attention": "Braucht Aufmerksamkeit",
-    "attentionEmpty_one": "Die Serie ist aktuell.",
-    "attentionEmpty_other": "Alle {{count}} Serien aktuell.",
     "attentionMore": "+{{count}} weitere",
     "checkFailed": "Prüfung fehlgeschlagen",
     "noWatches": "Noch keine Serie überwacht. In <1>Dateien</1> einen Ordner beobachten.",

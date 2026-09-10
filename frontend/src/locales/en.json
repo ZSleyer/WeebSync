@@ -248,8 +248,6 @@
     "upNextEmpty": "No episode in the next 7 days.",
     "calendar": "Calendar",
     "attention": "Needs attention",
-    "attentionEmpty_one": "The series is up to date.",
-    "attentionEmpty_other": "All {{count}} series up to date.",
     "attentionMore": "+{{count}} more",
     "checkFailed": "Last check failed",
     "noWatches": "No series watched yet. Watch a folder in <1>Files</1>.",
