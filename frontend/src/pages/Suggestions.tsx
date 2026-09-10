@@ -42,7 +42,7 @@ const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useConfirm } from '../components/confirm'
-import { Navigate, Outlet, useNavigate, useSearchParams } from 'react-router'
+import { Navigate, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
 import {
   Badge,
   Button,
@@ -126,6 +126,9 @@ export default function SuggestionsLayout() {
   const { t } = useTranslation()
   const groups = useGroups()
   const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
+  // the note about the blob being built belongs to the lists it feeds, not
+  // to the assistant, which answers from the catalog either way
+  const onList = !useLocation().pathname.endsWith('/assistant')
   // the wrappers are flex columns down to the section, so a section that
   // fills the screen by design (the assistant's log and composer) can claim
   // the remaining height; a list section is unaffected
@@ -140,7 +143,7 @@ export default function SuggestionsLayout() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* the blob is assembled in the background every half hour; while it
               is, the counts in the menu are missing and a bucket may be short */}
-          {data?.building && (
+          {onList && data?.building && (
             <Badge multiline role="status" className="mb-4 self-start">
               <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
               {t('suggestions.building')}
