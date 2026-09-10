@@ -53,6 +53,7 @@ import { upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import WatchEpisodesModal from '../components/WatchEpisodesModal'
+import MediaDetail from '../components/MediaDetail'
 import PageActions from '../components/PageActions'
 import { useConfirm } from '../components/confirm'
 import { SkeletonCards } from '../components/Loading'
@@ -146,6 +147,8 @@ export default function Watches() {
   const [searchParams] = useSearchParams()
   const [view, setView] = useState<'list' | 'calendar'>(() => (searchParams.get('view') === 'calendar' ? 'calendar' : 'list'))
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
+  // a tap on a calendar entry opens the title's card
+  const [calDetail, setCalDetail] = useState<Watch | null>(null)
   // 1s tick so today's countdowns/clocks stay live (calendar view only)
   const [, setTick] = useState(0)
   const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
@@ -348,6 +351,12 @@ export default function Watches() {
                         </span>
                       }
                       countdown={countdown(t, e.at, isToday(e.at))}
+                      onClick={e.watch.media ? () => setCalDetail(e.watch) : undefined}
+                      aria-label={
+                        e.watch.media
+                          ? t('remote.detailsFor', { name: e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '') })
+                          : undefined
+                      }
                     />
                   </li>
                 ))}
@@ -600,6 +609,15 @@ export default function Watches() {
         />
       )}
       {gaps && <WatchEpisodesModal watch={gaps} onClose={() => setGaps(null)} />}
+      {calDetail?.media && (
+        <Dialog
+          width="max-w-3xl"
+          aria-label={t('remote.detailsFor', { name: calDetail.titleOverride || mediaTitle(calDetail.media, calDetail.remotePath.split('/').pop() || '') })}
+          onClose={() => setCalDetail(null)}
+        >
+          <MediaDetail media={calDetail.media} source={calDetail.mediaSource || undefined} />
+        </Dialog>
+      )}
       {more && (
         <Dialog width="max-w-sm" onClose={() => setMore(null)} aria-labelledby="watch-more-title">
           <header className="border-b border-border-subtle px-5 py-4">
