@@ -256,7 +256,7 @@
     "storage": "Storage",
     "storageFree": "{{size}} free",
     "storageOf": "{{used}} of {{total}} used",
-    "storageUsed": "Storage, {{pct}} % used",
+    "storageUsed": "{{path}}, {{pct}} % used",
     "history": "history",
     "finishedSection": "Finished downloads",
     "pause": "Pause",

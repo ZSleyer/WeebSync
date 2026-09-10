@@ -256,7 +256,7 @@
     "storage": "Speicher",
     "storageFree": "{{size}} frei",
     "storageOf": "{{used}} von {{total}} belegt",
-    "storageUsed": "Speicher, {{pct}} % belegt",
+    "storageUsed": "{{path}}, {{pct}} % belegt",
     "history": "verlauf",
     "finishedSection": "Abgeschlossene Downloads",
     "pause": "Pause",
