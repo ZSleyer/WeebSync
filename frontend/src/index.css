@@ -1090,6 +1090,29 @@ details[open]::details-content { height: auto; }
    seamlessly into the 28px background-size; shifting by exactly one tile
    per loop keeps the scroll continuous. */
 @keyframes t-stripes { from { background-position: 28px 0; } to { background-position: 0 0; } }
+/* Determinate progress: a rounded track in the secondary ground, the bar in
+   the accent unless a tone says otherwise. Full radius, like every dot and
+   bar on the scale. */
+.t-progress {
+  /* no width of its own: a block fills its line, and a utility narrows
+     it to a meter beside a figure */
+  height: 8px;
+  overflow: hidden;
+  border-radius: 9999px;
+  /* the hover ground, not the secondary: on a card the secondary is a
+     shade off the card itself, and an empty bar vanished */
+  background: var(--bg-hover);
+}
+.t-progress--sm { height: 4px; }
+.t-progress-bar {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--progress-color, var(--accent-blue));
+  transition: width var(--dur-3) var(--ease-out);
+}
+.t-progress--ok { --progress-color: var(--accent-green); }
+.t-progress--warn { --progress-color: var(--accent-yellow); }
+.t-progress--err { --progress-color: var(--accent-red); }
 .t-progress-running {
   background-image: linear-gradient(
     45deg,
