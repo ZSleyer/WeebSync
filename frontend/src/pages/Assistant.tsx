@@ -75,6 +75,19 @@ function addStep(tr: Turn, step: Step): Turn {
 // The full name stays in the pill's title and in the menu.
 const modelChip = (m: string) => m.replace(/\s*\([^()]*\)\s*$/, '') || m
 
+// what to say when a dictation ends with nothing. The recognizer's codes are
+// the only way to tell a refused microphone from a speech service that could
+// not be reached; anything unlisted keeps its code, which is what a report
+// needs.
+const DICTATE_ERRORS: Record<string, string> = {
+  'not-allowed': 'assistant.dictateBlocked',
+  'service-not-allowed': 'assistant.dictateBlocked',
+  'audio-capture': 'assistant.dictateNoMic',
+  'no-speech': 'assistant.dictateNothing',
+  network: 'assistant.dictateNetwork',
+  'language-not-supported': 'assistant.dictateLang',
+}
+
 const EXAMPLES = ['seasonal', 'watch', 'upgrade'] as const
 const EXAMPLE_ICON = { seasonal: Sparkles, watch: RefreshCw, upgrade: CircleArrowUp } as const
 
@@ -761,6 +774,11 @@ export default function Assistant() {
             </span>
           </div>
         </div>
+        {dictation.error && dictation.error !== 'aborted' && (
+          <p className="mt-1.5 px-1 text-xs text-err" role="alert">
+            {t(DICTATE_ERRORS[dictation.error] ?? 'assistant.dictateFailed', { code: dictation.error })}
+          </p>
+        )}
       </form>
     </>
   )
@@ -1159,7 +1177,7 @@ interface Recognizer {
   interimResults: boolean
   onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null
   onend: (() => void) | null
-  onerror: (() => void) | null
+  onerror: ((e: { error?: string }) => void) | null
   start: () => void
   stop: () => void
   abort: () => void
@@ -1169,11 +1187,23 @@ function useDictation(lang: string) {
     (window as unknown as { webkitSpeechRecognition?: new () => Recognizer }).webkitSpeechRecognition
   const [active, setActive] = useState(false)
   const [text, setText] = useState('')
+  // why a session ended with nothing: a refused microphone and an unreachable
+  // speech service look identical on screen, and the recognizer's own code is
+  // the only thing that tells them apart
+  const [error, setError] = useState('')
   const rec = useRef<Recognizer | null>(null)
   const final = useRef('')
   useEffect(() => () => rec.current?.abort(), [])
+  // dropping the handlers before the abort keeps our own stop out of onend and
+  // onerror: they are for the browser ending the session, not for the user
   const stop = () => {
-    rec.current?.abort()
+    const r = rec.current
+    if (r) {
+      r.onresult = null
+      r.onend = null
+      r.onerror = null
+      r.abort()
+    }
     rec.current = null
     setActive(false)
   }
@@ -1181,8 +1211,10 @@ function useDictation(lang: string) {
     supported: !!Ctor,
     active,
     text,
+    error,
     start: () => {
       if (!Ctor) return
+      setError('')
       const r = new Ctor()
       r.lang = lang.startsWith('de') ? 'de-DE' : 'en-US'
       r.continuous = true
@@ -1198,27 +1230,43 @@ function useDictation(lang: string) {
         }
         setText((final.current + interim).trim())
       }
-      // the browser ends a session on its own after a silence: what was
-      // said stays on screen until it is accepted or dropped
+      // the browser ends a session on its own after a silence: what was said
+      // stays on screen until it is accepted or dropped. With nothing
+      // recognised there is nothing to accept, so the panel closes and says
+      // so - it used to sit on "listening" while nothing was listening
       r.onend = () => {
         rec.current = null
+        if (final.current) return
+        setActive(false)
+        setError((prev) => prev || 'no-speech')
       }
-      r.onerror = () => {
+      r.onerror = (e) => {
         rec.current = null
+        setActive(false)
+        setError(e?.error || 'error')
+      }
+      try {
+        r.start()
+      } catch {
+        // a recognizer that is already running throws here; nothing listens
+        setError('error')
+        return
       }
       rec.current = r
       setActive(true)
-      r.start()
     },
     accept: () => {
       const said = text
       stop()
       setText('')
+      setError('')
       return said
     },
     cancel: () => {
       stop()
       setText('')
+      setError('')
     },
+    dismissError: () => setError(''),
   }
 }
