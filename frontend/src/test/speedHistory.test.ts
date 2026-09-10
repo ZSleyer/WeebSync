@@ -24,7 +24,7 @@ describe('speedHistory', () => {
 
   it('trims to the span, gap included', () => {
     pushSpeedSample(1, 1000)
-    pushSpeedSample(2, 1000 + 500 * 1000)
+    pushSpeedSample(2, 1000 + 5000 * 1000)
     expect(speedSamples()).toHaveLength(SPEED_SPAN)
     expect(speedSamples().at(-1)).toBe(2)
     expect(speedSamples()[0]).toBe(0)

@@ -28,16 +28,16 @@ import {
   Segmented,
   Select,
   Skeleton,
-  Sparkline,
   StatTile,
   Toolbar,
   TransferCard,
+  TrendChart,
   useMediaQuery,
   type BadgeTone,
 } from '@weebsync/design-system'
 import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type JobsStatus, type SystemStatus, type Watch } from '../api'
 import { upcomingAirings } from '../airings'
-import { avgSpeed, useSpeedHistory } from '../speedHistory'
+import { avgSpeed, SPEED_SPAN, useSpeedHistory } from '../speedHistory'
 import { countdown } from '../countdown'
 import { jobLabel } from '../jobs'
 import { useConfirm } from '../components/confirm'
@@ -111,6 +111,7 @@ export default function Dashboard() {
   const rank = (d: Download) => (d === hero ? 0 : d.status === 'running' ? 1 : d.status === 'paused' ? 2 : 3)
   const active = [...matched].sort((a, b) => rank(a) - rank(b))
   const many = activeAll.length > 1
+  const transferring = activeAll.some((d) => d.status === 'running')
   // section visibility keys off the unfiltered set: a filter with zero hits
   // must not hide the section (and with it the very chips to undo the filter)
   const finishedAll = downloads.filter((d) => d.status !== 'running' && d.status !== 'queued' && d.status !== 'paused')
@@ -254,7 +255,7 @@ export default function Dashboard() {
           column nested in another */}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <aside className="order-2 flex min-w-0 flex-col gap-5 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          {wide && activeAll.some((d) => d.status === 'running') && <SpeedTiles downloads={activeAll} />}
+          {wide && transferring && <SpeedPanel downloads={activeAll} />}
           {watchesLoading ? (
             <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-2">
               {[0, 1, 2].map((i) => (
@@ -349,6 +350,10 @@ export default function Dashboard() {
               </Toolbar>
             </Toolbar>
             )}
+
+            {/* a phone reads the rate here, above the card it belongs to; the
+                desktop keeps it in the column beside the queue */}
+            {!wide && transferring && <SpeedPanel downloads={activeAll} />}
 
             {/* the first answer is still out: a card in the hero's shape and
                 two rows, so the page does not jump when it lands. Only then -
@@ -623,10 +628,10 @@ export default function Dashboard() {
 // what to call a watch: the override, else the matched title, else the folder
 const watchTitle = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
 
-// The rate over the last minute and how long the queue has left, beside the
-// queue on desktop. Only while something runs: a tile saying 0 B/s says
-// nothing, and the hero already carries its own rate on a phone.
-function SpeedTiles({ downloads }: { downloads: Download[] }) {
+// The rate now and over the last ten minutes, and how long the queue has
+// left. Beside the queue on desktop, under the queue's toolbar on a phone.
+// Only while something runs: a chart of nothing says nothing.
+function SpeedPanel({ downloads }: { downloads: Download[] }) {
   const { t } = useTranslation()
   const hist = useSpeedHistory()
   const running = downloads.filter((d) => d.status === 'running')
@@ -635,14 +640,24 @@ function SpeedTiles({ downloads }: { downloads: Download[] }) {
   // the mean of the last ten seconds, not the instant: a burst would swing
   // the arrival by hours. Nothing while it is still zero
   const avg = avgSpeed(10)
+  const age = (s: number) => (s === 0 ? t('dash.chartEnd') : t('dash.chartAgo', { m: Math.floor(s / 60), s: String(s % 60).padStart(2, '0') }))
   return (
     <div className="flex flex-col gap-3">
-      <StatTile
-        label={t('dash.speed')}
-        value={fmtSpeed(total)}
-        detail={t('dash.speedOver', { count: running.length })}
-        trend={<Sparkline values={hist} label={t('dash.speedChart')} className="mb-1.5 text-accent" />}
-      />
+      <Panel className="px-3 py-2 text-accent sm:px-4">
+        <Badge>{t('dash.speed')}</Badge>
+        <p className="mt-1 font-mono text-lg text-t-primary tabular-nums">{fmtSpeed(total)}</p>
+        <p className="text-[11px] text-t-muted">{t('dash.speedOver', { count: running.length })}</p>
+        <TrendChart
+          className="mt-3"
+          values={hist}
+          span={SPEED_SPAN}
+          label={t('dash.speedChart')}
+          format={fmtSpeed}
+          formatAge={age}
+          startLabel={t('dash.chartStart')}
+          endLabel={t('dash.chartEnd')}
+        />
+      </Panel>
       {avg > 0 && (
         <StatTile
           label={t('dash.remaining')}
