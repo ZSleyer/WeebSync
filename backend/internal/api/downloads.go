@@ -29,6 +29,10 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
+	// the measured rate lives with the worker, not in the row: without it a
+	// poll of this list would reset every running download's rate to zero
+	// between two frames of the event stream
+	rates := s.Transfers.RunningRates()
 	list := []transfer.Download{}
 	for rows.Next() {
 		var d transfer.Download
@@ -36,6 +40,9 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.CreatedAt); err != nil {
 			dbErr(w)
 			return
+		}
+		if d.Status == "running" {
+			d.BytesPerSec = rates[d.ID]
 		}
 		list = append(list, d)
 	}
