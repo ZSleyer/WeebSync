@@ -28,6 +28,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar } from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
+import { useSpeedSampler } from './speedHistory'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
@@ -79,6 +80,7 @@ const navIndex = (path: string) => {
 function RootLayout() {
   const { data: user, isLoading } = useAuth()
   useEvents(!!user)
+  useSpeedSampler(!!user)
 
   if (isLoading) {
     return (
