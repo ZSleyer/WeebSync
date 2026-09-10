@@ -241,7 +241,10 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
-	if err := CreateSession(m.DB, w, r, userID); err != nil {
+	// the provider's session id ties our session to the one at the IdP, so a
+	// logout there can end this one too (see BackchannelLogoutHandler)
+	sid, _ := claims["sid"].(string)
+	if err := CreateSessionOIDC(m.DB, w, r, userID, sid, idToken.Subject); err != nil {
 		http.Error(w, "session error", http.StatusInternalServerError)
 		return
 	}

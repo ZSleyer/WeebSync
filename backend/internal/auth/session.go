@@ -133,14 +133,22 @@ func hashToken(token string) string {
 }
 
 func CreateSession(d *sql.DB, w http.ResponseWriter, r *http.Request, userID int64) error {
+	return CreateSessionOIDC(d, w, r, userID, "", "")
+}
+
+// CreateSessionOIDC is CreateSession for a login that came from the identity
+// provider: it remembers which provider session the login belongs to, so a
+// back-channel logout can end exactly these sessions and no others. A password
+// login passes empty strings and is unaffected.
+func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID int64, sid, sub string) error {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return err
 	}
 	token := hex.EncodeToString(raw)
 	expires := time.Now().Add(sessionTTL)
-	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)`,
-		hashToken(token), userID, expires.UTC().Format(time.RFC3339)); err != nil {
+	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub) VALUES (?, ?, ?, ?, ?)`,
+		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub); err != nil {
 		return err
 	}
 	SetCookie(w, r, &http.Cookie{

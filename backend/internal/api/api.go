@@ -134,6 +134,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/auth/oidc/discover", auth.Middleware(s.DB, false)(http.HandlerFunc(s.handleOIDCDiscover)))
 	mux.HandleFunc("GET /api/auth/oidc/login", s.OIDC.LoginHandler)
 	mux.HandleFunc("GET /api/auth/oidc/callback", s.OIDC.CallbackHandler)
+	// called by the identity provider, not by a browser: no session, no CSRF
+	// token, and the logout token's signature is what authenticates it
+	mux.HandleFunc("POST /api/auth/oidc/backchannel-logout", s.OIDC.BackchannelLogoutHandler)
 	mux.HandleFunc("GET /api/auth/verify", s.handleVerifyEmail)
 	mux.Handle("PUT /api/auth/locale", authed(http.HandlerFunc(s.handleLocalePut)))
 	mux.Handle("GET /api/auth/email-prefs", authed(http.HandlerFunc(s.handleEmailPrefsGet)))
