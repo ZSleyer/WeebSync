@@ -308,14 +308,15 @@ export default function Dashboard() {
         </PageActions>
       </header>
 
-      <BackgroundWork />
-
       {/* a phone reads top to bottom: the queue, then what is coming and what
           needs a hand, then the history. From lg the middle part is the
           right column beside both (a main pane and a supporting pane), so
           the three are grid siblings placed by breakpoint rather than one
-          column nested in another */}
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+          column nested in another. The second row is the flexible one: the
+          aside spans both, and a grid hands a spanning item's height to the
+          flexible track, so the queue's row stays as tall as the queue and
+          the history does not move when the storage tile folds */}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_1fr] lg:items-start">
         <aside className="order-2 flex min-w-0 flex-col gap-5 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           {wide && transferring && <SpeedPanel downloads={activeAll} />}
           {watchesLoading ? (
@@ -343,6 +344,7 @@ export default function Dashboard() {
             </>
           )}
           <StorageTile />
+          <BackgroundWork />
         </aside>
 
           <section aria-label={t('dash.transferSection')} className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
@@ -929,7 +931,8 @@ function StorageTile() {
 // BackgroundWork says what the machine is busy with. Indexing a Plex library
 // or crawling a server is felt on a home server, and until now nothing on
 // screen connected the fan noise to the app. Admins get the link to where it
-// can be held; everyone else at least knows why things are slow.
+// can be held, everyone else at least knows why things are slow. One muted
+// line at the foot of the supporting column: a status, not a headline.
 function BackgroundWork() {
   const { t } = useTranslation()
   const { data: user } = useAuth()
@@ -944,25 +947,25 @@ function BackgroundWork() {
   const paused = data?.paused ?? []
   if (running.length === 0 && paused.length === 0) return null
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 border border-border-subtle bg-bg-card px-3 py-2 text-xs">
+    <p role="status" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-t-muted">
       {running.length > 0 && (
-        <Badge tone="accent">
-          <RefreshCw aria-hidden size="1em" />
+        <span className="inline-flex items-center gap-1">
+          <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
           {running.length === 1 ? t('jobs.busyOne', { name: jobLabel(t, running[0]) }) : t('jobs.busy')}
-        </Badge>
+        </span>
       )}
-      {running.length > 1 && running.map((f) => <Badge key={f}>{jobLabel(t, f)}</Badge>)}
+      {running.length > 1 && <span>{running.map((f) => jobLabel(t, f)).join(' · ')}</span>}
       {paused.map((f) => (
-        <Badge key={f} tone="warn">
+        <span key={f} className="text-warn">
           {jobLabel(t, f)} · {t('jobs.paused')}
-        </Badge>
+        </span>
       ))}
       {user?.isAdmin && (
-        <Link to="/settings/jobs" className="inline-flex min-h-6 items-center text-accent underline">
+        <Link to="/settings/jobs" className="inline-flex min-h-6 items-center text-accent hover:underline">
           {t('settings.nav.jobs')}
         </Link>
       )}
-    </div>
+    </p>
   )
 }
 
