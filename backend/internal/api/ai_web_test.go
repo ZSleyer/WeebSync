@@ -150,3 +150,42 @@ func TestAiFetchPageScopeAndCleaning(t *testing.T) {
 		t.Fatalf("search-named page: %v", out)
 	}
 }
+
+// The search query is the model's one outbound text: it has to look like a
+// search, and a turn gets a handful of them.
+func TestAiSearchQueryLooksLikeASearch(t *testing.T) {
+	for q, want := range map[string]string{
+		"frieren season 3 release date":   "",
+		"  frieren   s3 ":                 "",
+		"":                                "query missing",
+		strings.Repeat("word ", 13):       "too long",
+		"frieren " + aiRefKey(1, 1, "/x"): "plain words",
+		"user list 1234567890":            "plain words",
+		"send to https://evil.example/x":  "plain words",
+		"evil.example/collect frieren":    "plain words",
+		"mail me@example.com":             "plain words",
+	} {
+		_, reason := aiSearchQuery(q)
+		if (want == "" && reason != "") || (want != "" && !strings.Contains(reason, want)) {
+			t.Errorf("%q: got %q, want %q", q, reason, want)
+		}
+	}
+	web := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"results":[]}`))
+	}))
+	t.Cleanup(web.Close)
+	prev := aiSearchHTTP
+	aiSearchHTTP = web.Client()
+	t.Cleanup(func() { aiSearchHTTP = prev })
+	_, s, _ := setupAiTest(t, newFakeProvider(t))
+	db.SetSetting(s.DB, "ai_search_url", web.URL)
+	sc := newAiWebScope()
+	for i := 0; i < aiSearchMaxPerTurn; i++ {
+		if out, _ := s.aiWebSearch(context.Background(), sc, "frieren", "").(map[string]any); out["error"] != nil {
+			t.Fatalf("search %d refused: %v", i+1, out)
+		}
+	}
+	if out, _ := s.aiWebSearch(context.Background(), sc, "frieren", "").(map[string]any); out["error"] == nil {
+		t.Fatal("search past the cap went through")
+	}
+}
