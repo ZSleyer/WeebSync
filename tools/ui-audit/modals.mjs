@@ -121,7 +121,8 @@ const TRIGGERS = [
   // a chip, and the longest of those labels is what a phone has to fit
   // `Ansehen` opens the cache viewer (a list dialog), `Index leeren` the
   // confirm box, and the reset dialog is the widest one in the app
-  { route: '/settings/jobs', names: [/^Ansehen$|^View$/, /^Index leeren$|^Flush index$/, /Alles neu aufbauen|Rebuild everything/] },
+  { route: '/settings/matching', names: [/^Ansehen$|^View$/, /^Index leeren$|^Flush index$/] },
+  { route: '/settings/data', names: [/^Ansehen$|^View$/, /Alles neu aufbauen|Rebuild everything/] },
 ]
 
 const VIEWPORTS = {
