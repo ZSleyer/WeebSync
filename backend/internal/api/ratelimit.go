@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 	"sync"
-	"time"
 
 	"golang.org/x/time/rate"
 
@@ -25,8 +24,7 @@ type ipLimiter struct {
 }
 
 type ipEntry struct {
-	lim  *rate.Limiter
-	seen time.Time
+	lim *rate.Limiter
 }
 
 func newIPLimiter(perMinute float64, burst int, trusted func(ip string) bool) *ipLimiter {
@@ -77,10 +75,12 @@ func (l *ipLimiter) allow(ip string) bool {
 	e, ok := l.ips[ip]
 	if !ok {
 		// ponytail: O(n) sweep on new IPs, bounded by the map cap below.
+		// A bucket back at full tokens is the same as no bucket, so those
+		// go whatever their age; a drained one stays, which is what keeps
+		// a blocked address blocked through a flood of one-hit peers.
 		if len(l.ips) > 10000 {
-			cutoff := time.Now().Add(-10 * time.Minute)
 			for k, v := range l.ips {
-				if v.seen.Before(cutoff) {
+				if v.lim.Tokens() >= float64(l.burst) {
 					delete(l.ips, k)
 				}
 			}
@@ -88,7 +88,6 @@ func (l *ipLimiter) allow(ip string) bool {
 		e = &ipEntry{lim: rate.NewLimiter(l.rate, l.burst)}
 		l.ips[ip] = e
 	}
-	e.seen = time.Now()
 	return e.lim.Allow()
 }
 
