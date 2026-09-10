@@ -28,6 +28,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar } from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
+import Wordmark from './components/Wordmark'
 import { useSpeedSampler } from './speedHistory'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
@@ -327,9 +328,7 @@ function Shell({ email }: { email: string }) {
             <ArrowLeft aria-hidden size="1.25em" />
           </Link>
         ) : (
-          <span aria-hidden className="font-display text-xs font-bold tracking-[0.2em] text-t-primary">
-            WEEB<span className="text-accent">SYNC</span>
-          </span>
+          <Wordmark stacked className="text-[11px]" />
         )
       }
       title={title ? t(title) : 'WeebSync'}
