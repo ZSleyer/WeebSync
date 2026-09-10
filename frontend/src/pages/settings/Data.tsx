@@ -146,7 +146,7 @@ export default function Data() {
         onClick={() => setStoreModal(s)}
         className="flex min-h-12 w-full items-center gap-3 border-b border-border-subtle px-1 text-left text-sm transition-colors hover:bg-bg-hover"
       >
-        <span className="min-w-0 flex-1 truncate font-semibold text-t-primary">{storeLabel(t, s.name)}</span>
+        <span className="min-w-0 flex-1 break-words font-semibold text-t-primary">{storeLabel(t, s.name)}</span>
         {staleBadge(s.stale)}
         <Count className="shrink-0">{fmtNum(s.rows)}</Count>
         <ChevronRight aria-hidden size="1em" className="shrink-0 text-t-faint" />
@@ -185,7 +185,7 @@ export default function Data() {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle pb-2">
                       <span className="font-semibold text-t-primary">{t(`settings.jobs.data.providers.${p.provider}`)}</span>
                       {sums(p, true)}
-                      <span className="ml-auto flex flex-wrap items-center justify-end gap-2">{providerTools(p.provider)}</span>
+                      <span className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">{providerTools(p.provider)}</span>
                     </div>
                     <ul>{p.stores.map(storeRow)}</ul>
                   </div>
