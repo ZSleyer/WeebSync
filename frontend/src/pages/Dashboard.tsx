@@ -20,6 +20,7 @@ import {
   CalendarEntry,
   Count,
   Cover,
+  Dialog,
   EmptyState,
   Input,
   Panel,
@@ -44,6 +45,7 @@ import PageActions, { PageFooter, WIDE_MQ } from '../components/PageActions'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth, usePersistedQuery } from '../hooks'
 import { ProviderBadges } from '../components/ProviderBadges'
+import MediaDetail from '../components/MediaDetail'
 
 // history-only status filter: the active queue is short and searchable, its
 // three states never need chips
@@ -705,8 +707,15 @@ function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
   const events = upcomingAirings(watches, Date.now(), 7).slice(0, limit)
   const when = (ts: number) => new Date(ts * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
   const [open, toggle] = useFold('upnext')
+  // a tap on an entry opens the title's card, the same one the catalog shows
+  const [detail, setDetail] = useState<Watch | null>(null)
   return (
     <section aria-label={t('dash.upNext')}>
+      {detail?.media && (
+        <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: watchTitle(detail) })} onClose={() => setDetail(null)}>
+          <MediaDetail media={detail.media} source={detail.mediaSource || undefined} />
+        </Dialog>
+      )}
       <FoldHeader
         className="mb-2"
         icon={<CalendarDays aria-hidden size="1em" />}
@@ -740,6 +749,8 @@ function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
                 }
                 time={when(e.at)}
                 countdown={countdown(t, e.at)}
+                onClick={e.watch.media ? () => setDetail(e.watch) : undefined}
+                aria-label={e.watch.media ? t('remote.detailsFor', { name: watchTitle(e.watch) }) : undefined}
               />
             </li>
           ))}
