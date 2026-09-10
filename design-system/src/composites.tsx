@@ -1,4 +1,4 @@
-import { useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
 import { Badge, buttonClass, Panel } from './primitives'
 
 // The composed surfaces WeebSync reuses across pages: media tiles, the file
@@ -352,15 +352,60 @@ export function FileBrowser({ breadcrumb, children, empty, className }: FileBrow
   )
 }
 
+export type MenuPlacement = 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end'
+
 export interface MenuProps {
-  /** MenuItem elements */
   children: ReactNode
   'aria-label': string
+  /**
+   * the wrapper's anchor name from useMenu: with it the list opens in the top
+   * layer, attached to the wrapper and flipped away from the viewport edge;
+   * without it the list is a plain block and the caller positions it
+   */
+  anchor?: string
+  /** which corner of the wrapper the list hangs from; default bottom-start */
+  placement?: MenuPlacement
   className?: string
 }
 
-/** Dropdown list - sort pickers, overflow menus. Position it yourself. */
-export function Menu({ children, className, ...rest }: MenuProps) {
+// the caller-positioned fallback, for an engine without anchor positioning:
+// absolute in the wrapper, the way every menu used to be placed
+const MENU_FALLBACK: Record<MenuPlacement, string> = {
+  'bottom-start': 'absolute top-full left-0 z-20 mt-1',
+  'bottom-end': 'absolute top-full right-0 z-20 mt-1',
+  'top-start': 'absolute bottom-full left-0 z-20 mb-1',
+  'top-end': 'absolute bottom-full right-0 z-20 mb-1',
+}
+
+// an older Safari knows the popover but not the anchor; jsdom claims every
+// CSS feature and has no popover at all, so both halves are asked
+const canAnchor = () =>
+  typeof HTMLElement !== 'undefined' &&
+  'showPopover' in HTMLElement.prototype &&
+  typeof CSS !== 'undefined' &&
+  CSS.supports('anchor-name: --a')
+
+/**
+ * Dropdown list - sort pickers, overflow menus. With an anchor it escapes any
+ * overflow clip around it (top layer), keeps to the viewport, and follows the
+ * wrapper when that scrolls; the open state stays with useMenu, so the popover
+ * is "manual" and never dismisses itself behind React's back.
+ */
+export function Menu({ children, className, anchor, placement = 'bottom-start', ...rest }: MenuProps) {
+  const ref = useRef<HTMLUListElement>(null)
+  const anchored = !!anchor && canAnchor()
+  useEffect(() => {
+    if (!anchored) return
+    // no hidePopover on cleanup: React runs it after the node has left the
+    // document, where the call throws, and leaving the document already
+    // removes the popover from the top layer
+    try {
+      ref.current?.showPopover?.()
+    } catch {
+      /* already shown, or no popover support */
+    }
+  }, [anchored])
+  const up = placement.startsWith('top')
   return (
     // clipped sideways: the py-1 lets the first and last item's hover fill
     // reach the corners, which would poke past the curve otherwise. Upright it
@@ -368,9 +413,17 @@ export function Menu({ children, className, ...rest }: MenuProps) {
     // say they are there. 20rem is about seven rows: a dozen models at 60dvh
     // covered most of a phone's screen, which reads as a page, not a menu.
     <ul
+      ref={ref}
       role="listbox"
       {...rest}
-      className={cx('t-pop max-h-[min(60dvh,20rem)] min-w-44 overflow-x-clip overflow-y-auto rounded-lg border border-border-subtle bg-bg-card py-1 shadow-lg', className)}
+      {...(anchored ? { popover: 'manual', 'data-placement': placement } : {})}
+      style={anchored ? { positionAnchor: anchor } : undefined}
+      className={cx(
+        't-pop max-h-[min(60dvh,20rem)] min-w-44 overflow-x-clip overflow-y-auto rounded-lg border border-border-subtle bg-bg-card py-1 shadow-lg',
+        up && 't-pop--up',
+        anchored ? 't-menu' : anchor ? cx(MENU_FALLBACK[placement], 'w-max max-w-[70vw]') : undefined,
+        className,
+      )}
     >
       {children}
     </ul>

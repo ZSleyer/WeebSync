@@ -6,10 +6,10 @@ import { Menu, MenuItem, useMenu } from '@weebsync/design-system'
 // through the markup it is documented with: one element holding both the
 // trigger and the list, and an unrelated control next to it.
 function MenuHarness() {
-  const { open, setOpen, ref } = useMenu()
+  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   return (
     <div>
-      <div ref={ref}>
+      <div ref={ref} data-anchor={anchor} style={anchorStyle}>
         <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
           Sortieren
         </button>
@@ -77,6 +77,37 @@ describe('useMenu', () => {
     openMenu()
     fireEvent.keyDown(document, { key: 'a' })
     expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+
+  it('closes when something outside the wrapper scrolls', () => {
+    render(<MenuHarness />)
+    openMenu()
+    fireEvent.scroll(document.body)
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('stays open when the list itself scrolls', () => {
+    render(<MenuHarness />)
+    openMenu()
+    fireEvent.scroll(screen.getByRole('listbox'))
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+
+  it('names an anchor per instance, as a dashed ident on the wrapper', () => {
+    render(
+      <>
+        <MenuHarness />
+        <MenuHarness />
+      </>,
+    )
+    const names = Array.from(document.querySelectorAll<HTMLElement>('[data-anchor]')).map((el) => el.dataset.anchor!)
+    expect(names).toHaveLength(2)
+    expect(names[0]).not.toBe(names[1])
+    for (const n of names) {
+      expect(n).toMatch(/^--[A-Za-z0-9_-]+$/)
+    }
+    const wrapper = document.querySelector<HTMLElement>('[data-anchor]')!
+    expect(wrapper.style.anchorName).toBe(names[0])
   })
 
   it('detaches its document listeners once closed', () => {
