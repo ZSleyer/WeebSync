@@ -71,14 +71,15 @@ type StatusResponse struct {
 }
 
 // diskUsage is one entry per filesystem the library lives on: the download
-// root, every configured local root, and whatever a symlink directly under
-// the root points at - a library reaches onto a second drive that way. The
-// same filesystem seen through two paths is reported once, under the first.
+// root, every configured local root, and every directory directly under the
+// root - a library reaches onto a second drive as a mount point or a symlink
+// there. The same filesystem seen through two paths is reported once, under
+// the first, which is what folds the root's plain folders back into it.
 func (s *Server) diskUsage() []statusDisk {
 	paths := append([]string{s.DownloadRoot}, s.localRoots()...)
 	if entries, err := os.ReadDir(s.DownloadRoot); err == nil {
 		for _, e := range entries {
-			if e.Type()&os.ModeSymlink != 0 {
+			if e.IsDir() || e.Type()&os.ModeSymlink != 0 {
 				paths = append(paths, filepath.Join(s.DownloadRoot, e.Name()))
 			}
 		}
