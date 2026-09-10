@@ -711,7 +711,11 @@ export function ActionBar({ sticky = true, floating = false, className, ...rest 
       role="toolbar"
       {...rest}
       className={cx(
-        'flex flex-wrap items-center gap-2 border-t border-border-subtle bg-bg-secondary px-4 py-2',
+        // the phone's row sits on the shell edge: bg-secondary was a hair off
+        // the black page there, so the scroller's last line looked cut rather
+        // than covered. The card surface reads as a bar of its own; every lg
+        // branch below sets its own background anyway.
+        'flex flex-wrap items-center gap-2 border-t border-border-subtle bg-bg-card px-4 py-2',
         // a prop, not a consumer override: two `lg:` utilities for the same
         // property resolve by stylesheet order, not by who asked last
         floating
