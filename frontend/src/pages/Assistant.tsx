@@ -148,7 +148,7 @@ export default function Assistant() {
   // the dictation line wraps and scrolls; what was said last is what the
   // speaker is checking, so it stays in view
   const sayRef = useRef<HTMLSpanElement>(null)
-  const { open: addOpen, setOpen: setAddOpen, ref: addRef } = useMenu()
+  const { open: addOpen, setOpen: setAddOpen, ref: addRef, anchor: addAnchor, anchorStyle: addAnchorStyle } = useMenu()
   const dictation = useDictation(i18n.language)
   useEffect(() => {
     const el = sayRef.current
@@ -190,7 +190,7 @@ export default function Assistant() {
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   const abortRef = useRef<AbortController | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
-  const { open: modelOpen, setOpen: setModelOpen, ref: modelRef } = useMenu()
+  const { open: modelOpen, setOpen: setModelOpen, ref: modelRef, anchor: modelAnchor, anchorStyle: modelAnchorStyle } = useMenu()
 
   useEffect(() => {
     try {
@@ -610,7 +610,7 @@ export default function Assistant() {
             </label>
           )}
           <div className="flex items-center gap-2 px-2 pt-1 pb-2">
-            <div ref={addRef}>
+            <div ref={addRef} style={addAnchorStyle}>
               <IconButton
                 aria-label={t('assistant.add')}
                 title={t('assistant.add')}
@@ -622,7 +622,7 @@ export default function Assistant() {
                 <Plus aria-hidden size="1.3em" />
               </IconButton>
               {addOpen && (
-                <Menu className="t-pop--up absolute bottom-full left-0 z-20 mb-1 w-max max-w-full" aria-label={t('assistant.add')}>
+                <Menu anchor={addAnchor} placement="top-start" aria-label={t('assistant.add')}>
                   <MenuItem
                     aria-disabled={vision === false}
                     title={vision === false ? t('assistant.attachNoVision') : undefined}
@@ -684,7 +684,7 @@ export default function Assistant() {
               />
             </div>
             {modelList.length > 1 && (
-              <div className="min-w-0" ref={modelRef}>
+              <div className="min-w-0" ref={modelRef} style={modelAnchorStyle}>
                 <button
                   type="button"
                   className="flex min-h-8 max-w-full items-center gap-1 rounded-full border border-border-input px-3 text-xs text-t-secondary hover:text-t-primary"
@@ -698,12 +698,7 @@ export default function Assistant() {
                   <ChevronDown aria-hidden size="0.9em" className="shrink-0" />
                 </button>
                 {modelOpen && (
-                  // as wide as the longest name, capped at the box: the old
-                  // fixed cap cut every cloud model to "… (Cloud Codin…"
-                  <Menu
-                    className="t-pop--up absolute bottom-full left-0 z-20 mb-1 w-max max-w-full"
-                    aria-label={t('assistant.model')}
-                  >
+                  <Menu anchor={modelAnchor} placement="top-start" aria-label={t('assistant.model')}>
                     {['', ...modelList.filter((m) => m !== defaultModel)].map((m) => (
                       <MenuItem
                         key={m}

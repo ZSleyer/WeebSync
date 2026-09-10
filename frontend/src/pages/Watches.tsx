@@ -168,7 +168,7 @@ export default function Watches() {
 
   const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
   // outside-click + Escape come from the design system's menu hook
-  const { open: sortOpen, setOpen: setSortOpen, ref: sortRef } = useMenu()
+  const { open: sortOpen, setOpen: setSortOpen, ref: sortRef, anchor: sortAnchor, anchorStyle: sortAnchorStyle } = useMenu()
   const SORT_OPTS = [
     { v: 'next', k: 'watch.sortNext' },
     { v: 'last', k: 'watch.sortLast' },
@@ -216,7 +216,7 @@ export default function Watches() {
       <PageActions>
         <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
           {view === 'list' && watches.length > 1 && (
-            <div className="relative" ref={sortRef}>
+            <div className="relative" ref={sortRef} style={sortAnchorStyle}>
               <Button
                 size="sm"
                 aria-haspopup="listbox"
@@ -228,7 +228,7 @@ export default function Watches() {
                 <ArrowUpDown aria-hidden size="1.2em" />
               </Button>
               {sortOpen && (
-                <Menu className="absolute right-0 z-20 mt-1" aria-label={t('watch.sortBy')}>
+                <Menu anchor={sortAnchor} placement="bottom-end" aria-label={t('watch.sortBy')}>
                   {SORT_OPTS.map((o) => (
                     <MenuItem
                       key={o.v}
