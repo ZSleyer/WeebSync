@@ -1,0 +1,7 @@
+// The mark: W in the text colour, S in the accent. Traced from the master
+// artwork into two polygons, so it scales and takes whatever the page's
+// accent is. The box is the mark's own bounds, the favicon pads it square.
+export const LOGO_W = 1024
+export const LOGO_H = 594
+export const LOGO_PATH_W = 'M0 0L117 0L189 419L193 419L310 0L398 1L512 419L517 417L541 275L628 366L582 594L473 594L355 176L351 178L232 594L123 594Z'
+export const LOGO_PATH_S = 'M633 594L653 496L818 496L848 471L852 467L869 367L846 340L671 340L552 213L574 84L673 0L942 0L1024 97L1011 177L897 177L905 126L882 98L714 98L680 128L666 215L688 242L907 242L912 247L988 339L958 510L860 594Z'

@@ -9,6 +9,7 @@ import { ConfirmProvider } from './components/confirm'
 import { PromptProvider } from './components/prompt'
 import { registerServiceWorker } from './push'
 import { applyTheme, readThemePref } from './theme'
+import { setFavicon } from './favicon'
 
 registerServiceWorker()
 
@@ -25,6 +26,7 @@ if (accent === 'violet' && !localStorage.getItem('weebsync.accent.v2')) {
 }
 localStorage.setItem('weebsync.accent.v2', '1')
 root.dataset.accent = accent ?? 'orange'
+setFavicon()
 if (localStorage.getItem('weebsync.motion') === 'off') root.dataset.motion = 'off'
 
 // keyboard-modality tracking (what-input pattern): focus rings appear only

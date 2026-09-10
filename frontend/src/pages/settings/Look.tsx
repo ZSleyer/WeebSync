@@ -4,6 +4,7 @@ import { Check } from 'lucide-react'
 import { Badge, Checkbox, Panel, Segmented } from '@weebsync/design-system'
 import { LOCALES } from '../../locales'
 import { applyTheme, readThemePref, THEME_KEY, type ThemePref } from '../../theme'
+import { setFavicon } from '../../favicon'
 
 const ACCENTS = ['orange', 'acid', 'crimson', 'cyan', 'blue', 'green', 'pink', 'violet'] as const
 const THEMES: ThemePref[] = ['system', 'dark', 'light']
@@ -31,6 +32,7 @@ export default function Look() {
     setAccent(a)
     root.dataset.accent = a
     localStorage.setItem('weebsync.accent', a)
+    setFavicon()
   }
   const pickMotion = (m: boolean) => {
     setMotion(m)
