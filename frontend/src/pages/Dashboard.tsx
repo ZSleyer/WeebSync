@@ -707,12 +707,15 @@ function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
 
 // The watches that need a hand: behind the broadcast, a gap, waiting on a
 // dub or sub, or a failed check. Counters alone were what this used to be;
-// a number of watched series is not something anyone acts on.
+// a number of watched series is not something anyone acts on. Nothing to
+// act on, nothing shown: a section saying all is well is a line the eye
+// still has to read past.
 function Attention({ watches }: { watches: Watch[] }) {
   const { t } = useTranslation()
   const needy = watches.filter(
     (w) => (w.behind ?? 0) > 0 || (w.missing?.length ?? 0) > 0 || (w.langWaiting ?? 0) > 0 || w.lastResult !== '',
   )
+  if (needy.length === 0) return null
   const shown = needy.slice(0, 5)
   return (
     <section aria-label={t('dash.attention')}>
@@ -726,10 +729,7 @@ function Attention({ watches }: { watches: Watch[] }) {
         }
         count={needy.length}
       />
-      {needy.length === 0 ? (
-        <p className="text-xs text-t-muted">{t('dash.attentionEmpty', { count: watches.length })}</p>
-      ) : (
-        <Panel>
+      <Panel>
           <ul className="divide-y divide-border-subtle">
             {shown.map((w) => (
               <li key={w.id}>
@@ -780,7 +780,6 @@ function Attention({ watches }: { watches: Watch[] }) {
             ))}
           </ul>
         </Panel>
-      )}
       {needy.length > shown.length && (
         <Link to="/watches" className="mt-2 inline-flex min-h-6 items-center text-[11px] text-accent hover:underline">
           {t('dash.attentionMore', { count: needy.length - shown.length })}
