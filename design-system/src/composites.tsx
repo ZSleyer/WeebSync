@@ -196,6 +196,87 @@ export function Sparkline({ values, max, label, width = 96, height = 24, classNa
   )
 }
 
+export interface TrendChartProps {
+  /** oldest first, one sample per step; fewer than two draw nothing */
+  values: number[]
+  /** accessible name of the chart */
+  label: string
+  /** how a value reads: the ceiling label and the hover readout */
+  format: (v: number) => string
+  /** how a sample's age reads, from its index counted back from the newest */
+  formatAge: (stepsBack: number) => string
+  /** the axis ends, e.g. "vor 10 min" and "jetzt" */
+  startLabel: ReactNode
+  endLabel: ReactNode
+  /**
+   * how many samples the window holds: with fewer than that the line keeps
+   * to the right end and the rest stays empty, so the axis stays honest
+   * while the history fills. Default: the values fill the width.
+   */
+  span?: number
+  height?: number
+  className?: string
+}
+
+/**
+ * One measure over time: a 2px line in the current text colour over a faint
+ * fill, a hairline baseline, the ceiling named at the top and the two ends
+ * of the window below. Hovering or touching reads a sample out - value and
+ * age - in the caption row, so the chart carries no numbers of its own.
+ */
+export function TrendChart({ values, label, format, formatAge, startLabel, endLabel, span, height = 72, className }: TrendChartProps) {
+  const [hover, setHover] = useState<number | null>(null)
+  const w = 600
+  const top = Math.max(...values, 1)
+  const last = values.length - 1
+  // the newest sample sits at the right edge; with a span the oldest slot
+  // of the window is the left edge, whether or not a sample fills it yet
+  const slots = Math.max(span ?? values.length, values.length)
+  const offset = slots - values.length
+  const x = (i: number) => ((i + offset) / Math.max(slots - 1, 1)) * w
+  const y = (v: number) => height - (v / top) * (height - 2) - 1
+  const points = values.map((v, i) => `${x(i)},${y(v)}`).join(' ')
+  const at = hover !== null && values[hover] !== undefined ? hover : null
+  const pick = (e: React.PointerEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const slot = Math.round(((e.clientX - r.left) / r.width) * (slots - 1)) - offset
+    setHover(Math.min(last, Math.max(0, slot)))
+  }
+  return (
+    <div className={cx('min-w-0', className)}>
+      <p className="mb-1 flex justify-between font-mono text-[11px] text-t-muted tabular-nums" aria-live="polite">
+        <span>{at !== null ? format(values[at]) : format(top)}</span>
+        {at !== null && <span>{formatAge(last - at)}</span>}
+      </p>
+      <svg
+        role="img"
+        aria-label={label}
+        viewBox={`0 0 ${w} ${height}`}
+        preserveAspectRatio="none"
+        className="block w-full touch-none border-b border-border-subtle"
+        style={{ height }}
+        onPointerMove={pick}
+        onPointerDown={pick}
+        onPointerLeave={() => setHover(null)}
+      >
+        {values.length > 1 && (
+          <>
+            <polygon points={`${x(0)},${height} ${points} ${w},${height}`} fill="currentColor" fillOpacity={0.08} />
+            <polyline points={points} fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            {at !== null && (
+              <line x1={x(at)} x2={x(at)} y1={0} y2={height} stroke="currentColor" strokeOpacity={0.5} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            )}
+          </>
+        )}
+      </svg>
+      <p className="mt-1 flex justify-between text-[11px] text-t-muted">
+        <span>{startLabel}</span>
+        <span>{endLabel}</span>
+      </p>
+    </div>
+  )
+}
+
 export interface StatTileProps {
   /** the chip caption */
   label: ReactNode

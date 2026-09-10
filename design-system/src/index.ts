@@ -72,6 +72,7 @@ export {
   SuggestionCard,
   TabBar,
   TransferCard,
+  TrendChart,
 } from './composites'
 export type {
   ActionBarProps,
@@ -98,6 +99,7 @@ export type {
   StatTileProps,
   SuggestionCardProps,
   TransferCardProps,
+  TrendChartProps,
   TabBarProps,
 } from './composites'
 
