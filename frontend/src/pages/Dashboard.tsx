@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, Eye, FolderOpen, Pause, Play, RefreshCw, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, Eye, FolderOpen, HardDrive, Pause, Play, RefreshCw, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
 
 // icon per download status, shown inside the t-label chips (inline-flex, 4px gap)
 const STATUS_ICON: Record<Download['status'], LucideIcon> = {
@@ -797,13 +797,25 @@ function StorageTile() {
   const disks = (data?.disks ?? (data?.disk ? [data.disk] : [])).filter((d) => d.totalBytes > 0)
   if (disks.length === 0) return null
   return (
-    <Panel className="px-3 py-2 sm:px-4">
-      <Badge>{t('dash.storage')}</Badge>
-      <ul className="mt-1 divide-y divide-border-subtle">
+    // its own divider like the two sections above it: a caption inside the
+    // panel left the panel hanging under the attention list's last line
+    <section aria-label={t('dash.storage')}>
+      <Divider
+        className="mb-2 whitespace-nowrap"
+        label={
+          <>
+            <HardDrive aria-hidden size="1em" />
+            {t('dash.storage')}
+          </>
+        }
+        count={disks.length > 1 ? disks.length : undefined}
+      />
+    <Panel className="px-3 sm:px-4">
+      <ul className="divide-y divide-border-subtle">
         {disks.map((disk) => {
           const pct = (disk.usedBytes / disk.totalBytes) * 100
           return (
-            <li key={disk.path} className="py-1.5">
+            <li key={disk.path} className="py-2">
               <p className="truncate font-mono text-[11px] text-t-muted" title={disk.path}>
                 {disk.path}
               </p>
@@ -825,6 +837,7 @@ function StorageTile() {
         })}
       </ul>
     </Panel>
+    </section>
   )
 }
 
