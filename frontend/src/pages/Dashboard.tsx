@@ -109,6 +109,7 @@ export default function Dashboard() {
   const hero = matched.find((d) => d.status === 'running') ?? matched[0]
   const rank = (d: Download) => (d === hero ? 0 : d.status === 'running' ? 1 : d.status === 'paused' ? 2 : 3)
   const active = [...matched].sort((a, b) => rank(a) - rank(b))
+  const many = activeAll.length > 1
   // section visibility keys off the unfiltered set: a filter with zero hits
   // must not hide the section (and with it the very chips to undo the filter)
   const finishedAll = downloads.filter((d) => d.status !== 'running' && d.status !== 'queued' && d.status !== 'paused')
@@ -300,11 +301,15 @@ export default function Dashboard() {
             </div>
             {queueOpen && (
             <>
-            {/* the toolbar earns its row from the second download on:
+            {/* the bulk controls earn their row from the second download on:
                 select-all, search and cancel-everything over a single card
-                are chrome in front of the one thing on screen */}
-            {activeAll.length > 1 && (
+                are chrome in front of the one thing on screen. The global
+                limit is the one control that is about the next transfer as
+                much as the current one, so an admin always has it here */}
+            {(many || !!user?.isAdmin) && (
             <Toolbar className="mb-3">
+              {many && (
+              <>
               <input
                 ref={activeAllRef}
                 type="checkbox"
@@ -323,7 +328,10 @@ export default function Dashboard() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
+              </>
+              )}
               <Toolbar className="ml-auto basis-full sm:basis-auto">
+                {many && (
                 <Button
                   size="sm"
                   variant="danger"
@@ -335,6 +343,7 @@ export default function Dashboard() {
                   <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                   {t('dash.cancelAll')}
                 </Button>
+                )}
                 {!!user?.isAdmin && <GlobalLimitInput />}
               </Toolbar>
             </Toolbar>
