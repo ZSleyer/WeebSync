@@ -28,7 +28,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar } from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
-import Wordmark from './components/Wordmark'
+import Logo from './components/Logo'
 import { useSpeedSampler } from './speedHistory'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
@@ -340,7 +340,7 @@ function Shell({ email }: { email: string }) {
             aria-label={t('nav.dashboard')}
             className="inline-flex min-h-(--ctl-h-sm) min-w-(--ctl-h-sm) items-center justify-center rounded-xs px-1 text-t-primary"
           >
-            <Wordmark stacked className="text-[11px]" />
+            <Logo className="h-5 w-auto" />
           </Link>
         )
       }
