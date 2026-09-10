@@ -91,6 +91,8 @@ export interface DiskUsage {
   totalBytes: number
   freeBytes: number
   usedBytes: number
+  // the other library paths on the same filesystem
+  paths?: string[]
 }
 
 // Background job families, as /api/jobs reports them. Every signed-in user may
