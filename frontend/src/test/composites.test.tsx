@@ -20,6 +20,8 @@ import {
   NavItem,
   navItemClass,
   Segmented,
+  Sparkline,
+  StatTile,
   SuggestionCard,
 } from '@weebsync/design-system'
 
@@ -491,5 +493,47 @@ describe('ActionBar, Disclosure and Segmented', () => {
     expect(cal).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(cal)
     expect(onChange).toHaveBeenCalledWith('calendar')
+  })
+})
+
+describe('Sparkline', () => {
+  it('is a named image drawing one point per value', () => {
+    render(<Sparkline values={[1, 2, 3]} label="Speed, letzte Minute" />)
+    const svg = screen.getByRole('img', { name: 'Speed, letzte Minute' })
+    const line = svg.querySelector('polyline')!
+    expect(line.getAttribute('points')!.split(' ')).toHaveLength(3)
+    // the last sample sits at the right edge, the largest at the top
+    expect(line.getAttribute('points')!.split(' ')[2]).toBe('96,1')
+    expect(line).toHaveAttribute('stroke', 'currentColor')
+  })
+
+  it('draws nothing below two values but keeps its box', () => {
+    render(<Sparkline values={[4]} label="Speed" />)
+    const svg = screen.getByRole('img', { name: 'Speed' })
+    expect(svg.querySelector('polyline')).toBeNull()
+    expect(svg).toHaveAttribute('width', '96')
+  })
+
+  it('scales against the given ceiling', () => {
+    render(<Sparkline values={[0, 5]} max={10} label="Speed" height={22} />)
+    // 5 of 10 lands halfway between the 1px margins: 22 - 0.5 * 20 - 1
+    expect(screen.getByRole('img').querySelector('polyline')!.getAttribute('points')!.split(' ')[1]).toBe('96,11')
+  })
+})
+
+describe('StatTile', () => {
+  it('shows caption, figure, detail and trend', () => {
+    render(<StatTile label="Speed" value="2,4 MiB/s" detail="über 3 Downloads" trend={<span>trend</span>} />)
+    expect(screen.getByText('Speed')).toHaveClass('t-label')
+    expect(screen.getByText('2,4 MiB/s')).toHaveClass('font-mono')
+    expect(screen.getByText('über 3 Downloads')).toBeInTheDocument()
+    expect(screen.getByText('trend')).toBeInTheDocument()
+  })
+
+  it('spans two columns only when asked', () => {
+    const { container, rerender } = render(<StatTile label="Speed" value="0" />)
+    expect(container.firstElementChild).not.toHaveClass('sm:col-span-2')
+    rerender(<StatTile wide label="Speed" value="0" />)
+    expect(container.firstElementChild).toHaveClass('t-panel', 'sm:col-span-2')
   })
 })
