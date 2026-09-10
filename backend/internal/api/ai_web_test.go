@@ -23,7 +23,7 @@ func TestAiWebToolsSearchReadAndGate(t *testing.T) {
 				return
 			}
 			json.NewEncoder(w).Encode(map[string]any{"results": []map[string]any{
-				{"title": "Frieren S3 announced", "url": "http://x.test/news", "content": "The third season airs in 2027."},
+				{"title": "Frieren S3 announced", "url": "http://" + r.Host + "/news", "content": "The third season airs in 2027."},
 				{"title": "no url", "content": "dropped"},
 			}})
 		case "/news":
@@ -62,7 +62,7 @@ func TestAiWebToolsSearchReadAndGate(t *testing.T) {
 			toolMsgs = append(toolMsgs, m.Content)
 		}
 	}
-	if len(toolMsgs) != 2 || !strings.Contains(toolMsgs[0], `"http://x.test/news"`) || strings.Contains(toolMsgs[0], "dropped") {
+	if len(toolMsgs) != 2 || !strings.Contains(toolMsgs[0], `"`+web.URL+`/news"`) || strings.Contains(toolMsgs[0], "dropped") {
 		t.Errorf("search result: %v", toolMsgs)
 	}
 	var page struct {
@@ -110,11 +110,43 @@ func TestAiFetchPageRefusesLocalTargets(t *testing.T) {
 	}))
 	t.Cleanup(web.Close)
 	s := &Server{}
-	out, _ := s.aiFetchPage(context.Background(), web.URL).(map[string]any)
+	out, _ := s.aiFetchPage(context.Background(), newAiWebScope(web.URL), web.URL).(map[string]any)
 	if out["error"] == nil || out["text"] != nil {
 		t.Fatalf("loopback page was read: %v", out)
 	}
 	if aiPageHTTP.Transport == nil || aiPageHTTP.CheckRedirect == nil {
 		t.Fatal("aiPageHTTP is not the guarded client")
+	}
+}
+
+// A page cannot make the model open a url of its own: fetch_page takes only
+// what the user wrote or a search returned, and what it reads comes back
+// without the characters a page hides instructions in.
+func TestAiFetchPageScopeAndCleaning(t *testing.T) {
+	web := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("plain\u200b text\u202e\U000E0041\U000E0042 end\n"))
+	}))
+	t.Cleanup(web.Close)
+	prev := aiPageHTTP
+	aiPageHTTP = web.Client()
+	t.Cleanup(func() { aiPageHTTP = prev })
+	s := &Server{}
+
+	// nothing named it: refused before any request goes out
+	out, _ := s.aiFetchPage(context.Background(), newAiWebScope("read https://example.com/a."), web.URL+"/x?leak=1").(map[string]any)
+	if e, _ := out["error"].(string); !strings.Contains(e, "not from a search result") {
+		t.Fatalf("unnamed url was opened: %v", out)
+	}
+	// the user named it (trailing punctuation and a fragment do not count)
+	sc := newAiWebScope("see " + web.URL + "/x.")
+	out, _ = s.aiFetchPage(context.Background(), sc, web.URL+"/x#top").(map[string]any)
+	if strings.TrimSpace(out["text"].(string)) != "plain text end" || out["note"] != aiWebNote {
+		t.Fatalf("user-named page: %v", out)
+	}
+	// a search result names it
+	sc = newAiWebScope()
+	sc.add(web.URL + "/y")
+	if out, _ = s.aiFetchPage(context.Background(), sc, web.URL+"/y").(map[string]any); out["text"] == nil {
+		t.Fatalf("search-named page: %v", out)
 	}
 }
