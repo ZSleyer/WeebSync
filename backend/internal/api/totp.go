@@ -147,7 +147,7 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "no TOTP setup in progress")
 		return
 	}
-	if !totp.Validate(in.Code, sec) {
+	if !totp.Validate(in.Code, sec) || !s.totpAccept(u.ID, in.Code) {
 		writeErr(w, http.StatusBadRequest, "invalid code")
 		return
 	}
@@ -222,7 +222,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sec, ok := s.totpSecret(userID)
-	if !ok || (!totp.Validate(in.Code, sec) && !s.useRecoveryCode(userID, in.Code)) {
+	if !ok || (!(totp.Validate(in.Code, sec) && s.totpAccept(userID, in.Code)) && !s.useRecoveryCode(userID, in.Code)) {
 		s.failLoginPending(in.Token)
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
@@ -238,6 +238,18 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	var email string
 	s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: email})
+}
+
+// totpAccept records a valid code as used; false when it is the code the
+// user already got in with. A code lives 90 seconds and consecutive steps
+// never repeat, so remembering the last one is the whole replay check.
+func (s *Server) totpAccept(userID int64, code string) bool {
+	res, err := s.DB.Exec(`UPDATE user_totp SET last_code = ? WHERE user_id = ? AND last_code != ?`, code, userID, code)
+	if err != nil {
+		return false
+	}
+	n, _ := res.RowsAffected()
+	return n == 1
 }
 
 // totpSecret decrypts the user's stored TOTP secret.

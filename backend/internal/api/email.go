@@ -138,6 +138,24 @@ func (s *Server) sendVerifyEmail(to, token, locale string) {
 	}
 }
 
+// reissueVerify mails a fresh link when the user's current one has expired.
+func (s *Server) reissueVerify(userID int64, email string) {
+	if s.Mail == nil || !s.Mail.Configured() {
+		return
+	}
+	token := randToken()
+	res, err := s.DB.Exec(`UPDATE users SET verify_token = ?, verify_sent_at = datetime('now')
+		WHERE id = ? AND email_verified = 0 AND verify_sent_at <= datetime('now', '-24 hours')`, token, userID)
+	if err != nil {
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 1 {
+		var locale string
+		s.DB.QueryRow(`SELECT locale FROM users WHERE id = ?`, userID).Scan(&locale)
+		go s.sendVerifyEmail(email, token, locale)
+	}
+}
+
 // handleVerifyEmail consumes a verification token and marks the account
 // verified, then redirects to the login page. Public (the link is the secret).
 //
@@ -155,7 +173,7 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := s.DB.Exec(`UPDATE users SET email_verified = 1, verify_token = ''
-		WHERE verify_token = ? AND verify_token != ''`, token)
+		WHERE verify_token = ? AND verify_token != '' AND verify_sent_at > datetime('now', '-24 hours')`, token)
 	if err != nil {
 		dbErr(w)
 		return

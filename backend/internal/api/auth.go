@@ -107,8 +107,8 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		verified, token = 0, randToken()
 	}
 	// first user becomes admin
-	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin, email_verified, verify_token, locale, upgrade_dims)
-		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?, ?, 'res,sub,dub,soft')`, c.Email, hash, verified, token, validLocale(c.Locale))
+	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin, email_verified, verify_token, verify_sent_at, locale, upgrade_dims)
+		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?, CASE WHEN ? = '' THEN '' ELSE datetime('now') END, ?, 'res,sub,dub,soft')`, c.Email, hash, verified, token, token, validLocale(c.Locale))
 	if err != nil {
 		writeErr(w, http.StatusConflict, "email already registered")
 		return
@@ -224,6 +224,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if verified == 0 {
+		// the link expires after a day; a login attempt past that gets a
+		// fresh one, so an expired link is never a lockout
+		s.reissueVerify(id, c.Email)
 		writeErr(w, http.StatusForbidden, "email not verified - check your inbox")
 		return
 	}
