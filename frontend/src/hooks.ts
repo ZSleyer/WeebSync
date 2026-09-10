@@ -104,15 +104,24 @@ export interface VersionInfo {
   url: string
 }
 
-// useVersion feeds the About panel and the update hint in the rail: one
-// query, fresh for six hours - the backend caches its upstream lookup that
-// long too, so asking more often would only repeat the cached answer.
+// How often an open tab asks again. The backend caches its upstream lookup for
+// six hours, so this is not what decides how fresh the answer is - it decides
+// how long a tab that nobody reloads keeps showing yesterday's answer. Half an
+// hour costs one request against our own cache.
+const VERSION_POLL_MS = 30 * 60 * 1000
+
+// useVersion feeds the About panel and the update hint in the rail. Fresh for
+// six hours, and asked again on that interval: a dashboard left open for days
+// used to learn about a new build only when someone reloaded the page.
 export function useVersion(enabled = true) {
   return useQuery<VersionInfo>({
     queryKey: ['version'],
     queryFn: () => api.get('/api/version'),
     enabled,
     staleTime: 6 * 60 * 60 * 1000,
+    refetchInterval: VERSION_POLL_MS,
+    refetchIntervalInBackground: false, // a hidden tab has nobody to tell
+    refetchOnWindowFocus: true, // coming back to the tab is a good moment
     retry: false,
   })
 }
