@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Entry } from '../api'
 import { suggestDirs, trimSlashes } from '../components/PathInput'
 import { isSeasonFolder } from '../components/RenameOptions'
-import { classifyTargets, subfolderTargetDir, syncTargetDir, titleFolder } from '../components/useTargetFolder'
+import { classifyTargets, subfolderTargetDir, syncRequestPath, syncTargetDir, titleFolder } from '../components/useTargetFolder'
 
 const dir = (name: string): Entry => ({ name, path: name, size: 0, isDir: true, modTime: '' })
 const file = (name: string): Entry => ({ ...dir(name), isDir: false })
@@ -98,6 +98,14 @@ describe('subfolderTargetDir', () => {
   it('is the remote name or nothing for the other two modes', () => {
     expect(subfolderTargetDir('Anime', '/ftp/Show S02', 'remote', 'Show', '')).toBe('Anime/Show S02')
     expect(subfolderTargetDir('Anime', '/ftp/Show S02', 'none', 'Show', '')).toBe('Anime')
+  })
+})
+
+describe('syncRequestPath', () => {
+  it('sends the title folder as a path and leaves the remote one to the server', () => {
+    expect(syncRequestPath('title', 'Anime', 'Anime/Frieren')).toBe('Anime/Frieren')
+    expect(syncRequestPath('remote', 'Anime', 'Anime/Frieren S01')).toBe('Anime')
+    expect(syncRequestPath('none', 'Anime', 'Anime')).toBe('Anime')
   })
 })
 

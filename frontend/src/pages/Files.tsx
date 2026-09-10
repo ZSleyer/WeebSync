@@ -7,7 +7,7 @@ import MediaDetail from '../components/MediaDetail'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
 import { Badge, Button, Cover, Dialog, EmptyState, Input, Panel, Segmented, Select } from '@weebsync/design-system'
-import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo } from '../api'
+import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo, type SubfolderMode } from '../api'
 import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../components/catalogSort'
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import { ServerIcon } from '../components/serverIcon'
@@ -19,7 +19,8 @@ import PageActions from '../components/PageActions'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
 import RenamePreview from '../components/RenamePreview'
 import { useRenamePreview } from '../components/useRenamePreview'
-import { syncTargetDir, useTargetFolder } from '../components/useTargetFolder'
+import { subfolderMode, subfolderTargetDir, syncRequestPath, useTargetFolder } from '../components/useTargetFolder'
+import SubfolderChoice from '../components/SubfolderChoice'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, useFolderKind, useWatchDefaults } from '../components/watchDefaults'
 import { useConfirm } from '../components/confirm'
@@ -87,15 +88,21 @@ export default function Files() {
   // catalog match, a target picked on this page wins over the default one
   const { data: defaults } = useWatchDefaults()
   const { data: watchKind, isPending: kindPending } = useFolderKind(active, watchEntry?.path)
-  const [flat, setFlat] = useState(false)
-  // once the user touched the checkbox its value stands, seed or not
-  const [flatTouched, setFlatTouched] = useState(false)
+  // null = untouched, so the default still speaks; once picked, the choice stands
+  const [subMode, setSubMode] = useState<SubfolderMode | null>(null)
+  const [subSep, setSubSep] = useState('')
   const { data: syncKind, isPending: syncKindPending } = useFolderKind(active, syncEntry?.path)
   const syncSeed = syncEntry && !syncKindPending ? applyDefaults(blankWatch(syncEntry.path, localPath), syncKind?.kind, defaults) : null
   // a target picked on this page wins, the default one fills in otherwise;
   // the subfolder choice follows the default only while nothing was picked
   const syncLocal = localPath || syncSeed?.localPath || ''
-  const syncFlat = flatTouched || localPath || !syncSeed || !syncEntry?.isDir ? flat : !syncSeed.subfolder
+  const seedMode: SubfolderMode = syncSeed && syncEntry?.isDir ? subfolderMode(syncSeed) : 'none'
+  const syncMode = subMode ?? (localPath ? 'none' : seedMode)
+  // the folder a title subfolder is named after, the same title the watch
+  // dialog would use; it is folded into the request, never into the page path
+  const syncTitle = syncKind?.title ?? ''
+  const syncTarget =
+    syncEntry && syncEntry.isDir ? subfolderTargetDir(syncLocal, syncEntry.path, syncMode, syncTitle, subSep) : syncLocal
   const [query, setQuery] = useState(params.get('q') ?? '')
 
   // the URL follows the browser, so a dialog round-trip, a reload and the
@@ -128,21 +135,23 @@ export default function Files() {
   const enqueue = useMutation({
     // with a rename rule the one-off sync endpoint applies the full watch
     // pipeline (template, aired mapping) without persisting a watch; note the
-    // inverted flag: handleSyncOnce derives flat from !subfolder
+    // inverted flag: handleSyncOnce derives flat from !subfolder. Only the
+    // title folder is sent as a path; the remote one stays the server's own
+    // join, which would otherwise append it a second time.
     mutationFn: ({ entry, rename }: { entry: Entry; rename: RenameRule | null }) =>
       rename
         ? api.post<{ queued: number; ids: number[] }>('/api/downloads/sync', {
             serverId: active,
             remotePath: entry.path,
-            localPath: syncLocal,
-            subfolder: !(syncFlat && entry.isDir),
+            localPath: syncRequestPath(syncMode, syncLocal, syncTarget),
+            subfolder: syncMode === 'remote' && entry.isDir,
             ...rename,
           })
         : api.post<{ queued: number; ids: number[] }>('/api/downloads', {
             serverId: active,
             remotePath: entry.path,
-            localPath: syncLocal,
-            flat: syncFlat && entry.isDir,
+            localPath: syncRequestPath(syncMode, syncLocal, syncTarget),
+            flat: !(syncMode === 'remote' && entry.isDir),
           }),
     onSuccess: (r) => {
       setNotice(t('remote.queued', { count: r.queued }))
@@ -429,11 +438,12 @@ export default function Files() {
           serverId={active}
           localPath={syncLocal}
           onLocalPath={setLocalPath}
-          flat={syncFlat}
-          onFlat={(v) => {
-            setFlatTouched(true)
-            setFlat(v)
-          }}
+          target={syncTarget}
+          mode={syncMode}
+          onMode={setSubMode}
+          separator={subSep}
+          onSeparator={setSubSep}
+          title={syncTitle}
           seed={syncSeed}
           pending={enqueue.isPending}
           onConfirm={(rename) => {
@@ -1004,8 +1014,12 @@ function SyncDialog({
   serverId,
   localPath,
   onLocalPath,
-  flat,
-  onFlat,
+  target,
+  mode,
+  onMode,
+  separator,
+  onSeparator,
+  title,
   pending,
   onConfirm,
   onClose,
@@ -1015,8 +1029,14 @@ function SyncDialog({
   serverId: number
   localPath: string
   onLocalPath: (p: string) => void
-  flat: boolean
-  onFlat: (v: boolean) => void
+  /** the folder the sync really writes into, title subfolder included */
+  target: string
+  mode: SubfolderMode
+  onMode: (m: SubfolderMode) => void
+  separator: string
+  onSeparator: (s: string) => void
+  /** the series title a title subfolder is named after */
+  title: string
   pending: boolean
   onConfirm: (rename: RenameRule | null) => void
   onClose: () => void
@@ -1048,12 +1068,11 @@ function SyncDialog({
   // target comparison is shown, and that matters most when nothing is renamed
   const { pairs, sizes, busy: previewBusy, hasRule } = useRenamePreview({
     serverId,
-    fields: { ...rule, remotePath: entry.path, localPath },
+    fields: { ...rule, remotePath: entry.path, localPath: target },
     enabled: true,
     fileName: entry.isDir ? undefined : entry.name,
     fileSize: entry.isDir ? undefined : entry.size,
   })
-  const target = syncTargetDir(localPath, entry.path, entry.isDir && !flat)
   const { entries: targetEntries, missing: targetMissing } = useTargetFolder(target)
   // mount-to-open: Escape and the backdrop end in onClose, the footer buttons
   // decide explicitly - the parent unmounts either way
@@ -1105,10 +1124,7 @@ function SyncDialog({
           </div>
 
           {entry.isDir && (
-            <label className="flex items-center gap-2 text-sm text-t-secondary">
-              <input type="checkbox" checked={flat} onChange={(e) => onFlat(e.target.checked)} />
-              {t('remote.flatSync')}
-            </label>
+            <SubfolderChoice value={mode} onChange={onMode} separator={separator} onSeparator={onSeparator} title={title} />
           )}
 
           <div className="space-y-1">

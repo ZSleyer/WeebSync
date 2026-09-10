@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Dialog, Field, Input, Select } from '@weebsync/design-system'
-import { api, ApiError, plexStreamLabel, plexStreamOptions } from '../api'
+import { api, ApiError, plexStreamLabel, plexStreamOptions, type SubfolderMode } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
 import { FsErrorNote, isFsErrorCode } from './FsErrorNote'
@@ -12,12 +12,19 @@ import PlexShowDialog, { usePlexShow } from './PlexShowDialog'
 import RenameOptions, { Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
 import RenamePreview from './RenamePreview'
 import { useRenamePreview } from './useRenamePreview'
-import { syncTargetDir, useTargetFolder } from './useTargetFolder'
+import SubfolderChoice from './SubfolderChoice'
+import { subfolderMode, subfolderTargetDir, syncRequestPath, useTargetFolder } from './useTargetFolder'
+import { useFolderKind } from './watchDefaults'
 
 export interface WatchFields extends RenameRule {
   remotePath: string
   localPath: string
   subfolder: boolean
+  // The three-way subfolder choice, as it comes from the user's defaults. It
+  // is dialog state only: "title" is resolved into localPath on save, so a
+  // watch never carries it (see SubfolderChoice).
+  subfolderSource?: SubfolderMode
+  subfolderSeparator?: string
   mediaId: number
   mediaSource: string
   wantDub: string
@@ -83,6 +90,16 @@ export default function WatchDialog({
   const { data: plexShow, refetch: refetchPlexShow } = usePlexShow(watchId)
   const [pickShow, setPickShow] = useState(false)
   const [renameOn, setRenameOn] = useState(!!(initial.template || initial.pattern))
+  const initialSub = subfolderMode(initial)
+  const [subMode, setSubMode] = useState<SubfolderMode>(initialSub)
+  const [subSep, setSubSep] = useState(initial.subfolderSeparator ?? '')
+  // the title a "by title" subfolder is named after: the rename override wins,
+  // exactly as it does over the provider title in the file names
+  const { data: folder, isPending: folderPending } = useFolderKind(serverId, f.remotePath)
+  const seriesTitle = f.titleOverride || folder?.title || ''
+  // undefined while the lookup runs: "no title found" is a claim worth making
+  // only once the answer is in, otherwise every open flashes the fallback note
+  const shownTitle = f.titleOverride || !folderPending ? seriesTitle : undefined
   const [browse, setBrowse] = useState<'remote' | 'local' | null>(null)
   // remote picker starts at the parent of the current watch folder
   const [browsePath, setBrowsePath] = useState(() =>
@@ -105,17 +122,25 @@ export default function WatchDialog({
       .catch(() => {}) // filter is optional; a saved value still shows via its own option below
   }, [serverId])
 
-  // the preview runs regardless of the rename switch: it is also where the
-  // target comparison is shown, and that matters most when nothing is renamed
-  const { pairs, sizes, busy: previewBusy } = useRenamePreview({ serverId, fields: f, enabled: true })
-
   // the folder the files really land in, and whether it is there yet
-  const targetDir = syncTargetDir(f.localPath, f.remotePath, f.subfolder)
+  const targetDir = subfolderTargetDir(f.localPath, f.remotePath, subMode, seriesTitle, subSep)
   const { entries: targetEntries, missing: targetMissing } = useTargetFolder(targetDir)
+
+  // the preview runs regardless of the rename switch: it is also where the
+  // target comparison is shown, and that matters most when nothing is renamed.
+  // It reads the folder the sync will really use, not the base path.
+  const { pairs, sizes, busy: previewBusy } = useRenamePreview({
+    serverId,
+    fields: { ...f, localPath: targetDir },
+    enabled: true,
+  })
 
   // unsaved-changes guard: confirm before closing via backdrop / Escape / cancel
   const dirty =
-    JSON.stringify(f) !== JSON.stringify(initial) || renameOn !== !!(initial.template || initial.pattern)
+    JSON.stringify(f) !== JSON.stringify(initial) ||
+    renameOn !== !!(initial.template || initial.pattern) ||
+    subMode !== initialSub ||
+    subSep !== (initial.subfolderSeparator ?? '')
   // Dialog asks this before Escape or a backdrop click closes it
   const mayClose = async () => {
     if (
@@ -147,8 +172,17 @@ export default function WatchDialog({
     setError('')
     setFsError(null)
     try {
+      // the title folder is resolved here, once: what the watch stores is the
+      // finished path, so a later title change cannot strand it elsewhere.
+      // The other two modes keep the payload the backend has always seen.
+      const { subfolderSource: _src, subfolderSeparator: _sep, ...rest } = f
+      const saved: WatchFields = {
+        ...rest,
+        localPath: syncRequestPath(subMode, f.localPath, targetDir),
+        subfolder: subMode === 'remote',
+      }
       // rename off = keep original names, persist empty rules
-      const note = await onSave(renameOn ? f : { ...f, template: '', pattern: '', replacement: '' })
+      const note = await onSave(renameOn ? saved : { ...saved, template: '', pattern: '', replacement: '' })
       if (note) {
         // nothing happened and there is a reason - say it here rather than
         // behind a closing dialog, where the user would never scroll to it
@@ -251,10 +285,13 @@ export default function WatchDialog({
             <Badge tone="accent">{t('watch.sectionPaths')}</Badge>
             {pathRow('remote')}
             {pathRow('local')}
-            <label className="flex items-center gap-2 text-sm text-t-secondary">
-              <input type="checkbox" checked={f.subfolder} onChange={(e) => setF({ ...f, subfolder: e.target.checked })} />
-              {t('watch.subfolder')}
-            </label>
+            <SubfolderChoice
+              value={subMode}
+              onChange={setSubMode}
+              separator={subSep}
+              onSeparator={setSubSep}
+              title={shownTitle}
+            />
             {f.replaceOld !== undefined && (
               <label className="flex items-center gap-2 text-sm text-t-secondary">
                 <input type="checkbox" checked={f.replaceOld} onChange={(e) => setF({ ...f, replaceOld: e.target.checked })} />
