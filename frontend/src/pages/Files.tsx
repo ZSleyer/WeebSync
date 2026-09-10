@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Check, Download, Eye, Files as FilesIcon, Folder, Info, Pencil, RefreshCw, Replace, Search, Star, Trash2, Undo2, X } from 'lucide-react'
+import { ArrowDownWideNarrow, Check, Download, Eye, Files as FilesIcon, Folder, Info, MoreHorizontal, Pencil, RefreshCw, Replace, Search, Star, Trash2, Undo2, X } from 'lucide-react'
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import MediaDetail from '../components/MediaDetail'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
-import { Badge, Button, Cover, Dialog, EmptyState, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Cover, Dialog, EmptyState, IconButton, Input, Menu, MenuItem, Panel, useMenu } from '@weebsync/design-system'
 import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo, type SubfolderMode } from '../api'
 import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../components/catalogSort'
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
@@ -14,6 +14,7 @@ import SourcePicker from '../components/SourcePicker'
 import { useCatalogView } from '../components/useCatalogView'
 import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
 import PathInput from '../components/PathInput'
+import PillSelect from '../components/PillSelect'
 import FileIcon from '../components/FileIcon'
 import PageActions from '../components/PageActions'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
@@ -616,64 +617,52 @@ export function CatalogGrid({
     <div className="flex min-h-0 flex-1 flex-col">
       {crumbs}
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-      {/* on a phone each control sits under its own label and spans the row:
-          side by side the two selects started at different x, because the
-          labels differ in width */}
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <label className="flex w-full flex-col gap-1 text-xs text-t-muted sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-          {t('remote.scope')}
-          <Select wrapperClassName="w-full sm:w-44" value={data?.scope ?? ''} onChange={(e) => setScope(e.target.value)}>
-            <option value="" disabled>
-              {t('remote.scopeNone')}
-            </option>
-            <option value="anime">{t('remote.scopeAnime')}</option>
-            <option value="tv">{t('remote.scopeTv')}</option>
-            <option value="movie">{t('remote.scopeMovie')}</option>
-            {caps?.tvdbApiKeySet && <option value="tvdb">{t('remote.scopeTvdb')}</option>}
-          </Select>
-        </label>
+      {/* one row of chips: what the folder is matched against, how the cards
+          are ordered, and the rest behind the overflow. It used to be two
+          labelled selects and up to three buttons, which stacked into five
+          rows on a phone before the first card */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <PillSelect
+          label={t('remote.scope')}
+          placeholder={t('remote.scopeNone')}
+          value={data?.scope ?? ''}
+          onChange={setScope}
+          options={[
+            { value: 'anime', label: t('remote.scopeAnime') },
+            { value: 'tv', label: t('remote.scopeTv') },
+            { value: 'movie', label: t('remote.scopeMovie') },
+            ...(caps?.tvdbApiKeySet ? [{ value: 'tvdb', label: t('remote.scopeTvdb') }] : []),
+          ]}
+        />
         {groups.length > 1 && (
-          <label className="flex w-full flex-col gap-1 text-xs text-t-muted sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-            {t('remote.sort')}
-            <Select wrapperClassName="w-full sm:w-44" value={sort} onChange={(e) => setSort(e.target.value as CatalogSort)}>
-              {CATALOG_SORTS.map((s) => (
-                <option key={s} value={s}>
-                  {t(`remote.sort_${s}`)}
-                </option>
-              ))}
-            </Select>
-          </label>
+          <PillSelect
+            label={t('remote.sort')}
+            value={sort}
+            onChange={(v) => setSort(v as CatalogSort)}
+            icon={<ArrowDownWideNarrow aria-hidden size="1em" className="shrink-0 text-t-muted" />}
+            options={CATALOG_SORTS.map((c) => ({ value: c, label: t(`remote.sort_${c}`) }))}
+          />
         )}
-        {data && data.scope !== '' && (
-          <Button size="sm" title={t('remote.scopeClearHint')} onClick={() => setScope('')}>
-            {t('remote.scopeClear')}
-          </Button>
-        )}
+        <CatalogActions
+          canRematch={data?.scope !== '' && pendingCount === 0 && items.length > 0}
+          noMatchCount={noMatchCount}
+          onRematch={triggerRematch}
+          onClearScope={data && data.scope !== '' ? () => setScope('') : undefined}
+        />
         {scopeError && (
           <span className="text-xs text-err" role="alert">
             {scopeError}
           </span>
         )}
         {data?.scope === '' ? (
-          <p className="text-xs text-t-muted" role="status">
+          <p className="w-full text-xs text-t-muted" role="status">
             {t('remote.scopePick')}
           </p>
-        ) : pendingCount > 0 ? (
-          <p className="text-xs text-t-muted" role="status">
-            {t('remote.matchingCount', { count: pendingCount })}
-          </p>
         ) : (
-          items.length > 0 && (
-            <>
-              {noMatchCount > 0 && (
-                <Button size="sm" onClick={() => triggerRematch(false)}>
-                  {t('remote.retryUnmatched', { count: noMatchCount })}
-                </Button>
-              )}
-              <Button size="sm" onClick={() => triggerRematch(true)}>
-                {t('remote.rematchAll')}
-              </Button>
-            </>
+          pendingCount > 0 && (
+            <p className="text-xs text-t-muted" role="status">
+              {t('remote.matchingCount', { count: pendingCount })}
+            </p>
           )
         )}
       </div>
@@ -942,6 +931,79 @@ const ruleOf = (f: WatchFields): RenameRule => ({
   renameTitleLang: f.renameTitleLang,
   renameSeriesId: f.renameSeriesId,
 })
+
+// CatalogActions holds what a catalog folder can have done to it: pull the
+// automatic matches again, and forget the source this folder was marked with.
+// Behind an overflow button, because none of it is part of looking at the
+// cards - the row above stayed readable only as long as it was two chips.
+function CatalogActions({
+  canRematch,
+  noMatchCount,
+  onRematch,
+  onClearScope,
+}: {
+  canRematch: boolean
+  noMatchCount: number
+  onRematch: (all: boolean) => void
+  /** absent while the folder carries no source mark */
+  onClearScope?: () => void
+}) {
+  const { t } = useTranslation()
+  const { open, setOpen, ref } = useMenu()
+  if (!canRematch && !onClearScope) return null
+  return (
+    <div className="relative" ref={ref}>
+      <IconButton
+        aria-label={t('remote.catalogActions')}
+        title={t('remote.catalogActions')}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="size-8! rounded-full! border border-border-input text-t-muted hover:text-accent"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <MoreHorizontal aria-hidden size="1.1em" />
+      </IconButton>
+      {open && (
+        <Menu className="t-pop--up absolute top-full left-0 z-20 mt-1 w-max max-w-[70vw]" aria-label={t('remote.catalogActions')}>
+          {canRematch && noMatchCount > 0 && (
+            <MenuItem
+              onClick={() => {
+                setOpen(false)
+                onRematch(false)
+              }}
+            >
+              {t('remote.retryUnmatched', { count: noMatchCount })}
+            </MenuItem>
+          )}
+          {canRematch && (
+            <MenuItem
+              onClick={() => {
+                setOpen(false)
+                onRematch(true)
+              }}
+            >
+              {t('remote.rematchAll')}
+            </MenuItem>
+          )}
+          {onClearScope && (
+            <>
+              {canRematch && <li role="separator" className="my-1 border-t border-border-subtle" />}
+              <MenuItem
+                title={t('remote.scopeClearHint')}
+                onClick={() => {
+                  setOpen(false)
+                  onClearScope()
+                }}
+              >
+                {t('remote.scopeClear')}
+              </MenuItem>
+            </>
+          )}
+        </Menu>
+      )}
+    </div>
+  )
+}
 
 // blankWatch is what a dialog starts from before the user's defaults apply.
 const blankWatch = (remotePath: string, localPath: string): WatchFields => ({
