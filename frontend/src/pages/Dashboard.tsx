@@ -20,7 +20,6 @@ import {
   CalendarEntry,
   Count,
   Cover,
-  Divider,
   EmptyState,
   Input,
   Panel,
@@ -53,6 +52,65 @@ const HISTORY_STATUSES: Download['status'][] = ['done', 'error', 'canceled']
 // isRetrying: the download failed on something transient and is waiting out its
 // backoff. It stays 'queued' - the wait is what tells the two apart.
 const isRetrying = (d: Download) => (d.retryAt ?? 0) * 1000 > Date.now()
+// useFold is a section's open state, remembered per browser: a section
+// folded on a phone to reach the one below stays folded next time.
+function useFold(key: string) {
+  const k = `weebsync.dash.fold.${key}`
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(k) !== '1'
+    } catch {
+      return true
+    }
+  })
+  const toggle = () =>
+    setOpen((o) => {
+      try {
+        if (o) localStorage.setItem(k, '1')
+        else localStorage.removeItem(k)
+      } catch {
+        /* storage blocked - the fold still works for this visit */
+      }
+      return !o
+    })
+  return [open, toggle] as const
+}
+
+// FoldHeader is a section's divider with the chip as the fold toggle - the
+// same anatomy as <Divider>, which renders its label as a chip nobody can
+// press. The count stays visible while folded, so a closed section still
+// says how much it holds.
+function FoldHeader({
+  icon,
+  label,
+  count,
+  trailing,
+  open,
+  onToggle,
+  className = 'mb-3',
+}: {
+  icon: React.ReactNode
+  label: string
+  count?: number
+  trailing?: React.ReactNode
+  open: boolean
+  onToggle: () => void
+  className?: string
+}) {
+  return (
+    <div className={`t-divider whitespace-nowrap ${className}`}>
+      <button type="button" className="t-label t-label--accent cursor-pointer" aria-expanded={open} onClick={onToggle}>
+        {open ? <ChevronDown aria-hidden size="1em" /> : <ChevronRight aria-hidden size="1em" />}
+        {icon}
+        {label}
+      </button>
+      <span className="t-divider-rule" />
+      {count !== undefined && <Count>{count}</Count>}
+      {trailing}
+    </div>
+  )
+}
+
 // remaining puts a duration into the countdown's words. Under a minute it
 // counts seconds - "in 0 min" is what the last stretch of every download
 // read otherwise - and a duration already spent is no time at all.
@@ -179,10 +237,10 @@ export default function Dashboard() {
       ids.forEach((id) => (all ? next.delete(id) : next.add(id)))
       return next
     })
-  const [historyOpen, setHistoryOpen] = useState(true)
-  // the queue folds like the history does: on a phone a long queue is what
-  // stands between the top of the page and the week's releases
-  const [queueOpen, setQueueOpen] = useState(true)
+  // every section folds: on a phone a long queue is what stands between the
+  // top of the page and the week's releases, and a closed one is remembered
+  const [historyOpen, toggleHistory] = useFold('history')
+  const [queueOpen, toggleQueue] = useFold('queue')
   // the history toolbar is one row on a phone: box, search, status select,
   // clear. The search keeps what is left, which is too little for the full
   // placeholder - a short one there, the aria-label stays the full sentence
@@ -284,23 +342,13 @@ export default function Dashboard() {
         </aside>
 
           <section aria-label={t('dash.transferSection')} className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
-            {/* divider header doubles as the collapse toggle, like the
-                history's - hand-rolled because <Divider> always renders its
-                label as a non-interactive chip */}
-            <div className="t-divider mb-3">
-              <button
-                type="button"
-                className="t-label t-label--accent cursor-pointer"
-                aria-expanded={queueOpen}
-                onClick={() => setQueueOpen((o) => !o)}
-              >
-                {queueOpen ? <ChevronDown aria-hidden size="1em" /> : <ChevronRight aria-hidden size="1em" />}
-                <DownloadIcon aria-hidden size="1em" />
-                {t('dash.transferSection')}
-              </button>
-              <span className="t-divider-rule" />
-              <Count>{activeAll.length}</Count>
-            </div>
+            <FoldHeader
+              icon={<DownloadIcon aria-hidden size="1em" />}
+              label={t('dash.transferSection')}
+              count={activeAll.length}
+              open={queueOpen}
+              onToggle={toggleQueue}
+            />
             {queueOpen && (
             <>
             {/* the bulk controls earn their row from the second download on:
@@ -412,26 +460,7 @@ export default function Dashboard() {
 
           {finishedAll.length > 0 && (
             <section aria-label={t('dash.finishedSection')} className="order-3 min-w-0 lg:col-start-1 lg:row-start-2">
-              {/* divider header doubles as the collapse toggle, like the
-                  watch-list groups - hand-rolled because <Divider> always
-                  renders its label as a non-interactive chip */}
-              <div className="t-divider mb-3">
-                <button
-                  type="button"
-                  className="t-label t-label--accent cursor-pointer"
-                  aria-expanded={historyOpen}
-                  onClick={() => setHistoryOpen((o) => !o)}
-                >
-                  {historyOpen ? (
-                    <ChevronDown aria-hidden size="1em" />
-                  ) : (
-                    <ChevronRight aria-hidden size="1em" />
-                  )}
-                  {t('dash.history')}
-                </button>
-                <span className="t-divider-rule" />
-                <Count>{finished.length}</Count>
-              </div>
+              <FoldHeader icon={null} label={t('dash.history')} count={finished.length} open={historyOpen} onToggle={toggleHistory} />
               {historyOpen && (
                 <>
                   <Toolbar className="mb-2">
@@ -675,16 +704,15 @@ function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
   const { t } = useTranslation()
   const events = upcomingAirings(watches, Date.now(), 7).slice(0, limit)
   const when = (ts: number) => new Date(ts * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+  const [open, toggle] = useFold('upnext')
   return (
     <section aria-label={t('dash.upNext')}>
-      <Divider
-        className="mb-2 whitespace-nowrap"
-        label={
-          <>
-            <CalendarDays aria-hidden size="1em" />
-            {t('dash.upNext')}
-          </>
-        }
+      <FoldHeader
+        className="mb-2"
+        icon={<CalendarDays aria-hidden size="1em" />}
+        label={t('dash.upNext')}
+        open={open}
+        onToggle={toggle}
         trailing={
           /* inline-flex + min-h keeps the 24px target size (WCAG 2.5.8) */
           <Link
@@ -695,7 +723,7 @@ function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
           </Link>
         }
       />
-      {events.length === 0 ? (
+      {!open ? null : events.length === 0 ? (
         <p className="text-xs text-t-muted">{t('dash.upNextEmpty')}</p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -731,20 +759,14 @@ function Attention({ watches }: { watches: Watch[] }) {
   const needy = watches.filter(
     (w) => (w.behind ?? 0) > 0 || (w.missing?.length ?? 0) > 0 || (w.langWaiting ?? 0) > 0 || w.lastResult !== '',
   )
+  const [open, toggle] = useFold('attention')
   if (needy.length === 0) return null
   const shown = needy.slice(0, 5)
   return (
     <section aria-label={t('dash.attention')}>
-      <Divider
-        className="mb-2 whitespace-nowrap"
-        label={
-          <>
-            <Eye aria-hidden size="1em" />
-            {t('dash.attention')}
-          </>
-        }
-        count={needy.length}
-      />
+      <FoldHeader className="mb-2" icon={<Eye aria-hidden size="1em" />} label={t('dash.attention')} count={needy.length} open={open} onToggle={toggle} />
+      {open && (
+      <>
       <Panel>
           <ul className="divide-y divide-border-subtle">
             {shown.map((w) => (
@@ -801,6 +823,8 @@ function Attention({ watches }: { watches: Watch[] }) {
           {t('dash.attentionMore', { count: needy.length - shown.length })}
         </Link>
       )}
+      </>
+      )}
     </section>
   )
 }
@@ -819,21 +843,21 @@ function StorageTile() {
     enabled: !!user?.isAdmin,
   })
   const disks = (data?.disks ?? (data?.disk ? [data.disk] : [])).filter((d) => d.totalBytes > 0)
+  const [open, toggle] = useFold('storage')
   if (disks.length === 0) return null
   return (
     // its own divider like the two sections above it: a caption inside the
     // panel left the panel hanging under the attention list's last line
     <section aria-label={t('dash.storage')}>
-      <Divider
-        className="mb-2 whitespace-nowrap"
-        label={
-          <>
-            <HardDrive aria-hidden size="1em" />
-            {t('dash.storage')}
-          </>
-        }
+      <FoldHeader
+        className="mb-2"
+        icon={<HardDrive aria-hidden size="1em" />}
+        label={t('dash.storage')}
         count={disks.length > 1 ? disks.length : undefined}
+        open={open}
+        onToggle={toggle}
       />
+    {open && (
     <Panel className="px-3 sm:px-4">
       <ul className="divide-y divide-border-subtle">
         {disks.map((disk) => {
@@ -869,6 +893,7 @@ function StorageTile() {
         })}
       </ul>
     </Panel>
+    )}
     </section>
   )
 }
