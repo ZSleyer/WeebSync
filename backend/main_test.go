@@ -27,3 +27,24 @@ func TestHardenAllowsTheTrailerFrame(t *testing.T) {
 		}
 	}
 }
+
+// The assistant dictates through the browser's own speech recognition, which
+// needs the microphone. A blanket microphone=() refuses the recognizer before
+// it hears anything, and the dictation then sits on "listening" forever - the
+// symptom names no cause, so the header carries the check.
+func TestHardenLetsTheMicrophoneThrough(t *testing.T) {
+	rec := httptest.NewRecorder()
+	harden(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).
+		ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+
+	pp := rec.Header().Get("Permissions-Policy")
+	if !strings.Contains(pp, "microphone=(self)") {
+		t.Errorf("dictation needs the microphone on our own origin: %q", pp)
+	}
+	// and nothing else was opened up along the way
+	for _, want := range []string{"camera=()", "geolocation=()"} {
+		if !strings.Contains(pp, want) {
+			t.Errorf("Permissions-Policy lost %q: %q", want, pp)
+		}
+	}
+}
