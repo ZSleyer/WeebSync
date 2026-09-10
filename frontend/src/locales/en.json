@@ -56,7 +56,7 @@
     "intro": "Ask about your list, this season or better copies of what you own. You confirm each proposal in the usual dialog.",
     "placeholder": "How can I help you today?",
     "send": "Send",
-    "placeholderQueue": "Ask a follow-up, it goes out once the answer is done",
+    "placeholderQueue": "Queue a follow-up …",
     "queued": "waits for the answer to finish",
     "dequeue": "Discard follow-up",
     "stop": "Stop",
