@@ -344,7 +344,7 @@ export default function Dashboard() {
                   {t('dash.cancelAll')}
                 </Button>
                 )}
-                {!!user?.isAdmin && <GlobalLimitInput />}
+                {!!user?.isAdmin && <GlobalLimitInput caption={!many} />}
               </Toolbar>
             </Toolbar>
             )}
@@ -1235,7 +1235,18 @@ const MIB = 1024 * 1024
 
 // Rate limit input with a KiB/s | MiB/s unit picker; stores bytes/s.
 // Single line by design (whitespace-nowrap).
-function LimitInput({ label, bytes, onSave }: { label: string; bytes: number; onSave: (b: number) => Promise<void> }) {
+function LimitInput({
+  label,
+  bytes,
+  onSave,
+  caption,
+}: {
+  label: string
+  bytes: number
+  onSave: (b: number) => Promise<void>
+  /** keep the caption on a phone too: for a row that holds nothing else */
+  caption?: boolean
+}) {
   const { t } = useTranslation()
   const [unit, setUnit] = useState<'KiB' | 'MiB'>(bytes >= MIB && bytes % MIB === 0 ? 'MiB' : 'KiB')
   const [val, setVal] = useState<string | null>(null)
@@ -1256,7 +1267,7 @@ function LimitInput({ label, bytes, onSave }: { label: string; bytes: number; on
     // twice is a lot of phone screen. The caption goes screen-reader-only on a
     // phone rather than away, so the field keeps its accessible name
     <label className="ml-auto flex min-w-0 flex-nowrap items-center gap-2 text-xs text-t-muted">
-      <span className="sr-only shrink-0 sm:not-sr-only">{label}</span>
+      <span className={caption ? 'shrink-0' : 'sr-only shrink-0 sm:not-sr-only'}>{label}</span>
       {/* the width needs the bang: .t-input sets width:100% unlayered, which
           beats a plain w-14 utility and lets the field eat the whole row */}
       <Input
@@ -1287,7 +1298,7 @@ function LimitInput({ label, bytes, onSave }: { label: string; bytes: number; on
 
 // Quick global rate limit (admin): reads the current value from the admin
 // settings query, writes via the dedicated dashboard endpoint.
-function GlobalLimitInput() {
+function GlobalLimitInput({ caption }: { caption?: boolean }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: settings } = useQuery<{ globalRateLimit: number }>({
@@ -1297,6 +1308,7 @@ function GlobalLimitInput() {
   return (
     <LimitInput
       label={t('dash.globalLimit')}
+      caption={caption}
       bytes={settings?.globalRateLimit ?? 0}
       onSave={async (b) => {
         await api.put('/api/downloads/ratelimit', { rateLimit: b })
