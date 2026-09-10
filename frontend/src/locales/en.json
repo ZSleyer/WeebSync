@@ -817,7 +817,6 @@
       "idle": "idle",
       "queue": "{{count}} in match queue",
       "watchSummary": "{{count}} auto-syncs, checked every {{min}} min",
-      "caches": "Caches",
       "remoteIndex": "File index (server crawler)",
       "matchQuality": "Match quality & rematch",
       "empty": "Nothing here yet.",
@@ -847,7 +846,6 @@
       "confirmRematchAll": "Re-search all automatic matches on \"{{name}}\"? Manual assignments are kept.",
       "openBrowser": "Fix manually in the browser",
       "view": "View",
-      "cacheEntriesTitle": "Cache entries: {{scope}}",
       "matchesTitle": "Matches: {{name}}",
       "staleBadge": "stale",
       "manualBadge": "manual",
@@ -871,10 +869,31 @@
       "zeroDefault": "0 = default",
       "plex": "Plex cache",
       "rematchAllServers": "Rematch everything (all servers)",
-      "rematchAllServersHint": "Re-queues every automatic match on all servers — uses many API requests.",
+      "rematchAllServersHint": "Rematches every automatic match on every server and spends many API requests doing so.",
       "confirmRematchAllServers": "Really re-queue every automatic match on ALL servers? This can take a while and use many API requests.",
       "data": {
         "title": "Data stores",
+        "kindTitle": {
+          "cache": "Caches",
+          "derived": "Derived data",
+          "decision": "Your decisions"
+        },
+        "kindHint": {
+          "cache": "Copies of provider answers. They expire after their TTL and are fetched again when needed, flushing only costs requests.",
+          "derived": "Computed from the file index and the caches. Rebuilds itself after a flush, each store says by what.",
+          "decision": "Matches set by hand and dismissed suggestions. Nothing rebuilds them, a flush is final."
+        },
+        "providers": {
+          "anilist": "AniList",
+          "tmdb": "TMDB",
+          "tvdb": "TVDB",
+          "plex": "Plex",
+          "other": "Other"
+        },
+        "dangerHint": "Deletes every derived store at once and computes it again. For when series are folded or matched wrongly and single corrections no longer help.",
+        "rows": "Rows",
+        "size": "Size",
+        "entriesTitle": "Entries",
         "hint": "Everything the app works out for itself and can rebuild at any time. Your servers, auto-syncs and downloads are deliberately not on this list.",
         "rowCount": "{{n}} rows",
         "rebuiltBy": "Rebuilt by",
