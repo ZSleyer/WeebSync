@@ -119,10 +119,6 @@ export interface RouteHandle {
 const h = (title: string, back?: string, section?: string): RouteHandle => ({ title, back, section })
 const inSettings = (title: string) => h(title, '/settings', 'nav.settings')
 const inSuggestions = (title: string) => h(title, '/suggestions', 'nav.suggestions')
-// the assistant is where /suggestions lands once one is configured, so its
-// back link has to ask for the section list explicitly - plain /suggestions
-// would bounce straight back here
-const inSuggestionsFromDefault = (title: string) => h(title, '/suggestions?menu=1', 'nav.suggestions')
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -144,7 +140,7 @@ export const router = createBrowserRouter(
         <Route path="incomplete" element={<BucketSection bucket="incomplete" />} handle={inSuggestions('suggestions.tabIncomplete')} />
         <Route path="duplicates" element={<DuplicatesSection />} handle={inSuggestions('suggestions.tabDuplicates')} />
         <Route path="ignored" element={<IgnoredSection />} handle={inSuggestions('suggestions.ignored')} />
-        <Route path="assistant" element={<Assistant />} handle={inSuggestionsFromDefault('nav.assistant')} />
+        <Route path="assistant" element={<Assistant />} handle={inSuggestions('nav.assistant')} />
       </Route>
       <Route path="/assistant" element={<Navigate to="/suggestions/assistant" replace />} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
