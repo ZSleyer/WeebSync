@@ -67,14 +67,11 @@ export default function Servers() {
 
   return (
     <div>
-      <header className="mb-6 hidden flex-wrap items-end justify-between gap-3 lg:flex">
-        <div>
-          <h2 className="font-display text-xl font-semibold tracking-wider">{t('servers.title')}</h2>
-          <Badge className="mt-1">{t('servers.sub')}</Badge>
-        </div>
-        {/* the page's one primary action: top right in the header on desktop,
-            the shell's footer row on a phone (a portal, so the hidden header
-            does not hide it there) */}
+      {/* the settings frame carries the title and the menu names the section,
+          so the page starts with its one primary action: top right on desktop,
+          the shell's footer row on a phone (a portal, so the hidden header
+          does not hide it there) */}
+      <header className="mb-4 hidden justify-end lg:flex">
         <PageFooter>
           <ActionBar aria-label={t('servers.add')} sticky={false}>
             <Button variant="primary" onClick={() => openDialog(null)}>

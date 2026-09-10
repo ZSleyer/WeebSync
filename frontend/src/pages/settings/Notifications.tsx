@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Checkbox, Panel, Select } from '@weebsync/design-system'
 import { api } from '../../api'
 import { pushSubscription, pushSupported, subscribePush, unsubscribePush } from '../../push'
 
@@ -53,15 +53,14 @@ function EmailPrefsSection() {
       ) : (
         <div className="mt-3 grid grid-cols-1 gap-2">
           {(data.available ?? []).map((cat) => (
-            <label key={cat} className="flex items-center gap-2 text-sm text-t-secondary">
-              <input
-                type="checkbox"
-                checked={enabled.includes(cat)}
-                disabled={save.isPending}
-                onChange={(e) => toggle(cat, e.target.checked)}
-              />
-              {t(`settings.emailCat_${cat}`)}
-            </label>
+            <Checkbox
+              key={cat}
+              label={t(`settings.emailCat_${cat}`)}
+              labelClassName="text-t-secondary"
+              checked={enabled.includes(cat)}
+              disabled={save.isPending}
+              onChange={(e) => toggle(cat, e.target.checked)}
+            />
           ))}
         </div>
       )}
@@ -110,15 +109,13 @@ function PushSection() {
   return (
     <Panel as="section" className="mb-4 p-5" aria-label={t('settings.notifications')}>
       <Badge tone="accent">{t('settings.notifications')}</Badge>
-      <label className="mt-3 flex items-center gap-2 text-sm text-t-secondary">
-        <input
-          type="checkbox"
-          checked={enabled}
-          disabled={state === 'unsupported'}
-          onChange={(e) => toggle(e.target.checked)}
-        />
-        {t('settings.pushEnable')}
-      </label>
+      <Checkbox
+        label={t('settings.pushEnable')}
+        labelClassName="mt-3 text-t-secondary"
+        checked={enabled}
+        disabled={state === 'unsupported'}
+        onChange={(e) => toggle(e.target.checked)}
+      />
       <p className="mt-2 text-xs text-t-muted">{t('settings.pushHint')}</p>
       {enabled && (
         <p className="mt-2 flex items-center gap-3">
@@ -170,10 +167,13 @@ function NotifyPrefsSection() {
         {data.pushAvailable ? (
           <div className="mt-3 space-y-1.5">
             {data.available.map((cat) => (
-              <label key={cat} className="flex items-center gap-2 text-sm text-t-secondary">
-                <input type="checkbox" checked={data.push.includes(cat)} onChange={() => togglePush(cat)} />
-                {t(`settings.emailCat_${cat}`)}
-              </label>
+              <Checkbox
+                key={cat}
+                label={t(`settings.emailCat_${cat}`)}
+                labelClassName="text-t-secondary"
+                checked={data.push.includes(cat)}
+                onChange={() => togglePush(cat)}
+              />
             ))}
           </div>
         ) : (
