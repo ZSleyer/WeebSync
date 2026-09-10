@@ -148,10 +148,18 @@ func (s *Server) matchedKind(serverID int64, folder string) string {
 // for an uncatalogued folder too.
 func (s *Server) matchedKindTitle(serverID int64, folder string) (kind, title string) {
 	source, m := s.aiMatchedMedia(serverID, folder)
-	if source != "" && m != nil {
-		return watchCategory(source, m), aiTitle(*m)
+	if source == "" {
+		return "", match.GuessTitle(path.Base(folder))
 	}
-	return "", match.GuessTitle(path.Base(folder))
+	// the record can be missing while the match stands (provider down, cache
+	// cold); the source alone still names the kind
+	if m != nil {
+		title = aiTitle(*m)
+	}
+	if title == "" {
+		title = match.GuessTitle(path.Base(folder))
+	}
+	return watchCategory(source, m), title
 }
 
 // handleWatchDefaultsGet returns the caller's defaults; with serverId and
