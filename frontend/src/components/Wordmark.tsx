@@ -11,7 +11,7 @@ export default function Wordmark({ stacked, className = '' }: { stacked?: boolea
     )
   }
   return (
-    <span aria-hidden className={`grid grid-cols-4 gap-x-[0.2em] font-display font-bold leading-none text-t-primary ${className}`}>
+    <span aria-hidden className={`grid grid-cols-[repeat(4,auto)] gap-x-[0.08em] font-display font-bold leading-none text-t-primary ${className}`}>
       {['W', 'E', 'E', 'B'].map((c, i) => (
         <span key={`w${i}`} className="text-center">
           {c}
