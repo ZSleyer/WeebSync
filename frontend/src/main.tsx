@@ -8,12 +8,13 @@ import { router } from './App'
 import { ConfirmProvider } from './components/confirm'
 import { PromptProvider } from './components/prompt'
 import { registerServiceWorker } from './push'
+import { applyTheme, readThemePref } from './theme'
 
 registerServiceWorker()
 
 // apply persisted look before first paint
 const root = document.documentElement
-root.dataset.theme = localStorage.getItem('weebsync.theme') ?? 'dark'
+applyTheme(readThemePref())
 root.dataset.accent = localStorage.getItem('weebsync.accent') ?? 'violet'
 if (localStorage.getItem('weebsync.motion') === 'off') root.dataset.motion = 'off'
 

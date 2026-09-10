@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Panel } from '@weebsync/design-system'
+import { Badge, Checkbox, Panel } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useAuth, useVersion } from '../../hooks'
 
@@ -84,15 +84,13 @@ export default function About() {
         </dl>
 
         {user?.isAdmin && data && (
-          <label className="flex items-center gap-2 border-t border-border-subtle pt-4 text-sm text-t-secondary">
-            <input
-              type="checkbox"
-              checked={data.updateCheck}
-              disabled={toggle.isPending}
-              onChange={(e) => toggle.mutate(e.target.checked)}
-            />
-            {t('about.updateCheckToggle')}
-          </label>
+          <Checkbox
+            label={t('about.updateCheckToggle')}
+            labelClassName="border-t border-border-subtle pt-4 text-t-secondary"
+            checked={data.updateCheck}
+            disabled={toggle.isPending}
+            onChange={(e) => toggle.mutate(e.target.checked)}
+          />
         )}
       </Panel>
     </section>
