@@ -96,6 +96,10 @@ function useGroups(): SectionGroup[] {
   const n = (k: Exclude<Bucket, 'ignored'>) => (data && !data.building ? (data[k]?.length ?? 0) : undefined)
   const item = (to: Bucket | 'assistant', key: string, icon: LucideIcon, count?: number) => ({ to, key, icon, hint: `suggestions.hub.${to}`, count })
   return [
+    // the assistant leads: it is what the section opens on, and it is optional
+    // - without a configured endpoint its entry stays out of the menu (the
+    // page itself explains when opened directly)
+    ...(ai?.configured ? [{ label: 'suggestions.groupAssistant', items: [item('assistant', 'nav.assistant', Bot)] }] : []),
     {
       label: 'suggestions.groupDiscover',
       items: [
@@ -113,9 +117,6 @@ function useGroups(): SectionGroup[] {
       ],
     },
     { label: 'suggestions.groupHidden', items: [item('ignored', 'suggestions.ignored', EyeOff, dismissed?.length)] },
-    // the assistant is optional: without a configured endpoint its entry stays
-    // out of the menu (the page itself explains when opened directly)
-    ...(ai?.configured ? [{ label: 'suggestions.groupAssistant', items: [item('assistant', 'nav.assistant', Bot)] }] : []),
   ]
 }
 
@@ -158,9 +159,18 @@ export default function SuggestionsLayout() {
 export function SuggestionsHub() {
   const groups = useGroups()
   const wide = useMediaQuery(WIDE_MQ)
+  const { data: ai, isPending: aiPending } = useAiStatus()
   const [params] = useSearchParams()
   const tab = params.get('tab') as Bucket | null
   if (tab && BUCKETS.includes(tab)) return <Navigate to={`/suggestions/${tab}`} replace />
+  // With an assistant configured the section opens on it: asking is the
+  // shorter way to the same lists. ?menu is how the phone gets back to the
+  // list of sections - the assistant's back link carries it, and without it
+  // that link would land here and be sent straight back to the assistant.
+  if (params.get('menu') === null) {
+    if (aiPending) return null // no flash of the hub before the answer is in
+    if (ai?.configured) return <Navigate to="/suggestions/assistant" replace />
+  }
   if (wide) return <Navigate to="/suggestions/watchlist" replace />
   return <SectionHub groups={groups} />
 }
