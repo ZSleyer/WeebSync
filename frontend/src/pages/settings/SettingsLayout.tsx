@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Activity, ArrowDownUp, Bell, LogOut, Plug, RefreshCw, Server, Settings2, Shield, UserRound } from 'lucide-react'
+import { Activity, ArrowDownUp, Bell, Database, Link2, LogOut, Plug, RefreshCw, Server, Settings2, Shield, UserRound } from 'lucide-react'
 import { Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
@@ -19,7 +19,11 @@ const ADMIN = [
   { to: 'transfers', key: 'settings.nav.transfers', icon: ArrowDownUp, hint: 'settings.hub.transfers' },
   { to: 'security', key: 'settings.nav.security', icon: Shield, hint: 'settings.hub.security' },
   { to: 'integrations', key: 'settings.nav.integrations', icon: Plug, hint: 'settings.hub.integrations' },
+]
+const MAINTENANCE = [
   { to: 'jobs', key: 'settings.nav.jobs', icon: Activity, hint: 'settings.hub.jobs' },
+  { to: 'matching', key: 'settings.nav.matching', icon: Link2, hint: 'settings.hub.matching' },
+  { to: 'data', key: 'settings.nav.data', icon: Database, hint: 'settings.hub.data' },
 ]
 
 export function AdminRoute({ children }: { children: ReactNode }) {
@@ -35,7 +39,7 @@ function useGroups(): SectionGroup[] {
   return [
     { label: 'settings.groupPersonal', items: PERSONAL.map((i) => (i.to === 'general' ? { ...i, alert: !!update } : i)) },
     { label: 'settings.groupSources', items: SOURCES },
-    ...(user?.isAdmin ? [{ label: 'settings.groupAdmin', items: ADMIN }] : []),
+    ...(user?.isAdmin ? [{ label: 'settings.groupAdmin', items: ADMIN }, { label: 'settings.groupMaintenance', items: MAINTENANCE }] : []),
   ]
 }
 

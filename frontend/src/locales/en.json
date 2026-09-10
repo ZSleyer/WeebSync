@@ -770,6 +770,7 @@
     "groupPersonal": "Personal",
     "groupAdmin": "Administration",
     "groupSources": "Sources",
+    "groupMaintenance": "Maintenance",
     "sync": {
       "targets": "Target folder per media kind",
       "targetsHint": "Where a new auto-sync or one-off sync of this kind writes and how its files are named. A series already in the library keeps its folder.",
@@ -786,7 +787,7 @@
       "transfers": "Limits and interval",
       "security": "Sign-in, OIDC, API token",
       "integrations": "AniList, TMDB, TVDB, Plex, assistant",
-      "jobs": "Jobs, caches, log"
+      "jobs": "Running jobs, live log", "matching": "File index and matches per server", "data": "Caches, data stores, rebuild, import"
     },
     "nav": {
       "general": "General",
@@ -796,7 +797,7 @@
       "transfers": "Transfers",
       "security": "Security",
       "integrations": "Integrations",
-      "jobs": "Maintenance & Cache",
+      "jobs": "Tasks & log", "matching": "Index & matching", "data": "Caches & data",
       "about": "About"
     },
     "jobs": {
@@ -817,7 +818,6 @@
       "queue": "{{count}} in match queue",
       "watchSummary": "{{count}} auto-syncs, checked every {{min}} min",
       "caches": "Caches",
-      "jump": "Sections",
       "remoteIndex": "File index (server crawler)",
       "matchQuality": "Match quality & rematch",
       "empty": "Nothing here yet.",
