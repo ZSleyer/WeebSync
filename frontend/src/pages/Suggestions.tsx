@@ -163,15 +163,15 @@ export function SuggestionsHub() {
   const [params] = useSearchParams()
   const tab = params.get('tab') as Bucket | null
   if (tab && BUCKETS.includes(tab)) return <Navigate to={`/suggestions/${tab}`} replace />
-  // With an assistant configured the section opens on it: asking is the
-  // shorter way to the same lists. ?menu is how the phone gets back to the
-  // list of sections - the assistant's back link carries it, and without it
-  // that link would land here and be sent straight back to the assistant.
-  if (params.get('menu') === null) {
-    if (aiPending) return null // no flash of the hub before the answer is in
-    if (ai?.configured) return <Navigate to="/suggestions/assistant" replace />
+  // A desktop opens on the assistant where one is configured: asking is the
+  // shorter way to the same lists, and the menu beside it stays in view the
+  // whole time. On a phone this list IS the menu, so it opens first - the
+  // assistant is its top entry, one tap away, and skipping past it would put
+  // the sections behind the back gesture.
+  if (wide) {
+    if (aiPending) return null // no flash of the watchlist before the answer is in
+    return <Navigate to={ai?.configured ? '/suggestions/assistant' : '/suggestions/watchlist'} replace />
   }
-  if (wide) return <Navigate to="/suggestions/watchlist" replace />
   return <SectionHub groups={groups} />
 }
 
