@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, type AiModels, type AiStatus, type Download, type User } from './api'
 import i18n, { syncLocale } from './locales'
@@ -158,4 +158,23 @@ export function useAiModels(enabled = true) {
     staleTime: 5 * 60 * 1000,
     retry: false,
   })
+}
+
+// A clock for countdowns: re-renders at every full step, a minute by default,
+// aligned to the step so "in 24 min" turns over on the minute and never a
+// reload away. A second for the entries whose countdown shows seconds.
+export function useNow(stepMs = 60_000): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    let id = 0
+    const arm = () => {
+      id = window.setTimeout(() => {
+        setNow(Date.now())
+        arm()
+      }, stepMs - (Date.now() % stepMs))
+    }
+    arm()
+    return () => clearTimeout(id)
+  }, [stepMs])
+  return now
 }

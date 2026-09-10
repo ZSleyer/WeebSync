@@ -43,7 +43,7 @@ import { jobLabel } from '../jobs'
 import { useConfirm } from '../components/confirm'
 import PageActions, { PageFooter, WIDE_MQ } from '../components/PageActions'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
-import { useAuth, usePersistedQuery } from '../hooks'
+import { useAuth, useNow, usePersistedQuery } from '../hooks'
 import { ProviderBadges } from '../components/ProviderBadges'
 import MediaDetail from '../components/MediaDetail'
 
@@ -724,7 +724,8 @@ function WatchDetail({ watch, onClose }: { watch: Watch | null; onClose: () => v
 // to open the app between downloads, two taps closer than the calendar.
 function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
   const { t } = useTranslation()
-  const events = upcomingAirings(watches, Date.now(), 7).slice(0, limit)
+  const now = useNow()
+  const events = upcomingAirings(watches, now, 7).slice(0, limit)
   const when = (ts: number) => new Date(ts * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
   const [open, toggle] = useFold('upnext')
   // a tap on an entry opens the title's card, the same one the catalog shows
@@ -764,7 +765,7 @@ function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
                   </>
                 }
                 time={when(e.at)}
-                countdown={countdown(t, e.at)}
+                countdown={countdown(t, e.at, false, now)}
                 onClick={e.watch.media ? () => setDetail(e.watch) : undefined}
                 aria-label={e.watch.media ? t('remote.detailsFor', { name: watchTitle(e.watch) }) : undefined}
               />

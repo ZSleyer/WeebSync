@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   ArrowUpDown,
   CalendarDays,
@@ -56,6 +56,7 @@ import WatchEpisodesModal from '../components/WatchEpisodesModal'
 import MediaDetail from '../components/MediaDetail'
 import PageActions from '../components/PageActions'
 import { useConfirm } from '../components/confirm'
+import { useNow } from '../hooks'
 import { SkeletonCards } from '../components/Loading'
 
 type CalCategory = 'anime-series' | 'anime-movie' | 'series' | 'movie'
@@ -137,7 +138,7 @@ export default function Watches() {
   const airFmtChip = (ts: number) => airFmt(ts).replace(/,/g, '')
   // the backend owns the schedule (interval, smart sync, 12h stale re-check),
   // so this only formats what it sends
-  const untilCheck = (ts: number) => (ts * 1000 <= Date.now() ? t('watch.checkDue') : countdown(t, ts))
+  const untilCheck = (ts: number) => (ts * 1000 <= now ? t('watch.checkDue') : countdown(t, ts, false, now))
   const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
   // calendar: flatten every scheduled future release the provider knows into
   // per-day events - not just each watch's single next airing, so it reaches as
@@ -149,15 +150,11 @@ export default function Watches() {
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
   // a tap on a calendar entry opens the title's card
   const [calDetail, setCalDetail] = useState<Watch | null>(null)
-  // 1s tick so today's countdowns/clocks stay live (calendar view only)
-  const [, setTick] = useState(0)
+  // the clock behind every countdown: a second while today's calendar
+  // entries show seconds, a minute otherwise, so no countdown waits for a reload
   const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
-  useEffect(() => {
-    if (view !== 'calendar' || !hasToday) return
-    const id = setInterval(() => setTick((n) => n + 1), 1000)
-    return () => clearInterval(id)
-  }, [view, hasToday])
-  const calEvents = upcomingAirings(watches)
+  const now = useNow(view === 'calendar' && hasToday ? 1000 : 60_000)
+  const calEvents = upcomingAirings(watches, now)
   const calCats = CAL_CATEGORIES.filter((c) => calEvents.some((e) => e.watch.category === c))
   const calShown = calCat === 'all' ? calEvents : calEvents.filter((e) => e.watch.category === calCat)
   const calGroups: { day: string; items: Airing[] }[] = []
@@ -350,7 +347,7 @@ export default function Watches() {
                           {new Date(e.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...(isToday(e.at) ? { second: '2-digit' } : {}) })}
                         </span>
                       }
-                      countdown={countdown(t, e.at, isToday(e.at))}
+                      countdown={countdown(t, e.at, isToday(e.at), now)}
                       onClick={e.watch.media ? () => setCalDetail(e.watch) : undefined}
                       aria-label={
                         e.watch.media
