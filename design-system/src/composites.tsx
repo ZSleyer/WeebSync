@@ -362,9 +362,16 @@ export interface MenuProps {
 /** Dropdown list - sort pickers, overflow menus. Position it yourself. */
 export function Menu({ children, className, ...rest }: MenuProps) {
   return (
-    // overflow-clip: the py-1 lets the first and last item's hover fill reach
-    // the corners, which would poke past the curve otherwise
-    <ul role="listbox" {...rest} className={cx('t-pop min-w-44 overflow-clip rounded-lg border border-border-subtle bg-bg-card py-1 shadow-lg', className)}>
+    // clipped sideways: the py-1 lets the first and last item's hover fill
+    // reach the corners, which would poke past the curve otherwise. Upright it
+    // scrolls instead - a clipped menu hides its first entries with nothing to
+    // say they are there. 20rem is about seven rows: a dozen models at 60dvh
+    // covered most of a phone's screen, which reads as a page, not a menu.
+    <ul
+      role="listbox"
+      {...rest}
+      className={cx('t-pop max-h-[min(60dvh,20rem)] min-w-44 overflow-x-clip overflow-y-auto rounded-lg border border-border-subtle bg-bg-card py-1 shadow-lg', className)}
+    >
       {children}
     </ul>
   )
