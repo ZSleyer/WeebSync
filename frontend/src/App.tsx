@@ -288,7 +288,10 @@ function Shell({ email }: { email: string }) {
     <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
       <div className="border-b border-border-subtle px-4 py-5">
         <h1 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
-          WEEB<span className="text-accent">SYNC</span>
+          {/* the mark is the way home from anywhere, as on every site */}
+          <Link to="/" className="rounded-xs">
+            WEEB<span className="text-accent">SYNC</span>
+          </Link>
         </h1>
         <Badge className="mt-2">{t('app.tagline')}</Badge>
       </div>
@@ -328,7 +331,13 @@ function Shell({ email }: { email: string }) {
             <ArrowLeft aria-hidden size="1.25em" />
           </Link>
         ) : (
-          <Wordmark stacked className="text-[11px]" />
+          <Link
+            to="/"
+            aria-label={t('nav.dashboard')}
+            className="inline-flex min-h-(--ctl-h-sm) min-w-(--ctl-h-sm) items-center justify-center rounded-xs px-1 text-t-primary"
+          >
+            <Wordmark stacked className="text-[11px]" />
+          </Link>
         )
       }
       title={title ? t(title) : 'WeebSync'}
