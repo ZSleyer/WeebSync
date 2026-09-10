@@ -23,6 +23,7 @@ import {
   Sparkline,
   StatTile,
   TransferCard,
+  TrendChart,
   SuggestionCard,
 } from '@weebsync/design-system'
 
@@ -589,5 +590,44 @@ describe('TransferCard', () => {
     }
     expect(container.firstElementChild).toHaveClass('bg-bg-hover')
     expect(container.firstElementChild!.tagName).toBe('ARTICLE')
+  })
+})
+
+describe('TrendChart', () => {
+  const props = { label: 'Speed', format: (v: number) => `${v} B/s`, formatAge: (s: number) => `${s}s`, startLabel: 'start', endLabel: 'now' }
+
+  it('names the ceiling and the window ends, one point per value', () => {
+    render(<TrendChart values={[1, 4, 2]} {...props} />)
+    expect(screen.getByText('4 B/s')).toBeInTheDocument()
+    expect(screen.getByText('start')).toBeInTheDocument()
+    expect(screen.getByText('now')).toBeInTheDocument()
+    const svg = screen.getByRole('img', { name: 'Speed' })
+    expect(svg.querySelector('polyline')!.getAttribute('points')!.split(' ')).toHaveLength(3)
+    expect(svg.querySelector('polygon')).not.toBeNull()
+  })
+
+  it('keeps a short history at the right end of a fixed window', () => {
+    render(<TrendChart values={[1, 2, 3]} span={5} {...props} />)
+    const pts = screen.getByRole('img').querySelector('polyline')!.getAttribute('points')!.split(' ')
+    // slots 0..4 over 600 units: the three samples take slots 2, 3, 4
+    expect(pts.map((p) => p.split(',')[0])).toEqual(['300', '450', '600'])
+  })
+
+  it('draws nothing below two values', () => {
+    render(<TrendChart values={[3]} {...props} />)
+    expect(screen.getByRole('img').querySelector('polyline')).toBeNull()
+  })
+
+  it('reads a sample out under the pointer and lets go on leave', () => {
+    render(<TrendChart values={[1, 4, 2]} {...props} />)
+    const svg = screen.getByRole('img')
+    svg.getBoundingClientRect = () => ({ left: 0, width: 100, top: 0, height: 72, right: 100, bottom: 72, x: 0, y: 0, toJSON: () => ({}) })
+    fireEvent.pointerMove(svg, { clientX: 50 })
+    expect(screen.getByText('4 B/s')).toBeInTheDocument()
+    expect(screen.getByText('1s')).toBeInTheDocument()
+    expect(svg.querySelector('line')).not.toBeNull()
+    fireEvent.pointerLeave(svg)
+    expect(screen.queryByText('1s')).toBeNull()
+    expect(svg.querySelector('line')).toBeNull()
   })
 })
