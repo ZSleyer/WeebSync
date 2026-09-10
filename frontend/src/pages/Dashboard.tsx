@@ -843,6 +843,14 @@ function StorageTile() {
               <p className="truncate font-mono text-[11px] text-t-muted" title={disk.path}>
                 {disk.path}
               </p>
+              {/* the other roots on the same drive, so a Plex library under
+                  a mount reads as part of that drive, not as one of its own */}
+              {disk.paths?.map((p) => (
+                <p key={p} className="truncate font-mono text-[11px] text-t-faint" title={p}>
+                  <span aria-hidden>└ </span>
+                  {p}
+                </p>
+              ))}
               <div className="flex items-end gap-3">
                 <p className="min-w-0 flex-1 truncate font-mono text-lg text-t-primary tabular-nums">
                   {t('dash.storageFree', { size: fmtBytes(disk.freeBytes) })}

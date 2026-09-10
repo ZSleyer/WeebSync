@@ -3584,6 +3584,14 @@
                     "path": {
                         "type": "string"
                     },
+                    "paths": {
+                        "description": "Paths are the other library paths on this same filesystem",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "totalBytes": {
                         "type": "integer"
                     },

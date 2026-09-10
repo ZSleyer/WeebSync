@@ -6,6 +6,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 )
 
@@ -51,6 +53,8 @@ type statusDisk struct {
 	TotalBytes uint64 `json:"totalBytes"`
 	FreeBytes  uint64 `json:"freeBytes"`
 	UsedBytes  uint64 `json:"usedBytes"`
+	// Paths are the other library paths on this same filesystem
+	Paths []string `json:"paths,omitempty"`
 }
 
 // StatusResponse is the aggregate machine-readable status payload: current
@@ -73,8 +77,11 @@ type StatusResponse struct {
 // diskUsage is one entry per filesystem the library lives on: the download
 // root, every configured local root, and every directory directly under the
 // root - a library reaches onto a second drive as a mount point or a symlink
-// there. The same filesystem seen through two paths is reported once, under
-// the first, which is what folds the root's plain folders back into it.
+// there. The same filesystem seen through several paths is reported once,
+// under its shortest path with the others listed, which is what folds the
+// root's plain folders back into the root and a Plex root into its drive.
+// Filesystems are told apart by statfs's id, not the device number: a btrfs
+// subvolume carries a device number of its own and would count as a drive.
 func (s *Server) diskUsage() []statusDisk {
 	paths := append([]string{s.DownloadRoot}, s.localRoots()...)
 	if entries, err := os.ReadDir(s.DownloadRoot); err == nil {
@@ -84,7 +91,7 @@ func (s *Server) diskUsage() []statusDisk {
 			}
 		}
 	}
-	seen := map[uint64]bool{}
+	index := map[[3]uint64]int{}
 	var out []statusDisk
 	for _, p := range paths {
 		// best effort - a missing mount must not break the endpoint
@@ -92,18 +99,33 @@ func (s *Server) diskUsage() []statusDisk {
 		if err != nil || !info.IsDir() {
 			continue
 		}
-		dev := uint64(0)
-		if st, ok := info.Sys().(*syscall.Stat_t); ok {
-			dev = uint64(st.Dev)
-		}
-		if seen[dev] {
-			continue
-		}
 		var st syscall.Statfs_t
 		if syscall.Statfs(p, &st) != nil {
 			continue
 		}
-		seen[dev] = true
+		key := [3]uint64{uint64(st.Fsid.X__val[0]), uint64(st.Fsid.X__val[1])}
+		if key[0] == 0 && key[1] == 0 {
+			// a filesystem without an id (overlay, some fuse): fall back to
+			// the device number, which at least keeps distinct mounts apart
+			if sys, ok := info.Sys().(*syscall.Stat_t); ok {
+				key[2] = uint64(sys.Dev)
+			}
+		}
+		if i, ok := index[key]; ok {
+			d := &out[i]
+			if p == d.Path || slices.Contains(d.Paths, p) {
+				continue
+			}
+			// the shortest path names the drive, the rest hang under it
+			if len(p) < len(d.Path) {
+				d.Paths = append(d.Paths, d.Path)
+				d.Path = p
+			} else {
+				d.Paths = append(d.Paths, p)
+			}
+			continue
+		}
+		index[key] = len(out)
 		bsize := uint64(st.Bsize)
 		out = append(out, statusDisk{
 			Path:       p,
@@ -111,6 +133,17 @@ func (s *Server) diskUsage() []statusDisk {
 			FreeBytes:  st.Bavail * bsize,
 			UsedBytes:  (st.Blocks - st.Bfree) * bsize,
 		})
+	}
+	// a plain folder under the root is not a path worth listing: only what
+	// was named as a root or points elsewhere says something
+	for i := range out {
+		if out[i].Path == s.DownloadRoot {
+			out[i].Paths = slices.DeleteFunc(out[i].Paths, func(p string) bool {
+				rel, err := filepath.Rel(s.DownloadRoot, p)
+				return err == nil && !strings.Contains(rel, string(filepath.Separator)) && !slices.Contains(s.localRoots(), p)
+			})
+		}
+		slices.Sort(out[i].Paths)
 	}
 	return out
 }
