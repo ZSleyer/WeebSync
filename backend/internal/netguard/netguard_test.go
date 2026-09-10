@@ -209,3 +209,16 @@ func TestSafeDial(t *testing.T) {
 	}
 	conn.Close()
 }
+
+func TestPublicFetchClientBlocksLoopbackButAllowsHTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+	c := PublicFetchClient(2 * time.Second)
+	if _, err := c.Get(srv.URL); err == nil {
+		t.Fatal("PublicFetchClient dialed a loopback server, want error")
+	}
+	req, _ := http.NewRequest("GET", "http://example.com/", nil)
+	if err := c.CheckRedirect(req, nil); err != nil {
+		t.Fatalf("PublicFetchClient refused a plain-http redirect: %v", err)
+	}
+}
