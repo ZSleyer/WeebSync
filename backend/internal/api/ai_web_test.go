@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,10 @@ func TestAiWebToolsSearchReadAndGate(t *testing.T) {
 		}
 	}))
 	t.Cleanup(web.Close)
+	// the page reader refuses loopback in production; the fake web lives there
+	prev := aiPageHTTP
+	aiPageHTTP = web.Client()
+	t.Cleanup(func() { aiPageHTTP = prev })
 
 	fp := newFakeProvider(t,
 		fakeReply{tool: "web_search", args: `{"query":"frieren season 3"}`},
@@ -94,5 +99,22 @@ func TestHtmlText(t *testing.T) {
 	got := htmlText("<div>A<script>bad()</script></div><p>B &lt; C</p>\n\n\n<ul><li>one</li><li>two</li></ul>")
 	if got != "A\n\nB < C\n\none\n\ntwo" {
 		t.Errorf("%q", got)
+	}
+}
+
+// The page reader takes urls the model found on the web, so a LAN, loopback or
+// metadata target is refused at dial time, not only by a lexical pre-check.
+func TestAiFetchPageRefusesLocalTargets(t *testing.T) {
+	web := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("secret"))
+	}))
+	t.Cleanup(web.Close)
+	s := &Server{}
+	out, _ := s.aiFetchPage(context.Background(), web.URL).(map[string]any)
+	if out["error"] == nil || out["text"] != nil {
+		t.Fatalf("loopback page was read: %v", out)
+	}
+	if aiPageHTTP.Transport == nil || aiPageHTTP.CheckRedirect == nil {
+		t.Fatal("aiPageHTTP is not the guarded client")
 	}
 }

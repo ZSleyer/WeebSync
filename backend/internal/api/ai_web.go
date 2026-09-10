@@ -33,7 +33,15 @@ func (s *Server) aiSearchURL() string {
 	return strings.TrimRight(strings.TrimSpace(db.SettingOrEnv(s.DB, "ai_search_url", "AI_SEARCH_URL")), "/")
 }
 
-var aiWebHTTP = &http.Client{Timeout: 20 * time.Second}
+// The search base is the admin's own SearXNG, which may well sit on the LAN;
+// the page reader takes urls the model found on the web, and for that a LAN
+// or loopback target is never legitimate. Both are guarded at dial time and
+// on every redirect, so a page that answers 302 to a metadata address, or a
+// host that rebinds after the lookup, is refused mid-flight.
+var (
+	aiSearchHTTP = netguard.Client(20 * time.Second)
+	aiPageHTTP   = netguard.PublicFetchClient(20 * time.Second)
+)
 
 type aiWebResult struct {
 	Title   string `json:"title"`
@@ -60,7 +68,7 @@ func (s *Server) aiWebSearch(ctx context.Context, query, lang string) any {
 		return map[string]any{"error": err.Error()}
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := aiWebHTTP.Do(req)
+	resp, err := aiSearchHTTP.Do(req)
 	if err != nil {
 		return map[string]any{"error": logSafe(err.Error())}
 	}
@@ -123,16 +131,13 @@ func (s *Server) aiFetchPage(ctx context.Context, raw string) any {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return map[string]any{"error": "url must be absolute http(s)"}
 	}
-	if err := netguard.Allowed(u.Hostname()); err != nil {
-		return map[string]any{"error": err.Error()}
-	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return map[string]any{"error": err.Error()}
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; WeebSync assistant)")
 	req.Header.Set("Accept", "text/html,text/plain;q=0.9,*/*;q=0.5")
-	resp, err := aiWebHTTP.Do(req)
+	resp, err := aiPageHTTP.Do(req)
 	if err != nil {
 		return map[string]any{"error": logSafe(err.Error())}
 	}
