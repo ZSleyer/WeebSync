@@ -156,7 +156,7 @@ func TestAiUnconfiguredDegrades(t *testing.T) {
 func TestAiChatToolLoopProposesExistingFolder(t *testing.T) {
 	fp := newFakeProvider(t,
 		fakeReply{tool: "search_remote", args: `{"query":"Frieren"}`},
-		fakeReply{tool: "propose", args: `{"kind":"watch","serverId":1,"remotePath":"/anime/Frieren","title":"Frieren"}`},
+		fakeReply{tool: "propose", args: `{"kind":"watch","ref":"` + aiRefKey(1, 1, "/anime/Frieren") + `","title":"Frieren"}`},
 		fakeReply{text: "Proposed an auto-sync for Frieren."},
 	)
 	mux, _, c := setupAiTest(t, fp)
@@ -183,7 +183,9 @@ func TestAiChatToolLoopProposesExistingFolder(t *testing.T) {
 			toolMsgs = append(toolMsgs, m.Content)
 		}
 	}
-	if len(toolMsgs) != 2 || !strings.Contains(toolMsgs[0], `"/anime/Frieren"`) || !strings.Contains(toolMsgs[1], `"ok":true`) {
+	// the model got the folder's name and ref, never its path or server id
+	if len(toolMsgs) != 2 || !strings.Contains(toolMsgs[0], `"name":"Frieren"`) || !strings.Contains(toolMsgs[0], aiRefKey(1, 1, "/anime/Frieren")) ||
+		strings.Contains(toolMsgs[0], "/anime") || strings.Contains(toolMsgs[0], "serverId") || !strings.Contains(toolMsgs[1], `"ok":true`) {
 		t.Errorf("tool messages: %v", toolMsgs)
 	}
 	if fp.requests[0].Role != "system" || !strings.Contains(fp.requests[0].Content, "WeebSync") {
@@ -237,11 +239,12 @@ func TestAiChatSteerJoinsBetweenRounds(t *testing.T) {
 
 func TestAiProposeRejectsInventedPathAndDuplicateWatch(t *testing.T) {
 	fp := newFakeProvider(t,
-		fakeReply{tool: "propose", args: `{"kind":"sync","serverId":1,"remotePath":"/anime/Made Up","title":"Made Up"}`},
-		fakeReply{tool: "propose", args: `{"kind":"watch","serverId":1,"remotePath":"/anime/Frieren","title":"Frieren"}`},
+		fakeReply{tool: "propose", args: `{"kind":"sync","ref":"fdeadbeef00","title":"Made Up"}`},
+		fakeReply{tool: "propose", args: `{"kind":"watch","ref":"` + aiRefKey(1, 1, "/anime/Frieren") + `","title":"Frieren"}`},
 		fakeReply{text: "Sorry."},
 	)
 	mux, s, c := setupAiTest(t, fp)
+	s.aiRefFor(1, 1, "/anime/Frieren")
 	s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/anime/Frieren', 'x')`)
 	rec := doReq(mux, "POST", "/api/ai/chat", `{"messages":[{"role":"user","content":"go"}]}`, c)
 	evs := events(t, rec.Body.String())
@@ -257,18 +260,19 @@ func TestAiProposeRejectsInventedPathAndDuplicateWatch(t *testing.T) {
 			reasons = append(reasons, m.Content)
 		}
 	}
-	if len(reasons) != 2 || !strings.Contains(reasons[0], "does not exist") || !strings.Contains(reasons[1], "already exists") {
+	if len(reasons) != 2 || !strings.Contains(reasons[0], "unknown ref") || !strings.Contains(reasons[1], "already exists") {
 		t.Errorf("reasons: %v", reasons)
 	}
 }
 
 func TestAiProposeUpgradeChecksGain(t *testing.T) {
 	fp := newFakeProvider(t,
-		fakeReply{tool: "propose", args: `{"kind":"upgrade","serverId":1,"remotePath":"/anime/Frieren","title":"Frieren","upgradeKey":"unit:x:1"}`},
-		fakeReply{tool: "propose", args: `{"kind":"upgrade","serverId":1,"remotePath":"/anime/Frieren","title":"Frieren","upgradeKey":"unit:x:1"}`},
+		fakeReply{tool: "propose", args: `{"kind":"upgrade","ref":"` + aiRefKey(1, 1, "/anime/Frieren") + `","title":"Frieren","upgradeKey":"unit:x:1"}`},
+		fakeReply{tool: "propose", args: `{"kind":"upgrade","ref":"` + aiRefKey(1, 1, "/anime/Frieren") + `","title":"Frieren","upgradeKey":"unit:x:1"}`},
 		fakeReply{text: "ok"},
 	)
 	mux, s, c := setupAiTest(t, fp)
+	s.aiRefFor(1, 1, "/anime/Frieren")
 	// user only cares about resolution; the remote copy adds a dub but no pixels
 	s.DB.Exec(`UPDATE users SET upgrade_dims = 'res' WHERE id = 1`)
 	blob := func(res int) string {
@@ -316,10 +320,11 @@ func TestAiProposeUpgradeChecksGain(t *testing.T) {
 
 func TestAiProposeRefusesFolderMatchedToAnotherTitle(t *testing.T) {
 	fp := newFakeProvider(t,
-		fakeReply{tool: "propose", args: `{"kind":"watch","serverId":1,"remotePath":"/anime/Frieren","title":"One Piece"}`},
+		fakeReply{tool: "propose", args: `{"kind":"watch","ref":"` + aiRefKey(1, 1, "/anime/Frieren") + `","title":"One Piece"}`},
 		fakeReply{text: "no"},
 	)
 	mux, s, c := setupAiTest(t, fp)
+	s.aiRefFor(1, 1, "/anime/Frieren")
 	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, source) VALUES (1, '/anime/Frieren', 154587, 'anilist')`)
 	m := anilist.Media{ID: 154587, Status: "FINISHED", Schema: anilist.MediaSchema}
 	m.Title.Romaji = "Sousou no Frieren"

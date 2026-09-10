@@ -44,7 +44,7 @@ func TestWatchDefaultsRoundTripAndValidation(t *testing.T) {
 
 func TestAiProposeCarriesTheUsersDefaults(t *testing.T) {
 	mux, s, c := setupAiTest(t, nil)
-	p, reason := s.aiPropose(context.Background(), 1, "watch", 1, "/anime/Frieren", "Frieren", "", "")
+	p, reason := s.aiPropose(context.Background(), 1, "watch", s.aiRefFor(1, 1, "/anime/Frieren"), "Frieren", "", "")
 	if reason != "" || p.Fields.LocalPath != s.DownloadRoot || !p.Fields.Subfolder {
 		t.Fatalf("without defaults the download root is the target: %+v %q", p.Fields, reason)
 	}
@@ -52,7 +52,7 @@ func TestAiProposeCarriesTheUsersDefaults(t *testing.T) {
 	if rec := doReq(mux, "PUT", "/api/auth/watch-defaults", body, c); rec.Code != 200 {
 		t.Fatalf("put: %d %s", rec.Code, rec.Body)
 	}
-	p, reason = s.aiPropose(context.Background(), 1, "watch", 1, "/anime/Frieren", "Frieren", "", "")
+	p, reason = s.aiPropose(context.Background(), 1, "watch", s.aiRefFor(1, 1, "/anime/Frieren"), "Frieren", "", "")
 	if reason != "" {
 		t.Fatal(reason)
 	}
@@ -74,7 +74,7 @@ func TestWatchDefaultsTitleSubfolderIsPassedOn(t *testing.T) {
 		t.Fatalf("put: %d %s", rec.Code, rec.Body)
 	}
 	// the assistant's proposals inherit the choice the same way a dialog does
-	if p, reason := s.aiPropose(context.Background(), 1, "watch", 1, "/anime/Frieren", "Frieren", "", ""); reason != "" ||
+	if p, reason := s.aiPropose(context.Background(), 1, "watch", s.aiRefFor(1, 1, "/anime/Frieren"), "Frieren", "", ""); reason != "" ||
 		p.Fields.SubfolderSource != "title" || p.Fields.SubfolderSeparator != "_" || p.Fields.LocalPath != "Anime" {
 		t.Errorf("proposal did not carry the choice: %+v %q", p.Fields, reason)
 	}

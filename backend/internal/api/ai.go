@@ -714,13 +714,13 @@ You can only READ through the tools and PROPOSE actions; the user confirms every
 - Before each tool call, say in one short sentence what you are checking and why; that narration becomes the visible transcript.
 - Recommend from the user's own data first (my_lists, suggestions, seasonal). Explain briefly why a title fits (genres, what they finished, score). When you recommend titles, call recommend with their ids and reasons in the SAME answer so the user sees their cards right away - never ask whether to show details, the cards are the details; keep the text short.
 - Never recommend what the user already has: entries flagged owned (in the Plex library) or inAutoSync (an auto-sync keeps it current) are covered. Check the flags (or my_watches) before recommending; if the user asks about such a title, say it is already covered.
-- Before proposing a watch or sync, find the folder with search_remote or take a candidate from suggestions/seasonal. Never invent server ids or paths.
+- Before proposing a watch or sync, find the folder with search_remote or take a candidate from suggestions/seasonal, and pass its ref. Folders have no paths for you, only a name and a ref; never invent a ref.
 - For a title that is not in the user's lists or the season, look it up with search_media first; library says what the user already holds and in which quality, downloads what is loading or failed, airing what comes next and where episodes are missing.
-- Before proposing an auto-sync for a season, call series_seasons for the title: when earlier seasons are neither local nor covered by an auto-sync, propose them too in the same answer (kind sync for a finished season, watch for one still airing), one propose per season, each with its own remote folder from that result.
+- Before proposing an auto-sync for a season, call series_seasons for the title: when earlier seasons are neither local nor covered by an auto-sync, propose them too in the same answer (kind sync for a finished season, watch for one still airing), one propose per season, each with the ref of its own remote folder from that result.
 - A proposal carries the user's configured defaults (target folder, naming, languages); do not describe or invent paths for it, the card shows them.
 - You may propose several titles in one answer; the user can confirm them one by one or all at once.
 - The upgrades tool already shows the user cards for its first entries; call show_upgrades with keys for any others you name. The cards show both copies, every option and a sync button, so the text only needs to say why.
-- kind "watch" = auto-sync: keeps a remote folder in sync (for airing shows). kind "sync" = download once. kind "upgrade" = replace a local copy with a better remote copy; only from the upgrades tool, quoting its key and one of its option folders, and only when it improves an axis the user enabled (axesByPriority lists them, most important first). Say concretely what improves (resolution, dub, sub, selectable subtitles) and mention when the language data is unverified.
+- kind "watch" = auto-sync: keeps a remote folder in sync (for airing shows). kind "sync" = download once. kind "upgrade" = replace a local copy with a better remote copy; only from the upgrades tool, quoting its key and the ref of one of its options, and only when it improves an axis the user enabled (axesByPriority lists them, most important first). Say concretely what improves (resolution, dub, sub, selectable subtitles) and mention when the language data is unverified.
 - Tools are called only through the tool-call interface, never written out as text in the answer.
 - If propose returns ok:false, tell the user the reason; do not retry the same call.
 - Do not claim something was created: a proposal is a card the user still has to confirm.`,
@@ -746,16 +746,16 @@ var aiTools = []ai.Tool{
 	fn("suggestions", "WeebSync's own suggestions for this user: watchlist titles present on a server, community recommendations, trending, and incomplete seasons the library is missing (each with a refKey, remote candidates and a sync plan).", `{"type":"object","properties":{}}`),
 	fn("upgrades", "Better remote copies of series the library already holds, ranked by the user's axis priority, with the quality of the local and the remote copy and which axes improve. The first six are shown to the user as cards automatically; use show_upgrades for others. Each has a key and option folders for propose(kind=upgrade).", `{"type":"object","properties":{}}`),
 	fn("seasonal", "Anime of one broadcast season, most popular first, flagged with the user's list status, whether the library has it, and remote folders.", `{"type":"object","properties":{"season":{"type":"string","enum":["WINTER","SPRING","SUMMER","FALL"]},"year":{"type":"integer"}},"required":["season","year"]}`),
-	fn("search_remote", "Search folders on the user's remote servers by words of a title. Returns server id, path and the folder's known quality.", `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
+	fn("search_remote", "Search folders on the user's remote servers by words of a title. Returns each folder's ref (what propose takes), name and known quality.", `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
 	fn("my_watches", "The user's existing auto-syncs.", `{"type":"object","properties":{}}`),
 	fn("search_media", "Look a title up at the providers: kind anime searches AniList, tv and movie search TMDB. Use it for titles that are not in the user's lists or the season; the ids feed recommend and series_seasons.", `{"type":"object","properties":{"query":{"type":"string"},"kind":{"type":"string","enum":["anime","tv","movie"]}},"required":["query"]}`),
 	fn("library", "Search the local library by words of a title: folder, matched title, season, resolution, dub and sub languages. Answers whether and in which quality the user already has something.", `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`),
 	fn("downloads", "The user's download queue and history, newest first: file, status, error, size, progress. status narrows to active (queued/running/paused), error or done.", `{"type":"object","properties":{"status":{"type":"string","enum":["active","error","done"]}}}`),
 	fn("airing", "The calendar of the user's auto-syncs: next episode and when it airs, episodes airing within the next days, gaps below the newest local episode (missing), episodes aired but not local yet (behind), the last check error.", `{"type":"object","properties":{"days":{"type":"integer"}}}`),
-	fn("series_seasons", "Every season of the show a title belongs to, with the local copies, the remote folders on the user's servers (server id and path for propose) and whether an auto-sync exists. Call it before proposing a season, so earlier seasons the library lacks get proposed too.", `{"type":"object","properties":{"id":{"type":"integer"},"source":{"type":"string","enum":["anilist","tmdb:tv","tmdb:movie","tvdb"]}},"required":["id"]}`),
+	fn("series_seasons", "Every season of the show a title belongs to, with the local copies, the remote folders on the user's servers (each with its ref for propose) and whether an auto-sync exists. Call it before proposing a season, so earlier seasons the library lacks get proposed too.", `{"type":"object","properties":{"id":{"type":"integer"},"source":{"type":"string","enum":["anilist","tmdb:tv","tmdb:movie","tvdb"]}},"required":["id"]}`),
 	fn("recommend", "Show the user cards for titles you recommend (cover, description, score, links). Call it with the ids you got from my_lists, suggestions or seasonal, each with a one-line reason. Up to 8 titles.", `{"type":"object","properties":{"titles":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"source":{"type":"string","enum":["anilist","tmdb:tv","tmdb:movie","tvdb"]},"why":{"type":"string"}},"required":["id"]}}},"required":["titles"]}`),
 	fn("show_upgrades", "Show the user the upgrade cards (local vs. remote copy, every option, a sync button) for upgrades you name. Call it with keys from the upgrades tool, up to 8; then keep the text short, the cards carry the details.", `{"type":"object","properties":{"keys":{"type":"array","items":{"type":"string"}}},"required":["keys"]}`),
-	fn("propose", "Propose an action for the user to confirm. kind: watch (auto-sync a remote folder), sync (download once), upgrade (replace a local copy; needs upgradeKey from upgrades and one of its option folders). refKey: from suggestions, when the folder came from there.", `{"type":"object","properties":{"kind":{"type":"string","enum":["watch","sync","upgrade"]},"serverId":{"type":"integer"},"remotePath":{"type":"string"},"title":{"type":"string"},"upgradeKey":{"type":"string"},"refKey":{"type":"string"}},"required":["kind","serverId","remotePath","title"]}`),
+	fn("propose", "Propose an action for the user to confirm. ref: the folder's ref as a tool returned it (search_remote, series_seasons, suggestions candidates, upgrades options). kind: watch (auto-sync a remote folder), sync (download once), upgrade (replace a local copy; needs upgradeKey from upgrades and the ref of one of its options). refKey: from suggestions, when the folder came from there.", `{"type":"object","properties":{"kind":{"type":"string","enum":["watch","sync","upgrade"]},"ref":{"type":"string"},"title":{"type":"string"},"upgradeKey":{"type":"string"},"refKey":{"type":"string"}},"required":["kind","ref","title"]}`),
 }
 
 func fn(name, desc, params string) ai.Tool {
@@ -824,8 +824,7 @@ func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string)
 		Year       int    `json:"year"`
 		Query      string `json:"query"`
 		Kind       string `json:"kind"`
-		ServerID   int64  `json:"serverId"`
-		RemotePath string `json:"remotePath"`
+		Ref        string `json:"ref"`
 		Title      string `json:"title"`
 		UpgradeKey string `json:"upgradeKey"`
 		RefKey     string `json:"refKey"`
@@ -940,7 +939,7 @@ func (s *Server) aiTool(ctx context.Context, userID int64, name, rawArgs string)
 		}
 		return aiToolOut{result: res, upgrades: ups}
 	case "propose":
-		p, reason := s.aiPropose(ctx, userID, args.Kind, args.ServerID, args.RemotePath, args.Title, args.UpgradeKey, args.RefKey)
+		p, reason := s.aiPropose(ctx, userID, args.Kind, args.Ref, args.Title, args.UpgradeKey, args.RefKey)
 		if p == nil {
 			return aiToolOut{result: map[string]any{"ok": false, "reason": reason}}
 		}
@@ -1289,9 +1288,9 @@ func (s *Server) aiLists(userID int64) any {
 }
 
 type aiCandidate struct {
-	ServerID   int64  `json:"serverId"`
+	Ref        string `json:"ref"`
 	ServerName string `json:"serverName"`
-	Path       string `json:"path"`
+	Name       string `json:"name"`
 }
 
 type aiSugEntry struct {
@@ -1312,10 +1311,10 @@ type aiSugEntry struct {
 	InAutoSync bool          `json:"inAutoSync,omitempty"`
 }
 
-func aiCands(c []plexCandidate) []aiCandidate {
+func (s *Server) aiCands(userID int64, c []plexCandidate) []aiCandidate {
 	out := make([]aiCandidate, 0, len(c))
 	for _, x := range c {
-		out = append(out, aiCandidate(x))
+		out = append(out, aiCandidate{Ref: s.aiRefFor(userID, x.ServerID, x.Path), ServerName: x.ServerName, Name: aiName(x.Path)})
 	}
 	return out
 }
@@ -1353,7 +1352,7 @@ func (s *Server) aiSuggestions(ctx context.Context, userID int64) any {
 			}
 			e := aiSugEntry{RefKey: it.RefKey, ID: it.Media.ID, Title: it.Title, Year: it.Year, Category: it.Category, Status: it.Status,
 				Progress: it.Progress, Have: it.Have, Need: it.Need, Because: it.Because, Genres: it.Media.Genres,
-				Candidates: aiCands(it.Candidates),
+				Candidates: s.aiCands(userID, it.Candidates),
 				Owned:      it.PlexFolder != "" || have.owned(it.Media, "anilist"), InAutoSync: have.inSync(it.Media, "anilist")}
 			if it.Sync.LocalPath != "" {
 				sp := it.Sync
@@ -1376,9 +1375,9 @@ func (s *Server) aiSuggestions(ctx context.Context, userID int64) any {
 }
 
 type aiVariant struct {
-	ServerID   int64    `json:"serverId"`
+	Ref        string   `json:"ref,omitempty"` // remote copies only; the local copy has none
 	ServerName string   `json:"serverName,omitempty"`
-	Folder     string   `json:"folder"`
+	Name       string   `json:"name"`
 	Resolution string   `json:"resolution"`
 	Dub        []string `json:"dub"`
 	Sub        []string `json:"sub"`
@@ -1386,7 +1385,7 @@ type aiVariant struct {
 	Probed     string   `json:"languages"` // measured | from file names | unmeasurable
 }
 
-func aiVar(v UpgradeVariant) aiVariant {
+func (s *Server) aiVar(userID int64, v UpgradeVariant) aiVariant {
 	probed := "from file names"
 	switch v.Probed {
 	case 1:
@@ -1394,8 +1393,12 @@ func aiVar(v UpgradeVariant) aiVariant {
 	case 2:
 		probed = "unmeasurable"
 	}
-	return aiVariant{ServerID: v.ServerID, ServerName: v.ServerName, Folder: v.Folder, Resolution: fmtRes(v.ResRank),
+	out := aiVariant{ServerName: v.ServerName, Name: aiLocalName(v.Folder), Resolution: fmtRes(v.ResRank),
 		Dub: v.Dub, Sub: v.Sub, Soft: v.Soft, Probed: probed}
+	if v.ServerID != 0 {
+		out.Ref, out.Name = s.aiRefFor(userID, v.ServerID, v.Folder), aiName(v.Folder)
+	}
+	return out
 }
 
 func fmtRes(r int) string {
@@ -1419,11 +1422,11 @@ func (s *Server) aiUpgrades(ctx context.Context, userID int64) any {
 		}
 		opts := make([]aiVariant, 0, len(up.Options))
 		for _, o := range up.Options {
-			opts = append(opts, aiVar(o))
+			opts = append(opts, s.aiVar(userID, o))
 		}
 		out = append(out, map[string]any{
 			"key": up.Key, "title": up.Title, "season": up.Season, "isMovie": up.IsMovie,
-			"local": aiVar(up.From), "recommended": aiVar(up.To), "options": opts,
+			"local": s.aiVar(userID, up.From), "recommended": s.aiVar(userID, up.To), "options": opts,
 			"improves":           map[string]bool{"res": up.ImprovesRes, "sub": up.ImprovesSub, "dub": up.ImprovesDub, "soft": up.ImprovesSoft},
 			"languageUnverified": up.LanguageUnverified,
 		})
@@ -1468,16 +1471,16 @@ func (s *Server) aiSeasonal(ctx context.Context, userID int64, season string, ye
 		if le, ok := onList[m.ID]; ok {
 			e.Status, e.Progress, e.aiListEntry.Score = le.Status, le.Progress, le.Score
 		}
-		e.Candidates = aiCands(s.remoteCandidates(userID, m))
+		e.Candidates = s.aiCands(userID, s.remoteCandidates(userID, m))
 		out = append(out, e)
 	}
 	return map[string]any{"season": season, "year": year, "anime": out}
 }
 
 type aiFolder struct {
-	ServerID   int64    `json:"serverId"`
-	ServerName string   `json:"serverName"`
-	Path       string   `json:"path"`
+	Ref        string   `json:"ref,omitempty"` // remote folders only
+	ServerName string   `json:"serverName,omitempty"`
+	Name       string   `json:"name"`
 	Resolution string   `json:"resolution,omitempty"`
 	Dub        []string `json:"dub,omitempty"`
 	Sub        []string `json:"sub,omitempty"`
@@ -1518,17 +1521,20 @@ func (s *Server) aiSearchRemote(userID int64, query string) any {
 	out := []aiFolder{}
 	for rows.Next() {
 		var f aiFolder
+		var serverID int64
+		var folder string
 		var res int
 		var dub, sub string
 		var isMovie int
-		if rows.Scan(&f.ServerID, &f.ServerName, &f.Path, &res, &dub, &sub, &f.Season, &isMovie) != nil {
+		if rows.Scan(&serverID, &f.ServerName, &folder, &res, &dub, &sub, &f.Season, &isMovie) != nil {
 			continue
 		}
+		f.Ref, f.Name = s.aiRefFor(userID, serverID, folder), aiName(folder)
 		if res > 0 {
 			f.Resolution = fmtRes(res)
 		}
 		f.Dub, f.Sub, f.IsMovie = splitCSV(dub), splitCSV(sub), isMovie == 1
-		f.MatchedTo = s.aiMatchedTitle(f.ServerID, f.Path)
+		f.MatchedTo = s.aiMatchedTitle(serverID, folder)
 		out = append(out, f)
 	}
 	return map[string]any{"folders": out}
@@ -1557,7 +1563,7 @@ func (s *Server) aiMatchedMedia(serverID int64, folder string) (string, *anilist
 }
 
 func (s *Server) aiWatches(userID int64) any {
-	rows, err := s.DB.Query(`SELECT w.id, s.name, w.remote_path, w.local_path, w.title_override
+	rows, err := s.DB.Query(`SELECT w.id, w.server_id, s.name, w.remote_path, w.local_path, w.title_override
 		FROM watches w JOIN servers s ON s.id = w.server_id WHERE w.user_id = ? ORDER BY w.id`, userID)
 	if err != nil {
 		return map[string]any{"error": "db error"}
@@ -1566,16 +1572,19 @@ func (s *Server) aiWatches(userID int64) any {
 	type watch struct {
 		ID         int64  `json:"id"`
 		ServerName string `json:"serverName"`
-		RemotePath string `json:"remotePath"`
-		LocalPath  string `json:"localPath"`
+		Ref        string `json:"ref"`
+		Name       string `json:"name"`
 		Title      string `json:"title,omitempty"`
 	}
 	out := []watch{}
 	for rows.Next() {
 		var w watch
-		if rows.Scan(&w.ID, &w.ServerName, &w.RemotePath, &w.LocalPath, &w.Title) == nil {
+		var serverID int64
+		var remote, local string
+		if rows.Scan(&w.ID, &serverID, &w.ServerName, &remote, &local, &w.Title) == nil {
+			w.Ref, w.Name = s.aiRefFor(userID, serverID, remote), aiName(remote)
 			if w.Title == "" {
-				w.Title = match.GuessTitle(path.Base(w.RemotePath))
+				w.Title = match.GuessTitle(aiName(remote))
 			}
 			out = append(out, w)
 		}
@@ -1587,14 +1596,14 @@ func (s *Server) aiWatches(userID int64) any {
 
 // aiPropose vets a proposal against the catalog and returns it, or a reason
 // the model has to relay. Nothing here writes.
-func (s *Server) aiPropose(ctx context.Context, userID int64, kind string, serverID int64, remotePath, title, upgradeKey, refKey string) (*aiProposal, string) {
-	remotePath = strings.TrimSpace(remotePath)
+func (s *Server) aiPropose(ctx context.Context, userID int64, kind, ref, title, upgradeKey, refKey string) (*aiProposal, string) {
 	title = strings.TrimSpace(title)
 	if kind != "watch" && kind != "sync" && kind != "upgrade" {
 		return nil, "kind must be watch, sync or upgrade"
 	}
-	if serverID == 0 || remotePath == "" {
-		return nil, "serverId and remotePath required"
+	serverID, remotePath, ok := s.aiDeref(userID, strings.TrimSpace(ref))
+	if !ok {
+		return nil, "unknown ref; take one from search_remote, series_seasons, suggestions or upgrades"
 	}
 	var serverName string
 	if s.DB.QueryRow(`SELECT name FROM servers WHERE id = ? AND user_id = ?`, serverID, userID).Scan(&serverName); serverName == "" {

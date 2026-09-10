@@ -17,7 +17,7 @@ func TestAiLibraryDownloadsAiring(t *testing.T) {
 	d.Exec(`INSERT INTO watches (id, user_id, server_id, remote_path, local_path, title_override) VALUES (7, 1, 1, '/anime/Frieren', '/lib', 'Frieren')`)
 
 	lib, _ := json.Marshal(s.aiLibrary(1, "frieren"))
-	if !strings.Contains(string(lib), `"/lib/Anime/Frieren/Season 1"`) || !strings.Contains(string(lib), `"1080p"`) || strings.Contains(string(lib), "Other") {
+	if !strings.Contains(string(lib), `"name":"Frieren/Season 1"`) || strings.Contains(string(lib), "/lib") || !strings.Contains(string(lib), `"1080p"`) || strings.Contains(string(lib), "Other") {
 		t.Errorf("library: %s", lib)
 	}
 	if e, _ := json.Marshal(s.aiLibrary(1, "")); !strings.Contains(string(e), "query required") {
@@ -60,10 +60,14 @@ func TestAiSeriesSeasonsFromTheBundle(t *testing.T) {
 
 	out, _ := json.Marshal(s.aiSeriesSeasons(context.Background(), 1, "anilist", 154587))
 	got := string(out)
-	for _, want := range []string{`"series":"Frieren"`, `"season":1`, `"local":[{`, `"/lib/Anime/Frieren/Season 1"`, `"season":2`, `"remote":[{"serverId":1,"serverName":"srv","path":"/anime/Frieren","resolution":"4K"`, `"inAutoSync":true`} {
+	for _, want := range []string{`"series":"Frieren"`, `"season":1`, `"local":[{"name":"Frieren/Season 1"`, `"season":2`, `"remote":[{"ref":"` + aiRefKey(1, 1, "/anime/Frieren") + `","serverName":"srv","name":"Frieren","resolution":"4K"`, `"inAutoSync":true`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %s in %s", want, got)
 		}
+	}
+	// paths and server ids stay on this side of the model
+	if strings.Contains(got, "/lib") || strings.Contains(got, "/anime") || strings.Contains(got, "serverId") {
+		t.Errorf("path leaked: %s", got)
 	}
 	st := toolStats("series_seasons", out)
 	if st["count"] != 2 || st["local"] != 1 || st["remote"] != 1 {
