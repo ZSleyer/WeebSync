@@ -361,3 +361,52 @@ export function Pager({ offset, total, onOffset }: { offset: number; total: numb
     </div>
   )
 }
+
+// The inventory, grouped for reading: first by kind (what a store is and
+// whether anything rebuilds it), the caches once more by the provider they
+// mirror, since retention is set per provider. Sums per group so a folded
+// group still tells its size and how much of it has gone stale.
+export type Provider = 'anilist' | 'tmdb' | 'tvdb' | 'plex' | 'other'
+const PROVIDERS: Provider[] = ['anilist', 'tmdb', 'tvdb', 'plex', 'other']
+const KINDS: StoreKind[] = ['cache', 'derived', 'decision']
+
+export interface StoreSum {
+  stores: DataStore[]
+  rows: number
+  bytes: number
+  stale: number
+}
+export interface ProviderGroup extends StoreSum {
+  provider: Provider
+}
+export interface KindGroup extends StoreSum {
+  kind: StoreKind
+  providers?: ProviderGroup[]
+}
+
+export function providerOf(name: string): Provider {
+  const head = name.replace(/^cache:/, '').split('-')[0]
+  return (PROVIDERS as string[]).includes(head) && head !== 'other' ? (head as Provider) : 'other'
+}
+
+const sumOf = (stores: DataStore[]): StoreSum => ({
+  stores,
+  rows: stores.reduce((n, s) => n + s.rows, 0),
+  bytes: stores.reduce((n, s) => n + s.bytes, 0),
+  stale: stores.reduce((n, s) => n + s.stale, 0),
+})
+
+export function groupStores(stores: DataStore[]): KindGroup[] {
+  return KINDS.flatMap((kind) => {
+    const own = stores.filter((s) => s.kind === kind)
+    if (own.length === 0) return []
+    const group: KindGroup = { kind, ...sumOf(own) }
+    if (kind === 'cache') {
+      group.providers = PROVIDERS.flatMap((provider) => {
+        const theirs = own.filter((s) => providerOf(s.name) === provider)
+        return theirs.length ? [{ provider, ...sumOf(theirs) }] : []
+      })
+    }
+    return [group]
+  })
+}

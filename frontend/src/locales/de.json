@@ -817,7 +817,6 @@
       "idle": "bereit",
       "queue": "{{count}} in der Match-Queue",
       "watchSummary": "{{count}} Auto-Syncs, Prüfung alle {{min}} min",
-      "caches": "Caches",
       "remoteIndex": "Datei-Index (Server-Crawler)",
       "matchQuality": "Match-Qualität & Rematch",
       "empty": "Noch nichts vorhanden.",
@@ -847,7 +846,6 @@
       "confirmRematchAll": "Alle automatischen Matches auf \"{{name}}\" neu suchen? Manuelle Zuordnungen bleiben erhalten.",
       "openBrowser": "Manuell im Browser korrigieren",
       "view": "Ansehen",
-      "cacheEntriesTitle": "Cache-Einträge: {{scope}}",
       "matchesTitle": "Matches: {{name}}",
       "staleBadge": "veraltet",
       "manualBadge": "manuell",
@@ -871,10 +869,31 @@
       "zeroDefault": "0 = Standard",
       "plex": "Plex-Cache",
       "rematchAllServers": "Alles neu matchen (alle Server)",
-      "rematchAllServersHint": "Zieht alle automatischen Matches aller Server neu — nutzt viele API-Anfragen.",
+      "rematchAllServersHint": "Zieht alle automatischen Matches aller Server neu und nutzt dafür viele API-Anfragen.",
       "confirmRematchAllServers": "Wirklich alle automatischen Matches auf ALLEN Servern neu ziehen? Das kann dauern und viele API-Anfragen verursachen.",
       "data": {
         "title": "Datenbestände",
+        "kindTitle": {
+          "cache": "Caches",
+          "derived": "Abgeleitete Daten",
+          "decision": "Deine Entscheidungen"
+        },
+        "kindHint": {
+          "cache": "Kopien von Antworten der Anbieter. Laufen nach ihrer TTL ab und werden bei Bedarf neu geholt, Leeren kostet nur Anfragen.",
+          "derived": "Aus dem Datei-Index und den Caches berechnet. Baut sich nach dem Leeren von selbst wieder auf, im Kopf jedes Bestands steht wodurch.",
+          "decision": "Von Hand gesetzte Zuordnungen und ausgeblendete Vorschläge. Nichts baut sie neu, Leeren ist endgültig."
+        },
+        "providers": {
+          "anilist": "AniList",
+          "tmdb": "TMDB",
+          "tvdb": "TVDB",
+          "plex": "Plex",
+          "other": "Sonstige"
+        },
+        "dangerHint": "Löscht alle abgeleiteten Daten in einem Zug und ermittelt sie neu. Für den Fall, dass Serien falsch zusammengefasst oder zugeordnet sind und einzelne Korrekturen nicht mehr reichen.",
+        "rows": "Zeilen",
+        "size": "Größe",
+        "entriesTitle": "Einträge",
         "hint": "Alles, was die App selbst errechnet und jederzeit neu aufbauen kann. Deine Server, Auto-Syncs und Downloads stehen hier bewusst nicht.",
         "rowCount": "{{n}} Zeilen",
         "rebuiltBy": "Neuaufbau",
