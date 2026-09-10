@@ -8,8 +8,8 @@ import type { TFunction } from 'i18next'
 // withSec = tick down to the second (for anything happening today).
 // A timestamp in the past returns watch.airingNow - callers that mean
 // something else by "now" check the timestamp before asking.
-export function countdown(t: TFunction, ts: number, withSec = false) {
-  const ms = ts * 1000 - Date.now()
+export function countdown(t: TFunction, ts: number, withSec = false, now = Date.now()) {
+  const ms = ts * 1000 - now
   if (ms <= 0) return t('watch.airingNow')
   const d = Math.floor(ms / 86_400_000)
   const h = Math.floor((ms % 86_400_000) / 3_600_000)
