@@ -2,12 +2,12 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, type Download } from './api'
 
-// The last minute of total download speed, one sample per second, kept at
-// module level so the dashboard's sparkline is full the moment the page is
+// The last ten minutes of total download speed, one sample per second, kept
+// at module level so the dashboard's chart is full the moment the page is
 // opened rather than starting over on every visit. Fed by the root layout,
-// read by the one tile that draws it.
+// read by the one panel that draws it.
 
-export const SPEED_SPAN = 60
+export const SPEED_SPAN = 600
 
 let samples: number[] = []
 let lastAt = 0 // wall-clock second of the newest sample
