@@ -355,6 +355,7 @@
     },
     "retryUnmatched": "{{count}} ohne Match neu suchen",
     "catalogActions": "Katalog-Aktionen",
+    "tileActions": "Weitere Aktionen",
     "rematchAll": "Alle neu matchen",
     "confirmRematchAll": "Alle automatischen Matches in diesem Ordner neu suchen? Manuelle Zuordnungen bleiben erhalten.",
     "searchHint": "Titel, AniList-ID oder anilist.co-Link",

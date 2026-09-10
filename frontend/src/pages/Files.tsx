@@ -105,6 +105,28 @@ export default function Files() {
   const syncTarget =
     syncEntry && syncEntry.isDir ? subfolderTargetDir(syncLocal, syncEntry.path, syncMode, syncTitle, subSep) : syncLocal
   const [query, setQuery] = useState(params.get('q') ?? '')
+  // the last few searches, offered back through the input's completion list
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(SEARCH_KEY) ?? '[]')
+      return Array.isArray(v) ? (v as string[]).slice(0, SEARCH_KEEP) : []
+    } catch {
+      return []
+    }
+  })
+  const rememberSearch = (q: string) => {
+    const v = q.trim()
+    if (v.length < 2) return
+    setRecentSearches((prev) => {
+      const next = [v, ...prev.filter((p) => p.toLowerCase() !== v.toLowerCase())].slice(0, SEARCH_KEEP)
+      try {
+        localStorage.setItem(SEARCH_KEY, JSON.stringify(next))
+      } catch {
+        /* best effort - the list is a convenience, not state */
+      }
+      return next
+    })
+  }
 
   // the URL follows the browser, so a dialog round-trip, a reload and the
   // system back gesture all land in the same folder
@@ -215,17 +237,29 @@ export default function Files() {
     }
   }
   // the catalog cards keep their own edit buttons: a card acts on itself
-  const cardActions = (e: Entry) =>
-    canEdit ? (
-      <span className="flex shrink-0 gap-1.5">
-        <Button size="sm" aria-label={t('local.renameItem', { name: e.name })} title={t('local.rename')} onClick={() => renameLocal(e)}>
-          <Pencil aria-hidden size="1.2em" />
-        </Button>
-        <Button size="sm" variant="danger" aria-label={t('local.deleteItem', { name: e.name })} title={t('local.delete')} onClick={() => removeLocal(e)}>
-          <X aria-hidden size="1.2em" />
-        </Button>
-      </span>
-    ) : undefined
+  // descriptors rather than markup: the tile decides how many of its actions
+  // fit on the row and puts the rest in a menu, which it cannot do with a
+  // finished pair of buttons
+  const cardActions = (e: Entry): TileAction[] =>
+    canEdit
+      ? [
+          {
+            key: 'rename',
+            icon: <Pencil aria-hidden size="1.2em" />,
+            label: t('local.rename'),
+            aria: t('local.renameItem', { name: e.name }),
+            onClick: () => renameLocal(e),
+          },
+          {
+            key: 'delete',
+            icon: <X aria-hidden size="1.2em" />,
+            label: t('local.delete'),
+            aria: t('local.deleteItem', { name: e.name }),
+            onClick: () => removeLocal(e),
+            danger: true,
+          },
+        ]
+      : []
 
   const navigate = (p: string) => {
     setPath(p.replace(/^\//, ''))
@@ -268,15 +302,27 @@ export default function Files() {
               {selection ? selection.path : path ? `/${path}` : t('remote.noSelection')}
             </span>
             {!isLocal && (
-              <Input
-                className="w-40 sm:w-56"
-                size="sm"
-                type="search"
-                placeholder={path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')}
-                aria-label={t('remote.search')}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
+              <>
+                <Input
+                  className="w-40 sm:w-56"
+                  size="sm"
+                  type="search"
+                  list="remote-search-recent"
+                  placeholder={path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')}
+                  aria-label={t('remote.search')}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onBlur={() => rememberSearch(query)}
+                />
+                {/* the browser's own completion list: what was searched before,
+                    offered again while typing. A dropdown of our own would sit
+                    on top of the results the same keystrokes already produce */}
+                <datalist id="remote-search-recent">
+                  {recentSearches.map((q) => (
+                    <option key={q} value={q} />
+                  ))}
+                </datalist>
+              </>
             )}
           </div>
           {error && (
@@ -506,7 +552,7 @@ export function CatalogGrid({
   onOpenFiles: (path: string) => void
   // local page: extra card buttons (rename/delete). Kept as a render prop so
   // the admin logic lives with the page that owns the mutations.
-  cardActions?: (e: Entry) => ReactNode
+  cardActions?: (e: Entry) => TileAction[]
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
@@ -774,85 +820,78 @@ export function CatalogGrid({
                   )}
                 </div>
               </button>
-              {g.media ? (
-                // four icon buttons at the touch size of --ctl-h-sm need 180px,
-                // a catalog tile offers 140: the square minimum has to go here
-                // or the last button hangs over the card's edge. Height keeps
-                // the touch target, width drops to the WCAG 2.5.8 floor, and
-                // flex-wrap catches the card that adds a fifth action. Centred
-                // rather than stretched, so the gap left of the row matches the
-                // one on its right whatever the tile's width.
-                <div className="mx-2 mb-2 mt-auto flex flex-wrap justify-center gap-1.5 [&_.t-btn]:min-w-6! [&_.t-btn]:px-1!">
-                  <Button
-                    size="sm"
-                    aria-label={t('remote.detailsFor', { name: mediaTitle(g.media) })}
-                    title={t('remote.details')}
-                    onClick={() => setDetail(g)}
-                  >
-                    <Info aria-hidden size="1.2em" />
-                  </Button>
-                  {!multi && (
-                    <>
-                      <Button
-                        size="sm"
-                        aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
-                        title={t('remote.showFiles')}
-                        onClick={() => onOpenFiles(it.entry.path)}
-                      >
-                        <FilesIcon aria-hidden size="1.2em" />
-                      </Button>
-                      {onSync && (
-                        <Button
-                          size="sm"
-                          aria-label={`${t('plex.syncOnce')}: ${it.entry.name}`}
-                          title={t('plex.syncOnce')}
-                          onClick={() => onSync(it.entry)}
-                        >
-                          <Download aria-hidden size="1.2em" />
-                        </Button>
-                      )}
-                      {onWatch && (
-                        <Button
-                          size="sm"
-                          aria-label={`${t('watch.add')}: ${it.entry.name}`}
-                          title={t('watch.add')}
-                          onClick={() => onWatch(it.entry)}
-                        >
-                          <Eye aria-hidden size="1.2em" />
-                        </Button>
-                      )}
-                      {cardActions?.(it.entry)}
-                    </>
-                  )}
-                </div>
-              ) : (
-                // "Match ändern" spelled out needs 114px of a 131px tile, so it
-                // claimed a line of its own and pushed the rename/delete pair
-                // onto a third. As an icon it joins the row: same action, same
-                // Replace glyph the detail dialog uses, name in title/aria.
-                <div className="mx-2 mb-2 mt-auto flex flex-wrap justify-center gap-1.5 [&_.t-btn]:min-w-6! [&_.t-btn]:px-1!">
-                  <Button
-                    size="sm"
-                    className="shrink-0"
-                    aria-label={`${t('remote.showFiles')}: ${it.entry.name}`}
-                    title={t('remote.showFiles')}
-                    onClick={() => onOpenFiles(it.entry.path)}
-                  >
-                    <FilesIcon aria-hidden size="1.2em" />
-                  </Button>
-                  {!g.pending && !!it.source && (
-                    <Button
-                      size="sm"
-                      aria-label={`${t('remote.changeMatch')}: ${it.entry.name}`}
-                      title={t('remote.changeMatch')}
-                      onClick={() => setRematch(it)}
-                    >
-                      <Replace aria-hidden size="1.2em" />
-                    </Button>
-                  )}
-                  {cardActions?.(it.entry)}
-                </div>
-              )}
+              <TileActions
+                actions={
+                  g.media
+                    ? [
+                        {
+                          key: 'details',
+                          icon: <Info aria-hidden size="1.2em" />,
+                          label: t('remote.details'),
+                          aria: t('remote.detailsFor', { name: mediaTitle(g.media) }),
+                          onClick: () => setDetail(g),
+                        },
+                        ...(multi
+                          ? []
+                          : [
+                              {
+                                key: 'files',
+                                icon: <FilesIcon aria-hidden size="1.2em" />,
+                                label: t('remote.showFiles'),
+                                aria: `${t('remote.showFiles')}: ${it.entry.name}`,
+                                onClick: () => onOpenFiles(it.entry.path),
+                              },
+                              ...(onSync
+                                ? [
+                                    {
+                                      key: 'sync',
+                                      icon: <Download aria-hidden size="1.2em" />,
+                                      label: t('plex.syncOnce'),
+                                      aria: `${t('plex.syncOnce')}: ${it.entry.name}`,
+                                      onClick: () => onSync(it.entry),
+                                    },
+                                  ]
+                                : []),
+                              ...(onWatch
+                                ? [
+                                    {
+                                      key: 'watch',
+                                      icon: <Eye aria-hidden size="1.2em" />,
+                                      label: t('watch.add'),
+                                      aria: `${t('watch.add')}: ${it.entry.name}`,
+                                      onClick: () => onWatch(it.entry),
+                                    },
+                                  ]
+                                : []),
+                              ...(cardActions?.(it.entry) ?? []),
+                            ]),
+                      ]
+                    : [
+                        {
+                          key: 'files',
+                          icon: <FilesIcon aria-hidden size="1.2em" />,
+                          label: t('remote.showFiles'),
+                          aria: `${t('remote.showFiles')}: ${it.entry.name}`,
+                          onClick: () => onOpenFiles(it.entry.path),
+                        },
+                        // "Match ändern" spelled out needs 114px of a 131px
+                        // tile, so it travels as the Replace glyph the detail
+                        // dialog uses, with the name in title/aria
+                        ...(!g.pending && it.source
+                          ? [
+                              {
+                                key: 'rematch',
+                                icon: <Replace aria-hidden size="1.2em" />,
+                                label: t('remote.changeMatch'),
+                                aria: `${t('remote.changeMatch')}: ${it.entry.name}`,
+                                onClick: () => setRematch(it),
+                              },
+                            ]
+                          : []),
+                        ...(cardActions?.(it.entry) ?? []),
+                      ]
+                }
+              />
             </Panel>
           )
         })}
@@ -1000,6 +1039,88 @@ function CatalogActions({
             </>
           )}
         </Menu>
+      )}
+    </div>
+  )
+}
+
+// One thing a tile can do. The tile decides which of them exist; how many fit
+// is TileActions' business.
+export interface TileAction {
+  key: string
+  icon: ReactNode
+  /** the name, for the tooltip and the menu entry */
+  label: string
+  /** spelled out for a screen reader: the name plus what it acts on */
+  aria: string
+  onClick: () => void
+  danger?: boolean
+}
+
+const SEARCH_KEY = 'weebsync.search.recent'
+const SEARCH_KEEP = 8
+
+// The footer of a catalog tile. A touch device gives a small button 40px of
+// height, and four of them across a 140px tile leave 28px of width each -
+// upright slabs. Three is what fits at a sane width, so the third slot becomes
+// an overflow as soon as there is a fourth action. The buttons share the row
+// in equal parts, so every tile ends in the same bar.
+const CARD_ACTIONS = 'relative mx-2 mb-2 mt-auto flex gap-1.5 [&_.t-btn]:min-w-6! [&_.t-btn]:flex-1 [&_.t-btn]:px-1!'
+
+function TileActions({ actions }: { actions: TileAction[] }) {
+  const { t } = useTranslation()
+  const { open, setOpen, ref } = useMenu()
+  if (actions.length === 0) return null
+  const inline = actions.length > 3 ? actions.slice(0, 2) : actions
+  const rest = actions.slice(inline.length)
+  const more = t('remote.tileActions')
+  return (
+    <div className={CARD_ACTIONS} ref={ref}>
+      {inline.map((a) => (
+        <Button
+          key={a.key}
+          size="sm"
+          variant={a.danger ? 'danger' : 'default'}
+          aria-label={a.aria}
+          title={a.label}
+          onClick={a.onClick}
+        >
+          {a.icon}
+        </Button>
+      ))}
+      {rest.length > 0 && (
+        // a sibling of the other buttons, not a box around one: wrapped, the
+        // slot sized itself and came out narrower than the rest of the row
+        <>
+          <Button
+            size="sm"
+            aria-label={more}
+            title={more}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <MoreHorizontal aria-hidden size="1.2em" />
+          </Button>
+          {open && (
+            <Menu className="t-pop--up absolute right-0 bottom-full z-20 mb-1 w-max max-w-[70vw]" aria-label={more}>
+              {rest.map((a) => (
+                <MenuItem
+                  key={a.key}
+                  onClick={() => {
+                    setOpen(false)
+                    a.onClick()
+                  }}
+                >
+                  <span className={`flex items-center gap-2 ${a.danger ? 'text-err' : ''}`}>
+                    {a.icon}
+                    {a.label}
+                  </span>
+                </MenuItem>
+              ))}
+            </Menu>
+          )}
+        </>
       )}
     </div>
   )
