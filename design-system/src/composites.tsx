@@ -34,6 +34,20 @@ export function Cover({ src, size = 'md', alt = '', loading, children, className
   return <img src={src} alt={alt} loading={loading} className={cx('object-cover', box)} />
 }
 
+/**
+ * The poster of a card: a button when the card has somewhere to take the
+ * reader (the title's card), the bare frame otherwise. Every card composite
+ * draws its poster through this, so a cover opens the same thing everywhere.
+ */
+function CoverButton({ src, onClick, label, size, loading }: { src?: string; onClick?: () => void; label?: string; size?: CoverProps['size']; loading?: CoverProps['loading'] }) {
+  if (!onClick) return <Cover src={src} size={size} loading={loading} />
+  return (
+    <button type="button" aria-label={label} onClick={onClick} className="shrink-0 cursor-pointer rounded-xs">
+      <Cover src={src} size={size} loading={loading} />
+    </button>
+  )
+}
+
 export interface MediaCardProps {
   /** series or movie title */
   title: ReactNode
@@ -77,13 +91,7 @@ export function MediaCard({
 }: MediaCardProps) {
   return (
     <Panel className={cx('flex flex-wrap items-center gap-4 p-3', className)}>
-      {onCover ? (
-        <button type="button" aria-label={coverLabel} onClick={onCover} className="shrink-0 cursor-pointer rounded-xs">
-          <Cover src={cover} />
-        </button>
-      ) : (
-        <Cover src={cover} />
-      )}
+      <CoverButton src={cover} onClick={onCover} label={coverLabel} />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium text-t-primary">{title}</h3>
         {path && (
@@ -116,6 +124,10 @@ export interface SuggestionCardProps {
   /** release year, shown muted behind the title */
   year?: number
   cover?: string
+  /** with it the poster is a button, e.g. opening the title's card */
+  onCover?: () => void
+  /** the poster button's accessible name */
+  coverLabel?: string
   /** where the suggestion came from, or what it would improve */
   badges?: ReactNode
   /** short explanation under the title */
@@ -138,6 +150,8 @@ export function SuggestionCard({
   title,
   year,
   cover,
+  onCover,
+  coverLabel,
   badges,
   detail,
   children,
@@ -152,7 +166,7 @@ export function SuggestionCard({
       : 'truncate text-sm font-medium text-t-primary'
   return (
     <Panel className={cx('flex flex-wrap items-start gap-4 p-3', className)}>
-      <Cover src={cover} />
+      <CoverButton src={cover} onClick={onCover} label={coverLabel} />
       <div className="min-w-0 flex-1">
         <h4 className={heading}>
           {title}
@@ -337,6 +351,10 @@ export interface TransferCardProps {
   stats?: ReactNode
   /** the details toggle, at the end of the title row */
   trailing?: ReactNode
+  /** with it the poster is a button, e.g. opening the title's card */
+  onCover?: () => void
+  /** the poster button's accessible name */
+  coverLabel?: string
   /** 0..100 */
   percent: number
   /** accessible name of the progress bar */
@@ -361,6 +379,8 @@ export function TransferCard({
   variant = 'hero',
   leading,
   cover,
+  onCover,
+  coverLabel,
   title,
   subtitle,
   badges,
@@ -382,7 +402,7 @@ export function TransferCard({
         {leading}
         {/* only a real poster earns the slot: a hatched placeholder on every
             unmatched row would be noise */}
-        {cover && <Cover src={cover} size={hero ? 'md' : 'sm'} loading={hero ? undefined : 'lazy'} />}
+        {cover && <CoverButton src={cover} onClick={onCover} label={coverLabel} size={hero ? 'md' : 'sm'} loading={hero ? undefined : 'lazy'} />}
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
@@ -474,6 +494,95 @@ export function CalendarDay({ day, children, className }: CalendarDayProps) {
       <h3 className="t-label t-label--accent mb-2">{day}</h3>
       <ul className="flex flex-col gap-2">{children}</ul>
     </section>
+  )
+}
+
+export interface WeekStripDay {
+  /** stable key, e.g. the ISO date */
+  key: string
+  /** the day's caption, e.g. "Mo" over "14" */
+  label: ReactNode
+  /** releases on that day; shown as a count, hidden when zero */
+  count?: number
+  today?: boolean
+  /** a day that cannot be picked, e.g. one already over */
+  disabled?: boolean
+}
+
+export interface WeekStripProps {
+  days: WeekStripDay[]
+  /** key of the picked day */
+  selected: string
+  onSelect: (key: string) => void
+  onPrev?: () => void
+  onNext?: () => void
+  onToday?: () => void
+  /** the three controls' accessible names, plus the strip's own */
+  labels: { prev: string; next: string; today: string; strip: string }
+  /** the week caption between the arrows, e.g. "KW 38 · 14. bis 20.09." */
+  caption?: ReactNode
+  className?: string
+}
+
+/**
+ * One week as seven day buttons, the picked day pressed, today ringed, the
+ * releases per day as a count. Arrows step a week; a disabled previous arrow
+ * says the strip starts here. The caller owns the dates, this only draws them.
+ */
+export function WeekStrip({ days, selected, onSelect, onPrev, onNext, onToday, labels, caption, className }: WeekStripProps) {
+  const arrow = (dir: 'prev' | 'next', onClick?: () => void) => (
+    <button
+      type="button"
+      className="t-iconbtn shrink-0"
+      aria-label={labels[dir]}
+      title={labels[dir]}
+      disabled={!onClick}
+      onClick={onClick}
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="1.2em" height="1.2em" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d={dir === 'prev' ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6'} />
+      </svg>
+    </button>
+  )
+  return (
+    <div className={cx('flex flex-col gap-2', className)}>
+      <div className="flex items-center gap-2">
+        {arrow('prev', onPrev)}
+        <p className="min-w-0 flex-1 truncate text-center font-display text-sm font-semibold tracking-wider text-t-secondary">{caption}</p>
+        {onToday && (
+          <button type="button" className={buttonClass({ size: 'sm' })} onClick={onToday}>
+            {labels.today}
+          </button>
+        )}
+        {arrow('next', onNext)}
+      </div>
+      <div role="group" aria-label={labels.strip} className="grid grid-cols-7 gap-1">
+        {days.map((d) => {
+          const pressed = d.key === selected
+          return (
+            <button
+              key={d.key}
+              type="button"
+              aria-pressed={pressed}
+              aria-current={d.today ? 'date' : undefined}
+              disabled={d.disabled}
+              onClick={() => onSelect(d.key)}
+              className={cx(
+                'flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md border px-1 py-1.5 text-xs transition-colors',
+                pressed ? 'border-accent bg-bg-card text-t-primary' : 'border-border-subtle bg-bg-secondary text-t-secondary hover:bg-bg-hover',
+                d.today && 'outline-2 outline-offset-1 outline-accent',
+                d.disabled && 'cursor-default opacity-50 hover:bg-bg-secondary',
+              )}
+            >
+              <span className="leading-tight">{d.label}</span>
+              {/* the count is a real chip: zero draws nothing, so an empty day
+                  stays quiet and the eye lands on the days that have one */}
+              {!!d.count && <Badge size="sm" tone={pressed ? 'accent' : 'neutral'}>{d.count}</Badge>}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

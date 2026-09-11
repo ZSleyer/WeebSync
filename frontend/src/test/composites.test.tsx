@@ -25,6 +25,7 @@ import {
   TransferCard,
   TrendChart,
   SuggestionCard,
+  WeekStrip,
 } from '@weebsync/design-system'
 
 describe('Cover', () => {
@@ -113,6 +114,64 @@ describe('SuggestionCard', () => {
   it('renders no year span when the year is missing', () => {
     render(<SuggestionCard title="Frieren" />)
     expect(screen.getByRole('heading', { level: 4 })).toHaveTextContent(/^Frieren$/)
+  })
+})
+
+describe('cover buttons', () => {
+  it('makes the suggestion poster a named button when it has a target', () => {
+    const open = vi.fn()
+    render(<SuggestionCard title="Frieren" cover="/p.jpg" onCover={open} coverLabel="Details zu Frieren" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Details zu Frieren' }))
+    expect(open).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves the suggestion poster a plain frame without a target', () => {
+    render(<SuggestionCard title="Frieren" cover="/p.jpg" />)
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('makes the transfer poster a named button in both densities', () => {
+    const open = vi.fn()
+    const { rerender } = render(
+      <TransferCard cover="/p.jpg" title="Frieren" percent={0} progressLabel="x" onCover={open} coverLabel="Details zu Frieren" />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Details zu Frieren' }))
+    rerender(
+      <TransferCard variant="row" cover="/p.jpg" title="Frieren" percent={0} progressLabel="x" onCover={open} coverLabel="Details zu Frieren" />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Details zu Frieren' }))
+    expect(open).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('WeekStrip', () => {
+  const labels = { prev: 'Vorige Woche', next: 'Nächste Woche', today: 'Heute', strip: 'Woche' }
+  const days = [
+    { key: '2026-09-14', label: 'Mo 14', disabled: true },
+    { key: '2026-09-15', label: 'Di 15', today: true, count: 2 },
+    { key: '2026-09-16', label: 'Mi 16' },
+  ]
+
+  it('presses the picked day, rings today and counts the releases', () => {
+    const pick = vi.fn()
+    render(<WeekStrip days={days} selected="2026-09-16" onSelect={pick} onNext={() => {}} labels={labels} caption="KW 38" />)
+    const group = screen.getByRole('group', { name: 'Woche' })
+    const [mo, di, mi] = Array.from(group.querySelectorAll('button'))
+    expect(mi).toHaveAttribute('aria-pressed', 'true')
+    expect(di).toHaveAttribute('aria-pressed', 'false')
+    expect(di).toHaveAttribute('aria-current', 'date')
+    expect(di).toHaveTextContent('2')
+    expect(mo).toBeDisabled()
+    fireEvent.click(di)
+    expect(pick).toHaveBeenCalledWith('2026-09-15')
+    expect(screen.getByText('KW 38')).toBeInTheDocument()
+  })
+
+  it('disables the previous arrow when the strip starts here', () => {
+    render(<WeekStrip days={days} selected="2026-09-15" onSelect={() => {}} onNext={() => {}} onToday={() => {}} labels={labels} />)
+    expect(screen.getByRole('button', { name: 'Vorige Woche' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Nächste Woche' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Heute' })).toBeInTheDocument()
   })
 })
 

@@ -3,6 +3,7 @@ import type {
   ButtonHTMLAttributes,
   HTMLAttributes,
   InputHTMLAttributes,
+  KeyboardEvent,
   LabelHTMLAttributes,
   ReactNode,
   Ref,
@@ -430,9 +431,30 @@ export interface TabsProps extends HTMLAttributes<HTMLDivElement> {
   scroll?: boolean
 }
 
-export function Tabs({ scroll, className, children, ...rest }: TabsProps) {
+/**
+ * The tab list. Arrow keys, Home and End move between the tabs and select the
+ * one they land on (the ARIA tabs pattern: one tab stop for the whole bar, the
+ * selected tab is the one that takes focus - see Tab's tabIndex).
+ */
+export function Tabs({ scroll, className, children, onKeyDown, ...rest }: TabsProps) {
+  const rove = (e: KeyboardEvent<HTMLDivElement>) => {
+    onKeyDown?.(e)
+    if (e.defaultPrevented) return
+    const tabs = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]:not([disabled])'))
+    const at = tabs.indexOf(e.target as HTMLButtonElement)
+    if (at < 0 || tabs.length === 0) return
+    let next = -1
+    if (e.key === 'ArrowRight') next = (at + 1) % tabs.length
+    else if (e.key === 'ArrowLeft') next = (at - 1 + tabs.length) % tabs.length
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = tabs.length - 1
+    if (next < 0) return
+    e.preventDefault()
+    tabs[next].focus()
+    tabs[next].click()
+  }
   return (
-    <div role="tablist" {...rest} className={cx('t-tabs', scroll && 't-tabs--scroll', className)}>
+    <div role="tablist" {...rest} onKeyDown={rove} className={cx('t-tabs', scroll && 't-tabs--scroll', className)}>
       {children}
     </div>
   )
@@ -442,12 +464,14 @@ export interface TabProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   selected?: boolean
 }
 
+/** One tab. Pass `id` and `aria-controls` to bind it to its panel. */
 export function Tab({ selected, className, ...rest }: TabProps) {
   return (
     <button
       type="button"
       role="tab"
       aria-selected={selected}
+      tabIndex={selected ? 0 : -1}
       {...rest}
       className={cx('t-tab', className)}
     />
