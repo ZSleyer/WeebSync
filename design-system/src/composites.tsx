@@ -655,16 +655,18 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
               onClick={() => onSelect(d.key)}
               className={cx(
                 'flex min-h-14 w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border px-1 py-1.5 text-xs transition-colors',
-                pressed ? 'border-accent bg-bg-card text-t-primary' : 'border-border-subtle bg-bg-secondary text-t-secondary hover:bg-bg-hover',
-                d.today && 'outline-2 outline-offset-1 outline-accent',
+                // the picked day is a surface, today is a filled disc, a day
+                // with something on it carries an accent chip - three separate
+                // signals rather than three rings that look alike
+                pressed ? 'border-accent bg-accent/15 text-t-primary' : 'border-border-subtle bg-bg-secondary text-t-secondary hover:bg-bg-hover',
               )}
             >
-              <span className="text-[10px] uppercase tracking-wider text-t-muted">{d.weekday}</span>
-              <span className="text-base leading-tight">{d.day}</span>
+              <span className={cx('text-[10px] uppercase tracking-wider', pressed ? 'text-t-secondary' : 'text-t-muted')}>{d.weekday}</span>
+              <span className={cx('flex size-6 items-center justify-center text-base leading-none', d.today && 'rounded-full bg-accent font-semibold')}>{d.day}</span>
               {/* the count is a real chip: zero draws nothing, so an empty day
                   stays quiet and the eye lands on the days that have one */}
               {!!d.count && (
-                <Badge size="sm" tone={pressed ? 'accent' : 'neutral'}>
+                <Badge size="sm" tone="accent">
                   {d.count}
                 </Badge>
               )}
