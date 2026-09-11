@@ -19,7 +19,7 @@ type HostKeyError struct {
 
 func (e *HostKeyError) Error() string {
 	if e.Stored == "" {
-		return "ssh host key not trusted yet - review and accept it via the connection test"
+		return "ssh host key not trusted yet - review its fingerprint and accept it"
 	}
 	return "ssh host key mismatch - server changed or MITM"
 }

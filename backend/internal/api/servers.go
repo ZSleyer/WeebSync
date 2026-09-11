@@ -281,24 +281,7 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
-		var hk *remote.HostKeyError
-		if errors.As(err, &hk) {
-			// 409 + fingerprints so the UI can ask accept/reject
-			c := HostKeyConflict{Error: err.Error(), Code: "host_key_mismatch", NewKey: hk.Offered}
-			c.NewFingerprint, _ = remote.KeyLabel(hk.Offered)
-			if hk.Stored == "" {
-				c.Code = "host_key_unknown"
-			} else {
-				c.OldFingerprint, _ = remote.KeyLabel(hk.Stored)
-			}
-			writeJSON(w, http.StatusConflict, c)
-			return
-		}
-		status := http.StatusBadGateway
-		if err == errNotFound {
-			status = http.StatusNotFound
-		}
-		writeErr(w, status, err.Error())
+		writeDialErr(w, err)
 		return
 	}
 	defer client.Close()
@@ -307,6 +290,32 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// writeDialErr reports a DialServer failure. A host key that is not trusted
+// yet, or one that changed, goes out as 409 with the fingerprints, so the page
+// that ran into it can offer the review right there - the connection test in
+// the settings was the only place that did, and a listing that just said
+// "not trusted yet" sent the user looking for it. Unknown server 404, the
+// rest 502.
+func writeDialErr(w http.ResponseWriter, err error) {
+	var hk *remote.HostKeyError
+	if errors.As(err, &hk) {
+		c := HostKeyConflict{Error: err.Error(), Code: "host_key_mismatch", NewKey: hk.Offered}
+		c.NewFingerprint, _ = remote.KeyLabel(hk.Offered)
+		if hk.Stored == "" {
+			c.Code = "host_key_unknown"
+		} else {
+			c.OldFingerprint, _ = remote.KeyLabel(hk.Stored)
+		}
+		writeJSON(w, http.StatusConflict, c)
+		return
+	}
+	status := http.StatusBadGateway
+	if err == errNotFound {
+		status = http.StatusNotFound
+	}
+	writeErr(w, status, err.Error())
 }
 
 // TrustHostKeyInput carries the host key the user reviewed and accepted.

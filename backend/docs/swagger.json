@@ -10872,6 +10872,16 @@
                         },
                         "description": "Not Found"
                     },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.HostKeyConflict"
+                                }
+                            }
+                        },
+                        "description": "SSH host key unknown or changed"
+                    },
                     "502": {
                         "content": {
                             "application/json": {
@@ -10936,6 +10946,16 @@
                             }
                         },
                         "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.HostKeyConflict"
+                                }
+                            }
+                        },
+                        "description": "SSH host key unknown or changed"
                     },
                     "502": {
                         "content": {
