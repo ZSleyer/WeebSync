@@ -13,6 +13,11 @@ export interface SwipeDeckProps {
   canNext?: boolean
   /** also page on a held mouse button */
   mouse?: boolean
+  /**
+   * how far one page turn moves the index. A grid that shows seven days
+   * around a picked one pages a week at a time while its index counts days.
+   */
+  step?: number
   className?: string
   /** the content of one page. Called for the neighbours only while swiping. */
   children: (index: number) => ReactNode
@@ -28,7 +33,7 @@ export interface SwipeDeckProps {
  * For content that is cheap to render for a neighbouring index. A page whose
  * content fetches on mount does not belong in a deck.
  */
-export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mouse, className, children }: SwipeDeckProps) {
+export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mouse, step = 1, className, children }: SwipeDeckProps) {
   const box = useRef<HTMLDivElement>(null)
   // how far the deck is pushed right now; null is the resting state and the
   // only one without a transform - a transform that stayed would pin every
@@ -58,7 +63,7 @@ export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mous
     const dir = flight.current
     if (dir === null) return rest()
     rest()
-    onIndex(idx.current + dir)
+    onIndex(idx.current + dir * step)
   }
   // transitionend can be missed - a reduced-motion setting cuts the duration to
   // nothing, a hidden tab never paints - and a deck stuck mid-slide is worse
@@ -116,9 +121,9 @@ export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mous
           else rest()
         }}
       >
-        {live && canPrev && <div className="absolute top-0 right-full w-full">{children(index - 1)}</div>}
+        {live && canPrev && <div className="absolute top-0 right-full w-full">{children(index - step)}</div>}
         {children(index)}
-        {live && canNext && <div className="absolute top-0 left-full w-full">{children(index + 1)}</div>}
+        {live && canNext && <div className="absolute top-0 left-full w-full">{children(index + step)}</div>}
       </div>
     </div>
   )
