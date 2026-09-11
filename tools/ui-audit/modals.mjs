@@ -86,7 +86,7 @@ const TRIGGERS = [
   // the title card, from a poster: the list's cover button, the grid's tile
   { route: '/watches', label: 'Titelkarte', names: [/Details zu|Details for/] },
   // a tile is named by its visible title, so the trigger is the tile's heading
-  { route: '/watches?view=grid', label: 'Raster', within: 'article', role: 'heading', names: [/./] },
+  { route: '/watches?layout=grid', label: 'Raster', within: 'article', role: 'heading', names: [/./] },
   {
     // nested: the Plex picker only exists inside the watch dialog, so the
     // parent has to be open before the trigger is on the page at all
