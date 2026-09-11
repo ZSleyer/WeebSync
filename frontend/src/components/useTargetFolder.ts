@@ -20,6 +20,22 @@ export function titleFolder(title: string, separator: string): string {
   return seg.replace(/^[ .]+|[ .]+$/g, '')
 }
 
+// seasonInPath says whether the season folder belongs in the target path. A
+// template that carries a "/" lays the folders out itself (an aired-order
+// "Season {season:02}/..."), and so does aired mapping, whose season varies
+// per file: a Season folder in the path would nest under either. Same rule
+// as the backend's seasonInPath.
+export function seasonInPath(template: string, airedMapping: boolean): boolean {
+  return !template.includes('/') && !airedMapping
+}
+
+// pinSeason writes the season into a template's {season} tokens, keeping each
+// token's padding - the rename engine reads the season off the file name and
+// falls back to 1, which in a "Season 02" folder names the files S01E01.
+export function pinSeason(template: string, season: number): string {
+  return template.replace(/\{season(?::0?(\d+))?\}/g, (_, w?: string) => String(season).padStart(w ? Number(w) : 1, '0'))
+}
+
 // subfolderMode reads the three-way choice off the fields a dialog starts
 // from: a saved watch only carries the boolean, and its folder is already part
 // of localPath.
@@ -32,19 +48,25 @@ export function subfolderMode(f: { subfolder: boolean; subfolderSource?: Subfold
 // a later title change cannot strand the series in a second folder. Without a
 // title the remote folder's name stands in, so a sync never lands loose in the
 // library root; re-picking "title" on an already resolved path is a no-op.
+//
+// seasonFolder is the season's own folder under the title ("Season 02"),
+// spelled with the same separator as the title; empty when the season lives
+// in the template or the folder is not a season (see seasonInPath).
 export function subfolderTargetDir(
   localPath: string,
   remotePath: string,
   mode: SubfolderMode,
   title: string,
   separator: string,
+  seasonFolder = '',
 ): string {
   if (mode !== 'title') return syncTargetDir(localPath, remotePath, mode === 'remote')
   const seg = titleFolder(title, separator)
   if (!seg) return syncTargetDir(localPath, remotePath, true)
   const last = localPath.split('/').filter(Boolean).pop() ?? ''
-  if (last.toLowerCase() === seg.toLowerCase()) return localPath
-  return [localPath, seg].filter(Boolean).join('/')
+  const show = last.toLowerCase() === seg.toLowerCase() ? localPath : [localPath, seg].filter(Boolean).join('/')
+  const season = titleFolder(seasonFolder, separator)
+  return season ? `${show}/${season}` : show
 }
 
 // syncRequestPath is the local path a sync request carries. Only a title folder

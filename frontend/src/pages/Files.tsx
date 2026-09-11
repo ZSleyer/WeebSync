@@ -94,7 +94,7 @@ export default function Files() {
   const [subMode, setSubMode] = useState<SubfolderMode | null>(null)
   const [subSep, setSubSep] = useState('')
   const { data: syncKind, isPending: syncKindPending } = useFolderKind(active, syncEntry?.path)
-  const syncSeed = syncEntry && !syncKindPending ? applyDefaults(blankWatch(syncEntry.path, localPath), syncKind?.kind, defaults) : null
+  const syncSeed = syncEntry && !syncKindPending ? applyDefaults(blankWatch(syncEntry.path, localPath), syncKind?.kind, defaults, syncKind) : null
   // a target picked on this page wins, the default one fills in otherwise;
   // the subfolder choice follows the default only while nothing was picked
   const syncLocal = localPath || syncSeed?.localPath || ''
@@ -103,8 +103,10 @@ export default function Files() {
   // the folder a title subfolder is named after, the same title the watch
   // dialog would use; it is folded into the request, never into the page path
   const syncTitle = syncKind?.title ?? ''
+  // the season folder, unless the default template lays the folders out itself
+  const syncSeason = syncSeed?.seasonFolder ?? ''
   const syncTarget =
-    syncEntry && syncEntry.isDir ? subfolderTargetDir(syncLocal, syncEntry.path, syncMode, syncTitle, subSep) : syncLocal
+    syncEntry && syncEntry.isDir ? subfolderTargetDir(syncLocal, syncEntry.path, syncMode, syncTitle, subSep, syncSeason) : syncLocal
   const [query, setQuery] = useState(params.get('q') ?? '')
   // the last few searches, offered back through the input's completion list
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
@@ -453,7 +455,7 @@ export default function Files() {
         <WatchDialog
           title={t('watch.addTitle', { name: watchEntry.name })}
           serverId={active}
-          initial={applyDefaults(blankWatch(watchEntry.path, localPath), watchKind?.kind, defaults)}
+          initial={applyDefaults(blankWatch(watchEntry.path, localPath), watchKind?.kind, defaults, watchKind)}
           onSave={async (f) => {
             await api.post('/api/watches', { serverId: active, ...f })
             setNotice(t('watch.created'))
@@ -1352,7 +1354,14 @@ function SyncDialog({
           </div>
 
           {entry.isDir && (
-            <SubfolderChoice value={mode} onChange={onMode} separator={separator} onSeparator={onSeparator} title={title} />
+            <SubfolderChoice
+              value={mode}
+              onChange={onMode}
+              separator={separator}
+              onSeparator={onSeparator}
+              title={title}
+              seasonFolder={seed?.seasonFolder}
+            />
           )}
 
           <div className="space-y-1">

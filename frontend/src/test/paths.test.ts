@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Entry } from '../api'
 import { suggestDirs, trimSlashes } from '../components/PathInput'
 import { isSeasonFolder } from '../components/RenameOptions'
-import { classifyTargets, subfolderTargetDir, syncRequestPath, syncTargetDir, titleFolder } from '../components/useTargetFolder'
+import { classifyTargets, pinSeason, seasonInPath, subfolderTargetDir, syncRequestPath, syncTargetDir, titleFolder } from '../components/useTargetFolder'
 
 const dir = (name: string): Entry => ({ name, path: name, size: 0, isDir: true, modTime: '' })
 const file = (name: string): Entry => ({ ...dir(name), isDir: false })
@@ -93,6 +93,22 @@ describe('subfolderTargetDir', () => {
 
   it('does not append a title the path already ends on', () => {
     expect(subfolderTargetDir('Anime/Frieren', '/ftp/Frieren S01', 'title', 'Frieren', '')).toBe('Anime/Frieren')
+  })
+
+  it('puts the season folder under the title folder, spelled alike', () => {
+    expect(subfolderTargetDir('Anime', '/ftp/Frieren S02', 'title', 'Frieren', '', 'Season 02')).toBe('Anime/Frieren/Season 02')
+    expect(subfolderTargetDir('Anime', '/ftp/One Piece', 'title', 'One Piece', '_', 'Season 23')).toBe('Anime/One_Piece/Season_23')
+    // the other modes name no season: the remote folder is the folder
+    expect(subfolderTargetDir('Anime', '/ftp/Show S02', 'remote', 'Show', '', 'Season 02')).toBe('Anime/Show S02')
+  })
+
+  it('leaves the season to a template that lays out folders, and to aired mapping', () => {
+    expect(seasonInPath('{title} - S{season:02}E{episode:02}', false)).toBe(true)
+    expect(seasonInPath('Season {season:02}/{title} - S{season:02}E{episode:02}', false)).toBe(false)
+    expect(seasonInPath('{title} - S{season:02}E{episode:02}', true)).toBe(false)
+    expect(pinSeason('{title} - S{season:02}E{episode:02}', 3)).toBe('{title} - S03E{episode:02}')
+    expect(pinSeason('{title} {season}x{episode:02}', 12)).toBe('{title} 12x{episode:02}')
+    expect(pinSeason('', 3)).toBe('')
   })
 
   it('is the remote name or nothing for the other two modes', () => {

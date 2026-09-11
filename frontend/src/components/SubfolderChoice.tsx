@@ -17,6 +17,7 @@ export default function SubfolderChoice({
   separator,
   onSeparator,
   title,
+  seasonFolder,
   className,
 }: {
   value: SubfolderMode
@@ -25,6 +26,8 @@ export default function SubfolderChoice({
   onSeparator: (s: string) => void
   /** the resolved series title; empty falls back to the remote folder's name */
   title?: string
+  /** the season folder that goes under the title folder, "" for none */
+  seasonFolder?: string
   className?: string
 }) {
   const { t } = useTranslation()
@@ -55,7 +58,11 @@ export default function SubfolderChoice({
             </Select>
           </Field>
           <p className="text-[11px] text-t-muted">
-            {t('watch.subfolderPreview')} <span className="font-mono text-t-secondary">{titleFolder(sample, separator)}</span>
+            {t('watch.subfolderPreview')}{' '}
+            <span className="font-mono text-t-secondary">
+              {titleFolder(sample, separator)}
+              {seasonFolder ? `/${titleFolder(seasonFolder, separator)}` : ''}
+            </span>
           </p>
           {title === '' && <p className="text-[11px] text-t-muted">{t('watch.subfolderTitleUnknown')}</p>}
           <p className="text-[11px] text-t-muted">{t('watch.subfolderTitleHint')}</p>

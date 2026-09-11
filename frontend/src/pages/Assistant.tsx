@@ -1066,6 +1066,7 @@ function targetOf(p: AiProposal): string {
     subfolderMode(f),
     p.title,
     f.subfolderSeparator ?? '',
+    f.seasonFolder ?? '',
   )
 }
 
