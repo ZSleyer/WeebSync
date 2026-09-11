@@ -527,6 +527,7 @@ type catalogResponse struct {
 //	@Param			path	query		string	false	"Directory to list (defaults to the server root)"
 //	@Success		200		{object}	catalogResponse
 //	@Failure		404		{object}	ErrorResponse
+//	@Failure		409		{object}	HostKeyConflict	"SSH host key unknown or changed"
 //	@Failure		502		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/servers/{id}/catalog [get]
@@ -549,11 +550,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	} else {
 		client, rootPath, err := s.DialServer(u.ID, serverID)
 		if err != nil {
-			status := http.StatusBadGateway
-			if err == errNotFound {
-				status = http.StatusNotFound
-			}
-			writeErr(w, status, err.Error())
+			writeDialErr(w, err)
 			return
 		}
 		defer client.Close()

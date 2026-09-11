@@ -592,6 +592,7 @@ func (s *Server) handleDeleteLocal(w http.ResponseWriter, r *http.Request) {
 // @Success  200 {array} remote.Entry
 // @Failure  401 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
+// @Failure  409 {object} HostKeyConflict "SSH host key unknown or changed"
 // @Failure  502 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/servers/{id}/browse [get]
@@ -600,11 +601,7 @@ func (s *Server) handleBrowseRemote(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
-		status := http.StatusBadGateway
-		if err == errNotFound {
-			status = http.StatusNotFound
-		}
-		writeErr(w, status, err.Error())
+		writeDialErr(w, err)
 		return
 	}
 	defer client.Close()
