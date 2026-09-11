@@ -6,9 +6,9 @@ import { SwipeDeck } from '@weebsync/design-system'
 // by hand here - in a browser the same event arrives on its own, and the deck's
 // own timer is the net under it.
 
-const deck = (props: { index?: number; onIndex?: (i: number) => void; canPrev?: boolean }) =>
+const deck = (props: { index?: number; onIndex?: (i: number) => void; canPrev?: boolean; step?: number }) =>
   render(
-    <SwipeDeck index={props.index ?? 0} onIndex={props.onIndex ?? (() => {})} canPrev={props.canPrev} className="deck">
+    <SwipeDeck index={props.index ?? 0} onIndex={props.onIndex ?? (() => {})} canPrev={props.canPrev} step={props.step} className="deck">
       {(i) => <p>Seite {i}</p>}
     </SwipeDeck>,
   )
@@ -59,6 +59,17 @@ describe('SwipeDeck', () => {
     expect(onIndex).not.toHaveBeenCalled()
     expect(track().style.transform).toBe('')
     expect(screen.queryByText('Seite 2')).toBeNull()
+  })
+
+  it('pages by its step while the index counts in ones', () => {
+    const onIndex = vi.fn()
+    deck({ index: 3, onIndex, step: 7 })
+    drag(-100, false)
+    expect(screen.getByText('Seite -4')).toBeInTheDocument()
+    expect(screen.getByText('Seite 10')).toBeInTheDocument()
+    fireEvent.pointerUp(box(), { clientX: 200, clientY: 100, pointerId: 1 })
+    fireEvent.transitionEnd(track())
+    expect(onIndex).toHaveBeenCalledWith(10)
   })
 
   it('has no page and no neighbour behind a closed end', () => {
