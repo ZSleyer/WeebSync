@@ -170,17 +170,19 @@ export default function Watches() {
   const wide = useMediaQuery(WIDE_MQ)
   // How far the band reaches: to the last release the providers date, four
   // weeks at the least so there is always something to scrub through, and a
-  // year at the most.
+  // year at the most. A week of the past leads in - without it the band opens
+  // against its own left edge with nothing beside today.
+  const PAST_DAYS = 7
   const lastAt = calShown.length ? calShown[calShown.length - 1].at * 1000 : 0
   const span = Math.min(400, Math.max(28, Math.ceil((lastAt - today.getTime()) / 86_400_000) + 7))
-  const bandDays = Array.from({ length: span + 1 }, (_, i) => addDays(today, i))
+  const bandDays = Array.from({ length: span + 1 + PAST_DAYS }, (_, i) => addDays(today, i - PAST_DAYS))
   const dayIdxOf = (d: Date) => Math.round((startOfDay(d).getTime() - today.getTime()) / 86_400_000)
   // a week step lands on its first release, else on the week's first day still ahead
   const goWeek = (i: number) => {
     const start = addDays(thisWeek, i * 7)
     const end = addDays(start, 7)
     const first = calShown.find((e) => e.at * 1000 >= start.getTime() && e.at * 1000 < end.getTime())
-    setDayIdx(Math.max(0, dayIdxOf(first ? new Date(first.at * 1000) : start)))
+    setDayIdx(Math.max(-PAST_DAYS, dayIdxOf(first ? new Date(first.at * 1000) : start)))
   }
   // the agenda: every release ahead, grouped by day, as far as the providers date them
   const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
@@ -414,12 +416,13 @@ export default function Watches() {
                   day: d.getDate(),
                   count: byDay.get(dayKey(d))?.length,
                   today: d.getTime() === today.getTime(),
+                  past: d.getTime() < today.getTime(),
                 }))}
                 selected={selectedDay}
                 onSelect={(k) => setDayIdx(dayIdxOf(new Date(k + 'T00:00')))}
                 step={dayIdx}
                 label={selectedDate.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}
-                onPrev={dayIdx > 0 ? () => setDayIdx(Math.max(0, dayIdx - 7)) : undefined}
+                onPrev={dayIdx > -PAST_DAYS ? () => setDayIdx(Math.max(-PAST_DAYS, dayIdx - 7)) : undefined}
                 onNext={() => setDayIdx(dayIdx + 7)}
                 onToday={dayIdx !== 0 ? () => setDayIdx(0) : undefined}
                 labels={{ prev: t('watch.week.prev'), next: t('watch.week.next'), today: t('watch.week.today'), strip: t('watch.week.strip') }}
@@ -428,7 +431,7 @@ export default function Watches() {
                   whole week and pages weeks - a day step would move nothing
                   visible there */}
               {!wide ? (
-                <SwipeDeck index={dayIdx} onIndex={setDayIdx} canPrev={dayIdx > 0} mouse>
+                <SwipeDeck index={dayIdx} onIndex={setDayIdx} canPrev={dayIdx > -PAST_DAYS} mouse>
                   {(i) => {
                     const d = addDays(today, i)
                     const items = byDay.get(dayKey(d)) ?? []
