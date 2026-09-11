@@ -191,6 +191,15 @@ describe('CalendarDay and CalendarEntry', () => {
   })
 })
 
+describe('CalendarEntry compact', () => {
+  it('keeps the small poster and stacks the text beside it for a narrow week column', () => {
+    const { container } = render(<CalendarEntry compact title="Frieren" episode="Folge 3" time="14:00" countdown="in 2 Tg." cover="/p.jpg" />)
+    expect(container.querySelector('img')).toHaveClass('h-14', 'w-10')
+    expect(container.firstElementChild).toHaveClass('items-start')
+    expect(screen.getByText('14:00').parentElement).toContainElement(screen.getByText('Frieren'))
+  })
+})
+
 describe('Breadcrumb', () => {
   it('always draws the root crumb first and navigates to the empty path', () => {
     const onNavigate = vi.fn()
