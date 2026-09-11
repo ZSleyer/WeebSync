@@ -365,6 +365,7 @@
     "open_zero": "Trash",
     "open_one": "Trash, {{count}} entry",
     "open_other": "Trash, {{count}} entries",
+    "label": "Trash",
     "title": "TRASH",
     "hint": "Replaced and discarded copies wait here in hidden .weebsync-trash folders beside where they came from, until their time is up or you delete them.",
     "empty0": "The trash is empty.",
