@@ -185,6 +185,37 @@ describe('DayScroller', () => {
     expect(prev).toHaveBeenCalledTimes(1)
   })
 
+  it('picks the middle day while the band is still moving, one tick per day', () => {
+    const pick = vi.fn()
+    const buzz = vi.fn()
+    Object.defineProperty(navigator, 'vibrate', { value: buzz, configurable: true })
+    scroller({ onSelect: pick })
+    const band = document.querySelector('.t-dayband') as HTMLElement
+    // jsdom lays nothing out, so the band and its cells get a geometry
+    band.getBoundingClientRect = () => ({ left: 0, width: 150 }) as DOMRect
+    Object.defineProperty(band, 'clientWidth', { value: 150, configurable: true })
+    const cells = Array.from(band.querySelectorAll<HTMLElement>('[data-day]'))
+    const place = (offset: number) => cells.forEach((c, i) => (c.getBoundingClientRect = () => ({ left: i * 50 - offset, width: 50 }) as DOMRect))
+    // the day already in the middle is not a new pick
+    place(0)
+    fireEvent.scroll(band)
+    expect(pick).not.toHaveBeenCalled()
+    // one day travels past: picked while the band is still moving, one tick
+    place(50)
+    fireEvent.scroll(band)
+    expect(pick).toHaveBeenLastCalledWith('2026-09-17')
+    expect(buzz).toHaveBeenCalledTimes(1)
+    // the same middle over again is neither a new pick nor a second tick
+    fireEvent.scroll(band)
+    expect(pick).toHaveBeenCalledTimes(1)
+    expect(buzz).toHaveBeenCalledTimes(1)
+    // and back the other way ticks again
+    place(0)
+    fireEvent.scroll(band)
+    expect(pick).toHaveBeenLastCalledWith('2026-09-16')
+    expect(buzz).toHaveBeenCalledTimes(2)
+  })
+
   it('rolls the caption from the old day to the new one', async () => {
     const { rerender } = scroller()
     expect(screen.getByText('Mittwoch, 16.09.')).toBeInTheDocument()

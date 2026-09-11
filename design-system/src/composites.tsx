@@ -539,8 +539,11 @@ export interface DayScrollerProps {
   className?: string
 }
 
-// how long the band has to hold still before the middle cell counts as picked
+// how long after the last scroll a programmatic move counts as finished
 const SETTLE_MS = 120
+// the tick as a day passes the middle. Shorter than a page turn's - this one
+// fires for every day the thumb drags past, so it has to stay light.
+const TICK_MS = 3
 
 /**
  * A band of days that scrolls day by day and snaps whichever one sits in the
@@ -580,34 +583,36 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // `scrollend` is still missing on iOS, so the band waits for the scrolling to
-  // stop instead: whatever sits in the middle then is the pick.
+  // The middle of the band is the pick, live: the day under it changes while
+  // the thumb is still dragging, so the band reads as a ruler pulled past a
+  // fixed mark rather than a list that decides once you let go. Every day that
+  // passes gives a light tick.
   const onScroll = () => {
     const el = band.current
     if (!el) return
     markOverflow(el)
+    // a move this component started is already heading for the right day; the
+    // days it sweeps past on the way are not picks and must not tick
     clearTimeout(settle.current)
     settle.current = setTimeout(() => {
-      if (own.current) {
-        own.current = false
-        return
-      }
-      const mid = el.getBoundingClientRect().left + el.clientWidth / 2
-      let best: { key: string; d: number } | null = null
-      for (const cell of el.querySelectorAll<HTMLElement>('[data-day]')) {
-        const r = cell.getBoundingClientRect()
-        const d = Math.abs(r.left + r.width / 2 - mid)
-        if (!best || d < best.d) best = { key: cell.dataset.day!, d }
-      }
-      if (!best || best.key === selected) return
-      shown.current = best.key
-      try {
-        navigator.vibrate?.(5)
-      } catch {
-        /* a browser that has the method but refuses the call */
-      }
-      onSelect(best.key)
+      own.current = false
     }, SETTLE_MS)
+    if (own.current) return
+    const mid = el.getBoundingClientRect().left + el.clientWidth / 2
+    let best: { key: string; d: number } | null = null
+    for (const cell of el.querySelectorAll<HTMLElement>('[data-day]')) {
+      const r = cell.getBoundingClientRect()
+      const d = Math.abs(r.left + r.width / 2 - mid)
+      if (!best || d < best.d) best = { key: cell.dataset.day!, d }
+    }
+    if (!best || best.key === shown.current) return
+    shown.current = best.key
+    try {
+      navigator.vibrate?.(TICK_MS)
+    } catch {
+      /* a browser that has the method but refuses the call */
+    }
+    onSelect(best.key)
   }
 
   const arrow = (dir: 'prev' | 'next', onClick?: () => void) => (

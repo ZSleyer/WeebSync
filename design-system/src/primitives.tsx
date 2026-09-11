@@ -439,9 +439,12 @@ export function Slot({ step, children, className }: SlotProps) {
   const last = useRef({ step, node: children })
   if (last.current.step !== step) {
     const up = step > last.current.step
-    // the render that notices the change also starts the roll; the previous
-    // node is the one captured on the render before it
-    if (old?.node !== last.current.node) setOld({ node: last.current.node, up })
+    // The render that notices the change also starts the roll; the previous
+    // node is the one captured on the render before it. A roll already in
+    // flight is left alone - while a value is being scrubbed the changes
+    // arrive faster than the animation, and restarting it every time would
+    // leave the text jittering instead of rolling.
+    if (!old) setOld({ node: last.current.node, up })
     last.current = { step, node: children }
   } else last.current.node = children
   // The roll is over after --dur-2; a timer ends it rather than animationend,
