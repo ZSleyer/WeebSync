@@ -568,6 +568,9 @@
       "complete": "Complete"
     },
     "week": {
+      "now": "Now {{time}}",
+      "gapHours": "{{h}} h",
+      "gapMinutes": "{{m}} min",
       "prev": "Previous week",
       "next": "Next week",
       "today": "Today",
@@ -588,6 +591,7 @@
       "series": "Series",
       "movie": "Films"
     },
+    "airedAgo": "aired",
     "airingNow": "now",
     "inDaysH": "in {{d}}d {{h}}h",
     "inHoursM": "in {{h}}h {{m}}m",
