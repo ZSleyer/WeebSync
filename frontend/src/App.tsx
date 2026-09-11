@@ -35,6 +35,7 @@ import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
 import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions, ShellFooter } from './components/PageActions'
+import { SeriesModalProvider } from './components/SeriesModal'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -406,6 +407,7 @@ function Shell({ email }: { email: string }) {
   return (
     <AppBarActions.Provider value={actions}>
       <ShellFooter.Provider value={footer}>
+        <SeriesModalProvider>
         <AppShell
           sidebar={sidebar}
           bar={bar}
@@ -425,6 +427,7 @@ function Shell({ email }: { email: string }) {
             <Outlet />
           </RouteTransition>
         </AppShell>
+        </SeriesModalProvider>
       </ShellFooter.Provider>
     </AppBarActions.Provider>
   )

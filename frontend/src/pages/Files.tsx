@@ -3,7 +3,7 @@ import { ArrowDownWideNarrow, Check, Download, Eye, Files as FilesIcon, Folder, 
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import MediaDetail from '../components/MediaDetail'
+import { useSeriesModal } from '../components/SeriesModal'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
 import { Badge, Button, Cover, Dialog, EmptyState, IconButton, Input, Menu, MenuItem, Panel, useMenu } from '@weebsync/design-system'
@@ -574,7 +574,47 @@ export function CatalogGrid({
   })
   const qc = useQueryClient()
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
-  const [detail, setDetail] = useState<CatalogGroup | null>(null)
+  // the title card is the app's one; the catalog adds its folder versions
+  // under the record, each selectable, syncable, watchable, re-matchable
+  const series = useSeriesModal()
+  const showDetail = (g: CatalogGroup) =>
+    series.open({
+      source: g.items[0].source,
+      id: g.media!.id,
+      media: g.media,
+      extra: (
+        <CatalogVersions
+          group={g}
+          selected={selected}
+          onSelect={(e) => {
+            series.close()
+            onSelect(e)
+          }}
+          onRematch={(it) => {
+            series.close()
+            setRematch(it)
+          }}
+          onFiles={(e) => {
+            series.close()
+            onOpenFiles(e.path)
+          }}
+          onSync={
+            onSync &&
+            ((e) => {
+              series.close()
+              onSync(e)
+            })
+          }
+          onWatch={
+            onWatch &&
+            ((e) => {
+              series.close()
+              onWatch(e)
+            })
+          }
+        />
+      ),
+    })
   const [scopeError, setScopeError] = useState('')
   const [sort, setSort] = useCatalogSort()
   const pendingCount = items.filter((i) => i.pending).length
@@ -751,7 +791,7 @@ export function CatalogGrid({
               )}
               <button
                 className="text-left"
-                onClick={() => (g.media ? setDetail(g) : onSelect(it.entry))}
+                onClick={() => (g.media ? showDetail(g) : onSelect(it.entry))}
                 aria-label={
                   g.media
                     ? t('remote.detailsFor', { name: mediaTitle(g.media) })
@@ -829,7 +869,7 @@ export function CatalogGrid({
                           icon: <Info aria-hidden size="1.2em" />,
                           label: t('remote.details'),
                           aria: t('remote.detailsFor', { name: mediaTitle(g.media) }),
-                          onClick: () => setDetail(g),
+                          onClick: () => showDetail(g),
                         },
                         ...(multi
                           ? []
@@ -897,39 +937,6 @@ export function CatalogGrid({
         })}
       </div>
       {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
-      {detail && (
-        <DetailDialog
-          group={detail}
-          selected={selected}
-          onSelect={(e) => {
-            onSelect(e)
-            setDetail(null)
-          }}
-          onRematch={(it) => {
-            setDetail(null)
-            setRematch(it)
-          }}
-          onFiles={(e) => {
-            setDetail(null)
-            onOpenFiles(e.path)
-          }}
-          onSync={
-            onSync &&
-            ((e) => {
-              setDetail(null)
-              onSync(e)
-            })
-          }
-          onWatch={
-            onWatch &&
-            ((e) => {
-              setDetail(null)
-              onWatch(e)
-            })
-          }
-          onClose={() => setDetail(null)}
-        />
-      )}
       </div>
     </div>
   )
@@ -1318,10 +1325,10 @@ interface CatalogGroup {
   items: CatalogItem[]
 }
 
-// DetailDialog shows the anime's full metadata (banner, description, trailer,
-// genres) plus every folder version matched to it, each selectable for sync
-// and individually re-matchable.
-function DetailDialog({
+// CatalogVersions is the catalog's part of the title card: every folder
+// version matched to the title, each selectable for sync and individually
+// re-matchable.
+function CatalogVersions({
   group,
   selected,
   onSelect,
@@ -1329,7 +1336,6 @@ function DetailDialog({
   onFiles,
   onSync,
   onWatch,
-  onClose,
 }: {
   group: CatalogGroup
   selected?: string
@@ -1340,27 +1346,11 @@ function DetailDialog({
   // picked here, where each row stands for exactly one folder
   onSync?: (e: Entry) => void
   onWatch?: (e: Entry) => void
-  onClose: () => void
 }) {
   const { t } = useTranslation()
-  const m = group.media!
-  const source = group.items[0].source
 
   return (
-    <Dialog
-      width="max-w-4xl lg:max-w-6xl"
-      aria-label={t('remote.detailsFor', { name: mediaTitle(m) })}
-      onClose={onClose}
-    >
-      {/* close button stays reachable while the dialog scrolls - below the
-          sheet breakpoint the Dialog draws its own, so this one would be the
-          second X in the same corner */}
-      <div className="sticky top-2 z-10 h-0 text-right max-sm:hidden">
-        <Button size="sm" className="mr-2" aria-label={t('remote.close')} onClick={onClose}>
-          <X aria-hidden size="1.2em" />
-        </Button>
-      </div>
-      <MediaDetail media={m} source={source}>
+    <>
         <h4 className="t-label mt-4 mb-1 border-t border-border-subtle pt-4">
           {t('remote.versions', { count: group.items.length })}
         </h4>
@@ -1400,14 +1390,7 @@ function DetailDialog({
             </li>
           ))}
         </ul>
-        <div className="mt-4 flex justify-end">
-          <Button onClick={onClose}>
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('remote.close')}
-          </Button>
-        </div>
-      </MediaDetail>
-    </Dialog>
+    </>
   )
 }
 

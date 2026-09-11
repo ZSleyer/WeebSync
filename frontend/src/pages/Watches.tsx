@@ -53,7 +53,7 @@ import { upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import WatchEpisodesModal from '../components/WatchEpisodesModal'
-import MediaDetail from '../components/MediaDetail'
+import { useSeriesModal } from '../components/SeriesModal'
 import PageActions from '../components/PageActions'
 import { useConfirm } from '../components/confirm'
 import { useNow } from '../hooks'
@@ -149,7 +149,9 @@ export default function Watches() {
   const [view, setView] = useState<'list' | 'calendar'>(() => (searchParams.get('view') === 'calendar' ? 'calendar' : 'list'))
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
   // a tap on a calendar entry opens the title's card
-  const [calDetail, setCalDetail] = useState<Watch | null>(null)
+  // the cover and a calendar entry open the app's one title card
+  const { open: openSeries } = useSeriesModal()
+  const showSeries = (w: Watch) => w.media && openSeries({ source: w.mediaSource, id: w.media.id, media: w.media, watchId: w.id, title: w.titleOverride || undefined })
   // the clock behind every countdown: a second while today's calendar
   // entries show seconds, a minute otherwise, so no countdown waits for a reload
   const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
@@ -348,7 +350,7 @@ export default function Watches() {
                         </span>
                       }
                       countdown={countdown(t, e.at, isToday(e.at), now)}
-                      onClick={e.watch.media ? () => setCalDetail(e.watch) : undefined}
+                      onClick={e.watch.media ? () => showSeries(e.watch) : undefined}
                       aria-label={
                         e.watch.media
                           ? t('remote.detailsFor', { name: e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '') })
@@ -382,7 +384,7 @@ export default function Watches() {
                   <li key={w.id}>
                     <MediaCard
                       cover={w.media?.coverImage?.large}
-                      onCover={w.media ? () => setCalDetail(w) : undefined}
+                      onCover={w.media ? () => showSeries(w) : undefined}
                       coverLabel={
                         w.media ? t('remote.detailsFor', { name: w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '') }) : undefined
                       }
@@ -610,15 +612,6 @@ export default function Watches() {
         />
       )}
       {gaps && <WatchEpisodesModal watch={gaps} onClose={() => setGaps(null)} />}
-      {calDetail?.media && (
-        <Dialog
-          width="max-w-3xl"
-          aria-label={t('remote.detailsFor', { name: calDetail.titleOverride || mediaTitle(calDetail.media, calDetail.remotePath.split('/').pop() || '') })}
-          onClose={() => setCalDetail(null)}
-        >
-          <MediaDetail media={calDetail.media} source={calDetail.mediaSource || undefined} />
-        </Dialog>
-      )}
       {more && (
         <Dialog width="max-w-sm" onClose={() => setMore(null)} aria-labelledby="watch-more-title">
           <header className="border-b border-border-subtle px-5 py-4">
