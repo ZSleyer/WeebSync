@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, cleanup } from '@testing-library/react'
+import { fireEvent, render, screen, cleanup, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ActionBar,
@@ -8,6 +8,7 @@ import {
   Breadcrumb,
   CalendarDay,
   CalendarEntry,
+  DayScroller,
   Cover,
   Disclosure,
   EmptyState,
@@ -25,7 +26,6 @@ import {
   TransferCard,
   TrendChart,
   SuggestionCard,
-  WeekStrip,
 } from '@weebsync/design-system'
 
 describe('Cover', () => {
@@ -144,36 +144,61 @@ describe('cover buttons', () => {
   })
 })
 
-describe('WeekStrip', () => {
-  const labels = { prev: 'Vorige Woche', next: 'Nächste Woche', today: 'Heute', strip: 'Woche' }
+describe('DayScroller', () => {
+  const labels = { prev: 'Vorige Woche', next: 'Nächste Woche', today: 'Heute', strip: 'Tag wählen' }
   const days = [
-    { key: '2026-09-14', label: 'Mo 14', disabled: true },
-    { key: '2026-09-15', label: 'Di 15', today: true, count: 2 },
-    { key: '2026-09-16', label: 'Mi 16' },
+    { key: '2026-09-15', weekday: 'Di', day: 15, today: true, count: 2 },
+    { key: '2026-09-16', weekday: 'Mi', day: 16 },
+    { key: '2026-09-17', weekday: 'Do', day: 17 },
   ]
+  const scroller = (over: Partial<Parameters<typeof DayScroller>[0]> = {}) =>
+    render(<DayScroller days={days} selected="2026-09-16" onSelect={() => {}} step={1} label="Mittwoch, 16.09." labels={labels} onNext={() => {}} {...over} />)
 
   it('presses the picked day, rings today and counts the releases', () => {
     const pick = vi.fn()
-    render(<WeekStrip days={days} selected="2026-09-16" onSelect={pick} onNext={() => {}} labels={labels} caption="KW 38" />)
-    const group = screen.getByRole('group', { name: 'Woche' })
-    const [mo, di, mi] = Array.from(group.querySelectorAll('button'))
+    scroller({ onSelect: pick })
+    const group = screen.getByRole('group', { name: 'Tag wählen' })
+    const [di, mi] = Array.from(group.querySelectorAll('button'))
     expect(mi).toHaveAttribute('aria-pressed', 'true')
     expect(di).toHaveAttribute('aria-pressed', 'false')
     expect(di).toHaveAttribute('aria-current', 'date')
     expect(di).toHaveTextContent('2')
-    expect(mo).toBeDisabled()
     fireEvent.click(di)
     expect(pick).toHaveBeenCalledWith('2026-09-15')
-    expect(screen.getByText('KW 38')).toBeInTheDocument()
   })
 
-  it('disables the previous arrow when the strip starts here', () => {
-    render(<WeekStrip days={days} selected="2026-09-15" onSelect={() => {}} onNext={() => {}} onToday={() => {}} labels={labels} />)
+  it('keeps every control in place, disabled rather than gone', () => {
+    scroller()
+    // no way back and no way to today from here, but both still sit there
     expect(screen.getByRole('button', { name: 'Vorige Woche' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Heute' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Nächste Woche' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Heute' })).toBeInTheDocument()
   })
 
+  it('jumps a whole week with the arrows', () => {
+    const next = vi.fn()
+    const prev = vi.fn()
+    scroller({ onNext: next, onPrev: prev })
+    fireEvent.click(screen.getByRole('button', { name: 'Nächste Woche' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Vorige Woche' }))
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(prev).toHaveBeenCalledTimes(1)
+  })
+
+  it('rolls the caption from the old day to the new one', async () => {
+    const { rerender } = scroller()
+    expect(screen.getByText('Mittwoch, 16.09.')).toBeInTheDocument()
+    rerender(
+      <DayScroller days={days} selected="2026-09-17" onSelect={() => {}} step={2} label="Donnerstag, 17.09." labels={labels} onNext={() => {}} />,
+    )
+    // both are on screen while the roll runs, the old one on its way out
+    const slot = screen.getByText('Donnerstag, 17.09.').closest('.t-slot') as HTMLElement
+    expect(slot).toHaveClass('t-slot--up')
+    expect(slot).toHaveTextContent('Mittwoch, 16.09.')
+    // a real animationend bubbles from the rolling half; testing-library's
+    // default init does not, and React listens at the root
+    await waitFor(() => expect(screen.queryByText('Mittwoch, 16.09.')).toBeNull())
+  })
 })
 
 describe('CalendarDay and CalendarEntry', () => {
