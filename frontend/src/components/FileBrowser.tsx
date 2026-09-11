@@ -3,8 +3,9 @@ import { FolderOpen, FolderPlus, Pencil } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button, Input } from '@weebsync/design-system'
-import { api, fmtBytes, type Entry } from '../api'
+import { api, fmtBytes, keyConflictOf, type Entry } from '../api'
 import FileIcon from './FileIcon'
+import HostKeyPrompt from './HostKeyPrompt'
 import Loading from './Loading'
 import PathInput from './PathInput'
 
@@ -117,6 +118,7 @@ export function FileBrowser({
   selectDirsOnly,
   emptyHint,
   actions,
+  serverId,
 }: {
   queryKey: unknown[]
   fetchPath: (path: string) => string
@@ -128,12 +130,18 @@ export function FileBrowser({
   emptyHint?: string
   // extra per-row controls, e.g. rename/delete on the local files page
   actions?: (e: Entry) => ReactNode
+  /** the remote server listed here; a host key it asks to review is offered in place */
+  serverId?: number
 }) {
   const { t } = useTranslation()
+  const qc = useQueryClient()
   const { data: entries = [], isLoading, error } = useQuery<Entry[]>({
     queryKey: [...queryKey, path],
     queryFn: () => api.get(fetchPath(path)),
   })
+  // a key the user rejected stays out of the way until the next listing
+  const [rejected, setRejected] = useState(false)
+  const conflict = serverId !== undefined && !rejected ? keyConflictOf(error) : null
 
   const crumbs = path.split('/').filter(Boolean)
 
@@ -156,7 +164,17 @@ export function FileBrowser({
       <PathCrumbs path={path} onNavigate={onNavigate} fetchPath={fetchPath} queryKey={queryKey} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {isLoading && <Loading className="p-4" />}
-        {error && <p className="wrap-break-word p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>}
+        {conflict ? (
+          <HostKeyPrompt
+            className="m-4"
+            serverId={serverId!}
+            conflict={conflict}
+            onAccepted={() => qc.invalidateQueries({ queryKey })}
+            onRejected={() => setRejected(true)}
+          />
+        ) : (
+          error && <p className="wrap-break-word p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>
+        )}
         {!isLoading && !error && entries.length === 0 && (
           <p className="p-4 text-sm text-t-muted">{emptyHint ?? t('remote.emptyDir')}</p>
         )}

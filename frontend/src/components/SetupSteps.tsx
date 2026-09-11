@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Field, Input, Panel, Select } from '@weebsync/design-system'
-import { api, ApiError } from '../api'
+import { api, keyConflictOf, type KeyConflict } from '../api'
+import HostKeyPrompt from './HostKeyPrompt'
 import { useSettingsForm, EnvBadge } from '../pages/settings/useSettingsForm'
 import LegacyImport from './LegacyImport'
 
@@ -13,7 +14,6 @@ export type RestStep = 'import' | 'server' | 'storage' | 'meta'
 
 // 409 from /test = SSH host key unknown or changed; nothing is pinned until the
 // user reviews the fingerprint (same contract as the servers page).
-type KeyConflict = { code: string; newKey: string; newFingerprint: string; oldFingerprint?: string }
 
 export default function SetupSteps({
   step,
@@ -57,8 +57,8 @@ export default function SetupSteps({
       await api.post(`/api/servers/${id}/test`)
       setSrvStatus(t('setup.serverOk'))
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409 && (e.data as KeyConflict)?.newKey)
-        setKeyConflict(e.data as KeyConflict)
+      const kc = keyConflictOf(e)
+      if (kc) setKeyConflict(kc)
       setSrvStatus(e instanceof Error ? e.message : t('app.error'))
     }
   }
@@ -171,26 +171,7 @@ export default function SetupSteps({
           </p>
         )}
         {keyConflict && (
-          <div className="mt-3 rounded-lg border border-warn/40 bg-warn/5 p-3 text-xs">
-            <p className="mb-2 text-warn">
-              {t(keyConflict.code === 'host_key_mismatch' ? 'servers.hostKeyChanged' : 'servers.hostKeyUnknown')}
-            </p>
-            <p className="mb-2 break-all font-mono">{keyConflict.newFingerprint}</p>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={async () => {
-                  await api.post(`/api/servers/${serverId}/trust-hostkey`, { key: keyConflict.newKey })
-                  await testServer(serverId)
-                }}
-              >
-                {t('servers.hostKeyAccept')}
-              </Button>
-              <Button size="sm" onClick={() => setKeyConflict(null)}>
-                {t('servers.hostKeyReject')}
-              </Button>
-            </div>
-          </div>
+          <HostKeyPrompt className="mt-3" serverId={serverId} conflict={keyConflict} onAccepted={() => testServer(serverId)} onRejected={() => setKeyConflict(null)} />
         )}
         {nav(serverId ? t('setup.continue') : t('setup.skip'))}
       </Panel>

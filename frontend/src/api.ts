@@ -559,6 +559,23 @@ export interface RenamePair {
   error?: string
 }
 
+// KeyConflict is the 409 body a dial returns when the server's SSH host key
+// is not trusted yet or has changed: the fingerprints to review and the key
+// that "accept" pins.
+export interface KeyConflict {
+  code: 'host_key_unknown' | 'host_key_mismatch'
+  newKey: string
+  newFingerprint: string
+  oldFingerprint?: string
+}
+
+// keyConflictOf reads a host key conflict off a failed request, null for any
+// other failure.
+export function keyConflictOf(e: unknown): KeyConflict | null {
+  if (e instanceof ApiError && e.status === 409 && (e.data as KeyConflict | undefined)?.newKey) return e.data as KeyConflict
+  return null
+}
+
 export class ApiError extends Error {
   status: number
   // parsed JSON error body, for endpoints that return more than {error}

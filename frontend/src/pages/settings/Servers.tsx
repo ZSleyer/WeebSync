@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Lock, LockOpen, Pencil, Plus, PlugZap, Save, ShieldCheck, Trash2, X } from 'lucide-react'
+import { Lock, LockOpen, Pencil, Plus, PlugZap, Save, Trash2, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ActionBar, Badge, Button, Dialog, EmptyState, Field, Input, Panel, Segmented, Select } from '@weebsync/design-system'
-import { api, ApiError, type ServerInfo } from '../../api'
+import { api, keyConflictOf, type KeyConflict, type ServerInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
+import HostKeyPrompt from '../../components/HostKeyPrompt'
 import { PageFooter } from '../../components/PageActions'
 import { SERVER_ICONS, ServerIcon } from '../../components/serverIcon'
 
@@ -34,7 +35,6 @@ export default function Servers() {
   // 409 on /test = SSH host key unknown or changed; the test itself never
   // trusts anything - the user reviews old/new fingerprints and accepts or
   // rejects explicitly
-  type KeyConflict = { code: string; newKey: string; newFingerprint: string; oldFingerprint?: string }
   const [keyConflict, setKeyConflict] = useState<Record<number, KeyConflict | undefined>>({})
 
   const test = async (id: number) => {
@@ -44,22 +44,13 @@ export default function Servers() {
       await api.post(`/api/servers/${id}/test`)
       setTestResult((r) => ({ ...r, [id]: 'ok' }))
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409 && (e.data as KeyConflict)?.newKey)
-        setKeyConflict((m) => ({ ...m, [id]: e.data as KeyConflict }))
+      const kc = keyConflictOf(e)
+      if (kc) setKeyConflict((m) => ({ ...m, [id]: kc }))
       setTestResult((r) => ({ ...r, [id]: e instanceof Error ? e.message : t('app.error') }))
     }
   }
 
-  // accept pins exactly the reviewed key; reject just dismisses the prompt
-  const acceptKey = async (id: number, key: string) => {
-    try {
-      await api.post(`/api/servers/${id}/trust-hostkey`, { key })
-      await test(id)
-    } catch (e) {
-      setTestResult((r) => ({ ...r, [id]: e instanceof Error ? e.message : t('app.error') }))
-    }
-  }
-
+  // reject just dismisses the prompt; accept pins the key and tests again
   const rejectKey = (id: number) => {
     setKeyConflict((m) => ({ ...m, [id]: undefined }))
     setTestResult((r) => ({ ...r, [id]: t('servers.hostKeyRejected') }))
@@ -129,30 +120,7 @@ export default function Servers() {
               </p>
             )}
             {keyConflict[s.id] && (
-              <div className="mt-2 rounded-lg border border-err/40 p-3">
-                <p className="mb-2 text-xs text-t-muted">
-                  {t(keyConflict[s.id]!.code === 'host_key_unknown' ? 'servers.hostKeyUnknown' : 'servers.hostKeyChanged')}
-                </p>
-                {keyConflict[s.id]!.oldFingerprint && (
-                  <p className="break-all font-mono text-xs">
-                    <span className="text-t-muted">{t('servers.hostKeyOld')}: </span>
-                    {keyConflict[s.id]!.oldFingerprint}
-                  </p>
-                )}
-                <p className="mb-2 break-all font-mono text-xs">
-                  <span className="text-t-muted">{t('servers.hostKeyNew')}: </span>
-                  {keyConflict[s.id]!.newFingerprint}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="danger" onClick={() => acceptKey(s.id, keyConflict[s.id]!.newKey)}>
-                    <ShieldCheck aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('servers.hostKeyAccept')}
-                  </Button>
-                  <Button size="sm" onClick={() => rejectKey(s.id)}>
-                    {t('servers.hostKeyReject')}
-                  </Button>
-                </div>
-              </div>
+              <HostKeyPrompt className="mt-2" serverId={s.id} conflict={keyConflict[s.id]!} onAccepted={() => test(s.id)} onRejected={() => rejectKey(s.id)} />
             )}
           </Panel>
         ))}
