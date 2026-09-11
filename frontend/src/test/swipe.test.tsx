@@ -100,6 +100,23 @@ describe('useSwipe', () => {
     expect(onNext).toHaveBeenCalledTimes(1)
   })
 
+  it('gives a nested zone the gesture and stays put itself', () => {
+    const outer = vi.fn()
+    const inner = vi.fn()
+    const Nested = () => (
+      <div data-testid="outer" {...useSwipe({ onNext: outer })}>
+        <div data-testid="zone" {...useSwipe({ onNext: inner })}>
+          <span>Innen</span>
+        </div>
+      </div>
+    )
+    render(<Nested />)
+    swipe(screen.getByText('Innen'), -100)
+    expect(inner).toHaveBeenCalledTimes(1)
+    expect(outer).not.toHaveBeenCalled()
+    expect(screen.getByTestId('outer').style.transform).toBe('')
+  })
+
   it('does nothing while disabled', () => {
     const onNext = vi.fn()
     render(<Zone onNext={onNext} disabled />)
