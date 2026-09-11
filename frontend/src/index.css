@@ -954,14 +954,19 @@ dialog .overflow-y-auto {
     max-height: 100%;
     height: 100%;
   }
-  /* room for the sheet's close button, which floats over the top-right corner
-     of whatever header the dialog's content brings */
+  /* the header is the sheet's pull-down handle (Dialog tracks the pointer):
+     without this the browser claims a vertical move for its own pan and
+     cancels the pointer. pan-x stays, for a tab bar that scrolls sideways. */
   dialog.dialog-sheet .dialog-body > header {
-    padding-right: 3rem;
-    /* the header is the sheet's pull-down handle (Dialog tracks the pointer):
-       without this the browser claims a vertical move for its own pan and
-       cancels the pointer. pan-x stays, for a tab bar that scrolls sideways. */
     touch-action: pan-x;
+  }
+  /* room for the sheet's close button, which floats over the top-right corner
+     of whatever header the dialog's content brings: the button's 2.75rem plus
+     its offset and a gap. On the text rows only - a banner carries the button
+     on its own surface, and the tab bar sits below it and must line up with
+     the content underneath, not stop short of it. */
+  dialog.dialog-sheet .dialog-body > header > :not(img, .t-tabs) {
+    padding-right: 4rem;
   }
 }
 /* The page behind a dialog is blurred as well as dimmed: on a phone the box
