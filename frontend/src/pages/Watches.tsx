@@ -321,7 +321,7 @@ export default function Watches() {
       {/* the same row as the calendar's week or list switch, so the two
           views read alike: what is shown up top, how it is laid out here */}
       {view === 'list' && watches.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           <Segmented
             aria-label={t('watch.layout')}
             value={layout}
