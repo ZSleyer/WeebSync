@@ -35,6 +35,7 @@ import {
   Badge,
   Button,
   CalendarDay,
+  DayTimeline,
   CalendarEntry,
   DayScroller,
   Cover,
@@ -138,11 +139,8 @@ export default function Watches() {
   // entries show seconds, a minute otherwise, so no countdown waits for a reload
   const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
   const now = useNow(view === 'calendar' && hasToday ? 1000 : 60_000)
-  // calendar: every scheduled future release the provider knows, one week at
-  // a time. Only the future: AniList hands out the schedule from now on, so
-  // the week starts today and only steps forward.
-  // ponytail: past days stay empty; Page.airingSchedules(mediaId_in,
-  // airingAt_greater) in the sweep would fill them, if anyone asks
+  // calendar: every release the backend knows about - the week it recorded
+  // behind us and everything the providers have dated ahead
   const calEvents = upcomingAirings(watches, now)
   const calCats = CAL_CATEGORIES.filter((c) => calEvents.some((e) => e.watch.category === c))
   const calShown = calCat === 'all' ? calEvents : calEvents.filter((e) => e.watch.category === calCat)
@@ -177,6 +175,10 @@ export default function Watches() {
   const span = Math.min(400, Math.max(28, Math.ceil((lastAt - today.getTime()) / 86_400_000) + 7))
   const bandDays = Array.from({ length: span + 1 + PAST_DAYS }, (_, i) => addDays(today, i - PAST_DAYS))
   const dayIdxOf = (d: Date) => Math.round((startOfDay(d).getTime() - today.getTime()) / 86_400_000)
+  // how long a folded-away stretch really was, in the roughest unit that still
+  // says something: a quiet day reads "14 Std.", not "840 Min."
+  const gapLabel = (minutes: number) =>
+    minutes >= 60 ? t('watch.week.gapHours', { h: Math.round(minutes / 60) }) : t('watch.week.gapMinutes', { m: Math.round(minutes) })
   // a week step lands on its first release, else on the week's first day still ahead
   const goWeek = (i: number) => {
     const start = addDays(thisWeek, i * 7)
@@ -184,20 +186,24 @@ export default function Watches() {
     const first = calShown.find((e) => e.at * 1000 >= start.getTime() && e.at * 1000 < end.getTime())
     setDayIdx(Math.max(-PAST_DAYS, dayIdxOf(first ? new Date(first.at * 1000) : start)))
   }
-  // the agenda: every release ahead, grouped by day, as far as the providers date them
+  // the agenda: every release still ahead, grouped by day, as far as the
+  // providers date them - the week behind belongs to the calendar, not here
   const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
   const calGroups: { day: string; items: Airing[] }[] = []
   for (const e of calShown) {
+    if (e.at * 1000 <= now) continue // an agenda of what is coming, not a log
     const day = calDayKey(e.at)
     const g = calGroups.find((x) => x.day === day)
     if (g) g.items.push(e)
     else calGroups.push({ day, items: [e] })
   }
   // one release, in the agenda, the phone's day or a desktop week column
-  const entryOf = (e: Airing, compact?: boolean) => {
+  const entryOf = (e: Airing, compact?: boolean) => <li key={entryKey(e)}>{entryBody(e, compact)}</li>
+  const entryKey = (e: Airing) => `${e.watch.id}-${e.episode}-${e.at}`
+  const entryBody = (e: Airing, compact?: boolean) => {
     const name = e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '')
     return (
-      <li key={`${e.watch.id}-${e.episode}-${e.at}`}>
+      <>
         <CalendarEntry
           compact={compact}
           cover={e.watch.media?.coverImage?.large}
@@ -218,7 +224,7 @@ export default function Watches() {
           onClick={e.watch.media ? () => showSeries(e.watch) : undefined}
           aria-label={e.watch.media ? t('remote.detailsFor', { name }) : undefined}
         />
-      </li>
+      </>
     )
   }
 
@@ -435,9 +441,10 @@ export default function Watches() {
                   {(i) => {
                     const d = addDays(today, i)
                     const items = byDay.get(dayKey(d)) ?? []
-                    return (
-                      <CalendarDay quietHeading day={d.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}>
-                        {items.length === 0 ? (
+                    const heading = d.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
+                    if (items.length === 0) {
+                      return (
+                        <CalendarDay quietHeading day={heading}>
                           <li className="text-sm text-t-muted">
                             {t('watch.week.free')}
                             {i === dayIdx && nextAfter && (
@@ -446,10 +453,23 @@ export default function Watches() {
                               </Button>
                             )}
                           </li>
-                        ) : (
-                          items.map((e) => entryOf(e))
-                        )}
-                      </CalendarDay>
+                        </CalendarDay>
+                      )
+                    }
+                    // the day as a time axis: the wait between two releases is
+                    // the height between them, cut short where it would be a
+                    // screenful of nothing, and on today a marker that drifts
+                    // down past them while the clock runs
+                    return (
+                      <section className="min-w-0">
+                        <h3 className="sr-only">{heading}</h3>
+                        <DayTimeline
+                          entries={items.map((e) => ({ key: entryKey(e), at: e.at, node: entryBody(e) }))}
+                          now={d.getTime() === today.getTime() ? now : undefined}
+                          nowLabel={t('watch.week.now', { time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
+                          gapLabel={gapLabel}
+                        />
+                      </section>
                     )
                   }}
                 </SwipeDeck>

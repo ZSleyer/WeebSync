@@ -6,10 +6,17 @@ import type { TFunction } from 'i18next'
 // the same wording, and so it stays a pure function.
 //
 // withSec = tick down to the second (for anything happening today).
-// A timestamp in the past returns watch.airingNow - callers that mean
-// something else by "now" check the timestamp before asking.
+// A timestamp that has just passed returns watch.airingNow, one further back
+// watch.airedAgo - callers that mean something else by "now" check the
+// timestamp before asking.
+
+// how long a slot still counts as happening rather than having happened
+const AIRED_AFTER = 60 * 60 * 1000
 export function countdown(t: TFunction, ts: number, withSec = false, now = Date.now()) {
   const ms = ts * 1000 - now
+  // the calendar reaches a week into the past now: an hour after the slot the
+  // countdown stops saying "now" and says what actually happened
+  if (ms < -AIRED_AFTER) return t('watch.airedAgo')
   if (ms <= 0) return t('watch.airingNow')
   const d = Math.floor(ms / 86_400_000)
   const h = Math.floor((ms % 86_400_000) / 3_600_000)
