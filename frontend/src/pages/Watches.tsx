@@ -334,18 +334,9 @@ export default function Watches() {
         </div>
       )}
       {view === 'calendar' && calShown.length > 0 ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <Segmented
-            aria-label={t('watch.calMode')}
-            value={calMode}
-            onChange={setCalMode}
-            options={[
-              { value: 'week', 'aria-label': t('watch.calWeek'), label: <><CalendarRange aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.calWeek')}</span></> },
-              { value: 'agenda', 'aria-label': t('watch.calAgenda'), label: <><List aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.calAgenda')}</span></> },
-            ]}
-          />
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           {calCats.length > 1 && (
-            <div role="group" aria-label={t('watch.calFilter')} className="flex flex-wrap gap-1.5">
+            <div role="group" aria-label={t('watch.calFilter')} className="mr-auto flex flex-wrap gap-1.5">
               <Badge as="button" type="button" tone={calCat === 'all' ? 'accent' : 'neutral'} aria-pressed={calCat === 'all'} onClick={() => setCalCat('all')}>
                 {t('watch.calAll')}
               </Badge>
@@ -356,6 +347,15 @@ export default function Watches() {
               ))}
             </div>
           )}
+          <Segmented
+            aria-label={t('watch.calMode')}
+            value={calMode}
+            onChange={setCalMode}
+            options={[
+              { value: 'week', 'aria-label': t('watch.calWeek'), label: <><CalendarRange aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.calWeek')}</span></> },
+              { value: 'agenda', 'aria-label': t('watch.calAgenda'), label: <><List aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.calAgenda')}</span></> },
+            ]}
+          />
         </div>
       ) : null}
 
