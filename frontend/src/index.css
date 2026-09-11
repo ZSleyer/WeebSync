@@ -1057,6 +1057,43 @@ details[open]::details-content { height: auto; }
 }
 .anim-t-reveal { animation: t-reveal var(--dur-2) var(--ease-out) both; }
 
+/* Slot roll: a value that changes rolls the old one out and the new one in,
+   the way a split-flap or an odometer reads. The direction says whether the
+   value moved forward or back. Both halves run inside a clipped box, so only
+   one line is ever visible. Under the global reduced-motion gate the duration
+   collapses and the swap is instant. */
+@keyframes slot-in-up   { from { transform: translateY(100%); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes slot-out-up  { from { transform: none; opacity: 1 } to { transform: translateY(-100%); opacity: 0 } }
+@keyframes slot-in-down  { from { transform: translateY(-100%); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes slot-out-down { from { transform: none; opacity: 1 } to { transform: translateY(100%); opacity: 0 } }
+.t-slot { position: relative; display: block; overflow: clip; }
+.t-slot > * { display: block; }
+/* the leaving value is taken out of the flow, so the box keeps the height of
+   the one that stays */
+.t-slot-out { position: absolute; inset: 0; }
+.t-slot--up   .t-slot-in  { animation: slot-in-up   var(--dur-2) var(--ease-out) both; }
+.t-slot--up   .t-slot-out { animation: slot-out-up  var(--dur-2) var(--ease-out) both; }
+.t-slot--down .t-slot-in  { animation: slot-in-down  var(--dur-2) var(--ease-out) both; }
+.t-slot--down .t-slot-out { animation: slot-out-down var(--dur-2) var(--ease-out) both; }
+
+/* The day band: one cell per day, snapped to the middle. `proximity` rather
+   than `mandatory` - a programmatic scroll to a cell must not be re-snapped
+   one cell off while it is still travelling. The cut edges fade like the tab
+   bar's, and `overflow-y: clip` keeps the count chip from being sliced by the
+   mask instead of the fade. */
+.t-dayband {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: clip;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.t-dayband::-webkit-scrollbar { display: none; }
+.t-dayband > * { scroll-snap-align: center; }
+.t-dayband[data-overflow="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); }
+.t-dayband[data-overflow="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
+.t-dayband[data-overflow="both"] { mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent); }
+
 /* directional route slide: matches nav order - moving to a lower-numbered
    tab enters from the right, a higher-numbered one from the left */
 @keyframes t-slide-from-right { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
