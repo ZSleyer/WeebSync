@@ -590,6 +590,127 @@ func (c *Client) Reviews(ctx context.Context, id int) ([]Review, error) {
 	return list, nil
 }
 
+// Character is one cast entry of a media: the character, its role and the
+// Japanese voice actor. Image and voice actor are optional in the data.
+type Character struct {
+	Name       string `json:"name"`
+	Image      string `json:"image,omitempty"`
+	Role       string `json:"role,omitempty"`
+	VoiceActor string `json:"voiceActor,omitempty"`
+}
+
+// ExternalLink is one outbound link of a media: an official site, a
+// streaming service, a social account. Type is AniList's INFO/STREAMING/SOCIAL.
+type ExternalLink struct {
+	Site     string `json:"site"`
+	URL      string `json:"url"`
+	Type     string `json:"type,omitempty"`
+	Icon     string `json:"icon,omitempty"`
+	Color    string `json:"color,omitempty"`
+	Language string `json:"language,omitempty"`
+}
+
+// Thread is one AniList forum thread filed under a media.
+type Thread struct {
+	ID        int    `json:"id"`
+	Title     string `json:"title"`
+	Replies   int    `json:"replies"`
+	Views     int    `json:"views"`
+	RepliedAt int64  `json:"repliedAt,omitempty"`
+	URL       string `json:"url"`
+	User      string `json:"user,omitempty"`
+	Category  string `json:"category,omitempty"`
+}
+
+// Extras is the detail-dialog content beyond the media record itself.
+type Extras struct {
+	Characters []Character    `json:"characters"`
+	Links      []ExternalLink `json:"links"`
+	Threads    []Thread       `json:"threads"`
+}
+
+// Extras fetches a media's cast, external links and forum threads in one
+// request, cached under extras1:<id>. Relations and recommendations are not
+// here: RelationsBatch and RecommendationsBatch already cache those. Every
+// field of the response is optional in the decoder, so a renamed field on
+// AniList's side degrades to an empty list rather than an error.
+//
+// The thread field names could not be checked against the live schema while
+// this was written (the API was down); verify with the first real response.
+func (c *Client) Extras(ctx context.Context, id int) (*Extras, error) {
+	key := fmt.Sprintf("extras1:%d", id)
+	if payload, ok := c.cached(key); ok {
+		var x Extras
+		if json.Unmarshal([]byte(payload), &x) == nil {
+			return &x, nil
+		}
+	}
+	var resp struct {
+		Data struct {
+			Media struct {
+				Characters struct {
+					Edges []struct {
+						Role string `json:"role"`
+						Node struct {
+							Name  struct{ Full string }   `json:"name"`
+							Image struct{ Medium string } `json:"image"`
+						} `json:"node"`
+						VoiceActors []struct {
+							Name struct{ Full string } `json:"name"`
+						} `json:"voiceActors"`
+					} `json:"edges"`
+				} `json:"characters"`
+				ExternalLinks []ExternalLink `json:"externalLinks"`
+			} `json:"Media"`
+			Page struct {
+				Threads []struct {
+					ID         int                     `json:"id"`
+					Title      string                  `json:"title"`
+					ReplyCount int                     `json:"replyCount"`
+					ViewCount  int                     `json:"viewCount"`
+					RepliedAt  int64                   `json:"repliedAt"`
+					SiteURL    string                  `json:"siteUrl"`
+					User       struct{ Name string }   `json:"user"`
+					Categories []struct{ Name string } `json:"categories"`
+				} `json:"threads"`
+			} `json:"Page"`
+		} `json:"data"`
+	}
+	gql := `query ($id: Int) {
+		Media(id: $id, type: ANIME) {
+			characters(sort: [ROLE, RELEVANCE], perPage: 12) { edges { role node { name { full } image { medium } } voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } } } }
+			externalLinks { site url type icon color language }
+		}
+		Page(perPage: 10) { threads(mediaCategoryId: $id, sort: REPLIED_AT_DESC) { id title replyCount viewCount repliedAt siteUrl user { name } categories { name } } }
+	}`
+	if err := c.query(ctx, gql, map[string]any{"id": id}, &resp); err != nil {
+		return nil, err
+	}
+	x := Extras{Characters: []Character{}, Links: []ExternalLink{}, Threads: []Thread{}}
+	for _, e := range resp.Data.Media.Characters.Edges {
+		ch := Character{Name: e.Node.Name.Full, Image: e.Node.Image.Medium, Role: e.Role}
+		if len(e.VoiceActors) > 0 {
+			ch.VoiceActor = e.VoiceActors[0].Name.Full
+		}
+		x.Characters = append(x.Characters, ch)
+	}
+	for _, l := range resp.Data.Media.ExternalLinks {
+		if l.URL != "" {
+			x.Links = append(x.Links, l)
+		}
+	}
+	for _, t := range resp.Data.Page.Threads {
+		th := Thread{ID: t.ID, Title: t.Title, Replies: t.ReplyCount, Views: t.ViewCount, RepliedAt: t.RepliedAt, URL: t.SiteURL, User: t.User.Name}
+		if len(t.Categories) > 0 {
+			th.Category = t.Categories[0].Name
+		}
+		x.Threads = append(x.Threads, th)
+	}
+	payload, _ := json.Marshal(x)
+	c.store(key, string(payload))
+	return &x, nil
+}
+
 // Trending returns the currently trending anime (suggestions page).
 func (c *Client) Trending(ctx context.Context) ([]Media, error) {
 	const key = "trending:anime"

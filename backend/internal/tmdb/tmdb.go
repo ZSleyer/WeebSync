@@ -580,6 +580,61 @@ func (c *Client) Media(ctx context.Context, kind string, id int) (*anilist.Media
 	return &m, nil
 }
 
+// Extras returns what the detail dialog shows beyond the record: the
+// recommended titles and the main cast. Cached under tmdb:extras1:<kind>:<id>.
+// No threads and no external links here; TMDB has neither in a usable form.
+func (c *Client) Extras(ctx context.Context, kind string, id int) ([]anilist.Media, []anilist.Character, error) {
+	cacheKey := fmt.Sprintf("tmdb:extras1:%s:%d", kind, id)
+	type extras struct {
+		Recommendations []anilist.Media     `json:"recommendations"`
+		Characters      []anilist.Character `json:"characters"`
+	}
+	if payload, ok := c.cached(cacheKey); ok {
+		var x extras
+		if json.Unmarshal([]byte(payload), &x) == nil {
+			return x.Recommendations, x.Characters, nil
+		}
+	}
+	var rec struct {
+		Results []rawResult `json:"results"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/%s/%d/recommendations", kind, id), url.Values{"language": {"de-DE"}}, &rec); err != nil {
+		return nil, nil, err
+	}
+	var credits struct {
+		Cast []struct {
+			Name        string `json:"name"`
+			Character   string `json:"character"`
+			ProfilePath string `json:"profile_path"`
+		} `json:"cast"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/%s/%d/credits", kind, id), nil, &credits); err != nil {
+		return nil, nil, err
+	}
+	x := extras{Recommendations: []anilist.Media{}, Characters: []anilist.Character{}}
+	for i, r := range rec.Results {
+		if i == 10 {
+			break
+		}
+		x.Recommendations = append(x.Recommendations, c.toMedia(kind, r))
+	}
+	for i, p := range credits.Cast {
+		if i == 12 {
+			break
+		}
+		// the actor is the person here, the character the role - the AniList
+		// shape has it the other way round, so the actor fills the voice slot
+		ch := anilist.Character{Name: p.Character, VoiceActor: p.Name}
+		if p.ProfilePath != "" {
+			ch.Image = c.Images + "/w185" + p.ProfilePath
+		}
+		x.Characters = append(x.Characters, ch)
+	}
+	payload, _ := json.Marshal(x)
+	c.store(cacheKey, string(payload))
+	return x.Recommendations, x.Characters, nil
+}
+
 // Reviews returns community reviews of a series or movie, mapped into the
 // AniList review shape. No language filter - German reviews barely exist, the
 // default returns mostly-English ones.

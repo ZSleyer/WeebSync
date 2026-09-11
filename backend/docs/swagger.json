@@ -12,6 +12,46 @@
                 },
                 "type": "object"
             },
+            "anilist.Character": {
+                "properties": {
+                    "image": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "role": {
+                        "type": "string"
+                    },
+                    "voiceActor": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "anilist.ExternalLink": {
+                "properties": {
+                    "color": {
+                        "type": "string"
+                    },
+                    "icon": {
+                        "type": "string"
+                    },
+                    "language": {
+                        "type": "string"
+                    },
+                    "site": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "anilist.Media": {
                 "description": "Media is the resolved provider record behind the unit, for a detail view",
                 "properties": {
@@ -152,6 +192,17 @@
                 },
                 "type": "object"
             },
+            "anilist.Relation": {
+                "properties": {
+                    "node": {
+                        "$ref": "#/components/schemas/anilist.Media"
+                    },
+                    "relationType": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "anilist.Review": {
                 "properties": {
                     "rating": {
@@ -178,6 +229,35 @@
                             }
                         },
                         "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "anilist.Thread": {
+                "properties": {
+                    "category": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "repliedAt": {
+                        "type": "integer"
+                    },
+                    "replies": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string"
+                    },
+                    "user": {
+                        "type": "string"
+                    },
+                    "views": {
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -2955,6 +3035,46 @@
                     "level": {
                         "example": "debug",
                         "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.mediaExtrasResponse": {
+                "properties": {
+                    "characters": {
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.Character"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "links": {
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.ExternalLink"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "recommendations": {
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.Media"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "relations": {
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.Relation"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "threads": {
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.Thread"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"
@@ -9551,6 +9671,71 @@
                 "summary": "Background job status",
                 "tags": [
                     "Admin"
+                ]
+            }
+        },
+        "/api/media/extras": {
+            "get": {
+                "description": "Related titles, recommendations, cast, external links and forum threads for a title from AniList or TMDB.",
+                "parameters": [
+                    {
+                        "description": "Metadata source: anilist (default) | tmdb:tv | tmdb:movie",
+                        "in": "query",
+                        "name": "source",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Media id",
+                        "in": "query",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.mediaExtrasResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Media extras",
+                "tags": [
+                    "Suggestions"
                 ]
             }
         },
