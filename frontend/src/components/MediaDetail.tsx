@@ -48,12 +48,13 @@ export default function MediaDetail({
   /** the upcoming releases the watch behind the title knows of */
   airings?: Airing[]
   links?: MediaExtras['links']
-  now?: number
+  /** the clock behind the countdowns, from useNow */
+  now: number
   children?: ReactNode
 }) {
   const { t } = useTranslation()
   const l = mediaLink(source, m.id)
-  const upcoming = (airings ?? []).filter((a) => a.at * 1000 > (now ?? Date.now())).slice(0, 5)
+  const upcoming = (airings ?? []).filter((a) => a.at * 1000 > now).slice(0, 5)
   const next = upcoming.length === 0 && m.nextAiringEpisode ? [{ at: m.nextAiringEpisode.airingAt, episode: m.nextAiringEpisode.episode }] : upcoming
   const facts = [
     m.studios?.length ? [t('series.studios'), m.studios.join(', ')] : null,
@@ -95,7 +96,7 @@ export default function MediaDetail({
                 <span className="font-mono text-xs text-t-secondary">
                   {new Date(a.at * 1000).toLocaleString([], { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                 </span>
-                <span className="text-xs text-accent">{countdown(t, a.at, false, now ?? Date.now())}</span>
+                <span className="text-xs text-accent">{countdown(t, a.at, false, now)}</span>
               </li>
             ))}
           </ul>

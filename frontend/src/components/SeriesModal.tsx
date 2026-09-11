@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useId, useMemo, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -74,8 +74,14 @@ export function useSeriesModal(): SeriesModalApi {
  */
 export function SeriesModalProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<SeriesTarget | null>(null)
+  // a route change closes the card: derived in render, not in an effect, so
+  // the closed state is what the new page's first frame sees
   const { pathname } = useLocation()
-  useEffect(() => setTarget(null), [pathname])
+  const [at, setAt] = useState(pathname)
+  if (at !== pathname) {
+    setAt(pathname)
+    setTarget(null)
+  }
   const open = useCallback((t: SeriesTarget) => setTarget({ ...t, source: t.source || 'anilist' }), [])
   const close = useCallback(() => setTarget(null), [])
   const api = useMemo(() => ({ open, close }), [open, close])
@@ -403,7 +409,7 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
   const { t } = useTranslation()
   const act = useWatchActions()
   const [edit, setEdit] = useState(false)
-  const menu = useMenu()
+  const { open: menuOpen, setOpen: setMenuOpen, ref: menuRef, anchor: menuAnchor, anchorStyle: menuAnchorStyle } = useMenu()
   const total = w.media?.episodes ?? 0
   const pct = total > 0 ? (w.localFiles / total) * 100 : w.complete ? 100 : 0
   const canPlex = !!(w.plexAudioLang || w.plexSubLang)
@@ -417,15 +423,15 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
           <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('watch.checkNow')}
         </Button>
-        <div className="relative" ref={menu.ref} style={menu.anchorStyle}>
-          <IconButton aria-label={t('watch.moreActions', { title: watchTitle(w) })} aria-haspopup="listbox" aria-expanded={menu.open} onClick={() => menu.setOpen(!menu.open)}>
+        <div className="relative" ref={menuRef} style={menuAnchorStyle}>
+          <IconButton aria-label={t('watch.moreActions', { title: watchTitle(w) })} aria-haspopup="listbox" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
             <Ellipsis aria-hidden size="1.2em" />
           </IconButton>
-          {menu.open && (
-            <Menu anchor={menu.anchor} placement="bottom-end" aria-label={t('watch.moreActions', { title: watchTitle(w) })}>
+          {menuOpen && (
+            <Menu anchor={menuAnchor} placement="bottom-end" aria-label={t('watch.moreActions', { title: watchTitle(w) })}>
               <MenuItem
                 onClick={() => {
-                  menu.setOpen(false)
+                  setMenuOpen(false)
                   setEdit(true)
                 }}
               >
@@ -435,7 +441,7 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
               {canPlex && (
                 <MenuItem
                   onClick={() => {
-                    menu.setOpen(false)
+                    setMenuOpen(false)
                     void act.applyPlexStreams(w.id)
                   }}
                 >
@@ -446,7 +452,7 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
               <MenuItem
                 className="text-err"
                 onClick={async () => {
-                  menu.setOpen(false)
+                  setMenuOpen(false)
                   if (await act.del(w)) onGone?.()
                 }}
               >
