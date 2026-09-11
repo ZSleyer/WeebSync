@@ -116,6 +116,8 @@ const TRIGGERS = [
     },
     names: [/umbenennen$|^Rename /],
   },
+  // the trash list, from the page actions; fires with an empty trash too
+  { route: '/files', label: 'Papierkorb', names: [/^Papierkorb|^Trash/] },
   // /files itself has no dialog of its own - the file list is a view, not a
   // modal, and every modal on that route lives in the catalogue below
   {
