@@ -25,6 +25,11 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// scheduleLookback is how much of the past a season fetch keeps. The airings
+// recorder runs off the cache, so a slot has to survive there long enough for
+// one sweep to see it - a week, matching how far back the calendar looks.
+const scheduleLookback = 7 * 24 * time.Hour
+
 type Client struct {
 	DB      *sql.DB
 	BaseURL string // overridable for tests
@@ -356,10 +361,12 @@ func (c *Client) Season(ctx context.Context, id, season int) ([]SeasonEpisode, e
 	return s.Episodes, nil
 }
 
-// tvSchedule fetches the ongoing season's episodes and returns every future
-// release (absolute numbering), so the calendar sees more than the single
-// next_episode_to_air. One extra call, only for RELEASING TV with a scheduled
-// episode; cached with the media. Empty when nothing is dated ahead.
+// tvSchedule fetches the ongoing season's episodes and returns the ones dated
+// from a week ago on (absolute numbering), so the calendar sees more than the
+// single next_episode_to_air. The week of the past is what the airings recorder
+// needs: TMDB is the only place those slots exist, and they are gone from the
+// cache as soon as the season moves on. One extra call, only for RELEASING TV
+// with a scheduled episode; cached with the media.
 func (c *Client) tvSchedule(ctx context.Context, id int, r rawResult) []anilist.AiringSlot {
 	if r.NextEpisode == nil {
 		return nil
@@ -380,14 +387,14 @@ func (c *Client) tvSchedule(ctx context.Context, id int, r rawResult) []anilist.
 			prior += ss.EpisodeCount
 		}
 	}
-	now := time.Now()
+	cut := time.Now().Add(-scheduleLookback)
 	var out []anilist.AiringSlot
 	for _, e := range s.Episodes {
 		if e.AirDate == "" {
 			continue
 		}
 		t, err := time.Parse("2006-01-02", e.AirDate)
-		if err != nil || !t.After(now) {
+		if err != nil || t.Before(cut) {
 			continue
 		}
 		out = append(out, anilist.AiringSlot{AiringAt: t.Unix(), Episode: prior + e.EpisodeNumber})

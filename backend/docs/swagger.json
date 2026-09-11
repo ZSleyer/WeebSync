@@ -122,7 +122,7 @@
                         "type": "integer"
                     },
                     "schedule": {
-                        "description": "Schedule is the flattened future release list (absolute episode numbers),\nfilled from AiringSchedule.Nodes here and from season episodes by TMDB.",
+                        "description": "Schedule is the flattened release list (absolute episode numbers), filled\nfrom AiringSchedule.Nodes here and from season episodes by TMDB. Ahead of\nnow, except for the week TMDB keeps behind it for the airings recorder.",
                         "items": {
                             "$ref": "#/components/schemas/anilist.AiringSlot"
                         },
