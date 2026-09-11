@@ -799,10 +799,14 @@ function Attention({ watches }: { watches: Watch[] }) {
                     <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />
                   </button>
                 )}
-                <Link to="/watches" className="flex min-w-0 flex-1 items-center gap-2 hover:underline">
-                  <span className="min-w-0 flex-1 truncate text-t-secondary" title={w.remotePath}>
+                {/* title above, chips below and wrapping: side by side the
+                    failed-check chip alone is wider than the aside column and
+                    left the title no room at all */}
+                <Link to="/watches" className="min-w-0 flex-1 hover:underline">
+                  <span className="block truncate text-t-secondary" title={w.remotePath}>
                     {watchTitle(w)}
                   </span>
+                  <span className="mt-1 flex flex-wrap gap-1">
                   {/* compact chips: icon + count only, the column is too narrow
                       for the sentences - they live in the tooltip */}
                   {(w.behind ?? 0) > 0 && (
@@ -840,6 +844,7 @@ function Attention({ watches }: { watches: Watch[] }) {
                       {t('dash.checkFailed')}
                     </Badge>
                   )}
+                  </span>
                 </Link>
               </li>
             ))}

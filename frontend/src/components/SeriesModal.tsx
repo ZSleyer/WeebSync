@@ -223,7 +223,7 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
             </MediaDetail>
           )}
           {tab === 'sync' && (
-            <div className="grid gap-4 p-5">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5">
               {mine.map((w) => (
                 <WatchBlock key={w.id} watch={w} onGone={mine.length === 1 ? onClose : undefined} />
               ))}
@@ -414,7 +414,9 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
   const pct = total > 0 ? (w.localFiles / total) * 100 : w.complete ? 100 : 0
   const canPlex = !!(w.plexAudioLang || w.plexSubLang)
   return (
-    <section className="rounded-lg border border-border-subtle p-3" aria-label={watchTitle(w)}>
+    // min-w-0: a grid item's automatic minimum is its content's min-content
+    // width, and the mono path would otherwise widen the sheet past a phone
+    <section className="min-w-0 rounded-lg border border-border-subtle p-3" aria-label={watchTitle(w)}>
       <div className="flex flex-wrap items-center gap-2">
         <p className="min-w-0 flex-1 truncate font-mono text-[11px] text-t-muted" title={w.remotePath}>
           {w.serverName}:{w.remotePath} → {w.localPath}
