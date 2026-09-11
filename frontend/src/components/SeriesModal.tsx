@@ -206,7 +206,7 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
               <GenreChips genres={media?.genres} />
             </div>
           </div>
-          <Tabs aria-label={t('series.tabsLabel')} className="mx-5">
+          <Tabs scroll aria-label={t('series.tabsLabel')} className="mx-5">
             {tabs.map((k) => (
               <Tab key={k} id={`${ids}-tab-${k}`} aria-controls={`${ids}-panel-${k}`} selected={tab === k} onClick={() => setTab(k)}>
                 {t(`series.tab.${k}`)}
