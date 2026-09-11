@@ -112,5 +112,7 @@ export type { DialogProps } from './dialog'
 export { useMenu } from './useMenu'
 export { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 
+export { SwipeDeck } from './swipeDeck'
+export type { SwipeDeckProps } from './swipeDeck'
 export { useSwipe } from './useSwipe'
 export type { SwipeOptions, SwipeHandlers } from './useSwipe'
