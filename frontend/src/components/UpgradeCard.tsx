@@ -137,7 +137,13 @@ return (
   // title with the right-aligned diff chips, which the card's plain
   // <h4> slot cannot hold
   <Panel className="flex flex-wrap items-start gap-4 p-3">
-    <Cover src={u.cover} />
+    {u.media && onDetails ? (
+      <button type="button" aria-label={t('remote.detailsFor', { name: u.title })} onClick={() => onDetails(u)} className="shrink-0 cursor-pointer rounded-xs">
+        <Cover src={u.cover} />
+      </button>
+    ) : (
+      <Cover src={u.cover} />
+    )}
     <div className="min-w-0 flex-1">
       {/* the diff chips stay beside the title instead of being pushed
           to the far edge of a wide card, where they end up an arm's

@@ -48,7 +48,6 @@ import {
   Button,
   Checkbox,
   Cover,
-  Dialog,
   Disclosure,
   IconButton,
   Panel,
@@ -69,7 +68,7 @@ import {
   mediaTitle,
   fmtBytes,
 } from '../api'
-import MediaDetail from '../components/MediaDetail'
+import { useSeriesModal } from '../components/SeriesModal'
 import { ProviderBadges } from '../components/ProviderBadges'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../components/upgradeQuality'
@@ -424,10 +423,13 @@ function SugCard({
     }
   }
 
+  const { open: openSeries } = useSeriesModal()
   return (
     <li>
       <SuggestionCard
         cover={it.cover}
+        onCover={it.media ? () => openSeries({ source: it.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist', id: it.media.id, media: it.media, title: it.title }) : undefined}
+        coverLabel={it.media ? t('remote.detailsFor', { name: it.title }) : undefined}
         title={it.title}
         year={it.year}
         badges={
@@ -609,7 +611,7 @@ export function UpgradesSection() {
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   const [sync, setSync] = useState<SyncRequest | null>(null)
   const [notice, setNotice] = useState('')
-  const [detail, setDetail] = useState<UpgradeSuggestion | null>(null)
+  const { open: openSeries } = useSeriesModal()
   // per-card chosen sync source among the remote copies; default = recommended
   const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
 
@@ -694,7 +696,7 @@ export function UpgradesSection() {
               onSync={(r) => setSync({ ...r, initial: applyDefaults(r.initial, 'anime-series', defaults) })}
               onDismiss={dismiss}
               onOpenRemote={(v) => navigate(`/files?server=${v.serverId}&path=${encodeURIComponent(v.folder)}`)}
-              onDetails={setDetail}
+              onDetails={(u) => openSeries({ source: u.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist', id: u.media!.id, media: u.media, title: u.title })}
             />
           )
           return (
@@ -711,11 +713,6 @@ export function UpgradesSection() {
             </div>
           )
         })()
-      )}
-      {detail?.media && (
-        <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: detail.title })} onClose={() => setDetail(null)}>
-          <MediaDetail media={detail.media} source={detail.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist'} />
-        </Dialog>
       )}
       {sync && (
         <WatchDialog

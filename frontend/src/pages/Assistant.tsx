@@ -19,7 +19,7 @@ import {
 } from '../api'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { usePersistedQuery } from '../hooks'
-import MediaDetail from '../components/MediaDetail'
+import { useSeriesModal } from '../components/SeriesModal'
 import Markdown from '../components/Markdown'
 import { useAiModels, useAiStatus, useAuth } from '../hooks'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
@@ -181,8 +181,10 @@ export default function Assistant() {
   const [queue, setQueue] = useState<string[]>([])
   const [notice, setNotice] = useState('')
   const [open, setOpen] = useState<{ turn: number; idx: number } | null>(null)
-  const [card, setCard] = useState<AiCard | null>(null)
-  const [detail, setDetail] = useState<UpgradeSuggestion | null>(null)
+  // the cards the assistant shows open the app's one title card
+  const { open: openSeries } = useSeriesModal()
+  const setCard = (c: AiCard) => openSeries({ source: c.source, id: c.media.id, media: c.media })
+  const setDetail = (u: UpgradeSuggestion) => openSeries({ source: u.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist', id: u.media!.id, media: u.media, title: u.title })
   const [upSync, setUpSync] = useState<SyncRequest | null>(null)
   const { data: defaults } = useWatchDefaults()
   const confirm = useConfirm()
@@ -909,6 +911,8 @@ export default function Assistant() {
                                 className="h-full"
                                 title={mediaTitle(c.media)}
                                 cover={c.media.coverImage?.large}
+                                onCover={() => setCard(c)}
+                                coverLabel={t('remote.detailsFor', { name: mediaTitle(c.media) })}
                                 meta={c.why}
                                 badges={
                                   <>
@@ -976,16 +980,6 @@ export default function Assistant() {
       {histOpen && (
         <Dialog aria-label={t('assistant.history')} onClose={() => setHistOpen(false)}>
           <ChatHistory current={chatId} onOpen={(id) => void openChat(id)} onDelete={(id) => void deleteChat(id)} />
-        </Dialog>
-      )}
-      {card && (
-        <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: mediaTitle(card.media) })} onClose={() => setCard(null)}>
-          <MediaDetail media={card.media} source={card.source} />
-        </Dialog>
-      )}
-      {detail?.media && (
-        <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: detail.title })} onClose={() => setDetail(null)}>
-          <MediaDetail media={detail.media} source={detail.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist'} />
         </Dialog>
       )}
       {upSync && (

@@ -20,7 +20,6 @@ import {
   CalendarEntry,
   Count,
   Cover,
-  Dialog,
   EmptyState,
   Input,
   Panel,
@@ -45,7 +44,7 @@ import PageActions, { PageFooter, WIDE_MQ } from '../components/PageActions'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth, useNow, usePersistedQuery } from '../hooks'
 import { ProviderBadges } from '../components/ProviderBadges'
-import MediaDetail from '../components/MediaDetail'
+import { useSeriesModal } from '../components/SeriesModal'
 
 // history-only status filter: the active queue is short and searchable, its
 // three states never need chips
@@ -131,7 +130,7 @@ export default function Dashboard() {
   // the series behind a download, for the hero's line about it: the watch
   // list is what knows the year, the studio and the score. Persisted, so a
   // return to the page never waits on it.
-  const [historyDetail, setHistoryDetail] = useState<Watch | null>(null)
+  const { open: openSeries } = useSeriesModal()
   const { data: watches = [], isLoading: watchesLoading } = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'), {
     refetchInterval: () => 30_000,
   })
@@ -283,7 +282,6 @@ export default function Dashboard() {
 
   return (
     <div>
-      <WatchDetail watch={historyDetail} onClose={() => setHistoryDetail(null)} />
       <header className="mb-6 hidden items-start justify-between gap-4 lg:flex">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
@@ -597,7 +595,7 @@ export default function Dashboard() {
                             selected={selected.has(d.id)}
                             onSelect={(shift) => selectRow(d.id, shift)}
                             onAction={(verb) => action.mutate({ id: d.id, verb })}
-                            onCover={watch?.media ? () => setHistoryDetail(watch) : undefined}
+                            onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
                             coverLabel={watch ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
                           />
                         )
@@ -710,17 +708,9 @@ function SpeedPanel({ downloads }: { downloads: Download[] }) {
   )
 }
 
-// The title's card, the same one the catalog shows: opened from an upcoming
-// release and from a cover in the history.
-function WatchDetail({ watch, onClose }: { watch: Watch | null; onClose: () => void }) {
-  const { t } = useTranslation()
-  if (!watch?.media) return null
-  return (
-    <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name: watchTitle(watch) })} onClose={onClose}>
-      <MediaDetail media={watch.media} source={watch.mediaSource || undefined} />
-    </Dialog>
-  )
-}
+// what a watch hands the title card: its record, and itself as the watch to
+// list first
+const seriesTarget = (w: Watch) => ({ source: w.mediaSource, id: w.media!.id, media: w.media, watchId: w.id, title: w.titleOverride || undefined })
 
 // The next releases the providers know of, for the coming week: the reason
 // to open the app between downloads, two taps closer than the calendar.
@@ -731,10 +721,9 @@ function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
   const when = (ts: number) => new Date(ts * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
   const [open, toggle] = useFold('upnext')
   // a tap on an entry opens the title's card, the same one the catalog shows
-  const [detail, setDetail] = useState<Watch | null>(null)
+  const { open: openSeries } = useSeriesModal()
   return (
     <section aria-label={t('dash.upNext')}>
-      <WatchDetail watch={detail} onClose={() => setDetail(null)} />
       <FoldHeader
         className="mb-2"
         icon={<CalendarDays aria-hidden size="1em" />}
@@ -768,7 +757,7 @@ function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
                 }
                 time={when(e.at)}
                 countdown={countdown(t, e.at, false, now)}
-                onClick={e.watch.media ? () => setDetail(e.watch) : undefined}
+                onClick={e.watch.media ? () => openSeries(seriesTarget(e.watch)) : undefined}
                 aria-label={e.watch.media ? t('remote.detailsFor', { name: watchTitle(e.watch) }) : undefined}
               />
             </li>
@@ -790,6 +779,7 @@ function Attention({ watches }: { watches: Watch[] }) {
     (w) => (w.behind ?? 0) > 0 || (w.missing?.length ?? 0) > 0 || (w.langWaiting ?? 0) > 0 || w.lastResult !== '',
   )
   const [open, toggle] = useFold('attention')
+  const { open: openSeries } = useSeriesModal()
   if (needy.length === 0) return null
   const shown = needy.slice(0, 5)
   return (
@@ -800,9 +790,16 @@ function Attention({ watches }: { watches: Watch[] }) {
       <Panel>
           <ul className="divide-y divide-border-subtle">
             {shown.map((w) => (
-              <li key={w.id}>
-                <Link to="/watches" className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-bg-hover">
-                  {w.media?.coverImage?.large && <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />}
+              // the cover is its own button beside the link, not inside it: a
+              // button in an anchor is not HTML, and the two lead to different
+              // places - the card here, the list there
+              <li key={w.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                {w.media?.coverImage?.large && (
+                  <button type="button" aria-label={t('remote.detailsFor', { name: watchTitle(w) })} onClick={() => openSeries(seriesTarget(w))} className="shrink-0 cursor-pointer rounded-xs">
+                    <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />
+                  </button>
+                )}
+                <Link to="/watches" className="flex min-w-0 flex-1 items-center gap-2 hover:underline">
                   <span className="min-w-0 flex-1 truncate text-t-secondary" title={w.remotePath}>
                     {watchTitle(w)}
                   </span>
@@ -1156,7 +1153,9 @@ function DownloadRow({
   const running = d.status === 'running'
   // the hero says what it is loading: year, studio and score of the series,
   // which only the watch behind the folder knows
-  const media = variant === 'hero' && group?.watchId ? watches.find((w) => w.id === group.watchId)?.media : undefined
+  const watch = group?.watchId ? watches.find((w) => w.id === group.watchId) : undefined
+  const media = variant === 'hero' ? watch?.media : undefined
+  const { open: openSeries } = useSeriesModal()
   const about = media
     ? [media.seasonYear || null, media.studios?.[0], media.averageScore ? `${media.averageScore} %` : null].filter(Boolean).join(' · ')
     : undefined
@@ -1185,6 +1184,8 @@ function DownloadRow({
       selected={selected}
       leading={<SelectBox checked={selected} name={name} onSelect={onSelect} />}
       cover={group?.cover}
+      onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
+      coverLabel={watch?.media ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
       title={label}
       subtitle={label !== name ? name : undefined}
       badges={
