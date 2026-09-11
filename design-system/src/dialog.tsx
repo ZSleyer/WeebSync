@@ -128,8 +128,15 @@ export function Dialog({
   onRequestCloseRef.current = onRequestClose
   useEffect(() => {
     if (typeof history === 'undefined') return
-    const mark = { ...history.state, idx: (history.state?.idx ?? 0) + 1, wsDialog: id }
-    history.pushState(mark, '')
+    // StrictMode mounts, unmounts and mounts again: the entry from the first
+    // pass is still on top, so it is reused rather than pushed twice, and the
+    // back() the first cleanup queued is cancelled below before it runs.
+    // Chrome resolves history.back() against the entry current at the call,
+    // so a back followed by a push would still pop the page's own entry and
+    // close the dialog the moment it opened.
+    clearTimeout(pendingBack.current)
+    const mark = history.state?.wsDialog === id ? history.state : { ...history.state, idx: (history.state?.idx ?? 0) + 1, wsDialog: id }
+    if (history.state !== mark) history.pushState(mark, '')
     const onPop = async () => {
       if (history.state?.wsDialog === id) return // an inner dialog's entry went, not ours
       // the guard declined (unsaved changes): put the entry back
@@ -144,9 +151,12 @@ export function Dialog({
       // change the top entry is the new page's and stays.
       // ponytail: a navigate({replace:true}) while a dialog is open wipes the
       // mark and leaves one dead entry behind - one wasted back, never a leave
-      if (history.state?.wsDialog === id) history.back()
+      pendingBack.current = setTimeout(() => {
+        if (history.state?.wsDialog === id) history.back()
+      })
     }
   }, [id])
+  const pendingBack = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   return (
     <dialog

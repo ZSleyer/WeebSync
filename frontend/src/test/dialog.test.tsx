@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { Dialog } from '@weebsync/design-system'
 
@@ -234,11 +235,33 @@ describe('Dialog', () => {
     expect(outer).not.toHaveBeenCalled()
   })
 
-  it('takes its entry with it when the owner unmounts it', () => {
+  it('takes its entry with it when the owner unmounts it', async () => {
     const back = vi.spyOn(history, 'back').mockImplementation(() => {})
     const { unmount } = render(<Dialog onClose={() => {}}>Inhalt</Dialog>)
     unmount()
-    expect(back).toHaveBeenCalledTimes(1)
+    // deferred, so a StrictMode remount can still cancel it
+    expect(back).not.toHaveBeenCalled()
+    await waitFor(() => expect(back).toHaveBeenCalledTimes(1))
+    back.mockRestore()
+  })
+
+  it('survives a StrictMode double mount with one entry and no back', async () => {
+    // development React mounts, unmounts and mounts the effect again; the
+    // dialog closed itself on the spot when the cleanup's back() popped the
+    // page's entry after the second mount had pushed a fresh one
+    const back = vi.spyOn(history, 'back').mockImplementation(() => {})
+    const onClose = vi.fn()
+    const before = history.state?.idx ?? 0
+    const { container } = render(
+      <StrictMode>
+        <Dialog onClose={onClose}>Inhalt</Dialog>
+      </StrictMode>,
+    )
+    await new Promise((r) => setTimeout(r, 10))
+    expect(back).not.toHaveBeenCalled()
+    expect(history.state.idx).toBe(before + 1)
+    expect(dialogOf(container).open).toBe(true)
+    expect(onClose).not.toHaveBeenCalled()
     back.mockRestore()
   })
 
