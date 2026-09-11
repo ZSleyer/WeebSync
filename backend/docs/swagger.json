@@ -2070,6 +2070,16 @@
                         },
                         "type": "object"
                     },
+                    "libraryDir": {
+                        "type": "string"
+                    },
+                    "season": {
+                        "description": "Season is the season the folder holds, 0 for a movie or a folder that\nholds season subfolders itself. SeasonFolder is the folder that season\ngets (\"Season 02\", spelled like a sibling when the library has one),\nLibraryDir the show root the library already holds - the sync goes there\nrather than to the kind's default folder.",
+                        "type": "integer"
+                    },
+                    "seasonFolder": {
+                        "type": "string"
+                    },
                     "title": {
                         "description": "Title is the series title of that folder - the catalog match, or the\nguess from the folder name when it is unmatched. It is what a \"title\"\nsubfolder is named after.",
                         "type": "string"
@@ -2715,6 +2725,10 @@
                         "type": "boolean"
                     },
                     "replacement": {
+                        "type": "string"
+                    },
+                    "seasonFolder": {
+                        "description": "SeasonFolder travels the same way: the season folder a title subfolder\ngets under it (\"Season 02\"), empty when the season belongs to the\ntemplate or the folder is not a season.",
                         "type": "string"
                     },
                     "separator": {
