@@ -85,7 +85,8 @@ const TRIGGERS = [
   { route: '/watches', names: [/fehlt$|Lücken:|gaps:|missing$/] },
   // the title card, from a poster: the list's cover button, the grid's tile
   { route: '/watches', label: 'Titelkarte', names: [/Details zu|Details for/] },
-  { route: '/watches?view=grid', label: 'Raster', names: [/Details zu|Details for/] },
+  // a tile is named by its visible title, so the trigger is the tile's heading
+  { route: '/watches?view=grid', label: 'Raster', within: 'article', role: 'heading', names: [/./] },
   {
     // nested: the Plex picker only exists inside the watch dialog, so the
     // parent has to be open before the trigger is on the page at all
@@ -323,7 +324,7 @@ const run = async (browserName, type) => {
         { name: 'weebsync_session', value: TOKEN, domain: new URL(BASE).hostname, path: '/', httpOnly: true, sameSite: 'Lax' },
       ])
     const page = await ctx.newPage()
-    for (const { route, names, setup, label, role = 'button' } of TRIGGERS) {
+    for (const { route, names, setup, label, role = 'button', within } of TRIGGERS) {
       await page.goto(BASE + route, { waitUntil: 'load' })
       // long enough for the list requests behind a route to land: a row action
       // that is not on the page yet reads exactly like a dialog that does not
@@ -332,7 +333,7 @@ const run = async (browserName, type) => {
       if (setup && !(await setup(page))) continue
       for (const re of names) {
         // a menu entry is an option, not a button: the trigger says so
-        const btn = page.getByRole(role, { name: re }).first()
+        const btn = (within ? page.getByRole(within) : page).getByRole(role, { name: re }).first()
         // wait for the control rather than for a round number of milliseconds:
         // a row action that the list has not rendered yet is indistinguishable
         // from one that does not exist, and the coverage report below would
