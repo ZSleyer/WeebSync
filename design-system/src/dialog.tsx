@@ -13,6 +13,11 @@ const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).j
 // box would only be a thin margin around a full-height panel anyway.
 const BOX_WIDTHS = new Set(['max-w-xs', 'max-w-sm', 'max-w-md'])
 
+// a pull on a sheet's header: this many pixels before it counts as a drag at
+// all, and this many before letting go closes the sheet
+const DRAG_SLOP = 10
+const DRAG_CLOSE = 120
+
 export interface DialogProps {
   children: ReactNode
   /** fires once the dialog has actually closed, whatever closed it */
@@ -83,6 +88,33 @@ export function Dialog({
     ref.current?.close()
   }
   const menuOpen = () => !!ref.current?.querySelector('[aria-haspopup][aria-expanded="true"]')
+
+  // the pull-down on a phone sheet: where the pointer went down, and whether
+  // it has moved far enough to count as a drag rather than a tap
+  const drag = useRef<{ y: number; id: number; on: boolean } | null>(null)
+  const endDrag = async (clientY?: number) => {
+    const d = drag.current
+    const el = ref.current
+    drag.current = null
+    if (!d || !d.on || !el) return
+    const far = clientY !== undefined && clientY - d.y > DRAG_CLOSE
+    if (far && (!onRequestClose || (await onRequestClose()))) {
+      // slide the rest of the way out, then close for real
+      el.style.transition = 'transform var(--dur-2) var(--ease-in)'
+      el.style.transform = 'translateY(100%)'
+      const done = () => {
+        el.removeEventListener('transitionend', done)
+        el.close()
+      }
+      el.addEventListener('transitionend', done)
+      setTimeout(done, 250)
+      return
+    }
+    // too short, or the guard said no: the stylesheet's own transition
+    // settles it back into place
+    el.style.transition = ''
+    el.style.transform = ''
+  }
 
   // The back gesture closes the dialog instead of leaving the page: every
   // dialog pushes one history entry while it is open, and popping it - the
@@ -158,7 +190,40 @@ export function Dialog({
         e.preventDefault()
         void guarded()
       }}
-      onPointerDown={(e) => (backdropDown.current = e.target === ref.current)}
+      onPointerDown={(e) => {
+        backdropDown.current = e.target === ref.current
+        // a pull on the sheet's header starts a drag - the banner, title and
+        // tabs are the part that never scrolls, so a downward move there can
+        // only mean "close". The stylesheet gives the header touch-action:
+        // pan-x, or the browser would cancel the pointer for its own pan.
+        // ponytail: drag zone is the <header>; pulling a scrolled-to-top panel
+        // down needs touch-action juggling on the scroller, not worth it
+        const el = e.target as HTMLElement
+        if (isSheet && el.closest('dialog') === ref.current && el.closest('header')) {
+          drag.current = { y: e.clientY, id: e.pointerId, on: false }
+        }
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current
+        const el = ref.current
+        if (!d || !el || e.pointerId !== d.id) return
+        const dy = e.clientY - d.y
+        if (!d.on) {
+          if (dy < DRAG_SLOP) return
+          d.on = true
+          // from here on the pointer is ours: a tab under the finger must not
+          // get the click when the pull ends
+          try {
+            el.setPointerCapture(e.pointerId)
+          } catch {
+            /* a synthetic pointer id, or jsdom */
+          }
+          el.style.transition = 'none'
+        }
+        el.style.transform = `translateY(${Math.max(0, dy)}px)`
+      }}
+      onPointerUp={(e) => void endDrag(e.clientY)}
+      onPointerCancel={() => void endDrag()}
       onClick={(e) => {
         if (isSheet) return // no backdrop to click - the button is the way out
         if (e.target === ref.current && backdropDown.current) void guarded()
