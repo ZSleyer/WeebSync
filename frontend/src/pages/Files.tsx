@@ -284,8 +284,10 @@ export default function Files() {
           <Badge className="mt-1">{t('files.sub')}</Badge>
         </div>
         <PageActions>
-          <CatalogViewSwitch value={viewValue} onChange={setView} />
+          {/* first, so the view switch and the pin keep their place in the
+              app bar on a phone */}
           <TrashButton />
+          <CatalogViewSwitch value={viewValue} onChange={setView} />
         </PageActions>
       </header>
 
