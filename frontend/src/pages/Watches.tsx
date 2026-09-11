@@ -55,7 +55,7 @@ import {
   useMenu,
 } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, type Watch } from '../api'
-import { addDays, dayKey, localeFirstDay, startOfDay, startOfWeek, upcomingAirings, type Airing } from '../airings'
+import { addDays, dayKey, startOfDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import { useWatchActions, watchFields } from '../components/watchActions'
@@ -144,9 +144,7 @@ export default function Watches() {
   const calEvents = upcomingAirings(watches, now)
   const calCats = CAL_CATEGORIES.filter((c) => calEvents.some((e) => e.watch.category === c))
   const calShown = calCat === 'all' ? calEvents : calEvents.filter((e) => e.watch.category === calCat)
-  const firstDay = localeFirstDay()
   const today = startOfDay(new Date(now))
-  const thisWeek = startOfWeek(today, firstDay)
   // The calendar counts in days from now: day 0 is today, and the band, the
   // panel and the desktop grid all read from that one number. An index is what
   // a deck pages and what the band snaps to, and it keeps a neighbouring day or
@@ -154,14 +152,15 @@ export default function Watches() {
   const [dayIdx, setDayIdx] = useState(0)
   const selectedDate = addDays(today, dayIdx)
   const selectedDay = dayKey(selectedDate)
-  const weekIdx = Math.round((startOfWeek(selectedDate, firstDay).getTime() - thisWeek.getTime()) / (7 * 86_400_000))
   // every release by day, for any day the band or a deck asks about
   const byDay = new Map<string, Airing[]>()
   for (const e of calShown) {
     const k = dayKey(new Date(e.at * 1000))
     byDay.set(k, [...(byDay.get(k) ?? []), e])
   }
-  const weekDays = (i: number) => Array.from({ length: 7 }, (_, d) => addDays(thisWeek, i * 7 + d))
+  // the desktop grid: the picked day in the middle, three days either side,
+  // whatever weekday it is - the band above centres the same day
+  const weekDays = (i: number) => Array.from({ length: 7 }, (_, d) => addDays(today, i - 3 + d))
   const weekHasAny = (i: number) => weekDays(i).some((d) => byDay.has(dayKey(d)))
   // the first release after the shown day, for the jump out of a quiet stretch
   const nextAfter = calShown.find((e) => e.at * 1000 >= addDays(selectedDate, 1).getTime())
@@ -179,13 +178,6 @@ export default function Watches() {
   // says something: a quiet day reads "14 Std.", not "840 Min."
   const gapLabel = (minutes: number) =>
     minutes >= 60 ? t('watch.week.gapHours', { h: Math.round(minutes / 60) }) : t('watch.week.gapMinutes', { m: Math.round(minutes) })
-  // a week step lands on its first release, else on the week's first day still ahead
-  const goWeek = (i: number) => {
-    const start = addDays(thisWeek, i * 7)
-    const end = addDays(start, 7)
-    const first = calShown.find((e) => e.at * 1000 >= start.getTime() && e.at * 1000 < end.getTime())
-    setDayIdx(Math.max(-PAST_DAYS, dayIdxOf(first ? new Date(first.at * 1000) : start)))
-  }
   // the agenda: every release still ahead, grouped by day, as far as the
   // providers date them - the week behind belongs to the calendar, not here
   const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
@@ -433,9 +425,9 @@ export default function Watches() {
                 onToday={dayIdx !== 0 ? () => setDayIdx(0) : undefined}
                 labels={{ prev: t('watch.week.prev'), next: t('watch.week.next'), today: t('watch.week.today'), strip: t('watch.week.strip') }}
               />
-              {/* the phone shows one day and pages days, the desktop grid a
-                  whole week and pages weeks - a day step would move nothing
-                  visible there */}
+              {/* the phone shows one day and pages days; the desktop grid
+                  shows the picked day with three days either side and a drag
+                  moves it a week, as the arrows do */}
               {!wide ? (
                 <SwipeDeck index={dayIdx} onIndex={setDayIdx} canPrev={dayIdx > -PAST_DAYS} mouse>
                   {(i) => {
@@ -474,19 +466,20 @@ export default function Watches() {
                   }}
                 </SwipeDeck>
               ) : (
-                <SwipeDeck index={weekIdx} onIndex={goWeek} canPrev={weekIdx > 0} mouse>
+                <SwipeDeck index={dayIdx} onIndex={setDayIdx} step={7} canPrev={dayIdx - 7 >= -PAST_DAYS} mouse>
                   {(i) =>
                     !weekHasAny(i) ? (
                       <EmptyState>
                         <p>{t('watch.week.empty')}</p>
-                        {i === weekIdx && nextAfter && (
+                        {i === dayIdx && nextAfter && (
                           <Button size="sm" className="mt-3" onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}>
                             {t('watch.week.jump')}
                           </Button>
                         )}
                       </EmptyState>
                     ) : (
-                      // desktop: the whole week side by side, today's column marked
+                      // desktop: seven days side by side, the picked one in the
+                      // middle and marked; today is the band's to mark
                       <div className="grid grid-cols-7 gap-3">
                         {weekDays(i).map((d) => {
                           const k = dayKey(d)
@@ -494,7 +487,7 @@ export default function Watches() {
                           return (
                             <CalendarDay
                               key={k}
-                              className={k === dayKey(today) ? 'rounded-md outline-2 outline-offset-4 outline-accent/40' : d.getTime() < today.getTime() ? 'opacity-60' : undefined}
+                              className={k === selectedDay ? 'rounded-md outline-2 outline-offset-4 outline-accent/40' : d.getTime() < today.getTime() ? 'opacity-60' : undefined}
                               day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
                             >
                               {items.length === 0 ? <li className="text-xs text-t-faint">{t('watch.week.free')}</li> : items.map((e) => entryOf(e, true))}
