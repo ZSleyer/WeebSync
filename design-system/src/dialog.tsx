@@ -82,6 +82,7 @@ export function Dialog({
     if (onRequestClose && !(await onRequestClose())) return
     ref.current?.close()
   }
+  const menuOpen = () => !!ref.current?.querySelector('[aria-haspopup][aria-expanded="true"]')
 
   return (
     <dialog
@@ -92,15 +93,15 @@ export function Dialog({
       // tree - so a dialog opened from inside another one would close both, past
       // the outer guard and its unsaved changes. Only own events count.
       onClose={(e) => e.target === ref.current && onClose()}
-      onCancel={
-        onRequestClose
-          ? (e) => {
-              if (e.target !== ref.current) return
-              e.preventDefault() // Escape goes through the same guard
-              void guarded()
-            }
-          : undefined
-      }
+      onCancel={(e) => {
+        if (e.target !== ref.current) return
+        // the platform's own Escape: an open menu keeps the dialog (see
+        // onKeyDown), and a guard gets asked before it goes
+        if (menuOpen()) return e.preventDefault()
+        if (!onRequestClose) return
+        e.preventDefault() // Escape goes through the same guard
+        void guarded()
+      }}
       // Firefox does not fire `cancel` when Escape is pressed while a text
       // field inside the dialog has focus: the field claims the key for its own
       // revert-the-value behaviour and marks the event handled. The watch
@@ -113,8 +114,15 @@ export function Dialog({
         if (e.key !== 'Escape') return
         // a dialog opened from inside another one: only the top one closes
         if ((e.target as HTMLElement).closest('dialog') !== ref.current) return
-        // an open menu inside the dialog owns Escape: it closes, the dialog stays
-        if ((e.target as HTMLElement).closest('[aria-expanded="true"]')) return
+        // an open menu inside the dialog owns Escape: it closes, the dialog
+        // stays. Looked up in the dialog, not up from the target: on touch the
+        // trigger never takes focus, so the key lands on the dialog itself.
+        // `aria-haspopup` keeps an expanded disclosure (a folder browser) out
+        // of it - those must not swallow Escape.
+        // `preventDefault` here as well: Chrome closes the dialog from the
+        // keydown's default action (its close watcher) unless the key is
+        // cancelled, and the menu's own listener still sees the key.
+        if (menuOpen()) return e.preventDefault()
         e.preventDefault()
         void guarded()
       }}
