@@ -1232,3 +1232,66 @@ details[open]::details-content { height: auto; }
   animation: ai-blink 900ms steps(2, start) infinite;
 }
 @keyframes ai-blink { to { visibility: hidden; } }
+
+/* ── A day as a time axis (DayTimeline): the releases in order, the time
+   between them as height. Nothing is positioned absolutely - the gaps are real
+   elements - so a cluster of releases stacks instead of overlapping, and the
+   axis is one line down the left of the list. */
+.t-timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding-left: 1.125rem;
+}
+.t-timeline::before {
+  content: '';
+  position: absolute;
+  left: 0.3rem;
+  top: 0.6rem;
+  bottom: 0.6rem;
+  border-left: 1px solid var(--border-subtle);
+}
+.t-timeline > li { position: relative; }
+/* the dot marking a release on the axis */
+.t-timeline__row::before {
+  content: '';
+  position: absolute;
+  left: -0.95rem;
+  top: 1rem;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--border-input);
+  outline: 3px solid var(--bg-primary);
+}
+/* a stretch that had to be cut short says how long it really was, and the
+   caption's own background breaks the axis where the time was folded away */
+.t-timeline__gap > span {
+  position: absolute;
+  left: -1.05rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.15rem 0.25rem;
+  background: var(--bg-primary);
+  color: var(--text-faint);
+  font-size: 0.625rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+/* now, on today's panel: it drifts down past the releases as the clock runs */
+.t-timeline__now {
+  height: 0;
+  border-top: 2px solid var(--color-accent);
+  margin-left: -1.125rem;
+}
+.t-timeline__now::before {
+  content: '';
+  position: absolute;
+  left: 0.3rem;
+  top: -0.25rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transform: translateX(-50%);
+}

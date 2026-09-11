@@ -9,6 +9,8 @@ import {
   CalendarDay,
   CalendarEntry,
   DayScroller,
+  DayTimeline,
+  timelineGap,
   Cover,
   Disclosure,
   EmptyState,
@@ -782,5 +784,49 @@ describe('MediaCard cover button', () => {
     expect(onCover).toHaveBeenCalledTimes(1)
     rerender(<MediaCard title="Frieren" cover="/c.jpg" />)
     expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+describe('DayTimeline', () => {
+  const gapLabel = (m: number) => `${Math.round(m)}min`
+  const at = (h: number) => Math.floor(new Date(2026, 8, 12, h, 0).getTime() / 1000)
+
+  // the whole point of the axis: real time becomes height, but a quiet stretch
+  // is folded away so a day still fits on a phone screen
+  it('turns waiting into height and cuts a long wait short', () => {
+    expect(timelineGap(0).height).toBe(10)
+    expect(timelineGap(30).height).toBeGreaterThan(timelineGap(10).height)
+    expect(timelineGap(30).cut).toBe(false)
+    const long = timelineGap(600)
+    expect(long.height).toBe(56)
+    expect(long.cut).toBe(true)
+    // a folded stretch never grows again, however long the wait
+    expect(timelineGap(6000).height).toBe(long.height)
+  })
+
+  it('says how long a cut stretch really was', () => {
+    render(<DayTimeline entries={[{ key: 'a', at: at(9), node: <span>A</span> }, { key: 'b', at: at(20), node: <span>B</span> }]} gapLabel={gapLabel} />)
+    expect(screen.getByText('660min')).toBeTruthy()
+  })
+
+  // the marker sits between the releases it has passed and the ones still
+  // ahead, so it drifts down the axis as the clock runs
+  it('drops the now marker into place by time', () => {
+    const { container } = render(
+      <DayTimeline
+        entries={[{ key: 'a', at: at(9), node: <span>A</span> }, { key: 'b', at: at(20), node: <span>B</span> }]}
+        now={at(12) * 1000}
+        nowLabel="Jetzt 12:00"
+        gapLabel={gapLabel}
+      />,
+    )
+    const rows = [...container.querySelectorAll('.t-timeline__row, .t-timeline__now')]
+    expect(rows.map((r) => r.textContent || 'NOW')).toEqual(['A', 'NOW', 'B'])
+    expect(screen.getByLabelText('Jetzt 12:00')).toBeTruthy()
+  })
+
+  it('leaves the marker out on any day but today', () => {
+    const { container } = render(<DayTimeline entries={[{ key: 'a', at: at(9), node: <span>A</span> }]} gapLabel={gapLabel} />)
+    expect(container.querySelector('.t-timeline__now')).toBeNull()
   })
 })
