@@ -11,6 +11,7 @@ import {
   FolderClock,
   Languages,
   LayoutGrid,
+  Tv,
   List,
   Pencil,
   RefreshCw,
@@ -109,7 +110,9 @@ export default function Watches() {
   const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
   // the dashboard links straight into the calendar; the rest of the time the
   // page opens the way it was left
-  const [view, setView] = usePersistedView('weebsync.watches.view', ['list', 'grid', 'calendar'] as const, 'list')
+  const [view, setView] = usePersistedView('weebsync.watches.view', ['list', 'calendar'] as const, 'list')
+  // list or grid, an inline switch like the calendar's week or list
+  const [layout, setLayout] = usePersistedView('weebsync.watches.layout', ['list', 'grid'] as const, 'list', 'layout')
   // the calendar as a week, or as the plain list by day it used to be
   const [calMode, setCalMode] = usePersistedView('weebsync.watches.calendar', ['week', 'agenda'] as const, 'week', 'cal')
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
@@ -292,21 +295,11 @@ export default function Watches() {
             options={[
               {
                 value: 'list',
-                'aria-label': t('watch.viewList'),
+                'aria-label': t('watch.viewWatches'),
                 label: (
                   <>
-                    <List aria-hidden size="1em" />
-                    <span className="ml-1 hidden lg:inline">{t('watch.viewList')}</span>
-                  </>
-                ),
-              },
-              {
-                value: 'grid',
-                'aria-label': t('watch.viewGrid'),
-                label: (
-                  <>
-                    <LayoutGrid aria-hidden size="1em" />
-                    <span className="ml-1 hidden lg:inline">{t('watch.viewGrid')}</span>
+                    <Tv aria-hidden size="1em" />
+                    <span className="ml-1 hidden lg:inline">{t('watch.viewWatches')}</span>
                   </>
                 ),
               },
@@ -325,6 +318,21 @@ export default function Watches() {
         </div>
       </PageActions>
 
+      {/* the same row as the calendar's week or list switch, so the two
+          views read alike: what is shown up top, how it is laid out here */}
+      {view === 'list' && watches.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <Segmented
+            aria-label={t('watch.layout')}
+            value={layout}
+            onChange={setLayout}
+            options={[
+              { value: 'list', 'aria-label': t('watch.viewList'), label: <><List aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.viewList')}</span></> },
+              { value: 'grid', 'aria-label': t('watch.viewGrid'), label: <><LayoutGrid aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.viewGrid')}</span></> },
+            ]}
+          />
+        </div>
+      )}
       {view === 'calendar' && calShown.length > 0 ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <Segmented
@@ -463,7 +471,7 @@ export default function Watches() {
                 }
                 count={items.length}
               />
-              {view === 'grid' ? (
+              {layout === 'grid' ? (
                 <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
                   {items.map((w) => (
                     <li key={w.id} className="min-w-0">

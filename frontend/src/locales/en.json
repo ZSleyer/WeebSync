@@ -556,6 +556,8 @@
     "waitingFor": "waiting for episode {{n}}",
     "nextEp": "Next: episode {{n}}",
     "view": "View",
+    "viewWatches": "Series",
+    "layout": "Layout",
     "viewGrid": "Grid",
     "viewList": "List",
     "viewCalendar": "Calendar",
