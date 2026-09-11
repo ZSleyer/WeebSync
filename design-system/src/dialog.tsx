@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 
 // The native <dialog> mechanics WeebSync repeats in every modal: open it as a
@@ -83,6 +83,38 @@ export function Dialog({
     ref.current?.close()
   }
   const menuOpen = () => !!ref.current?.querySelector('[aria-haspopup][aria-expanded="true"]')
+
+  // The back gesture closes the dialog instead of leaving the page: every
+  // dialog pushes one history entry while it is open, and popping it - the
+  // browser's back button, the swipe from the edge on Android - closes the
+  // dialog. React Router keeps `usr`, `key` and `idx` in the state, so the
+  // entry copies them and bumps `idx` rather than replacing the object.
+  // Nested dialogs each hold an entry; back pops the innermost, the outer
+  // one still finds its own mark and stays.
+  const id = useId()
+  const onRequestCloseRef = useRef(onRequestClose)
+  onRequestCloseRef.current = onRequestClose
+  useEffect(() => {
+    if (typeof history === 'undefined') return
+    const mark = { ...history.state, idx: (history.state?.idx ?? 0) + 1, wsDialog: id }
+    history.pushState(mark, '')
+    const onPop = async () => {
+      if (history.state?.wsDialog === id) return // an inner dialog's entry went, not ours
+      // the guard declined (unsaved changes): put the entry back
+      if (onRequestCloseRef.current && !(await onRequestCloseRef.current())) return history.pushState(mark, '')
+      ref.current?.close()
+    }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      // closed, saved or unmounted by its owner while its entry is still on
+      // top: take it with us, or the next back is a no-op. After a route
+      // change the top entry is the new page's and stays.
+      // ponytail: a navigate({replace:true}) while a dialog is open wipes the
+      // mark and leaves one dead entry behind - one wasted back, never a leave
+      if (history.state?.wsDialog === id) history.back()
+    }
+  }, [id])
 
   return (
     <dialog
