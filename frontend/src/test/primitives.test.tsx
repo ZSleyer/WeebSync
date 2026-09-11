@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
 import {
   Badge,
   Button,
@@ -406,6 +407,37 @@ describe('Surface, Toolbar, Tabs and Count', () => {
     expect(tabs[0]).toHaveAttribute('type', 'button')
     // no `selected` means no aria-selected at all, not aria-selected="false"
     expect(tabs[1]).not.toHaveAttribute('aria-selected')
+  })
+
+  it('keeps one tab stop and moves selection with the arrow keys', () => {
+    function Bar() {
+      const [at, setAt] = useState(0)
+      return (
+        <Tabs>
+          {['Alle', 'Offen', 'Fertig'].map((l, i) => (
+            <Tab key={l} selected={at === i} onClick={() => setAt(i)}>
+              {l}
+            </Tab>
+          ))}
+        </Tabs>
+      )
+    }
+    render(<Bar />)
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs[0]).toHaveAttribute('tabindex', '0')
+    expect(tabs[1]).toHaveAttribute('tabindex', '-1')
+    tabs[0].focus()
+    fireEvent.keyDown(tabs[0], { key: 'ArrowRight' })
+    expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
+    expect(document.activeElement).toBe(tabs[1])
+    fireEvent.keyDown(tabs[1], { key: 'End' })
+    expect(tabs[2]).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tabs[2], { key: 'ArrowRight' })
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tabs[0], { key: 'ArrowLeft' })
+    expect(tabs[2]).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tabs[2], { key: 'Home' })
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
   })
 
   it('adds the scroll modifier next to the base tabs class', () => {

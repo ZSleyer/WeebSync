@@ -73,6 +73,7 @@ export {
   TabBar,
   TransferCard,
   TrendChart,
+  WeekStrip,
 } from './composites'
 export type {
   ActionBarProps,
@@ -101,6 +102,8 @@ export type {
   TransferCardProps,
   TrendChartProps,
   TabBarProps,
+  WeekStripDay,
+  WeekStripProps,
 } from './composites'
 
 export { Dialog } from './dialog'
