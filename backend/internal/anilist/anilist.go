@@ -121,8 +121,9 @@ type Media struct {
 	AiringSchedule *struct {
 		Nodes []AiringSlot `json:"nodes"`
 	} `json:"airingSchedule,omitempty"`
-	// Schedule is the flattened future release list (absolute episode numbers),
-	// filled from AiringSchedule.Nodes here and from season episodes by TMDB.
+	// Schedule is the flattened release list (absolute episode numbers), filled
+	// from AiringSchedule.Nodes here and from season episodes by TMDB. Ahead of
+	// now, except for the week TMDB keeps behind it for the airings recorder.
 	Schedule     []AiringSlot `json:"schedule,omitempty"`
 	Episodes     int          `json:"episodes"`
 	SeasonYear   int          `json:"seasonYear"`
@@ -143,10 +144,13 @@ type Media struct {
 	Schema int `json:"schema,omitempty"`
 }
 
-// FutureAirings returns every scheduled not-yet-aired episode (absolute
+// Airings returns every scheduled episode the cached payload carries (absolute
 // numbering), newest data source first: TMDB's Schedule, AniList's
-// airingSchedule, else the single nextAiringEpisode. Empty for finished titles.
-func (m *Media) FutureAirings() []AiringSlot {
+// airingSchedule, else the single nextAiringEpisode. Mostly the future -
+// AniList only ever hands out notYetAired slots - but TMDB's season fetch keeps
+// the week just gone, so a caller that wants the future has to say so.
+// Empty for finished titles.
+func (m *Media) Airings() []AiringSlot {
 	if len(m.Schedule) > 0 {
 		return m.Schedule
 	}

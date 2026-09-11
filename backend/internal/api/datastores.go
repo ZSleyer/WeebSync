@@ -158,6 +158,13 @@ var dataStores = []dataStore{
 	// Downloaded episodes parked until the provider knows their number.
 	{name: "pending-episodes", tables: []string{"pending_episodes"}, kind: kindDerived,
 		rebuild: "watch-check", timeCol: "created_at"},
+	// What the providers said would air, written down by the sweep so the
+	// calendar can look a week back - their schedules only ever hand out the
+	// future. Kept by the bulk reset and marked as rebuilding on the sweep only
+	// in the sense that it keeps growing: the past it already holds cannot be
+	// fetched again from anywhere.
+	{name: "airings", tables: []string{"airings"}, kind: kindDerived, rebuild: "sweep",
+		needs: []string{"catalog-matches"}, keptOnReset: true},
 	// The copies an upgrade sync moved aside, waiting for their grace period
 	// to end. Dropping the rows leaves the files in their .weebsync-trash
 	// folders for hand cleanup; nothing refills the list.

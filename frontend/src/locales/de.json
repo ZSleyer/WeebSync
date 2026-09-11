@@ -1123,6 +1123,10 @@
             "name": "Wartende Folgen",
             "desc": "Bereits geladene Dateien, deren Folgennummer der Anbieter noch nicht kannte. Löschen vergisst auch, dass die Datei schon geholt wurde: die nächste Prüfung lädt sie erneut."
           },
+          "airings": {
+            "name": "Kalender-Verlauf",
+            "desc": "Was die Anbieter als Ausstrahlungstermin gemeldet haben, nach dem Termin festgehalten - ihre Zeitpläne geben nur die Zukunft heraus. Löschen nimmt dem Kalender die vergangene Woche dauerhaft: nachgeholt werden kann sie nirgends."
+          },
           "catalog-decisions": {
             "name": "Deine Zuordnungen",
             "desc": "Von Hand gesetzte Zuordnungen und die Markierungen, welche Verzeichnisse überhaupt durchsucht werden. Nichts davon lässt sich automatisch wiederherstellen."

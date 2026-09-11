@@ -548,8 +548,10 @@ func TestDataReset(t *testing.T) {
 			t.Errorf("%s after reset with decisions: got %d, want 0", table, n)
 		}
 	}
-	if len(out.Kept) != 1 || out.Kept[0] != "remote-index" {
-		t.Errorf("kept with decisions: got %v, want [remote-index]", out.Kept)
+	// the two stores nothing can refill: a re-crawl is merely expensive, but the
+	// airings the providers have already dropped are gone for good
+	if len(out.Kept) != 2 || out.Kept[0] != "remote-index" || out.Kept[1] != "airings" {
+		t.Errorf("kept with decisions: got %v, want [remote-index airings]", out.Kept)
 	}
 	// user data is never in reach of this endpoint
 	if n := count(t, s, `SELECT COUNT(*) FROM servers`); n != 1 {

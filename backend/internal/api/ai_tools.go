@@ -239,8 +239,11 @@ func (s *Server) aiAiring(userID int64, days int) any {
 		if w.NextAiringAt > 0 {
 			e.NextAiring = time.Unix(w.NextAiringAt, 0).Format(time.RFC3339)
 		}
+		now := time.Now().Unix()
 		for _, a := range w.Airings {
-			if a.At <= until {
+			// the list carries the week just gone for the calendar; what is
+			// upcoming here is upcoming
+			if a.At > now && a.At <= until {
 				e.Upcoming = append(e.Upcoming, slot{Episode: a.Episode, At: time.Unix(a.At, 0).Format(time.RFC3339)})
 			}
 		}

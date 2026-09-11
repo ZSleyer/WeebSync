@@ -63,6 +63,10 @@ func (s *Server) SweepLoop(ctx context.Context) {
 				slog.Info("sweep triggers job", "job", "anime:ids", "reason", "daily refresh due")
 				s.runJob("anime:ids", func(context.Context) { s.refreshAnimeIDs() })
 			}
+			// write down what the caches currently say is airing, before the
+			// providers drop the slots that have passed - the calendar's only
+			// source for the days just gone
+			s.recordAirings()
 			// enrich series bundles with Plex's authoritative tvdb/tmdb ids
 			// (cross-provider bundling, grounded in Plex); no-op without Plex
 			s.reconcilePlex(sweepBatch)

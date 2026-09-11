@@ -1126,16 +1126,39 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 		if it.Media != nil {
 			it.Category = watchCategory(it.MediaSource, it.Media)
 			start := it.FromEpisode
-			for _, a := range it.Media.FutureAirings() {
-				if a.AiringAt <= now.Unix() || a.Episode+offset < start {
-					continue // already aired, or belongs to an earlier part of a shared folder
+			// The week just gone comes from the recorder - the providers drop a
+			// slot the moment it airs - and the rest from whatever they have
+			// dated ahead. A slot both sides know about is listed once.
+			from := now.Add(-airingsLookback)
+			slots := s.pastAirings(it.MediaSource, it.MediaID, from, now)
+			for _, a := range it.Media.Airings() {
+				slots = append(slots, Airing{At: a.AiringAt, Episode: a.Episode})
+			}
+			// keyed on both: TMDB dates an episode to a day, so two episodes
+			// airing the same day share a timestamp and both belong in the list
+			type slotKey struct {
+				at int64
+				ep int
+			}
+			seen := map[slotKey]bool{}
+			for _, a := range slots {
+				k := slotKey{a.At, a.Episode}
+				if a.At < from.Unix() || seen[k] || a.Episode+offset < start {
+					continue // older than the calendar reaches, already listed, or an earlier part of a shared folder
 				}
-				air := Airing{At: a.AiringAt, Episode: a.Episode + offset}
+				seen[k] = true
+				air := Airing{At: a.At, Episode: a.Episode + offset}
 				if offset != 0 {
 					air.EpisodeAbs = a.Episode
 				}
 				it.Airings = append(it.Airings, air)
 			}
+			sort.Slice(it.Airings, func(i, j int) bool {
+				if it.Airings[i].At != it.Airings[j].At {
+					return it.Airings[i].At < it.Airings[j].At
+				}
+				return it.Airings[i].Episode < it.Airings[j].Episode
+			})
 		}
 		list = append(list, it)
 	}

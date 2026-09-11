@@ -1123,6 +1123,10 @@
             "name": "Waiting episodes",
             "desc": "Files already downloaded whose episode number the provider did not know yet. Deleting also forgets that the file was fetched, so the next check downloads it again."
           },
+          "airings": {
+            "name": "Calendar history",
+            "desc": "What the providers announced as airing slots, kept once they passed - their schedules only ever hand out the future. Deleting it takes the past week from the calendar for good: nothing can fetch it back."
+          },
           "catalog-decisions": {
             "name": "Your own matches",
             "desc": "The matches you set by hand and the marks for which directories are searched at all. None of this can be restored automatically."
