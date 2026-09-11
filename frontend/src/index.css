@@ -1089,6 +1089,9 @@ details[open]::details-content { height: auto; }
   scrollbar-width: none;
 }
 .t-dayband::-webkit-scrollbar { display: none; }
+/* a mouse drags the band; while it does, the snap would fight every step */
+@media (pointer: fine) { .t-dayband { cursor: grab; } }
+.t-dayband[data-drag] { scroll-snap-type: none; user-select: none; cursor: grabbing; }
 .t-dayband > * { scroll-snap-align: center; }
 .t-dayband[data-overflow="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); }
 .t-dayband[data-overflow="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }

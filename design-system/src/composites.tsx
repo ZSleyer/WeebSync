@@ -1,4 +1,14 @@
-import { Fragment, useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type HTMLAttributes,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import { haptic } from './haptics'
 import { Badge, buttonClass, COVER_BOX, markOverflow, Panel, Progress, Slot } from './primitives'
 
@@ -617,6 +627,8 @@ export interface DayScrollerProps {
 
 // how long after the last scroll a programmatic move counts as finished
 const SETTLE_MS = 120
+// pixels a mouse travels before a press counts as a drag rather than a click
+const DRAG_SLOP = 10
 // the tick as a day passes the middle. Shorter than a page turn's - this one
 // fires for every day the thumb drags past, so it has to stay light.
 const TICK_MS = 3
@@ -687,6 +699,57 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
     onSelect(best.key)
   }
 
+  // A held mouse button drags the band like a thumb would. The band is a
+  // native scroller, so touch already scrolls it and the page's swipe zones
+  // leave it alone; a mouse gets nothing from a scroller but the wheel, hence
+  // this. The snap is off while the button is down - Chrome snaps every
+  // programmatic scroll straight away, which turns a drag into a stutter -
+  // and the release lets the middle pick and the recentre above take over.
+  const drag = useRef<{ id: number; x: number; left: number; moved: boolean } | null>(null)
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return
+    drag.current = { id: e.pointerId, x: e.clientX, left: e.currentTarget.scrollLeft, moved: false }
+  }
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    if (!d || d.id !== e.pointerId) return
+    const dx = e.clientX - d.x
+    if (!d.moved) {
+      if (Math.abs(dx) < DRAG_SLOP) return
+      d.moved = true
+      e.currentTarget.dataset.drag = ''
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {
+        /* jsdom */
+      }
+    }
+    e.currentTarget.scrollLeft = d.left - dx
+  }
+  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    if (!d || d.id !== e.pointerId) return
+    delete e.currentTarget.dataset.drag
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      /* jsdom */
+    }
+    // a drag that moved is not a click on whatever day it ended over: the
+    // flag outlives the pointer by one event, the click that follows in the
+    // same task - and no longer, or a later Enter on a day would be eaten
+    if (!d.moved) drag.current = null
+    else setTimeout(() => (drag.current = drag.current === d ? null : drag.current), 0)
+  }
+  const onClickCapture = (e: ReactMouseEvent<HTMLDivElement>) => {
+    const d = drag.current
+    if (!d) return
+    drag.current = null
+    if (!d.moved) return
+    e.stopPropagation()
+    e.preventDefault()
+  }
+
   const arrow = (dir: 'prev' | 'next', onClick?: () => void) => (
     <button
       type="button"
@@ -717,7 +780,18 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
         </button>
         {arrow('next', onNext)}
       </div>
-      <div ref={band} role="group" aria-label={labels.strip} className="t-dayband gap-1 py-1" onScroll={onScroll}>
+      <div
+        ref={band}
+        role="group"
+        aria-label={labels.strip}
+        className="t-dayband gap-1 py-1"
+        onScroll={onScroll}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClickCapture={onClickCapture}
+      >
         {/* the first and last day have to be able to reach the middle too */}
         <div aria-hidden className="w-[calc(50%-1.5rem)] shrink-0" />
         {days.map((d) => {
