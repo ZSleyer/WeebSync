@@ -802,19 +802,21 @@ function WatchTile({ watch: w, onOpen }: { watch: Watch; onOpen: () => void }) {
   // day and month only: with the weekday the chip ran past a 140px tile
   const when = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { day: '2-digit', month: '2-digit' })
   return (
-    <Panel as="article" className="group relative flex flex-col overflow-clip transition-colors hover:border-accent/50!">
+    // h-full down the whole stack: the grid stretches its cells, and without
+    // it a tile with a one-line title ended shorter than the one beside it
+    <Panel as="article" className="group relative flex h-full flex-col overflow-clip transition-colors hover:border-accent/50!">
       {/* named by what it shows: a label of its own would hide the visible
           text from the accessible name (WCAG 2.5.3) */}
       <button
         type="button"
-        className="text-left"
+        className="flex h-full flex-col text-left"
         onClick={onOpen}
         disabled={!w.media}
       >
         <Cover size="fill" src={w.media?.coverImage?.large} loading="lazy" className="opacity-90 transition-opacity group-hover:opacity-100">
           {!w.media && <span className="p-2 text-center text-xs text-t-muted">{name}</span>}
         </Cover>
-        <div className="p-2">
+        <div className="flex flex-1 flex-col p-2">
           <h3 className="line-clamp-2 text-sm font-medium text-t-primary" title={name}>
             {name}
           </h3>
@@ -841,19 +843,23 @@ function WatchTile({ watch: w, onOpen }: { watch: Watch; onOpen: () => void }) {
               )}
             </div>
           )}
-          <p className={`mt-1 text-[11px] ${w.complete ? 'text-ok' : 'text-t-muted'}`}>
-            {total > 0 ? t('watch.episodes', { have: w.localFiles, total }) : t('watch.files', { count: w.localFiles })}
-          </p>
-          {total > 0 && (
-            <Progress
-              value={(w.localFiles / total) * 100}
-              size="sm"
-              tone={w.complete ? 'ok' : 'accent'}
-              active={w.active > 0}
-              label={t('series.progressLabel', { name })}
-              className="mt-1.5"
-            />
-          )}
+          {/* the count and the bar sit at the foot of the tile, so they line up
+              across a row however long the titles above them ran */}
+          <div className="mt-auto pt-1">
+            <p className={`text-[11px] ${w.complete ? 'text-ok' : 'text-t-muted'}`}>
+              {total > 0 ? t('watch.episodes', { have: w.localFiles, total }) : t('watch.files', { count: w.localFiles })}
+            </p>
+            {total > 0 && (
+              <Progress
+                value={(w.localFiles / total) * 100}
+                size="sm"
+                tone={w.complete ? 'ok' : 'accent'}
+                active={w.active > 0}
+                label={t('series.progressLabel', { name })}
+                className="mt-1.5"
+              />
+            )}
+          </div>
         </div>
       </button>
     </Panel>
