@@ -163,8 +163,12 @@ export function useSwipe({ onPrev, onNext, mouse = false, disabled }: SwipeOptio
     onPointerUp: end,
     onPointerCancel: () => end(),
     // a mouse drag on a cover image would start the browser's own drag and
-    // cancel our pointer halfway through the swipe
-    onDragStart: (e) => e.preventDefault(),
+    // cancel our pointer halfway through the swipe. Only while a gesture of
+    // ours is live, or a touch-only zone would lose native dragging on the
+    // desktop - a link to the bookmarks bar, a selection, an image.
+    onDragStart: (e) => {
+      if (drag.current) e.preventDefault()
+    },
     style: useMemo<CSSProperties>(
       () =>
         disabled
