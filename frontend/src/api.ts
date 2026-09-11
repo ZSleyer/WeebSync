@@ -520,6 +520,19 @@ export interface Review {
   user: { name: string; avatar?: { medium: string } }
 }
 
+// The title card's secondary content, from GET /api/media/extras. Every list
+// is present; a source that has no such thing sends it empty.
+export interface MediaExtras {
+  relations: { relationType: string; node: Media }[]
+  recommendations: Media[]
+  characters: { name: string; image?: string; role?: string; voiceActor?: string }[]
+  links: { site: string; url: string; type?: string; icon?: string; color?: string; language?: string }[]
+  threads: { id: number; title: string; replies: number; views: number; repliedAt?: number; url: string; user?: string; category?: string }[]
+}
+
+// the display title of a watch: the override, else the record's, else the folder
+export const watchTitle = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
+
 export interface SearchResult {
   results: Entry[]
   indexed: number

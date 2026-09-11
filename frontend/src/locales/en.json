@@ -317,6 +317,50 @@
     "deleteConfirm": "Delete {{name}} permanently?",
     "deleteDirConfirm": "Delete the folder {{name}} and everything in it permanently?"
   },
+  "series": {
+    "tabsLabel": "Sections of the title",
+    "tab": {
+      "overview": "Overview",
+      "sync": "Auto-sync",
+      "cast": "Cast",
+      "community": "Community",
+      "similar": "Similar"
+    },
+    "studios": "Studio",
+    "aired": "Aired",
+    "upcoming": "Next episodes",
+    "links": "Links",
+    "threads": "Forum threads",
+    "noThreads": "No threads about this title yet.",
+    "replies_one": "{{count}} reply",
+    "replies_other": "{{count}} replies",
+    "noCast": "No cast on record.",
+    "noSimilar": "No related titles known.",
+    "relations": "Related titles",
+    "recommendations": "Recommendations",
+    "unavailable": "{{source}} is not answering right now. This section stays empty until the service is back.",
+    "back": "Back to the previous title",
+    "progressLabel": "Progress {{name}}",
+    "role": {
+      "SUPPORTING": "Supporting",
+      "BACKGROUND": "Background"
+    },
+    "relation": {
+      "SEQUEL": "Sequel",
+      "PREQUEL": "Prequel",
+      "PARENT": "Parent story",
+      "SIDE_STORY": "Side story",
+      "SPIN_OFF": "Spin-off",
+      "ALTERNATIVE": "Alternative",
+      "SUMMARY": "Summary",
+      "CHARACTER": "Shared characters",
+      "ADAPTATION": "Adaptation",
+      "SOURCE": "Source",
+      "OTHER": "Other",
+      "COMPILATION": "Compilation",
+      "CONTAINS": "Contains"
+    }
+  },
   "remote": {
     "title": "REMOTE",
     "sub": "browse · sync · download",

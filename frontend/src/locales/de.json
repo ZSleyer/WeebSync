@@ -317,6 +317,50 @@
     "deleteConfirm": "{{name}} endgültig löschen?",
     "deleteDirConfirm": "Ordner {{name}} mit dem gesamten Inhalt endgültig löschen?"
   },
+  "series": {
+    "tabsLabel": "Bereiche der Serie",
+    "tab": {
+      "overview": "Übersicht",
+      "sync": "Auto-Sync",
+      "cast": "Besetzung",
+      "community": "Community",
+      "similar": "Ähnliches"
+    },
+    "studios": "Studio",
+    "aired": "Ausstrahlung",
+    "upcoming": "Nächste Folgen",
+    "links": "Links",
+    "threads": "Forum-Threads",
+    "noThreads": "Noch keine Threads zu dieser Serie.",
+    "replies_one": "{{count}} Antwort",
+    "replies_other": "{{count}} Antworten",
+    "noCast": "Keine Besetzung hinterlegt.",
+    "noSimilar": "Keine verwandten Titel bekannt.",
+    "relations": "Verwandte Titel",
+    "recommendations": "Empfehlungen",
+    "unavailable": "{{source}} antwortet gerade nicht. Dieser Bereich bleibt leer, bis der Dienst wieder da ist.",
+    "back": "Zurück zum vorigen Titel",
+    "progressLabel": "Fortschritt {{name}}",
+    "role": {
+      "SUPPORTING": "Nebenrolle",
+      "BACKGROUND": "Hintergrund"
+    },
+    "relation": {
+      "SEQUEL": "Fortsetzung",
+      "PREQUEL": "Vorgeschichte",
+      "PARENT": "Hauptserie",
+      "SIDE_STORY": "Nebengeschichte",
+      "SPIN_OFF": "Ableger",
+      "ALTERNATIVE": "Alternative",
+      "SUMMARY": "Zusammenfassung",
+      "CHARACTER": "Gleiche Figuren",
+      "ADAPTATION": "Vorlage",
+      "SOURCE": "Vorlage",
+      "OTHER": "Sonstiges",
+      "COMPILATION": "Zusammenschnitt",
+      "CONTAINS": "Enthält"
+    }
+  },
   "remote": {
     "title": "REMOTE",
     "sub": "browse · sync · download",
