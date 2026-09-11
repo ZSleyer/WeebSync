@@ -9,6 +9,7 @@ import {
   Eye,
   FolderClock,
   Languages,
+  LayoutGrid,
   List,
   Pencil,
   RefreshCw,
@@ -27,12 +28,13 @@ const GROUP_ICON: Record<string, LucideIcon> = {
 }
 import { useQuery } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router'
+import { Link } from 'react-router'
 import {
   Badge,
   Button,
   CalendarDay,
   CalendarEntry,
+  Cover,
   Dialog,
   Divider,
   EmptyState,
@@ -40,6 +42,8 @@ import {
   MediaCard,
   Menu,
   MenuItem,
+  Panel,
+  Progress,
   Segmented,
   SHEET_MQ,
   useMediaQuery,
@@ -53,6 +57,7 @@ import { useWatchActions, watchFields } from '../components/watchActions'
 import { useSeriesModal } from '../components/SeriesModal'
 import PageActions from '../components/PageActions'
 import { useNow } from '../hooks'
+import { usePersistedView } from '../hooks/usePersistedView'
 import { SkeletonCards } from '../components/Loading'
 
 type CalCategory = 'anime-series' | 'anime-movie' | 'series' | 'movie'
@@ -104,9 +109,9 @@ export default function Watches() {
   // per-day events - not just each watch's single next airing, so it reaches as
   // far ahead as AniList's airingSchedule / TMDB's season episodes are dated.
   const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
-  // the dashboard links straight into the calendar
-  const [searchParams] = useSearchParams()
-  const [view, setView] = useState<'list' | 'calendar'>(() => (searchParams.get('view') === 'calendar' ? 'calendar' : 'list'))
+  // the dashboard links straight into the calendar; the rest of the time the
+  // page opens the way it was left
+  const [view, setView] = usePersistedView('weebsync.watches.view', ['list', 'grid', 'calendar'] as const, 'list')
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
   // a tap on a calendar entry opens the title's card
   // the cover and a calendar entry open the app's one title card
@@ -189,7 +194,7 @@ export default function Watches() {
           it leads: the toggle keeps its place when the menu goes away. */}
       <PageActions>
         <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
-          {view === 'list' && watches.length > 1 && (
+          {view !== 'calendar' && watches.length > 1 && (
             <div className="relative" ref={sortRef} style={sortAnchorStyle}>
               <Button
                 size="sm"
@@ -232,6 +237,16 @@ export default function Watches() {
                   <>
                     <List aria-hidden size="1em" />
                     <span className="ml-1 hidden lg:inline">{t('watch.viewList')}</span>
+                  </>
+                ),
+              },
+              {
+                value: 'grid',
+                'aria-label': t('watch.viewGrid'),
+                label: (
+                  <>
+                    <LayoutGrid aria-hidden size="1em" />
+                    <span className="ml-1 hidden lg:inline">{t('watch.viewGrid')}</span>
                   </>
                 ),
               },
@@ -352,6 +367,15 @@ export default function Watches() {
                 }
                 count={items.length}
               />
+              {view === 'grid' ? (
+                <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
+                  {items.map((w) => (
+                    <li key={w.id} className="min-w-0">
+                      <WatchTile watch={w} onOpen={() => showSeries(w)} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
               <ul className="grid grid-cols-1 gap-3">
                 {items.map((w) => (
                   <li key={w.id}>
@@ -516,6 +540,7 @@ export default function Watches() {
                   </li>
                 ))}
               </ul>
+              )}
             </section>
             )
           })}
@@ -597,5 +622,81 @@ function RowMenu({ label, items }: { label: string; items: RowAction[] }) {
         </Menu>
       )}
     </div>
+  )
+}
+
+// A watch as a poster tile: the poster is the button into the title card,
+// where the actions are; the tile itself only says what the list's chips say
+// - the next episode, how far the copy is, whether something needs a hand.
+function WatchTile({ watch: w, onOpen }: { watch: Watch; onOpen: () => void }) {
+  const { t } = useTranslation()
+  const name = w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
+  const total = w.media?.episodes ?? 0
+  const attention = (w.missing?.length ?? 0) > 0 || (w.langWaiting ?? 0) > 0 || w.lastResult !== ''
+  const when = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })
+  return (
+    <Panel as="article" className="group relative flex flex-col overflow-clip transition-colors hover:border-accent/50!">
+      <button
+        type="button"
+        className="text-left"
+        onClick={onOpen}
+        disabled={!w.media}
+        aria-label={w.media ? t('remote.detailsFor', { name }) : undefined}
+      >
+        <div className="relative">
+          <Cover size="fill" src={w.media?.coverImage?.large} loading="lazy" className="opacity-90 transition-opacity group-hover:opacity-100">
+            {!w.media && <span className="p-2 text-center text-xs text-t-muted">{name}</span>}
+          </Cover>
+          {/* what the row's chips lead with: the next episode, warn-toned once
+              the copy is behind the broadcast; a dot for anything else that
+              needs a hand, its meaning in the text for a screen reader */}
+          <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end gap-1 bg-linear-to-t from-black/80 to-transparent p-1.5 pt-6">
+            {!!w.nextAiringAt && (
+              <Badge size="sm" tone={w.behind ? 'warn' : 'ok'}>
+                {t('watch.chipEp', { n: w.nextEpisode })} · {when(w.nextAiringAt)}
+              </Badge>
+            )}
+            {w.active > 0 && (
+              <Badge size="sm" tone="accent">
+                <Download aria-hidden size="1em" />
+                {w.active}
+              </Badge>
+            )}
+            {attention && (
+              <span className="ml-auto inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-card text-err">
+                <TriangleAlert aria-hidden size="0.75rem" />
+                <span className="sr-only">
+                  {[
+                    (w.missing?.length ?? 0) > 0 ? t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) }) : null,
+                    (w.langWaiting ?? 0) > 0 ? t('watch.langWaiting', { count: w.langWaiting, lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/') }) : null,
+                    w.lastResult || null,
+                  ]
+                    .filter(Boolean)
+                    .join('. ')}
+                </span>
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="p-2">
+          <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={name}>
+            {name}
+          </h4>
+          <p className={`mt-1 text-[11px] ${w.complete ? 'text-ok' : 'text-t-muted'}`}>
+            {total > 0 ? t('watch.episodes', { have: w.localFiles, total }) : t('watch.files', { count: w.localFiles })}
+          </p>
+          {total > 0 && (
+            <Progress
+              value={(w.localFiles / total) * 100}
+              size="sm"
+              tone={w.complete ? 'ok' : 'accent'}
+              active={w.active > 0}
+              label={t('series.progressLabel', { name })}
+              className="mt-1.5"
+            />
+          )}
+        </div>
+      </button>
+    </Panel>
   )
 }

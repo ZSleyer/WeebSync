@@ -530,6 +530,7 @@
     "waitingFor": "waiting for episode {{n}}",
     "nextEp": "Next: episode {{n}}",
     "view": "View",
+    "viewGrid": "Grid",
     "viewList": "List",
     "viewCalendar": "Calendar",
     "group": {
