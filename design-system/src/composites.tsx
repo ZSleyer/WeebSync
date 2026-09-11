@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
 import { haptic } from './haptics'
 import { Badge, buttonClass, COVER_BOX, markOverflow, Panel, Progress, Slot } from './primitives'
 
@@ -506,6 +506,79 @@ export function CalendarDay({ day, quietHeading, children, className }: Calendar
       <h3 className={quietHeading ? 'sr-only' : 't-label t-label--accent mb-2'}>{day}</h3>
       <ul className="flex flex-col gap-2">{children}</ul>
     </section>
+  )
+}
+
+// How a stretch of nothing between two releases turns into height: real time,
+// but never more than a thumb's worth. "Stauchen soweit es geht" - a day with
+// one entry in the morning and one at night must still fit on a phone screen,
+// while two episodes half an hour apart read as close together.
+const PX_PER_MIN = 0.55
+const GAP_MIN = 10
+const GAP_MAX = 56
+
+/** The pixel height of the gap between two stamps `minutes` apart, and whether
+ *  that gap had to be cut short - a cut one says how long it really is. */
+export function timelineGap(minutes: number): { height: number; cut: boolean } {
+  const raw = Math.max(0, minutes) * PX_PER_MIN
+  return { height: Math.round(Math.min(GAP_MAX, Math.max(GAP_MIN, raw))), cut: raw > GAP_MAX }
+}
+
+export interface DayTimelineEntry {
+  key: string
+  /** the release time, unix seconds */
+  at: number
+  /** the row itself, an <li>'s worth of content */
+  node: ReactNode
+}
+
+export interface DayTimelineProps {
+  entries: DayTimelineEntry[]
+  /** the live clock in ms, on the day that is today; leave it out on any other */
+  now?: number
+  /** accessible name of the now marker, e.g. "Jetzt 20:14" */
+  nowLabel?: string
+  /** caption for a stretch that had to be cut short, given its real length */
+  gapLabel: (minutes: number) => string
+  className?: string
+}
+
+/**
+ * One day as a time axis: the releases in order, the time between them as
+ * height, and - on today - a marker that drifts down past them as the clock
+ * runs. Nothing is positioned absolutely, so a cluster of releases simply
+ * stacks and nothing can overlap.
+ *
+ * ponytail: the page scrolls, not this. A day fits on a screen once the gaps
+ * are cut; an own scroller anchored on the marker is the upgrade if a day ever
+ * does not.
+ */
+export function DayTimeline({ entries, now, nowLabel, gapLabel, className }: DayTimelineProps) {
+  const rows = [
+    ...entries.map((e) => ({ key: e.key, at: e.at, node: e.node })),
+    ...(now ? [{ key: '__now', at: now / 1000, node: null }] : []),
+  ].sort((a, b) => a.at - b.at)
+  return (
+    <ul className={cx('t-timeline', className)}>
+      {rows.map((r, i) => {
+        const mins = i === 0 ? 0 : (r.at - rows[i - 1].at) / 60
+        const gap = timelineGap(mins)
+        return (
+          <Fragment key={r.key}>
+            {i > 0 && (
+              <li aria-hidden className="t-timeline__gap" style={{ height: gap.height }}>
+                {gap.cut && <span>{gapLabel(mins)}</span>}
+              </li>
+            )}
+            {r.node === null ? (
+              <li className="t-timeline__now" aria-label={nowLabel} role="separator" />
+            ) : (
+              <li className="t-timeline__row">{r.node}</li>
+            )}
+          </Fragment>
+        )
+      })}
+    </ul>
   )
 }
 
