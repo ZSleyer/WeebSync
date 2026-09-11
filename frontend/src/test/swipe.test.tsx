@@ -117,13 +117,51 @@ describe('useSwipe', () => {
     expect(screen.getByTestId('outer').style.transform).toBe('')
   })
 
-  it('blocks the native drag only where the swipe is live', () => {
+  it('blocks the native drag only while a swipe is running', () => {
     render(<Zone onNext={vi.fn()} mouse />)
     const zone = screen.getByTestId('zone')
     // nothing held: the browser keeps its own drag
     expect(fireEvent.dragStart(zone)).toBe(true)
     fireEvent.pointerDown(zone, { clientX: 100, clientY: 100, pointerId: 1, button: 0, pointerType: 'mouse' })
+    fireEvent.pointerMove(zone, { clientX: 60, clientY: 100, pointerId: 1 })
     expect(fireEvent.dragStart(zone)).toBe(false)
+    fireEvent.pointerUp(zone, { clientX: 60, clientY: 100, pointerId: 1 })
+    expect(fireEvent.dragStart(zone)).toBe(true)
+  })
+
+  it('hands the swipe to the zone above it when it cannot go that way itself', () => {
+    const outer = vi.fn()
+    const inner = vi.fn()
+    const Nested = () => (
+      <div data-testid="outer" {...useSwipe({ onPrev: outer, onNext: outer })}>
+        {/* the inner zone can only go forward */}
+        <div data-testid="zone" {...useSwipe({ onNext: inner })}>
+          <span>Innen</span>
+        </div>
+      </div>
+    )
+    render(<Nested />)
+    swipe(screen.getByText('Innen'), 100)
+    expect(inner).not.toHaveBeenCalled()
+    expect(outer).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('zone').style.transform).toBe('')
+  })
+
+  it('reports the offset instead of moving anything in deck mode', () => {
+    const seen: (number | null)[] = []
+    const onNext = vi.fn()
+    render(<Zone onNext={onNext} onDrag={(dx) => seen.push(dx)} />)
+    const zone = screen.getByTestId('zone')
+    swipe(zone, -100)
+    expect(zone.style.transform).toBe('')
+    // claimed at 0, then the live offsets; the commit leaves the rest to the deck
+    expect(seen[0]).toBe(0)
+    expect(seen.at(-1)).toBe(-100)
+    expect(onNext).toHaveBeenCalledTimes(1)
+    // a short swipe reports the end of the gesture instead
+    seen.length = 0
+    swipe(zone, -20)
+    expect(seen.at(-1)).toBeNull()
   })
 
   it('does nothing while disabled', () => {
