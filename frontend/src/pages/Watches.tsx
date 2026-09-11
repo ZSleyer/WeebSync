@@ -529,7 +529,37 @@ export default function Watches() {
                 <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
                   {items.map((w) => (
                     <li key={w.id} className="min-w-0">
-                      <WatchTile watch={w} onOpen={() => showSeries(w)} />
+                      <WatchTile
+                        watch={w}
+                        onOpen={() => showSeries(w)}
+                        actions={
+                          <>
+                            {/* the same two actions the list row carries, as far
+                                as 140px of tile allows: the label rides along as
+                                the accessible name */}
+                            <IconButton
+                              aria-label={t('watch.checkNow')}
+                              title={t('watch.checkNow')}
+                              className="min-w-0! flex-1 border border-border-subtle"
+                              onClick={() => check(w.id)}
+                            >
+                              <RefreshCw aria-hidden size="1.1em" />
+                            </IconButton>
+                            {narrow ? (
+                              <IconButton
+                                aria-label={t('watch.moreActions', { title: nameOf(w) })}
+                                aria-haspopup="dialog"
+                                className="min-w-0! border border-border-subtle"
+                                onClick={() => setMore(w)}
+                              >
+                                <Ellipsis aria-hidden size="1.2em" />
+                              </IconButton>
+                            ) : (
+                              <RowMenu label={t('watch.moreActions', { title: nameOf(w) })} items={rowActions(w)} />
+                            )}
+                          </>
+                        }
+                      />
                     </li>
                   ))}
                 </ul>
@@ -786,7 +816,7 @@ function RowMenu({ label, items }: { label: string; items: RowAction[] }) {
 // A watch as a poster tile: the poster is the button into the title card,
 // where the actions are; the tile itself only says what the list's chips say
 // - the next episode, how far the copy is, whether something needs a hand.
-function WatchTile({ watch: w, onOpen }: { watch: Watch; onOpen: () => void }) {
+function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => void; actions?: ReactNode }) {
   const { t } = useTranslation()
   const name = w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
   const total = w.media?.episodes ?? 0
@@ -809,7 +839,7 @@ function WatchTile({ watch: w, onOpen }: { watch: Watch; onOpen: () => void }) {
           text from the accessible name (WCAG 2.5.3) */}
       <button
         type="button"
-        className="flex h-full flex-col text-left"
+        className="flex flex-1 flex-col text-left"
         onClick={onOpen}
         disabled={!w.media}
       >
@@ -862,6 +892,8 @@ function WatchTile({ watch: w, onOpen }: { watch: Watch; onOpen: () => void }) {
           </div>
         </div>
       </button>
+      {/* outside the button that opens the card - a button cannot hold buttons */}
+      {actions && <div className="flex items-center gap-1 border-t border-border-subtle p-1.5">{actions}</div>}
     </Panel>
   )
 }
