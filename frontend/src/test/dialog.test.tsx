@@ -254,6 +254,55 @@ describe('Dialog', () => {
     }
   }
 
+  // the pull-down: pointer events on the header, distances in clientY
+  const pull = (header: HTMLElement, dialog: HTMLDialogElement, dy: number) => {
+    fireEvent.pointerDown(header, { clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(dialog, { clientY: 100 + dy / 2, pointerId: 1 })
+    fireEvent.pointerMove(dialog, { clientY: 100 + dy, pointerId: 1 })
+    fireEvent.pointerUp(dialog, { clientY: 100 + dy, pointerId: 1 })
+  }
+
+  it('closes a sheet pulled down by its header', async () => {
+    const restore = withNarrowViewport(true)
+    const onClose = vi.fn()
+    const { container } = render(
+      <Dialog onClose={onClose} width="max-w-2xl">
+        <div className="dialog-body">
+          <header>Kopf</header>
+          <p>Inhalt</p>
+        </div>
+      </Dialog>,
+    )
+    const dialog = dialogOf(container)
+    pull(screen.getByText('Kopf'), dialog, 200)
+    // the sheet slides out first; the close waits for the transition
+    await waitFor(() => expect(dialog.style.transform).toBe('translateY(100%)'))
+    fireEvent.transitionEnd(dialog)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    restore()
+  })
+
+  it('settles a short pull back and a pull on the body does nothing', () => {
+    const restore = withNarrowViewport(true)
+    const onClose = vi.fn()
+    const { container } = render(
+      <Dialog onClose={onClose} width="max-w-2xl">
+        <div className="dialog-body">
+          <header>Kopf</header>
+          <p>Inhalt</p>
+        </div>
+      </Dialog>,
+    )
+    const dialog = dialogOf(container)
+    pull(screen.getByText('Kopf'), dialog, 60)
+    expect(dialog.style.transform).toBe('')
+    pull(screen.getByText('Inhalt'), dialog, 300)
+    expect(dialog.style.transform).toBe('')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(dialog.open).toBe(true)
+    restore()
+  })
+
   it('derives the sheet from the width - wide dialogs cover a phone, max-w-md does not', () => {
     const wide = render(<Dialog onClose={() => {}} width="max-w-2xl">Inhalt</Dialog>)
     expect(dialogOf(wide.container)).toHaveClass('dialog-sheet')

@@ -952,6 +952,10 @@ dialog .overflow-y-auto {
      of whatever header the dialog's content brings */
   dialog.dialog-sheet .dialog-body > header {
     padding-right: 3rem;
+    /* the header is the sheet's pull-down handle (Dialog tracks the pointer):
+       without this the browser claims a vertical move for its own pan and
+       cancels the pointer. pan-x stays, for a tab bar that scrolls sideways. */
+    touch-action: pan-x;
   }
 }
 /* The page behind a dialog is blurred as well as dimmed: on a phone the box
