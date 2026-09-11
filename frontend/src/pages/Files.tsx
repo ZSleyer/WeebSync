@@ -7,7 +7,7 @@ import { useSeriesModal } from '../components/SeriesModal'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
 import { Badge, Button, Cover, Dialog, EmptyState, IconButton, Input, MediaCard, Menu, MenuItem, Panel, Segmented, useMenu } from '@weebsync/design-system'
-import { api, fmtBytes, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo, type SubfolderMode } from '../api'
+import { api, fmtBytes, keyConflictOf, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo, type SubfolderMode } from '../api'
 import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../components/catalogSort'
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
@@ -22,6 +22,7 @@ import RenameOptions, { type RenameProfile, type RenameRule } from '../component
 import RenamePreview from '../components/RenamePreview'
 import { useRenamePreview } from '../components/useRenamePreview'
 import { subfolderMode, subfolderTargetDir, syncRequestPath, useTargetFolder } from '../components/useTargetFolder'
+import HostKeyPrompt from '../components/HostKeyPrompt'
 import SubfolderChoice from '../components/SubfolderChoice'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, useFolderKind, useWatchDefaults } from '../components/watchDefaults'
@@ -357,6 +358,7 @@ export default function Files() {
               onSelect={selectable ? setSelection : undefined}
               selected={selection?.path}
               emptyHint={isLocal ? t('remote.emptyLocal') : undefined}
+              serverId={isLocal ? undefined : active}
             />
           ) : (
             <CatalogGrid
@@ -580,6 +582,7 @@ export function CatalogGrid({
     staleTime: 5 * 60_000,
   })
   const qc = useQueryClient()
+  const [keyRejected, setKeyRejected] = useState(false)
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   // the title card is the app's one; the catalog adds its folder versions
   // under the record, each selectable, syncable, watchable, re-matchable
@@ -790,13 +793,26 @@ export function CatalogGrid({
         </p>
       </div>
     )
-  if (error)
+  if (error) {
+    // a host key to review is offered here, not behind the connection test
+    const conflict = keyRejected ? null : keyConflictOf(error)
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {crumbs}
-        <p className="p-6 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>
+        {conflict ? (
+          <HostKeyPrompt
+            className="m-6"
+            serverId={serverId}
+            conflict={conflict}
+            onAccepted={() => qc.invalidateQueries({ queryKey: ['catalog', serverId] })}
+            onRejected={() => setKeyRejected(true)}
+          />
+        ) : (
+          <p className="p-6 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>
+        )}
       </div>
     )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
