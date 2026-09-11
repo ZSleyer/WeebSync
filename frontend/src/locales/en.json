@@ -542,6 +542,16 @@
       "waiting": "Waiting",
       "complete": "Complete"
     },
+    "week": {
+      "prev": "Previous week",
+      "next": "Next week",
+      "today": "Today",
+      "strip": "Pick a day",
+      "to": "to",
+      "empty": "No releases this week.",
+      "jump": "To the next release",
+      "free": "free"
+    },
     "calEmpty": "No upcoming episodes with an air date.",
     "calFilter": "Filter by type",
     "calAll": "All",
