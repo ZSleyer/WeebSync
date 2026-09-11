@@ -56,6 +56,12 @@ const inHorizontalScroller = (from: HTMLElement, stop: HTMLElement) => {
 // controls that need the pointer for themselves
 const NO_SWIPE = 'input, textarea, select, [contenteditable], [data-no-swipe]'
 
+// Zones nest - the calendar body sits inside the page's list/calendar zone -
+// and a React event visits the inner handler first. The innermost zone that
+// can act on the gesture takes it and marks the event; the outer ones stay
+// still rather than dragging along with it.
+const claimed = new WeakSet<Event>()
+
 /**
  * Horizontal paging by swipe: spread the returned props on the element that
  * holds the pageable content. The content follows the finger and settles back
@@ -115,12 +121,16 @@ export function useSwipe({ onPrev, onNext, mouse = false, disabled }: SwipeOptio
   return {
     onPointerDown: (e) => {
       if (disabled || e.button !== 0) return
+      // nothing to page in either direction: no drag, no rubber band
+      if (!cb.current.onPrev && !cb.current.onNext) return
       if (!mouse && e.pointerType === 'mouse') return
+      if (claimed.has(e.nativeEvent)) return
       const el = e.currentTarget
       const target = e.target as HTMLElement | null
       if (!target?.closest) return
       if (target.closest(NO_SWIPE)) return
       if (inHorizontalScroller(target, el)) return
+      claimed.add(e.nativeEvent)
       drag.current = { x: e.clientX, y: e.clientY, id: e.pointerId, el, on: false, dead: false }
     },
     onPointerMove: (e) => {
