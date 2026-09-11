@@ -365,6 +365,7 @@
     "open_zero": "Papierkorb",
     "open_one": "Papierkorb, {{count}} Eintrag",
     "open_other": "Papierkorb, {{count}} Einträge",
+    "label": "Papierkorb",
     "title": "PAPIERKORB",
     "hint": "Ersetzte und aussortierte Kopien warten hier in versteckten .weebsync-trash-Ordnern neben ihrem Ursprung, bis die Frist abläuft oder du sie löschst.",
     "empty0": "Der Papierkorb ist leer.",

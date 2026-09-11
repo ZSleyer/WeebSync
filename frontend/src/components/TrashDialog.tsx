@@ -16,13 +16,20 @@ export function TrashButton() {
   const [open, setOpen] = useState(false)
   const { data: entries = [] } = useQuery(trashQuery)
   return (
-    <span className="inline-flex items-center gap-1">
-      <IconButton aria-label={t('trash.open', { count: entries.length })} aria-haspopup="dialog" onClick={() => setOpen(true)}>
-        <Trash2 aria-hidden size="1.2em" />
-      </IconButton>
-      {entries.length > 0 && <Count aria-hidden>{entries.length}</Count>}
+    // the same small button as the pin beside the view switch: icon alone in
+    // the app bar on a phone, icon and label on desktop, the count on both
+    <>
+      <Button size="sm" aria-label={t('trash.open', { count: entries.length })} title={t('trash.label')} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        <Trash2 aria-hidden size="1em" />
+        <span className="ml-1 hidden lg:inline">{t('trash.label')}</span>
+        {entries.length > 0 && (
+          <Count aria-hidden className="ml-1">
+            {entries.length}
+          </Count>
+        )}
+      </Button>
       {open && <TrashDialog onClose={() => setOpen(false)} />}
-    </span>
+    </>
   )
 }
 
