@@ -57,6 +57,8 @@ export {
   Breadcrumb,
   CalendarDay,
   DayScroller,
+  DayTimeline,
+  timelineGap,
   CalendarEntry,
   Cover,
   Disclosure,
@@ -106,6 +108,8 @@ export type {
   TabBarProps,
   DayScrollerDay,
   DayScrollerProps,
+  DayTimelineEntry,
+  DayTimelineProps,
 } from './composites'
 
 export { Dialog } from './dialog'
@@ -114,6 +118,7 @@ export type { DialogProps } from './dialog'
 export { useMenu } from './useMenu'
 export { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 
+export { haptic } from './haptics'
 export { SwipeDeck } from './swipeDeck'
 export type { SwipeDeckProps } from './swipeDeck'
 export { useSwipe } from './useSwipe'
