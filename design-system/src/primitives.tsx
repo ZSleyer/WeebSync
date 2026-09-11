@@ -10,6 +10,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
+import { useEffect, useRef } from 'react'
 
 // Presentational wrappers around the Tempest classes in styles.css. Deliberately
 // free of app concerns - no data fetching, no i18n, no router - so a component
@@ -422,11 +423,12 @@ export function Toolbar({ className, ...rest }: ToolbarProps) {
 
 export interface TabsProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
-  /** the tablist element, for scrolling the selected tab into view */
+  /** the tablist element */
   ref?: Ref<HTMLDivElement>
   /**
    * One row that scrolls sideways instead of wrapping - for a bar with more
-   * tabs than a phone is wide. The caller scrolls the selected tab into view.
+   * tabs than a phone is wide. The selected tab is scrolled into view and the
+   * cut edge fades to say more tabs are there.
    */
   scroll?: boolean
 }
@@ -436,7 +438,52 @@ export interface TabsProps extends HTMLAttributes<HTMLDivElement> {
  * one they land on (the ARIA tabs pattern: one tab stop for the whole bar, the
  * selected tab is the one that takes focus - see Tab's tabIndex).
  */
-export function Tabs({ scroll, className, children, onKeyDown, ...rest }: TabsProps) {
+// which edge of a scrolling tab bar is cut off right now
+function markOverflow(el: HTMLElement) {
+  const start = el.scrollLeft > 1
+  const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+  const v = start && end ? 'both' : start ? 'start' : end ? 'end' : ''
+  if (v) el.dataset.overflow = v
+  else delete el.dataset.overflow
+}
+
+export function Tabs({ scroll, className, children, onKeyDown, ref, ...rest }: TabsProps) {
+  const own = useRef<HTMLDivElement>(null)
+  const setRef = (el: HTMLDivElement | null) => {
+    own.current = el
+    if (typeof ref === 'function') ref(el)
+    else if (ref) ref.current = el
+  }
+  // A scrolling bar keeps the selected tab in view and says where more tabs
+  // are: `data-overflow` (start, end, both) drives a fade on the cut edge in
+  // the stylesheet. The mark is redone every render - a tab appearing changes
+  // the scroll width without resizing the bar - but the scroll-into-view only
+  // when the selection moved to another element, or a bar the user swiped to
+  // peek at the far tabs would snap back on the next clock tick.
+  const lastSel = useRef<Element | null>(null)
+  useEffect(() => {
+    const el = own.current
+    if (!scroll || !el) return
+    markOverflow(el)
+    const sel = el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+    if (sel && sel !== lastSel.current) {
+      lastSel.current = sel
+      sel.scrollIntoView?.({ block: 'nearest', inline: 'center' })
+    }
+  })
+  useEffect(() => {
+    const el = own.current
+    if (!scroll || !el) return
+    const mark = () => markOverflow(el)
+    el.addEventListener('scroll', mark, { passive: true })
+    // jsdom has no ResizeObserver, hence the guard
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(mark) : undefined
+    ro?.observe(el)
+    return () => {
+      el.removeEventListener('scroll', mark)
+      ro?.disconnect()
+    }
+  }, [scroll])
   const rove = (e: KeyboardEvent<HTMLDivElement>) => {
     onKeyDown?.(e)
     if (e.defaultPrevented) return
@@ -454,7 +501,7 @@ export function Tabs({ scroll, className, children, onKeyDown, ...rest }: TabsPr
     tabs[next].click()
   }
   return (
-    <div role="tablist" {...rest} onKeyDown={rove} className={cx('t-tabs', scroll && 't-tabs--scroll', className)}>
+    <div ref={setRef} role="tablist" {...rest} onKeyDown={rove} className={cx('t-tabs', scroll && 't-tabs--scroll', className)}>
       {children}
     </div>
   )

@@ -505,6 +505,12 @@ a.t-label:hover {
   overflow-x: auto;
   scrollbar-width: none;
 }
+/* the cut edge fades out, so a tab sliced mid-word reads as "more this way"
+   rather than a rendering fault; Tabs sets the attribute from the scroll
+   position, and a bar that fits has none and stays crisp */
+.t-tabs--scroll[data-overflow="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); }
+.t-tabs--scroll[data-overflow="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
+.t-tabs--scroll[data-overflow="both"] { mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent); }
 
 /* Disclosure on the native details element: the marker is drawn as a chevron
    by the component, so the platform's own triangle goes. */
