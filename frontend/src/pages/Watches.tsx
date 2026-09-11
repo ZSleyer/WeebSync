@@ -375,6 +375,7 @@ export default function Watches() {
                         {items.length === 0 ? <li className="text-xs text-t-faint">{t('watch.week.free')}</li> : items.map((e) => (
                           <li key={`${e.watch.id}-${e.episode}-${e.at}`}>
                             <CalendarEntry
+                              compact
                               cover={e.watch.media?.coverImage?.large}
                               title={e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '')}
                               episode={
@@ -722,7 +723,16 @@ function WatchTile({ watch: w, onOpen }: { watch: Watch; onOpen: () => void }) {
   const name = w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
   const total = w.media?.episodes ?? 0
   const attention = (w.missing?.length ?? 0) > 0 || (w.langWaiting ?? 0) > 0 || w.lastResult !== ''
-  const when = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })
+  // what the warning chip stands for, as its tooltip and for a screen reader
+  const attentionText = [
+    (w.missing?.length ?? 0) > 0 ? t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) }) : null,
+    (w.langWaiting ?? 0) > 0 ? t('watch.langWaiting', { count: w.langWaiting, lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/') }) : null,
+    w.lastResult || null,
+  ]
+    .filter(Boolean)
+    .join('. ')
+  // day and month only: with the weekday the chip ran past a 140px tile
+  const when = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { day: '2-digit', month: '2-digit' })
   return (
     <Panel as="article" className="group relative flex flex-col overflow-clip transition-colors hover:border-accent/50!">
       <button
@@ -732,45 +742,36 @@ function WatchTile({ watch: w, onOpen }: { watch: Watch; onOpen: () => void }) {
         disabled={!w.media}
         aria-label={w.media ? t('remote.detailsFor', { name }) : undefined}
       >
-        <div className="relative">
-          <Cover size="fill" src={w.media?.coverImage?.large} loading="lazy" className="opacity-90 transition-opacity group-hover:opacity-100">
-            {!w.media && <span className="p-2 text-center text-xs text-t-muted">{name}</span>}
-          </Cover>
-          {/* what the row's chips lead with: the next episode, warn-toned once
-              the copy is behind the broadcast; a dot for anything else that
-              needs a hand, its meaning in the text for a screen reader */}
-          <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end gap-1 bg-linear-to-t from-black/80 to-transparent p-1.5 pt-6">
-            {!!w.nextAiringAt && (
-              <Badge size="sm" tone={w.behind ? 'warn' : 'ok'}>
-                {t('watch.chipEp', { n: w.nextEpisode })} · {when(w.nextAiringAt)}
-              </Badge>
-            )}
-            {w.active > 0 && (
-              <Badge size="sm" tone="accent">
-                <Download aria-hidden size="1em" />
-                {w.active}
-              </Badge>
-            )}
-            {attention && (
-              <span className="ml-auto inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-card text-err">
-                <TriangleAlert aria-hidden size="0.75rem" />
-                <span className="sr-only">
-                  {[
-                    (w.missing?.length ?? 0) > 0 ? t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) }) : null,
-                    (w.langWaiting ?? 0) > 0 ? t('watch.langWaiting', { count: w.langWaiting, lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/') }) : null,
-                    w.lastResult || null,
-                  ]
-                    .filter(Boolean)
-                    .join('. ')}
-                </span>
-              </span>
-            )}
-          </div>
-        </div>
+        <Cover size="fill" src={w.media?.coverImage?.large} loading="lazy" className="opacity-90 transition-opacity group-hover:opacity-100">
+          {!w.media && <span className="p-2 text-center text-xs text-t-muted">{name}</span>}
+        </Cover>
         <div className="p-2">
           <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={name}>
             {name}
           </h4>
+          {/* under the title, not over the poster: chips on a busy poster
+              were barely there, whatever their surface */}
+          {(!!w.nextAiringAt || w.active > 0 || attention) && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {!!w.nextAiringAt && (
+                <Badge size="sm" tone={w.behind ? 'warn' : 'ok'}>
+                  {t('watch.chipEp', { n: w.nextEpisode })} · {when(w.nextAiringAt)}
+                </Badge>
+              )}
+              {w.active > 0 && (
+                <Badge size="sm" tone="accent">
+                  <Download aria-hidden size="1em" />
+                  {w.active}
+                </Badge>
+              )}
+              {attention && (
+                <Badge size="sm" tone="err" title={attentionText}>
+                  <TriangleAlert aria-hidden size="1em" />
+                  <span className="sr-only">{attentionText}</span>
+                </Badge>
+              )}
+            </div>
+          )}
           <p className={`mt-1 text-[11px] ${w.complete ? 'text-ok' : 'text-t-muted'}`}>
             {total > 0 ? t('watch.episodes', { have: w.localFiles, total }) : t('watch.files', { count: w.localFiles })}
           </p>
