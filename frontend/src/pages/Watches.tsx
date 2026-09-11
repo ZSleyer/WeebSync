@@ -50,10 +50,11 @@ import {
   SHEET_MQ,
   useMediaQuery,
   useMenu,
+  useSwipe,
   WeekStrip,
 } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, type Watch } from '../api'
-import { addDays, dayKey, localeFirstDay, startOfDay, startOfWeek, upcomingAirings, type Airing } from '../airings'
+import { addDays, dayKey, localeFirstDay, startOfDay, startOfWeek, stepDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import { useWatchActions, watchFields } from '../components/watchActions'
@@ -169,6 +170,32 @@ export default function Watches() {
     const first = calShown.find((e) => e.at * 1000 >= start.getTime() && e.at * 1000 < end.getTime())
     setSelectedDay(dayKey(first ? new Date(first.at * 1000) : start.getTime() < today.getTime() ? today : start))
   }
+  // the two week steps, shared by the strip's arrows and by the swipe below it.
+  // No previous step in the current week: the schedule only reaches forward.
+  const prevWeek = weekStart.getTime() > thisWeek.getTime() ? () => goWeek(addDays(weekStart, -7)) : undefined
+  const nextWeek = () => goWeek(addDays(weekStart, 7))
+  // one day on or back, rolling over the week boundary. Not goWeek - that picks
+  // its own day, and here the day is what the gesture chose.
+  const goDay = (delta: number) => {
+    const step = stepDay(selectedDay, delta, weekStart, today)
+    if (!step) return
+    setSelectedDay(step.day)
+    if (step.weekStart !== weekStart) setWeekStart(step.weekStart)
+  }
+  // Under the strip the swipe means a day on the phone, where one day is on
+  // screen, and a week everywhere else - on the desktop grid and in an empty
+  // week, where stepping a day would move nothing visible and leave the user
+  // stuck. A held mouse button pages here too, the calendar has no prose.
+  const dayMode = !wide && byDay.size > 0
+  const calSwipe = useSwipe(
+    dayMode
+      ? {
+          onPrev: selectedDay > dayKey(today) ? () => goDay(-1) : undefined,
+          onNext: () => goDay(1),
+          mouse: true,
+        }
+      : { onPrev: prevWeek, onNext: nextWeek, mouse: true },
+  )
   // the agenda: every release ahead, grouped by day, as far as the providers date them
   const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
   const calGroups: { day: string; items: Airing[] }[] = []
@@ -411,47 +438,51 @@ export default function Watches() {
                 })}
                 selected={selectedDay}
                 onSelect={setSelectedDay}
-                onPrev={weekStart.getTime() > thisWeek.getTime() ? () => goWeek(addDays(weekStart, -7)) : undefined}
-                onNext={() => goWeek(addDays(weekStart, 7))}
+                onPrev={prevWeek}
+                onNext={nextWeek}
                 onToday={weekStart.getTime() !== thisWeek.getTime() || selectedDay !== dayKey(today) ? () => goWeek(thisWeek) : undefined}
                 labels={{ prev: t('watch.week.prev'), next: t('watch.week.next'), today: t('watch.week.today'), strip: t('watch.week.strip') }}
               />
-              {byDay.size === 0 ? (
-                <EmptyState>
-                  <p>{t('watch.week.empty')}</p>
-                  {nextAfter && (
-                    <Button size="sm" className="mt-3" onClick={() => goWeek(startOfWeek(new Date(nextAfter.at * 1000), firstDay))}>
-                      {t('watch.week.jump')}
-                    </Button>
-                  )}
-                </EmptyState>
-              ) : wide ? (
-                // desktop: the whole week side by side, today's column marked
-                <div className="grid grid-cols-7 gap-3">
-                  {days.map((d) => {
-                    const k = dayKey(d)
-                    const items = byDay.get(k) ?? []
-                    return (
-                      <CalendarDay
-                        key={k}
-                        className={k === dayKey(today) ? 'rounded-md outline-2 outline-offset-4 outline-accent/40' : d.getTime() < today.getTime() ? 'opacity-60' : undefined}
-                        day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                      >
-                        {items.length === 0 ? <li className="text-xs text-t-faint">{t('watch.week.free')}</li> : items.map((e) => entryOf(e, true))}
-                      </CalendarDay>
-                    )
-                  })}
-                </div>
-              ) : (
-                // phone: the picked day under the strip
-                <CalendarDay day={new Date(selectedDay + 'T00:00').toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}>
-                  {(byDay.get(selectedDay) ?? []).length === 0 ? (
-                    <li className="text-sm text-t-muted">{t('watch.week.free')}</li>
-                  ) : (
-                    (byDay.get(selectedDay) ?? []).map((e) => entryOf(e))
-                  )}
-                </CalendarDay>
-              )}
+              {/* everything under the strip is one swipe zone: the empty week
+                  has to page as well, or there is no way out of it by gesture */}
+              <div {...calSwipe}>
+                {byDay.size === 0 ? (
+                  <EmptyState>
+                    <p>{t('watch.week.empty')}</p>
+                    {nextAfter && (
+                      <Button size="sm" className="mt-3" onClick={() => goWeek(startOfWeek(new Date(nextAfter.at * 1000), firstDay))}>
+                        {t('watch.week.jump')}
+                      </Button>
+                    )}
+                  </EmptyState>
+                ) : wide ? (
+                  // desktop: the whole week side by side, today's column marked
+                  <div className="grid grid-cols-7 gap-3">
+                    {days.map((d) => {
+                      const k = dayKey(d)
+                      const items = byDay.get(k) ?? []
+                      return (
+                        <CalendarDay
+                          key={k}
+                          className={k === dayKey(today) ? 'rounded-md outline-2 outline-offset-4 outline-accent/40' : d.getTime() < today.getTime() ? 'opacity-60' : undefined}
+                          day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                        >
+                          {items.length === 0 ? <li className="text-xs text-t-faint">{t('watch.week.free')}</li> : items.map((e) => entryOf(e, true))}
+                        </CalendarDay>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  // phone: the picked day under the strip
+                  <CalendarDay day={new Date(selectedDay + 'T00:00').toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}>
+                    {(byDay.get(selectedDay) ?? []).length === 0 ? (
+                      <li className="text-sm text-t-muted">{t('watch.week.free')}</li>
+                    ) : (
+                      (byDay.get(selectedDay) ?? []).map((e) => entryOf(e))
+                    )}
+                  </CalendarDay>
+                )}
+              </div>
             </>
           )}
         </div>
