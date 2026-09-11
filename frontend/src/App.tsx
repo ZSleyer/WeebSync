@@ -21,11 +21,12 @@ import {
   Outlet,
   Route,
   useLocation,
+  useNavigate,
   useMatches,
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar } from '@weebsync/design-system'
+import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar, useSwipe, type SwipeHandlers } from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
 import Logo from './components/Logo'
@@ -204,12 +205,15 @@ function RouteTitle() {
 // position:fixed descendants (e.g. the browser's selection bar) to the page
 // instead of the viewport. Lives inside the keyed <main>, so a navigation
 // remounts it and the next animation plays from scratch.
-function RouteTransition({ cls, children }: { cls: string; children: ReactNode }) {
+function RouteTransition({ cls, swipe, children }: { cls: string; swipe: SwipeHandlers; children: ReactNode }) {
   const [done, setDone] = useState(false)
   return (
     // the layout classes have to survive the animation class being dropped:
-    // they are what lets a page claim the remaining height of <main>
+    // they are what lets a page claim the remaining height of <main>. This is
+    // also the page's swipe zone - it fills <main>, so a thumb anywhere on the
+    // page turns it, including the empty space under a short one.
     <div
+      {...swipe}
       className={`flex min-h-0 flex-1 flex-col${cls && !done ? ' ' + cls : ''}`}
       onAnimationEnd={(e) => e.target === e.currentTarget && setDone(true)}
     >
@@ -262,6 +266,16 @@ function Shell({ email }: { email: string }) {
   useLayoutEffect(() => {
     document.documentElement.dataset.nav = navDir
   }, [navDir, location.pathname])
+
+  // Sideways through the nav, in the order the rail lists it. The innermost
+  // zone that can move wins, so a page with a swipe of its own - the calendar,
+  // the settings sections - keeps the gesture and only hands it on at its own
+  // edge. Touch and pen only: a mouse drag has to select text.
+  const navigate = useNavigate()
+  const pageSwipe = useSwipe({
+    onPrev: curNav > 0 ? () => navigate(NAV[curNav - 1].to) : undefined,
+    onNext: curNav < NAV.length - 1 ? () => navigate(NAV[curNav + 1].to) : undefined,
+  })
 
   const logout = async () => {
     try {
@@ -423,7 +437,7 @@ function Shell({ email }: { email: string }) {
             </>
           }
         >
-          <RouteTransition cls={transitionClass}>
+          <RouteTransition cls={transitionClass} swipe={pageSwipe}>
             <Outlet />
           </RouteTransition>
         </AppShell>
