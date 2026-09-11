@@ -136,6 +136,19 @@ describe('Dialog', () => {
     expect(dialog.open).toBe(true)
   })
 
+  it('leaves Escape to an open menu inside the dialog', () => {
+    const onClose = vi.fn()
+    const { getByRole } = render(
+      <Dialog onClose={onClose}>
+        <button aria-haspopup="listbox" aria-expanded="true">
+          Mehr
+        </button>
+      </Dialog>,
+    )
+    fireEvent.keyDown(getByRole('button'), { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   // ── full-screen sheet on phones ──
   // jsdom's matchMedia always reports `matches: false`, so the narrow case is
   // stubbed. Restored per test, since the component reads it on first render.
