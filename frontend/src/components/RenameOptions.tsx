@@ -476,9 +476,12 @@ export default function RenameOptions({
                     {caps?.tmdbApiKeySet && <option value="tmdb:aired">TMDB Aired</option>}
                   </Select>
                 </label>
-                {seasonFolder && isSeasonFolder(seasonFolder.name) && (
-                  // target is a season folder -> the template would nest
-                  // "Season NN/" inside it; offer to move up to the series folder
+                {seasonFolder && isSeasonFolder(seasonFolder.name) && (rule.airedMapping || rule.template.includes('/')) && (
+                  // target is a season folder and the template lays out
+                  // folders of its own -> it would nest "Season NN/" inside
+                  // it; offer to move up to the series folder. A flat
+                  // template writes into the season folder, which is where a
+                  // season sync is meant to land.
                   <div className="space-y-1">
                     <p className="text-[11px] text-warn">{t('watch.localIsSeasonFolder', { folder: seasonFolder.name })}</p>
                     <Button size="sm" onClick={seasonFolder.onUseParent}>

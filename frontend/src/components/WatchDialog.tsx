@@ -13,7 +13,7 @@ import RenameOptions, { Hint, ROW_GRID, type RenameProfile, type RenameRule } fr
 import RenamePreview from './RenamePreview'
 import { useRenamePreview } from './useRenamePreview'
 import SubfolderChoice from './SubfolderChoice'
-import { subfolderMode, subfolderTargetDir, syncRequestPath, useTargetFolder } from './useTargetFolder'
+import { seasonInPath, subfolderMode, subfolderTargetDir, syncRequestPath, useTargetFolder } from './useTargetFolder'
 import { useFolderKind } from './watchDefaults'
 
 export interface WatchFields extends RenameRule {
@@ -25,6 +25,8 @@ export interface WatchFields extends RenameRule {
   // watch never carries it (see SubfolderChoice).
   subfolderSource?: SubfolderMode
   subfolderSeparator?: string
+  // the season folder a title subfolder gets under it; dialog state as well
+  seasonFolder?: string
   mediaId: number
   mediaSource: string
   wantDub: string
@@ -122,8 +124,11 @@ export default function WatchDialog({
       .catch(() => {}) // filter is optional; a saved value still shows via its own option below
   }, [serverId])
 
+  // the season's folder under a title folder - unless the template lays the
+  // folders out itself, then the season is its business
+  const seasonFolder = seasonInPath(f.template, f.airedMapping) ? (f.seasonFolder ?? folder?.seasonFolder ?? '') : ''
   // the folder the files really land in, and whether it is there yet
-  const targetDir = subfolderTargetDir(f.localPath, f.remotePath, subMode, seriesTitle, subSep)
+  const targetDir = subfolderTargetDir(f.localPath, f.remotePath, subMode, seriesTitle, subSep, seasonFolder)
   const { entries: targetEntries, missing: targetMissing } = useTargetFolder(targetDir)
 
   // the preview runs regardless of the rename switch: it is also where the
@@ -175,7 +180,7 @@ export default function WatchDialog({
       // the title folder is resolved here, once: what the watch stores is the
       // finished path, so a later title change cannot strand it elsewhere.
       // The other two modes keep the payload the backend has always seen.
-      const { subfolderSource: _src, subfolderSeparator: _sep, ...rest } = f
+      const { subfolderSource: _src, subfolderSeparator: _sep, seasonFolder: _season, ...rest } = f
       const saved: WatchFields = {
         ...rest,
         localPath: syncRequestPath(subMode, f.localPath, targetDir),
@@ -291,6 +296,7 @@ export default function WatchDialog({
               separator={subSep}
               onSeparator={setSubSep}
               title={shownTitle}
+              seasonFolder={seasonFolder}
             />
             {f.replaceOld !== undefined && (
               <label className="flex items-center gap-2 text-sm text-t-secondary">

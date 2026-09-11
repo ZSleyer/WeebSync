@@ -646,6 +646,7 @@ export interface AiProposal {
     subfolder: boolean
     subfolderSource?: SubfolderMode
     subfolderSeparator?: string
+    seasonFolder?: string
     replaceOld?: boolean
   } & Record<string, unknown>
   info?: string[]

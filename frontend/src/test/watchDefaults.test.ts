@@ -34,6 +34,26 @@ describe('applyDefaults', () => {
     expect(applyDefaults(blank, 'weird', d).localPath).toBe('Anime')
     expect(applyDefaults(blank, 'movie', undefined)).toEqual(blank)
   })
+  it('sends a season to the library folder the show already has, path and template alike', () => {
+    const lib = { kind: 'anime-series', title: 'Frieren', season: 2, seasonFolder: 'Season 2', libraryDir: '/lib/Frieren' }
+    const f = applyDefaults(blank, 'anime-series', { ...d, common: { ...d.common, airedMapping: false } }, lib)
+    expect([f.localPath, f.subfolderSource, f.seasonFolder, f.template]).toEqual(['/lib/Frieren/Season 2', 'none', 'Season 2', '{title} - {episode:02}'])
+    // the library speaks even without defaults, and a pinned season only where the template names one
+    const g = applyDefaults(blank, 'anime-series', undefined, lib)
+    expect([g.localPath, g.template]).toEqual(['/lib/Frieren/Season 2', ''])
+    const h = applyDefaults({ ...blank, template: '{title} - S{season:02}E{episode:02}' }, 'anime-series', undefined, lib)
+    expect(h.template).toBe('{title} - S02E{episode:02}')
+  })
+  it('hands the season folder to a title subfolder and keeps it out of a folder template', () => {
+    const sub = { kind: 'anime-series', title: 'Frieren', season: 2, seasonFolder: 'Season 02' }
+    const f = applyDefaults(blank, 'anime-series', { ...d, common: { ...d.common, airedMapping: false } }, sub)
+    expect([f.localPath, f.subfolderSource, f.seasonFolder]).toEqual(['Anime', 'title', 'Season 02'])
+    // aired mapping is on in these defaults: the season varies per file
+    expect(applyDefaults(blank, 'anime-series', d, sub).seasonFolder).toBeUndefined()
+    const folders = { ...d, kinds: { 'anime-series': { ...d.kinds['anime-series']!, template: 'Season {season:02}/{title} - S{season:02}E{episode:02}' } } }
+    const g = applyDefaults(blank, 'anime-series', { ...folders, common: { ...d.common, airedMapping: false } }, { ...sub, libraryDir: '/lib/Frieren' })
+    expect([g.localPath, g.seasonFolder, g.template]).toEqual(['/lib/Frieren', undefined, 'Season {season:02}/{title} - S{season:02}E{episode:02}'])
+  })
   it('maps suggestion categories onto kinds', () => {
     expect(['anime-tv', 'anime-movie', 'animation-tv', 'movie', 'tv'].map(suggestionKind)).toEqual(['anime-series', 'anime-movie', 'series', 'movie', 'series'])
   })
