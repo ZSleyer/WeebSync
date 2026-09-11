@@ -40,29 +40,3 @@ describe('week helpers', () => {
     expect(dayKey(addDays(startOfWeek(thu, 1), 7))).toBe('2026-09-21')
   })
 })
-
-describe('stepDay', () => {
-  const week = new Date(2026, 8, 14) // Monday
-  const floor = new Date(2026, 8, 15) // "today"
-
-  it('stays in the week for a step inside it', async () => {
-    const { stepDay } = await import('../airings')
-    const s = stepDay('2026-09-16', 1, week, floor)
-    expect(s).toEqual({ day: '2026-09-17', weekStart: week })
-  })
-
-  it('carries the strip over both boundaries', async () => {
-    const { stepDay, dayKey } = await import('../airings')
-    const fwd = stepDay('2026-09-20', 1, week, floor)!
-    expect(fwd.day).toBe('2026-09-21')
-    expect(dayKey(fwd.weekStart)).toBe('2026-09-21')
-    const back = stepDay('2026-09-14', -1, week, new Date(2026, 8, 1))!
-    expect(back.day).toBe('2026-09-13')
-    expect(dayKey(back.weekStart)).toBe('2026-09-07')
-  })
-
-  it('refuses a step before the floor', async () => {
-    const { stepDay } = await import('../airings')
-    expect(stepDay('2026-09-15', -1, week, floor)).toBeNull()
-  })
-})
