@@ -35,23 +35,6 @@ export function startOfWeek(d: Date, firstDay = 1): Date {
 /** The key a day is grouped under: its local date, YYYY-MM-DD. */
 export const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-/**
- * One day on or back from `selected` (a dayKey), never before `floor`. Returns
- * the new day together with the week it falls in, so a step over the boundary
- * carries the week strip along. Null means the step was refused.
- */
-export function stepDay(selected: string, delta: number, weekStart: Date, floor: Date): { day: string; weekStart: Date } | null {
-  const next = addDays(new Date(selected + 'T00:00'), delta)
-  if (next.getTime() < floor.getTime()) return null
-  const week =
-    next.getTime() >= addDays(weekStart, 7).getTime()
-      ? addDays(weekStart, 7)
-      : next.getTime() < weekStart.getTime()
-        ? addDays(weekStart, -7)
-        : weekStart
-  return { day: dayKey(next), weekStart: week }
-}
-
 /** The locale's first day of the week, Monday where the engine cannot say. */
 export function localeFirstDay(): number {
   try {

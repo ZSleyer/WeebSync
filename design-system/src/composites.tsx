@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
 import { Badge, buttonClass, COVER_BOX, Panel, Progress } from './primitives'
-import { useSwipe } from './useSwipe'
 
 // The composed surfaces WeebSync reuses across pages: media tiles, the file
 // browser, calendar entries, menus and modals. Same markup the app renders,
@@ -539,10 +538,6 @@ export interface WeekStripProps {
  * says the strip starts here. The caller owns the dates, this only draws them.
  */
 export function WeekStrip({ days, selected, onSelect, onPrev, onNext, onToday, labels, caption, className }: WeekStripProps) {
-  // the strip pages weeks on a swipe as well - the arrows stay, they are the
-  // single-pointer way to the same two steps (WCAG 2.2 SC 2.5.7). A held mouse
-  // button counts: there is nothing to select in a row of day buttons.
-  const swipe = useSwipe({ onPrev, onNext, mouse: true })
   const arrow = (dir: 'prev' | 'next', onClick?: () => void) => (
     <button
       type="button"
@@ -558,7 +553,7 @@ export function WeekStrip({ days, selected, onSelect, onPrev, onNext, onToday, l
     </button>
   )
   return (
-    <div {...swipe} className={cx('flex flex-col gap-2', className)}>
+    <div className={cx('flex flex-col gap-2', className)}>
       <div className="flex items-center gap-2">
         {arrow('prev', onPrev)}
         <p className="min-w-0 flex-1 truncate text-center font-display text-sm font-semibold tracking-wider text-t-secondary">{caption}</p>
