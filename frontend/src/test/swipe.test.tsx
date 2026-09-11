@@ -117,6 +117,15 @@ describe('useSwipe', () => {
     expect(screen.getByTestId('outer').style.transform).toBe('')
   })
 
+  it('blocks the native drag only where the swipe is live', () => {
+    render(<Zone onNext={vi.fn()} mouse />)
+    const zone = screen.getByTestId('zone')
+    // nothing held: the browser keeps its own drag
+    expect(fireEvent.dragStart(zone)).toBe(true)
+    fireEvent.pointerDown(zone, { clientX: 100, clientY: 100, pointerId: 1, button: 0, pointerType: 'mouse' })
+    expect(fireEvent.dragStart(zone)).toBe(false)
+  })
+
   it('does nothing while disabled', () => {
     const onNext = vi.fn()
     render(<Zone onNext={onNext} disabled />)
