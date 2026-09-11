@@ -441,6 +441,8 @@ export interface CalendarEntryProps {
   onClick?: () => void
   /** the button's accessible name, when the title alone would not say what opens */
   'aria-label'?: string
+  /** for a narrow week column: the small poster, the text stacked beside it */
+  compact?: boolean
   className?: string
 }
 
@@ -448,8 +450,18 @@ export interface CalendarEntryProps {
  * One scheduled release inside a calendar day. Given onClick the entry is
  * one button, the whole tile its target, so a thumb on a phone hits it.
  */
-export function CalendarEntry({ title, episode, cover, time, countdown, onClick, className, ...aria }: CalendarEntryProps) {
-  const body = (
+export function CalendarEntry({ title, episode, cover, time, countdown, onClick, compact, className, ...aria }: CalendarEntryProps) {
+  const body = compact ? (
+    <>
+      <Cover src={cover} size="sm" />
+      <div className="min-w-0 flex-1">
+        <p className="line-clamp-2 text-sm font-medium text-t-primary">{title}</p>
+        {episode && <p className="text-[11px] text-t-muted">{episode}</p>}
+        <p className="mt-1 font-mono text-xs text-t-secondary">{time}</p>
+        {countdown && <p className="text-[11px] text-accent">{countdown}</p>}
+      </div>
+    </>
+  ) : (
     <>
       <Cover src={cover} size="sm" />
       <div className="min-w-0 flex-1">
@@ -462,21 +474,17 @@ export function CalendarEntry({ title, episode, cover, time, countdown, onClick,
       </div>
     </>
   )
+  const layout = compact ? 'items-start gap-2 p-2' : 'items-center gap-3 p-2'
   if (onClick) {
     return (
       <Panel className={cx('overflow-clip', className)}>
-        <button
-          type="button"
-          onClick={onClick}
-          aria-label={aria['aria-label']}
-          className="flex w-full cursor-pointer items-center gap-3 p-2 text-left hover:bg-bg-hover"
-        >
+        <button type="button" onClick={onClick} aria-label={aria['aria-label']} className={cx('flex w-full cursor-pointer text-left hover:bg-bg-hover', layout)}>
           {body}
         </button>
       </Panel>
     )
   }
-  return <Panel className={cx('flex items-center gap-3 p-2', className)}>{body}</Panel>
+  return <Panel className={cx('flex', layout, className)}>{body}</Panel>
 }
 
 export interface CalendarDayProps {
@@ -533,7 +541,7 @@ export function WeekStrip({ days, selected, onSelect, onPrev, onNext, onToday, l
   const arrow = (dir: 'prev' | 'next', onClick?: () => void) => (
     <button
       type="button"
-      className="t-iconbtn shrink-0"
+      className="t-iconbtn shrink-0 disabled:cursor-default disabled:opacity-40"
       aria-label={labels[dir]}
       title={labels[dir]}
       disabled={!onClick}
@@ -571,10 +579,10 @@ export function WeekStrip({ days, selected, onSelect, onPrev, onNext, onToday, l
                 'flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md border px-1 py-1.5 text-xs transition-colors',
                 pressed ? 'border-accent bg-bg-card text-t-primary' : 'border-border-subtle bg-bg-secondary text-t-secondary hover:bg-bg-hover',
                 d.today && 'outline-2 outline-offset-1 outline-accent',
-                d.disabled && 'cursor-default opacity-50 hover:bg-bg-secondary',
+                d.disabled && 'cursor-default opacity-40 hover:bg-bg-secondary',
               )}
             >
-              <span className="leading-tight">{d.label}</span>
+              <span className="flex flex-col items-center leading-tight">{d.label}</span>
               {/* the count is a real chip: zero draws nothing, so an empty day
                   stays quiet and the eye lands on the days that have one */}
               {!!d.count && <Badge size="sm" tone={pressed ? 'accent' : 'neutral'}>{d.count}</Badge>}
