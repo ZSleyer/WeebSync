@@ -134,4 +134,23 @@ describe('SeriesModalProvider', () => {
     expect(screen.getByRole('tab', { name: 'series.tab.cast' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByText('Fern')).toBeInTheDocument()
   })
+
+  it('swipes the panel from one tab to the next and stops at the ends', async () => {
+    serve({ extras: { relations: [], recommendations: [], characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose' }], links: [], threads: [] } })
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    const panel = screen.getByRole('tabpanel')
+    const swipe = (dx: number) => {
+      fireEvent.pointerDown(panel, { clientX: 200, clientY: 100, pointerId: 1, button: 0, pointerType: 'touch' })
+      fireEvent.pointerMove(panel, { clientX: 200 + dx / 4, clientY: 100, pointerId: 1 })
+      fireEvent.pointerMove(panel, { clientX: 200 + dx, clientY: 100, pointerId: 1 })
+      fireEvent.pointerUp(panel, { clientX: 200 + dx, clientY: 100, pointerId: 1 })
+    }
+    // the first tab has nothing to its left
+    swipe(100)
+    expect(screen.getByRole('tab', { name: 'series.tab.overview' })).toHaveAttribute('aria-selected', 'true')
+    swipe(-100)
+    expect(screen.getByRole('tab', { name: 'series.tab.cast' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByText('Fern')).toBeInTheDocument()
+  })
 })

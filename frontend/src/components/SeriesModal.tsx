@@ -24,7 +24,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { Badge, Button, Cover, Dialog, IconButton, Menu, MenuItem, Progress, Tab, Tabs, useMenu } from '@weebsync/design-system'
+import { Badge, Button, Cover, Dialog, IconButton, Menu, MenuItem, Progress, Tab, Tabs, useMenu, useSwipe } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, watchTitle, type Media, type MediaExtras, type Review, type Watch } from '../api'
 import { useNow } from '../hooks'
 import MediaDetail, { GenreChips } from './MediaDetail'
@@ -152,6 +152,16 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
   // the auto-sync tab asked for before the watch list arrived, or for a title
   // that turns out to have none, lands on the overview
   const tab: SeriesTab = wanted === 'sync' && mine.length === 0 ? 'overview' : wanted
+  // a swipe across the panel walks the bar. Over `tabs`, not TABS - the
+  // auto-sync tab is missing for a title with no watch. The bar itself stays
+  // the way in with a keyboard or a tap, and it scrolls the new tab into view
+  // on its own. Touch and pen only: the panel is a reading surface, a mouse
+  // drag has to select text there.
+  const at = tabs.indexOf(tab)
+  const tabSwipe = useSwipe({
+    onPrev: at > 0 ? () => setTab(tabs[at - 1]) : undefined,
+    onNext: at < tabs.length - 1 ? () => setTab(tabs[at + 1]) : undefined,
+  })
   const ids = useId()
   const name = cur.title || (media ? mediaTitle(media) : '')
   const MediaStatusIcon = media?.status ? MEDIA_STATUS_ICON[media.status] : undefined
@@ -216,7 +226,7 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
           </Tabs>
         </header>
 
-        <div id={`${ids}-panel-${tab}`} role="tabpanel" aria-labelledby={`${ids}-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
+        <div {...tabSwipe} id={`${ids}-panel-${tab}`} role="tabpanel" aria-labelledby={`${ids}-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
           {tab === 'overview' && media && (
             <MediaDetail media={media} source={source} airings={mine[0]?.airings} links={extras?.links} now={now}>
               {cur.extra}
