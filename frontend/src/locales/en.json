@@ -552,6 +552,9 @@
       "jump": "To the next release",
       "free": "free"
     },
+    "calMode": "Calendar layout",
+    "calWeek": "Week",
+    "calAgenda": "List",
     "calEmpty": "No upcoming episodes with an air date.",
     "calFilter": "Filter by type",
     "calAll": "All",

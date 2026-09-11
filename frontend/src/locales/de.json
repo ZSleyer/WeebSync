@@ -552,6 +552,9 @@
       "jump": "Zur nächsten Ausstrahlung",
       "free": "frei"
     },
+    "calMode": "Kalenderansicht",
+    "calWeek": "Woche",
+    "calAgenda": "Liste",
     "calEmpty": "Keine anstehenden Folgen mit Airing-Termin.",
     "calFilter": "Nach Art filtern",
     "calAll": "Alle",
