@@ -461,18 +461,22 @@ type aiWatchFields struct {
 	// that ignores them still gets the right folder from Subfolder.
 	SubfolderSource    string `json:"subfolderSource,omitempty"`
 	SubfolderSeparator string `json:"subfolderSeparator,omitempty"`
-	MediaID            int    `json:"mediaId"`
-	MediaSource        string `json:"mediaSource"`
-	FromEpisode        int    `json:"fromEpisode"`
-	AiredMapping       bool   `json:"airedMapping"`
-	RenameProvider     string `json:"renameProvider"`
-	RenameOrdering     string `json:"renameOrdering"`
-	RenameTitleLang    string `json:"renameTitleLang"`
-	RenameSeriesID     int    `json:"renameSeriesId"`
-	WantDub            string `json:"wantDub"`
-	WantSub            string `json:"wantSub"`
-	PlexAudioLang      string `json:"plexAudioLang"`
-	PlexSubLang        string `json:"plexSubLang"`
+	// SeasonFolder travels the same way: the season folder a title subfolder
+	// gets under it ("Season 02"), empty when the season belongs to the
+	// template or the folder is not a season.
+	SeasonFolder    string `json:"seasonFolder,omitempty"`
+	MediaID         int    `json:"mediaId"`
+	MediaSource     string `json:"mediaSource"`
+	FromEpisode     int    `json:"fromEpisode"`
+	AiredMapping    bool   `json:"airedMapping"`
+	RenameProvider  string `json:"renameProvider"`
+	RenameOrdering  string `json:"renameOrdering"`
+	RenameTitleLang string `json:"renameTitleLang"`
+	RenameSeriesID  int    `json:"renameSeriesId"`
+	WantDub         string `json:"wantDub"`
+	WantSub         string `json:"wantSub"`
+	PlexAudioLang   string `json:"plexAudioLang"`
+	PlexSubLang     string `json:"plexSubLang"`
 	// ReplaceOld is set on upgrades only: the dialog offers to trash the copy
 	// the sync improves on (see replaceOldCopy).
 	ReplaceOld bool `json:"replaceOld,omitempty"`
@@ -1625,7 +1629,7 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind, ref, title, 
 	// kind fill what is still blank (a plan that found the library folder
 	// keeps it), the download root is the last resort for the target
 	done := func() (*aiProposal, string) {
-		s.watchDefaultsFor(userID).apply(s.matchedKind(serverID, remotePath), &p.Fields)
+		s.watchDefaultsFor(userID).apply(s.folderTarget(serverID, remotePath), &p.Fields)
 		if p.Fields.LocalPath == "" {
 			p.Fields.LocalPath = s.DownloadRoot
 		}

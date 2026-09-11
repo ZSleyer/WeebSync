@@ -2,8 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -69,8 +72,16 @@ type WatchDefaultsResponse struct {
 	// Title is the series title of that folder - the catalog match, or the
 	// guess from the folder name when it is unmatched. It is what a "title"
 	// subfolder is named after.
-	Title  string         `json:"title,omitempty"`
-	Fields *aiWatchFields `json:"fields,omitempty"`
+	Title string `json:"title,omitempty"`
+	// Season is the season the folder holds, 0 for a movie or a folder that
+	// holds season subfolders itself. SeasonFolder is the folder that season
+	// gets ("Season 02", spelled like a sibling when the library has one),
+	// LibraryDir the show root the library already holds - the sync goes there
+	// rather than to the kind's default folder.
+	Season       int            `json:"season,omitempty"`
+	SeasonFolder string         `json:"seasonFolder,omitempty"`
+	LibraryDir   string         `json:"libraryDir,omitempty"`
+	Fields       *aiWatchFields `json:"fields,omitempty"`
 }
 
 // watchDefaultsFor reads a user's defaults; an empty or unreadable column is
@@ -98,26 +109,170 @@ func (s *Server) watchDefaultsFor(userID int64) WatchDefaults {
 	return d
 }
 
-// apply fills the fields a dialog would otherwise leave blank: the kind's
-// folder and template (only when no folder was chosen yet, so a plan that
-// found the existing library folder keeps it), then the common part. Unknown
-// kinds fall back to the anime series entry.
+// folderTarget is what the catalog knows about a remote folder that decides
+// where a sync of it belongs: its kind and show title, the season it holds,
+// the folder that season gets, and the show root when the library already
+// holds another season of the same show.
+type folderTarget struct {
+	Kind  string
+	Title string
+	// Season is 0 for a movie, and for a folder that holds season subfolders
+	// itself - then the folder is the show, and a season segment under it
+	// would nest Season under Season.
+	Season int
+	// SeasonFolder is "Season 02" by Plex's convention, or spelled like the
+	// sibling season the library already has ("Season 2", "Season_02").
+	SeasonFolder string
+	// LibraryDir is the show root the library holds (an absolute path on a
+	// mounted root), "" when the show is not owned or not mounted here.
+	LibraryDir string
+}
+
+// folderTarget resolves a remote folder: kind and title from the catalog
+// match, the season from the same unit the suggestions group by, and the
+// library's copy of the show from the same rows the "incomplete" list reads.
+func (s *Server) folderTarget(serverID int64, folder string) folderTarget {
+	t := folderTarget{}
+	t.Kind, t.Title = s.matchedKindTitle(serverID, folder)
+	if t.Kind == "" {
+		t.Kind = "anime-series"
+	}
+	showKey, season, isMovie := s.folderUnit(serverID, folder)
+	if showKey == "" {
+		// unmatched: the folder name is all there is, and a series without a
+		// marker is its first season - the same default unitSeason applies
+		isMovie = strings.HasSuffix(t.Kind, "movie")
+		if season = match.ParseName(path.Base(folder), "", "").Season; season <= 0 && !isMovie {
+			season = 1
+		}
+	}
+	if isMovie {
+		season = 0
+	} else {
+		// the show title names the show folder; the per-season title would
+		// file "Frieren 2nd Season" beside "Frieren"
+		t.Title = match.StripMarkers(t.Title)
+		if s.remoteShowRoot(serverID, folder) {
+			season = 0 // the folder is the whole show; its seasons lie inside
+		}
+	}
+	t.Season = season
+	if season > 0 {
+		t.SeasonFolder = seasonFolderName("", season)
+	}
+	if showKey == "" {
+		return t
+	}
+	// the library: every local copy of this show, the keys folded the way the
+	// suggestions fold them. Any real folder will do, not the best copy: a
+	// season can be held as a mounted folder and as a Plex key at once, and
+	// the key says where nothing lies.
+	if c := s.showKeyCanon()[showScope(showKey, isMovie)]; c != "" {
+		showKey = c
+	}
+	scope := showScope(showKey, isMovie)
+	units := s.loadUnits()
+	var sibling, same string
+	for _, key := range units.order {
+		u := units.byKey[key]
+		if showScope(u.showKey, u.isMovie) != scope {
+			continue
+		}
+		for _, l := range u.locals {
+			if !strings.HasPrefix(l.Folder, "/") {
+				continue // a "plex:" key: known to Plex, not mounted here
+			}
+			if sibling == "" {
+				sibling = l.Folder
+			}
+			if u.season == season && same == "" {
+				same = l.Folder
+			}
+		}
+	}
+	if sibling == "" {
+		return t
+	}
+	if isMovie {
+		// the movie library root; the new film gets its own folder from the
+		// title, never another film's folder
+		t.LibraryDir = filepath.Dir(sibling)
+		return t
+	}
+	var plan SyncPlan
+	if same != "" {
+		plan = existingSyncPlan(same, season, false)
+	} else {
+		plan = missingSyncPlan(sibling, season, false)
+	}
+	if season > 0 && plexSeasonDirRe.MatchString(filepath.Base(plan.LocalPath)) {
+		t.LibraryDir, t.SeasonFolder = filepath.Dir(plan.LocalPath), filepath.Base(plan.LocalPath)
+	} else {
+		// a flat library keeps the show's files in the show folder itself
+		t.LibraryDir, t.SeasonFolder = plan.LocalPath, ""
+	}
+	return t
+}
+
+// seasonInPath reports whether a season folder belongs in the target path. A
+// template that carries a "/" lays out the folders itself - an aired-order
+// "Season {season:02}/..." - and so does aired mapping, whose season varies
+// per file; a Season folder in the path would nest under either.
+func seasonInPath(template string, aired bool) bool {
+	return !strings.Contains(template, "/") && !aired
+}
+
+var seasonPlaceholderRe = regexp.MustCompile(`\{season(?::0?(\d+))?\}`)
+
+// pinSeason writes the season into a template's {season} tokens, keeping each
+// token's padding. The rename engine reads the season off the file name and
+// falls back to 1 - in a "Season 02" folder that names the files S01E01.
+func pinSeason(template string, season int) string {
+	return seasonPlaceholderRe.ReplaceAllStringFunc(template, func(tok string) string {
+		width := 1
+		if m := seasonPlaceholderRe.FindStringSubmatch(tok); m[1] != "" {
+			width, _ = strconv.Atoi(m[1])
+		}
+		return fmt.Sprintf("%0*d", width, season)
+	})
+}
+
+// apply fills the fields a dialog would otherwise leave blank. The folder
+// comes first: the library's own show root when it holds the show, else the
+// kind's default folder; then the kind's template and the common part.
+// Unknown kinds fall back to the anime series entry.
 //
 // The subfolder choice is passed on, not resolved: a "title" subfolder is
 // named by the dialog, which knows the title the user is looking at and can
-// still change it. What reaches a watch is the finished LocalPath.
-func (d WatchDefaults) apply(kind string, f *aiWatchFields) {
+// still change it - and appends the season folder it is handed here. What
+// reaches a watch is the finished LocalPath.
+func (d WatchDefaults) apply(t folderTarget, f *aiWatchFields) {
+	kind := t.Kind
 	if !slices.Contains(watchKinds, kind) {
 		kind = "anime-series"
 	}
-	if k, ok := d.Kinds[kind]; ok && f.LocalPath == "" && k.LocalPath != "" {
+	k, hasKind := d.Kinds[kind]
+	c := d.Common
+	if f.Template == "" && hasKind {
+		f.Template, f.Separator = k.Template, k.Separator
+	}
+	inPath := seasonInPath(f.Template, f.AiredMapping || c.AiredMapping)
+	switch {
+	case f.LocalPath != "":
+		// a plan that found the folder keeps it
+	case t.LibraryDir != "":
+		f.LocalPath, f.Subfolder, f.SubfolderSource = t.LibraryDir, false, "none"
+		if inPath && t.SeasonFolder != "" {
+			f.LocalPath = path.Join(t.LibraryDir, t.SeasonFolder)
+		}
+	case hasKind && k.LocalPath != "":
 		f.LocalPath, f.Subfolder = k.LocalPath, k.Subfolder
 		f.SubfolderSource, f.SubfolderSeparator = k.SubfolderSource, k.SubfolderSeparator
-		if f.Template == "" {
-			f.Template, f.Separator = k.Template, k.Separator
-		}
 	}
-	c := d.Common
+	if inPath && t.Season > 0 {
+		f.SeasonFolder = t.SeasonFolder
+		f.Template = pinSeason(f.Template, t.Season)
+	}
 	fill := func(dst *string, v string) {
 		if *dst == "" {
 			*dst = v
@@ -178,12 +333,10 @@ func (s *Server) handleWatchDefaultsGet(w http.ResponseWriter, r *http.Request) 
 	out := WatchDefaultsResponse{WatchDefaults: s.watchDefaultsFor(u.ID)}
 	if p := r.URL.Query().Get("path"); p != "" {
 		serverID, _ := strconv.ParseInt(r.URL.Query().Get("serverId"), 10, 64)
-		out.Kind, out.Title = s.matchedKindTitle(serverID, p)
-		if out.Kind == "" {
-			out.Kind = "anime-series"
-		}
+		t := s.folderTarget(serverID, p)
+		out.Kind, out.Title, out.Season, out.SeasonFolder, out.LibraryDir = t.Kind, t.Title, t.Season, t.SeasonFolder, t.LibraryDir
 		f := &aiWatchFields{RemotePath: p, Mode: "template", MediaSource: "anilist"}
-		out.WatchDefaults.apply(out.Kind, f)
+		out.WatchDefaults.apply(t, f)
 		out.Fields = f
 	}
 	writeJSON(w, http.StatusOK, out)
