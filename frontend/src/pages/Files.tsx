@@ -495,7 +495,8 @@ function SearchResults({
   })
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    // the horizontal axis stays with the page's swipe zone, see the browser below
+    <div className="min-h-0 flex-1 overflow-y-auto" style={{ touchAction: 'pan-y pinch-zoom' }}>
       {isLoading && <Loading className="p-4" />}
       {data && data.results.length === 0 && (
         <p className="p-4 text-sm text-t-muted">
@@ -798,7 +799,12 @@ export function CatalogGrid({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {crumbs}
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      {/* touch-action is only read up to the nearest scroll container, and on a
+          phone this one fills the screen - the page's swipe zone sits above it
+          and the browser never sees it, so a sideways drag in here became a
+          scroll gesture and the page never turned. It has to allow the
+          horizontal axis itself. */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4" style={{ touchAction: 'pan-y pinch-zoom' }}>
       {/* one row of chips: what the folder is matched against, how the cards
           are ordered, and the rest behind the overflow. It used to be two
           labelled selects and up to three buttons, which stacked into five
