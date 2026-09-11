@@ -333,7 +333,7 @@ function Community({ source, id, threads, failed }: { source: string; id: number
         <section className="mb-4">
           <h4 className="t-label mb-2">{t('series.threads')}</h4>
           {threads && threads.length === 0 && <p className="text-sm text-t-muted">{t('series.noThreads')}</p>}
-          <ul className="grid gap-1">
+          <ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
             {threads?.map((th) => (
               <li key={th.id}>
                 <a
@@ -364,7 +364,7 @@ function Community({ source, id, threads, failed }: { source: string; id: number
         </h4>
         {rev && rev.reviews.length === 0 && <p className="text-sm text-t-muted">{t('remote.noReviews')}</p>}
         {/* chat-bubble layout: avatar beside a bordered bubble per review */}
-        <ul className="grid gap-3">
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-3">
           {(allReviews ? rev?.reviews : rev?.reviews.slice(0, 5))?.map((r, i) => (
             <li key={i} className="flex items-start gap-3">
               {r.user.avatar?.medium ? (
