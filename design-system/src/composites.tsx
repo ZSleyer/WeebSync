@@ -770,15 +770,20 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
       {/* the controls hold their place whatever the band does, so the thumb
           always finds them where it left them - hence a disabled "today"
           rather than one that comes and goes */}
-      <div className="flex items-center gap-2">
+      {/* three columns, the outer two equal: the caption sits over the middle
+          of the band whatever the two sides weigh - "today" beside the right
+          arrow would otherwise push it off centre */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         {arrow('prev', onPrev)}
-        <Slot step={step} className="min-w-0 flex-1 text-center font-display text-sm font-semibold tracking-wider text-t-secondary">
+        <Slot step={step} className="min-w-0 text-center font-display text-sm font-semibold tracking-wider text-t-secondary">
           <span className="truncate">{label}</span>
         </Slot>
-        <button type="button" className={cx(buttonClass({ size: 'sm' }), 'shrink-0 disabled:cursor-default disabled:opacity-40')} disabled={!onToday} onClick={onToday}>
-          {labels.today}
-        </button>
-        {arrow('next', onNext)}
+        <div className="flex items-center justify-end gap-2">
+          <button type="button" className={cx(buttonClass({ size: 'sm' }), 'shrink-0 disabled:cursor-default disabled:opacity-40')} disabled={!onToday} onClick={onToday}>
+            {labels.today}
+          </button>
+          {arrow('next', onNext)}
+        </div>
       </div>
       <div
         ref={band}
