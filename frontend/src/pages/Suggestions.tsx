@@ -64,6 +64,7 @@ import {
   type DismissedItem,
   type DuplicateItem,
   type SyncResult,
+  suggestionSource,
   syncOutcome,
   mediaTitle,
   fmtBytes,
@@ -428,7 +429,7 @@ function SugCard({
     <li>
       <SuggestionCard
         cover={it.cover}
-        onCover={it.media ? () => openSeries({ source: it.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist', id: it.media.id, media: it.media, title: it.title }) : undefined}
+        onCover={it.media ? () => openSeries({ source: suggestionSource(it), id: it.media.id, media: it.media, title: it.title }) : undefined}
         coverLabel={it.media ? t('remote.detailsFor', { name: it.title }) : undefined}
         title={it.title}
         year={it.year}
@@ -696,7 +697,7 @@ export function UpgradesSection() {
               onSync={(r) => setSync({ ...r, initial: applyDefaults(r.initial, 'anime-series', defaults) })}
               onDismiss={dismiss}
               onOpenRemote={(v) => navigate(`/files?server=${v.serverId}&path=${encodeURIComponent(v.folder)}`)}
-              onDetails={(u) => openSeries({ source: u.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist', id: u.media!.id, media: u.media, title: u.title })}
+              onDetails={(u) => openSeries({ source: suggestionSource(u), id: u.media!.id, media: u.media, title: u.title })}
             />
           )
           return (

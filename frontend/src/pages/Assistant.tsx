@@ -8,6 +8,7 @@ import {
   api,
   mediaTitle,
   streamAiChat,
+  suggestionSource,
   syncOutcome,
   type AiCard, type AiChatSummary,
   type AiChatMessage,
@@ -184,7 +185,7 @@ export default function Assistant() {
   // the cards the assistant shows open the app's one title card
   const { open: openSeries } = useSeriesModal()
   const setCard = (c: AiCard) => openSeries({ source: c.source, id: c.media.id, media: c.media })
-  const setDetail = (u: UpgradeSuggestion) => openSeries({ source: u.providers?.includes('tmdb') ? 'tmdb:tv' : 'anilist', id: u.media!.id, media: u.media, title: u.title })
+  const setDetail = (u: UpgradeSuggestion) => openSeries({ source: suggestionSource(u), id: u.media!.id, media: u.media, title: u.title })
   const [upSync, setUpSync] = useState<SyncRequest | null>(null)
   const { data: defaults } = useWatchDefaults()
   const confirm = useConfirm()
