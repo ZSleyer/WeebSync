@@ -16,6 +16,7 @@ export {
   Radio,
   ROW_GRID,
   Skeleton,
+  Slot,
   Select,
   Surface,
   Tab,
@@ -39,6 +40,7 @@ export type {
   PanelProps,
   ProgressProps,
   SkeletonProps,
+  SlotProps,
   RadioProps,
   SelectProps,
   SurfaceProps,
@@ -54,6 +56,7 @@ export {
   AppShell,
   Breadcrumb,
   CalendarDay,
+  DayScroller,
   CalendarEntry,
   Cover,
   Disclosure,
@@ -73,7 +76,6 @@ export {
   TabBar,
   TransferCard,
   TrendChart,
-  WeekStrip,
 } from './composites'
 export type {
   ActionBarProps,
@@ -102,8 +104,8 @@ export type {
   TransferCardProps,
   TrendChartProps,
   TabBarProps,
-  WeekStripDay,
-  WeekStripProps,
+  DayScrollerDay,
+  DayScrollerProps,
 } from './composites'
 
 export { Dialog } from './dialog'

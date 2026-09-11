@@ -10,7 +10,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // Presentational wrappers around the Tempest classes in styles.css. Deliberately
 // free of app concerns - no data fetching, no i18n, no router - so a component
@@ -421,6 +421,50 @@ export function Toolbar({ className, ...rest }: ToolbarProps) {
   return <div {...rest} className={cx('t-toolbar', className)} />
 }
 
+export interface SlotProps {
+  /** the step this value belongs to; up when it grows, down when it shrinks */
+  step: number
+  children: ReactNode
+  className?: string
+}
+
+/**
+ * A value that rolls when it changes, the way a split-flap board does: the old
+ * one leaves upwards and the new one arrives from below, or the other way for
+ * a step backwards. Both are on screen during the roll, inside a clipped box.
+ */
+export function Slot({ step, children, className }: SlotProps) {
+  // what was on screen before this step, and which way it left
+  const [old, setOld] = useState<{ node: ReactNode; up: boolean } | null>(null)
+  const last = useRef({ step, node: children })
+  if (last.current.step !== step) {
+    const up = step > last.current.step
+    // the render that notices the change also starts the roll; the previous
+    // node is the one captured on the render before it
+    if (old?.node !== last.current.node) setOld({ node: last.current.node, up })
+    last.current = { step, node: children }
+  } else last.current.node = children
+  // The roll is over after --dur-2; a timer ends it rather than animationend,
+  // which never arrives once the reduced-motion gate has collapsed the
+  // duration to nothing.
+  useEffect(() => {
+    if (!old) return
+    const t = setTimeout(() => setOld(null), 300)
+    return () => clearTimeout(t)
+  }, [old])
+  const up = old?.up ?? true
+  return (
+    <span className={cx('t-slot', old ? (up ? 't-slot--up' : 't-slot--down') : undefined, className)}>
+      {old && (
+        <span aria-hidden className="t-slot-out">
+          {old.node}
+        </span>
+      )}
+      <span className={old ? 't-slot-in' : undefined}>{children}</span>
+    </span>
+  )
+}
+
 export interface TabsProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
   /** the tablist element */
@@ -439,7 +483,7 @@ export interface TabsProps extends HTMLAttributes<HTMLDivElement> {
  * selected tab is the one that takes focus - see Tab's tabIndex).
  */
 // which edge of a scrolling tab bar is cut off right now
-function markOverflow(el: HTMLElement) {
+export function markOverflow(el: HTMLElement) {
   const start = el.scrollLeft > 1
   const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
   const v = start && end ? 'both' : start ? 'start' : end ? 'end' : ''
