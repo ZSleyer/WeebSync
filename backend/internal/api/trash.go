@@ -77,7 +77,8 @@ func (s *Server) trashGroup(path string) []string {
 
 // handleTrashList lists what waits in the trash folders, grouped like the
 // restore and delete actions act: a video with its sidecars is one entry.
-// Rows whose file is gone are dropped on the way.
+// A row whose file cannot be seen right now is skipped, not dropped: a media
+// disk that failed to mount looks the same, and the sweep owns cleanup.
 //
 //	@Summary		List the trash
 //	@Description	Every displaced copy waiting in a .weebsync-trash folder, newest first. A video and its sidecars form one entry.
@@ -100,13 +101,11 @@ func (s *Server) handleTrashList(w http.ResponseWriter, r *http.Request) {
 	for _, p := range paths {
 		local, ok := s.trashed(p)
 		if !ok {
-			s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
 			continue
 		}
 		fi, err := local.Root.Stat(local.Name)
 		if err != nil {
 			local.Close()
-			s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
 			continue
 		}
 		size := fi.Size()
