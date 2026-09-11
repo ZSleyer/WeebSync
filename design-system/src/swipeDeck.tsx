@@ -41,6 +41,11 @@ export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mous
   const [going, setGoing] = useState<-1 | 1 | null>(null)
   const flight = useRef<-1 | 1 | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  // the fallback timer keeps the closure it was given, so the landing reads the
+  // index from here - a parent that re-renders mid-slide (the calendar ticks
+  // every second) would otherwise land on the index from before the flight
+  const idx = useRef(index)
+  idx.current = index
 
   const rest = () => {
     clearTimeout(timer.current)
@@ -53,7 +58,7 @@ export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mous
     const dir = flight.current
     if (dir === null) return rest()
     rest()
-    onIndex(index + dir)
+    onIndex(idx.current + dir)
   }
   // transitionend can be missed - a reduced-motion setting cuts the duration to
   // nothing, a hidden tab never paints - and a deck stuck mid-slide is worse
