@@ -97,17 +97,20 @@ export default function SettingsLayout() {
     onNext: at >= 0 && at < sections.length - 1 ? () => navigate(sections[at + 1]) : undefined,
   })
   return (
-    <div>
+    // the whole page is the swipe zone, not just the box the section renders
+    // into: on a phone a thumb lands anywhere, and a short section left the
+    // gesture dead below its last panel
+    <div {...swipe} className="flex min-h-0 flex-1 flex-col">
       {/* the desktop's heading; on a phone the app bar carries the section
           title and a back link to the hub */}
       <header className="mb-6 hidden lg:block">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('settings.title')}</h2>
       </header>
 
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex flex-1 flex-col gap-6 lg:flex-row">
         <SectionNav label={t('settings.navLabel')} groups={groups} />
 
-        <div {...swipe} className="min-w-0 max-w-4xl flex-1">
+        <div className="min-w-0 max-w-4xl flex-1">
           <Outlet />
         </div>
       </div>
