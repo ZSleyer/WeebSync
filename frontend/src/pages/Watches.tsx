@@ -28,7 +28,7 @@ const GROUP_ICON: Record<string, LucideIcon> = {
   waiting: Clock,
   complete: Check,
 }
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
 import {
@@ -52,10 +52,9 @@ import { api, fmtMissing, mediaTitle, type Watch } from '../api'
 import { upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
-import WatchEpisodesModal from '../components/WatchEpisodesModal'
+import { useWatchActions, watchFields } from '../components/watchActions'
 import { useSeriesModal } from '../components/SeriesModal'
 import PageActions from '../components/PageActions'
-import { useConfirm } from '../components/confirm'
 import { useNow } from '../hooks'
 import { SkeletonCards } from '../components/Loading'
 
@@ -66,54 +65,18 @@ const CAL_CATEGORIES: readonly CalCategory[] = ['anime-series', 'anime-movie', '
 // folder on an interval; the list polls so check results appear live.
 export default function Watches() {
   const { t } = useTranslation()
-  const qc = useQueryClient()
-  const confirm = useConfirm()
   const { data: watches = [], isLoading } = useQuery<Watch[]>({
     queryKey: ['watches'],
     queryFn: () => api.get('/api/watches'),
     refetchInterval: 10_000,
   })
   const [edit, setEdit] = useState<Watch | null>(null)
-  // the watch whose episode list is open; the modal fetches on mount
-  const [gaps, setGaps] = useState<Watch | null>(null)
   // on a phone a card shows Check now and one More button; the rest of its
   // actions open in a dialog, so a card stays two lines instead of four
   const [more, setMore] = useState<Watch | null>(null)
   const narrow = useMediaQuery(SHEET_MQ)
-  const [error, setError] = useState('')
-  const refresh = () => qc.invalidateQueries({ queryKey: ['watches'] })
-
-  const check = async (id: number) => {
-    setError('')
-    try {
-      await api.post(`/api/watches/${id}/check`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('app.error'))
-      return
-    }
-    setTimeout(refresh, 1500)
-  }
-  const [notice, setNotice] = useState('')
-  const applyPlexStreams = async (id: number) => {
-    setError('')
-    try {
-      await api.post(`/api/watches/${id}/plex-streams`)
-      setNotice(t('watch.plexApplyQueued'))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('app.error'))
-    }
-  }
-  const del = async (w: Watch) => {
-    if (!(await confirm({ message: t('watch.confirmDelete', { name: w.remotePath }), destructive: true }))) return
-    setError('')
-    try {
-      await api.del(`/api/watches/${w.id}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('app.error'))
-      return
-    }
-    refresh()
-  }
+  // the same requests the title card runs, so both refresh the same list
+  const { check, applyPlexStreams, del, save, error, notice } = useWatchActions()
 
   // sqlite datetimes are UTC without zone suffix
   const ago = (dt: string) => {
@@ -151,7 +114,9 @@ export default function Watches() {
   // a tap on a calendar entry opens the title's card
   // the cover and a calendar entry open the app's one title card
   const { open: openSeries } = useSeriesModal()
-  const showSeries = (w: Watch) => w.media && openSeries({ source: w.mediaSource, id: w.media.id, media: w.media, watchId: w.id, title: w.titleOverride || undefined })
+  const showSeries = (w: Watch, tab?: 'sync') => w.media && openSeries({ source: w.mediaSource, id: w.media.id, media: w.media, watchId: w.id, title: w.titleOverride || undefined, tab })
+  // the gap list is the card's auto-sync tab; a watch without a record has no card
+  const showGaps = (w: Watch) => showSeries(w, 'sync')
   // the clock behind every countdown: a second while today's calendar
   // entries show seconds, a minute otherwise, so no countdown waits for a reload
   const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
@@ -432,7 +397,7 @@ export default function Watches() {
                               tone="err"
                               size="sm"
                               title={w.missing!.join(', ')}
-                              onClick={() => setGaps(w)}
+                              onClick={() => showGaps(w)}
                             >
                               <TriangleAlert aria-hidden size="1em" />
                               {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
@@ -581,37 +546,11 @@ export default function Watches() {
           title={t('watch.editTitle')}
           serverId={edit.serverId}
           watchId={edit.id}
-          initial={{
-            remotePath: edit.remotePath,
-            localPath: edit.localPath,
-            mode: edit.mode || 'template',
-            template: edit.template,
-            separator: edit.separator,
-            titleOverride: edit.titleOverride,
-            pattern: edit.pattern,
-            replacement: edit.replacement,
-            subfolder: edit.subfolder,
-            mediaId: edit.mediaId,
-            mediaSource: edit.mediaSource || 'anilist',
-            fromEpisode: edit.fromEpisode,
-            airedMapping: edit.airedMapping ?? false,
-            renameProvider: edit.renameProvider ?? '',
-            renameOrdering: edit.renameOrdering ?? '',
-            renameTitleLang: edit.renameTitleLang ?? '',
-            renameSeriesId: edit.renameSeriesId ?? 0,
-            wantDub: edit.wantDub ?? '',
-            wantSub: edit.wantSub ?? '',
-            plexAudioLang: edit.plexAudioLang ?? '',
-            plexSubLang: edit.plexSubLang ?? '',
-          }}
-          onSave={async (f) => {
-            await api.put(`/api/watches/${edit.id}`, f)
-            refresh()
-          }}
+          initial={watchFields(edit)}
+          onSave={(f) => save(edit.id, f)}
           onClose={() => setEdit(null)}
         />
       )}
-      {gaps && <WatchEpisodesModal watch={gaps} onClose={() => setGaps(null)} />}
       {more && (
         <Dialog width="max-w-sm" onClose={() => setMore(null)} aria-labelledby="watch-more-title">
           <header className="border-b border-border-subtle px-5 py-4">
@@ -630,8 +569,8 @@ export default function Watches() {
                 {t('watch.plexApplyAll')}
               </Button>
             )}
-            {(more.missing?.length ?? 0) > 0 && (
-              <Button className="justify-start" onClick={() => { const w = more; setMore(null); setGaps(w) }}>
+            {(more.missing?.length ?? 0) > 0 && more.media && (
+              <Button className="justify-start" onClick={() => { const w = more; setMore(null); showGaps(w) }}>
                 <TriangleAlert aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
                 {t('watch.gapsAction')}
               </Button>
