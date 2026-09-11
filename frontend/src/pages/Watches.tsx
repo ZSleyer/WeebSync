@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   ArrowUpDown,
   CalendarDays,
@@ -8,13 +8,10 @@ import {
   Ellipsis,
   Eye,
   FolderClock,
-  History,
   Languages,
   List,
   Pencil,
-  PenLine,
   RefreshCw,
-  Timer,
   Trash2,
   TriangleAlert,
   Upload,
@@ -117,6 +114,17 @@ export default function Watches() {
   const showSeries = (w: Watch, tab?: 'sync') => w.media && openSeries({ source: w.mediaSource, id: w.media.id, media: w.media, watchId: w.id, title: w.titleOverride || undefined, tab })
   // the gap list is the card's auto-sync tab; a watch without a record has no card
   const showGaps = (w: Watch) => showSeries(w, 'sync')
+  // everything but "check now", for the desktop menu and the phone sheet alike
+  const rowActions = (w: Watch): RowAction[] => [
+    { key: 'edit', icon: <Pencil aria-hidden size="1em" />, label: t('servers.edit'), onClick: () => setEdit(w) },
+    ...(w.plexAudioLang || w.plexSubLang
+      ? [{ key: 'plex', icon: <Languages aria-hidden size="1em" />, label: t('watch.plexApplyAll'), onClick: () => void applyPlexStreams(w.id) }]
+      : []),
+    ...((w.missing?.length ?? 0) > 0 && w.media
+      ? [{ key: 'gaps', icon: <TriangleAlert aria-hidden size="1em" />, label: t('watch.gapsAction'), onClick: () => showGaps(w) }]
+      : []),
+    { key: 'delete', icon: <Trash2 aria-hidden size="1em" />, label: t('servers.delete'), onClick: () => void del(w), danger: true },
+  ]
   // the clock behind every countdown: a second while today's calendar
   // entries show seconds, a minute otherwise, so no countdown waits for a reload
   const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
@@ -362,8 +370,27 @@ export default function Watches() {
                       }
                       // the error text stays plain text rather than a chip
                       // title: it is the one status that has to be readable in
-                      // full, and it can be a whole sentence long
-                      meta={w.lastResult ? <span className="text-err">{w.lastResult}</span> : undefined}
+                      // full, and it can be a whole sentence long. Under it the
+                      // schedule and the counters as one caption: they are the
+                      // same on every watch, and a row of identical chips said
+                      // nothing a line of text does not
+                      meta={
+                        <>
+                          {w.lastResult && <span className="block text-err">{w.lastResult}</span>}
+                          <span className="block">
+                            {[
+                              t('watch.chipLast', { when: ago(w.lastCheck) }) + (!w.lastResult && w.lastQueued >= 0 ? ` (${t('watch.lastQueued', { count: w.lastQueued })})` : ''),
+                              w.checkAttempts
+                                ? t('watch.chipRetry', { n: w.checkAttempts, when: untilCheck(w.nextCheck) })
+                                : t('watch.chipNext', { when: untilCheck(w.nextCheck) }),
+                              (w.seenEpisodes ?? 0) > 0 ? t('watch.seen', { count: w.seenEpisodes }) : null,
+                              w.template || w.pattern ? t('watch.renamed') : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </>
+                      }
                       badges={
                         <>
                           {/* the upcoming episode leads the row: it is what the
@@ -446,34 +473,6 @@ export default function Watches() {
                               {t('watch.active', { count: w.active })}
                             </Badge>
                           )}
-                          {(w.seenEpisodes ?? 0) > 0 && (
-                            <Badge size="sm">
-                              <Eye aria-hidden size="1em" />
-                              {t('watch.seen', { count: w.seenEpisodes })}
-                            </Badge>
-                          )}
-                          {(w.template || w.pattern) && (
-                            <Badge size="sm">
-                              <PenLine aria-hidden size="1em" />
-                              {t('watch.renamed')}
-                            </Badge>
-                          )}
-                          {/* the schedule closes the row: the same two chips on
-                              every watch, so the tail reads the same everywhere */}
-                          <Badge size="sm" tone={w.lastResult ? 'err' : undefined}>
-                            <History aria-hidden size="1em" />
-                            {t('watch.chipLast', { when: ago(w.lastCheck) })}
-                            {!w.lastResult && w.lastQueued >= 0 && ` · ${t('watch.lastQueued', { count: w.lastQueued })}`}
-                          </Badge>
-                          {/* a failed check is on a short backoff, not the
-                              interval: say which attempt is coming, or the
-                              next-check chip reads like nothing went wrong */}
-                          <Badge size="sm" tone={w.checkAttempts ? 'warn' : undefined}>
-                            <Timer aria-hidden size="1em" />
-                            {w.checkAttempts
-                              ? t('watch.chipRetry', { n: w.checkAttempts, when: untilCheck(w.nextCheck) })
-                              : t('watch.chipNext', { when: untilCheck(w.nextCheck) })}
-                          </Badge>
                         </>
                       }
                       status={
@@ -494,12 +493,12 @@ export default function Watches() {
                         </>
                       }
                       actions={
-                        narrow ? (
-                          <>
-                            <Button size="sm" className="flex-1" onClick={() => check(w.id)}>
-                              <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                              {t('watch.checkNow')}
-                            </Button>
+                        <>
+                          <Button size="sm" className="flex-1 sm:flex-none" onClick={() => check(w.id)}>
+                            <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                            {t('watch.checkNow')}
+                          </Button>
+                          {narrow ? (
                             <IconButton
                               aria-label={t('watch.moreActions', { title: nameOf(w) })}
                               aria-haspopup="dialog"
@@ -508,28 +507,10 @@ export default function Watches() {
                             >
                               <Ellipsis aria-hidden size="1.2em" />
                             </IconButton>
-                          </>
-                        ) : (
-                          <>
-                            <Button size="sm" onClick={() => check(w.id)}>
-                              <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                              {t('watch.checkNow')}
-                            </Button>
-                            {(w.plexAudioLang || w.plexSubLang) && (
-                              <Button size="sm" title={t('watch.plexApplyAllHint')} onClick={() => applyPlexStreams(w.id)}>
-                                {t('watch.plexApplyAll')}
-                              </Button>
-                            )}
-                            <Button size="sm" onClick={() => setEdit(w)}>
-                              <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                              {t('servers.edit')}
-                            </Button>
-                            <Button size="sm" variant="danger" onClick={() => del(w)}>
-                              <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                              {t('servers.delete')}
-                            </Button>
-                          </>
-                        )
+                          ) : (
+                            <RowMenu label={t('watch.moreActions', { title: nameOf(w) })} items={rowActions(w)} />
+                          )}
+                        </>
                       }
                     />
                   </li>
@@ -559,28 +540,61 @@ export default function Watches() {
             </h3>
           </header>
           <div className="flex flex-col gap-1 p-2">
-            <Button className="justify-start" onClick={() => { const w = more; setMore(null); setEdit(w) }}>
-              <Pencil aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
-              {t('servers.edit')}
-            </Button>
-            {(more.plexAudioLang || more.plexSubLang) && (
-              <Button className="justify-start" onClick={() => { const w = more; setMore(null); applyPlexStreams(w.id) }}>
-                <Languages aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
-                {t('watch.plexApplyAll')}
+            {rowActions(more).map((a) => (
+              <Button
+                key={a.key}
+                variant={a.danger ? 'danger' : 'default'}
+                className="justify-start gap-2"
+                onClick={() => {
+                  setMore(null)
+                  a.onClick()
+                }}
+              >
+                {a.icon}
+                {a.label}
               </Button>
-            )}
-            {(more.missing?.length ?? 0) > 0 && more.media && (
-              <Button className="justify-start" onClick={() => { const w = more; setMore(null); showGaps(w) }}>
-                <TriangleAlert aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
-                {t('watch.gapsAction')}
-              </Button>
-            )}
-            <Button variant="danger" className="justify-start" onClick={() => { const w = more; setMore(null); del(w) }}>
-              <Trash2 aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
-              {t('servers.delete')}
-            </Button>
+            ))}
           </div>
         </Dialog>
+      )}
+    </div>
+  )
+}
+
+interface RowAction {
+  key: string
+  icon: ReactNode
+  label: string
+  onClick: () => void
+  danger?: boolean
+}
+
+// The overflow of a watch row on desktop: the same entries the phone sheet
+// lists, as an anchored menu next to the one button that stays visible.
+function RowMenu({ label, items }: { label: string; items: RowAction[] }) {
+  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
+  return (
+    <div className="relative" ref={ref} style={anchorStyle}>
+      <IconButton aria-label={label} aria-haspopup="listbox" aria-expanded={open} className="border border-border-subtle" onClick={() => setOpen(!open)}>
+        <Ellipsis aria-hidden size="1.2em" />
+      </IconButton>
+      {open && (
+        <Menu anchor={anchor} placement="bottom-end" aria-label={label}>
+          {items.map((a) => (
+            <MenuItem
+              key={a.key}
+              onClick={() => {
+                setOpen(false)
+                a.onClick()
+              }}
+            >
+              <span className={`flex items-center gap-2 ${a.danger ? 'text-err' : ''}`}>
+                {a.icon}
+                {a.label}
+              </span>
+            </MenuItem>
+          ))}
+        </Menu>
       )}
     </div>
   )
