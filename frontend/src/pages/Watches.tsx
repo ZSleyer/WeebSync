@@ -48,14 +48,15 @@ import {
   SHEET_MQ,
   useMediaQuery,
   useMenu,
+  WeekStrip,
 } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, type Watch } from '../api'
-import { upcomingAirings, type Airing } from '../airings'
+import { addDays, dayKey, localeFirstDay, startOfDay, startOfWeek, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import { useWatchActions, watchFields } from '../components/watchActions'
 import { useSeriesModal } from '../components/SeriesModal'
-import PageActions from '../components/PageActions'
+import PageActions, { WIDE_MQ } from '../components/PageActions'
 import { useNow } from '../hooks'
 import { usePersistedView } from '../hooks/usePersistedView'
 import { SkeletonCards } from '../components/Loading'
@@ -105,10 +106,6 @@ export default function Watches() {
   // so this only formats what it sends
   const untilCheck = (ts: number) => (ts * 1000 <= now ? t('watch.checkDue') : countdown(t, ts, false, now))
   const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
-  // calendar: flatten every scheduled future release the provider knows into
-  // per-day events - not just each watch's single next airing, so it reaches as
-  // far ahead as AniList's airingSchedule / TMDB's season episodes are dated.
-  const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
   // the dashboard links straight into the calendar; the rest of the time the
   // page opens the way it was left
   const [view, setView] = usePersistedView('weebsync.watches.view', ['list', 'grid', 'calendar'] as const, 'list')
@@ -134,16 +131,39 @@ export default function Watches() {
   // entries show seconds, a minute otherwise, so no countdown waits for a reload
   const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
   const now = useNow(view === 'calendar' && hasToday ? 1000 : 60_000)
+  // calendar: every scheduled future release the provider knows, one week at
+  // a time. Only the future: AniList hands out the schedule from now on, so
+  // the week starts today and only steps forward.
+  // ponytail: past days stay empty; Page.airingSchedules(mediaId_in,
+  // airingAt_greater) in the sweep would fill them, if anyone asks
   const calEvents = upcomingAirings(watches, now)
   const calCats = CAL_CATEGORIES.filter((c) => calEvents.some((e) => e.watch.category === c))
   const calShown = calCat === 'all' ? calEvents : calEvents.filter((e) => e.watch.category === calCat)
-  const calGroups: { day: string; items: Airing[] }[] = []
+  const firstDay = localeFirstDay()
+  const today = startOfDay(new Date(now))
+  const thisWeek = startOfWeek(today, firstDay)
+  const [weekStart, setWeekStart] = useState(thisWeek)
+  const [selectedDay, setSelectedDay] = useState(() => dayKey(today))
+  const weekEnd = addDays(weekStart, 7)
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const byDay = new Map<string, Airing[]>()
   for (const e of calShown) {
-    const day = calDayKey(e.at)
-    const g = calGroups.find((x) => x.day === day)
-    if (g) g.items.push(e)
-    else calGroups.push({ day, items: [e] })
+    const ms = e.at * 1000
+    if (ms < weekStart.getTime() || ms >= weekEnd.getTime()) continue
+    const k = dayKey(new Date(ms))
+    byDay.set(k, [...(byDay.get(k) ?? []), e])
   }
+  // the first release after this week, for the jump out of an empty one
+  const nextAfter = calShown.find((e) => e.at * 1000 >= weekEnd.getTime())
+  const wide = useMediaQuery(WIDE_MQ)
+  const goWeek = (start: Date) => {
+    setWeekStart(start)
+    // land on the first day with a release, else the first day still ahead
+    const end = addDays(start, 7)
+    const first = calShown.find((e) => e.at * 1000 >= start.getTime() && e.at * 1000 < end.getTime())
+    setSelectedDay(dayKey(first ? new Date(first.at * 1000) : start.getTime() < today.getTime() ? today : start))
+  }
+  const weekCaption = `${weekStart.toLocaleDateString([], { day: '2-digit', month: '2-digit' })} ${t('watch.week.to')} ${addDays(weekStart, 6).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}`
 
   const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
   // outside-click + Escape come from the design system's menu hook
@@ -268,25 +288,14 @@ export default function Watches() {
       {view === 'calendar' && calCats.length > 1 ? (
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           {view === 'calendar' && calCats.length > 1 && (
-            <div role="group" aria-label={t('watch.calFilter')} className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant={calCat === 'all' ? 'primary' : 'default'}
-                aria-pressed={calCat === 'all'}
-                onClick={() => setCalCat('all')}
-              >
+            <div role="group" aria-label={t('watch.calFilter')} className="flex flex-wrap gap-1.5">
+              <Badge as="button" type="button" tone={calCat === 'all' ? 'accent' : 'neutral'} aria-pressed={calCat === 'all'} onClick={() => setCalCat('all')}>
                 {t('watch.calAll')}
-              </Button>
+              </Badge>
               {calCats.map((c) => (
-                <Button
-                  key={c}
-                  size="sm"
-                  variant={calCat === c ? 'primary' : 'default'}
-                  aria-pressed={calCat === c}
-                  onClick={() => setCalCat(c)}
-                >
+                <Badge key={c} as="button" type="button" tone={calCat === c ? 'accent' : 'neutral'} aria-pressed={calCat === c} onClick={() => setCalCat(c)}>
                   {t(`watch.cat.${c}`)}
-                </Button>
+                </Badge>
               ))}
             </div>
           )}
@@ -313,13 +322,92 @@ export default function Watches() {
           </Trans>
         </EmptyState>
       ) : view === 'calendar' ? (
-        <div className="flex flex-col gap-5">
-          {calGroups.length === 0 ? (
+        <div className="flex flex-col gap-4">
+          {calShown.length === 0 ? (
             <EmptyState>{t('watch.calEmpty')}</EmptyState>
           ) : (
-            calGroups.map((g) => (
-              <CalendarDay key={g.day} day={g.day}>
-                {g.items.map((e) => (
+            <>
+              <WeekStrip
+                caption={weekCaption}
+                days={days.map((d) => {
+                  const k = dayKey(d)
+                  return {
+                    key: k,
+                    label: (
+                      <>
+                        <span className="text-[10px] uppercase tracking-wider text-t-muted">{d.toLocaleDateString([], { weekday: 'short' })}</span>
+                        <span className="text-base leading-tight">{d.getDate()}</span>
+                      </>
+                    ),
+                    count: byDay.get(k)?.length,
+                    today: k === dayKey(today),
+                    disabled: d.getTime() < today.getTime(),
+                  }
+                })}
+                selected={selectedDay}
+                onSelect={setSelectedDay}
+                onPrev={weekStart.getTime() > thisWeek.getTime() ? () => goWeek(addDays(weekStart, -7)) : undefined}
+                onNext={() => goWeek(addDays(weekStart, 7))}
+                onToday={weekStart.getTime() !== thisWeek.getTime() || selectedDay !== dayKey(today) ? () => goWeek(thisWeek) : undefined}
+                labels={{ prev: t('watch.week.prev'), next: t('watch.week.next'), today: t('watch.week.today'), strip: t('watch.week.strip') }}
+              />
+              {byDay.size === 0 ? (
+                <EmptyState>
+                  <p>{t('watch.week.empty')}</p>
+                  {nextAfter && (
+                    <Button size="sm" className="mt-3" onClick={() => goWeek(startOfWeek(new Date(nextAfter.at * 1000), firstDay))}>
+                      {t('watch.week.jump')}
+                    </Button>
+                  )}
+                </EmptyState>
+              ) : wide ? (
+                // desktop: the whole week side by side, today's column marked
+                <div className="grid grid-cols-7 gap-3">
+                  {days.map((d) => {
+                    const k = dayKey(d)
+                    const items = byDay.get(k) ?? []
+                    return (
+                      <CalendarDay
+                        key={k}
+                        className={k === dayKey(today) ? 'rounded-md outline-2 outline-offset-4 outline-accent/40' : d.getTime() < today.getTime() ? 'opacity-60' : undefined}
+                        day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                      >
+                        {items.length === 0 ? <li className="text-xs text-t-faint">{t('watch.week.free')}</li> : items.map((e) => (
+                          <li key={`${e.watch.id}-${e.episode}-${e.at}`}>
+                            <CalendarEntry
+                              cover={e.watch.media?.coverImage?.large}
+                              title={e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '')}
+                              episode={
+                                <>
+                                  {t('watch.nextEp', { n: e.episode })}
+                                  {e.episodeAbs && e.episodeAbs !== e.episode ? ` (${e.episodeAbs})` : ''}
+                                </>
+                              }
+                              time={
+                                // the JST hover lives on the text itself - CalendarEntry
+                                // owns the <p> around it
+                                <span title={e.watch.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(e.at, 'Asia/Tokyo')} JST`}>
+                                  {new Date(e.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...(isToday(e.at) ? { second: '2-digit' } : {}) })}
+                                </span>
+                              }
+                              countdown={countdown(t, e.at, isToday(e.at), now)}
+                              onClick={e.watch.media ? () => showSeries(e.watch) : undefined}
+                              aria-label={
+                                e.watch.media
+                                  ? t('remote.detailsFor', { name: e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '') })
+                                  : undefined
+                              }
+                            />
+                          </li>
+                        ))}
+                      </CalendarDay>
+                    )
+                  })}
+                </div>
+              ) : (
+                // phone: the picked day under the strip
+                <CalendarDay day={new Date(selectedDay + 'T00:00').toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}>
+                  {(byDay.get(selectedDay) ?? []).length === 0 ? <li className="text-sm text-t-muted">{t('watch.week.free')}</li> : (byDay.get(selectedDay) ?? []).map((e) => (
                   <li key={`${e.watch.id}-${e.episode}-${e.at}`}>
                     <CalendarEntry
                       cover={e.watch.media?.coverImage?.large}
@@ -346,9 +434,10 @@ export default function Watches() {
                       }
                     />
                   </li>
-                ))}
-              </CalendarDay>
-            ))
+                  ))}
+                </CalendarDay>
+              )}
+            </>
           )}
         </div>
       ) : (

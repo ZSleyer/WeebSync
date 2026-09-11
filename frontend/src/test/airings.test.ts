@@ -27,3 +27,16 @@ describe('upcomingAirings', () => {
     expect(upcomingAirings([{ id: 9 } as unknown as Watch], now)).toEqual([])
   })
 })
+
+describe('week helpers', () => {
+  it('finds the week start for the locale first day', async () => {
+    const { startOfWeek, dayKey, addDays } = await import('../airings')
+    const thu = new Date(2026, 8, 17, 15, 30) // Thursday
+    expect(dayKey(startOfWeek(thu, 1))).toBe('2026-09-14')
+    expect(dayKey(startOfWeek(thu, 7))).toBe('2026-09-13')
+    expect(startOfWeek(thu, 1).getHours()).toBe(0)
+    // a Monday is its own week start
+    expect(dayKey(startOfWeek(new Date(2026, 8, 14, 1), 1))).toBe('2026-09-14')
+    expect(dayKey(addDays(startOfWeek(thu, 1), 7))).toBe('2026-09-21')
+  })
+})
