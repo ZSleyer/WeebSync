@@ -36,6 +36,7 @@ import {
   Button,
   CalendarDay,
   CalendarEntry,
+  DayScroller,
   Cover,
   Dialog,
   Divider,
@@ -51,7 +52,6 @@ import {
   SwipeDeck,
   useMediaQuery,
   useMenu,
-  WeekStrip,
 } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, type Watch } from '../api'
 import { addDays, dayKey, localeFirstDay, startOfDay, startOfWeek, upcomingAirings, type Airing } from '../airings'
@@ -149,15 +149,15 @@ export default function Watches() {
   const firstDay = localeFirstDay()
   const today = startOfDay(new Date(now))
   const thisWeek = startOfWeek(today, firstDay)
-  // Both calendar decks count in steps from now: week 0 is the current week,
-  // day 0 is today. An index is what a deck pages, and it keeps the neighbour
-  // a pure function of a number - the deck renders week n-1 and n+1 while the
-  // finger is down.
-  const [weekIdx, setWeekIdx] = useState(0)
+  // The calendar counts in days from now: day 0 is today, and the band, the
+  // panel and the desktop grid all read from that one number. An index is what
+  // a deck pages and what the band snaps to, and it keeps a neighbouring day or
+  // week a pure function of a number.
   const [dayIdx, setDayIdx] = useState(0)
-  const weekStart = addDays(thisWeek, weekIdx * 7)
-  const selectedDay = dayKey(addDays(today, dayIdx))
-  // every release by day, for any day the decks ask about
+  const selectedDate = addDays(today, dayIdx)
+  const selectedDay = dayKey(selectedDate)
+  const weekIdx = Math.round((startOfWeek(selectedDate, firstDay).getTime() - thisWeek.getTime()) / (7 * 86_400_000))
+  // every release by day, for any day the band or a deck asks about
   const byDay = new Map<string, Airing[]>()
   for (const e of calShown) {
     const k = dayKey(new Date(e.at * 1000))
@@ -165,26 +165,22 @@ export default function Watches() {
   }
   const weekDays = (i: number) => Array.from({ length: 7 }, (_, d) => addDays(thisWeek, i * 7 + d))
   const weekHasAny = (i: number) => weekDays(i).some((d) => byDay.has(dayKey(d)))
-  // the first release after the shown week, for the jump out of an empty one
-  const nextAfter = calShown.find((e) => e.at * 1000 >= addDays(weekStart, 7).getTime())
+  // the first release after the shown day, for the jump out of a quiet stretch
+  const nextAfter = calShown.find((e) => e.at * 1000 >= addDays(selectedDate, 1).getTime())
   const wide = useMediaQuery(WIDE_MQ)
-  // a week step lands on its first release, else on its first day still ahead
+  // How far the band reaches: to the last release the providers date, four
+  // weeks at the least so there is always something to scrub through, and a
+  // year at the most.
+  const lastAt = calShown.length ? calShown[calShown.length - 1].at * 1000 : 0
+  const span = Math.min(400, Math.max(28, Math.ceil((lastAt - today.getTime()) / 86_400_000) + 7))
+  const bandDays = Array.from({ length: span + 1 }, (_, i) => addDays(today, i))
+  const dayIdxOf = (d: Date) => Math.round((startOfDay(d).getTime() - today.getTime()) / 86_400_000)
+  // a week step lands on its first release, else on the week's first day still ahead
   const goWeek = (i: number) => {
-    setWeekIdx(i)
     const start = addDays(thisWeek, i * 7)
     const end = addDays(start, 7)
     const first = calShown.find((e) => e.at * 1000 >= start.getTime() && e.at * 1000 < end.getTime())
-    const land = first ? startOfDay(new Date(first.at * 1000)) : start.getTime() < today.getTime() ? today : start
-    setDayIdx(Math.round((land.getTime() - today.getTime()) / 86_400_000))
-  }
-  // a day step carries the strip along when it crosses the week boundary
-  const goDay = (i: number) => {
-    setDayIdx(i)
-    setWeekIdx(Math.round((startOfWeek(addDays(today, i), firstDay).getTime() - thisWeek.getTime()) / (7 * 86_400_000)))
-  }
-  const weekCaptionOf = (i: number) => {
-    const a = addDays(thisWeek, i * 7)
-    return `${a.toLocaleDateString([], { day: '2-digit', month: '2-digit' })} ${t('watch.week.to')} ${addDays(a, 6).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}`
+    setDayIdx(Math.max(0, dayIdxOf(first ? new Date(first.at * 1000) : start)))
   }
   // the agenda: every release ahead, grouped by day, as far as the providers date them
   const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
@@ -408,48 +404,48 @@ export default function Watches() {
             </div>
           ) : (
             <>
-              {/* the strip is a deck of weeks: the next week already sits
-                  beside this one and travels with the finger, so paging reads
-                  as one surface instead of a jump */}
-              <SwipeDeck index={weekIdx} onIndex={goWeek} canPrev={weekIdx > 0} mouse>
-                {(i) => (
-                  <WeekStrip
-                    caption={weekCaptionOf(i)}
-                    days={weekDays(i).map((d) => {
-                      const k = dayKey(d)
-                      return {
-                        key: k,
-                        label: (
-                          <>
-                            <span className="text-[10px] uppercase tracking-wider text-t-muted">{d.toLocaleDateString([], { weekday: 'short' })}</span>
-                            <span className="text-base leading-tight">{d.getDate()}</span>
-                          </>
-                        ),
-                        count: byDay.get(k)?.length,
-                        today: k === dayKey(today),
-                        disabled: d.getTime() < today.getTime(),
-                      }
-                    })}
-                    selected={selectedDay}
-                    onSelect={(k) => goDay(Math.round((new Date(k + 'T00:00').getTime() - today.getTime()) / 86_400_000))}
-                    onPrev={i > 0 ? () => goWeek(i - 1) : undefined}
-                    onNext={() => goWeek(i + 1)}
-                    onToday={weekIdx !== 0 || dayIdx !== 0 ? () => goWeek(0) : undefined}
-                    labels={{ prev: t('watch.week.prev'), next: t('watch.week.next'), today: t('watch.week.today'), strip: t('watch.week.strip') }}
-                  />
-                )}
-              </SwipeDeck>
-              {/* under the strip the phone shows one day, so there the deck
-                  pages days; the desktop grid and an empty week show a whole
-                  week and page weeks - a day step would move nothing visible */}
-              {!wide && weekHasAny(weekIdx) ? (
-                <SwipeDeck index={dayIdx} onIndex={goDay} canPrev={dayIdx > 0} mouse>
+              {/* the band scrubs through the days; the row above it holds
+                  still - the arrows jump a whole week, the button between them
+                  returns to today, and the caption rolls when the day changes */}
+              <DayScroller
+                days={bandDays.map((d) => ({
+                  key: dayKey(d),
+                  weekday: d.toLocaleDateString([], { weekday: 'short' }),
+                  day: d.getDate(),
+                  count: byDay.get(dayKey(d))?.length,
+                  today: d.getTime() === today.getTime(),
+                }))}
+                selected={selectedDay}
+                onSelect={(k) => setDayIdx(dayIdxOf(new Date(k + 'T00:00')))}
+                step={dayIdx}
+                label={selectedDate.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}
+                onPrev={dayIdx > 0 ? () => setDayIdx(Math.max(0, dayIdx - 7)) : undefined}
+                onNext={() => setDayIdx(dayIdx + 7)}
+                onToday={dayIdx !== 0 ? () => setDayIdx(0) : undefined}
+                labels={{ prev: t('watch.week.prev'), next: t('watch.week.next'), today: t('watch.week.today'), strip: t('watch.week.strip') }}
+              />
+              {/* the phone shows one day and pages days, the desktop grid a
+                  whole week and pages weeks - a day step would move nothing
+                  visible there */}
+              {!wide ? (
+                <SwipeDeck index={dayIdx} onIndex={setDayIdx} canPrev={dayIdx > 0} mouse>
                   {(i) => {
                     const d = addDays(today, i)
                     const items = byDay.get(dayKey(d)) ?? []
                     return (
-                      <CalendarDay day={d.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}>
-                        {items.length === 0 ? <li className="text-sm text-t-muted">{t('watch.week.free')}</li> : items.map((e) => entryOf(e))}
+                      <CalendarDay quietHeading day={d.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}>
+                        {items.length === 0 ? (
+                          <li className="text-sm text-t-muted">
+                            {t('watch.week.free')}
+                            {i === dayIdx && nextAfter && (
+                              <Button size="sm" className="ml-3" onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}>
+                                {t('watch.week.jump')}
+                              </Button>
+                            )}
+                          </li>
+                        ) : (
+                          items.map((e) => entryOf(e))
+                        )}
                       </CalendarDay>
                     )
                   }}
@@ -461,7 +457,7 @@ export default function Watches() {
                       <EmptyState>
                         <p>{t('watch.week.empty')}</p>
                         {i === weekIdx && nextAfter && (
-                          <Button size="sm" className="mt-3" onClick={() => goWeek(Math.round((startOfWeek(new Date(nextAfter.at * 1000), firstDay).getTime() - thisWeek.getTime()) / (7 * 86_400_000)))}>
+                          <Button size="sm" className="mt-3" onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}>
                             {t('watch.week.jump')}
                           </Button>
                         )}
