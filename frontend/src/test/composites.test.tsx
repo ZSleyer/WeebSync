@@ -218,6 +218,36 @@ describe('DayScroller', () => {
     expect(buzz).toHaveBeenCalledTimes(2)
   })
 
+  it('drags along under a held mouse button and swallows the click that ends it', () => {
+    const pick = vi.fn()
+    scroller({ onSelect: pick })
+    const band = document.querySelector('.t-dayband') as HTMLElement
+    const [di] = Array.from(band.querySelectorAll('button'))
+    band.scrollLeft = 200
+    const mouse = { pointerId: 7, pointerType: 'mouse', button: 0, clientY: 10 }
+    // a twitch inside the slop is still a click
+    fireEvent.pointerDown(di, { ...mouse, clientX: 100 })
+    fireEvent.pointerMove(di, { ...mouse, clientX: 104 })
+    fireEvent.pointerUp(di, { ...mouse, clientX: 104 })
+    fireEvent.click(di)
+    expect(band.scrollLeft).toBe(200)
+    expect(pick).toHaveBeenCalledWith('2026-09-15')
+    // a real drag moves the band, drops the snap, and the day it ends over
+    // does not get picked by the release
+    fireEvent.pointerDown(di, { ...mouse, clientX: 100 })
+    fireEvent.pointerMove(di, { ...mouse, clientX: 60 })
+    expect(band.scrollLeft).toBe(240)
+    expect(band.dataset.drag).toBe('')
+    fireEvent.pointerUp(di, { ...mouse, clientX: 60 })
+    fireEvent.click(di)
+    expect(band.dataset.drag).toBeUndefined()
+    expect(pick).toHaveBeenCalledTimes(1)
+    // a finger keeps the native scroll
+    fireEvent.pointerDown(di, { ...mouse, pointerType: 'touch', clientX: 100 })
+    fireEvent.pointerMove(di, { ...mouse, pointerType: 'touch', clientX: 20 })
+    expect(band.scrollLeft).toBe(240)
+  })
+
   it('rolls the caption from the old day to the new one', async () => {
     const { rerender } = scroller()
     expect(screen.getByText('Mittwoch, 16.09.')).toBeInTheDocument()
