@@ -361,6 +361,28 @@
       "CONTAINS": "Contains"
     }
   },
+  "trash": {
+    "open_zero": "Trash",
+    "open_one": "Trash, {{count}} entry",
+    "open_other": "Trash, {{count}} entries",
+    "title": "TRASH",
+    "hint": "Replaced and discarded copies wait here in hidden .weebsync-trash folders beside where they came from, until their time is up or you delete them.",
+    "empty0": "The trash is empty.",
+    "files_one": "{{count}} file",
+    "files_other": "{{count}} files",
+    "expires_zero": "deleted today",
+    "expires_one": "{{count}} day left",
+    "expires_other": "{{count}} days left",
+    "restore": "Restore",
+    "delete": "Delete for good",
+    "deleteItem": "Delete {{name}} for good",
+    "deleteConfirm": "Delete \"{{name}}\" for good now? This cannot be undone.",
+    "empty": "Empty trash",
+    "emptyConfirm_one": "Delete {{count}} entry ({{size}}) for good now? This cannot be undone.",
+    "emptyConfirm_other": "Delete {{count}} entries ({{size}}) for good now? This cannot be undone.",
+    "total_one": "{{count}} entry · {{size}}",
+    "total_other": "{{count}} entries · {{size}}"
+  },
   "remote": {
     "title": "REMOTE",
     "sub": "browse · sync · download",

@@ -361,6 +361,28 @@
       "CONTAINS": "Enthält"
     }
   },
+  "trash": {
+    "open_zero": "Papierkorb",
+    "open_one": "Papierkorb, {{count}} Eintrag",
+    "open_other": "Papierkorb, {{count}} Einträge",
+    "title": "PAPIERKORB",
+    "hint": "Ersetzte und aussortierte Kopien warten hier in versteckten .weebsync-trash-Ordnern neben ihrem Ursprung, bis die Frist abläuft oder du sie löschst.",
+    "empty0": "Der Papierkorb ist leer.",
+    "files_one": "{{count}} Datei",
+    "files_other": "{{count}} Dateien",
+    "expires_zero": "wird heute gelöscht",
+    "expires_one": "noch {{count}} Tag",
+    "expires_other": "noch {{count}} Tage",
+    "restore": "Wiederherstellen",
+    "delete": "Endgültig löschen",
+    "deleteItem": "{{name}} endgültig löschen",
+    "deleteConfirm": "„{{name}}\" jetzt endgültig löschen? Das lässt sich nicht rückgängig machen.",
+    "empty": "Papierkorb leeren",
+    "emptyConfirm_one": "{{count}} Eintrag ({{size}}) jetzt endgültig löschen? Das lässt sich nicht rückgängig machen.",
+    "emptyConfirm_other": "{{count}} Einträge ({{size}}) jetzt endgültig löschen? Das lässt sich nicht rückgängig machen.",
+    "total_one": "{{count}} Eintrag · {{size}}",
+    "total_other": "{{count}} Einträge · {{size}}"
+  },
   "remote": {
     "title": "REMOTE",
     "sub": "browse · sync · download",

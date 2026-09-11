@@ -532,6 +532,18 @@ export interface MediaExtras {
 
 // the display title of a watch: the override, else the record's, else the folder
 /** Which provider record a suggestion's `media` is: anime is AniList, the rest TMDB. */
+/** One item waiting in a trash folder: a video with its sidecars, or a folder. */
+export interface TrashEntry {
+  path: string // the handle for restore and delete
+  name: string
+  dir: string // where it came from
+  isDir: boolean
+  size: number
+  files: number // the video and its sidecars
+  trashedAt: number
+  expiresAt: number
+}
+
 export const suggestionSource = (s: { category: string; isMovie?: boolean }) => (s.category.startsWith('anime') ? 'anilist' : s.isMovie || s.category === 'movie' ? 'tmdb:movie' : 'tmdb:tv')
 
 export const watchTitle = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
