@@ -173,6 +173,32 @@ describe('WeekStrip', () => {
     expect(screen.getByRole('button', { name: 'Nächste Woche' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Heute' })).toBeInTheDocument()
   })
+
+  it('pages a week on a swipe, and the day under the finger keeps its tap', () => {
+    const next = vi.fn()
+    const pick = vi.fn()
+    render(<WeekStrip days={days} selected="2026-09-15" onSelect={pick} onNext={next} labels={labels} />)
+    const strip = screen.getByRole('group', { name: 'Woche' }).parentElement as HTMLElement
+    const day = screen.getByText('Mi 16')
+    fireEvent.pointerDown(day, { clientX: 300, clientY: 100, pointerId: 1, button: 0, pointerType: 'touch' })
+    fireEvent.pointerMove(strip, { clientX: 280, clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(strip, { clientX: 180, clientY: 100, pointerId: 1 })
+    fireEvent.pointerUp(strip, { clientX: 180, clientY: 100, pointerId: 1 })
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(pick).not.toHaveBeenCalled()
+  })
+
+  it('only rubber-bands backwards when the strip starts here', () => {
+    render(<WeekStrip days={days} selected="2026-09-15" onSelect={() => {}} onNext={() => {}} labels={labels} />)
+    const strip = screen.getByRole('group', { name: 'Woche' }).parentElement as HTMLElement
+    fireEvent.pointerDown(strip, { clientX: 100, clientY: 100, pointerId: 1, button: 0, pointerType: 'touch' })
+    fireEvent.pointerMove(strip, { clientX: 130, clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(strip, { clientX: 250, clientY: 100, pointerId: 1 })
+    // resisted: a third of the distance, not the full pull
+    expect(strip.style.transform).toBe('translateX(50px)')
+    fireEvent.pointerUp(strip, { clientX: 250, clientY: 100, pointerId: 1 })
+    expect(strip.style.transform).toBe('')
+  })
 })
 
 describe('CalendarDay and CalendarEntry', () => {
