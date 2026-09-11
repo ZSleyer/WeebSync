@@ -518,6 +518,8 @@ export interface DayScrollerDay {
   /** releases on that day; shown as a count, hidden when zero */
   count?: number
   today?: boolean
+  /** a day already over: context on the left of the band, not a target */
+  past?: boolean
 }
 
 export interface DayScrollerProps {
@@ -663,7 +665,14 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
                 // the picked day is a surface, today is a filled disc, a day
                 // with something on it carries an accent chip - three separate
                 // signals rather than three rings that look alike
-                pressed ? 'border-accent bg-accent/15 text-t-primary' : 'border-border-subtle bg-bg-secondary text-t-secondary hover:bg-bg-hover',
+                pressed
+                  ? 'border-accent bg-accent/15 text-t-primary'
+                  : d.past
+                    ? // a day already over carries no surface of its own, so the
+                      // band reads as starting at today without dimming text
+                      // below the contrast floor
+                      'border-transparent bg-transparent text-t-muted hover:bg-bg-hover'
+                    : 'border-border-subtle bg-bg-secondary text-t-secondary hover:bg-bg-hover',
               )}
             >
               <span className={cx('text-[10px] uppercase tracking-wider', pressed ? 'text-t-secondary' : 'text-t-muted')}>{d.weekday}</span>
