@@ -186,6 +186,15 @@ export default function Watches() {
   // screen, and a week everywhere else - on the desktop grid and in an empty
   // week, where stepping a day would move nothing visible and leave the user
   // stuck. A held mouse button pages here too, the calendar has no prose.
+  // The page's own step, one level out from the calendar's: from the list to
+  // the calendar and, in the agenda, back again. In the week view the axis is
+  // already taken by the two zones above, so there the segmented switch stays
+  // the way back - a third meaning on the same axis would not be guessable.
+  // Touch and pen only: the list is full of text and rows.
+  const viewSwipe = useSwipe({
+    onPrev: view === 'calendar' && calMode === 'agenda' ? () => setView('list') : undefined,
+    onNext: view === 'list' ? () => setView('calendar') : undefined,
+  })
   const dayMode = !wide && byDay.size > 0
   const calSwipe = useSwipe(
     dayMode
@@ -397,6 +406,9 @@ export default function Watches() {
         </Badge>
       )}
 
+      {/* one lasting zone around every view, so the swipe that switches them
+          survives the switch and can settle back */}
+      <div {...viewSwipe}>
       {isLoading ? (
         <SkeletonCards />
       ) : watches.length === 0 ? (
@@ -681,6 +693,7 @@ export default function Watches() {
           })}
         </div>
       )}
+      </div>
 
       {edit && (
         <WatchDialog
