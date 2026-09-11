@@ -111,3 +111,6 @@ export type { DialogProps } from './dialog'
 
 export { useMenu } from './useMenu'
 export { SHEET_MQ, useMediaQuery } from './useMediaQuery'
+
+export { useSwipe } from './useSwipe'
+export type { SwipeOptions, SwipeHandlers } from './useSwipe'
