@@ -79,7 +79,12 @@ func main() {
 	localRoots := filepath.SplitList(env("WEEBSYNC_DOWNLOADS", filepath.Join(dataDir, "downloads")))
 	for i, r := range localRoots {
 		// "/media/" from a config option would otherwise show up as
-		// "/media//title" wherever a target path is built by hand
+		// "/media//title" wherever a target path is built by hand; and a
+		// relative root (the default) never resolves back to the paths the
+		// trash records, so the sweep would drop every row untouched
+		if a, err := filepath.Abs(r); err == nil {
+			r = a
+		}
 		localRoots[i] = filepath.Clean(r)
 	}
 	downloadRoot := localRoots[0]
