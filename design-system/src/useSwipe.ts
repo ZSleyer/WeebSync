@@ -1,4 +1,5 @@
 import { useMemo, useRef, type CSSProperties, type DragEvent, type PointerEvent } from 'react'
+import { haptic } from './haptics'
 
 // The horizontal counterpart to the sheet's pull-down in dialog.tsx: the same
 // pointer-events mechanics (slop, pointer capture, follow-the-finger transform),
@@ -15,8 +16,7 @@ const commitDistance = (width: number) => Math.min(120, Math.max(60, width * 0.2
 const ENTER_OFFSET = 40
 // safety net for the settle transition, in case transitionend never fires
 const SETTLE_MS = 400
-// the tick under the thumb when a page turns. Android fires it, iOS Safari has
-// no Vibration API at all and simply ignores the call.
+// the tick under the thumb when a page turns
 const HAPTIC_MS = 8
 
 export interface SwipeOptions {
@@ -150,11 +150,7 @@ export function useSwipe({ onPrev, onNext, mouse = false, disabled, onDrag }: Sw
     const dx = commit ? e.clientX - g.x : 0
     const go = dx <= -commitDistance(z.el.clientWidth) ? z.cb.onNext : dx >= commitDistance(z.el.clientWidth) ? z.cb.onPrev : undefined
     if (go) {
-      try {
-        navigator.vibrate?.(HAPTIC_MS)
-      } catch {
-        /* a browser that has the method but refuses the call */
-      }
+      haptic(HAPTIC_MS)
       go()
       // a deck draws its own arrival; a plain zone puts what is now on screen
       // on the far side of the swipe so it slides in with the finger

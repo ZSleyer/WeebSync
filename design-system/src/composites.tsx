@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
+import { haptic } from './haptics'
 import { Badge, buttonClass, COVER_BOX, markOverflow, Panel, Progress, Slot } from './primitives'
 
 // The composed surfaces WeebSync reuses across pages: media tiles, the file
@@ -609,11 +610,7 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
     }
     if (!best || best.key === shown.current) return
     shown.current = best.key
-    try {
-      navigator.vibrate?.(TICK_MS)
-    } catch {
-      /* a browser that has the method but refuses the call */
-    }
+    haptic(TICK_MS)
     onSelect(best.key)
   }
 
