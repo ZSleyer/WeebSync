@@ -27,6 +27,51 @@ const openCardMenu = async (page) => {
   return true
 }
 
+// the catalogue of the first folder that matched a title, in the poster grid
+const openCatalogue = async (page) => {
+    // The detail modal only exists where a folder actually matched a title,
+    // and a server's root is usually a shelf of unmatched folders - which is
+    // how the tallest dialog in the app went unaudited while every run still
+    // reported a clean sweep. Ask the API for the first folder that has a
+    // match rather than hardcoding a path out of somebody's library.
+    const target = await page.evaluate(async () => {
+      const servers = await (await fetch('/api/servers', { credentials: 'include' })).json()
+      // local first: every step below is a live listing, and this audit runs
+      // six browser contexts at once - a remote box would see six parallel
+      // walks. A local test server answers all of them without complaining.
+      const local = servers.filter((s) => /^(localhost|127\.|\[?::1)/.test(s.host))
+      const queue = (local.length ? local : servers).map((s) => ({ id: s.id, path: '' }))
+      // every step is a live listing on a real server, so the walk stays on a
+      // short leash and settles for whatever it has found by then
+      for (let i = 0; i < 8 && queue.length; i++) {
+        const { id, path } = queue.shift()
+        const r = await fetch(`/api/servers/${id}/catalog${path ? `?path=${encodeURIComponent(path)}` : ''}`, {
+          credentials: 'include',
+        })
+        if (!r.ok) continue
+        const items = (await r.json()).items || []
+        if (items.some((it) => it.media)) return { id, path }
+        for (const it of items) queue.push({ id, path: it.entry.path })
+      }
+      return null
+    })
+    if (target) {
+      await page.goto(`${BASE}/files?server=${target.id}&path=${encodeURIComponent(target.path.replace(/^\//, ''))}`)
+      await page.waitForTimeout(2500)
+    }
+    // catalogue view, then the pin next to it saves the folder as a
+    // catalogue folder - the state a previous run leaves behind
+    const view = page.getByRole('group', { name: /Ansicht|View/ }).getByRole('button').nth(1)
+    if (await view.count().catch(() => 0)) {
+      await view.click()
+      await page.waitForTimeout(1500)
+      const pin = page.getByRole('button', { name: /dauerhaft|saved/ }).first()
+      if ((await pin.count().catch(() => 0)) && (await pin.getAttribute('aria-pressed')) !== 'true') await pin.click()
+      await page.waitForTimeout(2500)
+    }
+    return (await page.getByRole('article').count().catch(() => 0)) > 0
+}
+
 const TRIGGERS = [
   // the phone's overflow sheet is a dialog; the button only exists below lg
   { route: '/', label: 'Mehr', names: [/^Mehr$|^More$/] },
@@ -38,6 +83,9 @@ const TRIGGERS = [
   { route: '/watches', setup: openCardMenu, names: [/Bearbeiten|^Edit$/] },
   { route: '/watches', setup: openCardMenu, names: [/Löschen|^Delete$/] },
   { route: '/watches', names: [/fehlt$|Lücken:|gaps:|missing$/] },
+  // the title card, from a poster: the list's cover button, the grid's tile
+  { route: '/watches', label: 'Titelkarte', names: [/Details zu|Details for/] },
+  { route: '/watches?view=grid', label: 'Raster', names: [/Details zu|Details for/] },
   {
     // nested: the Plex picker only exists inside the watch dialog, so the
     // parent has to be open before the trigger is on the page at all
@@ -72,50 +120,23 @@ const TRIGGERS = [
   {
     route: '/files',
     label: 'Katalog',
-    setup: async (page) => {
-      // The detail modal only exists where a folder actually matched a title,
-      // and a server's root is usually a shelf of unmatched folders - which is
-      // how the tallest dialog in the app went unaudited while every run still
-      // reported a clean sweep. Ask the API for the first folder that has a
-      // match rather than hardcoding a path out of somebody's library.
-      const target = await page.evaluate(async () => {
-        const servers = await (await fetch('/api/servers', { credentials: 'include' })).json()
-        // local first: every step below is a live listing, and this audit runs
-        // six browser contexts at once - a remote box would see six parallel
-        // walks. A local test server answers all of them without complaining.
-        const local = servers.filter((s) => /^(localhost|127\.|\[?::1)/.test(s.host))
-        const queue = (local.length ? local : servers).map((s) => ({ id: s.id, path: '' }))
-        // every step is a live listing on a real server, so the walk stays on a
-        // short leash and settles for whatever it has found by then
-        for (let i = 0; i < 8 && queue.length; i++) {
-          const { id, path } = queue.shift()
-          const r = await fetch(`/api/servers/${id}/catalog${path ? `?path=${encodeURIComponent(path)}` : ''}`, {
-            credentials: 'include',
-          })
-          if (!r.ok) continue
-          const items = (await r.json()).items || []
-          if (items.some((it) => it.media)) return { id, path }
-          for (const it of items) queue.push({ id, path: it.entry.path })
-        }
-        return null
-      })
-      if (target) {
-        await page.goto(`${BASE}/files?server=${target.id}&path=${encodeURIComponent(target.path.replace(/^\//, ''))}`)
-        await page.waitForTimeout(2500)
-      }
-      // catalogue view, then the pin next to it saves the folder as a
-      // catalogue folder - the state a previous run leaves behind
-      const view = page.getByRole('group', { name: /Ansicht|View/ }).getByRole('button').nth(1)
-      if (await view.count().catch(() => 0)) {
-        await view.click()
-        await page.waitForTimeout(1500)
-        const pin = page.getByRole('button', { name: /dauerhaft|saved/ }).first()
-        if ((await pin.count().catch(() => 0)) && (await pin.getAttribute('aria-pressed')) !== 'true') await pin.click()
-        await page.waitForTimeout(2500)
-      }
-      return (await page.getByRole('article').count().catch(() => 0)) > 0
-    },
+    setup: openCatalogue,
     names: [/Details zu|Details for/, /Match ändern|Change match/, /Syncen|Sync/],
+  },
+  // the same catalogue as rows: the title card opens from the row's cover
+  // and its Details button
+  {
+    route: '/files',
+    label: 'Katalog-Liste',
+    setup: async (page) => {
+      if (!(await openCatalogue(page))) return false
+      const list = page.getByRole('group', { name: /Darstellung|Layout/ }).getByRole('button').nth(1)
+      if (!(await list.count().catch(() => 0))) return false
+      await list.click()
+      await page.waitForTimeout(800)
+      return true
+    },
+    names: [/Details zu|Details for/],
   },
   // the reset dialog is the widest one in the app: it lists every data store as
   // a chip, and the longest of those labels is what a phone has to fit
