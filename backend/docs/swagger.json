@@ -1587,6 +1587,51 @@
                 },
                 "type": "object"
             },
+            "api.TrashEntry": {
+                "properties": {
+                    "dir": {
+                        "description": "the folder it came from, and returns to",
+                        "type": "string"
+                    },
+                    "expiresAt": {
+                        "description": "unix seconds: when the sweep deletes it",
+                        "type": "integer"
+                    },
+                    "files": {
+                        "description": "rows behind this entry: the video and its sidecars",
+                        "type": "integer"
+                    },
+                    "isDir": {
+                        "description": "a whole folder copy",
+                        "type": "boolean"
+                    },
+                    "name": {
+                        "description": "its file or folder name",
+                        "type": "string"
+                    },
+                    "path": {
+                        "description": "the video or folder inside .weebsync-trash",
+                        "type": "string"
+                    },
+                    "size": {
+                        "description": "bytes, sidecars and folder contents included",
+                        "type": "integer"
+                    },
+                    "trashedAt": {
+                        "description": "unix seconds",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "api.TrashRequest": {
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.TrustHostKeyInput": {
                 "properties": {
                     "key": {
@@ -12440,6 +12485,214 @@
                 "summary": "TMDB suggestions",
                 "tags": [
                     "Suggestions"
+                ]
+            }
+        },
+        "/api/trash": {
+            "delete": {
+                "description": "Deletes one entry (a video with its sidecars, or a folder) for good, or everything in the trash when the path is empty. Admin only.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.TrashRequest",
+                                        "summary": "body",
+                                        "description": "Entry path, empty for everything"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Entry path, empty for everything"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Delete from the trash",
+                "tags": [
+                    "Files"
+                ]
+            },
+            "get": {
+                "description": "Every displaced copy waiting in a .weebsync-trash folder, newest first. A video and its sidecars form one entry.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.TrashEntry"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "List the trash",
+                "tags": [
+                    "Files"
+                ]
+            }
+        },
+        "/api/trash/restore": {
+            "post": {
+                "description": "Moves a displaced copy (a video with its sidecars, or a folder) back beside its trash folder. Refused when something already sits there. Admin only.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.TrashRequest",
+                                        "summary": "body",
+                                        "description": "Entry path"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Entry path",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Restore a trash entry",
+                "tags": [
+                    "Files"
                 ]
             }
         },

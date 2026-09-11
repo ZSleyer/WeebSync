@@ -212,10 +212,7 @@ func (s *Server) trashPath(abs string) error {
 	return nil
 }
 
-// emptyTrash deletes the displaced copies whose grace period is over, and the
-// trash folder itself once nothing but the ignore marker is left. Only paths
-// inside a trash folder under an allowed root are ever removed, whatever a row
-// says.
+// emptyTrash deletes the displaced copies whose grace period is over.
 func (s *Server) emptyTrash() {
 	rows, err := s.DB.Query(`SELECT path FROM trash_files WHERE trashed_at < ?`, time.Now().Add(-trashTTL).Unix())
 	if err != nil {
@@ -229,9 +226,31 @@ func (s *Server) emptyTrash() {
 		}
 	}
 	rows.Close()
+	s.deleteTrash(paths)
+}
+
+// trashed reports whether a row's path may be acted on at all: it has to
+// resolve under an allowed root, unchanged, and sit directly in a trash
+// folder. Whatever a row says, nothing else is ever moved or removed.
+func (s *Server) trashed(p string) (*transfer.LocalPath, bool) {
+	local, err := s.openLocal(p)
+	if err != nil {
+		return nil, false
+	}
+	if local.Abs != p || filepath.Base(filepath.Dir(p)) != trashDir {
+		local.Close()
+		return nil, false
+	}
+	return local, true
+}
+
+// deleteTrash removes the given rows from disk and the table, and the trash
+// folder itself once nothing but the ignore marker is left. A row that fails
+// the trashed check is dropped without touching disk. Returns how many went.
+func (s *Server) deleteTrash(paths []string) (n int) {
 	for _, p := range paths {
-		local, err := s.openLocal(p)
-		if err != nil || local.Abs != p || filepath.Base(filepath.Dir(p)) != trashDir {
+		local, ok := s.trashed(p)
+		if !ok {
 			s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
 			continue
 		}
@@ -243,15 +262,24 @@ func (s *Server) emptyTrash() {
 		}
 		s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
 		slog.Info("trash deleted", "file", logSafe(p))
-		tdRel := filepath.Dir(local.Name)
-		if dir, err := local.Root.Open(tdRel); err == nil {
-			left, readErr := dir.ReadDir(-1)
-			dir.Close()
-			if readErr == nil && len(left) == 1 && left[0].Name() == ".plexignore" {
-				local.Root.Remove(filepath.Join(tdRel, ".plexignore"))
-				local.Root.Remove(tdRel)
-			}
-		}
+		n++
+		pruneTrashDir(local, filepath.Dir(local.Name))
 		local.Close()
+	}
+	return n
+}
+
+// pruneTrashDir removes the trash folder tdRel when only its ignore marker is
+// left, so an emptied trash leaves no folder behind.
+func pruneTrashDir(local *transfer.LocalPath, tdRel string) {
+	dir, err := local.Root.Open(tdRel)
+	if err != nil {
+		return
+	}
+	left, readErr := dir.ReadDir(-1)
+	dir.Close()
+	if readErr == nil && len(left) == 1 && left[0].Name() == ".plexignore" {
+		local.Root.Remove(filepath.Join(tdRel, ".plexignore"))
+		local.Root.Remove(tdRel)
 	}
 }
