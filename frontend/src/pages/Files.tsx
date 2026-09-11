@@ -17,6 +17,7 @@ import PathInput from '../components/PathInput'
 import PillSelect from '../components/PillSelect'
 import FileIcon from '../components/FileIcon'
 import PageActions from '../components/PageActions'
+import { TrashButton } from '../components/TrashDialog'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
 import RenamePreview from '../components/RenamePreview'
 import { useRenamePreview } from '../components/useRenamePreview'
@@ -284,6 +285,7 @@ export default function Files() {
         </div>
         <PageActions>
           <CatalogViewSwitch value={viewValue} onChange={setView} />
+          <TrashButton />
         </PageActions>
       </header>
 
