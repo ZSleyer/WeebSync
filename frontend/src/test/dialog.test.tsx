@@ -149,6 +149,36 @@ describe('Dialog', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('leaves Escape to an open menu even when the key lands on the dialog itself', () => {
+    // on touch the trigger never takes focus, so the keydown target is the
+    // dialog, not a descendant of the expanded button
+    const onClose = vi.fn()
+    const { container } = render(
+      <Dialog onClose={onClose}>
+        <button aria-haspopup="listbox" aria-expanded="true">
+          Mehr
+        </button>
+      </Dialog>,
+    )
+    // cancelled, or Chrome's close watcher closes the dialog from the key's
+    // default action anyway; the platform's cancel is held off the same way
+    expect(fireEvent.keyDown(dialogOf(container), { key: 'Escape' })).toBe(false)
+    expect(fireEvent(dialogOf(container), new Event('cancel', { cancelable: true }))).toBe(false)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(dialogOf(container).open).toBe(true)
+  })
+
+  it('does not let an expanded disclosure swallow Escape', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <Dialog onClose={onClose}>
+        <button aria-expanded="true">Durchsuchen</button>
+      </Dialog>,
+    )
+    fireEvent.keyDown(dialogOf(container), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   // ── full-screen sheet on phones ──
   // jsdom's matchMedia always reports `matches: false`, so the narrow case is
   // stubbed. Restored per test, since the component reads it on first render.
