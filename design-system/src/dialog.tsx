@@ -113,6 +113,8 @@ export function Dialog({
         if (e.key !== 'Escape') return
         // a dialog opened from inside another one: only the top one closes
         if ((e.target as HTMLElement).closest('dialog') !== ref.current) return
+        // an open menu inside the dialog owns Escape: it closes, the dialog stays
+        if ((e.target as HTMLElement).closest('[aria-expanded="true"]')) return
         e.preventDefault()
         void guarded()
       }}
