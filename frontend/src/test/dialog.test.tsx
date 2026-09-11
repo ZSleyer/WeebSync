@@ -179,6 +179,69 @@ describe('Dialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  // ── the back gesture ──
+  // jsdom keeps a real history: pushState and popstate work, back() does not
+  // traverse, so the pop is simulated by replacing the state and firing the
+  // event - which is what the browser does before it dispatches popstate.
+  const popBack = () => {
+    const { wsDialog: _gone, ...rest } = history.state ?? {}
+    history.replaceState(rest, '')
+    fireEvent.popState(window)
+  }
+
+  it('holds one history entry while open and closes when it is popped', async () => {
+    const onClose = vi.fn()
+    const before = history.state?.idx ?? 0
+    const { container } = render(<Dialog onClose={onClose}>Inhalt</Dialog>)
+    expect(history.state.wsDialog).toBeTruthy()
+    expect(history.state.idx).toBe(before + 1)
+    popBack()
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(dialogOf(container).open).toBe(false)
+  })
+
+  it('puts the entry back when the guard declines the back gesture', async () => {
+    const onClose = vi.fn()
+    const onRequestClose = vi.fn(() => false)
+    const { container } = render(
+      <Dialog onClose={onClose} onRequestClose={onRequestClose}>
+        Inhalt
+      </Dialog>,
+    )
+    const mark = history.state.wsDialog
+    popBack()
+    await waitFor(() => expect(onRequestClose).toHaveBeenCalledTimes(1))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(dialogOf(container).open).toBe(true)
+    expect(history.state.wsDialog).toBe(mark)
+  })
+
+  it('only the inner of two nested dialogs answers a pop', async () => {
+    const outer = vi.fn()
+    const inner = vi.fn()
+    const { rerender } = render(<Dialog onClose={outer}>Außen</Dialog>)
+    const outerMark = history.state
+    rerender(
+      <Dialog onClose={outer}>
+        <Dialog onClose={inner}>Innen</Dialog>
+      </Dialog>,
+    )
+    expect(history.state.wsDialog).not.toBe(outerMark.wsDialog)
+    // back lands on the outer dialog's entry
+    history.replaceState(outerMark, '')
+    fireEvent.popState(window)
+    await waitFor(() => expect(inner).toHaveBeenCalledTimes(1))
+    expect(outer).not.toHaveBeenCalled()
+  })
+
+  it('takes its entry with it when the owner unmounts it', () => {
+    const back = vi.spyOn(history, 'back').mockImplementation(() => {})
+    const { unmount } = render(<Dialog onClose={() => {}}>Inhalt</Dialog>)
+    unmount()
+    expect(back).toHaveBeenCalledTimes(1)
+    back.mockRestore()
+  })
+
   // ── full-screen sheet on phones ──
   // jsdom's matchMedia always reports `matches: false`, so the narrow case is
   // stubbed. Restored per test, since the component reads it on first render.
