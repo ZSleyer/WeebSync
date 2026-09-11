@@ -634,9 +634,6 @@ type Extras struct {
 // here: RelationsBatch and RecommendationsBatch already cache those. Every
 // field of the response is optional in the decoder, so a renamed field on
 // AniList's side degrades to an empty list rather than an error.
-//
-// The thread field names could not be checked against the live schema while
-// this was written (the API was down); verify with the first real response.
 func (c *Client) Extras(ctx context.Context, id int) (*Extras, error) {
 	key := fmt.Sprintf("extras1:%d", id)
 	if payload, ok := c.cached(key); ok {
