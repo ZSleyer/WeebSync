@@ -942,11 +942,9 @@ export function CatalogGrid({
               <button
                 className="text-left"
                 onClick={() => (g.media ? showDetail(g) : onSelect(it.entry))}
-                aria-label={
-                  g.media
-                    ? t('remote.detailsFor', { name: mediaTitle(g.media) })
-                    : t('remote.selectItem', { name: it.entry.name })
-                }
+                // a matched tile is named by what it shows (WCAG 2.5.3); the
+                // unmatched one shows no text of its own
+                aria-label={g.media ? undefined : t('remote.selectItem', { name: it.entry.name })}
               >
                 {g.media?.coverImage?.large ? (
                   <Cover
@@ -965,9 +963,9 @@ export function CatalogGrid({
                   </Cover>
                 )}
                 <div className="p-2">
-                  <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={mediaTitle(g.media, it.entry.name)}>
+                  <h3 className="line-clamp-2 text-sm font-medium text-t-primary" title={mediaTitle(g.media, it.entry.name)}>
                     {mediaTitle(g.media, it.entry.name)}
-                  </h4>
+                  </h3>
                   {multi ? (
                     <p className="font-mono text-[10px] text-accent">{t('remote.versions', { count: g.items.length })}</p>
                   ) : (

@@ -741,20 +741,21 @@ function WatchTile({ watch: w, onOpen }: { watch: Watch; onOpen: () => void }) {
   const when = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { day: '2-digit', month: '2-digit' })
   return (
     <Panel as="article" className="group relative flex flex-col overflow-clip transition-colors hover:border-accent/50!">
+      {/* named by what it shows: a label of its own would hide the visible
+          text from the accessible name (WCAG 2.5.3) */}
       <button
         type="button"
         className="text-left"
         onClick={onOpen}
         disabled={!w.media}
-        aria-label={w.media ? t('remote.detailsFor', { name }) : undefined}
       >
         <Cover size="fill" src={w.media?.coverImage?.large} loading="lazy" className="opacity-90 transition-opacity group-hover:opacity-100">
           {!w.media && <span className="p-2 text-center text-xs text-t-muted">{name}</span>}
         </Cover>
         <div className="p-2">
-          <h4 className="line-clamp-2 text-sm font-medium text-t-primary" title={name}>
+          <h3 className="line-clamp-2 text-sm font-medium text-t-primary" title={name}>
             {name}
-          </h4>
+          </h3>
           {/* under the title, not over the poster: chips on a busy poster
               were barely there, whatever their surface */}
           {(!!w.nextAiringAt || w.active > 0 || attention) && (
