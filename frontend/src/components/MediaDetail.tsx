@@ -117,9 +117,10 @@ export default function MediaDetail({
           ))}
         </div>
         {other.length > 0 && (
-          <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          <p className="mt-2 flex flex-wrap gap-x-3 text-xs">
+            {/* min-h-6: a text link is 18px tall, the target floor is 24 (WCAG 2.5.8) */}
             {other.map((x) => (
-              <a key={x.url} href={x.url} target="_blank" rel="noreferrer" className="text-t-secondary underline decoration-border-input hover:text-t-primary">
+              <a key={x.url} href={x.url} target="_blank" rel="noreferrer" className="inline-flex min-h-6 items-center text-t-secondary underline decoration-border-input hover:text-t-primary">
                 {x.site}
               </a>
             ))}
