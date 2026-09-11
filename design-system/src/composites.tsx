@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react'
-import { Badge, buttonClass, COVER_BOX, Panel, Progress } from './primitives'
+import { Badge, buttonClass, COVER_BOX, markOverflow, Panel, Progress, Slot } from './primitives'
 
 // The composed surfaces WeebSync reuses across pages: media tiles, the file
 // browser, calendar entries, menus and modals. Same markup the app renders,
@@ -492,52 +492,124 @@ export interface CalendarDayProps {
   day: ReactNode
   /** CalendarEntry elements */
   children: ReactNode
+  /** the heading names the section for a screen reader but is not drawn -
+      for a panel whose day is already written above it */
+  quietHeading?: boolean
   className?: string
 }
 
 /** A day column: chip heading plus its releases. */
-export function CalendarDay({ day, children, className }: CalendarDayProps) {
+export function CalendarDay({ day, quietHeading, children, className }: CalendarDayProps) {
   return (
     <section className={cx('min-w-0', className)}>
-      <h3 className="t-label t-label--accent mb-2">{day}</h3>
+      <h3 className={quietHeading ? 'sr-only' : 't-label t-label--accent mb-2'}>{day}</h3>
       <ul className="flex flex-col gap-2">{children}</ul>
     </section>
   )
 }
 
-export interface WeekStripDay {
-  /** stable key, e.g. the ISO date */
+export interface DayScrollerDay {
+  /** stable key, the ISO date */
   key: string
-  /** the day's caption, e.g. "Mo" over "14" */
-  label: ReactNode
+  /** the short weekday, e.g. "Mo" */
+  weekday: string
+  /** the day of the month */
+  day: number
   /** releases on that day; shown as a count, hidden when zero */
   count?: number
   today?: boolean
-  /** a day that cannot be picked, e.g. one already over */
-  disabled?: boolean
 }
 
-export interface WeekStripProps {
-  days: WeekStripDay[]
+export interface DayScrollerProps {
+  days: DayScrollerDay[]
   /** key of the picked day */
   selected: string
   onSelect: (key: string) => void
+  /** a whole week back and on; undefined closes that end */
   onPrev?: () => void
   onNext?: () => void
+  /** back to today; undefined means today is already showing */
   onToday?: () => void
-  /** the three controls' accessible names, plus the strip's own */
+  /** the caption that rolls when the day changes, e.g. weekday over date */
+  label: ReactNode
+  /** which step the caption belongs to, so the roll knows its direction */
+  step: number
+  /** the three controls' accessible names, plus the band's own */
   labels: { prev: string; next: string; today: string; strip: string }
-  /** the week caption between the arrows, e.g. "KW 38 · 14. bis 20.09." */
-  caption?: ReactNode
   className?: string
 }
 
+// how long the band has to hold still before the middle cell counts as picked
+const SETTLE_MS = 120
+
 /**
- * One week as seven day buttons, the picked day pressed, today ringed, the
- * releases per day as a count. Arrows step a week; a disabled previous arrow
- * says the strip starts here. The caller owns the dates, this only draws them.
+ * A band of days that scrolls day by day and snaps whichever one sits in the
+ * middle - scrubbing through a schedule rather than stepping a week at a time.
+ * The row above it never moves: the two arrows jump a whole week, the button
+ * between them returns to today, and the caption rolls like a split-flap when
+ * the day changes.
  */
-export function WeekStrip({ days, selected, onSelect, onPrev, onNext, onToday, labels, caption, className }: WeekStripProps) {
+export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday, label, step, labels, className }: DayScrollerProps) {
+  const band = useRef<HTMLDivElement>(null)
+  // a scroll this component started itself must not be read back as a pick -
+  // the cell is still travelling and the middle is briefly the neighbour's
+  const own = useRef(false)
+  const settle = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const shown = useRef(selected)
+
+  // keep the picked day in the middle, whoever picked it - an arrow, the day
+  // panel's own swipe, or the caller
+  useEffect(() => {
+    const el = band.current
+    if (!el || shown.current === selected) return
+    shown.current = selected
+    const cell = el.querySelector<HTMLElement>(`[data-day="${CSS.escape(selected)}"]`)
+    if (!cell) return
+    own.current = true
+    // jsdom has no scrollIntoView, hence the guard
+    cell.scrollIntoView?.({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [selected])
+
+  useEffect(() => {
+    const el = band.current
+    if (!el) return
+    markOverflow(el)
+    const cell = el.querySelector<HTMLElement>(`[data-day="${CSS.escape(selected)}"]`)
+    // no animation on the first paint: the band opens on the picked day
+    cell?.scrollIntoView?.({ inline: 'center', block: 'nearest' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // `scrollend` is still missing on iOS, so the band waits for the scrolling to
+  // stop instead: whatever sits in the middle then is the pick.
+  const onScroll = () => {
+    const el = band.current
+    if (!el) return
+    markOverflow(el)
+    clearTimeout(settle.current)
+    settle.current = setTimeout(() => {
+      if (own.current) {
+        own.current = false
+        return
+      }
+      const mid = el.getBoundingClientRect().left + el.clientWidth / 2
+      let best: { key: string; d: number } | null = null
+      for (const cell of el.querySelectorAll<HTMLElement>('[data-day]')) {
+        const r = cell.getBoundingClientRect()
+        const d = Math.abs(r.left + r.width / 2 - mid)
+        if (!best || d < best.d) best = { key: cell.dataset.day!, d }
+      }
+      if (!best || best.key === selected) return
+      shown.current = best.key
+      try {
+        navigator.vibrate?.(5)
+      } catch {
+        /* a browser that has the method but refuses the call */
+      }
+      onSelect(best.key)
+    }, SETTLE_MS)
+  }
+
   const arrow = (dir: 'prev' | 'next', onClick?: () => void) => (
     <button
       type="button"
@@ -552,43 +624,54 @@ export function WeekStrip({ days, selected, onSelect, onPrev, onNext, onToday, l
       </svg>
     </button>
   )
+
   return (
     <div className={cx('flex flex-col gap-2', className)}>
+      {/* the controls hold their place whatever the band does, so the thumb
+          always finds them where it left them - hence a disabled "today"
+          rather than one that comes and goes */}
       <div className="flex items-center gap-2">
         {arrow('prev', onPrev)}
-        <p className="min-w-0 flex-1 truncate text-center font-display text-sm font-semibold tracking-wider text-t-secondary">{caption}</p>
-        {onToday && (
-          <button type="button" className={buttonClass({ size: 'sm' })} onClick={onToday}>
-            {labels.today}
-          </button>
-        )}
+        <Slot step={step} className="min-w-0 flex-1 text-center font-display text-sm font-semibold tracking-wider text-t-secondary">
+          <span className="truncate">{label}</span>
+        </Slot>
+        <button type="button" className={cx(buttonClass({ size: 'sm' }), 'shrink-0 disabled:cursor-default disabled:opacity-40')} disabled={!onToday} onClick={onToday}>
+          {labels.today}
+        </button>
         {arrow('next', onNext)}
       </div>
-      <div role="group" aria-label={labels.strip} className="grid grid-cols-7 gap-1">
+      <div ref={band} role="group" aria-label={labels.strip} className="t-dayband gap-1 py-1" onScroll={onScroll}>
+        {/* the first and last day have to be able to reach the middle too */}
+        <div aria-hidden className="w-[calc(50%-1.5rem)] shrink-0" />
         {days.map((d) => {
           const pressed = d.key === selected
           return (
             <button
               key={d.key}
               type="button"
+              data-day={d.key}
               aria-pressed={pressed}
               aria-current={d.today ? 'date' : undefined}
-              disabled={d.disabled}
               onClick={() => onSelect(d.key)}
               className={cx(
-                'flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md border px-1 py-1.5 text-xs transition-colors',
+                'flex min-h-14 w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md border px-1 py-1.5 text-xs transition-colors',
                 pressed ? 'border-accent bg-bg-card text-t-primary' : 'border-border-subtle bg-bg-secondary text-t-secondary hover:bg-bg-hover',
                 d.today && 'outline-2 outline-offset-1 outline-accent',
-                d.disabled && 'cursor-default opacity-40 hover:bg-bg-secondary',
               )}
             >
-              <span className="flex flex-col items-center leading-tight">{d.label}</span>
+              <span className="text-[10px] uppercase tracking-wider text-t-muted">{d.weekday}</span>
+              <span className="text-base leading-tight">{d.day}</span>
               {/* the count is a real chip: zero draws nothing, so an empty day
                   stays quiet and the eye lands on the days that have one */}
-              {!!d.count && <Badge size="sm" tone={pressed ? 'accent' : 'neutral'}>{d.count}</Badge>}
+              {!!d.count && (
+                <Badge size="sm" tone={pressed ? 'accent' : 'neutral'}>
+                  {d.count}
+                </Badge>
+              )}
             </button>
           )
         })}
+        <div aria-hidden className="w-[calc(50%-1.5rem)] shrink-0" />
       </div>
     </div>
   )
