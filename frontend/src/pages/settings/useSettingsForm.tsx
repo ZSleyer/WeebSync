@@ -24,6 +24,8 @@ export interface SettingsState {
   tmdbApiKey?: string
   tvdbApiKeySet: boolean
   tvdbApiKey?: string
+  animescheduleTokenSet: boolean
+  animescheduleToken?: string
   aiBaseUrl: string
   aiModel: string
   aiApiKeySet: boolean
@@ -68,6 +70,7 @@ const BLANK_SECRETS = {
   anilistClientSecret: '',
   tmdbApiKey: '',
   tvdbApiKey: '',
+  animescheduleToken: '',
   aiApiKey: '',
   plexToken: '',
   oidcClientSecret: '',

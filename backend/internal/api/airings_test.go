@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/animeschedule"
 	"github.com/ch4d1/weebsync/internal/crunchyroll"
 	"github.com/ch4d1/weebsync/internal/db"
 )
@@ -246,5 +247,49 @@ func TestRecordDubAiringsFromCrunchyroll(t *testing.T) {
 	s.recordDubAirings(context.Background())
 	if objects != 1 {
 		t.Errorf("objects fetched %d times, want once: the recorded version needs no second look", objects)
+	}
+}
+
+// English has a published timetable: AnimeSchedule dates dub episodes weeks
+// ahead. With a token the recorder writes those dates down as the dub's
+// slots - announcements, so a date that moves is updated in place - and the
+// week fetched once is not fetched again within the hour.
+func TestRecordDubTimetableFromAnimeschedule(t *testing.T) {
+	weeks := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/anime", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"anime":[{"route":"show-4th-season"}]}`))
+	})
+	mux.HandleFunc("/timetables/dub", func(w http.ResponseWriter, r *http.Request) {
+		weeks++
+		w.Write([]byte(`[{"route":"other","episodeDate":"2026-09-16T14:00:00Z","episodeNumber":3,"airType":"dub"},
+			{"route":"show-4th-season","episodeDate":"2026-09-16T15:00:00Z","episodeNumber":15,"airType":"dub"}]`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	as := animeschedule.New(d)
+	as.BaseURL = srv.URL
+	s := &Server{DB: d, Anilist: anilist.New(d), Animeschedule: as}
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('animeschedule_token', 'tok')`)
+
+	if n := s.recordDubTimetable(context.Background(), 5, "en"); n != 1 {
+		t.Fatalf("recorded %d rows, want the one episode of our title (the same slot repeats in every week asked)", n)
+	}
+	var at int64
+	d.QueryRow(`SELECT airing_at FROM airings WHERE media_id = 5 AND lang = 'en' AND episode = 15`).Scan(&at)
+	if at != 1789570800 { // 2026-09-16T15:00:00Z
+		t.Errorf("episode 15 at %d, want 2026-09-16 15:00Z", at)
+	}
+	if weeks != 5 {
+		t.Errorf("fetched %d weeks, want this one and four ahead", weeks)
+	}
+	if n := s.recordDubTimetable(context.Background(), 5, "en"); n != 0 || weeks != 5 {
+		t.Errorf("second pass: %d rows changed, %d weeks fetched; want nothing changed and the cache answering", n, weeks)
 	}
 }

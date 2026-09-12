@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/animeschedule"
 	"github.com/ch4d1/weebsync/internal/crunchyroll"
 )
 
@@ -59,6 +61,11 @@ func (s *Server) recordDubAirings(ctx context.Context) {
 	for _, w := range wants {
 		if ctx.Err() != nil {
 			return
+		}
+		// English has a published timetable as well, weeks ahead; what
+		// Crunchyroll then shows as released overwrites the same rows
+		if w.lang == "en" && s.Animeschedule.Enabled() {
+			n += s.recordDubTimetable(ctx, w.id, w.lang)
 		}
 		m, _ := s.Anilist.CachedMedia(w.id)
 		if m == nil || m.CrunchyrollID() == "" {
@@ -130,6 +137,65 @@ func (s *Server) recordDubAirings(ctx context.Context) {
 	if n > 0 {
 		slog.Info("dub airings recorded", "new", n, "titles", len(wants))
 	}
+}
+
+// recordDubTimetable writes down AnimeSchedule's English dub dates for one
+// title, this week and the four after it. These are announcements, delays
+// folded in, so a row that moved is updated. Returns how many rows changed.
+//
+// ponytail: episodeNumber as the site counts it, which for a titled season
+// matches AniList's per-season count; a show numbered straight through
+// (subtractedEpisodeNumber) would come out shifted.
+func (s *Server) recordDubTimetable(ctx context.Context, mediaID int, lang string) int {
+	routeKey := fmt.Sprintf("as:route:%d", mediaID)
+	route, ok := s.cacheGet(routeKey, 7*24*time.Hour)
+	if !ok {
+		r, err := s.Animeschedule.Route(ctx, mediaID)
+		if err != nil {
+			slog.Debug("dub airings: animeschedule unavailable", "media", mediaID, "err", err)
+			return 0
+		}
+		route = r
+		s.cacheSet(routeKey, route)
+	}
+	if route == "" {
+		return 0
+	}
+	n := 0
+	now := time.Now().UTC()
+	for i := 0; i < 5; i++ {
+		year, week := now.AddDate(0, 0, 7*i).ISOWeek()
+		key := fmt.Sprintf("as:tt:%d-%02d", year, week)
+		var entries []animeschedule.Entry
+		if raw, ok := s.cacheGet(key, 6*time.Hour); ok {
+			json.Unmarshal([]byte(raw), &entries)
+		} else {
+			var err error
+			entries, err = s.Animeschedule.DubTimetable(ctx, year, week)
+			if err != nil {
+				slog.Debug("dub airings: animeschedule unavailable", "week", week, "err", err)
+				return n
+			}
+			if raw, err := json.Marshal(entries); err == nil {
+				s.cacheSet(key, string(raw))
+			}
+		}
+		for _, e := range entries {
+			if e.Route != route || e.EpisodeNumber == 0 || e.At() == 0 {
+				continue
+			}
+			res, err := s.DB.Exec(`INSERT INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', ?, ?, ?, ?)
+				ON CONFLICT(source, media_id, episode, lang) DO UPDATE SET airing_at = excluded.airing_at
+				WHERE airing_at != excluded.airing_at`, mediaID, e.At(), e.EpisodeNumber, lang)
+			if err != nil {
+				continue
+			}
+			if c, _ := res.RowsAffected(); c > 0 {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // crSeasonEpisodes lists the episodes of the Crunchyroll season that is the

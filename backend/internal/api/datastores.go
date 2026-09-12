@@ -130,6 +130,9 @@ var dataStores = []dataStore{
 	// Crunchyroll: which of a series' seasons a watched title is, so the dub
 	// recorder asks for one episode list an hour instead of every season's.
 	cacheStore("cache:crunchyroll", 7*24*time.Hour, "", "cr:"),
+	// AnimeSchedule: a title's id over there and the weekly English dub
+	// timetables the recorder reads.
+	cacheStore("cache:animeschedule", 7*24*time.Hour, "", "as:"),
 
 	cacheStore("cache:plex", 6*time.Hour, "ttl_plex_h", "plex:"),
 

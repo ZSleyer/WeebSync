@@ -31,6 +31,11 @@ interface TvdbMe {
   connected: boolean
   error?: string
 }
+interface AnimescheduleMe {
+  configured: boolean
+  connected: boolean
+  error?: string
+}
 interface PlexMe {
   configured: boolean
   connected: boolean
@@ -46,6 +51,7 @@ interface AiStatus {
 const ANILIST_ME = { queryKey: ['anilist-me'], queryFn: () => api.get<AnilistMe>('/api/anilist/me') }
 const TMDB_ME = { queryKey: ['tmdb-me'], queryFn: () => api.get<TmdbMe>('/api/tmdb/me') }
 const TVDB_ME = { queryKey: ['tvdb-me'], queryFn: () => api.get<TvdbMe>('/api/tvdb/me') }
+const ANIMESCHEDULE_ME = { queryKey: ['animeschedule-me'], queryFn: () => api.get<AnimescheduleMe>('/api/animeschedule/me') }
 const PLEX_ME = { queryKey: ['plex-me'], queryFn: () => api.get<PlexMe>('/api/plex/me') }
 const AI_STATUS = { queryKey: ['ai-status'], queryFn: () => api.get<AiStatus>('/api/ai/status') }
 
@@ -58,6 +64,7 @@ function StatusStrip({ smtp }: { smtp: boolean }) {
   const anilist = useQuery(ANILIST_ME).data
   const tmdb = useQuery(TMDB_ME).data
   const tvdb = useQuery(TVDB_ME).data
+  const animeschedule = useQuery(ANIMESCHEDULE_ME).data
   const plex = useQuery(PLEX_ME).data
   const ai = useQuery(AI_STATUS).data
   // connected beats an error beats "set up but not tested yet" (the assistant
@@ -74,6 +81,7 @@ function StatusStrip({ smtp }: { smtp: boolean }) {
     ['anilist', 'AniList', state(anilist?.connected)],
     ['tmdb', 'TMDB', state(tmdb?.connected || tmdb?.keyValid, tmdb?.configured && !tmdb.keyValid)],
     ['tvdb', 'TVDB', state(tvdb?.connected, tvdb?.configured)],
+    ['animeschedule', 'AnimeSchedule', state(animeschedule?.connected, animeschedule?.configured)],
     ['plex', t('settings.plex'), state(plex?.connected, plex?.configured)],
     ['ai', t('settings.ai'), state(ai?.connected, !!ai?.error, ai?.configured)],
     ['email', t('settings.email'), state(false, false, smtp)],
@@ -146,6 +154,27 @@ export default function Integrations() {
               onChange={(e) => set('tvdbApiKey', e.target.value)}
             />
             <span className="mt-1 block">{t('settings.tvdbApiKeyHint')}</span>
+          </label>
+        </div>
+      </Panel>
+
+      <Panel as="section" id="animeschedule" className="mb-4 p-5" aria-label="AnimeSchedule">
+        <Badge tone="accent">AnimeSchedule</Badge>
+        <div className="mt-3 grid grid-cols-1 gap-4">
+          <AnimescheduleAccount />
+          <label className="text-xs text-t-muted">
+            {t('settings.animescheduleToken')}
+            <EnvBadge show={locked('animescheduleToken')} />
+            <Input
+              className="mt-1 font-mono"
+              type="password"
+              autoComplete="off"
+              placeholder={form.animescheduleTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
+              value={form.animescheduleToken ?? ''}
+              disabled={locked('animescheduleToken')}
+              onChange={(e) => set('animescheduleToken', e.target.value)}
+            />
+            <span className="mt-1 block">{t('settings.animescheduleTokenHint')}</span>
           </label>
         </div>
       </Panel>
@@ -660,6 +689,42 @@ function TvdbAccount() {
       {data.configured && (
         <Button size="sm" disabled={testing} onClick={test}>
           {t('settings.tvdbTest')}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function AnimescheduleAccount() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [testing, setTesting] = useState(false)
+  const { data } = useQuery(ANIMESCHEDULE_ME)
+  // the backend caches nothing here; fetchQuery only writes into the same
+  // cache entry so the badge changes
+  const test = async () => {
+    setTesting(true)
+    try {
+      await qc.fetchQuery({ queryKey: ANIMESCHEDULE_ME.queryKey, queryFn: () => api.get<AnimescheduleMe>('/api/animeschedule/me?force=1'), staleTime: 0 })
+    } finally {
+      setTesting(false)
+    }
+  }
+  if (!data) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+      {data.connected ? (
+        <Badge tone="ok">{t('settings.animescheduleConnected')}</Badge>
+      ) : data.configured ? (
+        <span className="text-err" role="alert">
+          {data.error}
+        </span>
+      ) : (
+        <span>{t('settings.animescheduleNotConfigured')}</span>
+      )}
+      {data.configured && (
+        <Button size="sm" disabled={testing} onClick={test}>
+          {t('settings.animescheduleTest')}
         </Button>
       )}
     </div>
