@@ -337,7 +337,7 @@ export default function Dashboard() {
             </EmptyState>
           ) : (
             <>
-              <UpNext watches={watches} limit={wide ? 5 : 3} />
+              <UpNext watches={watches} />
               <Attention watches={watches} />
             </>
           )}
@@ -713,11 +713,16 @@ function SpeedPanel({ downloads }: { downloads: Download[] }) {
 const seriesTarget = (w: Watch) => ({ source: w.mediaSource, id: w.media!.id, media: w.media, watchId: w.id, title: w.titleOverride || undefined })
 
 // The next releases the providers know of, for the coming week: the reason
-// to open the app between downloads, two taps closer than the calendar.
-function UpNext({ watches, limit }: { watches: Watch[]; limit: number }) {
+// to open the app between downloads, two taps closer than the calendar. The
+// backend hands out the week behind as well; the calendar shows it, the
+// dashboard keeps only the last day so a release from this morning still
+// counts as today, and at most five releases ahead of it.
+function UpNext({ watches }: { watches: Watch[] }) {
   const { t } = useTranslation()
   const now = useNow()
-  const events = upcomingAirings(watches, now, 7).slice(0, limit)
+  const all = upcomingAirings(watches, now, 7).filter((e) => e.at * 1000 >= now - 86_400_000)
+  const firstAhead = all.findIndex((e) => e.at * 1000 > now)
+  const events = firstAhead < 0 ? all : all.slice(0, firstAhead + 5)
   const when = (ts: number) => new Date(ts * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
   const [open, toggle] = useFold('upnext')
   // a tap on an entry opens the title's card, the same one the catalog shows
