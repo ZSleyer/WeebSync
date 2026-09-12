@@ -66,6 +66,7 @@ var envSettings = []struct{ key, env, field string }{
 	{"anilist_client_secret", "ANILIST_CLIENT_SECRET", "anilistClientSecret"},
 	{"tmdb_api_key", "TMDB_API_KEY", "tmdbApiKey"},
 	{"tvdb_api_key", "TVDB_API_KEY", "tvdbApiKey"},
+	{"animeschedule_token", "ANIMESCHEDULE_TOKEN", "animescheduleToken"},
 	{"ai_base_url", "AI_BASE_URL", "aiBaseUrl"},
 	{"ai_api_key", "AI_API_KEY", "aiApiKey"},
 	{"ai_model", "AI_MODEL", "aiModel"},
@@ -127,59 +128,61 @@ func setSecretSetting(d *sql.DB, key, value string) error {
 // Secrets are write-only: GET reports only whether they are set, PUT with
 // an empty string keeps the stored value, "-" clears it.
 type settingsPayload struct {
-	BaseURL              string         `json:"baseUrl"` // public origin of this instance, used in email links
-	MaxConcurrent        int64          `json:"maxConcurrent"`
-	GlobalRateLimit      int64          `json:"globalRateLimit"`  // bytes/s, 0 = unlimited
-	WatchIntervalMin     int64          `json:"watchIntervalMin"` // global auto-sync check interval
-	RegistrationDisabled bool           `json:"registrationDisabled"`
-	TrustedNetworks      string         `json:"trustedNetworks"` // csv of CIDRs/IPs that bypass the login rate limit
-	TrustedProxies       string         `json:"trustedProxies"`  // csv of CIDRs/IPs whose X-Forwarded-* headers are believed
-	ForceHTTPS           bool           `json:"forceHttps"`      // always mark cookies Secure - for a proxy that terminates TLS
-	AuthMode             string         `json:"authMode"`        // password | oidc-only | oidc-auto
-	AnilistClientID      string         `json:"anilistClientId"`
-	AnilistSecretSet     bool           `json:"anilistSecretSet"`
-	AnilistClientSecret  string         `json:"anilistClientSecret,omitempty"` // write-only
-	AnilistRedirectURL   string         `json:"anilistRedirectUrl"`
-	TmdbApiKeySet        bool           `json:"tmdbApiKeySet"`
-	TmdbApiKey           string         `json:"tmdbApiKey,omitempty"` // write-only
-	TvdbApiKeySet        bool           `json:"tvdbApiKeySet"`
-	TvdbApiKey           string         `json:"tvdbApiKey,omitempty"` // write-only, resolves aired-order season boundaries
-	AiBaseURL            string         `json:"aiBaseUrl"`            // OpenAI-compatible endpoint (LiteLLM, OpenRouter, Ollama /v1); empty = assistant off
-	AiModel              string         `json:"aiModel"`
-	AiApiKeySet          bool           `json:"aiApiKeySet"`
-	AiApiKey             string         `json:"aiApiKey,omitempty"` // write-only, optional (local servers need none)
-	AiSearchURL          string         `json:"aiSearchUrl"`        // SearXNG base for the assistant's web search; empty = off
-	PlexURL              string         `json:"plexUrl"`
-	PlexTokenSet         bool           `json:"plexTokenSet"`
-	PlexToken            string         `json:"plexToken,omitempty"` // write-only
-	PlexSections         string         `json:"plexSections"`        // csv of section keys, empty = all show/movie sections
-	PlexSectionSources   string         `json:"plexSectionSources"`  // csv of key:source (anilist|tmdb); missing key = by library title
-	PlexSectionAnime     string         `json:"plexSectionAnime"`    // csv of key:0|1 - does this library hold anime; missing key = guessed from title/agent
-	PlexRoots            string         `json:"plexRoots"`           // manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)
-	PlexLibRoots         string         `json:"plexLibRoots"`        // read-only: mounts auto-detected from Plex's reported library locations (flat)
-	PlexLibraries        []LibraryRoots `json:"plexLibraries"`       // read-only: detected mounts grouped by their Plex library
-	OidcProviderName     string         `json:"oidcProviderName"`    // login button label ("Sign in with X")
-	OidcIssuer           string         `json:"oidcIssuer"`
-	OidcClientID         string         `json:"oidcClientId"`
-	OidcRedirectURL      string         `json:"oidcRedirectUrl"`
-	OidcClientSecretSet  bool           `json:"oidcClientSecretSet"`
-	OidcClientSecret     string         `json:"oidcClientSecret,omitempty"` // write-only
-	OidcClaim            string         `json:"oidcClaim"`                  // token claim holding groups/roles
-	OidcAdminValues      string         `json:"oidcAdminValues"`            // csv, any match = admin
-	OidcUserValues       string         `json:"oidcUserValues"`             // csv login allowlist, empty = everyone
-	OidcEnabled          bool           `json:"oidcEnabled"`
-	OidcError            string         `json:"oidcError,omitempty"`
-	SmtpHost             string         `json:"smtpHost"`
-	SmtpPort             int64          `json:"smtpPort"`
-	SmtpUsername         string         `json:"smtpUsername"`
-	SmtpFrom             string         `json:"smtpFrom"`
-	SmtpSecurity         string         `json:"smtpSecurity"` // starttls | tls | none
-	SmtpPasswordSet      bool           `json:"smtpPasswordSet"`
-	SmtpPassword         string         `json:"smtpPassword,omitempty"` // write-only
-	ApiTokenSet          bool           `json:"apiTokenSet"`            // read-only, managed via /api/settings/token
-	DownloadRoots        []string       `json:"downloadRoots"`          // read-only: local roots files may be written to
-	DownloadsEnvSet      bool           `json:"downloadsEnvSet"`        // read-only: WEEBSYNC_DOWNLOADS is set (else only the data dir default)
-	OnboardingDone       bool           `json:"onboardingDone"`         // first-run wizard finished (or an install that predates it)
+	BaseURL               string         `json:"baseUrl"` // public origin of this instance, used in email links
+	MaxConcurrent         int64          `json:"maxConcurrent"`
+	GlobalRateLimit       int64          `json:"globalRateLimit"`  // bytes/s, 0 = unlimited
+	WatchIntervalMin      int64          `json:"watchIntervalMin"` // global auto-sync check interval
+	RegistrationDisabled  bool           `json:"registrationDisabled"`
+	TrustedNetworks       string         `json:"trustedNetworks"` // csv of CIDRs/IPs that bypass the login rate limit
+	TrustedProxies        string         `json:"trustedProxies"`  // csv of CIDRs/IPs whose X-Forwarded-* headers are believed
+	ForceHTTPS            bool           `json:"forceHttps"`      // always mark cookies Secure - for a proxy that terminates TLS
+	AuthMode              string         `json:"authMode"`        // password | oidc-only | oidc-auto
+	AnilistClientID       string         `json:"anilistClientId"`
+	AnilistSecretSet      bool           `json:"anilistSecretSet"`
+	AnilistClientSecret   string         `json:"anilistClientSecret,omitempty"` // write-only
+	AnilistRedirectURL    string         `json:"anilistRedirectUrl"`
+	TmdbApiKeySet         bool           `json:"tmdbApiKeySet"`
+	TmdbApiKey            string         `json:"tmdbApiKey,omitempty"` // write-only
+	TvdbApiKeySet         bool           `json:"tvdbApiKeySet"`
+	TvdbApiKey            string         `json:"tvdbApiKey,omitempty"` // write-only, resolves aired-order season boundaries
+	AnimescheduleTokenSet bool           `json:"animescheduleTokenSet"`
+	AnimescheduleToken    string         `json:"animescheduleToken,omitempty"` // write-only, dates English dub episodes ahead
+	AiBaseURL             string         `json:"aiBaseUrl"`                    // OpenAI-compatible endpoint (LiteLLM, OpenRouter, Ollama /v1); empty = assistant off
+	AiModel               string         `json:"aiModel"`
+	AiApiKeySet           bool           `json:"aiApiKeySet"`
+	AiApiKey              string         `json:"aiApiKey,omitempty"` // write-only, optional (local servers need none)
+	AiSearchURL           string         `json:"aiSearchUrl"`        // SearXNG base for the assistant's web search; empty = off
+	PlexURL               string         `json:"plexUrl"`
+	PlexTokenSet          bool           `json:"plexTokenSet"`
+	PlexToken             string         `json:"plexToken,omitempty"` // write-only
+	PlexSections          string         `json:"plexSections"`        // csv of section keys, empty = all show/movie sections
+	PlexSectionSources    string         `json:"plexSectionSources"`  // csv of key:source (anilist|tmdb); missing key = by library title
+	PlexSectionAnime      string         `json:"plexSectionAnime"`    // csv of key:0|1 - does this library hold anime; missing key = guessed from title/agent
+	PlexRoots             string         `json:"plexRoots"`           // manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)
+	PlexLibRoots          string         `json:"plexLibRoots"`        // read-only: mounts auto-detected from Plex's reported library locations (flat)
+	PlexLibraries         []LibraryRoots `json:"plexLibraries"`       // read-only: detected mounts grouped by their Plex library
+	OidcProviderName      string         `json:"oidcProviderName"`    // login button label ("Sign in with X")
+	OidcIssuer            string         `json:"oidcIssuer"`
+	OidcClientID          string         `json:"oidcClientId"`
+	OidcRedirectURL       string         `json:"oidcRedirectUrl"`
+	OidcClientSecretSet   bool           `json:"oidcClientSecretSet"`
+	OidcClientSecret      string         `json:"oidcClientSecret,omitempty"` // write-only
+	OidcClaim             string         `json:"oidcClaim"`                  // token claim holding groups/roles
+	OidcAdminValues       string         `json:"oidcAdminValues"`            // csv, any match = admin
+	OidcUserValues        string         `json:"oidcUserValues"`             // csv login allowlist, empty = everyone
+	OidcEnabled           bool           `json:"oidcEnabled"`
+	OidcError             string         `json:"oidcError,omitempty"`
+	SmtpHost              string         `json:"smtpHost"`
+	SmtpPort              int64          `json:"smtpPort"`
+	SmtpUsername          string         `json:"smtpUsername"`
+	SmtpFrom              string         `json:"smtpFrom"`
+	SmtpSecurity          string         `json:"smtpSecurity"` // starttls | tls | none
+	SmtpPasswordSet       bool           `json:"smtpPasswordSet"`
+	SmtpPassword          string         `json:"smtpPassword,omitempty"` // write-only
+	ApiTokenSet           bool           `json:"apiTokenSet"`            // read-only, managed via /api/settings/token
+	DownloadRoots         []string       `json:"downloadRoots"`          // read-only: local roots files may be written to
+	DownloadsEnvSet       bool           `json:"downloadsEnvSet"`        // read-only: WEEBSYNC_DOWNLOADS is set (else only the data dir default)
+	OnboardingDone        bool           `json:"onboardingDone"`         // first-run wizard finished (or an install that predates it)
 	// json field names whose value comes from an env var; the UI locks them
 	EnvLocked []string `json:"envLocked"`
 }
@@ -192,52 +195,53 @@ func (s *Server) settingsState() settingsPayload {
 	limit, _ := strconv.ParseInt(db.Setting(s.DB, "global_rate_limit"), 10, 64)
 	smtpPort, _ := strconv.ParseInt(db.SettingOrEnv(s.DB, "smtp_port", "SMTP_PORT"), 10, 64)
 	return settingsPayload{
-		BaseURL:              db.SettingOrEnv(s.DB, "base_url", "WEEBSYNC_BASE_URL"),
-		MaxConcurrent:        conc,
-		GlobalRateLimit:      limit,
-		WatchIntervalMin:     int64(s.watchInterval()),
-		RegistrationDisabled: auth.RegistrationDisabled(s.DB),
-		TrustedNetworks:      db.Setting(s.DB, "trusted_networks"),
-		TrustedProxies:       db.SettingOrEnv(s.DB, "trusted_proxies", "WEEBSYNC_TRUSTED_PROXY"),
-		ForceHTTPS:           truthySetting(db.SettingOrEnv(s.DB, "force_https", "WEEBSYNC_FORCE_HTTPS")),
-		AuthMode:             auth.AuthMode(s.DB),
-		AnilistClientID:      db.SettingOrEnv(s.DB, "anilist_client_id", "ANILIST_CLIENT_ID"),
-		AnilistSecretSet:     secret.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET") != "",
-		AnilistRedirectURL:   db.Setting(s.DB, "anilist_redirect_url"),
-		TmdbApiKeySet:        secret.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
-		TvdbApiKeySet:        secret.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
-		AiBaseURL:            db.SettingOrEnv(s.DB, "ai_base_url", "AI_BASE_URL"),
-		AiModel:              db.SettingOrEnv(s.DB, "ai_model", "AI_MODEL"),
-		AiApiKeySet:          secret.SettingOrEnv(s.DB, "ai_api_key", "AI_API_KEY") != "",
-		AiSearchURL:          db.SettingOrEnv(s.DB, "ai_search_url", "AI_SEARCH_URL"),
-		PlexURL:              db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
-		PlexTokenSet:         secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
-		PlexSections:         db.Setting(s.DB, "plex_sections"),
-		PlexSectionSources:   db.Setting(s.DB, "plex_section_sources"),
-		PlexSectionAnime:     db.Setting(s.DB, "plex_section_anime"),
-		PlexRoots:            db.Setting(s.DB, "plex_roots"),
-		PlexLibRoots:         db.Setting(s.DB, "plex_lib_roots"),
-		PlexLibraries:        plexLibraries(db.Setting(s.DB, "plex_lib_map")),
-		OidcProviderName:     db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
-		OidcIssuer:           db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
-		OidcClientID:         db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
-		OidcRedirectURL:      db.SettingOrEnv(s.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL"),
-		OidcClientSecretSet:  secret.SettingOrEnv(s.DB, "oidc_client_secret", "OIDC_CLIENT_SECRET") != "",
-		OidcClaim:            db.SettingOrEnv(s.DB, "oidc_claim", "OIDC_CLAIM"),
-		OidcAdminValues:      db.SettingOrEnv(s.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES"),
-		OidcUserValues:       db.SettingOrEnv(s.DB, "oidc_user_values", "OIDC_USER_VALUES"),
-		OidcEnabled:          s.OIDC.Enabled(),
-		SmtpHost:             db.SettingOrEnv(s.DB, "smtp_host", "SMTP_HOST"),
-		SmtpPort:             smtpPort,
-		SmtpUsername:         db.SettingOrEnv(s.DB, "smtp_username", "SMTP_USERNAME"),
-		SmtpFrom:             db.SettingOrEnv(s.DB, "smtp_from", "SMTP_FROM"),
-		SmtpSecurity:         smtpSecurity(s.DB),
-		SmtpPasswordSet:      db.Setting(s.DB, "smtp_password") != "" || os.Getenv("SMTP_PASSWORD") != "",
-		ApiTokenSet:          db.Setting(s.DB, "api_token_hash") != "",
-		DownloadRoots:        s.localRoots(),
-		DownloadsEnvSet:      os.Getenv("WEEBSYNC_DOWNLOADS") != "",
-		OnboardingDone:       s.onboardingDone(),
-		EnvLocked:            envLockedFields(),
+		BaseURL:               db.SettingOrEnv(s.DB, "base_url", "WEEBSYNC_BASE_URL"),
+		MaxConcurrent:         conc,
+		GlobalRateLimit:       limit,
+		WatchIntervalMin:      int64(s.watchInterval()),
+		RegistrationDisabled:  auth.RegistrationDisabled(s.DB),
+		TrustedNetworks:       db.Setting(s.DB, "trusted_networks"),
+		TrustedProxies:        db.SettingOrEnv(s.DB, "trusted_proxies", "WEEBSYNC_TRUSTED_PROXY"),
+		ForceHTTPS:            truthySetting(db.SettingOrEnv(s.DB, "force_https", "WEEBSYNC_FORCE_HTTPS")),
+		AuthMode:              auth.AuthMode(s.DB),
+		AnilistClientID:       db.SettingOrEnv(s.DB, "anilist_client_id", "ANILIST_CLIENT_ID"),
+		AnilistSecretSet:      secret.SettingOrEnv(s.DB, "anilist_client_secret", "ANILIST_CLIENT_SECRET") != "",
+		AnilistRedirectURL:    db.Setting(s.DB, "anilist_redirect_url"),
+		TmdbApiKeySet:         secret.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
+		TvdbApiKeySet:         secret.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
+		AnimescheduleTokenSet: secret.SettingOrEnv(s.DB, "animeschedule_token", "ANIMESCHEDULE_TOKEN") != "",
+		AiBaseURL:             db.SettingOrEnv(s.DB, "ai_base_url", "AI_BASE_URL"),
+		AiModel:               db.SettingOrEnv(s.DB, "ai_model", "AI_MODEL"),
+		AiApiKeySet:           secret.SettingOrEnv(s.DB, "ai_api_key", "AI_API_KEY") != "",
+		AiSearchURL:           db.SettingOrEnv(s.DB, "ai_search_url", "AI_SEARCH_URL"),
+		PlexURL:               db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
+		PlexTokenSet:          secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
+		PlexSections:          db.Setting(s.DB, "plex_sections"),
+		PlexSectionSources:    db.Setting(s.DB, "plex_section_sources"),
+		PlexSectionAnime:      db.Setting(s.DB, "plex_section_anime"),
+		PlexRoots:             db.Setting(s.DB, "plex_roots"),
+		PlexLibRoots:          db.Setting(s.DB, "plex_lib_roots"),
+		PlexLibraries:         plexLibraries(db.Setting(s.DB, "plex_lib_map")),
+		OidcProviderName:      db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
+		OidcIssuer:            db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
+		OidcClientID:          db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
+		OidcRedirectURL:       db.SettingOrEnv(s.DB, "oidc_redirect_url", "OIDC_REDIRECT_URL"),
+		OidcClientSecretSet:   secret.SettingOrEnv(s.DB, "oidc_client_secret", "OIDC_CLIENT_SECRET") != "",
+		OidcClaim:             db.SettingOrEnv(s.DB, "oidc_claim", "OIDC_CLAIM"),
+		OidcAdminValues:       db.SettingOrEnv(s.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES"),
+		OidcUserValues:        db.SettingOrEnv(s.DB, "oidc_user_values", "OIDC_USER_VALUES"),
+		OidcEnabled:           s.OIDC.Enabled(),
+		SmtpHost:              db.SettingOrEnv(s.DB, "smtp_host", "SMTP_HOST"),
+		SmtpPort:              smtpPort,
+		SmtpUsername:          db.SettingOrEnv(s.DB, "smtp_username", "SMTP_USERNAME"),
+		SmtpFrom:              db.SettingOrEnv(s.DB, "smtp_from", "SMTP_FROM"),
+		SmtpSecurity:          smtpSecurity(s.DB),
+		SmtpPasswordSet:       db.Setting(s.DB, "smtp_password") != "" || os.Getenv("SMTP_PASSWORD") != "",
+		ApiTokenSet:           db.Setting(s.DB, "api_token_hash") != "",
+		DownloadRoots:         s.localRoots(),
+		DownloadsEnvSet:       os.Getenv("WEEBSYNC_DOWNLOADS") != "",
+		OnboardingDone:        s.onboardingDone(),
+		EnvLocked:             envLockedFields(),
 	}
 }
 
@@ -490,6 +494,15 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if v != "" {
 		if !saveSecret("tvdb_api_key", v) {
+			return
+		}
+	}
+	if v := strings.TrimSpace(in.AnimescheduleToken); v == "-" {
+		if !saveSecret("animeschedule_token", "") {
+			return
+		}
+	} else if v != "" {
+		if !saveSecret("animeschedule_token", v) {
 			return
 		}
 	}

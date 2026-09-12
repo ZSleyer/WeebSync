@@ -2901,6 +2901,20 @@
                 },
                 "type": "object"
             },
+            "api.animescheduleMeResponse": {
+                "properties": {
+                    "configured": {
+                        "type": "boolean"
+                    },
+                    "connected": {
+                        "type": "boolean"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.catalogItem": {
                 "properties": {
                     "entry": {
@@ -3597,6 +3611,13 @@
                         "type": "string"
                     },
                     "anilistSecretSet": {
+                        "type": "boolean"
+                    },
+                    "animescheduleToken": {
+                        "description": "write-only, dates English dub episodes ahead",
+                        "type": "string"
+                    },
+                    "animescheduleTokenSet": {
                         "type": "boolean"
                     },
                     "apiTokenSet": {
@@ -6403,6 +6424,32 @@
                 "summary": "Link AniList by token",
                 "tags": [
                     "Suggestions"
+                ]
+            }
+        },
+        "/api/animeschedule/me": {
+            "get": {
+                "description": "Report whether the configured AnimeSchedule.net token is accepted.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.animescheduleMeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "AnimeSchedule connection status",
+                "tags": [
+                    "Watches"
                 ]
             }
         },

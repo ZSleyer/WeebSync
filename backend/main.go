@@ -23,6 +23,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/ai"
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/animeschedule"
 	"github.com/ch4d1/weebsync/internal/api"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/crunchyroll"
@@ -122,19 +123,20 @@ func main() {
 	}
 
 	srv := &api.Server{
-		DB:           database,
-		OIDC:         auth.NewManager(context.Background(), database),
-		DownloadRoot: downloadRoot,
-		LocalRoots:   localRoots,
-		Anilist:      anilist.New(database),
-		Tmdb:         tmdb.New(database),
-		Tvdb:         tvdb.New(database),
-		Crunchyroll:  crunchyroll.New(),
-		AI:           ai.New(database),
-		Push:         pushSvc,
-		Mail:         mailer.New(database),
-		Conns:        pool.New(),
-		Logs:         logs,
+		DB:            database,
+		OIDC:          auth.NewManager(context.Background(), database),
+		DownloadRoot:  downloadRoot,
+		LocalRoots:    localRoots,
+		Anilist:       anilist.New(database),
+		Tmdb:          tmdb.New(database),
+		Tvdb:          tvdb.New(database),
+		Crunchyroll:   crunchyroll.New(),
+		Animeschedule: animeschedule.New(database),
+		AI:            ai.New(database),
+		Push:          pushSvc,
+		Mail:          mailer.New(database),
+		Conns:         pool.New(),
+		Logs:          logs,
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
 	srv.Transfers.Roots = srv.LocalRootsWithPlex() // env mounts + configured Plex roots

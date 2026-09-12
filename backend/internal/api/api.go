@@ -14,6 +14,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/ai"
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/animeschedule"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/crunchyroll"
 	"github.com/ch4d1/weebsync/internal/logbus"
@@ -40,9 +41,12 @@ type Server struct {
 	// Crunchyroll reads when a dub episode went live, for the calendar's dub
 	// slots; nil = never asked
 	Crunchyroll *crunchyroll.Client
-	AI          *ai.Client // optional assistant endpoint; nil or unconfigured = feature hidden
-	Push        *push.Service
-	Mail        *mailer.Service
+	// Animeschedule dates English dub episodes ahead of their release; nil or
+	// without a token = not asked
+	Animeschedule *animeschedule.Client
+	AI            *ai.Client // optional assistant endpoint; nil or unconfigured = feature hidden
+	Push          *push.Service
+	Mail          *mailer.Service
 	// Conns pools and caps SSH/FTP connections per server (multiplexes SFTP
 	// channels; downloads take priority over the index crawler).
 	Conns *pool.Pool
@@ -265,6 +269,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/tvdb/search", authed(http.HandlerFunc(s.handleTvdbSearch)))
 	mux.Handle("GET /api/tvdb/media", authed(http.HandlerFunc(s.handleTvdbMedia)))
 	mux.Handle("GET /api/tvdb/me", authed(http.HandlerFunc(s.handleTvdbMe)))
+	mux.Handle("GET /api/animeschedule/me", authed(http.HandlerFunc(s.handleAnimescheduleMe)))
 	mux.Handle("GET /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbConnect)))
 	mux.Handle("GET /api/tmdb/callback", authed(http.HandlerFunc(s.handleTmdbCallback)))
 	mux.Handle("DELETE /api/tmdb/connect", authed(http.HandlerFunc(s.handleTmdbDisconnect)))
