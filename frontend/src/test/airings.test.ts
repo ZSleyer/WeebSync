@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { upcomingAirings } from '../airings'
+import { episodeLabel, upcomingAirings } from '../airings'
 import type { Watch } from '../api'
 
 const watch = (id: number, airings: { at: number; episode: number; episodeAbs?: number }[]) => ({ id, airings }) as unknown as Watch
@@ -41,5 +41,15 @@ describe('week helpers', () => {
     // a Monday is its own week start
     expect(dayKey(startOfWeek(new Date(2026, 8, 14, 1), 1))).toBe('2026-09-14')
     expect(dayKey(addDays(startOfWeek(thu, 1), 7))).toBe('2026-09-21')
+  })
+})
+
+describe('episodeLabel', () => {
+  const t = (key: string, opts?: Record<string, unknown>) => `${key}:${opts?.n ?? ''}${opts?.lang ? ':' + opts.lang : ''}`
+  it('names the original, the dub and an estimate apart', () => {
+    expect(episodeLabel(t, { episode: 14 })).toBe('watch.nextEp:14')
+    expect(episodeLabel(t, { episode: 14, episodeAbs: 80 })).toBe('watch.nextEp:14 (80)')
+    expect(episodeLabel(t, { episode: 14, dub: 'de' })).toBe('watch.dubEp:14:DE')
+    expect(episodeLabel(t, { episode: 14, dub: 'de', est: true })).toBe('~ watch.dubEp:14:DE')
   })
 })
