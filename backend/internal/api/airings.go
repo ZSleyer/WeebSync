@@ -159,9 +159,9 @@ func (s *Server) dubSlots(source string, mediaID int, lang string, lagDays int, 
 	for _, a := range orig {
 		origAt[a.Episode] = a.At
 	}
-	lag := lagFromReleases(released, origAt)
-	if lag == 0 {
-		lag = int64(lagDays) * 86400
+	lag, known := lagFromReleases(released, origAt)
+	if !known {
+		lag, known = int64(lagDays)*86400, lagDays > 0
 	}
 	var out []Airing
 	add := func(at int64, episode int, est bool) {
@@ -179,7 +179,7 @@ func (s *Server) dubSlots(source string, mediaID int, lang string, lagDays int, 
 		have[a.Episode] = true
 		add(a.At, a.Episode, false)
 	}
-	if lag <= 0 {
+	if !known {
 		return out
 	}
 	seen := map[int]bool{}
@@ -194,14 +194,15 @@ func (s *Server) dubSlots(source string, mediaID int, lang string, lagDays int, 
 }
 
 // lagFromReleases is the median gap between a dub release and the original
-// slot of the same episode, over the newest three episodes both sides know;
-// 0 when they share none.
-func lagFromReleases(released []Airing, origAt map[int]int64) int64 {
+// slot of the same episode, over the newest three episodes both sides know.
+// A gap of zero is a simuldub and as known as any; false when they share no
+// episode.
+func lagFromReleases(released []Airing, origAt map[int]int64) (int64, bool) {
 	byEp := append([]Airing(nil), released...)
 	sort.Slice(byEp, func(i, j int) bool { return byEp[i].Episode > byEp[j].Episode })
 	var gaps []int64
 	for _, d := range byEp {
-		if o, ok := origAt[d.Episode]; ok && d.At > o {
+		if o, ok := origAt[d.Episode]; ok && d.At >= o {
 			gaps = append(gaps, d.At-o)
 		}
 		if len(gaps) == 3 {
@@ -209,8 +210,8 @@ func lagFromReleases(released []Airing, origAt map[int]int64) int64 {
 		}
 	}
 	if len(gaps) == 0 {
-		return 0
+		return 0, false
 	}
 	sort.Slice(gaps, func(i, j int) bool { return gaps[i] < gaps[j] })
-	return gaps[len(gaps)/2]
+	return gaps[len(gaps)/2], true
 }
