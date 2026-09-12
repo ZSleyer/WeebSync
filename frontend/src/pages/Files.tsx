@@ -583,6 +583,7 @@ export function CatalogGrid({
   })
   const qc = useQueryClient()
   const [keyRejected, setKeyRejected] = useState(false)
+  useEffect(() => setKeyRejected(false), [serverId, path])
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   // the title card is the app's one; the catalog adds its folder versions
   // under the record, each selectable, syncable, watchable, re-matchable

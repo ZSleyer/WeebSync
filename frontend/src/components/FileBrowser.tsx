@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { FolderOpen, FolderPlus, Pencil } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -141,6 +141,7 @@ export function FileBrowser({
   })
   // a key the user rejected stays out of the way until the next listing
   const [rejected, setRejected] = useState(false)
+  useEffect(() => setRejected(false), [path, serverId])
   const conflict = serverId !== undefined && !rejected ? keyConflictOf(error) : null
 
   const crumbs = path.split('/').filter(Boolean)
