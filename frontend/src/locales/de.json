@@ -1081,6 +1081,10 @@
               "name": "TVDB-Daten",
               "desc": "Alles, was von TVDB kommt: Serien, übersetzte Titel und die Folgenlisten, aus denen die Staffel-Zuordnung gebaut wird."
             },
+            "crunchyroll": {
+              "name": "Crunchyroll-Staffelzuordnung",
+              "desc": "Welche Staffel einer Serie auf Crunchyroll ein beobachteter Titel ist, damit die Synchro-Prüfung stündlich nur eine Folgenliste holt. Günstig neu aufzubauen."
+            },
             "plex": {
               "name": "Plex-Bibliothek",
               "desc": "Abzug deiner Plex-Bibliothek samt vorberechneter Vorschläge. Der Neuaufbau dauert je nach Bibliotheksgröße einige Minuten."

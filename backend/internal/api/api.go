@@ -15,6 +15,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/ai"
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/crunchyroll"
 	"github.com/ch4d1/weebsync/internal/logbus"
 	"github.com/ch4d1/weebsync/internal/mailer"
 	"github.com/ch4d1/weebsync/internal/push"
@@ -36,9 +37,12 @@ type Server struct {
 	Anilist    *anilist.Client
 	Tmdb       *tmdb.Client
 	Tvdb       *tvdb.Client // aired-order season mapping for endless series
-	AI         *ai.Client   // optional assistant endpoint; nil or unconfigured = feature hidden
-	Push       *push.Service
-	Mail       *mailer.Service
+	// Crunchyroll reads when a dub episode went live, for the calendar's dub
+	// slots; nil = never asked
+	Crunchyroll *crunchyroll.Client
+	AI          *ai.Client // optional assistant endpoint; nil or unconfigured = feature hidden
+	Push        *push.Service
+	Mail        *mailer.Service
 	// Conns pools and caps SSH/FTP connections per server (multiplexes SFTP
 	// channels; downloads take priority over the index crawler).
 	Conns *pool.Pool
