@@ -52,6 +52,7 @@ type CommonDefaults struct {
 	AiredMapping    bool   `json:"airedMapping"`
 	WantDub         string `json:"wantDub"`
 	WantSub         string `json:"wantSub"`
+	DubLagDays      int    `json:"dubLagDays"` // see Watch.DubLagDays
 	PlexAudioLang   string `json:"plexAudioLang"`
 	PlexSubLang     string `json:"plexSubLang"`
 }
@@ -289,6 +290,9 @@ func (d WatchDefaults) apply(t folderTarget, f *aiWatchFields) {
 	fill(&f.RenameTitleLang, c.RenameTitleLang)
 	fill(&f.WantDub, c.WantDub)
 	fill(&f.WantSub, c.WantSub)
+	if f.DubLagDays == 0 {
+		f.DubLagDays = c.DubLagDays
+	}
 	fill(&f.PlexAudioLang, c.PlexAudioLang)
 	fill(&f.PlexSubLang, c.PlexSubLang)
 	if c.AiredMapping {

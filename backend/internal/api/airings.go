@@ -2,13 +2,17 @@ package api
 
 import (
 	"log/slog"
+	"sort"
+	"strings"
 	"time"
 )
 
 const (
-	// how far back the calendar may look, and how long a recorded slot is kept
+	// how far back the calendar may look, and how long a recorded slot is
+	// kept. The keep is generous because a dub's lag is measured against the
+	// original slot of the same episode, and a dub can trail by a month.
 	airingsLookback = 7 * 24 * time.Hour
-	airingsKeep     = 30 * 24 * time.Hour
+	airingsKeep     = 90 * 24 * time.Hour
 )
 
 // recordAirings copies every scheduled slot the provider caches currently hold
@@ -51,8 +55,8 @@ func (s *Server) recordAirings() {
 			// a slot the provider has moved overwrites the time it had; once
 			// the episode airs it drops off their side and the last time they
 			// gave stands
-			res, err := s.DB.Exec(`INSERT INTO airings (source, media_id, airing_at, episode) VALUES (?, ?, ?, ?)
-				ON CONFLICT(source, media_id, episode) DO UPDATE SET airing_at = excluded.airing_at
+			res, err := s.DB.Exec(`INSERT INTO airings (source, media_id, airing_at, episode, lang) VALUES (?, ?, ?, ?, '')
+				ON CONFLICT(source, media_id, episode, lang) DO UPDATE SET airing_at = excluded.airing_at
 				WHERE airing_at != excluded.airing_at`,
 				p.source, p.id, a.AiringAt, a.Episode)
 			if err != nil {
@@ -78,7 +82,7 @@ func (s *Server) pastAirings(source string, mediaID int, from, to time.Time) []A
 		return nil
 	}
 	rows, err := s.DB.Query(`SELECT airing_at, episode FROM airings
-		WHERE source = ? AND media_id = ? AND airing_at >= ? AND airing_at < ? ORDER BY airing_at`,
+		WHERE source = ? AND media_id = ? AND lang = '' AND airing_at >= ? AND airing_at < ? ORDER BY airing_at`,
 		source, mediaID, from.Unix(), to.Unix())
 	if err != nil {
 		return nil
@@ -92,4 +96,121 @@ func (s *Server) pastAirings(source string, mediaID int, from, to time.Time) []A
 		}
 	}
 	return out
+}
+
+// langAirings reads back everything recorded for a title in one language,
+// ” being the original; absolute episode numbers, oldest first.
+func (s *Server) langAirings(source string, mediaID int, lang string) []Airing {
+	rows, err := s.DB.Query(`SELECT airing_at, episode FROM airings
+		WHERE source = ? AND media_id = ? AND lang = ? ORDER BY airing_at`, source, mediaID, lang)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []Airing
+	for rows.Next() {
+		a := Airing{Dub: lang}
+		if rows.Scan(&a.At, &a.Episode) == nil {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// dubLang maps the download filter's language code (Ger, Eng, ... as the
+// file names spell it) to the short tag a dub slot carries. "" for a code no
+// dub source speaks - and for Japanese, which is the original, not a dub.
+func dubLang(wantDub string) string {
+	switch strings.ToLower(wantDub) {
+	case "ger", "deu", "de":
+		return "de"
+	case "eng", "en":
+		return "en"
+	case "fre", "fra", "fr":
+		return "fr"
+	case "ita", "it":
+		return "it"
+	case "spa", "es":
+		return "es"
+	case "por", "pt":
+		return "pt"
+	}
+	return ""
+}
+
+// dubSlots lists a title's releases in one dub language, in the watch's
+// local numbering: what was recorded as released, and for every original
+// slot without a release yet a projection. Nobody publishes the projected
+// dates; they are the original slot plus the lag the last releases showed
+// against theirs (the median of up to three), or, before any release has
+// been seen, the lag the watch was given. With neither there is nothing to
+// project and only the recorded releases show.
+//
+// ponytail: constant lag. Catch-up weeks (two episodes at once) and
+// skipped weeks shift the projection until the next release corrects it.
+func (s *Server) dubSlots(source string, mediaID int, lang string, lagDays int, orig []Airing, from time.Time, offset, start int) []Airing {
+	released := s.langAirings(source, mediaID, lang)
+	// the originals for the lag: everything recorded, plus what the provider
+	// still has dated ahead (orig carries the past week and the future)
+	origAt := map[int]int64{}
+	for _, a := range s.langAirings(source, mediaID, "") {
+		origAt[a.Episode] = a.At
+	}
+	for _, a := range orig {
+		origAt[a.Episode] = a.At
+	}
+	lag := lagFromReleases(released, origAt)
+	if lag == 0 {
+		lag = int64(lagDays) * 86400
+	}
+	var out []Airing
+	add := func(at int64, episode int, est bool) {
+		if at < from.Unix() || episode+offset < start {
+			return
+		}
+		air := Airing{At: at, Episode: episode + offset, Dub: lang, Est: est}
+		if offset != 0 {
+			air.EpisodeAbs = episode
+		}
+		out = append(out, air)
+	}
+	have := map[int]bool{}
+	for _, a := range released {
+		have[a.Episode] = true
+		add(a.At, a.Episode, false)
+	}
+	if lag <= 0 {
+		return out
+	}
+	seen := map[int]bool{}
+	for _, a := range orig {
+		if have[a.Episode] || seen[a.Episode] {
+			continue
+		}
+		seen[a.Episode] = true
+		add(a.At+lag, a.Episode, true)
+	}
+	return out
+}
+
+// lagFromReleases is the median gap between a dub release and the original
+// slot of the same episode, over the newest three episodes both sides know;
+// 0 when they share none.
+func lagFromReleases(released []Airing, origAt map[int]int64) int64 {
+	byEp := append([]Airing(nil), released...)
+	sort.Slice(byEp, func(i, j int) bool { return byEp[i].Episode > byEp[j].Episode })
+	var gaps []int64
+	for _, d := range byEp {
+		if o, ok := origAt[d.Episode]; ok && d.At > o {
+			gaps = append(gaps, d.At-o)
+		}
+		if len(gaps) == 3 {
+			break
+		}
+	}
+	if len(gaps) == 0 {
+		return 0
+	}
+	sort.Slice(gaps, func(i, j int) bool { return gaps[i] < gaps[j] })
+	return gaps[len(gaps)/2]
 }

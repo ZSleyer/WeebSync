@@ -475,6 +475,7 @@ type aiWatchFields struct {
 	RenameSeriesID  int    `json:"renameSeriesId"`
 	WantDub         string `json:"wantDub"`
 	WantSub         string `json:"wantSub"`
+	DubLagDays      int    `json:"dubLagDays,omitempty"`
 	PlexAudioLang   string `json:"plexAudioLang"`
 	PlexSubLang     string `json:"plexSubLang"`
 	// ReplaceOld is set on upgrades only: the dialog offers to trash the copy

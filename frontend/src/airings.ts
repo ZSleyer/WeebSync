@@ -2,7 +2,7 @@ import type { Watch } from './api'
 
 // One scheduled release of a watched series. The watches page groups these
 // by day for its calendar, the dashboard shows the next few.
-export type Airing = { at: number; episode: number; episodeAbs?: number; watch: Watch }
+export type Airing = { at: number; episode: number; episodeAbs?: number; dub?: string; est?: boolean; watch: Watch }
 
 /**
  * Every release the providers know, flattened across the watches and sorted by
@@ -13,9 +13,20 @@ export type Airing = { at: number; episode: number; episodeAbs?: number; watch: 
 export function upcomingAirings(watches: Watch[], now = Date.now(), withinDays?: number): Airing[] {
   const until = withinDays ? now + withinDays * 86_400_000 : Infinity
   return watches
-    .flatMap((w) => (w.airings ?? []).map((a) => ({ at: a.at, episode: a.episode, episodeAbs: a.episodeAbs, watch: w })))
+    .flatMap((w) => (w.airings ?? []).map((a) => ({ at: a.at, episode: a.episode, episodeAbs: a.episodeAbs, dub: a.dub, est: a.est, watch: w })))
     .filter((e) => e.at * 1000 <= until)
     .sort((a, b) => a.at - b.at)
+}
+
+/**
+ * The episode line of a calendar entry: "Episode 14", with the original
+ * number in parentheses when the watch renumbers, and for a dub slot the
+ * language it releases in - prefixed "~" when the date is only projected.
+ */
+export function episodeLabel(t: (key: string, opts?: Record<string, unknown>) => string, e: { episode: number; episodeAbs?: number; dub?: string; est?: boolean }): string {
+  let s = e.dub ? t('watch.dubEp', { n: e.episode, lang: e.dub.toUpperCase() }) : t('watch.nextEp', { n: e.episode })
+  if (e.episodeAbs && e.episodeAbs !== e.episode) s += ` (${e.episodeAbs})`
+  return e.est ? `~ ${s}` : s
 }
 
 /** Local midnight of the day `d` is in. */

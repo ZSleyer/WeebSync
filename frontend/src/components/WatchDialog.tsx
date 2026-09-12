@@ -31,6 +31,9 @@ export interface WatchFields extends RenameRule {
   mediaSource: string
   wantDub: string
   wantSub: string
+  // days the dub's release trails the original, for the calendar's dub slots
+  // before a release has shown the real lag; 0 = wait for one
+  dubLagDays?: number
   plexAudioLang: string
   plexSubLang: string
   // one-off upgrade sync only: move the copy being improved on to the trash
@@ -381,6 +384,26 @@ export default function WatchDialog({
                   </Field>
                 )
               })}
+              {f.wantDub && (
+                <Field
+                  label={
+                    <>
+                      {t('watch.dubLag')}
+                      <Hint text={t('watch.dubLagHint')} />
+                    </>
+                  }
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={365}
+                    inputMode="numeric"
+                    value={f.dubLagDays || ''}
+                    placeholder="0"
+                    onChange={(e) => setF({ ...f, dubLagDays: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                  />
+                </Field>
+              )}
             </div>
           </section>
 

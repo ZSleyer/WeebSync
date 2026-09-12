@@ -55,7 +55,7 @@ import {
   useMenu,
 } from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, type Watch } from '../api'
-import { addDays, dayKey, startOfDay, upcomingAirings, type Airing } from '../airings'
+import { addDays, dayKey, episodeLabel, startOfDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import { useWatchActions, watchFields } from '../components/watchActions'
@@ -191,7 +191,7 @@ export default function Watches() {
   }
   // one release, in the agenda, the phone's day or a desktop week column
   const entryOf = (e: Airing, compact?: boolean) => <li key={entryKey(e)}>{entryBody(e, compact)}</li>
-  const entryKey = (e: Airing) => `${e.watch.id}-${e.episode}-${e.at}`
+  const entryKey = (e: Airing) => `${e.watch.id}-${e.episode}-${e.at}-${e.dub ?? ''}`
   const entryBody = (e: Airing, compact?: boolean) => {
     const name = e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '')
     return (
@@ -200,12 +200,7 @@ export default function Watches() {
           compact={compact}
           cover={e.watch.media?.coverImage?.large}
           title={name}
-          episode={
-            <>
-              {t('watch.nextEp', { n: e.episode })}
-              {e.episodeAbs && e.episodeAbs !== e.episode ? ` (${e.episodeAbs})` : ''}
-            </>
-          }
+          episode={<span title={e.est ? t('watch.dubEstimate') : undefined}>{episodeLabel(t, e)}</span>}
           time={
             // the JST hover lives on the text itself - CalendarEntry owns the <p> around it
             <span title={e.watch.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(e.at, 'Asia/Tokyo')} JST`}>

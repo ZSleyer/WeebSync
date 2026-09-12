@@ -53,6 +53,7 @@ type Watch struct {
 	RenameSeriesID  int    `json:"renameSeriesId"`  // explicit provider series id for rename; 0 = auto
 	WantDub         string `json:"wantDub"`         // sync only files tagged with this dub language code (e.g. "Ger"); "" = any
 	WantSub         string `json:"wantSub"`         // sync only files tagged with this sub language code; "" = any
+	DubLagDays      int    `json:"dubLagDays"`      // days the WantDub release trails the original when no release has shown the lag yet; 0 = observed only
 	PlexAudioLang   string `json:"plexAudioLang"`   // after sync, select this audio language in Plex; "" = don't touch
 	PlexSubLang     string `json:"plexSubLang"`     // after sync, select subtitles in Plex: "" = don't touch, "off" = none, "Ger" = full, "Ger:forced" = forced
 	// PlexStreamMiss: what the preference could not deliver on this watch's
@@ -96,9 +97,11 @@ type Watch struct {
 // Airing is one upcoming episode slot for the calendar, in the watch's local
 // numbering (offset applied); EpisodeAbs carries the original number when it differs.
 type Airing struct {
-	At         int64 `json:"at"`
-	Episode    int   `json:"episode"`
-	EpisodeAbs int   `json:"episodeAbs,omitempty"`
+	At         int64  `json:"at"`
+	Episode    int    `json:"episode"`
+	EpisodeAbs int    `json:"episodeAbs,omitempty"`
+	Dub        string `json:"dub,omitempty"` // the dub this slot releases, short tag (de, en); "" = the original
+	Est        bool   `json:"est,omitempty"` // projected from the original plus the lag, not a date anyone published
 }
 
 // WatchCreateResponse carries the id of a newly created watch.
@@ -348,9 +351,9 @@ func (s *Server) watchMedia(serverID int64, remotePath string) *anilist.Media {
 // loader and not a column list per call site.
 func (s *Server) loadWatch(id int64) (Watch, bool) {
 	var w Watch
-	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub, plex_audio_lang, plex_sub_lang
+	err := s.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub, dub_lag_days, plex_audio_lang, plex_sub_lang
 		FROM watches WHERE id = ?`, id).
-		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder, &w.AiredMapping, &w.RenameProvider, &w.RenameOrdering, &w.RenameTitleLang, &w.RenameSeriesID, &w.WantDub, &w.WantSub, &w.PlexAudioLang, &w.PlexSubLang)
+		Scan(&w.ID, &w.UserID, &w.ServerID, &w.RemotePath, &w.LocalPath, &w.Mode, &w.Template, &w.Separator, &w.TitleOverride, &w.Pattern, &w.Replacement, &w.Subfolder, &w.AiredMapping, &w.RenameProvider, &w.RenameOrdering, &w.RenameTitleLang, &w.RenameSeriesID, &w.WantDub, &w.WantSub, &w.DubLagDays, &w.PlexAudioLang, &w.PlexSubLang)
 	return w, err == nil
 }
 
@@ -1053,7 +1056,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.check_attempts, w.retry_at, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.dub_lag_days, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.check_attempts, w.retry_at, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, userID)
 	if err != nil {
@@ -1066,7 +1069,7 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 		var it Watch
 		var retryAt int64
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
-			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub, &it.PlexAudioLang, &it.PlexSubLang, &it.PlexStreamMiss,
+			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub, &it.DubLagDays, &it.PlexAudioLang, &it.PlexSubLang, &it.PlexStreamMiss,
 			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &it.CheckAttempts, &retryAt, &it.CreatedAt); err != nil {
 			return nil, err
 		}
@@ -1153,11 +1156,20 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 				}
 				it.Airings = append(it.Airings, air)
 			}
+			// The dub the watch filters for gets slots of its own: the
+			// releases recorded in that language, and for the rest of the
+			// original slots a projection (see dubSlots).
+			if lang := dubLang(it.WantDub); lang != "" {
+				it.Airings = append(it.Airings, s.dubSlots(it.MediaSource, it.MediaID, lang, it.DubLagDays, slots, from, offset, start)...)
+			}
 			sort.Slice(it.Airings, func(i, j int) bool {
 				if it.Airings[i].At != it.Airings[j].At {
 					return it.Airings[i].At < it.Airings[j].At
 				}
-				return it.Airings[i].Episode < it.Airings[j].Episode
+				if it.Airings[i].Episode != it.Airings[j].Episode {
+					return it.Airings[i].Episode < it.Airings[j].Episode
+				}
+				return it.Airings[i].Dub < it.Airings[j].Dub
 			})
 		}
 		list = append(list, it)
@@ -1397,9 +1409,9 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	if s.rejectUnwritable(w, in.LocalPath) {
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub, plex_audio_lang, plex_sub_lang)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.PlexAudioLang, in.PlexSubLang)
+	res, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, separator, title_override, pattern, replacement, subfolder, from_episode, aired_mapping, rename_provider, rename_ordering, rename_title_lang, rename_series_id, want_dub, want_sub, dub_lag_days, plex_audio_lang, plex_sub_lang)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.DubLagDays, in.PlexAudioLang, in.PlexSubLang)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return
@@ -1452,6 +1464,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		RenameSeriesID  int    `json:"renameSeriesId"`
 		WantDub         string `json:"wantDub"`
 		WantSub         string `json:"wantSub"`
+		DubLagDays      int    `json:"dubLagDays"`
 		PlexAudioLang   string `json:"plexAudioLang"`
 		PlexSubLang     string `json:"plexSubLang"`
 	}
@@ -1484,8 +1497,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	if s.rejectUnwritable(w, in.LocalPath) {
 		return
 	}
-	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?, plex_audio_lang = ?, plex_sub_lang = ?
-		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.PlexAudioLang, in.PlexSubLang, id, u.ID)
+	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?, dub_lag_days = ?, plex_audio_lang = ?, plex_sub_lang = ?
+		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.DubLagDays, in.PlexAudioLang, in.PlexSubLang, id, u.ID)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "watch already exists")
 		return

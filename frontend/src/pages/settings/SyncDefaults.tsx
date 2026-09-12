@@ -16,7 +16,7 @@ type Kind = (typeof KINDS)[number]
 const EMPTY_KIND: KindDefaults = { localPath: '', subfolder: false, subfolderSource: 'none', subfolderSeparator: '', template: '', separator: '' }
 const EMPTY: WatchDefaults = {
   kinds: {},
-  common: { renameProvider: '', renameOrdering: '', renameTitleLang: '', airedMapping: false, wantDub: '', wantSub: '', plexAudioLang: '', plexSubLang: '' },
+  common: { renameProvider: '', renameOrdering: '', renameTitleLang: '', airedMapping: false, wantDub: '', wantSub: '', dubLagDays: 0, plexAudioLang: '', plexSubLang: '' },
 }
 
 // What a new auto-sync or one-off sync starts from: a target folder and
@@ -172,6 +172,17 @@ export default function SyncDefaults() {
           </Field>
           <Field label={t('watch.wantSub')}>
             <Input className="font-mono" value={form.common.wantSub} placeholder="Ger" onChange={(e) => setCommon({ wantSub: e.target.value.trim() })} />
+          </Field>
+          <Field label={t('watch.dubLag')}>
+            <Input
+              type="number"
+              min={0}
+              max={365}
+              inputMode="numeric"
+              value={form.common.dubLagDays || ''}
+              placeholder="0"
+              onChange={(e) => setCommon({ dubLagDays: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+            />
           </Field>
           <Field label={t('watch.plexAudio')}>
             <Input className="font-mono" value={form.common.plexAudioLang} placeholder="Ger" onChange={(e) => setCommon({ plexAudioLang: e.target.value.trim() })} />

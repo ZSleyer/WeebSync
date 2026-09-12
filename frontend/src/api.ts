@@ -51,6 +51,7 @@ export interface WatchDefaults {
     airedMapping: boolean
     wantDub: string
     wantSub: string
+    dubLagDays: number
     plexAudioLang: string
     plexSubLang: string
   }
@@ -214,6 +215,7 @@ export interface Watch {
   renameSeriesId: number
   wantDub: string
   wantSub: string
+  dubLagDays: number // days the wantDub release trails the original when nothing observed says otherwise; 0 = observed only
   plexAudioLang: string
   plexSubLang: string // "" = leave Plex alone, "off" = none, "Ger" = full, "Ger:forced" = forced
   plexStreamMiss?: string // what the files could not deliver: csv of "audio", "sub"
@@ -258,6 +260,8 @@ export interface Airing {
   at: number // unix seconds
   episode: number // local numbering (offset applied)
   episodeAbs?: number // original absolute number when it differs
+  dub?: string // the dub this slot releases (de, en, ...); missing = the original
+  est?: boolean // projected from the original plus the lag, not a published date
 }
 
 export interface ProviderLinks {
