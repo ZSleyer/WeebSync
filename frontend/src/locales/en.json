@@ -1081,6 +1081,10 @@
               "name": "TVDB data",
               "desc": "Everything that comes from TVDB: series, translated titles and the episode lists the season mapping is built from."
             },
+            "crunchyroll": {
+              "name": "Crunchyroll season map",
+              "desc": "Which of a series' seasons on Crunchyroll a watched title is, so the dub release check asks for one episode list an hour. Cheap to rebuild."
+            },
             "plex": {
               "name": "Plex library",
               "desc": "A copy of your Plex library plus the precomputed suggestions. Rebuilding takes a few minutes on a large library."

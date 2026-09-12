@@ -1,12 +1,16 @@
 package api
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/crunchyroll"
 	"github.com/ch4d1/weebsync/internal/db"
 )
 
@@ -178,5 +182,69 @@ func TestDubSlotsProjectTheObservedLag(t *testing.T) {
 	}
 	if len(got) != 2 || got[0].At != ep[16]+28*day || !got[0].Est {
 		t.Errorf("with a lag of 28 days: %+v, want 16 and 17 projected four weeks out", got)
+	}
+}
+
+// The recorder asks Crunchyroll which episodes of a watched title came out in
+// the dub its watch filters for, and writes their release moments down under
+// the dub's language. Only released versions exist over there, so the
+// episode whose dub is still to come leaves no row - the calendar projects it.
+func TestRecordDubAiringsFromCrunchyroll(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/auth/v1/token", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"access_token":"anon","expires_in":300}`))
+	})
+	mux.HandleFunc("/content/v2/cms/series/GRGG9798R/seasons", func(w http.ResponseWriter, r *http.Request) {
+		// the older season first, as Crunchyroll lists them; the title we
+		// watch is the newer one, which the start date picks
+		w.Write([]byte(`{"data":[{"id":"GS0OLD","season_number":1,"audio_locale":"ja-JP"},{"id":"GS0NEW","season_number":2,"audio_locale":"ja-JP"}]}`))
+	})
+	mux.HandleFunc("/content/v2/cms/seasons/GS0NEW/episodes", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[
+			{"id":"GE1JAJP","episode_number":1,"episode_air_date":"2026-04-08T00:00:00Z","versions":[{"audio_locale":"ja-JP","guid":"GE1JAJP"},{"audio_locale":"de-DE","guid":"GE1DEDE"}]},
+			{"id":"GE2JAJP","episode_number":2,"episode_air_date":"2026-04-15T00:00:00Z","versions":[{"audio_locale":"ja-JP","guid":"GE2JAJP"}]}]}`))
+	})
+	mux.HandleFunc("/content/v2/cms/seasons/GS0OLD/episodes", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[{"id":"GE0JAJP","episode_number":1,"episode_air_date":"2025-01-01T00:00:00Z","versions":[{"audio_locale":"ja-JP","guid":"GE0JAJP"}]}]}`))
+	})
+	objects := 0
+	mux.HandleFunc("/content/v2/cms/objects/GE1DEDE", func(w http.ResponseWriter, r *http.Request) {
+		objects++
+		w.Write([]byte(`{"data":[{"id":"GE1DEDE","episode_metadata":{"episode_number":1,"audio_locale":"de-DE","premium_available_date":"2026-04-29T14:00:00Z"}}]}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	s := &Server{DB: d, Anilist: anilist.New(d), Crunchyroll: crunchyroll.NewAt(srv.URL)}
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	d.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, want_dub)
+		VALUES (1, 1, '/x/Show', 'Show', 'template', 'Show - E{episode:02}', 'Ger')`)
+	d.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, source) VALUES (1, '/x/Show', 5, 'anilist')`)
+	d.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('media:5', ?)`,
+		fmt.Sprintf(`{"id":5,"schema":%d,"status":"FINISHED","startDate":20260408,"externalLinks":[{"site":"Crunchyroll","url":"https://www.crunchyroll.com/series/GRGG9798R/re-zero"}]}`, anilist.MediaSchema))
+
+	s.recordDubAirings(context.Background())
+	var at int64
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM airings WHERE media_id = 5 AND lang = 'de'`).Scan(&n)
+	d.QueryRow(`SELECT airing_at FROM airings WHERE media_id = 5 AND lang = 'de' AND episode = 1`).Scan(&at)
+	if n != 1 || at != 1777471200 { // 2026-04-29T14:00:00Z
+		t.Fatalf("recorded %d dub rows, episode 1 at %d; want one row at 2026-04-29 14:00Z", n, at)
+	}
+	// the season it settled on is remembered, and a version already written
+	// down is not asked for again
+	if v, ok := s.cacheGet("cr:season:5", time.Hour); !ok || v != "GS0NEW" {
+		t.Errorf("season cache = %q, %v; want GS0NEW", v, ok)
+	}
+	s.recordDubAirings(context.Background())
+	if objects != 1 {
+		t.Errorf("objects fetched %d times, want once: the recorded version needs no second look", objects)
 	}
 }

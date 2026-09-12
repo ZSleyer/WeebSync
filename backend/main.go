@@ -25,6 +25,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/api"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/crunchyroll"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/logbus"
 	"github.com/ch4d1/weebsync/internal/mailer"
@@ -128,6 +129,7 @@ func main() {
 		Anilist:      anilist.New(database),
 		Tmdb:         tmdb.New(database),
 		Tvdb:         tvdb.New(database),
+		Crunchyroll:  crunchyroll.New(),
 		AI:           ai.New(database),
 		Push:         pushSvc,
 		Mail:         mailer.New(database),

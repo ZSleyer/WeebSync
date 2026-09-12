@@ -127,6 +127,9 @@ var dataStores = []dataStore{
 
 	// TVDB: series, localized titles and episode lists, all under one prefix.
 	cacheStore("cache:tvdb", 24*time.Hour, "ttl_tvdb_h", "tvdb:"),
+	// Crunchyroll: which of a series' seasons a watched title is, so the dub
+	// recorder asks for one episode list an hour instead of every season's.
+	cacheStore("cache:crunchyroll", 7*24*time.Hour, "", "cr:"),
 
 	cacheStore("cache:plex", 6*time.Hour, "ttl_plex_h", "plex:"),
 

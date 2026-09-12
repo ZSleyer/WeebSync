@@ -91,6 +91,14 @@
                     "episodes": {
                         "type": "integer"
                     },
+                    "externalLinks": {
+                        "description": "ExternalLinks are the streaming and official sites AniList lists for\nthe title; the Crunchyroll one carries the series id the dub recorder\nreads releases under (see CrunchyrollID).",
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.ExternalLink"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "format": {
                         "type": "string"
                     },

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -31,7 +32,7 @@ type AiringSlot struct {
 // MediaSchema versions the cached media payload. Bump it when a new field is
 // added: entries below the current version are refetched even when the title
 // is finished, which the freshness TTL alone would never do.
-const MediaSchema = 2
+const MediaSchema = 3
 
 // StudioNames flattens AniList's studios connection to plain names. It reads
 // both shapes: the GraphQL object on a live response, and the string list we
@@ -140,8 +141,28 @@ type Media struct {
 	Studios    StudioNames `json:"studios,omitempty"` // main studios/networks
 	StartDate  FuzzyDate   `json:"startDate,omitempty"`
 	EndDate    FuzzyDate   `json:"endDate,omitempty"`
+	// ExternalLinks are the streaming and official sites AniList lists for
+	// the title; the Crunchyroll one carries the series id the dub recorder
+	// reads releases under (see CrunchyrollID).
+	ExternalLinks []ExternalLink `json:"externalLinks,omitempty"`
 	// Schema is the payload version this entry was written with, see MediaSchema.
 	Schema int `json:"schema,omitempty"`
+}
+
+var crunchyrollSeriesRe = regexp.MustCompile(`crunchyroll\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?series/([A-Z0-9]{5,32})`)
+
+// CrunchyrollID is the Crunchyroll series id AniList links the title to, ""
+// when it links none or names the show by slug only, as its older links do.
+func (m *Media) CrunchyrollID() string {
+	for _, l := range m.ExternalLinks {
+		if l.Site != "Crunchyroll" {
+			continue
+		}
+		if g := crunchyrollSeriesRe.FindStringSubmatch(l.URL); g != nil {
+			return g[1]
+		}
+	}
+	return ""
 }
 
 // Airings returns every scheduled episode the cached payload carries (absolute
@@ -169,6 +190,7 @@ const mediaFields = `id title { romaji english native } coverImage { large } ban
 	airingSchedule(notYetAired: true, perPage: 25) { nodes { airingAt episode } }
 	episodes seasonYear format status averageScore popularity genres description(asHtml: false)
 	studios(isMain: true) { nodes { name } }
+	externalLinks { site url }
 	startDate { year month day } endDate { year month day }`
 
 type Client struct {

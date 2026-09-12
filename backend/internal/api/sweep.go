@@ -92,6 +92,13 @@ func (s *Server) SweepLoop(ctx context.Context) {
 				// short would leave it measuring the same rest every time
 				s.runJobFor("plex:index", time.Hour, s.indexPlexLibrary)
 			}
+			// once an hour, write down which dub episodes Crunchyroll has
+			// released for the watches that filter for a dub; the calendar
+			// projects the rest from them. No-op without such a watch.
+			if last := db.Setting(s.DB, "dub_recorded_at"); last == "" || olderThan(last, time.Hour) {
+				db.SetSetting(s.DB, "dub_recorded_at", time.Now().UTC().Format(time.RFC3339))
+				s.runJobFor("dub:record", 10*time.Minute, s.recordDubAirings)
+			}
 			// select preferred Plex audio/sub streams on freshly indexed
 			// episodes of watches with a playback preference (no-op when empty)
 			s.backfillPlexStreams()
