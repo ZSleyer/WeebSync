@@ -54,7 +54,8 @@ export default function MediaDetail({
 }) {
   const { t } = useTranslation()
   const l = mediaLink(source, m.id)
-  const upcoming = (airings ?? []).filter((a) => a.at * 1000 > now).slice(0, 5)
+  // the title's own schedule: the dub slots a watch adds belong to the calendar
+  const upcoming = (airings ?? []).filter((a) => a.at * 1000 > now && !a.dub).slice(0, 5)
   const next = upcoming.length === 0 && m.nextAiringEpisode ? [{ at: m.nextAiringEpisode.airingAt, episode: m.nextAiringEpisode.episode }] : upcoming
   const facts = [
     m.studios?.length ? [t('series.studios'), m.studios.join(', ')] : null,
