@@ -147,6 +147,26 @@ func TestFolderTargetFindsTheLibrary(t *testing.T) {
 	}
 }
 
+// The folder's own season beats the catalog's: a "Season 3" folder matched to
+// the show's first entry is still season 3. And the show title keeps a number
+// that is not the season.
+func TestFolderTargetBelievesTheFolderName(t *testing.T) {
+	_, s, _ := setupAiTest(t, nil)
+	for id, title := range map[int]string{7: "Grand Blue", 8: "Mob Psycho 100 III"} {
+		m := &anilist.Media{ID: id, Format: "TV", Schema: anilist.MediaSchema}
+		m.Title.Romaji = title
+		s.Anilist.CacheMedia(m)
+	}
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (1, '/anime/Grand Blue Season 3', 7, 1, 'anilist')`)
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (1, '/anime/Mob Psycho 100 III', 8, 1, 'anilist')`)
+	if got := s.folderTarget(1, "/anime/Grand Blue Season 3"); got.Season != 3 || got.SeasonFolder != "Season 03" || got.Title != "Grand Blue" {
+		t.Errorf("season from the folder: %+v", got)
+	}
+	if got := s.folderTarget(1, "/anime/Mob Psycho 100 III"); got.Season != 3 || got.Title != "Mob Psycho 100" {
+		t.Errorf("number kept: %+v", got)
+	}
+}
+
 // A folder that is the whole show - season folders inside - gets no season
 // segment: the seasons are its own, and the target is the show root.
 func TestFolderTargetShowRootHasNoSeason(t *testing.T) {

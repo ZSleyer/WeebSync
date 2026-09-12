@@ -72,6 +72,7 @@ var (
 	wordSeasonRe = regexp.MustCompile(`(?i)\bSeason\s*(\d{1,2})\b`)
 	spelledOrdRe = regexp.MustCompile(`(?i)\b(second|third|fourth|fifth)\s+(?:season|act)\b`)
 	romanTailRe  = regexp.MustCompile(`\b(II|III|IV|V)\s*$`)
+	romanAnyRe   = regexp.MustCompile(`\b(?:II|III|IV|V)\b`)
 	numTailRe    = regexp.MustCompile(`\s(\d{1,2})$`)
 	finalRe      = regexp.MustCompile(`(?i)\bfinal\s+season\b`)
 	folderFinal  = regexp.MustCompile(`(?i)\bfinal\b`)
@@ -218,6 +219,34 @@ func StripMarkers(s string) string {
 	s = romanTailRe.ReplaceAllString(s, "")
 	if m := numTailRe.FindStringSubmatch(s); m != nil {
 		if n, _ := strconv.Atoi(m[1]); n >= 2 {
+			s = s[:len(s)-len(m[0])]
+		}
+	}
+	return strings.TrimSpace(s)
+}
+
+// StripSeason removes the markers of ONE known season from a title, leaving
+// the show's name for a folder: "Mob Psycho 100 III" with season 3 becomes
+// "Mob Psycho 100". Unlike StripMarkers - a comparison fold that drops any
+// trailing number - a bare number or roman numeral at the end goes only when
+// it is that season, so "Mob Psycho 100" and "Steins;Gate 0" keep theirs.
+func StripSeason(s string, season int) string {
+	for _, re := range []*regexp.Regexp{sSeasonRe, ordSeasonRe, wordSeasonRe, spelledOrdRe, finalRe} {
+		s = re.ReplaceAllString(s, " ")
+	}
+	s = strings.ReplaceAll(s, "∬", " ")
+	s = strings.Join(strings.Fields(s), " ")
+	// the numeral may sit mid-title ("Mushoku Tensei III Isekai ..."), so it
+	// is looked for anywhere - and only the one that spells this season goes
+	s = romanAnyRe.ReplaceAllStringFunc(s, func(m string) string {
+		if romanNum[strings.TrimSpace(m)] == season {
+			return " "
+		}
+		return m
+	})
+	s = strings.Join(strings.Fields(s), " ")
+	if m := numTailRe.FindStringSubmatch(s); m != nil {
+		if n, _ := strconv.Atoi(m[1]); n == season {
 			s = s[:len(s)-len(m[0])]
 		}
 	}

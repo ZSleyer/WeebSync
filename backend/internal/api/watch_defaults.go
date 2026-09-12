@@ -149,9 +149,15 @@ func (s *Server) folderTarget(serverID int64, folder string) folderTarget {
 	if isMovie {
 		season = 0
 	} else {
+		// a folder that names its season is believed over the catalog: a
+		// match can land on another season's entry (a "Season 3" folder on
+		// the show's first season), and the name is what the user reads
+		if n := match.ParseName(path.Base(folder), "", "").Season; n > 0 {
+			season = n
+		}
 		// the show title names the show folder; the per-season title would
 		// file "Frieren 2nd Season" beside "Frieren"
-		t.Title = match.StripMarkers(t.Title)
+		t.Title = match.StripSeason(t.Title, season)
 		if s.remoteShowRoot(serverID, folder) {
 			season = 0 // the folder is the whole show; its seasons lie inside
 		}
