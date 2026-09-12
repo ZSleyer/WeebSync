@@ -2286,6 +2286,13 @@
                         "description": "Oldest/Newest are SQLite UTC stamps, \"\" when the store has no time column.",
                         "type": "string"
                     },
+                    "prunable": {
+                        "type": "integer"
+                    },
+                    "pruneSec": {
+                        "description": "PruneSec is how long the sweep keeps this store's rows before deleting\nthem, 0 = kept until overwritten; Prunable counts the rows past that.\nA stale row is still served while its refetch runs - these are the ones\nnothing will read again.",
+                        "type": "integer"
+                    },
                     "rebuild": {
                         "description": "Rebuild is the job/mechanism slug that refills the store, \"\" = on demand.",
                         "example": "rematch-all",

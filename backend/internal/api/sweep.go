@@ -63,6 +63,14 @@ func (s *Server) SweepLoop(ctx context.Context) {
 				slog.Info("sweep triggers job", "job", "anime:ids", "reason", "daily refresh due")
 				s.runJob("anime:ids", func(context.Context) { s.refreshAnimeIDs() })
 			}
+			// throw out the cache rows nothing reads again (one-shot lookups,
+			// aged detail blobs); the TTL only hides them, it never frees them
+			if last := db.Setting(s.DB, "cache_pruned_at"); last == "" || olderThan(last, 24*time.Hour) {
+				if n := s.pruneCache(); n > 0 {
+					slog.Info("sweep pruned cache", "rows", n)
+				}
+				db.SetSetting(s.DB, "cache_pruned_at", time.Now().UTC().Format(time.RFC3339))
+			}
 			// write down what the caches currently say is airing, before the
 			// providers drop the slots that have passed - the calendar's only
 			// source for the days just gone

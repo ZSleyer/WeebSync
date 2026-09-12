@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -53,6 +54,13 @@ type dataStore struct {
 	// default, made configurable by the given settings key ("" = fixed).
 	setting string
 	ttl     time.Duration
+	// prune, cache stores only: rows older than this are deleted by the sweep.
+	// 0 keeps them. A stale row is not dead - a media row past its TTL is
+	// still what the page shows while the refetch runs - so only the families
+	// nobody reads back once they have aged carry a value: a search is asked
+	// once per folder name and never again, a detail-page blob is refetched on
+	// the next open anyway.
+	prune time.Duration
 	// timeCol is the column carrying the row's age, "" when the store has none.
 	// timeTable names the table it sits on; "" means tables[0].
 	timeTable string
@@ -76,6 +84,19 @@ func cacheStore(name string, ttl time.Duration, setting string, prefixes ...stri
 	}
 }
 
+// pruned is cacheStore for a family that is dead weight once it has aged:
+// the sweep deletes its rows after keep.
+func pruned(st dataStore, keep time.Duration) dataStore {
+	st.prune = keep
+	return st
+}
+
+// how long a one-shot lookup and a detail-page blob are kept past their TTL
+const (
+	pruneSearch = 7 * 24 * time.Hour
+	pruneDetail = 30 * 24 * time.Hour
+)
+
 // dataStores is the registry. Order is display order: caches grouped by the
 // provider they came from, then the derived stack roughly in the order it
 // rebuilds itself, then the decisions.
@@ -86,21 +107,21 @@ func cacheStore(name string, ttl time.Duration, setting string, prefixes ...stri
 var dataStores = []dataStore{
 	// AniList. "reviews" without a colon on purpose: the page size bump left
 	// reviews:/reviews2: rows behind that reviews3: alone would never reach.
-	cacheStore("cache:anilist-search", 24*time.Hour, "ttl_anilist_h", "search:"),
+	pruned(cacheStore("cache:anilist-search", 24*time.Hour, "ttl_anilist_h", "search:"), pruneSearch),
 	cacheStore("cache:anilist-media", 24*time.Hour, "ttl_anilist_h", "media:"),
-	cacheStore("cache:anilist-relations", 24*time.Hour, "ttl_anilist_h", "rel2:"),
-	cacheStore("cache:anilist-recommendations", 24*time.Hour, "ttl_anilist_h", "rec1:"),
-	cacheStore("cache:anilist-reviews", 24*time.Hour, "ttl_anilist_h", "reviews"),
+	pruned(cacheStore("cache:anilist-relations", 24*time.Hour, "ttl_anilist_h", "rel2:"), pruneDetail),
+	pruned(cacheStore("cache:anilist-recommendations", 24*time.Hour, "ttl_anilist_h", "rec1:"), pruneDetail),
+	pruned(cacheStore("cache:anilist-reviews", 24*time.Hour, "ttl_anilist_h", "reviews"), pruneDetail),
 	cacheStore("cache:anilist-trending", 24*time.Hour, "ttl_anilist_h", "trending:"),
 	cacheStore("cache:anilist-userlist", time.Hour, "", "alist"),
 
 	// TMDB. Titles and season episode counts are per-title detail like media,
 	// fetched through the same client with the same TTL, so they share its row.
 	// "tmdb:coll" covers both tmdb:coll-of:<movie> and tmdb:collection:<id>.
-	cacheStore("cache:tmdb-search", 24*time.Hour, "ttl_tmdb_h", "tmdb:search:"),
+	pruned(cacheStore("cache:tmdb-search", 24*time.Hour, "ttl_tmdb_h", "tmdb:search:"), pruneSearch),
 	cacheStore("cache:tmdb-media", 24*time.Hour, "ttl_tmdb_h", "tmdb:media:", "tmdb:title:", "tmdb:season:"),
-	cacheStore("cache:tmdb-collections", 24*time.Hour, "ttl_tmdb_h", "tmdb:coll"),
-	cacheStore("cache:tmdb-reviews", 24*time.Hour, "ttl_tmdb_h", "tmdb:reviews"),
+	pruned(cacheStore("cache:tmdb-collections", 24*time.Hour, "ttl_tmdb_h", "tmdb:coll"), pruneDetail),
+	pruned(cacheStore("cache:tmdb-reviews", 24*time.Hour, "ttl_tmdb_h", "tmdb:reviews"), pruneDetail),
 	cacheStore("cache:tmdb-trending", 24*time.Hour, "ttl_tmdb_h", "tmdb:trending:"),
 	cacheStore("cache:tmdb-userlist", time.Hour, "", "tmdb:watchlist:"),
 
@@ -324,6 +345,12 @@ type adminDataStore struct {
 	// TTLSec and Stale are cache stores only (0 elsewhere).
 	TTLSec int   `json:"ttlSec"`
 	Stale  int64 `json:"stale"`
+	// PruneSec is how long the sweep keeps this store's rows before deleting
+	// them, 0 = kept until overwritten; Prunable counts the rows past that.
+	// A stale row is still served while its refetch runs - these are the ones
+	// nothing will read again.
+	PruneSec int   `json:"pruneSec"`
+	Prunable int64 `json:"prunable"`
 	// Rebuild is the job/mechanism slug that refills the store, "" = on demand.
 	Rebuild string `json:"rebuild" example:"rematch-all"`
 	// Needs lists the stores that must be filled before this one can be.
@@ -412,8 +439,39 @@ func (s *Server) storeStat(st dataStore) adminDataStore {
 		}
 		s.DB.QueryRow(`SELECT COALESCE(SUM(LENGTH(payload)),0), COALESCE(SUM(`+age+`),0)
 			FROM anilist_cache`+cond, a...).Scan(&out.Bytes, &out.Stale)
+		if st.prune > 0 && cond != "" {
+			out.PruneSec = int(st.prune / time.Second)
+			s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_cache`+cond+` AND datetime(fetched_at) <= datetime('now', ?)`,
+				append(append([]any{}, args...), fmt.Sprintf("-%d seconds", out.PruneSec))...).Scan(&out.Prunable)
+		}
 	}
 	return out
+}
+
+// pruneCache deletes the cache rows nothing will read again: every store with
+// a prune age, rows older than it. The TTL alone never freed anything - a
+// row past it is skipped on read and overwritten on refetch, and a lookup
+// that is never repeated sat there for good. Returns the rows removed.
+func (s *Server) pruneCache() int64 {
+	var total int64
+	for _, st := range dataStores {
+		if st.kind != kindCache || st.prune <= 0 {
+			continue
+		}
+		where, args := st.filter()
+		res, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE (`+where+`) AND datetime(fetched_at) <= datetime('now', ?)`,
+			append(args, fmt.Sprintf("-%d seconds", int(st.prune/time.Second)))...)
+		if err != nil {
+			slog.Warn("cache prune failed", "store", st.name, "err", err)
+			continue
+		}
+		n, _ := res.RowsAffected()
+		if n > 0 {
+			slog.Info("cache pruned", "store", st.name, "rows", n, "olderThan", st.prune)
+		}
+		total += n
+	}
+	return total
 }
 
 // handleAdminDataDelete empties exactly one data store.
