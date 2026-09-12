@@ -251,3 +251,24 @@ func TestPickRejectsAnotherEraAndStrangers(t *testing.T) {
 		t.Errorf("the year picks the remake: %d %v", got.ID, ok)
 	}
 }
+
+func TestStripSeason(t *testing.T) {
+	for _, tc := range []struct {
+		in     string
+		season int
+		want   string
+	}{
+		{"Sousou no Frieren 2nd Season", 2, "Sousou no Frieren"},
+		{"Mushoku Tensei III Isekai Ittara Honki Dasu", 3, "Mushoku Tensei Isekai Ittara Honki Dasu"},
+		{"Mob Psycho 100 III", 3, "Mob Psycho 100"},
+		{"Mob Psycho 100", 3, "Mob Psycho 100"},
+		{"Boku no Hero Academia 2", 2, "Boku no Hero Academia"},
+		{"Steins;Gate 0", 1, "Steins;Gate 0"},
+		{"Yami Shibai 10", 1, "Yami Shibai 10"},
+		{"Grand Blue Season 3", 3, "Grand Blue"},
+	} {
+		if got := StripSeason(tc.in, tc.season); got != tc.want {
+			t.Errorf("StripSeason(%q, %d) = %q, want %q", tc.in, tc.season, got, tc.want)
+		}
+	}
+}
