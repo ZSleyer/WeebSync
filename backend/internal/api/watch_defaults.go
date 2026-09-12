@@ -296,17 +296,11 @@ func (d WatchDefaults) apply(t folderTarget, f *aiWatchFields) {
 	}
 }
 
-// matchedKind is the media kind a remote or local folder was matched to, from
-// the catalog; "" when it is unmatched.
-func (s *Server) matchedKind(serverID int64, folder string) string {
-	kind, _ := s.matchedKindTitle(serverID, folder)
-	return kind
-}
-
-// matchedKindTitle is matchedKind plus the folder's series title: the matched
-// media's display title, or the guess from the folder name when the catalog
-// has no match. The title is never empty, so a title subfolder can be named
-// for an uncatalogued folder too.
+// matchedKindTitle returns the media kind a remote or local folder was
+// matched to, from the catalog ("" when unmatched), plus the folder's series
+// title: the matched media's display title, or the guess from the folder
+// name when the catalog has no match. The title is never empty, so a title
+// subfolder can be named for an uncatalogued folder too.
 func (s *Server) matchedKindTitle(serverID int64, folder string) (kind, title string) {
 	source, m := s.aiMatchedMedia(serverID, folder)
 	if source == "" {
