@@ -35,7 +35,7 @@ import {
   type BadgeTone,
 } from '@weebsync/design-system'
 import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type JobsStatus, type SystemStatus, type Watch } from '../api'
-import { upcomingAirings } from '../airings'
+import { episodeLabel, upcomingAirings } from '../airings'
 import { avgSpeed, SPEED_SPAN, useSpeedHistory } from '../speedHistory'
 import { countdown } from '../countdown'
 import { jobLabel } from '../jobs'
@@ -750,16 +750,11 @@ function UpNext({ watches }: { watches: Watch[] }) {
       ) : (
         <ul className="flex flex-col gap-2">
           {events.map((e) => (
-            <li key={`${e.watch.id}-${e.episode}-${e.at}`}>
+            <li key={`${e.watch.id}-${e.episode}-${e.at}-${e.dub ?? ''}`}>
               <CalendarEntry
                 cover={e.watch.media?.coverImage?.large}
                 title={watchTitle(e.watch)}
-                episode={
-                  <>
-                    {t('watch.nextEp', { n: e.episode })}
-                    {e.episodeAbs && e.episodeAbs !== e.episode ? ` (${e.episodeAbs})` : ''}
-                  </>
-                }
+                episode={<span title={e.est ? t('watch.dubEstimate') : undefined}>{episodeLabel(t, e)}</span>}
                 time={when(e.at)}
                 countdown={countdown(t, e.at, false, now)}
                 onClick={e.watch.media ? () => openSeries(seriesTarget(e.watch)) : undefined}

@@ -83,6 +83,7 @@ export function applyDefaults(f: WatchFields, kind: string | undefined, d: Watch
   fill('renameTitleLang')
   fill('wantDub')
   fill('wantSub')
+  if (!out.dubLagDays && c.dubLagDays) out.dubLagDays = c.dubLagDays
   fill('plexAudioLang')
   fill('plexSubLang')
   if (c.airedMapping) out.airedMapping = true

@@ -25,6 +25,7 @@ export const watchFields = (w: Watch): WatchFields => ({
   renameTitleLang: w.renameTitleLang ?? '',
   renameSeriesId: w.renameSeriesId ?? 0,
   wantDub: w.wantDub ?? '',
+  dubLagDays: w.dubLagDays ?? 0,
   wantSub: w.wantSub ?? '',
   plexAudioLang: w.plexAudioLang ?? '',
   plexSubLang: w.plexSubLang ?? '',

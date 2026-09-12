@@ -267,11 +267,19 @@
                     "at": {
                         "type": "integer"
                     },
+                    "dub": {
+                        "description": "the dub this slot releases, short tag (de, en); \"\" = the original",
+                        "type": "string"
+                    },
                     "episode": {
                         "type": "integer"
                     },
                     "episodeAbs": {
                         "type": "integer"
+                    },
+                    "est": {
+                        "description": "projected from the original plus the lag, not a date anyone published",
+                        "type": "boolean"
                     }
                 },
                 "type": "object"
@@ -323,6 +331,10 @@
                 "properties": {
                     "airedMapping": {
                         "type": "boolean"
+                    },
+                    "dubLagDays": {
+                        "description": "see Watch.DubLagDays",
+                        "type": "integer"
                     },
                     "plexAudioLang": {
                         "type": "string"
@@ -1857,6 +1869,10 @@
                     "createdAt": {
                         "type": "string"
                     },
+                    "dubLagDays": {
+                        "description": "days the WantDub release trails the original when no release has shown the lag yet; 0 = observed only",
+                        "type": "integer"
+                    },
                     "fromEpisode": {
                         "description": "count only local episodes >= this (shared season folder); 0 = all",
                         "type": "integer"
@@ -2687,6 +2703,9 @@
                 "properties": {
                     "airedMapping": {
                         "type": "boolean"
+                    },
+                    "dubLagDays": {
+                        "type": "integer"
                     },
                     "fromEpisode": {
                         "type": "integer"

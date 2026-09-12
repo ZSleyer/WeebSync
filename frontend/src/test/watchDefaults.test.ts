@@ -13,7 +13,7 @@ const d: WatchDefaults = {
     'anime-series': { localPath: 'Anime', subfolder: false, subfolderSource: 'title', subfolderSeparator: '_', template: '{title} - {episode:02}', separator: '.' },
     movie: { localPath: 'Filme', subfolder: false, subfolderSource: 'none', subfolderSeparator: '', template: '{title}', separator: '' },
   },
-  common: { renameProvider: 'tvdb', renameOrdering: 'official', renameTitleLang: 'de-DE', airedMapping: true, wantDub: 'Ger', wantSub: '', plexAudioLang: '', plexSubLang: 'off' },
+  common: { renameProvider: 'tvdb', renameOrdering: 'official', renameTitleLang: 'de-DE', airedMapping: true, wantDub: 'Ger', wantSub: '', dubLagDays: 0, plexAudioLang: '', plexSubLang: 'off' },
 }
 
 describe('applyDefaults', () => {
