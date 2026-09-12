@@ -1,6 +1,6 @@
 # WeebSync
 
-Container-based web app for downloading and syncing anime folders from your own S/FTP servers - with an AniList/TMDB metadata catalog, a download manager with live speed throttling, and a rename engine.
+Container-based web app for downloading and syncing files and folders from your own S/FTP servers - with an metadata catalog, a download manager with live speed throttling, and a rename engine.
 
 > **Status: early, use at your own risk.** Not a mature or well-tested app. Expect rough edges and breaking changes.
 
