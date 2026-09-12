@@ -433,18 +433,29 @@ export interface SlotProps {
  * one leaves upwards and the new one arrives from below, or the other way for
  * a step backwards. Both are on screen during the roll, inside a clipped box.
  */
+// how long a roll takes: --dur-2 plus a little, so the timer never cuts one
+// short
+const ROLL_MS = 300
+
 export function Slot({ step, children, className }: SlotProps) {
   // what was on screen before this step, and which way it left
   const [old, setOld] = useState<{ node: ReactNode; up: boolean } | null>(null)
   const last = useRef({ step, node: children })
+  const at = useRef(0)
   if (last.current.step !== step) {
     const up = step > last.current.step
+    const now = performance.now()
     // The render that notices the change also starts the roll; the previous
-    // node is the one captured on the render before it. A roll already in
-    // flight is left alone - while a value is being scrubbed the changes
-    // arrive faster than the animation, and restarting it every time would
-    // leave the text jittering instead of rolling.
-    if (!old) setOld({ node: last.current.node, up })
+    // node is the one captured on the render before it. Steps arriving faster
+    // than the roll can finish are a value being scrubbed, not stepped - the
+    // old half would then lie across the new one for as long as the scrub
+    // lasts, reading as a caption stuck days behind. The value just follows
+    // while that goes on, and rolls again from the first step after it.
+    const scrubbing = now - at.current < ROLL_MS
+    at.current = now
+    if (scrubbing) {
+      if (old) setOld(null)
+    } else if (!old) setOld({ node: last.current.node, up })
     last.current = { step, node: children }
   } else last.current.node = children
   // The roll is over after --dur-2; a timer ends it rather than animationend,
@@ -452,7 +463,7 @@ export function Slot({ step, children, className }: SlotProps) {
   // duration to nothing.
   useEffect(() => {
     if (!old) return
-    const t = setTimeout(() => setOld(null), 300)
+    const t = setTimeout(() => setOld(null), ROLL_MS)
     return () => clearTimeout(t)
   }, [old])
   const up = old?.up ?? true
