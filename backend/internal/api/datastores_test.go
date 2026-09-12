@@ -662,3 +662,48 @@ func TestDataResetClearsJobStamps(t *testing.T) {
 		t.Error("delete of anime-ids also cleared plex_indexed_at")
 	}
 }
+
+// The TTL hides a row, the prune frees it: a search nobody repeats goes after
+// its keep time, a media row - stale or not - stays, since it is what the
+// page shows while its refetch runs.
+func TestPruneCacheDropsOnlyDeadWeight(t *testing.T) {
+	mux, s, c := setupAiTest(t, nil)
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES
+		('search:old', '[]', datetime('now', '-10 days')),
+		('search:fresh', '[]', datetime('now', '-2 days')),
+		('tmdb:search:tv:old|0', '[]', datetime('now', '-10 days')),
+		('rel2:1', '[]', datetime('now', '-40 days')),
+		('rel2:2', '[]', datetime('now', '-10 days')),
+		('media:1', '{}', datetime('now', '-90 days')),
+		('langprobe:x', '{}', datetime('now', '-90 days'))`)
+	rec := doReq(mux, "GET", "/api/admin/data", "", c)
+	var inv adminDataResponse
+	json.Unmarshal(rec.Body.Bytes(), &inv)
+	for _, st := range inv.Stores {
+		switch st.Name {
+		case "cache:anilist-search":
+			if st.Stale != 2 || st.Prunable != 1 || st.PruneSec != 7*86400 {
+				t.Errorf("search: stale %d prunable %d prune %d", st.Stale, st.Prunable, st.PruneSec)
+			}
+		case "cache:anilist-media":
+			if st.Prunable != 0 || st.PruneSec != 0 {
+				t.Errorf("media must never be prunable: %+v", st)
+			}
+		}
+	}
+	if n := s.pruneCache(); n != 3 {
+		t.Fatalf("pruned %d rows, want 3", n)
+	}
+	var left []string
+	rows, _ := s.DB.Query(`SELECT key FROM anilist_cache ORDER BY key`)
+	for rows.Next() {
+		var k string
+		rows.Scan(&k)
+		left = append(left, k)
+	}
+	rows.Close()
+	want := []string{"langprobe:x", "media:1", "rel2:2", "search:fresh"}
+	if strings.Join(left, ",") != strings.Join(want, ",") {
+		t.Errorf("left %v, want %v", left, want)
+	}
+}
