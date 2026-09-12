@@ -2,9 +2,13 @@ package api
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,16 +24,17 @@ import (
 // The remote index powers file search in the browser. It is fed passively
 // from every browse listing (free, no extra remote requests) and by a slow
 // background crawler with a strict budget, so it starts incomplete and
-// improves over time. Change detection is mtime-based: subtrees whose
-// directory mtime did not change are not re-listed.
+// improves over time. Change detection is mtime-based: a directory whose
+// mtime moved is re-listed ahead of the queue; every directory is re-listed
+// once its own stamp is crawlRecheck old, changed or not.
 
 const (
 	crawlTick        = time.Minute     // scheduler granularity, not the crawl rate
 	crawlInterval    = 5 * time.Minute // default per-server crawl interval
 	crawlBatch       = 20              // default max listings per server per crawl
 	crawlPause       = 2 * time.Second // pause between listings, spares real servers
-	crawlMaxDepth    = 16
-	crawlMaxInterval = 1440 // admin config bounds (minutes / listings)
+	crawlMaxDepth    = 16              // "/" count; deeper directories are never queued
+	crawlMaxInterval = 1440            // admin config bounds (minutes / listings)
 	crawlMaxBatch    = 500
 	// re-list even unchanged directories once in a while (mtime detection
 	// misses in-place file changes); ponytail: fixed week-scale horizon.
@@ -39,9 +44,16 @@ const (
 const sqliteTime = "2006-01-02 15:04:05"
 
 // indexDir stores one directory listing in the index: upserts every entry,
-// removes rows that vanished from the directory and stamps the directory's
-// listed_at. Unchanged child directories inherit the stamp so the crawler
-// skips their subtree.
+// removes rows that vanished from the directory - with everything below
+// them - and stamps the directory's listed_at.
+//
+// A child directory keeps its own stamp when its mtime is unchanged and loses
+// it when the mtime moved, which puts it at the front of the queue. It does
+// not inherit the parent's fresh stamp any more: that refreshed every
+// unchanged child on each parent listing, so a directory under a parent
+// that was listed weekly was never listed itself - its recheck clock was
+// reset from above every time - and a file replaced in place under the same
+// name there was never seen.
 func (s *Server) indexDir(serverID int64, dir string, entries []remote.Entry) {
 	tx, err := s.DB.Begin()
 	if err != nil {
@@ -54,9 +66,8 @@ func (s *Server) indexDir(serverID int64, dir string, entries []remote.Entry) {
 	seen = append(seen, serverID, dir)
 	for _, e := range entries {
 		mod := e.ModTime.UTC().Format(sqliteTime)
-		// child dirs with unchanged mtime inherit a fresh listed_at (their
-		// subtree is unchanged); changed or new ones reset to '' so the
-		// crawler picks them up soon
+		// child dirs with unchanged mtime keep their own listed_at; changed
+		// or new ones reset to '' so the crawler picks them up soon
 		tx.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir, size, mod_time, listed_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, '')
 			ON CONFLICT(server_id, path) DO UPDATE SET
@@ -64,23 +75,60 @@ func (s *Server) indexDir(serverID int64, dir string, entries []remote.Entry) {
 				size = excluded.size,
 				listed_at = CASE
 					WHEN NOT excluded.is_dir THEN ''
-					WHEN mod_time = excluded.mod_time AND listed_at != '' THEN ?
+					WHEN mod_time = excluded.mod_time THEN listed_at
 					ELSE '' END,
 				mod_time = excluded.mod_time`,
-			serverID, e.Path, dir, e.Name, e.IsDir, e.Size, mod, now)
+			serverID, e.Path, dir, e.Name, e.IsDir, e.Size, mod)
 		seen = append(seen, e.Path)
 	}
-	q := `DELETE FROM remote_index WHERE server_id = ? AND parent = ?`
+	// what the listing no longer shows is gone, and so is everything that
+	// was indexed below it. Dropping only the direct children left a removed
+	// tree's deeper levels behind as orphans, each waiting for a listing slot
+	// of its own to fail before it went.
+	q := `SELECT path FROM remote_index WHERE server_id = ? AND parent = ?`
 	if len(entries) > 0 {
 		q += ` AND path NOT IN (?` + strings.Repeat(",?", len(entries)-1) + `)`
 	}
-	tx.Exec(q, seen...)
+	var gone []string
+	if rows, err := tx.Query(q, seen...); err == nil {
+		for rows.Next() {
+			var p string
+			if rows.Scan(&p) == nil {
+				gone = append(gone, p)
+			}
+		}
+		rows.Close()
+	}
+	for _, p := range gone {
+		deleteSubtree(tx, serverID, p)
+	}
 	// the directory itself was just listed
 	tx.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir, listed_at)
 		VALUES (?, ?, '', ?, 1, ?)
 		ON CONFLICT(server_id, path) DO UPDATE SET listed_at = excluded.listed_at`,
 		serverID, dir, pathBase(dir), now)
 	tx.Commit()
+}
+
+// deleteSubtree drops a path and every row below it. A prefix compare, not
+// LIKE: paths carry "_" and "%" and those are wildcards to LIKE.
+func deleteSubtree(ex interface {
+	Exec(string, ...any) (sql.Result, error)
+}, serverID int64, p string) {
+	prefix := strings.TrimRight(p, "/") + "/"
+	ex.Exec(`DELETE FROM remote_index WHERE server_id = ? AND (path = ? OR substr(path, 1, ?) = ?)`,
+		serverID, p, len(prefix), prefix)
+}
+
+// gone reports whether a listing failed because the directory is not there
+// (any more) - as opposed to a timeout or a permission the crawler lacks.
+// SFTP says so through fs.ErrNotExist, FTP with a 550 reply.
+func gone(err error) bool {
+	if errors.Is(err, fs.ErrNotExist) || os.IsNotExist(err) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "no such file") || strings.Contains(msg, "not exist") || strings.Contains(msg, "550")
 }
 
 func pathBase(p string) string {
@@ -92,12 +140,16 @@ func pathBase(p string) string {
 }
 
 // nextCrawlDirs picks the directories a crawl batch should list: known but
-// never-listed ones first (discovery), then the stalest re-checks.
+// never-listed ones first (discovery), then the stalest re-checks. Anything
+// deeper than crawlMaxDepth is left out here rather than skipped in the
+// loop: a skipped directory kept its empty stamp, sorted first every time
+// and took a slot of every batch without ever being listed.
 func (s *Server) nextCrawlDirs(serverID int64, limit int) []string {
 	rows, err := s.DB.Query(`SELECT path FROM remote_index
 		WHERE server_id = ? AND is_dir = 1 AND (listed_at = '' OR datetime(listed_at) <= datetime('now', ?))
+		AND length(path) - length(replace(path, '/', '')) <= ?
 		ORDER BY listed_at = '' DESC, listed_at ASC LIMIT ?`,
-		serverID, "-"+strconv.Itoa(int(crawlRecheck/time.Second))+" seconds", limit)
+		serverID, "-"+strconv.Itoa(int(crawlRecheck/time.Second))+" seconds", crawlMaxDepth, limit)
 	if err != nil {
 		return nil
 	}
@@ -188,14 +240,20 @@ func (s *Server) crawlServer(ctx context.Context, userID, serverID int64, root s
 		if ctx.Err() != nil {
 			return
 		}
-		if depth := strings.Count(dir, "/"); depth > crawlMaxDepth {
-			continue
-		}
 		entries, err := client.List(dir)
 		if err != nil {
-			slog.Debug("index crawl list", "dir", dir, "err", err)
-			// directory unreadable/gone: drop it and its children from the index
-			s.DB.Exec(`DELETE FROM remote_index WHERE server_id = ? AND (path = ? OR parent = ?)`, serverID, dir, dir)
+			if gone(err) {
+				// the directory is not there any more: it goes, with its tree
+				slog.Debug("index crawl list", "dir", dir, "err", err)
+				deleteSubtree(s.DB, serverID, dir)
+				continue
+			}
+			// unreadable for now - a timeout, a permission: what is indexed
+			// stays, and the directory is stamped so it does not take a slot
+			// of every batch until the recheck brings it round again
+			slog.Info("index crawl list failed", "server", serverID, "dir", dir, "err", err)
+			s.DB.Exec(`UPDATE remote_index SET listed_at = ? WHERE server_id = ? AND path = ?`,
+				time.Now().UTC().Format(sqliteTime), serverID, dir)
 			continue
 		}
 		s.indexDir(serverID, dir, entries)
