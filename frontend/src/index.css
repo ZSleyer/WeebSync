@@ -1076,23 +1076,22 @@ details[open]::details-content { height: auto; }
 .t-slot--down .t-slot-in  { animation: slot-in-down  var(--dur-2) var(--ease-out) both; }
 .t-slot--down .t-slot-out { animation: slot-out-down var(--dur-2) var(--ease-out) both; }
 
-/* The day band: one cell per day, snapped to the middle. `proximity` rather
-   than `mandatory` - a programmatic scroll to a cell must not be re-snapped
-   one cell off while it is still travelling. The cut edges fade like the tab
-   bar's, and `overflow-y: clip` keeps the count chip from being sliced by the
-   mask instead of the fade. */
+/* The day band: one cell per day, the middle one picked. No CSS scroll snap -
+   a snap container caps a fling at the next snap point, so however hard the
+   band was thrown it stepped a single day. It centres the middle cell itself
+   once the scrolling has gone quiet (see DayScroller). The cut edges fade like
+   the tab bar's, and `overflow-y: clip` keeps the count chip from being sliced
+   by the mask instead of the fade. */
 .t-dayband {
   display: flex;
   overflow-x: auto;
   overflow-y: clip;
-  scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
 .t-dayband::-webkit-scrollbar { display: none; }
-/* a mouse drags the band; while it does, the snap would fight every step */
+/* a mouse drags the band - a scroller gives it nothing but the wheel */
 @media (pointer: fine) { .t-dayband { cursor: grab; } }
-.t-dayband[data-drag] { scroll-snap-type: none; user-select: none; cursor: grabbing; }
-.t-dayband > * { scroll-snap-align: center; }
+.t-dayband[data-drag] { user-select: none; cursor: grabbing; }
 .t-dayband[data-overflow="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); }
 .t-dayband[data-overflow="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
 .t-dayband[data-overflow="both"] { mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent); }
