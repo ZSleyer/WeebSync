@@ -51,6 +51,8 @@ export interface DataStore {
   newest: string
   ttlSec: number // cache stores only
   stale: number // cache stores only: rows past their TTL
+  pruneSec: number // cache stores only: the sweep deletes rows older than this, 0 = kept
+  prunable: number // rows past that age - dead weight, unlike a stale row that is still served
   rebuild: string // job/mechanism slug, "" = on demand
   needs: string[] // store slugs that have to be filled first
   keptOnReset: boolean
@@ -375,6 +377,7 @@ export interface StoreSum {
   rows: number
   bytes: number
   stale: number
+  prunable: number
 }
 export interface ProviderGroup extends StoreSum {
   provider: Provider
@@ -394,6 +397,7 @@ const sumOf = (stores: DataStore[]): StoreSum => ({
   rows: stores.reduce((n, s) => n + s.rows, 0),
   bytes: stores.reduce((n, s) => n + s.bytes, 0),
   stale: stores.reduce((n, s) => n + s.stale, 0),
+  prunable: stores.reduce((n, s) => n + s.prunable, 0),
 })
 
 export function groupStores(stores: DataStore[]): KindGroup[] {
