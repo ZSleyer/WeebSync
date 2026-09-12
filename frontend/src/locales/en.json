@@ -575,7 +575,7 @@
       "next": "Next week",
       "today": "Today",
       "strip": "Pick a day",
-      "empty": "No releases this week.",
+      "empty": "No releases on these days.",
       "jump": "To the next release",
       "free": "free"
     },
