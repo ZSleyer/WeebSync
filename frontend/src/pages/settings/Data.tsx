@@ -130,11 +130,22 @@ export default function Data() {
       {cache && g.bytes > 0 && <span>{fmtBytes(g.bytes)}</span>}
     </span>
   )
-  const staleBadge = (n: number) =>
-    n > 0 ? (
-      <Badge tone="warn" className="shrink-0 tabular-nums">
-        {t('settings.jobs.stale', { count: n })}
-      </Badge>
+  // two numbers: stale rows are still served while their refetch runs,
+  // prunable ones are dead weight the sweep will drop
+  const staleBadge = (n: number, prunable = 0) =>
+    n > 0 || prunable > 0 ? (
+      <>
+        {n > 0 && (
+          <Badge tone="warn" className="shrink-0 tabular-nums">
+            {t('settings.jobs.stale', { count: n })}
+          </Badge>
+        )}
+        {prunable > 0 && (
+          <Badge tone="neutral" className="shrink-0 tabular-nums">
+            {t('settings.jobs.prunable', { count: prunable })}
+          </Badge>
+        )}
+      </>
     ) : null
 
   // one line per store, a button: the numbers that matter at a glance, the
@@ -147,7 +158,7 @@ export default function Data() {
         className="flex min-h-12 w-full cursor-pointer items-center gap-3 border-b border-border-subtle px-1 text-left text-sm transition-colors hover:bg-bg-hover"
       >
         <span className="min-w-0 flex-1 break-words font-semibold text-t-primary">{storeLabel(t, s.name)}</span>
-        {staleBadge(s.stale)}
+        {staleBadge(s.stale, s.prunable)}
         <Count className="shrink-0">{fmtNum(s.rows)}</Count>
         <ChevronRight aria-hidden size="1em" className="shrink-0 text-t-faint" />
       </button>
@@ -172,7 +183,7 @@ export default function Data() {
               title={
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate">{t(`settings.jobs.data.kindTitle.${g.kind}`)}</span>
-                  {staleBadge(g.stale)}
+                  {staleBadge(g.stale, g.prunable)}
                 </span>
               }
               count={g.stores.length}
@@ -271,6 +282,7 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
       ? ([
           [t('settings.jobs.data.size'), fmtBytes(store.bytes)],
           [t('settings.jobs.ttl'), fmtTtl(store.ttlSec)],
+          [t('settings.jobs.data.pruneAfter'), store.pruneSec > 0 ? fmtTtl(store.pruneSec) : t('settings.jobs.data.pruneNever')],
         ] as [string, string][])
       : []),
     [t('settings.jobs.oldest'), fmtTs(store.oldest)],
@@ -304,6 +316,11 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
         {store.stale > 0 && (
           <Badge tone="warn" className="tabular-nums">
             {t('settings.jobs.stale', { count: store.stale })}
+          </Badge>
+        )}
+        {store.prunable > 0 && (
+          <Badge tone="neutral" className="tabular-nums">
+            {t('settings.jobs.prunable', { count: store.prunable })}
           </Badge>
         )}
       </div>

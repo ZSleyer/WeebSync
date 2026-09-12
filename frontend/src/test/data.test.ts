@@ -11,6 +11,8 @@ const store = (name: string, kind: DataStore['kind'], rows = 1, bytes = 0, stale
   newest: '',
   ttlSec: 0,
   stale,
+  pruneSec: 0,
+  prunable: 0,
   rebuild: '',
   needs: [],
   keptOnReset: false,
