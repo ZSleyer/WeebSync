@@ -632,6 +632,37 @@ const DRAG_SLOP = 10
 // the tick as a day passes the middle. Shorter than a page turn's - this one
 // fires for every day the thumb drags past, so it has to stay light.
 const TICK_MS = 3
+// the window a release reads its speed over: a hand that came to rest before
+// letting go has thrown nothing, however fast it travelled before that
+const VELOCITY_MS = 100
+// px/ms a flick is capped at - two events a millisecond apart must not throw
+// the band across a year
+const MAX_V = 4
+// how much of its speed a coasting band keeps per 60Hz frame. The knob: lower
+// stops it sooner, higher lets a flick run further. A hard flick carries about
+// ten days at this setting, which is a scrub rather than a journey.
+const FRICTION = 0.9
+// px/ms under which a coast has arrived
+const MIN_V = 0.02
+// where a flick would have landed, for when there is no coasting to be had
+const FLING_MS = 320
+
+// the cell whose middle sits closest to a point, in viewport x
+const nearest = (el: HTMLElement, x: number) => {
+  let best: { cell: HTMLElement; d: number } | null = null
+  for (const cell of el.querySelectorAll<HTMLElement>('[data-day]')) {
+    const r = cell.getBoundingClientRect()
+    const d = Math.abs(r.left + r.width / 2 - x)
+    if (!best || d < best.d) best = { cell, d }
+  }
+  return best?.cell ?? null
+}
+const middleOf = (el: HTMLElement) => el.getBoundingClientRect().left + el.clientWidth / 2
+
+// Reduced motion has two switches here - the system's and the one in Look -
+// and until now only CSS read either. A coast is motion, so it has to ask.
+const stillness = () =>
+  document.documentElement.dataset.motion === 'off' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
 /**
  * A band of days that scrolls day by day and snaps whichever one sits in the
@@ -647,6 +678,11 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
   const own = useRef(false)
   const settle = useRef<ReturnType<typeof setTimeout>>(undefined)
   const shown = useRef(selected)
+  // a finger on the band owns it, whether or not it is moving
+  const touching = useRef(false)
+  // the running coast, so a new touch can stop it dead
+  const coast = useRef<number>(undefined)
+  const drag = useRef<{ id: number; x: number; left: number; moved: boolean; px: number; t: number; lt: number } | null>(null)
 
   // keep the picked day in the middle, whoever picked it - an arrow, the day
   // panel's own swipe, or the caller
@@ -671,10 +707,37 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Nothing snaps the band in CSS - a snap container caps a fling at the next
+  // snap point, which is what turned a hard flick into a one-day step - so the
+  // day under the middle is pulled into it once everything has gone quiet.
+  // `scrollend` would be the event for it, except iOS has none.
+  const rest = () => {
+    const el = band.current
+    if (!el) return
+    if (own.current) {
+      own.current = false
+      return
+    }
+    // a finger still down, a held button, a coast still running: the band is
+    // someone else's, and centring under them would fight the move
+    if (touching.current || drag.current?.moved || coast.current !== undefined) {
+      settle.current = setTimeout(rest, SETTLE_MS)
+      return
+    }
+    const mid = middleOf(el)
+    const cell = nearest(el, mid)
+    if (!cell) return
+    const r = cell.getBoundingClientRect()
+    if (Math.abs(r.left + r.width / 2 - mid) < 1) return
+    own.current = true
+    // jsdom has no scrollIntoView, hence the guard
+    cell.scrollIntoView?.({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }
+
   // The middle of the band is the pick, live: the day under it changes while
   // the thumb is still dragging, so the band reads as a ruler pulled past a
   // fixed mark rather than a list that decides once you let go. Every day that
-  // passes gives a light tick.
+  // passes gives a light tick - a coast ticks its way through them too.
   const onScroll = () => {
     const el = band.current
     if (!el) return
@@ -682,33 +745,77 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
     // a move this component started is already heading for the right day; the
     // days it sweeps past on the way are not picks and must not tick
     clearTimeout(settle.current)
-    settle.current = setTimeout(() => {
-      own.current = false
-    }, SETTLE_MS)
+    settle.current = setTimeout(rest, SETTLE_MS)
     if (own.current) return
-    const mid = el.getBoundingClientRect().left + el.clientWidth / 2
-    let best: { key: string; d: number } | null = null
-    for (const cell of el.querySelectorAll<HTMLElement>('[data-day]')) {
-      const r = cell.getBoundingClientRect()
-      const d = Math.abs(r.left + r.width / 2 - mid)
-      if (!best || d < best.d) best = { key: cell.dataset.day!, d }
-    }
-    if (!best || best.key === shown.current) return
-    shown.current = best.key
+    const key = nearest(el, middleOf(el))?.dataset.day
+    if (!key || key === shown.current) return
+    shown.current = key
     haptic(TICK_MS)
-    onSelect(best.key)
+    onSelect(key)
+  }
+
+  const halt = () => {
+    if (coast.current !== undefined) cancelAnimationFrame(coast.current)
+    coast.current = undefined
+  }
+
+  // A release carries on: the speed it left at, then exponential friction. Not
+  // a smooth `scrollIntoView` - that has one fixed curve and a hard stop, which
+  // over twenty days reads as a lurch rather than a throw. `own` stays off on
+  // purpose: every day passing the middle on the way is a pick and a tick, so
+  // the numbers run past under the mark.
+  const fling = (v0: number) => {
+    const el = band.current
+    if (!el || Math.abs(v0) < MIN_V) return
+    let v = Math.max(-MAX_V, Math.min(MAX_V, v0))
+    if (stillness()) {
+      // nothing to animate, so land where the throw would have ended
+      nearest(el, middleOf(el) + v * FLING_MS)?.scrollIntoView?.({ inline: 'center', block: 'nearest' })
+      return
+    }
+    let last = performance.now()
+    const step = (t: number) => {
+      // a tab that was in the background must not teleport on its first frame
+      const dt = Math.min(t - last, 50)
+      last = t
+      const want = el.scrollLeft + v * dt
+      el.scrollLeft = want
+      // per frame at 60Hz, so a 120Hz screen does not stop at half the distance
+      v *= FRICTION ** (dt / 16.67)
+      // arrived, or ran into the end of the band
+      if (Math.abs(v) < MIN_V || Math.abs(el.scrollLeft - want) > 1) {
+        halt()
+        rest()
+        return
+      }
+      coast.current = requestAnimationFrame(step)
+    }
+    coast.current = requestAnimationFrame(step)
+  }
+
+  // A finger owns the band while it is down, and a native scroll gives no
+  // pointer events to say so - it cancels them. Hence the touch pair: it keeps
+  // the centring off a band somebody is holding, and stops a coast the moment
+  // a finger lands on it.
+  const onTouchStart = () => {
+    halt()
+    touching.current = true
+  }
+  const onTouchEnd = () => {
+    touching.current = false
   }
 
   // A held mouse button drags the band like a thumb would. The band is a
   // native scroller, so touch already scrolls it and the page's swipe zones
   // leave it alone; a mouse gets nothing from a scroller but the wheel, hence
-  // this. The snap is off while the button is down - Chrome snaps every
-  // programmatic scroll straight away, which turns a drag into a stutter -
-  // and the release lets the middle pick and the recentre above take over.
-  const drag = useRef<{ id: number; x: number; left: number; moved: boolean } | null>(null)
+  // this. The release throws: its speed is read over a window rather than off
+  // the last event, so a browser that coalesces moves reads the same as one
+  // that does not, and a hand that parked before letting go throws nothing.
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    halt()
     if (e.pointerType !== 'mouse' || e.button !== 0) return
-    drag.current = { id: e.pointerId, x: e.clientX, left: e.currentTarget.scrollLeft, moved: false }
+    const t = performance.now()
+    drag.current = { id: e.pointerId, x: e.clientX, left: e.currentTarget.scrollLeft, moved: false, px: e.clientX, t, lt: t }
   }
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = drag.current
@@ -725,6 +832,12 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
       }
     }
     e.currentTarget.scrollLeft = d.left - dx
+    const now = performance.now()
+    d.lt = now
+    if (now - d.t > VELOCITY_MS) {
+      d.px = e.clientX
+      d.t = now
+    }
   }
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = drag.current
@@ -734,6 +847,13 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
       e.currentTarget.releasePointerCapture(e.pointerId)
     } catch {
       /* jsdom */
+    }
+    // a cancelled pointer was taken away rather than let go, so it throws
+    // nothing; neither does one whose last movement is already history
+    const now = performance.now()
+    if (d.moved && e.type !== 'pointercancel' && now - d.lt <= VELOCITY_MS) {
+      // pulling left raises scrollLeft, hence the flip
+      fling(-(e.clientX - d.px) / Math.max(now - d.t, 8))
     }
     // a drag that moved is not a click on whatever day it ended over: the
     // flag outlives the pointer by one event, the click that follows in the
@@ -795,6 +915,9 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
         onClickCapture={onClickCapture}
       >
         {/* the first and last day have to be able to reach the middle too */}

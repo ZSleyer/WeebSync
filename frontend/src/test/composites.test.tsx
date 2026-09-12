@@ -248,6 +248,78 @@ describe('DayScroller', () => {
     expect(band.scrollLeft).toBe(240)
   })
 
+  it('carries on after the release, and only as far as the flick was worth', () => {
+    // jsdom drives neither clock, so both are hand-turned here
+    let t = 0
+    let frames: FrameRequestCallback[] = []
+    vi.spyOn(performance, 'now').mockImplementation(() => t)
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb))
+    vi.stubGlobal('cancelAnimationFrame', () => (frames = []))
+    const frame = (ms: number) => {
+      t += ms
+      const due = frames
+      frames = []
+      due.forEach((cb) => cb(t))
+    }
+    scroller()
+    const band = document.querySelector('.t-dayband') as HTMLElement
+    const [di] = Array.from(band.querySelectorAll('button'))
+    const mouse = { pointerId: 7, pointerType: 'mouse', button: 0, clientY: 10 }
+    const flick = (pause: number) => {
+      band.scrollLeft = 200
+      fireEvent.pointerDown(di, { ...mouse, clientX: 300 })
+      t += 16
+      fireEvent.pointerMove(di, { ...mouse, clientX: 200 })
+      t += pause
+      fireEvent.pointerUp(di, { ...mouse, clientX: 200 })
+    }
+    // 100px in 16ms, thrown to the left: the band keeps going on its own, and
+    // slows down as it does
+    flick(0)
+    expect(band.scrollLeft).toBe(300)
+    frame(16)
+    const first = band.scrollLeft - 300
+    expect(first).toBeGreaterThan(50)
+    frame(16)
+    expect(band.scrollLeft - 300 - first).toBeGreaterThan(0)
+    expect(band.scrollLeft - 300 - first).toBeLessThan(first)
+    // and it does come to a stop rather than running forever
+    for (let i = 0; i < 400; i++) frame(16)
+    expect(frames).toHaveLength(0)
+    // the same haul, but the hand rested before letting go: no throw in it
+    flick(200)
+    expect(frames).toHaveLength(0)
+    expect(band.scrollLeft).toBe(300)
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('lands the flick in one step when motion is off', () => {
+    const jump = vi.fn()
+    Element.prototype.scrollIntoView = jump
+    document.documentElement.dataset.motion = 'off'
+    let t = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => t)
+    vi.stubGlobal('requestAnimationFrame', () => expect.unreachable('a coast under reduced motion'))
+    scroller()
+    const band = document.querySelector('.t-dayband') as HTMLElement
+    band.getBoundingClientRect = () => ({ left: 0, width: 150 }) as DOMRect
+    Object.defineProperty(band, 'clientWidth', { value: 150, configurable: true })
+    Array.from(band.querySelectorAll<HTMLElement>('[data-day]')).forEach((c, i) => (c.getBoundingClientRect = () => ({ left: i * 50, width: 50 }) as DOMRect))
+    const [di] = Array.from(band.querySelectorAll('button'))
+    const mouse = { pointerId: 7, pointerType: 'mouse', button: 0, clientY: 10 }
+    jump.mockClear()
+    fireEvent.pointerDown(di, { ...mouse, clientX: 300 })
+    t += 16
+    fireEvent.pointerMove(di, { ...mouse, clientX: 200 })
+    fireEvent.pointerUp(di, { ...mouse, clientX: 200 })
+    // straight to the far end of the throw, without an animation to get there
+    expect(jump).toHaveBeenCalledWith({ inline: 'center', block: 'nearest' })
+    delete document.documentElement.dataset.motion
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
   it('rolls the caption from the old day to the new one', async () => {
     const { rerender } = scroller()
     expect(screen.getByText('Mittwoch, 16.09.')).toBeInTheDocument()
