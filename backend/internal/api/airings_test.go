@@ -202,8 +202,8 @@ func TestRecordDubAiringsFromCrunchyroll(t *testing.T) {
 	})
 	mux.HandleFunc("/content/v2/cms/seasons/GS0NEW/episodes", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"data":[
-			{"id":"GE1JAJP","episode_number":1,"episode_air_date":"2026-04-08T00:00:00Z","versions":[{"audio_locale":"ja-JP","guid":"GE1JAJP"},{"audio_locale":"de-DE","guid":"GE1DEDE"}]},
-			{"id":"GE2JAJP","episode_number":2,"episode_air_date":"2026-04-15T00:00:00Z","versions":[{"audio_locale":"ja-JP","guid":"GE2JAJP"}]}]}`))
+			{"id":"GE1JAJP","episode_number":1,"episode_air_date":"2026-04-08T00:00:00Z","premium_available_date":"2026-04-08T14:00:00Z","versions":[{"audio_locale":"ja-JP","guid":"GE1JAJP"},{"audio_locale":"de-DE","guid":"GE1DEDE"}]},
+			{"id":"GE2JAJP","episode_number":2,"episode_air_date":"2026-04-15T00:00:00Z","premium_available_date":"2026-04-15T14:00:00Z","versions":[{"audio_locale":"ja-JP","guid":"GE2JAJP"}]}]}`))
 	})
 	mux.HandleFunc("/content/v2/cms/seasons/GS0OLD/episodes", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"data":[{"id":"GE0JAJP","episode_number":1,"episode_air_date":"2025-01-01T00:00:00Z","versions":[{"audio_locale":"ja-JP","guid":"GE0JAJP"}]}]}`))
@@ -238,6 +238,13 @@ func TestRecordDubAiringsFromCrunchyroll(t *testing.T) {
 	d.QueryRow(`SELECT airing_at FROM airings WHERE media_id = 5 AND lang = 'de' AND episode = 1`).Scan(&at)
 	if n != 1 || at != 1777471200 { // 2026-04-29T14:00:00Z
 		t.Fatalf("recorded %d dub rows, episode 1 at %d; want one row at 2026-04-29 14:00Z", n, at)
+	}
+	// the originals it never saw are filled in from Crunchyroll's own release
+	// moments, so the lag has something to measure against from day one
+	var orig int
+	d.QueryRow(`SELECT COUNT(*) FROM airings WHERE media_id = 5 AND lang = ''`).Scan(&orig)
+	if orig != 2 {
+		t.Errorf("original rows = %d, want the two Japanese releases", orig)
 	}
 	// the season it settled on is remembered, and a version already written
 	// down is not asked for again
@@ -291,5 +298,41 @@ func TestRecordDubTimetableFromAnimeschedule(t *testing.T) {
 	}
 	if n := s.recordDubTimetable(context.Background(), 5, "en"); n != 0 || weeks != 5 {
 		t.Errorf("second pass: %d rows changed, %d weeks fetched; want nothing changed and the cache answering", n, weeks)
+	}
+}
+
+// A simuldub releases with the original. Its measured lag is zero, and zero
+// is a measurement: the coming episodes get a dub slot at the original's time
+// rather than none.
+func TestSimuldubProjectsAtZeroLag(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	s := &Server{DB: d, Anilist: anilist.New(d)}
+	now := time.Now().Unix()
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	d.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, want_dub)
+		VALUES (1, 1, '/x/Show', 'Show', 'template', 'Show - E{episode:02}', 'Ger')`)
+	d.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, source) VALUES (1, '/x/Show', 5, 'anilist')`)
+	d.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('media:5', ?)`,
+		fmt.Sprintf(`{"id":5,"schema":%d,"status":"FINISHED","schedule":[{"airingAt":%d,"episode":11}]}`, anilist.MediaSchema, now+6*86400))
+	d.Exec(`INSERT INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', 5, ?, 10, '')`, now-86400)
+	d.Exec(`INSERT INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', 5, ?, 10, 'de')`, now-86400)
+	list, err := s.watchesFor(1)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("watches: %v", err)
+	}
+	var got []Airing
+	for _, a := range list[0].Airings {
+		if a.Dub == "de" {
+			got = append(got, a)
+		}
+	}
+	if len(got) != 2 || got[1].Episode != 11 || !got[1].Est || got[1].At != now+6*86400 {
+		t.Fatalf("dub slots = %+v, want the release of 10 and episode 11 projected at the original's time", got)
 	}
 }

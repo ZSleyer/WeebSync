@@ -80,6 +80,15 @@ func (s *Server) recordDubAirings(ctx context.Context) {
 			slog.Debug("dub airings: crunchyroll unavailable", "media", w.id, "err", err)
 			continue
 		}
+		// The originals as well, where the recorder never saw them: a title
+		// watched from mid-season has no past slots, and the lag is measured
+		// against them. Crunchyroll's own release moment of the Japanese
+		// version, never over what AniList said (INSERT OR IGNORE).
+		for _, e := range eps {
+			if at := crunchyroll.At(e.PremiumAt); at > 0 && at <= time.Now().Unix() && e.Number > 0 {
+				s.DB.Exec(`INSERT OR IGNORE INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', ?, ?, ?, '')`, w.id, at, e.Number)
+			}
+		}
 		// the versions in the wanted language not written down yet
 		have := map[int]bool{}
 		hr, err := s.DB.Query(`SELECT episode FROM airings WHERE source = 'anilist' AND media_id = ? AND lang = ?`, w.id, w.lang)
