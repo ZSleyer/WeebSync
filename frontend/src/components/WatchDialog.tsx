@@ -248,6 +248,7 @@ export default function WatchDialog({
             {isRemote ? (
               <FileBrowser
                 queryKey={['watch-remote', serverId]}
+                serverId={serverId}
                 fetchPath={(p) => `/api/servers/${serverId}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`}
                 path={browsePath}
                 onNavigate={setBrowsePath}
