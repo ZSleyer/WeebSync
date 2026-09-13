@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -386,6 +387,13 @@ func readJSONLimit(w http.ResponseWriter, r *http.Request, v any, limit int64) b
 		return false
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit)).Decode(v); err != nil {
+		// a body over the cap reads as a decode error too; say so, otherwise an
+		// oversized upload looks like malformed json and the sender retries it
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeErr(w, http.StatusRequestEntityTooLarge, "request body too large")
+			return false
+		}
 		writeErr(w, http.StatusBadRequest, "invalid json")
 		return false
 	}

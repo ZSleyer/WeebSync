@@ -246,7 +246,15 @@ func harden(next http.Handler) http.Handler {
 		h.Set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			h.Set("Cache-Control", "no-store")
-			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+			// this reader wraps first, so a handler that asks for a wider cap
+			// cannot widen it back - the assistant routes carry conversations
+			// with pictures in them and need their own ceiling here. Every
+			// handler under /api/ai/ still names its own limit inside.
+			limit := int64(1 << 20)
+			if strings.HasPrefix(r.URL.Path, "/api/ai/") {
+				limit = api.AIChatBodyLimit
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
 		if auth.IsHTTPS(r) {
 			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")

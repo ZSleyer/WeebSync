@@ -81,10 +81,14 @@ type aiChatMessage struct {
 const (
 	aiMaxImages     = 4
 	aiMaxImageBytes = 2 << 20
-	// a conversation with a few pictures in its history is bigger than the
-	// megabyte every other body gets
-	aiChatBodyLimit = 12 << 20
 )
+
+// AIChatBodyLimit is the body cap for the assistant routes: a conversation
+// with a few pictures in its history is bigger than the megabyte every other
+// body gets. Exported because the outer cap in the hardening middleware has to
+// match - the outer MaxBytesReader wraps first, so a wider inner one cannot
+// widen it back.
+const AIChatBodyLimit = 12 << 20
 
 // aiChatRequest is the conversation so far, newest last. Model overrides the
 // configured default for this request (a pick from /api/ai/models).
@@ -510,7 +514,7 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in aiChatRequest
-	if !readJSONLimit(w, r, &in, aiChatBodyLimit) {
+	if !readJSONLimit(w, r, &in, AIChatBodyLimit) {
 		return
 	}
 	flusher, ok := w.(http.Flusher)

@@ -94,7 +94,7 @@ func (s *Server) handleAiChatsList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAiChatCreate(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in aiChatBody
-	if !readJSONLimit(w, r, &in, aiChatBodyLimit) || !in.valid(w) {
+	if !readJSONLimit(w, r, &in, AIChatBodyLimit) || !in.valid(w) {
 		return
 	}
 	turns, _ := json.Marshal(in.Turns)
@@ -154,7 +154,7 @@ func (s *Server) handleAiChatGet(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAiChatPut(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in aiChatBody
-	if !readJSONLimit(w, r, &in, aiChatBodyLimit) || !in.valid(w) {
+	if !readJSONLimit(w, r, &in, AIChatBodyLimit) || !in.valid(w) {
 		return
 	}
 	turns, _ := json.Marshal(in.Turns)

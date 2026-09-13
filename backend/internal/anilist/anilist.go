@@ -149,7 +149,11 @@ type Media struct {
 	Schema int `json:"schema,omitempty"`
 }
 
-var crunchyrollSeriesRe = regexp.MustCompile(`crunchyroll\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?series/([A-Z0-9]{5,32})`)
+// anchored at the scheme and at a label boundary in the host: AniList links
+// are editable by anyone, and an unanchored pattern would read a series id out
+// of notcrunchyroll.com or out of a query string that merely quotes the real
+// host.
+var crunchyrollSeriesRe = regexp.MustCompile(`^https?://(?:[a-z0-9-]+\.)*crunchyroll\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?series/([A-Z0-9]{5,32})`)
 
 // CrunchyrollID is the Crunchyroll series id AniList links the title to, ""
 // when it links none or names the show by slug only, as its older links do.

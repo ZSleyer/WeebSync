@@ -1,10 +1,13 @@
 package main
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/ch4d1/weebsync/internal/api"
 )
 
 // The trailer iframe in the catalog detail dialog is the only thing the app
@@ -46,5 +49,33 @@ func TestHardenLetsTheMicrophoneThrough(t *testing.T) {
 		if !strings.Contains(pp, want) {
 			t.Errorf("Permissions-Policy lost %q: %q", want, pp)
 		}
+	}
+}
+
+// harden's reader wraps before any handler's own, so a wider cap inside cannot
+// widen it back: a chat carrying a couple of pictures used to die on the
+// megabyte here and surface as "invalid json". Every other route keeps the
+// megabyte.
+func TestHardenCapsBodies(t *testing.T) {
+	read := func(path string, size int) (int, error) {
+		var n int
+		var err error
+		rec := httptest.NewRecorder()
+		harden(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			var b []byte
+			b, err = io.ReadAll(r.Body)
+			n = len(b)
+		})).ServeHTTP(rec, httptest.NewRequest("POST", path, strings.NewReader(strings.Repeat("x", size))))
+		return n, err
+	}
+
+	if n, err := read("/api/ai/chat", 3<<20); err != nil || n != 3<<20 {
+		t.Errorf("assistant body of 3 MiB: read %d bytes, err %v", n, err)
+	}
+	if n, err := read("/api/ai/chat", api.AIChatBodyLimit+1); err == nil {
+		t.Errorf("assistant body past its own limit must be refused, read %d bytes", n)
+	}
+	if n, err := read("/api/settings", 2<<20); err == nil {
+		t.Errorf("every other route stays at a megabyte, read %d bytes", n)
 	}
 }
