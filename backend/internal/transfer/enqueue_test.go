@@ -212,11 +212,7 @@ func TestEnqueuePicksBestVariantPerTarget(t *testing.T) {
 // complete, with a corrupt file to show for it. betterVariant settles that
 // inside a single check; across checks, servers and users only the queue can.
 func TestEnqueueSkipsATargetAlreadyQueued(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
@@ -251,11 +247,7 @@ func TestEnqueueSkipsATargetAlreadyQueued(t *testing.T) {
 // once the offending file is gone, the same way the permission block lifts once
 // the directory accepts writes.
 func TestEnqueueSkipsARenameRefusedByAnExistingTarget(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
