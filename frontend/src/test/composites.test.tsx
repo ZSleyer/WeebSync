@@ -248,6 +248,30 @@ describe('DayScroller', () => {
     expect(band.scrollLeft).toBe(240)
   })
 
+  it('keeps marking days when a hand lands in the middle of a recentre', () => {
+    const pick = vi.fn()
+    Element.prototype.scrollIntoView = vi.fn()
+    const { rerender } = scroller({ onSelect: pick })
+    const band = document.querySelector('.t-dayband') as HTMLElement
+    band.getBoundingClientRect = () => ({ left: 0, width: 150 }) as DOMRect
+    Object.defineProperty(band, 'clientWidth', { value: 150, configurable: true })
+    const cells = Array.from(band.querySelectorAll<HTMLElement>('[data-day]'))
+    const place = (offset: number) => cells.forEach((c, i) => (c.getBoundingClientRect = () => ({ left: i * 50 - offset, width: 50 }) as DOMRect))
+    place(0)
+    // the caller moves the day, so the band starts centring the new cell and
+    // ignores what sweeps past on the way
+    rerender(<DayScroller days={days} selected="2026-09-17" onSelect={pick} step={2} label="Donnerstag, 17.09." labels={labels} onNext={() => {}} />)
+    place(50)
+    fireEvent.scroll(band)
+    expect(pick).not.toHaveBeenCalled()
+    // a finger landing mid-flight takes the band over: from here every day
+    // under the middle is a pick again, rather than none until it stands still
+    fireEvent.touchStart(band)
+    place(0)
+    fireEvent.scroll(band)
+    expect(pick).toHaveBeenLastCalledWith('2026-09-16')
+  })
+
   it('carries on after the release, and only as far as the flick was worth', () => {
     // jsdom drives neither clock, so both are hand-turned here
     let t = 0

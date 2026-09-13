@@ -627,6 +627,9 @@ export interface DayScrollerProps {
 
 // how long after the last scroll a programmatic move counts as finished
 const SETTLE_MS = 120
+// the longest a scroll of this component's own may take before a pick counts
+// again, whatever the browser is still animating
+const OWN_MS = 800
 // pixels a mouse travels before a press counts as a drag rather than a click
 const DRAG_SLOP = 10
 // the tick as a day passes the middle. Shorter than a page turn's - this one
@@ -673,9 +676,12 @@ const stillness = () =>
  */
 export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday, label, step, labels, className }: DayScrollerProps) {
   const band = useRef<HTMLDivElement>(null)
-  // a scroll this component started itself must not be read back as a pick -
-  // the cell is still travelling and the middle is briefly the neighbour's
-  const own = useRef(false)
+  // Until when a scroll this component started itself must not be read back as
+  // a pick - the cell is still travelling and the middle is briefly the
+  // neighbour's. A deadline rather than a flag: a flag outlives the scroll that
+  // was meant to clear it whenever a finger lands in the middle of one, and
+  // from then on the band marks no days and ticks for none.
+  const own = useRef(0)
   const settle = useRef<ReturnType<typeof setTimeout>>(undefined)
   const shown = useRef(selected)
   // a finger on the band owns it, whether or not it is moving
@@ -692,7 +698,7 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
     shown.current = selected
     const cell = el.querySelector<HTMLElement>(`[data-day="${CSS.escape(selected)}"]`)
     if (!cell) return
-    own.current = true
+    own.current = performance.now() + OWN_MS
     // jsdom has no scrollIntoView, hence the guard
     cell.scrollIntoView?.({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }, [selected])
@@ -714,10 +720,6 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
   const rest = () => {
     const el = band.current
     if (!el) return
-    if (own.current) {
-      own.current = false
-      return
-    }
     // a finger still down, a held button, a coast still running: the band is
     // someone else's, and centring under them would fight the move
     if (touching.current || drag.current?.moved || coast.current !== undefined) {
@@ -729,7 +731,7 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
     if (!cell) return
     const r = cell.getBoundingClientRect()
     if (Math.abs(r.left + r.width / 2 - mid) < 1) return
-    own.current = true
+    own.current = performance.now() + OWN_MS
     // jsdom has no scrollIntoView, hence the guard
     cell.scrollIntoView?.({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }
@@ -746,7 +748,7 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
     // days it sweeps past on the way are not picks and must not tick
     clearTimeout(settle.current)
     settle.current = setTimeout(rest, SETTLE_MS)
-    if (own.current) return
+    if (performance.now() < own.current) return
     const key = nearest(el, middleOf(el))?.dataset.day
     if (!key || key === shown.current) return
     shown.current = key
@@ -799,6 +801,8 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
   // a finger lands on it.
   const onTouchStart = () => {
     halt()
+    // whatever this component was moving towards, the hand outranks it
+    own.current = 0
     touching.current = true
   }
   const onTouchEnd = () => {
@@ -813,6 +817,7 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
   // that does not, and a hand that parked before letting go throws nothing.
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     halt()
+    own.current = 0
     if (e.pointerType !== 'mouse' || e.button !== 0) return
     const t = performance.now()
     drag.current = { id: e.pointerId, x: e.clientX, left: e.currentTarget.scrollLeft, moved: false, px: e.clientX, t, lt: t }
