@@ -1,47 +1,74 @@
 services:
   weebsync:
-    build: .
-    # image: ghcr.io/zsleyer/weebsync:nightly   # or :dev for every green push
-    # optional: run as the owner of your media instead of the image's
-    # nonroot (65532), so downloads land with your uid/gid. `./data` must be
-    # owned by that user too (see README, "File ownership").
+    image: ghcr.io/zsleyer/weebsync:nightly # or :dev for every green push
+    # build: . # build from this checkout instead
+    # run as the owner of your media instead of the image's nonroot (65532);
+    # `./data` must belong to that user too (README, "File ownership")
     # user: "1000:1000"
-    # group_add:
-    #   - "990"
+    # group_add: ["990"]
     ports:
-      # session auth runs over plain HTTP - bind to loopback and put a
-      # TLS-terminating reverse proxy in front. Use "8080:8080" only on a
-      # trusted host you fully control.
+      # plain HTTP - bind to loopback and put a TLS proxy in front. Use
+      # "8080:8080" only on a trusted host you fully control.
       - "127.0.0.1:8080:8080"
+    volumes:
+      - ./data:/data # sqlite db + default downloads (under /data/downloads)
+      # media libraries as sync targets - also list them in WEEBSYNC_DOWNLOADS
+      # - /srv/media:/media
     environment:
-      # timestamps in the container logs. The zone database is compiled into
-      # the binary, so any IANA name works without installing tzdata.
-      TZ: ${TZ:-UTC}
-      # optional: key for credential encryption at rest. If unset, a key is
-      # auto-generated at /data/secret.key on first start.
+      TZ: ${TZ:-UTC} # log timestamps, any IANA name
+      # WEEBSYNC_LOG_LEVEL: info # trace|debug|info|warn|error
+
+      # --- storage ---------------------------------------------------------
+      # allowlist of local roots (":"-separated), first one is the default
+      # download dir; only these are browsable and writable
+      # WEEBSYNC_DOWNLOADS: /media:/data/downloads
+      # key for credential encryption at rest. Unset = auto-generated at
+      # /data/secret.key on first start. Back it up either way.
       # WEEBSYNC_SECRET: ${WEEBSYNC_SECRET}
-      # optional: AniList API token (higher rate limit)
-      # ANILIST_TOKEN: ""
-      # optional: OIDC login (Authentik/Keycloak/…)
+
+      # --- behind a reverse proxy ------------------------------------------
+      # WEEBSYNC_BASE_URL: https://weebsync.example.com
+      # IPs/CIDRs whose X-Forwarded-* may be believed ("true" = every peer)
+      # WEEBSYNC_TRUSTED_PROXY: 172.16.0.0/12
+      # WEEBSYNC_FORCE_HTTPS: "true"
+
+      # --- login (optional, OIDC) ------------------------------------------
+      # OIDC_PROVIDER_NAME: Authentik
       # OIDC_ISSUER: https://auth.example.com/application/o/weebsync/
       # OIDC_CLIENT_ID: weebsync
       # OIDC_CLIENT_SECRET: "…"
       # OIDC_REDIRECT_URL: https://weebsync.example.com/api/auth/oidc/callback
-      # optional: allowlist of local roots (":"-separated). Mount your media
-      # wherever and list the mounts; only these are browsable/writable.
-      # WEEBSYNC_DOWNLOADS: /media:/data/downloads
-    volumes:
-      - ./data:/data # sqlite db + default downloads (under /data/downloads)
-      # mount media libraries as sync targets, then add them to
-      # WEEBSYNC_DOWNLOADS above:
-      # - /srv/media:/media
+      # role mapping - with admin values set, the IdP owns all roles
+      # OIDC_CLAIM: groups
+      # OIDC_ADMIN_VALUES: weebsync-admins
+      # OIDC_USER_VALUES: weebsync-users
+
+      # --- mail (password reset, notifications) -----------------------------
+      # SMTP_HOST: smtp.example.com
+      # SMTP_PORT: "587"
+      # SMTP_SECURITY: starttls # starttls|tls|none
+      # SMTP_USERNAME: weebsync@example.com
+      # SMTP_PASSWORD: "…"
+      # SMTP_FROM: weebsync@example.com
+
+      # --- metadata & integrations ------------------------------------------
+      # ANILIST_CLIENT_ID: ""
+      # ANILIST_CLIENT_SECRET: ""
+      # ANILIST_TOKEN: "" # operator token for background matching
+      # TMDB_API_KEY: ""
+      # TVDB_API_KEY: ""
+      # ANIMESCHEDULE_TOKEN: "" # release dates for the calendar
+      # PLEX_URL: http://plex.example.com:32400
+      # PLEX_TOKEN: ""
+      # AI_BASE_URL: http://litellm.example.com:4000/v1
+      # AI_API_KEY: ""
+      # AI_MODEL: ""
+      # AI_SEARCH_URL: http://searxng.example.com:8080
     restart: unless-stopped
-    # hardening that travels with the file (an AppArmor profile would have
-    # to be loaded on every host by hand): no capabilities - nonroot on
-    # port 8080 needs none -, no privilege gain via setuid binaries, and a
-    # read-only root. Writes go to the volumes above; tmpfs covers SQLite's
-    # temp files and ffprobe, both of which fail quietly without a writable
-    # /tmp or /var/tmp.
+    # hardening that travels with the file: no capabilities (nonroot on port
+    # 8080 needs none), no privilege gain via setuid, read-only root. Writes go
+    # to the volumes above; tmpfs covers SQLite's temp files and ffprobe, which
+    # both fail quietly without a writable /tmp and /var/tmp.
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     read_only: true
