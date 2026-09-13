@@ -205,3 +205,71 @@ func TestEnqueuePicksBestVariantPerTarget(t *testing.T) {
 		t.Errorf("upgrade queued %q, want the GerJapDub release", queued)
 	}
 }
+
+// A refused rename is blocked by the file at the target name, not by the
+// directory: the directory took the whole download. The write probe cannot see
+// that - both of its probe files belong to us - so a check that only probed the
+// directory queued the episode again every interval, downloaded it in full
+// again, and failed on the same last step. The block has to lift on its own
+// once the offending file is gone, the same way the permission block lifts once
+// the directory accepts writes.
+func TestEnqueueSkipsARenameRefusedByAnExistingTarget(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+
+	root := t.TempDir()
+	target := filepath.Join(root, "Show", "ep01.mkv")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// a different size than the remote file, or the sync skips it as already there
+	if err := os.WriteFile(target, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dial := func(userID, serverID int64) (remote.Client, string, error) {
+		return &stubClient{dir: "/x/Show", name: "ep01.mkv", size: 8}, "", nil
+	}
+	m := NewManager(d, dial, root)
+
+	d.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, status, error, error_code)
+		VALUES (1, 1, '/x/Show/ep01.mkv', ?, 8, 'error',
+		        'renameat Show/ep01.mkv.part Show/ep01.mkv: permission denied', ?)`,
+		target, ErrCodeRenameFailed)
+
+	rows := func() int {
+		t.Helper()
+		var n int
+		d.QueryRow(`SELECT COUNT(*) FROM downloads`).Scan(&n)
+		return n
+	}
+	check := func() {
+		t.Helper()
+		if _, err := m.Enqueue(1, 1, "/x/Show", "Show", nil, nil, true, true, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for i := range 2 {
+		check()
+		if n := rows(); n != 1 {
+			t.Fatalf("check %d: %d rows, want 1 while the target is still there", i+1, n)
+		}
+	}
+
+	// the user moves the offending file out of the way
+	if err := os.Remove(target); err != nil {
+		t.Fatal(err)
+	}
+	check()
+	if n := rows(); n != 2 {
+		t.Errorf("after removing the target: %d rows, want 2", n)
+	}
+}
