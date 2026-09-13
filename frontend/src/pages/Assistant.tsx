@@ -25,7 +25,7 @@ import Markdown from '../components/Markdown'
 import { useAiModels, useAiStatus, useAuth } from '../hooks'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
-import { applyDefaults, useWatchDefaults } from '../components/watchDefaults'
+import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
 import { subfolderMode, subfolderTargetDir } from '../components/useTargetFolder'
 import { useConfirm } from '../components/confirm'
 
@@ -939,7 +939,7 @@ export default function Assistant() {
                             dims={dims}
                             chosen={choice[u.key] ?? u.to}
                             onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
-                            onSync={(r) => setUpSync({ ...r, initial: applyDefaults(r.initial, 'anime-series', defaults) })}
+                            onSync={(r) => setUpSync({ ...r, initial: applyDefaults(r.initial, suggestionKind(u.category), defaults) })}
                             onDetails={setDetail}
                           />
                         </div>
