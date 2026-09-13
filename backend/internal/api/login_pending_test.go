@@ -4,22 +4,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/secret"
 	"github.com/pquerna/otp/totp"
 )
 
 func TestLoginPendingIsConsumedOnce(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'a@example.com', '')`); err != nil {
 		t.Fatal(err)
 	}
@@ -37,11 +32,7 @@ func TestLoginPendingIsConsumedOnce(t *testing.T) {
 }
 
 func TestLoginPendingDropsAfterMaxFailures(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'a@example.com', '')`); err != nil {
 		t.Fatal(err)
 	}
@@ -72,11 +63,7 @@ func totpFixture(t *testing.T) (*http.ServeMux, *Server, string, string) {
 	if err := secret.Init(t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash, email_verified) VALUES (1, 'a@example.com', 'x', 1)`); err != nil {
 		t.Fatal(err)
 	}
@@ -123,11 +110,7 @@ func TestLoginTotpLocksTokenAfterWrongCodes(t *testing.T) {
 }
 
 func TestRecoveryCodeRedeemsOnce(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'a@example.com', '')`); err != nil {
 		t.Fatal(err)
 	}

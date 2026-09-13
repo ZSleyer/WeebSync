@@ -2,12 +2,11 @@ package api
 
 import (
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -17,11 +16,7 @@ import (
 // A successful check clears the backoff again, or one bad minute would keep a
 // watch on the short ladder forever.
 func TestWatchCheckFailureSchedulesRetry(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 
 	root := t.TempDir()
 	reachable := false
@@ -98,11 +93,7 @@ func TestNextCheckAtPrefersRetry(t *testing.T) {
 }
 
 func TestWatchBackoffDoublesUpToTheInterval(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	// 10 minutes, so the ceiling sits inside the doubling rather than beyond it
 	d.Exec(`INSERT INTO settings (key, value) VALUES ('watch_interval_min', '10')`)
 	s := &Server{DB: d}

@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // synthetic fixtures only
@@ -52,11 +52,7 @@ func testServer(t *testing.T) *httptest.Server {
 }
 
 func TestMovieCollection(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	db.SetSetting(d, "tmdb_api_key", "test.jwt.token")
 	srv := testServer(t)
 	defer srv.Close()
@@ -83,11 +79,7 @@ func TestMovieCollection(t *testing.T) {
 }
 
 func TestClient(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	db.SetSetting(d, "tmdb_api_key", "test.jwt.token") // JWT → bearer header
 	srv := testServer(t)
 	defer srv.Close()
@@ -177,11 +169,7 @@ func TestAbsoluteEpisode(t *testing.T) {
 }
 
 func TestTranslations(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	db.SetSetting(d, "tmdb_api_key", "test.jwt.token")
 	mux := http.NewServeMux()
 	mux.HandleFunc("/tv/42/translations", func(w http.ResponseWriter, r *http.Request) {

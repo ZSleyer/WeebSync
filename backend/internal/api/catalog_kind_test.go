@@ -1,18 +1,13 @@
 package api
 
 import (
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestFolderKind(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO users (id, email) VALUES (1,'u@e.test')`)
 	if _, err := d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)
 		VALUES (1,1,'s','sftp','h',22,'u',x'00')`); err != nil {

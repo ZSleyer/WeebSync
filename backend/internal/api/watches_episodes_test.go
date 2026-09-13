@@ -2,12 +2,11 @@ package api
 
 import (
 	"net/http"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // nums builds the key set localEpisodeNums parses out of a file listing, so the
@@ -137,11 +136,7 @@ func TestSpanEpisodes(t *testing.T) {
 }
 
 func TestWatchEpisodesOwnershipAndDegradation(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	// no Tvdb/Tmdb client: the handler must degrade instead of reaching out
 	s := &Server{DB: d}
 	mux := http.NewServeMux()

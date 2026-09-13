@@ -4,10 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestExchangeCode(t *testing.T) {
@@ -23,11 +22,7 @@ func TestExchangeCode(t *testing.T) {
 	oauthTokenURL = srv.URL
 	t.Cleanup(func() { oauthTokenURL = old })
 
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	c := New(d)
 	tok, exp, err := c.ExchangeCode(context.Background(), "id", "secret", "http://cb", "code")
 	if err != nil || tok != "tok123" || exp != 31536000 {

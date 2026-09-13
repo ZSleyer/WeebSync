@@ -1,12 +1,11 @@
 package api
 
 import (
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // The renamed target name is the better source for season/episode: it is what
@@ -40,11 +39,7 @@ func TestEpisodeNumbers(t *testing.T) {
 // metaTestServer gives a Server with a real schema, one user and one server.
 func metaTestServer(t *testing.T) *Server {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'a@example.com', '')`)
 	d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (2, 'b@example.com', '')`)
 	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)

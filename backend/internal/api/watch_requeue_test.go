@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -51,11 +51,7 @@ func TestWatchCheckDoesNotRequeueHopelessDownload(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("running as root: mode bits do not deny access")
 	}
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 
 	root := t.TempDir()
 	target := filepath.Join(root, "Show")
@@ -126,11 +122,7 @@ func TestWatchSaveRejectsUnwritableTarget(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("running as root: mode bits do not deny access")
 	}
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 
 	root := t.TempDir()
 	locked := filepath.Join(root, "locked")

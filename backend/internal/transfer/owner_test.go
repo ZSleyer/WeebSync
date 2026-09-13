@@ -2,20 +2,15 @@ package transfer
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // A running download must only be pausable/cancelable by its owner: the
 // in-memory fastpath in Pause/Cancel must honor the userID.
 func TestActivePauseCancelOwnerScoped(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 
 	// download id 1 owned by user 1, status running
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)

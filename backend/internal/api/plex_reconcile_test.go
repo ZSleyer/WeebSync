@@ -1,10 +1,9 @@
 package api
 
 import (
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // The bridge used to skip any series that already carried a tvdb id, so a show
@@ -12,11 +11,7 @@ import (
 // separate shows. Both ids are real: Fribb maps the 2012 JoJo season onto 83950,
 // Plex calls the show 262954.
 func TestReconcileReachesSeriesThatAlreadyHaveAnID(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO users (id, email) VALUES (1,'a@example.com')`)
 	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)
 		VALUES (1,1,'s','sftp','h',22,'u',x'00')`)
@@ -29,7 +24,7 @@ func TestReconcileReachesSeriesThatAlreadyHaveAnID(t *testing.T) {
 	// the candidate query is what regressed; run it directly
 	var folder string
 	var seriesID int64
-	err = d.QueryRow(`SELECT DISTINCT cm.folder, sp.series_id
+	err := d.QueryRow(`SELECT DISTINCT cm.folder, sp.series_id
 		FROM catalog_matches cm
 		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
 		WHERE cm.media_id != 0
@@ -67,11 +62,7 @@ func TestReconcileReachesSeriesThatAlreadyHaveAnID(t *testing.T) {
 // imdb was written but rejected by the CHECK, and the error was never looked
 // at - so the counter rose while nothing was stored.
 func TestSeriesProviderAcceptsPlexAndImdb(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'k','T')`)
 	for _, src := range []string{"anilist", "tmdb:tv", "tmdb:movie", "tvdb", "imdb", "plex"} {
 		if _, err := d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES (?, 42, 1)`, src); err != nil {
@@ -88,11 +79,7 @@ func TestSeriesProviderAcceptsPlexAndImdb(t *testing.T) {
 // string, which failed wherever the two identities diverged. Plex's own id now
 // hangs on the series, so any provider id that resolves to it finds the link.
 func TestPlexRatingKeyForFindsItThroughTheSeries(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'jojo','JoJo')`)
 	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES

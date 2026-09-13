@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 )
 
@@ -18,11 +17,7 @@ func setupAdminTest(t *testing.T) (*http.ServeMux, *Server, *http.Cookie, *http.
 	t.Helper()
 	// background jobs queued by rematch must fail fast instead of calling out
 	t.Setenv("TMDB_API_KEY", "")
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('admin@example.com', 1)`)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('user@example.com', 0)`)

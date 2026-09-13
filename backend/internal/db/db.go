@@ -39,6 +39,26 @@ func Open(path string) (*sql.DB, error) {
 	return d, nil
 }
 
+// appliedMigrations reads the whole ledger at once. Asking per file instead
+// costs one round trip through the SQLite engine for every migration, which
+// adds up once there are dozens of them.
+func appliedMigrations(d *sql.DB) (map[string]bool, error) {
+	rows, err := d.Query(`SELECT name FROM schema_migrations`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	applied := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		applied[name] = true
+	}
+	return applied, rows.Err()
+}
+
 func migrate(d *sql.DB) error {
 	if _, err := d.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY)`); err != nil {
 		return err
@@ -48,12 +68,12 @@ func migrate(d *sql.DB) error {
 		return err
 	}
 	sort.Strings(entries)
+	applied, err := appliedMigrations(d)
+	if err != nil {
+		return err
+	}
 	for _, name := range entries {
-		var done int
-		if err := d.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE name = ?`, name).Scan(&done); err != nil {
-			return err
-		}
-		if done > 0 {
+		if applied[name] {
 			continue
 		}
 		sqlBytes, err := migrations.ReadFile(name)

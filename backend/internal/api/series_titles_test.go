@@ -3,21 +3,17 @@ package api
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 	"github.com/ch4d1/weebsync/internal/tvdb"
 )
 
 func TestSeriesLocalTitle(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1, 'k1', 'raw'), (2, 'k2', 'raw2'), (3, 'k3', 'raw3')`)
 

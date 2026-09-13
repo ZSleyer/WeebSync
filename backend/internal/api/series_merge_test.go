@@ -1,20 +1,15 @@
 package api
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func mergeTestServer(t *testing.T) *Server {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	return &Server{DB: d, Anilist: anilist.New(d)}
 }
 
