@@ -545,7 +545,7 @@ function SugCard({
                     size="sm"
                     onClick={() =>
                       it.sync?.localPath
-                        ? onSync({ serverId: c.serverId, name: it.title, initial: syncFields(it.sync, it.title, c.path) })
+                        ? onSync({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })
                         : syncOnce(c.serverId, c.path)
                     }
                   >
@@ -694,7 +694,7 @@ export function UpgradesSection() {
               dims={dims}
               chosen={choice[u.key] ?? u.to}
               onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
-              onSync={(r) => setSync({ ...r, initial: applyDefaults(r.initial, 'anime-series', defaults) })}
+              onSync={(r) => setSync({ ...r, initial: applyDefaults(r.initial, suggestionKind(u.category), defaults) })}
               onDismiss={dismiss}
               onOpenRemote={(v) => navigate(`/files?server=${v.serverId}&path=${encodeURIComponent(v.folder)}`)}
               onDetails={(u) => openSeries({ source: suggestionSource(u), id: u.media!.id, media: u.media, title: u.title })}
