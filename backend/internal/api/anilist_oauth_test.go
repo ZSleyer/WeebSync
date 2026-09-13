@@ -2,20 +2,16 @@ package api
 
 import (
 	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestAnilistOAuthHandlers(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, Anilist: anilist.New(d)}
 	mux := http.NewServeMux()
 	s.Register(mux)

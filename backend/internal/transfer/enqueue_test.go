@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/remote"
 )
 
@@ -41,11 +41,7 @@ func TestEnqueueSkipsNonRetryableFailure(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("running as root: mode bits do not deny access")
 	}
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	// keep the queue loop from starting anything while we count rows
 	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
@@ -140,11 +136,7 @@ func (c *multiClient) Close() error                 { return nil }
 // other variant's size, so a watch re-downloaded the episode every interval and
 // the file on disk was whichever release had been checked last.
 func TestEnqueuePicksBestVariantPerTarget(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)

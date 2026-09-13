@@ -5,19 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/auth"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestSetupNeeded(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
 	mux := http.NewServeMux()
 	s.Register(mux)
@@ -46,11 +41,7 @@ func TestSetupNeeded(t *testing.T) {
 }
 
 func TestSetupOIDC(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
 	mux := http.NewServeMux()
 	s.Register(mux)
@@ -81,11 +72,7 @@ func TestSetupOIDC(t *testing.T) {
 }
 
 func TestOIDCDiscover(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
 	mux := http.NewServeMux()
 	s.Register(mux)

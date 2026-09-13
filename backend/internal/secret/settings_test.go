@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestMigrateSettings(t *testing.T) {
@@ -14,11 +15,7 @@ func TestMigrateSettings(t *testing.T) {
 	if err := Init(dir); err != nil {
 		t.Fatal(err)
 	}
-	d, err := db.Open(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.OpenAt(t, filepath.Join(dir, "test.db"))
 	db.SetSetting(d, "ai_api_key", "plain")
 	legacy, _ := Encrypt("mail-secret")
 	db.SetSetting(d, "smtp_password", base64.StdEncoding.EncodeToString(legacy))

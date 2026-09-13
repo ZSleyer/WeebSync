@@ -2,11 +2,11 @@ package api
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestJobFamilyStripsIds(t *testing.T) {
@@ -28,11 +28,7 @@ func TestJobFamilyStripsIds(t *testing.T) {
 // it is reached for precisely when something is running away with the machine,
 // and a setting that only lived in memory would let it come straight back.
 func TestPausedFamilyDoesNotStart(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 
 	ran := make(chan string, 4)
@@ -66,11 +62,7 @@ func TestPausedFamilyDoesNotStart(t *testing.T) {
 // Stopping cancels the running job's context. What the job does with that is
 // its own business, so the test asserts the signal, not a deadline.
 func TestStopJobCancelsTheContext(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 
 	started, done := make(chan struct{}), make(chan struct{})

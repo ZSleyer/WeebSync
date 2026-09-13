@@ -2,12 +2,11 @@ package api
 
 import (
 	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -30,11 +29,7 @@ func TestLoginTotpRefusesReplayedCode(t *testing.T) {
 
 // A verification link works for a day and not longer.
 func TestVerifyLinkExpires(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO users (id, email, password_hash, email_verified, verify_token, verify_sent_at) VALUES
 		(1, 'old@example.com', 'x', 0, 'old', datetime('now', '-25 hours')),
 		(2, 'new@example.com', 'x', 0, 'new', datetime('now', '-1 hour'))`)

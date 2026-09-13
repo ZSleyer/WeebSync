@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/remote"
 )
 
@@ -16,11 +16,7 @@ import (
 // rows every download needs to exist.
 func newRetryDB(t *testing.T) *sql.DB {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)

@@ -6,18 +6,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // pendingFixture is a watch with aired mapping whose season map knows episodes
 // up to 1207, plus a download root on disk.
 func pendingFixture(t *testing.T) (*Server, string) {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	root := t.TempDir()
 	s := &Server{DB: d, DownloadRoot: root}
 	d.Exec(`INSERT INTO users (id, email, is_admin, locale) VALUES (1,'a@example.com',1,'de')`)

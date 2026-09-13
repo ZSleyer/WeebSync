@@ -1,19 +1,14 @@
 package api
 
 import (
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestExpireAuthRowsKeepsLiveRows(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'a@example.com', '')`); err != nil {
 		t.Fatal(err)
 	}

@@ -1,11 +1,10 @@
 package api
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // ownMedia builds a media with the three titles the owned check looks at.
@@ -22,11 +21,7 @@ func ownMedia(id int, romaji, english, native string) anilist.Media {
 // AniList charts, and by TMDB id for the TMDB ones, where the two catalogues
 // spell the same film differently often enough that titles alone miss it.
 func TestPlexOwnedMatchesTitleAndTmdbID(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	// both indexes are read from the cache table, so the check runs without a
 	// Plex server behind it

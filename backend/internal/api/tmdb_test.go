@@ -2,20 +2,16 @@ package api
 
 import (
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 )
 
 func TestScopeForAndHandler(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, Tmdb: tmdb.New(d)}
 	mux := http.NewServeMux()
 	s.Register(mux)
@@ -86,11 +82,7 @@ func TestScopeForAndHandler(t *testing.T) {
 // the library's tv tag made the listing treat the row as foreign and replace it
 // with a fresh automatic match, which is how corrections used to vanish.
 func TestManualMatchSourceFollowsFilmKind(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, Tmdb: tmdb.New(d)}
 	mux := http.NewServeMux()
 	s.Register(mux)
@@ -126,11 +118,7 @@ func TestManualMatchSourceFollowsFilmKind(t *testing.T) {
 // ownership check used to reject that, so correcting or clearing a match on a
 // local folder answered "server not found" while listing and scoping worked.
 func TestManualMatchOnLocalLibrary(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, Tmdb: tmdb.New(d)}
 	mux := http.NewServeMux()
 	s.Register(mux)

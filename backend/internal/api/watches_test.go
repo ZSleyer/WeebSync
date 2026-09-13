@@ -7,13 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -28,11 +27,7 @@ func cookieForUser(t *testing.T, d *sql.DB, id int64) *http.Cookie {
 }
 
 func TestWatchCRUD(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	offline := func(userID, serverID int64) (remote.Client, string, error) {
 		return nil, "", errors.New("offline")
 	}
@@ -215,11 +210,7 @@ func TestWatchNameFn(t *testing.T) {
 }
 
 func TestEnsureWatchMatchQueuesOnlyUnmatchedFolders(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)

@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/animeschedule"
 	"github.com/ch4d1/weebsync/internal/crunchyroll"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // The providers hand out the future only: an episode that aired yesterday is
@@ -21,11 +20,7 @@ import (
 // the past week back - with the watch's own episode offset applied, because the
 // table stores what the provider counted.
 func TestPastAiringsFillTheCalendarWeek(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, Anilist: anilist.New(d)}
 
 	now := time.Now()
@@ -96,11 +91,7 @@ func TestPastAiringsFillTheCalendarWeek(t *testing.T) {
 // ahead are projected at the same lag and marked as estimates, and the
 // release that has been seen stands as it is, whatever the lag says.
 func TestDubSlotsProjectTheObservedLag(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, Anilist: anilist.New(d)}
 
 	now := time.Now()
@@ -216,11 +207,7 @@ func TestRecordDubAiringsFromCrunchyroll(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, Anilist: anilist.New(d), Crunchyroll: crunchyroll.NewAt(srv.URL)}
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
@@ -275,11 +262,7 @@ func TestRecordDubTimetableFromAnimeschedule(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	as := animeschedule.New(d)
 	as.BaseURL = srv.URL
 	s := &Server{DB: d, Anilist: anilist.New(d), Animeschedule: as}
@@ -305,11 +288,7 @@ func TestRecordDubTimetableFromAnimeschedule(t *testing.T) {
 // is a measurement: the coming episodes get a dub slot at the original's time
 // rather than none.
 func TestSimuldubProjectsAtZeroLag(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, Anilist: anilist.New(d)}
 	now := time.Now().Unix()
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)

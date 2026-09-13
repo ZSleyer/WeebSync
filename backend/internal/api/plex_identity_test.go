@@ -2,19 +2,14 @@ package api
 
 import (
 	"database/sql"
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func identityDB(t *testing.T) (*sql.DB, *Server) {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	// two entries for what Plex holds as one show: the AniList season that was
 	// bundled first, and a tvdb match that arrived on its own
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'clevatess','Clevatess'), (2,'clevatess ii','Clevatess II')`)

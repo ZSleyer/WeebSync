@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestReadStreamMergesToolCallFragments(t *testing.T) {
@@ -84,11 +84,7 @@ func TestStreamAndPingAgainstFakeProvider(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d, err := db.Open(filepath.Join(t.TempDir(), "t.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	c := New(d)
 	if c.Enabled() {
 		t.Fatal("enabled without settings")

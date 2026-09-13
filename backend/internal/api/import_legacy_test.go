@@ -5,21 +5,17 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 func TestLegacyImport(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	root := t.TempDir()
 	offline := func(userID, serverID int64) (remote.Client, string, error) {
 		return nil, "", errors.New("offline")
@@ -91,11 +87,7 @@ func TestLegacyImport(t *testing.T) {
 
 // A commit without a server must not silently create one.
 func TestLegacyImportNeedsServer(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d)}
 	mux := http.NewServeMux()
 	s.Register(mux)

@@ -1,11 +1,10 @@
 package api
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // A provider's format describes the work, not the folder. A MOVIE hit landing
@@ -13,11 +12,7 @@ import (
 // season 0 with is_movie, where no local season can meet it, and the suggestion
 // list shows a 24-episode series under "Filme".
 func TestFolderUnitMovieFormatNeedsAMovieFolder(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, Anilist: anilist.New(d)}
 	d.Exec(`INSERT INTO users (id, email) VALUES (1,'u@e.test')`)
 	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)

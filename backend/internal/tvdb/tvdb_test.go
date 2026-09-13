@@ -4,11 +4,10 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // hits counts episode-route requests, so a test can tell a cache hit from a
@@ -136,11 +135,7 @@ func TestEpisodesCached(t *testing.T) {
 	t.Setenv("TVDB_BASE_URL", srv.URL)
 	t.Setenv("TVDB_API_KEY", "dev-key")
 
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 
 	c := New(d)
 	before := hits.Load()

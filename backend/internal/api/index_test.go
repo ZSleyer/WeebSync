@@ -3,12 +3,11 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/remote"
 )
 
@@ -17,11 +16,7 @@ func entry(p string, dir bool, size int64, mod time.Time) remote.Entry {
 }
 
 func TestIndexDirAndSearch(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	mux := http.NewServeMux()
 	s.Register(mux)
@@ -85,11 +80,7 @@ func jsonHasResult(b []byte) bool {
 }
 
 func TestNextCrawlDirs(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
@@ -130,11 +121,7 @@ func TestNextCrawlDirs(t *testing.T) {
 // A directory the listing no longer shows goes with everything below it, in
 // one step - not one level per failed listing slot.
 func TestIndexDirDropsVanishedSubtree(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
@@ -163,11 +150,7 @@ func TestIndexDirDropsVanishedSubtree(t *testing.T) {
 // by its parent's listing, so once its own stamp is a recheck old it is
 // listed itself. And a directory past the depth cap is never queued.
 func TestNextCrawlDirsOwnStampAndDepth(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)

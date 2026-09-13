@@ -1,18 +1,13 @@
 package api
 
 import (
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestReuseMatch(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	add := func(serverID int64, folder string, mediaID, manual int, source string) {
 		if _, err := d.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)

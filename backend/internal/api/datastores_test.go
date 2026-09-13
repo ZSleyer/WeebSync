@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // userDataTables are the tables that hold what a person put in or what a
@@ -44,11 +44,7 @@ var userDataTables = map[string]bool{
 // derived table now fails this test instead of quietly becoming another blind
 // spot on the maintenance page.
 func TestDataStoresCoverEverything(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "schema.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 
 	rows, err := d.Query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
 	if err != nil {

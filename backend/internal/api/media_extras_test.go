@@ -3,11 +3,10 @@ package api
 import (
 	"errors"
 	"net/http"
-	"path/filepath"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -15,11 +14,7 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestMediaExtras(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d)}
 	// no network in tests: every miss is a failure, so a cached answer must
 	// never touch the client and a miss must surface as 502

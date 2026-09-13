@@ -1,18 +1,13 @@
 package api
 
 import (
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestAnilistFromSeries(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 
 	series := func(id int64, key string) {
@@ -63,11 +58,7 @@ func TestAnilistFromSeries(t *testing.T) {
 }
 
 func TestAnilistFromAnimeIDs(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	add := func(anilistID, tvdb, tvdbSeason, tmdb int, kind string) {
 		if _, err := d.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season, tmdb_id, tmdb_kind) VALUES (?, ?, ?, ?, ?)`,

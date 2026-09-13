@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // sizeTestServer builds a server whose local root is a temp dir, with one
@@ -14,11 +14,7 @@ import (
 func sizeTestServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	root := t.TempDir()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d, DownloadRoot: root, LocalRoots: []string{root}, Anilist: anilist.New(d)}
 	d.Exec(`INSERT INTO users (id, email, upgrade_dims) VALUES (1,'u@e.test','res,sub,dub,soft')`)
 	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/push"
 	"github.com/ch4d1/weebsync/internal/secret"
 )
@@ -19,11 +19,7 @@ func digestTestServer(t *testing.T) *Server {
 	if err := secret.Init(dir); err != nil {
 		t.Fatal(err)
 	}
-	d, err := db.Open(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.OpenAt(t, filepath.Join(dir, "test.db"))
 	p, err := push.New(d)
 	if err != nil {
 		t.Fatal(err)

@@ -2,18 +2,13 @@ package airmap
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestResolveCache(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	// seed a fresh cache so Resolve skips the (client-less) rebuild; the source
 	// tag must match the series' effective provider+ordering
 	d.Exec(`INSERT INTO season_maps_meta (server_id, folder, source, updated_at) VALUES (1,'Conan','tvdb:official:0',datetime('now'))`)
@@ -42,11 +37,7 @@ func TestResolveCache(t *testing.T) {
 // The miss triggers a rebuild, and the rebuild is rate-limited so specials -
 // whose ".5" tokens no provider lists - cannot turn every file into a round trip.
 func TestResolveRebuildsOnMiss(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO season_maps_meta (server_id, folder, source, updated_at) VALUES (1,'Conan','tvdb:official:0',datetime('now'))`)
 	d.Exec(`INSERT INTO season_maps (server_id, folder, token, season, episode) VALUES (1,'Conan','1207',34,21)`)
 
@@ -85,11 +76,7 @@ func TestResolveRebuildsOnMiss(t *testing.T) {
 // from the newest one it knows gives the file a name worth showing, while the
 // caller keeps it quarantined until the provider confirms it.
 func TestGuess(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	d.Exec(`INSERT INTO season_maps (server_id, folder, token, season, episode) VALUES
 		(1,'Conan','1206',34,20), (1,'Conan','1207',34,21),
 		(1,'Conan','1207.5',0,14)`) // a special must not pass as the newest episode

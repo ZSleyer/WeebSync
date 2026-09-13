@@ -1,10 +1,9 @@
 package auth
 
 import (
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestClaimMatches(t *testing.T) {
@@ -33,11 +32,7 @@ func TestClaimMatches(t *testing.T) {
 }
 
 func TestOIDCAdminSync(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
+	d := dbtest.Open(t)
 	yes, no := true, false
 
 	isAdmin := func(id int64) bool {

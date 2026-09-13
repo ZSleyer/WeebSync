@@ -4,21 +4,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func setupUsersTest(t *testing.T) (*http.ServeMux, *Server, *http.Cookie, *http.Cookie, int64, int64) {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 
 	res, _ := d.Exec(`INSERT INTO users (email, is_admin) VALUES ('admin@example.com', 1)`)
 	adminID, _ := res.LastInsertId()

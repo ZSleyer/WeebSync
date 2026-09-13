@@ -5,12 +5,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -32,11 +31,7 @@ func linkFixture(t *testing.T) (*sql.DB, *http.ServeMux, *http.Cookie) {
 	}))
 	t.Cleanup(plexSrv.Close)
 
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	offline := func(userID, serverID int64) (remote.Client, string, error) {
 		return nil, "", errors.New("offline")
 	}

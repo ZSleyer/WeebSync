@@ -1,10 +1,9 @@
 package api
 
 import (
-	"path/filepath"
 	"testing"
 
-	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 // The cache exists to stop the hourly library index from re-running ffprobe
@@ -14,11 +13,7 @@ import (
 // stale answer would feed the upgrade suggestions a quality the files no
 // longer have.
 func TestProbeCacheHitsOnlyOnAnUnchangedFolder(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { d.Close() })
+	d := dbtest.Open(t)
 	s := &Server{DB: d}
 
 	want := FolderQuality{ResRank: 1080, Dub: []string{"jpn"}, Sub: []string{"ger"}, Soft: []string{"ger"}, Probed: probeMeasured}
