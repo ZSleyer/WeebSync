@@ -379,14 +379,24 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	if err := dst.Sync(); err != nil {
 		return err
 	}
+	// close before the rename, and mind the error. A network share (SMB, 9p,
+	// several FUSE mounts) refuses to rename a file that is still open, and a
+	// Close error left to the deferred call would be discarded - which is how
+	// a short file takes the final name and passes for complete.
+	if err := dst.Close(); err != nil {
+		return err
+	}
 	m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, transferred, d.ID)
 	// a dropped connection can surface as plain EOF (FTP data channel):
 	// never rename a short file into place as if it were complete
 	if transferred < size {
 		return fmt.Errorf("incomplete transfer: %d of %d bytes", transferred, size)
 	}
+	if err := local.Root.Rename(part, local.Name); err != nil {
+		return err
+	}
 	slog.Info("download complete", "id", d.ID, "size", size)
-	return local.Root.Rename(part, local.Name)
+	return nil
 }
 
 // ── public API used by handlers ─────────────────────────────
