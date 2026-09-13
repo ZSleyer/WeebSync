@@ -206,6 +206,43 @@ func TestEnqueuePicksBestVariantPerTarget(t *testing.T) {
 	}
 }
 
+// Two rows aimed at one local file destroy each other: both append into the
+// same .part, so the bytes interleave, and whichever finishes second finds its
+// .part already renamed away - a rename failure on a download that looked
+// complete, with a corrupt file to show for it. betterVariant settles that
+// inside a single check; across checks, servers and users only the queue can.
+func TestEnqueueSkipsATargetAlreadyQueued(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+
+	root := t.TempDir()
+	dial := func(userID, serverID int64) (remote.Client, string, error) {
+		return &stubClient{dir: "/x/Show", name: "ep01.mkv", size: 8}, "", nil
+	}
+	m := NewManager(d, dial, root)
+
+	// the same episode, already queued from a different remote path
+	d.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, status)
+		VALUES (1, 1, '/other/Show/ep01.mkv', ?, 8, 'queued')`,
+		filepath.Join(root, "Show", "ep01.mkv"))
+
+	if _, err := m.Enqueue(1, 1, "/x/Show", "Show", nil, nil, true, true, false); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM downloads`).Scan(&n)
+	if n != 1 {
+		t.Errorf("%d rows, want 1: the target is already spoken for", n)
+	}
+}
+
 // A refused rename is blocked by the file at the target name, not by the
 // directory: the directory took the whole download. The write probe cannot see
 // that - both of its probe files belong to us - so a check that only probed the

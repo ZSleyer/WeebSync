@@ -590,9 +590,18 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		// backoff is queued, so a watch check that comes around while a
 		// download is between attempts adds nothing - the existing row keeps
 		// its .part file and its attempt count.
+		//
+		// The local target counts as a duplicate too, no matter who queued it or
+		// where it comes from: two rows writing the same file append into one
+		// .part, so the bytes interleave and whichever finishes second finds its
+		// .part already renamed away. That surfaces as a rename failure on a
+		// download that looked complete, and the file left behind is garbage.
+		// betterVariant above only settles collisions inside a single check.
 		var existing int
-		m.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ? AND remote_path = ?
-			AND status IN ('queued','running','paused')`, userID, serverID, j.remote).Scan(&existing)
+		m.DB.QueryRow(`SELECT COUNT(*) FROM downloads
+			WHERE status IN ('queued','running','paused')
+			  AND ((user_id = ? AND server_id = ? AND remote_path = ?) OR local_path = ?)`,
+			userID, serverID, j.remote, local).Scan(&existing)
 		if existing > 0 {
 			continue
 		}
