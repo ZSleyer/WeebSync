@@ -37,9 +37,11 @@ function useContainerIdentity(): ContainerIdentity | undefined {
 export function FsErrorNote({ code, dir, className = '' }: { code: string; dir: string; className?: string }) {
   const { t } = useTranslation()
   const identity = useContainerIdentity()
-  // only a permission failure is about who we are; a full or read-only mount
-  // would be just as broken for any other user
-  const naming = code === 'permission_denied' && identity
+  // only an ownership failure is about who we are; a full or read-only mount
+  // would be just as broken for any other user. A refused rename belongs here
+  // too: the usual cause is an existing file owned by somebody else, and the
+  // UID is what says whose it has to become.
+  const naming = (code === 'permission_denied' || code === 'rename_failed') && identity
   return (
     <div className={`flex gap-2 rounded-md border border-err/40 px-3 py-2 text-xs ${className}`}>
       <TriangleAlert aria-hidden size="1em" className="mt-0.5 shrink-0 text-err" />
