@@ -318,6 +318,32 @@ func applyStreams(c *plex.Client, p plex.EpisodePart, audioLang, subPref string)
 	return miss, c.SetStreams(p.PartID, audioID, subID) == nil
 }
 
+// streamGroup is what a drain pass resolves ONE Plex show for. A watch's
+// downloads group by the watch. A one-off sync has no watch, so its rows group
+// by the folder they came from and the preference they carry - which is what a
+// watch would otherwise have supplied.
+type streamGroup struct {
+	watchID   int64 // 0 = one-off sync
+	serverID  int64
+	remoteDir string
+	localDir  string
+	audio     string
+	sub       string
+}
+
+// watch is the Watch the Plex lookup runs against: the stored one, or a
+// stand-in built from the group for a one-off sync. ok=false means the watch
+// was deleted under the queue.
+func (g streamGroup) watch(s *Server) (Watch, bool) {
+	if g.watchID != 0 {
+		return s.loadWatch(g.watchID)
+	}
+	return Watch{
+		ServerID: g.serverID, RemotePath: g.remoteDir, LocalPath: g.localDir,
+		PlexAudioLang: g.audio, PlexSubLang: g.sub,
+	}, true
+}
+
 // processPlexStreamQueue drains plex_stream_queue from the sweep: finished
 // downloads whose episode Plex has indexed get their streams selected; dead
 // downloads and expired entries are dropped, everything else retries next tick.
@@ -330,7 +356,9 @@ func (s *Server) processPlexStreamQueue() {
 	// The queue timestamp still wins when it is the later of the two: a filed
 	// pending episode is re-queued long after its download finished, and reading
 	// only updated_at would expire that row before its first attempt.
-	rows, err := s.DB.Query(`SELECT q.download_id, q.watch_id, MAX(IFNULL(d.updated_at, q.created_at), q.created_at), IFNULL(d.local_path, ''), IFNULL(d.status, '')
+	rows, err := s.DB.Query(`SELECT q.download_id, IFNULL(q.watch_id, 0), q.plex_audio_lang, q.plex_sub_lang,
+			MAX(IFNULL(d.updated_at, q.created_at), q.created_at),
+			IFNULL(d.server_id, 0), IFNULL(d.remote_path, ''), IFNULL(d.local_path, ''), IFNULL(d.status, '')
 		FROM plex_stream_queue q LEFT JOIN downloads d ON d.id = q.download_id`)
 	if err != nil {
 		return
@@ -340,12 +368,12 @@ func (s *Server) processPlexStreamQueue() {
 		localPath  string
 		age        time.Duration
 	}
-	pending := map[int64][]item{} // watch id -> done downloads awaiting Plex
+	pending := map[streamGroup][]item{} // one Plex show lookup per group
 	var drop []int64
 	for rows.Next() {
-		var dlID, watchID int64
-		var stamp, localPath, status string
-		if rows.Scan(&dlID, &watchID, &stamp, &localPath, &status) != nil {
+		var dlID, watchID, serverID int64
+		var audio, sub, stamp, remotePath, localPath, status string
+		if rows.Scan(&dlID, &watchID, &audio, &sub, &stamp, &serverID, &remotePath, &localPath, &status) != nil {
 			continue
 		}
 		age := time.Duration(math.MaxInt64) // unparseable timestamp counts as expired
@@ -359,7 +387,13 @@ func (s *Server) processPlexStreamQueue() {
 			slog.Warn("plex stream selection expired", "download", dlID, "watch", watchID)
 			drop = append(drop, dlID)
 		case status == "done":
-			pending[watchID] = append(pending[watchID], item{dlID, localPath, age})
+			g := streamGroup{watchID: watchID}
+			if watchID == 0 {
+				// a one-off sync: the row itself says what to select and the
+				// download says which folder it came from and landed in
+				g = streamGroup{serverID: serverID, remoteDir: path.Dir(remotePath), localDir: path.Dir(localPath), audio: audio, sub: sub}
+			}
+			pending[g] = append(pending[g], item{dlID, localPath, age})
 		}
 		// queued/running/paused: not our turn yet
 	}
@@ -374,14 +408,15 @@ func (s *Server) processPlexStreamQueue() {
 	if c == nil {
 		return // Plex unconfigured: keep entries, the give-up window bounds them
 	}
-	for watchID, items := range pending {
-		w, ok := s.loadWatch(watchID)
+	for g, items := range pending {
+		w, ok := g.watch(s)
 		if !ok {
 			for _, it := range items { // watch deleted: queue is orphaned
 				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
 			}
 			continue
 		}
+		watchID := g.watchID
 		byFile, ok := s.watchEpisodeParts(c, w)
 		if !ok {
 			continue // show not (yet) in Plex, retry next tick
@@ -430,7 +465,9 @@ func (s *Server) processPlexStreamQueue() {
 		for dir := range nudge {
 			s.plexRescan(dir)
 		}
-		if seen {
+		// the verdict is a column on the watch; a one-off sync has no row to
+		// carry it, and its outcome is in the log above
+		if seen && watchID != 0 {
 			s.setPlexStreamMiss(watchID, verdict)
 		}
 	}
