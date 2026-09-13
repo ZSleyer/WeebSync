@@ -70,16 +70,3 @@ func TestAnonymousBrowsing(t *testing.T) {
 		t.Error("an id that is not an id must be refused before it reaches the URL")
 	}
 }
-
-func TestSeriesID(t *testing.T) {
-	for u, want := range map[string]string{
-		"https://www.crunchyroll.com/series/GRGG9798R":                    "GRGG9798R",
-		"https://www.crunchyroll.com/de/series/GT00366791/oshi-no-ko":     "GT00366791",
-		"http://www.crunchyroll.com/one-piece":                            "",
-		"https://www.crunchyroll.com/de/watch/GE00345561DEDE/stay-by-her": "",
-	} {
-		if got := SeriesID(u); got != want {
-			t.Errorf("SeriesID(%q) = %q, want %q", u, got, want)
-		}
-	}
-}

@@ -74,3 +74,23 @@ func TestRecommendationsRoundTrip(t *testing.T) {
 		t.Fatalf("round trip lost fields: %+v", back)
 	}
 }
+
+func TestCrunchyrollID(t *testing.T) {
+	for url, want := range map[string]string{
+		"https://www.crunchyroll.com/series/GRGG9798R":                    "GRGG9798R",
+		"https://www.crunchyroll.com/de/series/GT00366791/oshi-no-ko":     "GT00366791",
+		"https://crunchyroll.com/series/GRGG9798R":                        "GRGG9798R",
+		"http://www.crunchyroll.com/one-piece":                            "",
+		"https://www.crunchyroll.com/de/watch/GE00345561DEDE/stay-by-her": "",
+		// anyone can edit an AniList entry, so a look-alike host and a link
+		// that only quotes the real one must not yield an id
+		"https://notcrunchyroll.com/series/GRGG9798R":                      "",
+		"https://evil.example/?u=https://crunchyroll.com/series/GRGG9798R": "",
+		"https://crunchyroll.com.evil.example/series/GRGG9798R":            "",
+	} {
+		m := &Media{ExternalLinks: []ExternalLink{{Site: "Crunchyroll", URL: url}}}
+		if got := m.CrunchyrollID(); got != want {
+			t.Errorf("CrunchyrollID(%q) = %q, want %q", url, got, want)
+		}
+	}
+}

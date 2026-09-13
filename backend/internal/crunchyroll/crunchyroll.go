@@ -263,14 +263,3 @@ func Locale(lang string) string {
 	}
 	return ""
 }
-
-var seriesRe = regexp.MustCompile(`crunchyroll\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?series/([A-Z0-9]{5,32})`)
-
-// SeriesID pulls the series id out of a Crunchyroll URL, "" when the link
-// names the show by slug only - as AniList's older links do.
-func SeriesID(u string) string {
-	if m := seriesRe.FindStringSubmatch(u); m != nil {
-		return m[1]
-	}
-	return ""
-}
