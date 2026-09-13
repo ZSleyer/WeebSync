@@ -791,14 +791,15 @@ const (
 	ErrCodePermissionDenied = "permission_denied" // no write permission on the target
 	ErrCodeDiskFull         = "disk_full"         // no space left on the target device
 	ErrCodeReadOnly         = "read_only"         // target mounted read-only
+	ErrCodeRenameFailed     = "rename_failed"     // the finished file cannot take its final name
 )
 
 // classifyError maps a transfer failure onto one of the error codes above.
 //
-// Matching goes exclusively through errors.Is: the message text of an
-// *fs.PathError is produced by the kernel and the Go runtime, differs between
-// platforms and wrappers, and would silently stop matching the day either
-// rewords it. errors.Is walks the wrap chain instead, so a target wrapped in
+// Matching goes exclusively through errors.Is and errors.As: the message text
+// of an *fs.PathError is produced by the kernel and the Go runtime, differs
+// between platforms and wrappers, and would silently stop matching the day
+// either rewords it. Both walk the wrap chain instead, so a target wrapped in
 // several layers still classifies.
 //
 // An unrecognized error yields "": the raw text is all we know, and inventing
@@ -807,23 +808,40 @@ func classifyError(err error) string {
 	switch {
 	case err == nil:
 		return ""
-	case errors.Is(err, fs.ErrPermission):
-		return ErrCodePermissionDenied
 	case errors.Is(err, syscall.ENOSPC):
 		return ErrCodeDiskFull
 	case errors.Is(err, syscall.EROFS):
 		return ErrCodeReadOnly
 	}
+	// A refused rename is its own cause and needs its own answer: the directory
+	// took every byte of the download, only the final swap was denied. Calling
+	// that "no write permission" sends the user after a permission bit that is
+	// already correct - the real reasons are a filesystem that cannot replace a
+	// file atomically (SMB, NFS, mergerfs) or a target file owned by someone
+	// else in a sticky directory.
+	//
+	// An *os.LinkError is the discriminator: nothing but the rename produces one
+	// on this path. EBUSY and ETXTBSY are deliberately left unclassified - a
+	// media server holding the target open lets go by itself, and an
+	// unclassified failure is the one that gets retried.
+	var link *os.LinkError
+	if errors.As(err, &link) && !errors.Is(err, syscall.EBUSY) && !errors.Is(err, syscall.ETXTBSY) {
+		return ErrCodeRenameFailed
+	}
+	if errors.Is(err, fs.ErrPermission) {
+		return ErrCodePermissionDenied
+	}
 	return ""
 }
 
 // RetryableCode reports whether a failure with this error code is worth queuing
-// again on its own. Permission, space and read-only failures are not: they last
-// until a human changes something on the host, and repeating them only buries
-// the real problem under identical entries. An unclassified failure (a dropped
-// connection, a short read) is retryable - those clear up by themselves.
+// again on its own. Permission, space, read-only and a refused rename are not:
+// they last until a human changes something on the host, and repeating them
+// only buries the real problem under identical entries. An unclassified failure
+// (a dropped connection, a short read, a target another process holds open) is
+// retryable - those clear up by themselves.
 func RetryableCode(code string) bool {
-	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly}, code)
+	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed}, code)
 }
 
 // CheckWritable reports whether a file can be created in dir, as the classified

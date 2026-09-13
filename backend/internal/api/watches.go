@@ -1340,7 +1340,7 @@ func missingEpisodes(nums map[int]bool) []int {
 // error message.
 type WriteCheckError struct {
 	Error     string `json:"error"`
-	ErrorCode string `json:"errorCode,omitempty"` // permission_denied | disk_full | read_only
+	ErrorCode string `json:"errorCode,omitempty"` // permission_denied | disk_full | read_only | rename_failed
 	Path      string `json:"path,omitempty"`      // the directory that refused the write
 }
 
