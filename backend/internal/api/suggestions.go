@@ -104,6 +104,9 @@ type sugAcc struct {
 	byKey  map[string]*SugItem
 	order  []string
 	locale string // the user's language, for the why line
+	// defaults are the user's auto-sync defaults, so a sync plan is named the
+	// way an auto-sync of the same media kind would name it
+	defaults WatchDefaults
 }
 
 func newAcc() *sugAcc { return &sugAcc{byKey: map[string]*SugItem{}} }
@@ -541,6 +544,7 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	inc := newAcc()
 
 	inc.locale = locale
+	inc.defaults = s.watchDefaultsFor(userID)
 	s.addMissingUnits(inc)
 	s.addMissingEpisodes(inc)
 	s.addIncomplete(userID, inc, bySrc, bySeries)

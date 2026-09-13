@@ -1673,6 +1673,7 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind, ref, title, 
 		}
 		p.Title, p.Info, p.Unverified = up.Title, info, unverified
 		p.Fields.LocalPath, p.Fields.Template, p.Fields.Subfolder = up.Sync.LocalPath, up.Sync.Template, up.Sync.Subfolder
+		p.Fields.Separator = up.Sync.Separator
 		p.Fields.ReplaceOld = up.Sync.Replace
 		p.Fields.TitleOverride = up.Title
 		return done()
@@ -1696,6 +1697,7 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind, ref, title, 
 				p.Fields.TitleOverride = it.Title
 				if it.Sync.LocalPath != "" {
 					p.Fields.LocalPath, p.Fields.Template, p.Fields.Subfolder = it.Sync.LocalPath, it.Sync.Template, it.Sync.Subfolder
+					p.Fields.Separator = it.Sync.Separator
 				}
 				if it.Need > 0 {
 					p.Info = append(p.Info, fmt.Sprintf("%d of %d episodes present locally", it.Have, it.Need))

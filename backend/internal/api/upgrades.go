@@ -51,24 +51,54 @@ func seasonFolderName(siblingBase string, season int) string {
 	return fmt.Sprintf("Season%s%02d", sep, season)
 }
 
-// episodeTemplate is the rename template for a series season: the season number
-// is fixed (files may be absolute-numbered remotely), the episode comes from the
-// file. {title} is filled from the title override.
+// episodeTemplate is the built-in rename template for a series season: the
+// season number is fixed (files may be absolute-numbered remotely), the episode
+// comes from the file. {title} is filled from the title override. It is the
+// fallback for a user who configured no template of their own.
 func episodeTemplate(season int) string {
 	return fmt.Sprintf("{title} - S%02dE{episode:02}", season)
+}
+
+// syncNaming is how a one-off sync names its files: the template and the space
+// replacement. It comes from the user's auto-sync defaults for the unit's media
+// kind, so the copy an upgrade writes is named exactly like the ones an
+// auto-sync writes - before this the plan always dictated the built-in
+// template and a saved default was only ever applied to what it left blank.
+//
+// The zero value means "no default configured" and yields the built-in naming.
+type syncNaming struct {
+	Template  string
+	Separator string
+}
+
+// episodes is the template for one season of a series, season pinned so a
+// remote absolute numbering still files as this season.
+func (n syncNaming) episodes(season int) string {
+	if n.Template == "" {
+		return episodeTemplate(season)
+	}
+	return pinSeason(n.Template, season)
+}
+
+// movie is the template for a film; the built-in names the file after the title.
+func (n syncNaming) movie() string {
+	if n.Template == "" {
+		return "{title}"
+	}
+	return n.Template
 }
 
 // existingSyncPlan targets the folder a copy ALREADY lives in (an upgrade): the
 // existing season dir for a series, the movie's own dir for a movie. Empty when
 // the local path is not a shared mount here (a "plex:" fallback key).
-func existingSyncPlan(localDir string, season int, isMovie bool) SyncPlan {
+func existingSyncPlan(n syncNaming, localDir string, season int, isMovie bool) SyncPlan {
 	if !strings.HasPrefix(localDir, "/") {
 		return SyncPlan{}
 	}
 	if isMovie {
-		return SyncPlan{LocalPath: localDir, Template: "{title}"}
+		return SyncPlan{LocalPath: localDir, Template: n.movie(), Separator: n.Separator}
 	}
-	return SyncPlan{LocalPath: localDir, Template: episodeTemplate(season)}
+	return SyncPlan{LocalPath: localDir, Template: n.episodes(season), Separator: n.Separator}
 }
 
 // missingSyncPlan targets a season/movie the library does NOT have yet, using a
@@ -81,7 +111,7 @@ func existingSyncPlan(localDir string, season int, isMovie bool) SyncPlan {
 // prefix it only materialised when renaming was switched on, so a plain sync
 // dropped the episodes straight into the show root; and the dialog could not
 // name the folder it was about to create.
-func missingSyncPlan(siblingDir string, season int, isMovie bool) SyncPlan {
+func missingSyncPlan(n syncNaming, siblingDir string, season int, isMovie bool) SyncPlan {
 	if !strings.HasPrefix(siblingDir, "/") {
 		return SyncPlan{}
 	}
@@ -90,17 +120,22 @@ func missingSyncPlan(siblingDir string, season int, isMovie bool) SyncPlan {
 		// Give the new movie its OWN subfolder, never another movie's folder.
 		// This one stays in the template: the folder is named after {title}, and
 		// only the rename engine sanitises a title into a safe path segment.
-		return SyncPlan{LocalPath: filepath.Dir(siblingDir), Template: "{title}/{title}"}
+		return SyncPlan{LocalPath: filepath.Dir(siblingDir), Template: "{title}/" + n.movie(), Separator: n.Separator}
 	}
+	tmpl := n.episodes(season)
 	base := filepath.Base(siblingDir)
 	showRoot := siblingDir // flat library: the sibling IS the show folder
 	if plexSeasonDirRe.MatchString(base) {
 		showRoot = filepath.Dir(siblingDir) // sibling is a Season folder → show root is its parent
 	}
-	return SyncPlan{
-		LocalPath: filepath.Join(showRoot, seasonFolderName(base, season)),
-		Template:  episodeTemplate(season),
+	local := showRoot
+	// a template that lays out folders itself owns the season; adding one here
+	// too would nest Season under Season (seasonInPath says the same thing for
+	// the dialog)
+	if seasonInPath(tmpl, false) {
+		local = filepath.Join(showRoot, seasonFolderName(base, season))
 	}
+	return SyncPlan{LocalPath: local, Template: tmpl, Separator: n.Separator}
 }
 
 // comparable reports whether a copy says anything about its own quality. A row
@@ -445,7 +480,10 @@ func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
 type SyncPlan struct {
 	LocalPath string `json:"localPath"`          // base dir to sync into
 	Template  string `json:"template,omitempty"` // rename template (may carry a "Season NN/" or "{title}/" subfolder)
-	Subfolder bool   `json:"subfolder"`          // false: the template controls the folder structure
+	// Separator replaces spaces in the rendered name; "" keeps them. Part of
+	// the plan because it belongs to the template it was configured with.
+	Separator string `json:"separator,omitempty"`
+	Subfolder bool   `json:"subfolder"` // false: the template controls the folder structure
 	// Replace: the copy this sync improves on is trashed once the new file is
 	// in place (upgrades only; a missing episode has nothing to replace).
 	Replace bool `json:"replace,omitempty"`
@@ -551,6 +589,7 @@ func (s *Server) handleUpgrades(w http.ResponseWriter, r *http.Request) {
 func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	dims := s.upgradeDimsFor(userID)
 	locale := s.userLocale(userID)
+	defaults := s.watchDefaultsFor(userID)
 	units := s.loadUnits()
 	enrich := s.unitEnrichIndex()
 	localsByShow := localSeasonsByShow(units)
@@ -615,6 +654,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 				}
 			}
 		}
+		category := categorize(e.providers, catMedia, "", kind)
 		up := UpgradeSuggestion{
 			Key: key, SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
 			Title: unitTitle(e.title, e.exact, top.Folder), From: cur, To: top, Options: u.remotes,
@@ -622,9 +662,11 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			LanguageUnverified: langUnverified,
 			Providers:          e.providers, Links: e.links,
 			Cover: e.cover, Format: e.format, Episodes: e.episodes,
-			Category: categorize(e.providers, catMedia, "", kind),
+			Category: category,
 			Library:  lib,
-			Sync:     existingSyncPlan(cur.Folder, u.season, u.isMovie), // sync into the existing local season/movie folder
+			// sync into the existing local season/movie folder, named the way
+			// the user's auto-sync defaults for this kind name it
+			Sync: existingSyncPlan(defaults.naming(category), cur.Folder, u.season, u.isMovie),
 
 			LocalSeasons: localsByShow[showScope(u.showKey, u.isMovie)],
 		}
@@ -751,13 +793,14 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 		if kind == "" {
 			kind = ownedKind[sc]
 		}
+		category := categorize(e.providers, media, "", kind)
 		acc.add(SugItem{
 			RefKey: key, Kind: "season", SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season, IsMovie: u.isMovie,
-			Category: categorize(e.providers, media, "", kind),
+			Category: category,
 			Title:    title, Cover: e.cover, Media: media,
 			Providers: e.providers, Links: e.links, Candidates: cands,
 			Library: s.plexLibraryOf(ownedDir[sc]),
-			Sync:    missingSyncPlan(ownedDir[sc], u.season, u.isMovie),
+			Sync:    missingSyncPlan(acc.defaults.naming(category), ownedDir[sc], u.season, u.isMovie),
 			Why:     whyMissingUnit(acc.locale, u, localsOfShow[sc]),
 		})
 	}
@@ -850,14 +893,15 @@ func (s *Server) addMissingEpisodes(acc *sugAcc) {
 		if kind == "" {
 			kind = u.libKind
 		}
+		category := categorize(e.providers, media, "", kind)
 		acc.add(SugItem{
 			RefKey: "eps:" + key, Kind: "episodes", SeriesID: e.seriesID, ShowKey: u.showKey, Season: u.season,
-			Category: categorize(e.providers, media, "", kind),
+			Category: category,
 			Title:    title, Cover: e.cover, Media: media,
 			Providers: e.providers, Links: e.links, Candidates: cands,
 			Have: len(have), Need: need, Missing: nums,
 			Library: s.plexLibraryOf(local.Folder),
-			Sync:    existingSyncPlan(local.Folder, u.season, false),
+			Sync:    existingSyncPlan(acc.defaults.naming(category), local.Folder, u.season, false),
 			Why:     tr(acc.locale, "why.episodes", len(have), need, cands[0].ServerName, epRanges(nums)),
 		})
 		if n++; n >= 200 {

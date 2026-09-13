@@ -25,34 +25,34 @@ func TestSeasonFolderName(t *testing.T) {
 
 func TestExistingSyncPlan(t *testing.T) {
 	// series: into the existing season dir, template carries the fixed season
-	p := existingSyncPlan("/media/plex/Show/Season 03", 3, false)
+	p := existingSyncPlan(syncNaming{}, "/media/plex/Show/Season 03", 3, false)
 	if p.LocalPath != "/media/plex/Show/Season 03" || p.Template != "{title} - S03E{episode:02}" {
 		t.Fatalf("series existing: %+v", p)
 	}
 	// movie: into its own existing folder
-	p = existingSyncPlan("/media/plex/Movies/Film (2020)", 0, true)
+	p = existingSyncPlan(syncNaming{}, "/media/plex/Movies/Film (2020)", 0, true)
 	if p.LocalPath != "/media/plex/Movies/Film (2020)" || p.Template != "{title}" {
 		t.Fatalf("movie existing: %+v", p)
 	}
 	// unresolved (plex: fallback key) -> empty plan, UI hides the button
-	if p := existingSyncPlan("plex:123:s3", 3, false); p.LocalPath != "" {
+	if p := existingSyncPlan(syncNaming{}, "plex:123:s3", 3, false); p.LocalPath != "" {
 		t.Fatalf("fallback should be empty: %+v", p)
 	}
 }
 
 func TestMissingSyncPlan(t *testing.T) {
 	// missing series season: sibling is a Season folder -> new Season under show root
-	p := missingSyncPlan("/media/plex/Show/Season 01", 3, false)
+	p := missingSyncPlan(syncNaming{}, "/media/plex/Show/Season 01", 3, false)
 	if p.LocalPath != "/media/plex/Show/Season 03" || p.Template != "{title} - S03E{episode:02}" {
 		t.Fatalf("missing season (season sibling): %+v", p)
 	}
 	// flat library: sibling IS the show folder -> Season under it
-	p = missingSyncPlan("/media/plex/Show", 2, false)
+	p = missingSyncPlan(syncNaming{}, "/media/plex/Show", 2, false)
 	if p.LocalPath != "/media/plex/Show/Season 02" || p.Template != "{title} - S02E{episode:02}" {
 		t.Fatalf("missing season (flat): %+v", p)
 	}
 	// unpadded sibling: the new folder mirrors it, in the path
-	if p := missingSyncPlan("/media/plex/Show/Season 1", 3, false); p.LocalPath != "/media/plex/Show/Season 3" {
+	if p := missingSyncPlan(syncNaming{}, "/media/plex/Show/Season 1", 3, false); p.LocalPath != "/media/plex/Show/Season 3" {
 		t.Fatalf("missing season (unpadded sibling): %+v", p)
 	}
 	// the season must never sit in the template again: there it only applied
@@ -61,9 +61,38 @@ func TestMissingSyncPlan(t *testing.T) {
 		t.Fatalf("series template carries a folder: %q", p.Template)
 	}
 	// missing movie: OWN subfolder under the movie library root, never a sibling's folder
-	p = missingSyncPlan("/media/plex/Movies/Other Film (2019)", 0, true)
+	p = missingSyncPlan(syncNaming{}, "/media/plex/Movies/Other Film (2019)", 0, true)
 	if p.LocalPath != "/media/plex/Movies" || p.Template != "{title}/{title}" {
 		t.Fatalf("missing movie: %+v", p)
+	}
+}
+
+// The user's auto-sync default names the files, not the built-in template: an
+// upgrade writes into a library the auto-sync already fills, and two naming
+// schemes in one season folder is how an episode ends up there twice.
+func TestSyncPlanUsesConfiguredNaming(t *testing.T) {
+	n := syncNaming{Template: "{title} S{season:02}E{episode:02}", Separator: "_"}
+	p := existingSyncPlan(n, "/media/plex/Show/Season 03", 3, false)
+	if p.Template != "{title} S03E{episode:02}" || p.Separator != "_" {
+		t.Fatalf("season not pinned into the configured template: %+v", p)
+	}
+	// a movie keeps the configured template as-is, and a missing one still
+	// gets its own folder in front of it
+	if p := existingSyncPlan(syncNaming{Template: "{title} ({year})"}, "/media/plex/Movies/Film", 0, true); p.Template != "{title} ({year})" {
+		t.Fatalf("movie template: %+v", p)
+	}
+	if p := missingSyncPlan(syncNaming{Template: "{title} ({year})"}, "/media/plex/Movies/Other", 0, true); p.Template != "{title}/{title} ({year})" {
+		t.Fatalf("missing movie template: %+v", p)
+	}
+	// a template that lays out folders itself owns the season; the path must
+	// not add a second Season level under it
+	p = missingSyncPlan(syncNaming{Template: "Season {season:02}/{title} - {episode:02}"}, "/media/plex/Show/Season 01", 3, false)
+	if p.LocalPath != "/media/plex/Show" || p.Template != "Season 03/{title} - {episode:02}" {
+		t.Fatalf("template owning the folders: %+v", p)
+	}
+	// nothing configured: the built-in naming, unchanged
+	if p := existingSyncPlan(syncNaming{}, "/media/plex/Show/Season 03", 3, false); p.Template != "{title} - S03E{episode:02}" || p.Separator != "" {
+		t.Fatalf("built-in fallback: %+v", p)
 	}
 }
 
