@@ -1450,6 +1450,10 @@
     "read_only": {
       "what": "{{path}} ist schreibgeschützt eingehängt.",
       "fix": "Binde das Verzeichnis mit Schreibrechten ein, in Docker also ohne :ro, und starte den Container neu."
+    },
+    "rename_failed": {
+      "what": "Der Download ist fertig, die Datei konnte ihren endgültigen Namen in {{path}} aber nicht annehmen.",
+      "fix": "Das Ziel nimmt neue Dateien an, weigert sich aber, eine vorhandene zu ersetzen - typisch für eine Netzfreigabe oder einen zusammengesetzten Mount (SMB, NFS, mergerfs) und für ein Verzeichnis mit Sticky-Bit, in dem die vorhandene Folge jemand anderem gehört. Lege das Ziel auf ein lokales Dateisystem oder übertrage die vorhandene Datei an die UID, unter der WeebSync schreibt."
     }
   },
   "jobs": {

@@ -1450,6 +1450,10 @@
     "read_only": {
       "what": "{{path}} is mounted read-only.",
       "fix": "Mount the directory writable, in Docker without :ro, and restart the container."
+    },
+    "rename_failed": {
+      "what": "The download finished, but the file could not take its final name in {{path}}.",
+      "fix": "The target accepts new files yet refuses to replace an existing one - typical for a network share or a merged mount (SMB, NFS, mergerfs), and for a directory with the sticky bit holding a copy of the episode that belongs to someone else. Put the target on a local filesystem, or hand the existing file to the UID WeebSync writes as."
     }
   },
   "jobs": {

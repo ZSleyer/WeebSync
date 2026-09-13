@@ -67,9 +67,9 @@ export interface Entry {
 
 // Filesystem failures the backend classifies. Anything it did not recognize
 // arrives as '' and stays a raw error string.
-export type FsErrorCode = 'permission_denied' | 'disk_full' | 'read_only'
+export type FsErrorCode = 'permission_denied' | 'disk_full' | 'read_only' | 'rename_failed'
 
-export const FS_ERROR_CODES: readonly string[] = ['permission_denied', 'disk_full', 'read_only']
+export const FS_ERROR_CODES: readonly string[] = ['permission_denied', 'disk_full', 'read_only', 'rename_failed']
 
 // Identity the container writes files as. A "permission denied" on a mounted
 // media directory is only fixable once the user knows which UID to grant.
