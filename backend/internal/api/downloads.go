@@ -153,6 +153,16 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	// "like auto-sync, just once" has to include the last step of it: a Plex
+	// playback preference queues every new download for the post-index stream
+	// selection. There is no watch to read the preference back from, so the
+	// queue row carries it.
+	if in.PlexAudioLang != "" || in.PlexSubLang != "" {
+		for _, dl := range res.IDs {
+			s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, plex_audio_lang, plex_sub_lang) VALUES (?, ?, ?)`,
+				dl, in.PlexAudioLang, in.PlexSubLang)
+		}
+	}
 	writeJSON(w, http.StatusCreated, enqueueResponse(res))
 }
 
