@@ -652,12 +652,28 @@ func logSafe(s string) string {
 // retry can fix and that reason still holds. probed caches the per-directory
 // answer for the duration of one Enqueue, so a season folder costs one probe.
 func (m *Manager) blocked(userID, serverID int64, remotePath, dir string, probed map[string]string) bool {
-	var code string
-	m.DB.QueryRow(`SELECT error_code FROM downloads
+	var code, localPath string
+	m.DB.QueryRow(`SELECT error_code, local_path FROM downloads
 		WHERE user_id = ? AND server_id = ? AND remote_path = ? AND status = 'error'
-		ORDER BY id DESC LIMIT 1`, userID, serverID, remotePath).Scan(&code)
+		ORDER BY id DESC LIMIT 1`, userID, serverID, remotePath).Scan(&code, &localPath)
 	if RetryableCode(code) {
 		return false
+	}
+	// A refused rename asks a different question than a refused write. The
+	// directory is demonstrably fine - it took the whole download - and the
+	// probe below only sees refusals the filesystem makes for every file. What
+	// stops this one file is usually what already sits at the target name: a
+	// copy owned by somebody else in a sticky directory, or one a media server
+	// holds open. So the target itself is the condition: while it is there the
+	// rename fails again, and the moment it is gone the next check tries anew.
+	if code == ErrCodeRenameFailed {
+		if local, err := OpenLocal(m.roots(), localPath); err == nil {
+			_, serr := local.Root.Stat(local.Name)
+			local.Close()
+			if serr == nil {
+				return true
+			}
+		}
 	}
 	still, ok := probed[dir]
 	if !ok {
@@ -844,31 +860,50 @@ func RetryableCode(code string) bool {
 	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed}, code)
 }
 
-// CheckWritable reports whether a file can be created in dir, as the classified
-// reason why not ("" when it can). It writes and removes a probe file rather
-// than reading the mode bits: an ACL, a read-only mount or a full device all
-// deny a write the bits appear to allow, and those are exactly the failures
-// worth naming. A missing directory is created, which is what the first
-// transfer into it would do anyway.
-func CheckWritable(dir string) (string, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return classifyError(err), err
-	}
-	f, err := os.CreateTemp(dir, ".weebsync-probe-*")
-	if err != nil {
-		return classifyError(err), err
-	}
-	name := f.Name()
-	f.Close()
-	os.Remove(name)
-	return "", nil
-}
-
-// CheckWritableAt is CheckWritable through an os.Root confinement boundary.
+// CheckWritableAt reports whether a download can finish in local.Name, as the
+// classified reason why not ("" when it can). It performs the two filesystem
+// operations a transfer really ends with rather than reading the mode bits: an
+// ACL, a read-only mount or a full device all deny a write the bits appear to
+// allow, and those are exactly the failures worth naming. A missing directory
+// is created, which is what the first transfer into it would do anyway.
+//
+// The second operation is the one that used to be missing. Creating a file and
+// replacing a file are not the same operation on every filesystem: a share
+// (SMB, NFS) or a union mount (mergerfs) accepts the create and refuses the
+// rename. Probing only the create declared such a target healthy, so every
+// episode was downloaded in full before failing on its last step - and queued
+// again at the next check, because the probe kept saying the directory was
+// fine.
+//
+// Both probe files belong to us, so this sees a filesystem that cannot replace
+// a file at all. It cannot see a single target refusing to be replaced because
+// it belongs to somebody else - blocked() answers that one by looking at the
+// target itself.
 func CheckWritableAt(local *LocalPath) (string, error) {
 	if err := local.Root.MkdirAll(local.Name, 0o755); err != nil {
 		return classifyError(err), err
 	}
+	probe, err := probeFileAt(local)
+	if err != nil {
+		return classifyError(err), err
+	}
+	target, err := probeFileAt(local)
+	if err != nil {
+		local.Root.Remove(probe)
+		return classifyError(err), err
+	}
+	if err := local.Root.Rename(probe, target); err != nil {
+		local.Root.Remove(probe)
+		local.Root.Remove(target)
+		return classifyError(err), err
+	}
+	local.Root.Remove(target)
+	return "", nil
+}
+
+// probeFileAt creates an empty, uniquely named probe file in local.Name and
+// returns its root-relative path.
+func probeFileAt(local *LocalPath) (string, error) {
 	raw := make([]byte, 8)
 	if _, err := rand.Read(raw); err != nil {
 		return "", err
@@ -876,11 +911,13 @@ func CheckWritableAt(local *LocalPath) (string, error) {
 	name := filepath.Join(local.Name, ".weebsync-probe-"+hex.EncodeToString(raw))
 	f, err := local.Root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
-		return classifyError(err), err
+		return "", err
 	}
-	f.Close()
-	local.Root.Remove(name)
-	return "", nil
+	if err := f.Close(); err != nil {
+		local.Root.Remove(name)
+		return "", err
+	}
+	return name, nil
 }
 
 // Retry pacing: the wait doubles with every failed attempt and holds at

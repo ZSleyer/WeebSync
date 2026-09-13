@@ -112,3 +112,53 @@ func TestClassifyRenameFailure(t *testing.T) {
 		t.Error("a busy target must stay retryable")
 	}
 }
+
+// The probe now performs two operations, and every failure path has to clean up
+// after itself: a probe file left in a media directory is one the user finds
+// and wonders about.
+func TestCheckWritableAtLeavesNothingBehind(t *testing.T) {
+	root := t.TempDir()
+	local, err := OpenLocal([]string{root}, filepath.Join(root, "Show"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer local.Close()
+
+	if code, err := CheckWritableAt(local); code != "" || err != nil {
+		t.Fatalf("CheckWritableAt = %q, %v; want the directory to pass", code, err)
+	}
+	entries, err := os.ReadDir(filepath.Join(root, "Show"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		t.Errorf("probe left %v behind", names)
+	}
+}
+
+// The probe has to keep naming the failure it always named: a directory that
+// refuses the create never gets as far as the rename.
+func TestCheckWritableAtUnwritableDirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: mode bits do not deny access")
+	}
+	root := t.TempDir()
+	dir := filepath.Join(root, "Show")
+	if err := os.Mkdir(dir, 0o500); err != nil { // r-x: listable, not writable
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+
+	local, err := OpenLocal([]string{root}, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer local.Close()
+	if code, _ := CheckWritableAt(local); code != ErrCodePermissionDenied {
+		t.Errorf("CheckWritableAt = %q, want %q", code, ErrCodePermissionDenied)
+	}
+}
