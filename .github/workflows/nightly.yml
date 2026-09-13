@@ -6,7 +6,10 @@ name: nightly
 # the slow one for anyone who wants at most one update a day.
 on:
   schedule:
-    - cron: "0 3 * * *"
+    # 21:53 UTC, not 01:00: GitHub fires scheduled runs late - 45 min to 5 h in
+    # this repo, median ~3 h - so aim early and off the top of the hour. Lands
+    # near 03:00 German time, an hour earlier in winter (cron is UTC, no DST).
+    - cron: "53 21 * * *"
   workflow_dispatch:
 
 permissions:
