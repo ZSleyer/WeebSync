@@ -259,6 +259,22 @@ type digestItem struct {
 	serverID   int64
 	remotePath string
 	note       string // error message for failed downloads
+	// code is the classified reason behind note, when there is one. The note
+	// itself is raw Go text in the language of the kernel; a code the catalog
+	// knows becomes a sentence in the reader's language instead.
+	code string
+}
+
+// reason is what a failed item says about itself, in the reader's language
+// where that is possible. A classified failure has a sentence in the catalog;
+// anything else keeps the raw text, which at least names something.
+func (it digestItem) reason(locale string) string {
+	if key := "fsError." + it.code; it.code != "" {
+		if s := tr(locale, key); s != key {
+			return s
+		}
+	}
+	return it.note
 }
 
 // NotifyDownload buffers a finished/failed download and flushes one combined
@@ -266,14 +282,14 @@ type digestItem struct {
 // catalog match of the file's folder) with cover images, and as a single push.
 // Both senders share this one collector: a folder sync must not fire one mail
 // (or one push) per episode.
-func (s *Server) NotifyDownload(userID int64, category string, serverID int64, remotePath, note string) {
+func (s *Server) NotifyDownload(userID int64, category string, serverID int64, remotePath, note, code string) {
 	key := fmt.Sprintf("%d|%s", userID, category)
 	s.digestMu.Lock()
 	if s.digest == nil {
 		s.digest = map[string][]digestItem{}
 		s.digestTimer = map[string]*time.Timer{}
 	}
-	s.digest[key] = append(s.digest[key], digestItem{serverID, remotePath, note})
+	s.digest[key] = append(s.digest[key], digestItem{serverID, remotePath, note, code})
 	// every new item pushes the flush back, so a running sync keeps the
 	// notification held until it goes quiet
 	if t := s.digestTimer[key]; t != nil {
@@ -369,9 +385,17 @@ func (s *Server) pushDigest(userID int64, category, locale string, items []diges
 		}
 		names = append(names, path.Base(it.remotePath))
 	}
+	body := strings.Join(names, ", ")
+	// one failed file has room for its reason; a batch does not, and the file
+	// names are what tells the reader whether this needs them now
+	if !done && len(items) == 1 {
+		if reason := items[0].reason(locale); reason != "" {
+			body += " - " + reason
+		}
+	}
 	s.Push.Notify(userID, push.Notification{
 		Title: title,
-		Body:  strings.Join(names, ", "),
+		Body:  body,
 		Tag:   category, // finished and failed collapse separately
 		URL:   "/",
 	})
@@ -408,8 +432,8 @@ func (s *Server) renderDigest(locale, intro string, items []digestItem) (text, c
 			order = append(order, gk)
 		}
 		name := path.Base(it.remotePath)
-		if it.note != "" {
-			name += ": " + it.note
+		if reason := it.reason(locale); reason != "" {
+			name += ": " + reason
 		}
 		g.names = append(g.names, oneLine(name))
 	}
@@ -483,9 +507,9 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 // localized to the owner's stored locale. Wired as transfer.OnFinished.
 func (s *Server) NotifyDownloadFinished(d *transfer.Download) {
 	if d.Status == "done" {
-		s.NotifyDownload(d.UserID, "download_done", d.ServerID, d.RemotePath, "")
+		s.NotifyDownload(d.UserID, "download_done", d.ServerID, d.RemotePath, "", "")
 	} else {
-		s.NotifyDownload(d.UserID, "download_failed", d.ServerID, d.RemotePath, d.Error)
+		s.NotifyDownload(d.UserID, "download_failed", d.ServerID, d.RemotePath, d.Error, d.ErrorCode)
 	}
 }
 

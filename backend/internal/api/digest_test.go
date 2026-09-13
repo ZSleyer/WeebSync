@@ -9,6 +9,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/push"
 	"github.com/ch4d1/weebsync/internal/secret"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // digestTestServer gives a Server with a real schema and a push service, so
@@ -71,7 +72,7 @@ func TestFlushDigestWaitsForQueue(t *testing.T) {
 	defer swapQuiet(t, 20*time.Millisecond)()
 
 	insertDownload(t, s, "running")
-	s.NotifyDownload(1, "download_done", 1, "/one.mkv", "")
+	s.NotifyDownload(1, "download_done", 1, "/one.mkv", "", "")
 
 	// several quiet periods pass while the queue is still busy
 	time.Sleep(120 * time.Millisecond)
@@ -101,7 +102,7 @@ func TestNotifyDownloadDebounces(t *testing.T) {
 
 	const key = "1|download_done"
 	for i := 0; i < 4; i++ {
-		s.NotifyDownload(1, "download_done", 1, "/ep.mkv", "")
+		s.NotifyDownload(1, "download_done", 1, "/ep.mkv", "", "")
 		time.Sleep(40 * time.Millisecond) // shorter than the quiet period
 	}
 	// 160ms elapsed, well past one quiet period, but each item pushed it back
@@ -143,4 +144,68 @@ func waitFor(t *testing.T, limit time.Duration, cond func() bool, msg string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal(msg)
+}
+
+// The raw text of a failed download is a Go error written by the kernel:
+// "renameat Show/ep01.mkv.part Show/ep01.mkv: permission denied". It named an
+// operation rather than a cause, and it reached the reader untranslated in
+// both the mail and the push. A classified failure has to arrive as a sentence
+// instead - and an unclassified one must keep its text, which at least names
+// something.
+func TestDigestItemReason(t *testing.T) {
+	raw := "renameat Show/ep01.mkv.part Show/ep01.mkv: permission denied"
+	classified := digestItem{note: raw, code: transfer.ErrCodeRenameFailed}
+
+	for _, locale := range []string{"en", "de"} {
+		got := classified.reason(locale)
+		if got == raw || got == "" {
+			t.Errorf("reason(%q) = %q, want a sentence in place of the raw error", locale, got)
+		}
+		if got == "fsError."+transfer.ErrCodeRenameFailed {
+			t.Errorf("reason(%q) fell through to the bare catalog key", locale)
+		}
+	}
+	// every code the transfer package classifies needs a sentence in every
+	// language, or the mail silently goes back to raw Go text for it
+	for _, code := range []string{
+		transfer.ErrCodePermissionDenied,
+		transfer.ErrCodeDiskFull,
+		transfer.ErrCodeReadOnly,
+		transfer.ErrCodeRenameFailed,
+	} {
+		entry := catalog["fsError."+code]
+		for _, locale := range []string{"en", "de"} {
+			if entry[locale] == "" {
+				t.Errorf("fsError.%s has no %s sentence", code, locale)
+			}
+		}
+	}
+
+	// a failure nobody classified keeps what it has
+	unknown := digestItem{note: "connection reset by peer"}
+	if got := unknown.reason("de"); got != "connection reset by peer" {
+		t.Errorf("unclassified reason = %q, want the raw text", got)
+	}
+}
+
+// The code has to survive the trip from the download into the collector, or
+// the sentence above never gets a chance to replace anything.
+func TestNotifyDownloadFinishedCarriesTheCode(t *testing.T) {
+	s := digestTestServer(t)
+	defer swapQuiet(t, time.Hour)() // long enough that nothing flushes
+
+	s.NotifyDownloadFinished(&transfer.Download{
+		UserID: 1, ServerID: 1, RemotePath: "/Show/ep01.mkv", Status: "error",
+		Error: "renameat ...: permission denied", ErrorCode: transfer.ErrCodeRenameFailed,
+	})
+
+	s.digestMu.Lock()
+	items := s.digest["1|download_failed"]
+	s.digestMu.Unlock()
+	if len(items) != 1 {
+		t.Fatalf("%d items collected, want 1", len(items))
+	}
+	if items[0].code != transfer.ErrCodeRenameFailed {
+		t.Errorf("code %q, want %q", items[0].code, transfer.ErrCodeRenameFailed)
+	}
 }
