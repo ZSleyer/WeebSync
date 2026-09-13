@@ -129,6 +129,25 @@ var catalog = map[string]map[string]string{
 	"why.dupSeason": {"en": "season", "de": "Staffel"},
 	"why.dupFilm":   {"en": "film", "de": "Film"},
 	"why.dupep":     {"en": "Episode %s is in this folder more than once, as different files (the parts of a split episode count once).", "de": "Folge %s liegt mehrfach in diesem Ordner, als verschiedene Dateien (die Teile einer geteilten Folge zählen einmal)."},
+	// One sentence per classified filesystem failure, for the mail and the push
+	// that reach a reader who is not looking at the dashboard. What to change is
+	// spelled out there; here it only has to stop being raw Go text.
+	"fsError.permission_denied": {
+		"en": "no write permission on the target directory",
+		"de": "keine Schreibrechte auf dem Zielverzeichnis",
+	},
+	"fsError.disk_full": {
+		"en": "no space left on the target drive",
+		"de": "kein Speicherplatz mehr auf dem Ziellaufwerk",
+	},
+	"fsError.read_only": {
+		"en": "the target directory is mounted read-only",
+		"de": "das Zielverzeichnis ist schreibgeschützt eingehängt",
+	},
+	"fsError.rename_failed": {
+		"en": "downloaded in full, but the target refuses to be replaced (a network share, a merged mount, or a copy that belongs to someone else)",
+		"de": "vollständig geladen, aber das Ziel lässt sich nicht ersetzen (Netzfreigabe, zusammengesetzter Mount oder eine Kopie, die jemand anderem gehört)",
+	},
 	"folder.unsorted": {
 		"en": "_Unsorted",
 		"de": "_Unzugeordnet",
