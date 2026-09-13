@@ -63,3 +63,52 @@ func TestClassifyError(t *testing.T) {
 		t.Error("disk_full and read_only must not be retryable")
 	}
 }
+
+// A refused rename must not be filed under "no write permission". The
+// directory took every byte of the download; sending the user after a
+// permission bit that is already correct is the one answer that cannot help.
+func TestClassifyRenameFailure(t *testing.T) {
+	link := func(errno syscall.Errno) error {
+		return &os.LinkError{Op: "renameat", Old: "Show/ep.mkv.part", New: "Show/ep.mkv", Err: errno}
+	}
+
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		// mergerfs and friends: the two names live on different branches
+		{"EXDEV", link(syscall.EXDEV), ErrCodeRenameFailed},
+		// sticky directory, existing episode owned by somebody else
+		{"EACCES", link(syscall.EACCES), ErrCodeRenameFailed},
+		{"EPERM", link(syscall.EPERM), ErrCodeRenameFailed},
+		// the target name is taken by a directory
+		{"EISDIR", link(syscall.EISDIR), ErrCodeRenameFailed},
+		{"EEXIST", link(syscall.EEXIST), ErrCodeRenameFailed},
+		// a second row renamed the same .part away first
+		{"ENOENT", link(syscall.ENOENT), ErrCodeRenameFailed},
+		// a full or read-only device is the same problem in any phase, and
+		// already has an answer of its own
+		{"ENOSPC keeps its own code", link(syscall.ENOSPC), ErrCodeDiskFull},
+		{"EROFS keeps its own code", link(syscall.EROFS), ErrCodeReadOnly},
+		// a media server holding the target open lets go by itself
+		{"EBUSY stays unclassified", link(syscall.EBUSY), ""},
+		{"ETXTBSY stays unclassified", link(syscall.ETXTBSY), ""},
+		// still wrapped, still classified
+		{"wrapped", fmt.Errorf("finishing download: %w", link(syscall.EXDEV)), ErrCodeRenameFailed},
+	}
+	for _, c := range cases {
+		if got := classifyError(c.err); got != c.want {
+			t.Errorf("%s: classifyError = %q, want %q", c.name, got, c.want)
+		}
+	}
+
+	// no retry can talk a filesystem into supporting a replace, so the row must
+	// end as an error the user is told about instead of failing ten more times
+	if RetryableCode(ErrCodeRenameFailed) {
+		t.Error("rename_failed must not be treated as retryable")
+	}
+	if !RetryableCode(classifyError(link(syscall.EBUSY))) {
+		t.Error("a busy target must stay retryable")
+	}
+}

@@ -2215,7 +2215,7 @@
                         "type": "string"
                     },
                     "errorCode": {
-                        "description": "permission_denied | disk_full | read_only",
+                        "description": "permission_denied | disk_full | read_only | rename_failed",
                         "type": "string"
                     },
                     "path": {
