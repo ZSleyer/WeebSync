@@ -1582,6 +1582,10 @@
                         "description": "Replace: the copy this sync improves on is trashed once the new file is\nin place (upgrades only; a missing episode has nothing to replace).",
                         "type": "boolean"
                     },
+                    "separator": {
+                        "description": "Separator replaces spaces in the rendered name; \"\" keeps them. Part of\nthe plan because it belongs to the template it was configured with.",
+                        "type": "string"
+                    },
                     "subfolder": {
                         "description": "false: the template controls the folder structure",
                         "type": "boolean"

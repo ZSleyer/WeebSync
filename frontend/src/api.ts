@@ -361,6 +361,8 @@ export interface SuggestionItem {
 export interface SyncPlan {
   localPath: string
   template?: string
+  /** space replacement of the template the plan was named with; "" keeps spaces */
+  separator?: string
   subfolder: boolean
   replace?: boolean // upgrade: trash the copy this sync improves on once the new file is in place
 }

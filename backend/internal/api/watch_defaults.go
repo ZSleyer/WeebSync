@@ -206,11 +206,14 @@ func (s *Server) folderTarget(serverID int64, folder string) folderTarget {
 		t.LibraryDir = filepath.Dir(sibling)
 		return t
 	}
+	// the built-in naming on purpose: only LocalPath is read here, and the
+	// split below needs the season folder to be in the path. apply() then
+	// re-decides that with the template the dialog really uses.
 	var plan SyncPlan
 	if same != "" {
-		plan = existingSyncPlan(same, season, false)
+		plan = existingSyncPlan(syncNaming{}, same, season, false)
 	} else {
-		plan = missingSyncPlan(sibling, season, false)
+		plan = missingSyncPlan(syncNaming{}, sibling, season, false)
 	}
 	if season > 0 && plexSeasonDirRe.MatchString(filepath.Base(plan.LocalPath)) {
 		t.LibraryDir, t.SeasonFolder = filepath.Dir(plan.LocalPath), filepath.Base(plan.LocalPath)
@@ -219,6 +222,30 @@ func (s *Server) folderTarget(serverID int64, folder string) folderTarget {
 		t.LibraryDir, t.SeasonFolder = plan.LocalPath, ""
 	}
 	return t
+}
+
+// watchKindOf maps a suggestion category (anime-tv, animation-movie, ...) onto
+// the media kind the auto-sync defaults are keyed by. The frontend's
+// suggestionKind is its twin and must stay in step with it.
+func watchKindOf(category string) string {
+	switch {
+	case category == "anime-movie":
+		return "anime-movie"
+	case category == "anime-tv" || category == "anime-series":
+		return "anime-series"
+	case strings.HasSuffix(category, "movie"):
+		return "movie"
+	default:
+		return "series"
+	}
+}
+
+// naming is how a one-off sync of a unit of this category should name its
+// files. A kind with nothing configured yields the zero value, which the plan
+// builders read as "use the built-in naming".
+func (d WatchDefaults) naming(category string) syncNaming {
+	k := d.Kinds[watchKindOf(category)]
+	return syncNaming{Template: k.Template, Separator: k.Separator}
 }
 
 // seasonInPath reports whether a season folder belongs in the target path. A

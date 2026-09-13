@@ -17,7 +17,8 @@ export function syncFields(sync: SyncPlan, title: string, remotePath: string): W
     localPath: sync.localPath,
     mode: 'template',
     template: sync.template ?? '',
-    separator: '',
+    // the plan is named by the user's auto-sync defaults, separator included
+    separator: sync.separator ?? '',
     titleOverride: title,
     pattern: '',
     replacement: '',
