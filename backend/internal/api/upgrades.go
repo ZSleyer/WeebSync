@@ -223,6 +223,11 @@ func wantedFrom(c CommonDefaults) wantedLangs {
 // gains nothing from a Spanish dub, and a card recommending that copy asks them
 // to fetch a bigger file for a track they will never select. Once a preference
 // is stated, the added language has to be one of the languages they asked for.
+//
+// ponytail: a copy that TRADES languages is never a gain, because the superset
+// test comes first - swapping a German dub for the Japanese one is invisible
+// even though it is exactly what a subtitle viewer wants. Loosening that risks
+// recommending copies that drop a language, so it waits for a real complaint.
 func gains(want, top, cur []string) bool {
 	if !strictSuperset(top, cur) {
 		return false

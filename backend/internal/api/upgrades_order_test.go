@@ -54,6 +54,17 @@ func TestGainsNeedsTheAskedLanguage(t *testing.T) {
 	if gains(nil, []string{"Ger"}, []string{"Jap"}) {
 		t.Error("a swapped language counted as a gain")
 	}
+	// The shape that dominates a real library: the copy already carries the
+	// subtitles that were asked for and the remote one only adds English on
+	// top. Counting that as an upgrade is what buries the handful of cards
+	// that do bring something.
+	if gains([]string{"Ger"}, []string{"Eng", "Ger"}, []string{"Ger"}) {
+		t.Error("an added English track counted as a gain for a German viewer")
+	}
+	// and the shape that must survive: the subtitles are not there at all yet
+	if !gains([]string{"Ger"}, []string{"Eng", "Ger"}, nil) {
+		t.Error("subtitles the library does not have were not counted as a gain")
+	}
 }
 
 // The preference is read from both halves of the defaults, and "off" is a
