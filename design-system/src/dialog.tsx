@@ -86,14 +86,14 @@ export function Dialog({
   }
   const menuOpen = () => !!ref.current?.querySelector('[aria-haspopup][aria-expanded="true"]')
 
-  // A sheet opens at a height that suits a form. The first scroll inside it is
-  // the content saying that height was not enough, so the sheet takes the rest
-  // of the screen and the reader carries on in the same movement. It stops
-  // short of the top either way - that strip of page is the backdrop they tap
-  // to get out - and it never shrinks back on its own: a box that resizes
-  // under the thumb while somebody reads is worse than one that stayed small.
-  // `scroll` does not bubble, so this listens in the capture phase and hears
-  // whichever box inside the sheet actually scrolls.
+  // A sheet opens at a height that suits a form and has a second, taller one.
+  // Two things ask for it: a pull upwards on its face (see useSheetDrag), and
+  // the first scroll inside it - the content saying that height was not enough,
+  // so the sheet takes the rest of the screen and the reader carries on in the
+  // same movement. A pull down from there gives the opening height back. It
+  // stops short of the top either way; that strip of page is the backdrop they
+  // tap to get out. `scroll` does not bubble, so this listens in the capture
+  // phase and hears whichever box inside the sheet actually scrolls.
   const [expanded, setExpanded] = useState(false)
   useEffect(() => {
     const el = ref.current
@@ -110,6 +110,9 @@ export function Dialog({
   const sheetDrag = useSheetDrag({
     sheet: ref,
     enabled: isSheet,
+    expanded,
+    onExpand: () => setExpanded(true),
+    onCollapse: () => setExpanded(false),
     onRequestClose,
     onClose: () => ref.current?.close(),
   })

@@ -456,6 +456,48 @@ describe('Dialog', () => {
   })
 
   // ── the sheet's second height ──
+  // A pull upwards asks for it, and a pull down from there gives the opening
+  // height back rather than throwing the sheet away.
+  it('opens the sheet to its full height when it is pulled up', async () => {
+    const restore = withNarrowViewport(true)
+    try {
+      const { container } = sheet()
+      const dialog = dialogOf(container)
+      asScroller(screen.getByText('Inhalt'), 0)
+      expect(dialog.hasAttribute('data-expanded')).toBe(false)
+
+      await pull(screen.getByText('Inhalt'), dialog, -90)
+      await waitFor(() => expect(dialog.hasAttribute('data-expanded')).toBe(true))
+      expect(dialog.open).toBe(true)
+    } finally {
+      restore()
+    }
+  })
+
+  it('gives the opening height back before it dismisses', async () => {
+    const restore = withNarrowViewport(true)
+    const onClose = vi.fn()
+    try {
+      const { container } = sheet({ onClose })
+      const dialog = dialogOf(container)
+      asScroller(screen.getByText('Inhalt'), 0)
+      await pull(screen.getByText('Inhalt'), dialog, -90)
+      await waitFor(() => expect(dialog.hasAttribute('data-expanded')).toBe(true))
+
+      // first pull down: back to the opening height, still open
+      await pull(screen.getByText('Inhalt'), dialog, 200)
+      await waitFor(() => expect(dialog.hasAttribute('data-expanded')).toBe(false))
+      expect(dialog.style.transform).not.toBe('translateY(100%)')
+      expect(onClose).not.toHaveBeenCalled()
+
+      // second pull down from there does dismiss
+      await pull(screen.getByText('Inhalt'), dialog, 200)
+      await waitFor(() => expect(dialog.style.transform).toBe('translateY(100%)'))
+    } finally {
+      restore()
+    }
+  })
+
   // Reading past the first screenful is the content saying 70dvh was not
   // enough; the sheet takes the rest of the screen and the reader carries on.
   it('grows the sheet the first time its content is scrolled', async () => {
