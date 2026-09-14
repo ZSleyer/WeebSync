@@ -165,6 +165,28 @@ func (s *Server) probeQuality(dir string) (q FolderQuality, ok bool) {
 	return q, true
 }
 
+// canonLangs re-reads stored language codes through the current map.
+//
+// The caches below hold codes that were already canonical WHEN THEY WERE
+// WRITTEN, so a correction to iso639 never reached them: 071 cleared the
+// catalog rows built from a stale cache and the very next sweep wrote the same
+// invented codes straight back out of it. Normalising on the way out means a
+// mapping change takes effect as soon as it ships, with no migration to chase
+// every store that ever saw the old value.
+//
+// Duplicates are the point of the sort: "Enm" folding onto "Eng" beside a real
+// "Eng" has to leave one entry, not two.
+func canonLangs(codes []string) []string {
+	if len(codes) == 0 {
+		return codes
+	}
+	set := map[string]bool{}
+	for _, c := range codes {
+		set[langOrUnd(c)] = true
+	}
+	return keysSorted(set)
+}
+
 // probeCacheGet answers a folder whose contents have not changed since it was
 // last measured. A miss - no row, a different signature, or unreadable JSON -
 // falls through to a real probe, so a damaged cache costs time and never a
@@ -183,6 +205,7 @@ func (s *Server) probeCacheGet(dir, sig string) (q FolderQuality, ok bool) {
 	if json.Unmarshal([]byte(blob), &q) != nil {
 		return q, false
 	}
+	q.Dub, q.Sub, q.Soft = canonLangs(q.Dub), canonLangs(q.Sub), canonLangs(q.Soft)
 	return q, true
 }
 
