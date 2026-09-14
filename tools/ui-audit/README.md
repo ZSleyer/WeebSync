@@ -1,6 +1,6 @@
 # UI audit
 
-Two Playwright passes over a running instance, in Chromium and Firefox, at
+Playwright passes over a running instance, in Chromium and Firefox, at
 desktop 1280x900, Pixel 8 Pro 448x998 and iPhone 14 393x852 (both DPR 3). The
 two phones are the real target devices; 393px is the narrower of them and the
 one that finds labels which no longer fit on a single line.
@@ -15,6 +15,17 @@ one that finds labels which no longer fit on a single line.
   something is clicked. It also asserts the page behind a modal cannot scroll,
   and that a phone-sized sheet sits on the bottom edge, leaves a strip of the
   page visible to tap, and offers exactly one close button.
+- `sheet.mjs` drives the phone sheet's gestures with **real touch**, through
+  CDP rather than Playwright's mouse. It is separate because the other two
+  cannot see this class of bug at all: they measure a sheet standing still, and
+  a mouse drag is not governed by `touch-action`, so a sheet no thumb could
+  move once passed every check on both engines while the phone did nothing.
+  Six rules per viewport - a short pull follows and springs back, a long one
+  dismisses, a pull up opens the sheet to its full height, a pull down from
+  there gives the opening height back, the next one dismisses, and a pull
+  inside scrolled content scrolls the content instead. Chromium only:
+  Playwright's Firefox driver dispatches neither touch nor pointer events for
+  synthetic input, so there is nothing to drive there.
 
 A chip that is prose rather than a chip - a page subtitle, a status line
 carrying a user name - opts out of the wrap check with `<Badge multiline>`.
@@ -30,6 +41,7 @@ Then run the passes from the repo root:
 
     WS_TOKEN=<raw session token> node tools/ui-audit/e2e.mjs --base http://127.0.0.1:8080
     WS_TOKEN=<raw session token> node tools/ui-audit/modals.mjs --base http://127.0.0.1:8080
+    WS_TOKEN=<raw session token> node tools/ui-audit/sheet.mjs --base http://127.0.0.1:8080
 
 **Point `--base` at an instance that actually serves the frontend.** The backend
 does not embed it; without `WEEBSYNC_WEB` pointing at a built `frontend/dist`
