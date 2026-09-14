@@ -831,7 +831,7 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
         onClick={onOpen}
         disabled={!w.media}
       >
-        <Cover size="fill" src={w.media?.coverImage?.large} loading="lazy" className="opacity-90 transition-opacity group-hover:opacity-100">
+        <Cover size="fill" src={w.media?.coverImage?.extraLarge || w.media?.coverImage?.large} loading="lazy" className="opacity-90 transition-opacity group-hover:opacity-100">
           {!w.media && <span className="p-2 text-center text-xs text-t-muted">{name}</span>}
         </Cover>
         <div className="flex flex-1 flex-col p-2">

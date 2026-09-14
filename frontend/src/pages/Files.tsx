@@ -978,7 +978,7 @@ export function CatalogGrid({
                 {g.media?.coverImage?.large ? (
                   <Cover
                     size="fill"
-                    src={g.media.coverImage.large}
+                    src={g.media.coverImage.extraLarge || g.media.coverImage.large}
                     loading="lazy"
                     className="opacity-90 transition-opacity group-hover:opacity-100"
                   />

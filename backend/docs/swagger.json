@@ -76,6 +76,10 @@
                     },
                     "coverImage": {
                         "properties": {
+                            "extraLarge": {
+                                "description": "ExtraLarge is the same artwork at twice the edge (460px rather than\n230px). A poster tile on a phone is around 200 CSS px wide, which a\n230px file has to stretch two to three times over at the device\npixel ratios those screens run at. Empty on cache entries written\nbefore the field existed; consumers fall back to Large.",
+                                "type": "string"
+                            },
                             "large": {
                                 "type": "string"
                             }
