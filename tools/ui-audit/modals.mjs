@@ -285,26 +285,22 @@ const auditDialog = () => {
     if (!inner) shell.push(`content is ${dOver.y}px taller than the dialog and nothing inside it scrolls`)
   }
 
-  // A sheet-sized dialog covers the phone screen, so it has no backdrop left to
-  // click - it owes the user exactly one visible way out.
+  // A sheet sits on the bottom edge and stops short of the top: the strip of
+  // page still showing is what makes it a sheet rather than a takeover, and it
+  // is the backdrop the user taps to get out. A sheet that fills the screen has
+  // lost both.
   const sheet = d.classList.contains('dialog-sheet') && matchMedia('(max-width: 40rem)').matches
   if (sheet) {
-    if (Math.abs(r.width - innerWidth) > 1 || Math.abs(r.height - innerHeight) > 1)
-      shell.push(`sheet does not fill the screen: ${Math.round(r.width)}x${Math.round(r.height)} of ${innerWidth}x${innerHeight}`)
+    if (Math.abs(r.width - innerWidth) > 1) shell.push(`sheet is ${Math.round(r.width)}px wide of ${innerWidth}`)
+    if (Math.abs(r.bottom - innerHeight) > 1) shell.push(`sheet does not sit on the bottom edge: ${Math.round(r.bottom)} of ${innerHeight}`)
+    const shown = Math.round(innerHeight - r.height)
+    if (shown < innerHeight * 0.05) shell.push(`sheet leaves only ${shown}px of the page visible - nothing to tap to dismiss`)
+    if (r.height < innerHeight * 0.4) shell.push(`sheet opens to only ${Math.round(r.height)}px of ${innerHeight}`)
+    // the pull needs a single-tap alternative beside it (WCAG 2.2 SC 2.5.1 /
+    // 2.5.7); the grabber is it, and a second one would only be two controls
+    // with the same name
     const closers = [...d.querySelectorAll('button[aria-label]')].filter((b) => vis(b) && /schließen|close/i.test(b.getAttribute('aria-label')))
     if (closers.length !== 1) shell.push(`sheet has ${closers.length} close buttons, expected exactly 1`)
-    // and the reverse of "does it fill the screen": a dialog that takes the
-    // whole screen for a search box and four rows reads as broken, not as
-    // deliberate. Such a dialog belongs in a centred box (sheet={false}).
-    // leaves only: the boxes around the content are stretched to the sheet by
-    // `height: 100%`, so measuring them would always report a full screen
-    let deepest = 0
-    for (const e of d.querySelectorAll('*')) {
-      if (!vis(e) || e.children.length) continue
-      deepest = Math.max(deepest, e.getBoundingClientRect().bottom)
-    }
-    const empty = Math.round(r.bottom - deepest)
-    if (empty > innerHeight * 0.25) shell.push(`sheet leaves ${empty}px empty - it does not need the whole screen`)
   }
 
   return {
@@ -400,7 +396,7 @@ for (const { route, names, label } of TRIGGERS)
 for (const n of never) console.log(`✗ Trigger nie ausgelöst: ${n}`)
 console.log(
   bad === 0 && !never.length
-    ? `\n✓ ${all.length} Dialoge geprüft (davon ${sheets} als Vollbild-Sheet): keine Befunde`
-    : `\n${bad}/${all.length} Dialoge mit Befunden, ${never.length} Trigger tot (${sheets} als Vollbild-Sheet geprüft)`,
+    ? `\n✓ ${all.length} Dialoge geprüft (davon ${sheets} als Sheet): keine Befunde`
+    : `\n${bad}/${all.length} Dialoge mit Befunden, ${never.length} Trigger tot (${sheets} als Sheet geprüft)`,
 )
 if (bad || never.length) process.exitCode = 1

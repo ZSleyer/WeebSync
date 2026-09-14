@@ -13,8 +13,8 @@ one that finds labels which no longer fit on a single line.
 - `modals.mjs` opens every dialog the app has and applies the same checks
   there, which a route pass cannot reach: a dialog is not in the DOM until
   something is clicked. It also asserts the page behind a modal cannot scroll,
-  and that a phone-sized sheet fills the screen and offers exactly one close
-  button.
+  and that a phone-sized sheet sits on the bottom edge, leaves a strip of the
+  page visible to tap, and offers exactly one close button.
 
 A chip that is prose rather than a chip - a page subtitle, a status line
 carrying a user name - opts out of the wrap check with `<Badge multiline>`.
