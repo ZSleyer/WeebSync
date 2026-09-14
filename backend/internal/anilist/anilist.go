@@ -104,6 +104,12 @@ type Media struct {
 	} `json:"title"`
 	CoverImage struct {
 		Large string `json:"large"`
+		// ExtraLarge is the same artwork at twice the edge (460px rather than
+		// 230px). A poster tile on a phone is around 200 CSS px wide, which a
+		// 230px file has to stretch two to three times over at the device
+		// pixel ratios those screens run at. Empty on cache entries written
+		// before the field existed; consumers fall back to Large.
+		ExtraLarge string `json:"extraLarge,omitempty"`
 	} `json:"coverImage"`
 	BannerImage string `json:"bannerImage"`
 	Trailer     *struct {
@@ -188,7 +194,7 @@ func (m *Media) Airings() []AiringSlot {
 	return nil
 }
 
-const mediaFields = `id title { romaji english native } coverImage { large } bannerImage
+const mediaFields = `id title { romaji english native } coverImage { large extraLarge } bannerImage
 	trailer { id site thumbnail }
 	nextAiringEpisode { airingAt episode }
 	airingSchedule(notYetAired: true, perPage: 25) { nodes { airingAt episode } }

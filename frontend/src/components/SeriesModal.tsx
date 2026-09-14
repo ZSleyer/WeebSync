@@ -188,7 +188,7 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
             </IconButton>
           )}
           <div className="flex gap-4 px-5 pt-4 pb-3">
-            {media?.coverImage?.large && <Cover src={media.coverImage.large} size="md" />}
+            {media?.coverImage?.large && <Cover src={media.coverImage.extraLarge || media.coverImage.large} size="md" />}
             <div className="min-w-0 flex-1">
               <h3 className="font-display font-semibold tracking-wider">{name}</h3>
               {media?.title.english && media.title.english !== name && !/[぀-ヿ㐀-鿿]/.test(media.title.english) && (

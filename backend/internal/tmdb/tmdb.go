@@ -435,6 +435,10 @@ func (c *Client) toMedia(kind string, r rawResult) anilist.Media {
 	m.Title.English = firstOf(r.OriginalName, r.OrigTitle)
 	if r.PosterPath != "" {
 		m.CoverImage.Large = c.Images + "/w500" + r.PosterPath
+		// the size a poster tile asks for on a phone, where w500 still has to
+		// stretch: the grid is around 200 CSS px wide at a device pixel ratio
+		// of three
+		m.CoverImage.ExtraLarge = c.Images + "/w780" + r.PosterPath
 	}
 	if r.BackdropPath != "" {
 		m.BannerImage = c.Images + "/w1280" + r.BackdropPath
