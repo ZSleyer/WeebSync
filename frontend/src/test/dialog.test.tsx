@@ -455,6 +455,57 @@ describe('Dialog', () => {
     expect(cancel.defaultPrevented).toBe(true)
   })
 
+  // ── the sheet's second height ──
+  // Reading past the first screenful is the content saying 70dvh was not
+  // enough; the sheet takes the rest of the screen and the reader carries on.
+  it('grows the sheet the first time its content is scrolled', async () => {
+    const restore = withNarrowViewport(true)
+    try {
+      const { container } = sheet()
+      const dialog = dialogOf(container)
+      const body = screen.getByText('Inhalt')
+      expect(dialog.hasAttribute('data-expanded')).toBe(false)
+
+      asScroller(body, 120)
+      fireEvent.scroll(body)
+      await waitFor(() => expect(dialog.hasAttribute('data-expanded')).toBe(true))
+    } finally {
+      restore()
+    }
+  })
+
+  it('leaves the sheet at its opening height while the content sits at the top', async () => {
+    const restore = withNarrowViewport(true)
+    try {
+      const { container } = sheet()
+      const dialog = dialogOf(container)
+      const body = screen.getByText('Inhalt')
+
+      asScroller(body, 0)
+      fireEvent.scroll(body)
+      await new Promise((r) => setTimeout(r, 20))
+      expect(dialog.hasAttribute('data-expanded')).toBe(false)
+    } finally {
+      restore()
+    }
+  })
+
+  it('never grows a centred dialog - there is no second height on a desktop', async () => {
+    const restore = withNarrowViewport(false)
+    try {
+      const { container } = sheet()
+      const dialog = dialogOf(container)
+      const body = screen.getByText('Inhalt')
+
+      asScroller(body, 120)
+      fireEvent.scroll(body)
+      await new Promise((r) => setTimeout(r, 20))
+      expect(dialog.hasAttribute('data-expanded')).toBe(false)
+    } finally {
+      restore()
+    }
+  })
+
   it('leaves Escape to the platform when there is no guard', () => {
     // without onRequestClose no onCancel handler is attached at all, so the
     // browser's own Escape handling closes the dialog and onClose reports it

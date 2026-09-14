@@ -899,6 +899,9 @@ dialog {
   transition:
     opacity var(--dur-3) var(--ease-out),
     transform var(--dur-3) var(--ease-out),
+    /* the phone sheet growing to its second height; a centred dialog's
+       height is auto and never animates */
+    height var(--dur-3) var(--ease-out),
     overlay var(--dur-3) allow-discrete,
     display var(--dur-3) allow-discrete;
 }
@@ -958,6 +961,14 @@ dialog .overflow-y-auto {
        downward move for its own pan and cancels the pointer mid-pull. The
        scrolling middle takes it back below. */
     touch-action: none;
+  }
+  /* The second height. The first scroll inside the sheet is the content
+     saying that 70dvh was not enough (the Dialog component sets the
+     attribute), so it takes the rest of the screen and the reader carries on
+     in the same movement. It still stops short of the top: that strip of page
+     is the backdrop, and without it the sheet would be a takeover again. */
+  dialog.dialog-sheet[data-expanded] {
+    height: 92dvh;
   }
   /* A column, so the grabber sits above the content rather than over it. Only
      while open: the closed dialog has to stay `display: none` for the exit
