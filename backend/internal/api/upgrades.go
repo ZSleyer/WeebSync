@@ -187,6 +187,78 @@ func resTier(h int) int {
 	}
 }
 
+// wantedLangs are the languages the user actually asked for. Both halves of the
+// auto-sync defaults name the same wish from two sides: the download filter
+// (wantDub/wantSub) says which copy to fetch, the Plex preference
+// (plexAudioLang/plexSubLang) says which track to play. Either one stated is a
+// preference.
+//
+// Empty means nothing was stated, and then every language counts - which is
+// what every suggestion did before this existed.
+type wantedLangs struct{ dub, sub []string }
+
+// wantedFrom reads the preference off the defaults. "off" is a decision about
+// subtitles, not a language, and a ":forced" variant is the same language.
+func wantedFrom(c CommonDefaults) wantedLangs {
+	add := func(dst []string, raw string) []string {
+		code, _, off := subChoice(raw)
+		if off {
+			return dst
+		}
+		if code = langCode(code); code != "" && !slices.Contains(dst, code) {
+			dst = append(dst, code)
+		}
+		return dst
+	}
+	var w wantedLangs
+	w.dub = add(add(w.dub, c.WantDub), c.PlexAudioLang)
+	w.sub = add(add(w.sub, c.WantSub), c.PlexSubLang)
+	return w
+}
+
+// gains reports whether a remote copy brings a language worth having.
+//
+// A strict superset alone says only that the copy names MORE languages, and
+// more is not better: someone who watches in Japanese with German subtitles
+// gains nothing from a Spanish dub, and a card recommending that copy asks them
+// to fetch a bigger file for a track they will never select. Once a preference
+// is stated, the added language has to be one of the languages they asked for.
+func gains(want, top, cur []string) bool {
+	if !strictSuperset(top, cur) {
+		return false
+	}
+	if len(want) == 0 {
+		return true
+	}
+	for _, c := range want {
+		if slices.Contains(top, c) && !slices.Contains(cur, c) {
+			return true
+		}
+	}
+	return false
+}
+
+// countWanted counts how many of the asked-for languages a set holds.
+func countWanted(want, have []string) int {
+	n := 0
+	for _, c := range want {
+		if slices.Contains(have, c) {
+			n++
+		}
+	}
+	return n
+}
+
+// wantedFirst orders two language sets the way the user reads them: how many of
+// the languages they asked for a set carries decides, and only a tie there
+// falls back to the raw count. Without a stated preference it IS the raw count.
+func wantedFirst(want, a, b []string) int {
+	if d := countWanted(want, a) - countWanted(want, b); d != 0 {
+		return d
+	}
+	return realLangs(a) - realLangs(b)
+}
+
 // improvements decides which axes a remote copy wins, and how far each verdict
 // can be trusted.
 //
@@ -216,16 +288,16 @@ func resTier(h int) int {
 //
 // Resolution needs no caveat either: a name and a container mean the same
 // picture height, so folding both onto a tier is enough.
-func improvements(dims UpgradeDims, cur, top UpgradeVariant, showKey string, season int) (res, sub, dub, soft, unverified, held bool) {
+func improvements(dims UpgradeDims, want wantedLangs, cur, top UpgradeVariant, showKey string, season int) (res, sub, dub, soft, unverified, held bool) {
 	res = dims.Res && resTier(top.ResRank) > resTier(cur.ResRank)
 	if dims.Res && !res && top.ResRank > cur.ResRank {
 		slog.Debug("upgrade axis discarded", "showKey", showKey, "season", season,
 			"axis", "res", "reason", "both copies are the same resolution tier",
 			"fromRes", cur.ResRank, "toRes", top.ResRank)
 	}
-	sub = dims.Sub && strictSuperset(top.Sub, cur.Sub)
-	dub = dims.Dub && strictSuperset(top.Dub, cur.Dub)
-	soft = dims.Soft && strictSuperset(top.Soft, cur.Soft)
+	sub = dims.Sub && gains(want.sub, top.Sub, cur.Sub)
+	dub = dims.Dub && gains(want.dub, top.Dub, cur.Dub)
+	soft = dims.Soft && gains(want.sub, top.Soft, cur.Soft)
 	if (sub || dub) && top.Probed == probeNone {
 		slog.Debug("upgrade language gain held back", "showKey", showKey, "season", season,
 			"sub", sub, "dub", dub,
@@ -590,6 +662,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	dims := s.upgradeDimsFor(userID)
 	locale := s.userLocale(userID)
 	defaults := s.watchDefaultsFor(userID)
+	want := wantedFrom(defaults.Common)
 	units := s.loadUnits()
 	enrich := s.unitEnrichIndex()
 	localsByShow := localSeasonsByShow(units)
@@ -601,8 +674,8 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 		if len(u.locals) == 0 || len(u.remotes) == 0 {
 			continue // not owned locally, or nothing remote to upgrade from
 		}
-		cur := bestCopy(u.locals)                 // your Plex/local copy
-		top := bestCopyFor(dims.Order, u.remotes) // the remote copy the user's priorities prefer
+		cur := bestCopy(u.locals)                       // your Plex/local copy
+		top := bestCopyFor(dims.Order, want, u.remotes) // the remote copy the user's priorities prefer
 		if !comparable(cur) {
 			// nothing is known about this copy, so every remote one "improves"
 			// it: 1080 beats 0, and any language set is a superset of none.
@@ -611,7 +684,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 				"folder", logSafe(cur.Folder), "reason", "local copy has no quality to compare against")
 			continue
 		}
-		impRes, impSub, impDub, impSoft, langUnverified, held := improvements(dims, cur, top, u.showKey, u.season)
+		impRes, impSub, impDub, impSoft, langUnverified, held := improvements(dims, want, cur, top, u.showKey, u.season)
 		if held {
 			// somebody is looking at this unit right now, so the copy behind it
 			// jumps the queue instead of waiting for the background pace
@@ -1379,32 +1452,35 @@ func bestCopy(vs []UpgradeVariant) UpgradeVariant {
 // first axis in order on which two copies differ decides (resolution by tier,
 // languages by count). Copies equal on every enabled axis fall back to
 // bestCopy's fixed order.
-func bestCopyFor(order []string, copies []UpgradeVariant) UpgradeVariant {
+func bestCopyFor(order []string, want wantedLangs, copies []UpgradeVariant) UpgradeVariant {
 	if len(copies) == 0 {
 		return UpgradeVariant{}
 	}
 	best := copies[0]
 	for _, c := range copies[1:] {
-		if betterBy(order, c, best) {
+		if betterBy(order, want, c, best) {
 			best = c
 		}
 	}
 	return best
 }
 
-// betterBy reports whether a beats b under the axis priority.
-func betterBy(order []string, a, b UpgradeVariant) bool {
+// betterBy reports whether a beats b under the axis priority. A language axis
+// asks which languages before it asks how many: of two copies, one carrying the
+// German subtitles the user asked for and one carrying English and Spanish, the
+// raw count recommended the second.
+func betterBy(order []string, want wantedLangs, a, b UpgradeVariant) bool {
 	for _, axis := range order {
 		var d int
 		switch axis {
 		case "res":
 			d = resTier(a.ResRank) - resTier(b.ResRank)
 		case "soft":
-			d = realLangs(a.Soft) - realLangs(b.Soft)
+			d = wantedFirst(want.sub, a.Soft, b.Soft)
 		case "sub":
-			d = realLangs(a.Sub) - realLangs(b.Sub)
+			d = wantedFirst(want.sub, a.Sub, b.Sub)
 		case "dub":
-			d = realLangs(a.Dub) - realLangs(b.Dub)
+			d = wantedFirst(want.dub, a.Dub, b.Dub)
 		}
 		if d != 0 {
 			return d > 0

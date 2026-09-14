@@ -1724,7 +1724,24 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind, ref, title, 
 // axes the user enabled; ok is false when nothing does. Mirrors the card.
 func (s *Server) aiUpgradeGain(userID int64, up *UpgradeSuggestion, to UpgradeVariant) (info []string, unverified bool, ok bool) {
 	dims := s.upgradeDimsFor(userID)
+	want := wantedFrom(s.watchDefaultsFor(userID).Common)
 	from := up.From
+	// what an axis gains, filtered by the languages the user asked for - the
+	// same rule the card is built with, so the assistant cannot accept a copy
+	// the suggestion list would not have offered
+	gained := func(want, have, to []string) []string {
+		add := missing(have, to)
+		if len(want) == 0 {
+			return add
+		}
+		var keep []string
+		for _, c := range add {
+			if slices.Contains(want, c) {
+				keep = append(keep, c)
+			}
+		}
+		return keep
+	}
 	// one line per axis the copy wins, in the user's priority order
 	for _, axis := range dims.Order {
 		switch axis {
@@ -1734,17 +1751,17 @@ func (s *Server) aiUpgradeGain(userID int64, up *UpgradeSuggestion, to UpgradeVa
 				ok = true
 			}
 		case "dub":
-			if add := missing(from.Dub, to.Dub); len(add) > 0 {
+			if add := gained(want.dub, from.Dub, to.Dub); len(add) > 0 {
 				info = append(info, "dub: +"+strings.Join(add, ", "))
 				ok = true
 			}
 		case "sub":
-			if add := missing(from.Sub, to.Sub); len(add) > 0 {
+			if add := gained(want.sub, from.Sub, to.Sub); len(add) > 0 {
 				info = append(info, "sub: +"+strings.Join(add, ", "))
 				ok = true
 			}
 		case "soft":
-			if add := missing(from.Soft, to.Soft); len(add) > 0 {
+			if add := gained(want.sub, from.Soft, to.Soft); len(add) > 0 {
 				info = append(info, "selectable subtitles: +"+strings.Join(add, ", "))
 				ok = true
 			}

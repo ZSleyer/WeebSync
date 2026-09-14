@@ -9,15 +9,65 @@ import (
 func TestBestCopyFor(t *testing.T) {
 	uhd := UpgradeVariant{ServerID: 1, Folder: "/4k", ResRank: 2160, Dub: []string{"Jap"}, Sub: []string{"Ger"}}
 	soft := UpgradeVariant{ServerID: 1, Folder: "/soft", ResRank: 1080, Dub: []string{"Jap"}, Sub: []string{"Ger"}, Soft: []string{"Ger"}}
-	if got := bestCopyFor([]string{"soft", "res"}, []UpgradeVariant{uhd, soft}); got.Folder != "/soft" {
+	if got := bestCopyFor([]string{"soft", "res"}, wantedLangs{}, []UpgradeVariant{uhd, soft}); got.Folder != "/soft" {
 		t.Errorf("soft first: got %s", got.Folder)
 	}
-	if got := bestCopyFor([]string{"res", "soft"}, []UpgradeVariant{soft, uhd}); got.Folder != "/4k" {
+	if got := bestCopyFor([]string{"res", "soft"}, wantedLangs{}, []UpgradeVariant{soft, uhd}); got.Folder != "/4k" {
 		t.Errorf("res first: got %s", got.Folder)
 	}
 	// nothing enabled: the fixed order (resolution first) decides
-	if got := bestCopyFor(nil, []UpgradeVariant{soft, uhd}); got.Folder != "/4k" {
+	if got := bestCopyFor(nil, wantedLangs{}, []UpgradeVariant{soft, uhd}); got.Folder != "/4k" {
 		t.Errorf("no order: got %s", got.Folder)
+	}
+}
+
+// Two remote copies, the user asks for German subtitles: the one that has them
+// wins, however many languages the other one names. The raw count recommended
+// the fuller set, which is the wrong copy for anyone with a preference.
+func TestBestCopyForPrefersTheAskedLanguage(t *testing.T) {
+	ger := UpgradeVariant{ServerID: 1, Folder: "/ger", ResRank: 1080, Dub: []string{"Jap"}, Sub: []string{"Ger"}, Soft: []string{"Ger"}}
+	many := UpgradeVariant{ServerID: 1, Folder: "/many", ResRank: 1080, Dub: []string{"Jap"}, Sub: []string{"Eng", "Spa"}, Soft: []string{"Eng", "Spa"}}
+	want := wantedLangs{dub: []string{"Jap"}, sub: []string{"Ger"}}
+	if got := bestCopyFor([]string{"soft", "sub"}, want, []UpgradeVariant{many, ger}); got.Folder != "/ger" {
+		t.Errorf("asked language should win: got %s", got.Folder)
+	}
+	// no preference stated: the count decides, exactly as before
+	if got := bestCopyFor([]string{"soft", "sub"}, wantedLangs{}, []UpgradeVariant{ger, many}); got.Folder != "/many" {
+		t.Errorf("without a preference the count decides: got %s", got.Folder)
+	}
+}
+
+// A copy that only adds a language nobody asked for is not an upgrade: it is a
+// bigger file carrying a track that will never be selected.
+func TestGainsNeedsTheAskedLanguage(t *testing.T) {
+	if gains([]string{"Ger"}, []string{"Jap", "Spa"}, []string{"Jap"}) {
+		t.Error("a Spanish dub counted as a gain for a German-subtitle viewer")
+	}
+	if !gains([]string{"Ger"}, []string{"Jap", "Ger"}, []string{"Jap"}) {
+		t.Error("the asked language was not counted as a gain")
+	}
+	// nothing stated: every added language still counts
+	if !gains(nil, []string{"Jap", "Spa"}, []string{"Jap"}) {
+		t.Error("without a preference any added language is a gain")
+	}
+	// never a gain when the copy trades one language for another
+	if gains(nil, []string{"Ger"}, []string{"Jap"}) {
+		t.Error("a swapped language counted as a gain")
+	}
+}
+
+// The preference is read from both halves of the defaults, and "off" is a
+// decision about subtitles rather than a language.
+func TestWantedFrom(t *testing.T) {
+	w := wantedFrom(CommonDefaults{WantDub: "Jap", PlexSubLang: "Ger:forced"})
+	if len(w.dub) != 1 || w.dub[0] != "Jap" || len(w.sub) != 1 || w.sub[0] != "Ger" {
+		t.Fatalf("wanted: %+v", w)
+	}
+	if w := wantedFrom(CommonDefaults{PlexSubLang: "off"}); len(w.sub) != 0 {
+		t.Errorf("off is not a language: %+v", w)
+	}
+	if w := wantedFrom(CommonDefaults{}); len(w.dub) != 0 || len(w.sub) != 0 {
+		t.Errorf("nothing stated: %+v", w)
 	}
 }
 
