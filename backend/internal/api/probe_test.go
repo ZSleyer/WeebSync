@@ -8,6 +8,13 @@ func TestLangCode(t *testing.T) {
 		"eng": "Eng", "jpn": "Jap", "ja": "Jap",
 		"und": "", "": "",
 		"xyz": "Xyz", // unknown -> title-cased three letters
+		// Historical stages of a language the table knows. Muxers write them,
+		// and the fall-through above turned each one into a language of its
+		// own that sat beside the real code and matched nothing - a copy then
+		// read as carrying one language more than it does.
+		"enm": "Eng", "ang": "Eng",
+		"gmh": "Ger", "goh": "Ger",
+		"frm": "Fre", "fro": "Fre",
 	}
 	for in, want := range cases {
 		if got := langCode(in); got != want {
