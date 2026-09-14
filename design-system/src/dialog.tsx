@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { SHEET_MQ, useMediaQuery } from './useMediaQuery'
+import { useSheetDrag } from './useSheetDrag'
 
 // The native <dialog> mechanics WeebSync repeats in every modal: open it as a
 // modal on mount, close on a backdrop click but not on a drag that merely ended
@@ -9,14 +10,9 @@ import { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(' ')
 
 // Widths small enough to stay a centred box on a phone. Anything wider - the
-// watch editor, the remote browser - fills the screen instead, where a centred
-// box would only be a thin margin around a full-height panel anyway.
+// watch editor, the remote browser - becomes a bottom sheet instead, where a
+// centred box would only be a thin margin around a full-height panel anyway.
 const BOX_WIDTHS = new Set(['max-w-xs', 'max-w-sm', 'max-w-md'])
-
-// a pull on a sheet's header: this many pixels before it counts as a drag at
-// all, and this many before letting go closes the sheet
-const DRAG_SLOP = 10
-const DRAG_CLOSE = 120
 
 export interface DialogProps {
   children: ReactNode
@@ -32,8 +28,10 @@ export interface DialogProps {
    */
   onRequestClose?: () => boolean | Promise<boolean>
   /**
-   * Full-screen sheet on phones instead of a centred box. Defaults to true for
-   * anything wider than `max-w-md`; pass it explicitly to override.
+   * Bottom sheet on phones instead of a centred box: it rises from the bottom
+   * edge, stops short of the top so the page behind stays visible, and is
+   * dismissed by pulling it down. Defaults to true for anything wider than
+   * `max-w-md`; pass it explicitly to override.
    */
   sheet?: boolean
   /** accessible name for the sheet's close button */
@@ -45,7 +43,7 @@ export interface DialogProps {
    * Extra classes for the box inside the dialog. A tall modal needs its own
    * scroll container - `dialog-body` here, `overflow-y-auto` on the section
    * that may grow - so the page behind never gains a scrollbar. `dialog-body`
-   * also knows how to give up its height cap inside a full-screen sheet.
+   * also knows how to give up its height cap inside a bottom sheet.
    */
   bodyClassName?: string
 }
@@ -72,10 +70,9 @@ export function Dialog({
   // and ended on the backdrop must not count as a click outside
   const backdropDown = useRef(false)
   const asSheet = sheet ?? !BOX_WIDTHS.has(width.split(' ')[0])
-  // Whether the sheet layout is in effect right now. A full-screen sheet has no
-  // visible backdrop to click and so no way out except this button - both the
-  // button and the backdrop handler key off the live match rather than the
-  // prop, so dragging a desktop window across the breakpoint flips both.
+  // Whether the sheet layout is in effect right now, read from the live match
+  // rather than the prop so dragging a desktop window across the breakpoint
+  // flips the grabber and the pull gesture with it.
   const narrow = useMediaQuery(SHEET_MQ)
   const isSheet = asSheet && narrow
 
@@ -89,32 +86,14 @@ export function Dialog({
   }
   const menuOpen = () => !!ref.current?.querySelector('[aria-haspopup][aria-expanded="true"]')
 
-  // the pull-down on a phone sheet: where the pointer went down, and whether
-  // it has moved far enough to count as a drag rather than a tap
-  const drag = useRef<{ y: number; id: number; on: boolean } | null>(null)
-  const endDrag = async (clientY?: number) => {
-    const d = drag.current
-    const el = ref.current
-    drag.current = null
-    if (!d || !d.on || !el) return
-    const far = clientY !== undefined && clientY - d.y > DRAG_CLOSE
-    if (far && (!onRequestClose || (await onRequestClose()))) {
-      // slide the rest of the way out, then close for real
-      el.style.transition = 'transform var(--dur-2) var(--ease-in)'
-      el.style.transform = 'translateY(100%)'
-      const done = () => {
-        el.removeEventListener('transitionend', done)
-        el.close()
-      }
-      el.addEventListener('transitionend', done)
-      setTimeout(done, 250)
-      return
-    }
-    // too short, or the guard said no: the stylesheet's own transition
-    // settles it back into place
-    el.style.transition = ''
-    el.style.transform = ''
-  }
+  // the pull-down, from anywhere on the sheet's face - see useSheetDrag for
+  // how it hands the vertical axis back and forth with the scrolling content
+  const sheetDrag = useSheetDrag({
+    sheet: ref,
+    enabled: isSheet,
+    onRequestClose,
+    onClose: () => ref.current?.close(),
+  })
 
   // The back gesture closes the dialog instead of leaving the page: every
   // dialog pushes one history entry while it is open, and popping it - the
@@ -201,57 +180,30 @@ export function Dialog({
         void guarded()
       }}
       onPointerDown={(e) => {
+        // a press on the backdrop is never a sheet pull: the sheet element is
+        // the box, and the area around it belongs to the dialog itself
         backdropDown.current = e.target === ref.current
-        // a pull on the sheet's header starts a drag - the banner, title and
-        // tabs are the part that never scrolls, so a downward move there can
-        // only mean "close". The stylesheet gives the header touch-action:
-        // pan-x, or the browser would cancel the pointer for its own pan.
-        // ponytail: drag zone is the <header>; pulling a scrolled-to-top panel
-        // down needs touch-action juggling on the scroller, not worth it
-        const el = e.target as HTMLElement
-        if (isSheet && el.closest('dialog') === ref.current && el.closest('header')) {
-          drag.current = { y: e.clientY, id: e.pointerId, on: false }
-        }
+        if (!backdropDown.current) sheetDrag.onPointerDown(e)
       }}
-      onPointerMove={(e) => {
-        const d = drag.current
-        const el = ref.current
-        if (!d || !el || e.pointerId !== d.id) return
-        const dy = e.clientY - d.y
-        if (!d.on) {
-          if (dy < DRAG_SLOP) return
-          d.on = true
-          // from here on the pointer is ours: a tab under the finger must not
-          // get the click when the pull ends
-          try {
-            el.setPointerCapture(e.pointerId)
-          } catch {
-            /* a synthetic pointer id, or jsdom */
-          }
-          el.style.transition = 'none'
-        }
-        el.style.transform = `translateY(${Math.max(0, dy)}px)`
-      }}
-      onPointerUp={(e) => void endDrag(e.clientY)}
-      onPointerCancel={() => void endDrag()}
+      onPointerMove={sheetDrag.onPointerMove}
+      onPointerUp={(e) => sheetDrag.onPointerUp(e)}
+      onPointerCancel={sheetDrag.onPointerCancel}
       onClick={(e) => {
-        if (isSheet) return // no backdrop to click - the button is the way out
         if (e.target === ref.current && backdropDown.current) void guarded()
       }}
     >
       {isSheet && (
+        // The sheet's grabber: the drag affordance, and a plain button so the
+        // pull has a single-tap alternative (WCAG 2.2 SC 2.5.1 / 2.5.7). The
+        // pill is M3's 32x4; the hit area around it is 44px tall, because a
+        // 4px target fails SC 2.5.8.
         <button
           type="button"
           aria-label={closeLabel}
           onClick={() => void guarded()}
-          // the sheet scrolls under this button, and a banner image or a line
-          // of text behind a bare glyph makes it unreadable - it carries its
-          // own surface
-          className="absolute top-1 right-1 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-bg-card/90 text-t-muted hover:text-t-primary"
+          className="grid h-11 w-full shrink-0 place-items-center"
         >
-          <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
+          <span aria-hidden="true" className="h-1 w-8 rounded-full bg-t-muted/60" />
         </button>
       )}
       {/* The dialog element itself must not scroll (fractional border height

@@ -185,7 +185,7 @@
   --r-ctl: 6px; /* .t-btn, .t-input, .t-select, .t-tabs, notes */
   --r-menu: 8px; /* menus, dropdown lists, sub-boxes, chat bubbles */
   --r-panel: 10px; /* .t-panel, composer, file browser */
-  --r-dialog: 12px; /* dialog; the phone sheet is 0 */
+  --r-dialog: 12px; /* dialog, and the phone sheet's top corners */
   /* Motion: enter eases out, exit eases in and is shorter; nothing over
      300ms, nothing moves more than 8px or scales below 0.98, nothing
      transforms on hover. All of it sits under the reduced-motion gate. */
@@ -933,40 +933,60 @@ dialog .overflow-y-auto {
   max-height: var(--dialog-max-h);
 }
 
-/* Detail modal: fullscreen sheet on phones (same cascade context as the
-   base dialog rules above, so it wins without !important and the enter
-   transition stays intact) */
+/* The phone layout: a bottom sheet, not a takeover (same cascade context as
+   the base dialog rules above, so it wins without !important and the enter
+   transition stays intact). It rises from the bottom edge and stops short of
+   the top - the strip of page still showing is what makes it read as a sheet,
+   and it is what a full-screen dialog took away along with the backdrop to
+   tap. */
 @media (max-width: 40rem) {
   dialog.dialog-sheet {
     width: 100vw;
-    height: 100dvh;
-    max-height: 100dvh;
     max-width: none;
+    /* Open far enough for a form, short of the top. M3 caps a sheet's initial
+       height at 50% of the screen and Apple's default is near-full; these
+       dialogs carry rows of fields, so they sit between the two. */
+    height: 70dvh;
+    /* pinned to the bottom edge - `margin: auto` from the base rule would
+       float it in the middle of the screen */
     margin: 0;
-    border-radius: 0;
+    inset: auto 0 0 0;
+    border-radius: var(--r-dialog) var(--r-dialog) 0 0;
+    border-bottom: 0;
+    box-shadow: 0 -8px 32px rgb(0 0 0 / 0.16);
+    /* the sheet owns the vertical axis: without this the browser claims a
+       downward move for its own pan and cancels the pointer mid-pull. The
+       scrolling middle takes it back below. */
+    touch-action: none;
   }
-  /* the wrapper the Dialog component draws and the content box inside it both
-     give up their cap here, or the sheet keeps a dead strip along the bottom.
-     `:not(button)` spares the close button, whose own size utilities a blanket
-     height:100% would beat and stretch down the whole sheet. */
+  /* A column, so the grabber sits above the content rather than over it. Only
+     while open: the closed dialog has to stay `display: none` for the exit
+     transition to run. */
+  dialog.dialog-sheet[open] {
+    display: flex;
+    flex-direction: column;
+  }
+  /* the wrapper the Dialog component draws and the content box inside it take
+     what is left under the grabber. `:not(button)` spares the grabber and the
+     close button, whose own size utilities a blanket height would beat. */
   dialog.dialog-sheet > :not(button),
   dialog.dialog-sheet .dialog-body {
-    max-height: 100%;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    height: auto;
   }
-  /* the header is the sheet's pull-down handle (Dialog tracks the pointer):
-     without this the browser claims a vertical move for its own pan and
-     cancels the pointer. pan-x stays, for a tab bar that scrolls sideways. */
-  dialog.dialog-sheet .dialog-body > header {
-    touch-action: pan-x;
+  /* The scrolling middle takes the vertical axis back from the sheet: the
+     browser scrolls it, and the pull only starts once it is at its top (see
+     useSheetDrag). `contain` keeps an over-scroll from reaching the page
+     behind, which would scroll the app under the open sheet. */
+  dialog.dialog-sheet .overflow-y-auto {
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
   }
-  /* room for the sheet's close button, which floats over the top-right corner
-     of whatever header the dialog's content brings: the button's 2.75rem plus
-     its offset and a gap. On the text rows only - a banner carries the button
-     on its own surface, and the tab bar sits below it and must line up with
-     the content underneath, not stop short of it. */
-  dialog.dialog-sheet .dialog-body > header > :not(img, .t-tabs) {
-    padding-right: 4rem;
+  /* the last row clears the home indicator */
+  dialog.dialog-sheet .dialog-body > footer {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 }
 /* The page behind a dialog is blurred as well as dimmed: on a phone the box

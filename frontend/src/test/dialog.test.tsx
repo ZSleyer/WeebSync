@@ -265,7 +265,7 @@ describe('Dialog', () => {
     back.mockRestore()
   })
 
-  // ── full-screen sheet on phones ──
+  // ── bottom sheet on phones ──
   // jsdom's matchMedia always reports `matches: false`, so the narrow case is
   // stubbed. Restored per test, since the component reads it on first render.
   const withNarrowViewport = (matches: boolean) => {
@@ -277,27 +277,45 @@ describe('Dialog', () => {
     }
   }
 
-  // the pull-down: pointer events on the header, distances in clientY
-  const pull = (header: HTMLElement, dialog: HTMLDialogElement, dy: number) => {
-    fireEvent.pointerDown(header, { clientY: 100, pointerId: 1 })
+  // The pull-down: pointer events from anywhere on the sheet, distances in
+  // clientY. `ms` is how long the gesture takes, because the release reads the
+  // speed as well as the distance - a short flick dismisses, a short slow pull
+  // settles back, and firing the events instantly would make every pull a
+  // flick of infinite speed.
+  const pull = async (from: HTMLElement, dialog: HTMLDialogElement, dy: number, ms = 300) => {
+    fireEvent.pointerDown(from, { clientY: 100, pointerId: 1 })
     fireEvent.pointerMove(dialog, { clientY: 100 + dy / 2, pointerId: 1 })
     fireEvent.pointerMove(dialog, { clientY: 100 + dy, pointerId: 1 })
+    await new Promise((r) => setTimeout(r, ms))
     fireEvent.pointerUp(dialog, { clientY: 100 + dy, pointerId: 1 })
+  }
+
+  const sheet = (props: Partial<Parameters<typeof Dialog>[0]> = {}) =>
+    render(
+      <Dialog onClose={() => {}} width="max-w-2xl" {...props}>
+        <div className="dialog-body">
+          <header>Kopf</header>
+          <section className="overflow-y-auto">Inhalt</section>
+        </div>
+      </Dialog>,
+    )
+
+  /** Make an element look like a scroller parked at `top` to the gesture.
+   *  The overflow has to be inline: jsdom computes no styles from the sheet,
+   *  so the class alone leaves it `visible` and the element is no scroller. */
+  const asScroller = (el: HTMLElement, top: number) => {
+    el.style.overflowY = 'auto'
+    Object.defineProperty(el, 'scrollHeight', { value: 900, configurable: true })
+    Object.defineProperty(el, 'clientHeight', { value: 300, configurable: true })
+    Object.defineProperty(el, 'scrollTop', { value: top, configurable: true })
   }
 
   it('closes a sheet pulled down by its header', async () => {
     const restore = withNarrowViewport(true)
     const onClose = vi.fn()
-    const { container } = render(
-      <Dialog onClose={onClose} width="max-w-2xl">
-        <div className="dialog-body">
-          <header>Kopf</header>
-          <p>Inhalt</p>
-        </div>
-      </Dialog>,
-    )
+    const { container } = sheet({ onClose })
     const dialog = dialogOf(container)
-    pull(screen.getByText('Kopf'), dialog, 200)
+    await pull(screen.getByText('Kopf'), dialog, 200)
     // the sheet slides out first; the close waits for the transition
     await waitFor(() => expect(dialog.style.transform).toBe('translateY(100%)'))
     fireEvent.transitionEnd(dialog)
@@ -305,24 +323,52 @@ describe('Dialog', () => {
     restore()
   })
 
-  it('settles a short pull back and a pull on the body does nothing', () => {
+  // The whole point of the rewrite: a sheet follows the finger from its whole
+  // face. Restricting the pull to the header is what people notice as wrong.
+  it('closes a sheet pulled down by its body, not just its header', async () => {
     const restore = withNarrowViewport(true)
     const onClose = vi.fn()
-    const { container } = render(
-      <Dialog onClose={onClose} width="max-w-2xl">
-        <div className="dialog-body">
-          <header>Kopf</header>
-          <p>Inhalt</p>
-        </div>
-      </Dialog>,
-    )
+    const { container } = sheet({ onClose })
     const dialog = dialogOf(container)
-    pull(screen.getByText('Kopf'), dialog, 60)
+    await pull(screen.getByText('Inhalt'), dialog, 200)
+    await waitFor(() => expect(dialog.style.transform).toBe('translateY(100%)'))
+    fireEvent.transitionEnd(dialog)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    restore()
+  })
+
+  // ...but only while the content under the finger is at its top. Below that
+  // the move is the scroller's, or the sheet would dismiss itself whenever
+  // someone scrolled back up.
+  it('leaves the move to a scrolled content area', async () => {
+    const restore = withNarrowViewport(true)
+    const onClose = vi.fn()
+    const { container } = sheet({ onClose })
+    const dialog = dialogOf(container)
+    const body = screen.getByText('Inhalt')
+    asScroller(body, 240)
+    await pull(body, dialog, 300)
     expect(dialog.style.transform).toBe('')
-    pull(screen.getByText('Inhalt'), dialog, 300)
+    expect(onClose).not.toHaveBeenCalled()
+    // scrolled back to the top, the same pull is the sheet's
+    asScroller(body, 0)
+    await pull(body, dialog, 300)
+    expect(dialog.style.transform).toBe('translateY(100%)')
+    restore()
+  })
+
+  it('settles a short slow pull back, and dismisses a short fast one', async () => {
+    const restore = withNarrowViewport(true)
+    const onClose = vi.fn()
+    const { container } = sheet({ onClose })
+    const dialog = dialogOf(container)
+    await pull(screen.getByText('Kopf'), dialog, 40, 400)
     expect(dialog.style.transform).toBe('')
     expect(onClose).not.toHaveBeenCalled()
     expect(dialog.open).toBe(true)
+    // the same distance flicked: speed carries it over on its own
+    await pull(screen.getByText('Kopf'), dialog, 40, 20)
+    expect(dialog.style.transform).toBe('translateY(100%)')
     restore()
   })
 
@@ -338,39 +384,34 @@ describe('Dialog', () => {
     expect(dialogOf(container)).not.toHaveClass('dialog-sheet')
   })
 
-  it('a sheet on a phone offers a close button instead of a backdrop click', async () => {
+  // The sheet stops short of the top, so there IS a backdrop again - and it is
+  // the dismissal everyone reaches for first. The grabber is the second
+  // single-tap way out, which is what keeps the pull from being the only one
+  // (WCAG 2.2 SC 2.5.1 / 2.5.7).
+  it('a sheet closes on a backdrop click and on its grabber', async () => {
     const restore = withNarrowViewport(true)
     try {
       const onClose = vi.fn()
-      const { container } = render(
-        <Dialog onClose={onClose} width="max-w-2xl" closeLabel="Schließen">
-          Inhalt
-        </Dialog>,
-      )
-      const dialog = dialogOf(container)
-      // there is no visible backdrop to aim at, so a click on the dialog box
-      // must not close it - that would fire on any tap next to the content
-      clickBackdrop(dialog)
-      expect(onClose).not.toHaveBeenCalled()
-      expect(dialog.open).toBe(true)
-
-      fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
+      const { container, unmount } = sheet({ onClose, closeLabel: 'Schließen' })
+      clickBackdrop(dialogOf(container))
       await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+      unmount()
+
+      const second = vi.fn()
+      sheet({ onClose: second, closeLabel: 'Schließen' })
+      fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
+      await waitFor(() => expect(second).toHaveBeenCalledTimes(1))
     } finally {
       restore()
     }
   })
 
-  it('routes the sheet close button through the unsaved guard', async () => {
+  it('routes the sheet grabber through the unsaved guard', async () => {
     const restore = withNarrowViewport(true)
     try {
       const onClose = vi.fn()
       const onRequestClose = vi.fn(() => false)
-      render(
-        <Dialog onClose={onClose} onRequestClose={onRequestClose} width="max-w-2xl" closeLabel="Schließen">
-          Inhalt
-        </Dialog>,
-      )
+      sheet({ onClose, onRequestClose, closeLabel: 'Schließen' })
       fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
       await waitFor(() => expect(onRequestClose).toHaveBeenCalledTimes(1))
       expect(onClose).not.toHaveBeenCalled()
