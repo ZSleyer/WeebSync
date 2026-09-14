@@ -957,10 +957,6 @@ dialog .overflow-y-auto {
     border-radius: var(--r-dialog) var(--r-dialog) 0 0;
     border-bottom: 0;
     box-shadow: 0 -8px 32px rgb(0 0 0 / 0.16);
-    /* the sheet owns the vertical axis: without this the browser claims a
-       downward move for its own pan and cancels the pointer mid-pull. The
-       scrolling middle takes it back below. */
-    touch-action: none;
   }
   /* The second height. The first scroll inside the sheet is the content
      saying that 70dvh was not enough (the Dialog component sets the
@@ -987,12 +983,14 @@ dialog .overflow-y-auto {
     max-height: none;
     height: auto;
   }
-  /* The scrolling middle takes the vertical axis back from the sheet: the
-     browser scrolls it, and the pull only starts once it is at its top (see
-     useSheetDrag). `contain` keeps an over-scroll from reaching the page
+  /* Who owns a vertical drag - the sheet or the scrolling middle - is decided
+     in useSheetDrag, on the first move of the gesture. It cannot be expressed
+     as `touch-action`: `pan-y` here let the browser claim every vertical
+     gesture the moment it began, and on a sheet whose content fits there was
+     nothing to scroll, so the drag died in the browser and the sheet never
+     moved. `contain` stays: it keeps an over-scroll from reaching the page
      behind, which would scroll the app under the open sheet. */
   dialog.dialog-sheet .overflow-y-auto {
-    touch-action: pan-y;
     overscroll-behavior-y: contain;
   }
   /* the last row clears the home indicator */
