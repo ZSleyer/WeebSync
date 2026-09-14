@@ -1,9 +1,25 @@
 name: ci
 
 on:
+  # Every branch, not just main. The house rule is that work is pushed as a
+  # feature branch and merged from the desktop rather than through a pull
+  # request, so gating on main meant the gates first ran after the merge - and
+  # `go test -race` runs NOWHERE else: the second workstation is a Raspberry
+  # Pi whose kernel has 47 VA bits where ThreadSanitizer needs 48, so every
+  # local run aborts with "unsupported VMA range".
+  #
+  # Nothing is published from a branch: the dev-image job below still checks
+  # for refs/heads/main, so ghcr's :dev tag - the one the add-on follows - only
+  # ever moves on a green main build.
   push:
-    branches: [main]
   pull_request:
+
+# A branch under active work is pushed often, and a full run costs ten minutes
+# of govulncheck, trivy and a docker build. Superseded runs are cancelled -
+# except on main, where the run publishes :dev and has to finish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
