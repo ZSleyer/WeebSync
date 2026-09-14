@@ -21,11 +21,26 @@ import (
 // iso639 maps the language tags ffprobe reports (ISO 639-2/T, sometimes 639-1)
 // to the app's short code style (Ger/Eng/Jap...). Unknown tags fall through to
 // a title-cased three letters.
+//
+// The historical stages are in here because muxers really do write them, and
+// the fall-through turned each one into a language of its own: "enm" became
+// "Enm" and sat in a copy's subtitle set beside the real "Eng", where it
+// matched nothing and made the copy look like it carried one language more
+// than it does. Nobody is shipping a Middle High German dub - the tag is a
+// mis-tag of the modern language, and reading it as that is both the useful
+// answer and the true one.
+//
+// ponytail: only the stages of languages this map already knows. ISO 639-2 has
+// a dozen more (grc, sga, non, dum ...); add them beside their modern code if
+// one turns up.
 var iso639 = map[string]string{
 	"ger": "Ger", "deu": "Ger", "de": "Ger",
+	"goh": "Ger", "gmh": "Ger", // Old / Middle High German
 	"eng": "Eng", "en": "Eng",
+	"ang": "Eng", "enm": "Eng", // Old / Middle English
 	"jpn": "Jap", "jap": "Jap", "ja": "Jap",
 	"fre": "Fre", "fra": "Fre", "fr": "Fre",
+	"fro": "Fre", "frm": "Fre", // Old / Middle French
 	"spa": "Spa", "es": "Spa",
 	"ita": "Ita", "it": "Ita",
 	"por": "Por", "pt": "Por",
