@@ -1,6 +1,9 @@
 package api
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestLangCode(t *testing.T) {
 	cases := map[string]string{
@@ -177,5 +180,29 @@ func TestSignsOnlyTitle(t *testing.T) {
 		if signsOnlyTitle(in) {
 			t.Errorf("signsOnlyTitle(%q) = true, want a translation track kept", in)
 		}
+	}
+}
+
+// The reason 071 silently did nothing: the caches hold codes that were already
+// canonical when they were written, so correcting the map left every stored
+// value untouched and the next sweep wrote the old one straight back. Reading
+// a stored code through the current map is what makes a correction take.
+func TestCanonLangsRereadsStoredCodes(t *testing.T) {
+	// "Enm" folds onto the "Eng" already in the set - one entry, not two
+	if got := canonLangs([]string{"Eng", "Enm", "Ger"}); strings.Join(got, ",") != "Eng,Ger" {
+		t.Errorf("canonLangs = %v, want [Eng Ger]", got)
+	}
+	// a phantom standing alone becomes the language it was meant to be
+	if got := canonLangs([]string{"Gmh"}); strings.Join(got, ",") != "Ger" {
+		t.Errorf("canonLangs = %v, want [Ger]", got)
+	}
+	// the recorded hole survives: it is not a language, and dropping it is what
+	// made a complete copy look like it was missing one
+	if got := canonLangs([]string{"Ger", "Und"}); strings.Join(got, ",") != "Ger,Und" {
+		t.Errorf("canonLangs = %v, want [Ger Und]", got)
+	}
+	// nothing to do is left alone
+	if got := canonLangs(nil); got != nil {
+		t.Errorf("canonLangs(nil) = %v, want nil", got)
 	}
 }

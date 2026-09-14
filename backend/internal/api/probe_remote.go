@@ -187,7 +187,7 @@ func (s *Server) cachedRemoteLang(serverID int64, remotePath string) (dub, sub m
 	if json.Unmarshal([]byte(p), &v) != nil {
 		return nil, nil, false
 	}
-	return toSet(v.Dub), toSet(v.Sub), true
+	return toSet(canonLangs(v.Dub)), toSet(canonLangs(v.Sub)), true
 }
 
 func toSet(xs []string) map[string]bool {

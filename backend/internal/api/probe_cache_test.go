@@ -8,10 +8,16 @@ import (
 
 // The cache exists to stop the hourly library index from re-running ffprobe
 // over folders that have not changed. Two things have to hold for that to be
-// safe: a hit must return exactly what was measured, and any change to the
-// folder - a new episode, a replaced file, a re-encode - must miss, because a
-// stale answer would feed the upgrade suggestions a quality the files no
-// longer have.
+// safe: a hit must return what was measured, and any change to the folder - a
+// new episode, a replaced file, a re-encode - must miss, because a stale
+// answer would feed the upgrade suggestions a quality the files no longer
+// have.
+//
+// "What was measured" means the languages, not the spelling they were stored
+// in: a hit is re-read through the current language map, so a correction to it
+// reaches rows written before it. Storing raw ISO tags here is deliberate -
+// the real writer stores canonical codes, and this proves the read path does
+// not depend on that.
 func TestProbeCacheHitsOnlyOnAnUnchangedFolder(t *testing.T) {
 	d := dbtest.Open(t)
 	s := &Server{DB: d}
@@ -23,8 +29,8 @@ func TestProbeCacheHitsOnlyOnAnUnchangedFolder(t *testing.T) {
 	if !ok {
 		t.Fatal("miss on the unchanged folder, want a hit")
 	}
-	if got.ResRank != want.ResRank || len(got.Dub) != 1 || got.Dub[0] != "jpn" || got.Probed != want.Probed {
-		t.Errorf("got %+v, want %+v", got, want)
+	if got.ResRank != want.ResRank || len(got.Dub) != 1 || got.Dub[0] != "Jap" || got.Probed != want.Probed {
+		t.Errorf("got %+v, want the same measurement with Dub [Jap]", got)
 	}
 
 	// one more file in the folder
