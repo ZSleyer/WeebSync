@@ -1,0 +1,184 @@
+import { useEffect, useRef, type PointerEvent, type RefObject } from 'react'
+
+// A bottom sheet follows the finger from anywhere on its surface. Restricting
+// the pull to a handle or a header is the thing people notice as wrong: every
+// native sheet drags from its whole face, and Apple ships the grabber hidden by
+// default precisely because it is a hint rather than the handle.
+//
+// The whole difficulty is that the surface also scrolls, and one pointer cannot
+// do both. The rule the platforms use, and this follows it: a downward move
+// belongs to the SHEET only while the scroller under the finger is already at
+// its top; otherwise it belongs to the scroller. Once the sheet has claimed the
+// move it keeps it until the pointer is up - `touch-action` is sampled when a
+// gesture begins and cannot be changed mid-flight, so the scroller is frozen
+// with `overflow: hidden` instead, which takes effect at once.
+
+// px/ms, measured over the whole gesture: a flick this fast closes the sheet
+// however short the pull was.
+const VELOCITY = 0.4
+// or a pull past a quarter of the sheet's height. The fraction alone is too
+// twitchy on a short sheet, hence the floor.
+const CLOSE_FRACTION = 0.25
+const CLOSE_MIN = 64
+// a move shorter than this is a tap with a shaky thumb, not a pull
+const SLOP = 6
+// Momentum scrolling fires scroll events with no pointer down, and a flick that
+// lands at the top of the content must not turn into a dismissal. A press this
+// soon after the last scroll cannot start a drag.
+const SCROLL_LOCK_MS = 100
+// how far the sheet may be pulled UP past its resting place, and how hard it
+// resists on the way: `limit * x * r / (x * r + limit)` saturates instead of
+// following, which is what reads as rubber rather than as a broken constraint.
+const OVERDRAG_LIMIT = 40
+const OVERDRAG_R = 0.55
+// the slide-out, and the safety net in case transitionend never fires
+const CLOSE_MS = 250
+const SETTLE_MS = 350
+
+// Controls that own the pointer themselves, plus the opt-out for anything that
+// pans on its own (a slider, a horizontal carousel).
+const NO_DRAG = 'input, textarea, select, [contenteditable], [data-no-drag]'
+
+// rubber band: the pull-up distance the sheet actually moves
+const dampen = (over: number) => (OVERDRAG_LIMIT * over * OVERDRAG_R) / (over * OVERDRAG_R + OVERDRAG_LIMIT)
+
+// The scroller between the finger and the sheet, and whether it is at its top.
+// Safari lets scrollTop go negative during its bounce, so the test is <= 0
+// rather than === 0 - on an over-scrolled sheet the drag would never start.
+const scrollerAtTop = (from: Element | null, root: Element): { el: HTMLElement | null; atTop: boolean } => {
+  for (let n = from as HTMLElement | null; n && n !== root.parentElement; n = n.parentElement) {
+    if (n.scrollHeight > n.clientHeight + 1) {
+      const oy = getComputedStyle(n).overflowY
+      if (oy === 'auto' || oy === 'scroll') return { el: n, atTop: n.scrollTop <= 0 }
+    }
+  }
+  return { el: null, atTop: true }
+}
+
+const reducedMotion = () =>
+  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
+export interface SheetDragHandlers {
+  onPointerDown: (e: PointerEvent<HTMLElement>) => void
+  onPointerMove: (e: PointerEvent<HTMLElement>) => void
+  onPointerUp: (e: PointerEvent<HTMLElement>) => void
+  onPointerCancel: (e: PointerEvent<HTMLElement>) => void
+}
+
+export interface SheetDragOptions {
+  /** the sheet itself: what moves, and the root the scroller search stops at */
+  sheet: RefObject<HTMLElement | null>
+  /** off on a desktop dialog, where there is no sheet to pull */
+  enabled: boolean
+  /** asked before the pull closes; false settles the sheet back into place */
+  onRequestClose?: () => boolean | Promise<boolean>
+  /** the sheet has slid out - close it for real */
+  onClose: () => void
+}
+
+/**
+ * Pull-to-dismiss for a bottom sheet, from anywhere on its surface.
+ *
+ * Spread the handlers on the sheet element. The gesture always has a
+ * non-dragging alternative beside it (the close button, the backdrop, Escape) -
+ * WCAG 2.2 SC 2.5.1 and 2.5.7 both ask for one, and a sheet that can only be
+ * swiped apart is unusable for anyone who cannot swipe precisely.
+ */
+export function useSheetDrag({ sheet, enabled, onRequestClose, onClose }: SheetDragOptions): SheetDragHandlers {
+  const drag = useRef<{ id: number; y: number; t: number; from: Element; on: boolean; frozen: HTMLElement | null } | null>(null)
+  const lastScroll = useRef(0)
+
+  // `scroll` does not bubble, so the sheet listens in the capture phase and
+  // hears every scroller inside it.
+  useEffect(() => {
+    const el = sheet.current
+    if (!el || !enabled) return
+    const seen = () => {
+      lastScroll.current = performance.now()
+    }
+    el.addEventListener('scroll', seen, true)
+    return () => el.removeEventListener('scroll', seen, true)
+  }, [sheet, enabled])
+
+  const release = (el: HTMLElement, d: NonNullable<typeof drag.current>) => {
+    if (d.frozen) d.frozen.style.overflow = ''
+    try {
+      el.releasePointerCapture(d.id)
+    } catch {
+      /* a synthetic pointer id, or jsdom */
+    }
+  }
+
+  const end = async (e: PointerEvent<HTMLElement>, commit: boolean) => {
+    const d = drag.current
+    const el = sheet.current
+    drag.current = null
+    if (!d || !el || e.pointerId !== d.id) return
+    release(el, d)
+    if (!d.on) return
+    const dy = e.clientY - d.y
+    const dt = performance.now() - d.t
+    // two events carrying the same timestamp say nothing about speed; the
+    // distance still does
+    const v = dt > 0 ? dy / dt : 0
+    const far = dy > Math.max(el.clientHeight * CLOSE_FRACTION, CLOSE_MIN)
+    // a cancelled pointer (the browser took it for its own pan) settles back
+    if (commit && dy > 0 && (far || v > VELOCITY) && (!onRequestClose || (await onRequestClose()))) {
+      el.style.transition = reducedMotion() ? 'none' : `transform ${CLOSE_MS}ms var(--ease-in)`
+      el.style.transform = 'translateY(100%)'
+      const done = () => {
+        el.removeEventListener('transitionend', done)
+        clearTimeout(timer)
+        onClose()
+      }
+      const timer = setTimeout(done, CLOSE_MS + 100)
+      el.addEventListener('transitionend', done)
+      return
+    }
+    el.style.transition = reducedMotion() ? 'none' : `transform ${SETTLE_MS}ms var(--ease-out)`
+    el.style.transform = ''
+  }
+
+  return {
+    onPointerDown: (e) => {
+      if (!enabled || drag.current) return
+      const el = sheet.current
+      const target = e.target as HTMLElement | null
+      if (!el || !target?.closest || target.closest(NO_DRAG)) return
+      drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), from: target, on: false, frozen: null }
+    },
+    onPointerMove: (e) => {
+      const d = drag.current
+      const el = sheet.current
+      if (!d || !el || e.pointerId !== d.id) return
+      const dy = e.clientY - d.y
+      if (!d.on) {
+        // upward, or still inside the tap slop: the move is not ours (yet)
+        if (dy < SLOP) return
+        if (performance.now() - lastScroll.current < SCROLL_LOCK_MS) return (drag.current = null) as null
+        // the element the finger went down on, not the one it is over now:
+        // the move may already have left it, and pointer capture will change
+        // the target from here on anyway
+        const { el: scroller, atTop } = scrollerAtTop(d.from, el)
+        if (!atTop) return (drag.current = null) as null
+        d.on = true
+        try {
+          el.setPointerCapture(e.pointerId)
+        } catch {
+          /* a synthetic pointer id, or jsdom */
+        }
+        // The gesture is the sheet's from here. touch-action was already read
+        // when the finger went down, so freezing the scroller is what actually
+        // stops it mid-flight; it is at its top, so nothing jumps.
+        if (scroller) {
+          d.frozen = scroller
+          scroller.style.overflow = 'hidden'
+        }
+        el.style.transition = 'none'
+      }
+      el.style.transform = `translate3d(0, ${dy >= 0 ? dy : -dampen(-dy)}px, 0)`
+    },
+    onPointerUp: (e) => void end(e, true),
+    onPointerCancel: (e) => void end(e, false),
+  }
+}
