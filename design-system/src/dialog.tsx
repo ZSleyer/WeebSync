@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 import { useSheetDrag } from './useSheetDrag'
 
@@ -86,6 +86,25 @@ export function Dialog({
   }
   const menuOpen = () => !!ref.current?.querySelector('[aria-haspopup][aria-expanded="true"]')
 
+  // A sheet opens at a height that suits a form. The first scroll inside it is
+  // the content saying that height was not enough, so the sheet takes the rest
+  // of the screen and the reader carries on in the same movement. It stops
+  // short of the top either way - that strip of page is the backdrop they tap
+  // to get out - and it never shrinks back on its own: a box that resizes
+  // under the thumb while somebody reads is worse than one that stayed small.
+  // `scroll` does not bubble, so this listens in the capture phase and hears
+  // whichever box inside the sheet actually scrolls.
+  const [expanded, setExpanded] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !isSheet || expanded) return
+    const onScroll = (e: Event) => {
+      if ((e.target as HTMLElement).scrollTop > 0) setExpanded(true)
+    }
+    el.addEventListener('scroll', onScroll, true)
+    return () => el.removeEventListener('scroll', onScroll, true)
+  }, [isSheet, expanded])
+
   // the pull-down, from anywhere on the sheet's face - see useSheetDrag for
   // how it hands the vertical axis back and forth with the scrolling content
   const sheetDrag = useSheetDrag({
@@ -142,6 +161,7 @@ export function Dialog({
       ref={ref}
       {...aria}
       className={cx('w-full p-0', width, asSheet && 'dialog-sheet', className)}
+      data-expanded={isSheet && expanded ? '' : undefined}
       // close and cancel do not bubble natively, but React walks them up its own
       // tree - so a dialog opened from inside another one would close both, past
       // the outer guard and its unsaved changes. Only own events count.
