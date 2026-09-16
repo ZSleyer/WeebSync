@@ -235,8 +235,12 @@ export function useSheetDrag({
     }
     // From the full height a pull down is a step back to the opening height,
     // not a dismissal: the sheet the user grew is not the sheet they meant to
-    // throw away, and the second pull from there does dismiss it.
-    if (isExpanded && collapse) {
+    // throw away, and the second pull from there does dismiss it. One long
+    // pull that carries the sheet past the opening height and a dismissal's
+    // distance beyond it is both pulls in one; where the height difference
+    // could not be measured the sheet steps back rather than guess.
+    const past = span > 0 && dy >= span + Math.max((el.clientHeight - span) * CLOSE_FRACTION, CLOSE_MIN)
+    if (isExpanded && collapse && !past) {
       if (dy >= half || v > DETENT_VELOCITY) detent(false)
       settle()
       return

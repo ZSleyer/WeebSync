@@ -530,6 +530,35 @@ describe('Dialog', () => {
   const withHeights = (dialog: HTMLDialogElement) =>
     Object.defineProperty(dialog, 'clientHeight', { configurable: true, get: () => (dialog.hasAttribute('data-expanded') ? 920 : 700) })
 
+  // One long pull from the full height is both steps in one: past the opening
+  // height and a dismissal's distance beyond it, the sheet goes.
+  it('dismisses on one long pull from the full height', async () => {
+    const restore = withNarrowViewport(true)
+    const onClose = vi.fn()
+    try {
+      const { container } = sheet({ onClose })
+      const dialog = dialogOf(container)
+      withHeights(dialog)
+      asScroller(screen.getByText('Inhalt'), 0)
+      await pull(screen.getByText('Inhalt'), dialog, -150)
+      await waitFor(() => expect(dialog.hasAttribute('data-expanded')).toBe(true))
+
+      // past the opening height (220) but short of a dismissal beyond it
+      // (a quarter of 700): a step back
+      await pull(screen.getByText('Inhalt'), dialog, 300, 800)
+      await waitFor(() => expect(dialog.hasAttribute('data-expanded')).toBe(false))
+      expect(dialog.style.transform).toBe('')
+
+      await pull(screen.getByText('Inhalt'), dialog, -150)
+      await waitFor(() => expect(dialog.hasAttribute('data-expanded')).toBe(true))
+      // 220 + 175 and more: both pulls in one
+      await pull(screen.getByText('Inhalt'), dialog, 420, 800)
+      await waitFor(() => expect(dialog.style.transform).toBe('translateY(100%)'))
+    } finally {
+      restore()
+    }
+  })
+
   // The backdrop dims with the pull: the hook writes how far the sheet has
   // gone as a custom property the stylesheet reads on ::backdrop, and marks
   // the drag so the backdrop's own transition does not lag the finger.
