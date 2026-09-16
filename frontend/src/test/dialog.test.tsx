@@ -474,6 +474,33 @@ describe('Dialog', () => {
     }
   })
 
+  // Nothing is decided under the finger: the sheet follows a pull up 1:1 and
+  // only takes the full height once the finger lifts. Deciding mid-gesture
+  // snapped it open while the thumb was still moving.
+  it('follows a pull up and decides only when the finger lifts', async () => {
+    const restore = withNarrowViewport(true)
+    try {
+      const { container } = sheet()
+      const dialog = dialogOf(container)
+      const body = screen.getByText('Inhalt')
+      asScroller(body, 0)
+      fireEvent.pointerDown(body, { clientY: 400, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 360, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 310, pointerId: 1 })
+      expect(dialog.hasAttribute('data-expanded')).toBe(false)
+      expect(dialog.style.transform).toBe('translate3d(0, -90px, 0)')
+      await new Promise((r) => setTimeout(r, 300))
+      fireEvent.pointerUp(dialog, { clientY: 310, pointerId: 1 })
+      await waitFor(() => expect(dialog.hasAttribute('data-expanded')).toBe(true))
+      // and the settle runs on the stylesheet's transition, which also moves
+      // the height - an inline one naming only the transform left it out
+      expect(dialog.style.transition).toBe('')
+      expect(dialog.style.transform).toBe('')
+    } finally {
+      restore()
+    }
+  })
+
   it('gives the opening height back before it dismisses', async () => {
     const restore = withNarrowViewport(true)
     const onClose = vi.fn()
