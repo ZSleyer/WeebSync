@@ -72,6 +72,28 @@ describe('SwipeDeck', () => {
     expect(onIndex).toHaveBeenCalledWith(10)
   })
 
+  // a finger that lands while the deck is still sliding takes it over: the
+  // turn in flight is committed there and then, nothing lands under the finger
+  // later, and the release judges the whole position
+  it('commits a turn in flight when the next swipe lands on it', () => {
+    const onIndex = vi.fn()
+    deck({ index: 3, onIndex })
+    drag(-100)
+    expect(onIndex).not.toHaveBeenCalled()
+    // the second swipe begins mid-slide
+    drag(-100, false)
+    expect(onIndex).toHaveBeenCalledWith(4)
+    expect(onIndex).toHaveBeenCalledTimes(1)
+    // the old flight's timer must not land a second time
+    vi.useFakeTimers()
+    vi.advanceTimersByTime(500)
+    vi.useRealTimers()
+    expect(onIndex).toHaveBeenCalledTimes(1)
+    fireEvent.pointerUp(box(), { clientX: 200, clientY: 100, pointerId: 1 })
+    fireEvent.transitionEnd(track())
+    expect(onIndex).toHaveBeenLastCalledWith(4)
+  })
+
   it('has no page and no neighbour behind a closed end', () => {
     const onIndex = vi.fn()
     deck({ index: 0, onIndex, canPrev: false })
