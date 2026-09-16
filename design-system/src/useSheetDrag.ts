@@ -49,9 +49,10 @@ const SCROLL_LOCK_MS = 100
 // following, which is what reads as rubber rather than as a broken constraint.
 const OVERDRAG_LIMIT = 40
 const OVERDRAG_R = 0.55
-// the slide-out, and the safety net in case transitionend never fires
+// the slide-out, and the safety net in case transitionend never fires. The
+// settle back into place has no number here: it runs on the stylesheet's own
+// transition, which is the one that also moves the height.
 const CLOSE_MS = 250
-const SETTLE_MS = 350
 
 // Controls that own the pointer themselves, plus the opt-out for anything that
 // pans on its own (a slider, a horizontal carousel).
@@ -158,16 +159,26 @@ export function useSheetDrag({
     // distance still does
     const v = dt > 0 ? dy / dt : 0
     const far = dy > Math.max(el.clientHeight * CLOSE_FRACTION, CLOSE_MIN)
+    // Back to the stylesheet's transition, not to an inline one: the sheet's
+    // height animates from there as well, and an inline `transform ...` would
+    // leave the height out - the detent would then snap while the transform
+    // still holds the pull, and the sheet visibly jumps before it settles.
     const settle = () => {
-      el.style.transition = reducedMotion() ? 'none' : `transform ${SETTLE_MS}ms var(--ease-out)`
+      el.style.transition = ''
       el.style.transform = ''
+    }
+    // The detent flips on the element first, so the height and the transform
+    // start moving in the same frame; React's commit writes the same value.
+    const detent = (on: boolean) => {
+      el.toggleAttribute('data-expanded', on)
+      ;(on ? live.current.onExpand : live.current.onCollapse)?.()
     }
     if (dy > 0 && (far || v > VELOCITY)) {
       // From the full height a pull down is a step back to the opening height,
       // not a dismissal: the sheet the user grew is not the sheet they meant to
       // throw away, and the second pull from there does dismiss it.
       if (isExpanded && collapse) {
-        collapse()
+        detent(false)
         settle()
         return
       }
@@ -261,6 +272,8 @@ export function useSheetDrag({
       if (e.cancelable) e.preventDefault()
       if (mode === 'grow') {
         if (-dy >= EXPAND_AT) {
+          el.style.transition = ''
+          el.toggleAttribute('data-expanded', true)
           live.current.onExpand?.()
           el.style.transform = ''
           reset()
@@ -285,7 +298,7 @@ export function useSheetDrag({
       const claimed = mode === 'sheet' || mode === 'grow'
       reset()
       if (claimed) {
-        el.style.transition = reducedMotion() ? 'none' : `transform ${SETTLE_MS}ms var(--ease-out)`
+        el.style.transition = ''
         el.style.transform = ''
       }
     }
@@ -318,7 +331,7 @@ export function useSheetDrag({
     if (!d.on) return
     if (!commit) {
       // the browser took the pointer for its own pan: settle back
-      el.style.transition = reducedMotion() ? 'none' : `transform ${SETTLE_MS}ms var(--ease-out)`
+      el.style.transition = ''
       el.style.transform = ''
       return
     }
@@ -342,6 +355,7 @@ export function useSheetDrag({
         if (dy < SLOP) {
           // an upward pull with room left above opens the sheet instead
           if (-dy >= EXPAND_AT && !live.current.expanded) {
+            el.toggleAttribute('data-expanded', true)
             live.current.onExpand?.()
             drag.current = null
           }
