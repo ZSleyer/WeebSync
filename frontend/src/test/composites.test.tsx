@@ -165,6 +165,8 @@ describe('DayScroller', () => {
     expect(di).toHaveAttribute('aria-pressed', 'false')
     expect(di).toHaveAttribute('aria-current', 'date')
     expect(di).toHaveTextContent('2')
+    // a day without releases still carries its chip, so the rows line up
+    expect(mi).toHaveTextContent('0')
     fireEvent.click(di)
     expect(pick).toHaveBeenCalledWith('2026-09-15')
   })
