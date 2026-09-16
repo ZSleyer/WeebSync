@@ -30,11 +30,18 @@ export interface SwipeDeckProps {
  * is live, and the deck holds no transform when it is idle - a transform that
  * stayed would pin every `position: fixed` descendant to the deck.
  *
+ * A finger that lands while the deck is still travelling takes it over where
+ * it is: the page turn in flight is committed, the visual position carried
+ * into the new gesture, and the release decides on the whole position rather
+ * than on the last pull alone. Without that a second swipe snapped the deck
+ * back and the first turn landed under the moving finger.
+ *
  * For content that is cheap to render for a neighbouring index. A page whose
  * content fetches on mount does not belong in a deck.
  */
 export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mouse, step = 1, className, children }: SwipeDeckProps) {
   const box = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
   // how far the deck is pushed right now; null is the resting state and the
   // only one without a transform - a transform that stayed would pin every
   // `position: fixed` descendant to the deck
@@ -51,6 +58,23 @@ export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mous
   // every second) would otherwise land on the index from before the flight
   const idx = useRef(index)
   idx.current = index
+  // where the deck stood when the finger landed, and the pull since: a gesture
+  // that grabs a travelling deck starts from its position, not from zero
+  const base = useRef(0)
+  const pull = useRef(0)
+  // useSwipe reports 0 once when it takes the gesture, the pull on every move,
+  // and null when the finger lifts without a verdict
+  const held = useRef(false)
+
+  const width = () => box.current?.clientWidth ?? 0
+  // the deck's position as painted right now, mid-transition included
+  const painted = () => {
+    const el = inner.current
+    if (!el) return 0
+    const t = getComputedStyle(el).transform
+    if (!t || t === 'none' || typeof DOMMatrixReadOnly !== 'function') return 0
+    return new DOMMatrixReadOnly(t).m41
+  }
 
   const rest = () => {
     clearTimeout(timer.current)
@@ -76,26 +100,65 @@ export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mous
     flight.current = dir
     setGoing(dir)
     setAnim(true)
-    setOffset(-dir * (box.current?.clientWidth ?? 0))
+    setOffset(-dir * width())
+    fly()
+  }
+  // the finger lands: a turn still in flight is committed now, and the deck
+  // keeps its painted position - measured against the index it is about to
+  // show, so the page under the finger does not move
+  const grab = () => {
+    clearTimeout(timer.current)
+    const dir = flight.current
+    const at = painted()
+    flight.current = null
+    setGoing(null)
+    setAnim(false)
+    if (dir !== null) {
+      base.current = at + dir * width()
+      onIndex(idx.current + dir * step)
+    } else {
+      base.current = at
+    }
+    pull.current = 0
+    setOffset(base.current)
+  }
+  // the finger lifts: the nearer page wins, judged on the whole position; the
+  // swipe's own verdict (a pull past the commit distance) breaks the tie in
+  // its direction. ponytail: speed is not weighed, the direction of the pull
+  // is the tiebreak
+  const release = (hint: -1 | 0 | 1) => {
+    held.current = false
+    const w = width()
+    const total = base.current + pull.current
+    const page = -total / w
+    // no layout to judge against (jsdom): the swipe's verdict is all there is
+    let to = w === 0 ? hint : hint > 0 ? Math.ceil(page) : hint < 0 ? Math.floor(page) : Math.round(page)
+    to = Math.max(-1, Math.min(1, to))
+    if ((to > 0 && !canNext) || (to < 0 && !canPrev)) to = 0
+    if (to !== 0) return arrive(to as -1 | 1)
+    // slide home. Already home means no transition will fire, so the deck has
+    // to clear itself.
+    if (total === 0) return rest()
+    setAnim(true)
+    setOffset(0)
     fly()
   }
 
   const swipe = useSwipe({
     mouse,
-    onPrev: canPrev ? () => arrive(-1) : undefined,
-    onNext: canNext ? () => arrive(1) : undefined,
+    onPrev: canPrev ? () => release(-1) : undefined,
+    onNext: canNext ? () => release(1) : undefined,
     onDrag: (dx) => {
-      if (dx !== null) {
-        setAnim(false)
-        setOffset(dx)
-        return
+      if (dx === null) {
+        held.current = false
+        return release(0)
       }
-      // let go without turning a page: slide home. Already home means no
-      // transition will fire, so the deck has to clear itself.
-      if (offset === null || offset === 0) return rest()
-      setAnim(true)
-      setOffset(0)
-      fly()
+      if (!held.current) {
+        held.current = true
+        return grab()
+      }
+      pull.current = dx
+      setOffset(base.current + dx)
     },
   })
 
@@ -110,6 +173,7 @@ export function SwipeDeck({ index, onIndex, canPrev = true, canNext = true, mous
       style={{ ...swipe.style, ...(live ? { overflowX: 'clip' } : null) }}
     >
       <div
+        ref={inner}
         className="relative"
         style={{
           transform: live ? `translateX(${offset}px)` : undefined,
