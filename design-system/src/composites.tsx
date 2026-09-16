@@ -599,7 +599,7 @@ export interface DayScrollerDay {
   weekday: string
   /** the day of the month */
   day: number
-  /** releases on that day; shown as a count, hidden when zero */
+  /** releases on that day; shown as a count, a quiet zero when there are none */
   count?: number
   today?: boolean
   /** a day already over: context on the left of the band, not a target */
@@ -954,13 +954,14 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
             >
               <span className={cx('text-[10px] uppercase tracking-wider', pressed ? 'text-t-secondary' : 'text-t-muted')}>{d.weekday}</span>
               <span className={cx('flex size-6 items-center justify-center text-base leading-none', d.today && 'rounded-full bg-accent font-semibold')}>{d.day}</span>
-              {/* the count is a real chip: zero draws nothing, so an empty day
-                  stays quiet and the eye lands on the days that have one */}
-              {!!d.count && (
-                <Badge size="sm" tone="accent">
-                  {d.count}
-                </Badge>
-              )}
+              {/* the count is a real chip, and every day carries one: a day
+                  without releases shows a quiet zero rather than nothing, so
+                  the weekday and the number sit on the same line in every
+                  cell - a missing chip pushed them down and the band's rows
+                  jumped from day to day */}
+              <Badge size="sm" tone={d.count ? 'accent' : 'neutral'}>
+                {d.count ?? 0}
+              </Badge>
             </button>
           )
         })}
