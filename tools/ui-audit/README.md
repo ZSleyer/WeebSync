@@ -20,11 +20,13 @@ one that finds labels which no longer fit on a single line.
   cannot see this class of bug at all: they measure a sheet standing still, and
   a mouse drag is not governed by `touch-action`, so a sheet no thumb could
   move once passed every check on both engines while the phone did nothing.
-  Seven rules per viewport - a short pull follows and springs back, a long one
-  dismisses, a pull up follows the finger and opens the sheet to its full
-  height on release, a pull down from there gives the opening height back, the
-  next one dismisses, a pull inside scrolled content scrolls the content
-  instead, and two quick swipes on the calendar deck turn two pages. Every
+  Nine rules per viewport - a short pull follows and springs back while the
+  backdrop dims with it, a long one dismisses, a pull up follows the finger
+  and opens the sheet to its full height on release, a pull down from there
+  gives the opening height back, the next one dismisses, one long pull from
+  the full height closes in one go, a pull inside scrolled content scrolls
+  the content instead, and two quick swipes on the calendar deck turn two
+  pages. Every
   release is watched frame by frame: the sheet's top edge and the deck's
   position are sampled on each animation frame and the largest step between
   two frames is the finding - a detent that snaps while the transform still

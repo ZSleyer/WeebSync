@@ -75,6 +75,7 @@ for (const vp of VIEWPORTS) {
         h: Math.round(d.getBoundingClientRect().height),
         vh: innerHeight,
         expanded: d.hasAttribute('data-expanded'),
+        backdrop: parseFloat(getComputedStyle(d, '::backdrop').opacity),
         scrollTop: s ? s.scrollTop : null,
       }
     })
@@ -200,6 +201,10 @@ for (const vp of VIEWPORTS) {
   else if (r.after.transform) bad(`${tag}: federt nicht zurück (transform "${r.after.transform}")`)
   else if (r.motion.max > JUMP) bad(`${tag}: Rückfedern springt um ${r.motion.max}px in einem Frame`)
   else good(`kurzer Zug auf der Fläche folgt und federt zurück (max ${r.motion.max}px/Frame)`)
+  // the backdrop dims with the pull and is dark again once the sheet is back
+  if (!(r.during.backdrop < 0.95)) bad(`${tag}: Backdrop dimmt beim Zug nicht mit (opacity ${r.during.backdrop})`)
+  else if (r.after.backdrop !== 1) bad(`${tag}: Backdrop kommt nach dem Zug nicht zurück (opacity ${r.after.backdrop})`)
+  else good(`Backdrop folgt dem Zug (opacity ${r.during.backdrop.toFixed(2)} -> ${r.after.backdrop})`)
 
   // 2 - a long pull from the opening height dismisses
   await open()
@@ -246,6 +251,16 @@ for (const vp of VIEWPORTS) {
   r = await swipe(g.x, g.face, Math.round(g.h * 0.25) + 70)
   if (r.after.open) bad(`${tag}: zweiter Zug nach unten schliesst nicht`)
   else good('zweiter Zug schliesst')
+
+  // 5b - one long pull from the full height - past the opening height and a
+  //      dismissal's distance beyond it - closes in one go
+  await open()
+  g = await geo()
+  await swipe(g.x, g.face, -Math.round(span / 2) - 40)
+  g = await geo()
+  r = await swipe(g.x, g.face, span + Math.round((g.h - span) * 0.25) + 60, { steps: 20 })
+  if (r.after.open) bad(`${tag}: langer Zug aus voller Höhe schliesst nicht in einem Zug (expanded ${r.after.expanded})`)
+  else good('ein langer Zug aus voller Höhe schliesst direkt')
 
   // 6 - inside scrolled content the content scrolls and the sheet stays put
   await open()
