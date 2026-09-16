@@ -1294,12 +1294,14 @@ details[open]::details-content { height: auto; }
   border-left: 1px solid var(--border-subtle);
 }
 .t-timeline > li { position: relative; }
-/* the dot marking a release on the axis */
+/* the dot marking a release on the axis, on the row's vertical middle - a
+   fixed offset from the top sat a third of the way down a two-line card */
 .t-timeline__row::before {
   content: '';
   position: absolute;
   left: -0.95rem;
-  top: 1rem;
+  top: 50%;
+  translate: 0 -50%;
   width: 0.4rem;
   height: 0.4rem;
   border-radius: 999px;
