@@ -79,20 +79,83 @@ for (const vp of VIEWPORTS) {
       }
     })
 
+  // Two snapshots 600ms apart cannot see a one-frame jump, and a one-frame
+  // jump is exactly what a snapped detent looks like. So the release is
+  // watched frame by frame: `sample` records the sheet's top edge (or the
+  // deck's x) on every animation frame and reports the largest step between
+  // two consecutive frames - a settle that runs on one curve has small steps,
+  // a height that snaps while the transform still holds the pull has one
+  // step the size of the jump.
+  const sample = (ms, what) =>
+    page.evaluate(
+      ([ms, what]) =>
+        new Promise((done) => {
+          const read =
+            what === 'deck'
+              ? () => {
+                  // the innermost swipe zone with a day heading is the deck;
+                  // its first child is the track that moves. When a turn
+                  // lands the track is relabelled - the index moves on and the
+                  // transform drops by one width while the content stays put
+                  // - so the reading is taken modulo the width
+                  const z = [...document.querySelectorAll('[style*="touch-action"]')].reverse().find((e) => e.querySelector('h3'))
+                  const t = z?.firstElementChild ? getComputedStyle(z.firstElementChild).transform : 'none'
+                  const x = t && t !== 'none' ? new DOMMatrixReadOnly(t).m41 : 0
+                  const w = z?.clientWidth || 1
+                  return ((x % w) + w) % w
+                }
+              : () => {
+                  const d = [...document.querySelectorAll('dialog[open]')].pop()
+                  return d ? d.getBoundingClientRect().top : NaN
+                }
+          const ys = []
+          const wrap =
+            what === 'deck'
+              ? [...document.querySelectorAll('[style*="touch-action"]')].reverse().find((e) => e.querySelector('h3'))?.clientWidth
+              : 0
+          const t0 = performance.now()
+          const tick = () => {
+            ys.push(read())
+            if (performance.now() - t0 < ms) requestAnimationFrame(tick)
+            else {
+              let max = 0
+              for (let i = 1; i < ys.length; i++) {
+                let d = Math.abs(ys[i] - ys[i - 1])
+                // a deck reading wraps at the width: 5 -> 395 on a 400px deck
+                // is a 10px step, not a 390px one
+                if (what === 'deck' && wrap) d = Math.min(d, Math.abs(d - wrap))
+                if (Number.isFinite(d) && d > max) max = d
+              }
+              done({ max: Math.round(max), frames: ys.length, from: Math.round(ys[0]), to: Math.round(ys[ys.length - 1]) })
+            }
+          }
+          requestAnimationFrame(tick)
+        }),
+      [ms, what],
+    )
+
   // a paced swipe: the release reads speed as well as distance, so firing the
   // moves in a tight loop would make every pull an infinitely fast flick
-  const swipe = async (x, y, dy, { steps = 14, ms = 22 } = {}) => {
+  const swipe = async (x, y, dy, { steps = 14, ms = 22, dx = 0 } = {}) => {
     await touch('touchStart', x, y)
     for (let i = 1; i <= steps; i++) {
-      await touch('touchMove', x, y + Math.round((dy * i) / steps))
+      await touch('touchMove', x + Math.round((dx * i) / steps), y + Math.round((dy * i) / steps))
       await page.waitForTimeout(ms)
     }
     await page.waitForTimeout(110)
     const during = await state()
-    await touch('touchEnd', x, y + dy)
-    await page.waitForTimeout(600)
-    return { during, after: await state() }
+    // the sampler starts before the finger lifts, so the first frame of the
+    // settle is in the record
+    const frames = sample(650, dx ? 'deck' : 'sheet')
+    await page.waitForTimeout(16)
+    await touch('touchEnd', x + dx, y + dy)
+    const motion = await frames
+    return { during, motion, after: await state() }
   }
+  // the largest step the settle may take between two frames; a snapped detent
+  // is the whole height difference (22dvh, ~200px), a clean settle stays
+  // under a tenth of that
+  const JUMP = 40
 
   const open = async () => {
     if (await page.evaluate(() => !!document.querySelector('dialog[open]'))) return true
@@ -125,6 +188,9 @@ for (const vp of VIEWPORTS) {
   if (Math.abs(rest.h / rest.vh - OPENING) > 0.02)
     bad(`${tag}: öffnet auf ${((rest.h / rest.vh) * 100).toFixed(1)}%, erwartet ${OPENING * 100}%`)
 
+  // the height difference between the two detents, for the pulls below
+  const span = Math.round(rest.vh * (FULL - OPENING))
+
   // 1 - a short pull on the face follows the finger and springs back
   let g = await geo()
   let r = await swipe(g.x, g.face, 110)
@@ -132,7 +198,8 @@ for (const vp of VIEWPORTS) {
     bad(`${tag}: kurzer Zug auf der Fläche bewegt nichts (transform "${r.during.transform}")`)
   else if (!r.after.open) bad(`${tag}: 110px-Zug hat geschlossen`)
   else if (r.after.transform) bad(`${tag}: federt nicht zurück (transform "${r.after.transform}")`)
-  else good('kurzer Zug auf der Fläche folgt und federt zurück')
+  else if (r.motion.max > JUMP) bad(`${tag}: Rückfedern springt um ${r.motion.max}px in einem Frame`)
+  else good(`kurzer Zug auf der Fläche folgt und federt zurück (max ${r.motion.max}px/Frame)`)
 
   // 2 - a long pull from the opening height dismisses
   await open()
@@ -141,21 +208,38 @@ for (const vp of VIEWPORTS) {
   if (r.after.open) bad(`${tag}: langer Zug auf der Fläche schliesst nicht`)
   else good('langer Zug auf der Fläche schliesst')
 
-  // 3 - a pull up opens the sheet to its full height
+  // 3 - a pull up follows the finger, and past the midpoint between the two
+  //     heights the release opens the sheet to its full height - without a
+  //     jump, since the height and the transform settle on one curve
   await open()
   g = await geo()
-  r = await swipe(g.x, g.face, -90)
-  if (!r.after.expanded) bad(`${tag}: Zug nach oben öffnet nicht`)
+  r = await swipe(g.x, g.face, -Math.round(span / 2) - 40)
+  if (r.during.expanded) bad(`${tag}: Zug nach oben springt unter dem Finger auf volle Höhe (transform "${r.during.transform}")`)
+  else if (!/translate3d\(0(px)?, -/.test(r.during.transform || ''))
+    bad(`${tag}: Zug nach oben folgt dem Finger nicht (transform "${r.during.transform}")`)
+  else if (!r.after.expanded) bad(`${tag}: Zug nach oben öffnet nicht`)
   else if (Math.abs(r.after.h / r.after.vh - FULL) > 0.015)
     bad(`${tag}: nach oben auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}%, erwartet ${FULL * 100}%`)
-  else good(`Zug nach oben öffnet auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}%`)
+  else if (r.motion.max > JUMP) bad(`${tag}: Öffnen auf volle Höhe springt um ${r.motion.max}px in einem Frame`)
+  else good(`Zug nach oben folgt und öffnet auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}% (max ${r.motion.max}px/Frame)`)
 
-  // 4 - from the full height a pull down gives the opening height back
+  // 4a - from the full height a short slow pull is not a step back: the
+  //      threshold is half the height difference, not a fixed few pixels
   g = await geo()
-  r = await swipe(g.x, g.face, Math.round(g.h * 0.25) + 70)
+  r = await swipe(g.x, g.face, 60)
+  if (!r.after.open) bad(`${tag}: 60px-Zug aus voller Höhe schliesst`)
+  else if (!r.after.expanded) bad(`${tag}: 60px-Zug aus voller Höhe klappt schon ein (Schwelle ist ${Math.round(span / 2)}px)`)
+  else if (r.after.transform) bad(`${tag}: kurzer Zug aus voller Höhe federt nicht zurück (transform "${r.after.transform}")`)
+  else good('kurzer Zug aus voller Höhe federt zurück')
+
+  // 4 - from the full height a pull past the midpoint gives the opening
+  //     height back; the top edge must not jump when the height changes
+  g = await geo()
+  r = await swipe(g.x, g.face, Math.round(span / 2) + 40)
   if (!r.after.open) bad(`${tag}: Zug nach unten aus voller Höhe schliesst statt einzuklappen`)
   else if (r.after.expanded) bad(`${tag}: klappt nicht auf die Öffnungshöhe zurück`)
-  else good('Zug nach unten aus voller Höhe klappt ein statt zu schliessen')
+  else if (r.motion.max > JUMP) bad(`${tag}: Einklappen springt um ${r.motion.max}px in einem Frame (${r.motion.from} -> ${r.motion.to})`)
+  else good(`Zug nach unten aus voller Höhe klappt ein ohne Sprung (max ${r.motion.max}px/Frame)`)
 
   // 5 - and the next one from there does dismiss
   g = await geo()
@@ -185,6 +269,62 @@ for (const vp of VIEWPORTS) {
     if (r.during.transform) bad(`${tag}: gescrollter Bereich - das Sheet zieht mit ("${r.during.transform}")`)
     else if (!r.after.open) bad(`${tag}: gescrollter Bereich - das Sheet hat geschlossen`)
     else good(`gescrollter Bereich: Sheet bleibt stehen, scrollTop ${sc.top} -> ${r.during.scrollTop}`)
+  }
+
+  // 7 - the calendar deck: a second swipe that lands while the first is still
+  //     sliding must take the deck over where it is, not snap it back, and
+  //     the turn in flight must not land under the finger
+  await page.goto(`${BASE}/watches?view=calendar`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(3000)
+  const deck = await page.evaluate(() => {
+    // the innermost swipe zone with a day heading: the calendar's deck
+    const z = [...document.querySelectorAll('[style*="touch-action"]')].reverse().find((el) => el.querySelector('h3'))
+    if (!z) return null
+    const r = z.getBoundingClientRect()
+    const head = () => z.querySelector('h3')?.textContent ?? ''
+    return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + Math.min(r.height / 2, 200)), w: Math.round(r.width), head: head() }
+  })
+  if (!deck) console.log('  – kein Kalender-Deck auf der Seite, Regel nicht prüfbar')
+  else {
+    const heading = () =>
+      page.evaluate(
+        () =>
+          [...document.querySelectorAll('[style*="touch-action"]')]
+            .reverse()
+            .find((el) => el.querySelector('h3'))
+            ?.querySelector('h3')?.textContent ?? '',
+      )
+    const swipeX = async (dx) => {
+      await touch('touchStart', deck.x, deck.y)
+      for (let i = 1; i <= 8; i++) {
+        await touch('touchMove', deck.x + Math.round((dx * i) / 8), deck.y)
+        await page.waitForTimeout(16)
+      }
+      await touch('touchEnd', deck.x + dx, deck.y)
+    }
+    const before = deck.head
+    // the reference: two swipes with the deck at rest in between land two
+    // pages on. The quick pair below has to land on the same page - a turn
+    // in flight that is lost to the second swipe shows up here as one page
+    await swipeX(-Math.round(deck.w * 0.5))
+    await page.waitForTimeout(600)
+    await swipeX(-Math.round(deck.w * 0.5))
+    await page.waitForTimeout(600)
+    const slow = await heading()
+    await page.goto(`${BASE}/watches?view=calendar`, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(2500)
+    // first swipe, then the second lands ~80ms into the 200ms slide
+    const frames = sample(900, 'deck')
+    await swipeX(-Math.round(deck.w * 0.5))
+    await page.waitForTimeout(80)
+    await swipeX(-Math.round(deck.w * 0.5))
+    const motion = await frames
+    await page.waitForTimeout(500)
+    const after = await heading()
+    if (motion.max > deck.w / 4) bad(`${tag}: Deck springt um ${motion.max}px in einem Frame bei zwei schnellen Wischern`)
+    else if (slow === before) bad(`${tag}: zwei Wischer haben die Seite nicht gewechselt ("${before}")`)
+    else if (after !== slow) bad(`${tag}: zwei schnelle Wischer landen auf "${after}", zwei langsame auf "${slow}" - ein Seitenwechsel ging verloren`)
+    else good(`zwei schnelle Wischer im Kalender ohne Sprung (max ${motion.max}px/Frame): "${before}" -> "${after}"`)
   }
 
   await ctx.close()
