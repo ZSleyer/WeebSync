@@ -993,6 +993,17 @@ dialog .overflow-y-auto {
   dialog.dialog-sheet .overflow-y-auto {
     overscroll-behavior-y: contain;
   }
+  /* The backdrop dims in step with the pull: `--sheet-pull` (0..1, set by
+     useSheetDrag) is how far the sheet has been dragged off the screen, and
+     `::backdrop` inherits the property from the dialog. Off the finger the
+     stylesheet's own transition fades it back; under the finger that
+     transition is off, or the backdrop would lag a quarter second behind. */
+  dialog.dialog-sheet::backdrop {
+    opacity: calc(1 - var(--sheet-pull, 0));
+  }
+  dialog.dialog-sheet[data-dragging]::backdrop {
+    transition: none;
+  }
   /* the last row clears the home indicator */
   dialog.dialog-sheet .dialog-body > footer {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));

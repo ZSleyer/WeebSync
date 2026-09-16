@@ -525,6 +525,38 @@ describe('Dialog', () => {
     }
   })
 
+  /** Give the sheet its two heights, so the hook can measure the difference:
+   *  jsdom lays nothing out and reads 0 for both. 700 opening, 920 full. */
+  const withHeights = (dialog: HTMLDialogElement) =>
+    Object.defineProperty(dialog, 'clientHeight', { configurable: true, get: () => (dialog.hasAttribute('data-expanded') ? 920 : 700) })
+
+  // The backdrop dims with the pull: the hook writes how far the sheet has
+  // gone as a custom property the stylesheet reads on ::backdrop, and marks
+  // the drag so the backdrop's own transition does not lag the finger.
+  it('tells the backdrop how far the sheet is pulled, and only while it is', async () => {
+    const restore = withNarrowViewport(true)
+    try {
+      const { container } = sheet()
+      const dialog = dialogOf(container)
+      withHeights(dialog)
+      const body = screen.getByText('Inhalt')
+      fireEvent.pointerDown(body, { clientY: 100, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 200, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 275, pointerId: 1 })
+      expect(dialog.hasAttribute('data-dragging')).toBe(true)
+      expect(dialog.style.getPropertyValue('--sheet-pull')).toBe('0.25')
+      // slowly: 175px in 400ms would be a flick and dismiss
+      await new Promise((r) => setTimeout(r, 800))
+      fireEvent.pointerUp(dialog, { clientY: 275, pointerId: 1 })
+      // a slow pull of a quarter is exactly the dismissal's edge, not past it
+      await waitFor(() => expect(dialog.hasAttribute('data-dragging')).toBe(false))
+      expect(dialog.style.getPropertyValue('--sheet-pull')).toBe('')
+      expect(dialog.open).toBe(true)
+    } finally {
+      restore()
+    }
+  })
+
   // Reading past the first screenful is the content saying 70dvh was not
   // enough; the sheet takes the rest of the screen and the reader carries on.
   it('grows the sheet the first time its content is scrolled', async () => {

@@ -175,6 +175,20 @@ export function useSheetDrag({
     return Math.abs(other - before)
   }
 
+  // How far the sheet has been pulled off the screen, 0..1, for the backdrop:
+  // it dims in step with the sheet rather than staying dark until the close.
+  // The stylesheet reads the property on `::backdrop`, which inherits from the
+  // dialog; `data-dragging` turns the backdrop's own transition off so it
+  // follows the finger instead of lagging behind it.
+  const pulled = (el: HTMLElement, dy: number) => {
+    const h = el.clientHeight
+    el.style.setProperty('--sheet-pull', String(h > 0 ? Math.min(1, Math.max(0, dy) / h) : 0))
+  }
+  const grip = (el: HTMLElement, on: boolean) => {
+    el.toggleAttribute('data-dragging', on)
+    if (!on) el.style.removeProperty('--sheet-pull')
+  }
+
   // Where the sheet stands for a pull of `dy`: down follows 1:1, up follows
   // 1:1 as far as the full height and rubber-bands past it (or straight away
   // when it already stands at its full height)
@@ -185,6 +199,7 @@ export function useSheetDrag({
       y = -dy <= room ? dy : -room - dampen(-dy - room)
     }
     el.style.transform = `translate3d(0, ${y}px, 0)`
+    pulled(el, dy)
   }
 
   // What a finished pull does: dismiss, step between the two heights, or
@@ -202,6 +217,7 @@ export function useSheetDrag({
     // leave the height out - the detent would then snap while the transform
     // still holds the pull, and the sheet visibly jumps before it settles.
     const settle = () => {
+      grip(el, false)
       el.style.transition = ''
       el.style.transform = ''
     }
@@ -227,6 +243,9 @@ export function useSheetDrag({
     }
     if (far || v > VELOCITY) {
       if (!guard || (await guard())) {
+        // the backdrop fades with the slide, not after it
+        grip(el, false)
+        el.style.setProperty('--sheet-pull', '1')
         el.style.transition = reducedMotion() ? 'none' : `transform ${CLOSE_MS}ms var(--ease-in)`
         el.style.transform = 'translateY(100%)'
         const done = () => {
@@ -308,6 +327,7 @@ export function useSheetDrag({
           scroller.style.overflow = 'hidden'
         }
         el.style.transition = 'none'
+        grip(el, true)
         room = span(el)
       }
       // ours: keep the browser from scrolling and follow the finger
@@ -327,6 +347,7 @@ export function useSheetDrag({
       const claimed = mode === 'sheet'
       reset()
       if (claimed) {
+        grip(el, false)
         el.style.transition = ''
         el.style.transform = ''
       }
@@ -360,6 +381,7 @@ export function useSheetDrag({
     if (!d.on) return
     if (!commit) {
       // the browser took the pointer for its own pan: settle back
+      grip(el, false)
       el.style.transition = ''
       el.style.transform = ''
       return
@@ -401,6 +423,7 @@ export function useSheetDrag({
           scroller.style.overflow = 'hidden'
         }
         el.style.transition = 'none'
+        grip(el, true)
         d.span = span(el)
       }
       follow(el, dy, d.span)
