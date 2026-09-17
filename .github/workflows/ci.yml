@@ -76,6 +76,8 @@ jobs:
         run: ln -sfn "$PWD/node_modules" ../design-system/node_modules
       - name: lint (oxlint)
         run: yarn lint
+      - name: format (oxfmt)
+        run: yarn format:check
       - name: test (vitest)
         run: yarn test
       - name: production dependency audit
