@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent } from 'react'
 import { ArrowUp, Check, ChevronDown, ChevronRight, CircleArrowUp, Globe, History, ImagePlus, Mic, Plus, RefreshCw, Sparkles, Square, Telescope, Trash2, X } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -405,13 +405,18 @@ export default function Assistant() {
 
   // the next waiting follow-up goes out as soon as the stream is over; an
   // effect rather than a call from the stream's end, so it sees the turns
-  // the stream left behind
-  useEffect(() => {
-    if (streaming || queue.length === 0) return
+  // the stream left behind. The render it triggers is the point: it is the
+  // next turn starting, not a value that could be derived
+  const sendNextQueued = useEffectEvent(() => {
     const [next, ...rest] = queue
     setQueue(rest)
     void send(next)
-  }, [streaming, queue])
+  })
+  useEffect(() => {
+    if (streaming || queue.length === 0) return
+    // eslint-disable-next-line react/set-state-in-effect
+    sendNextQueued()
+  }, [streaming, queue.length])
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
