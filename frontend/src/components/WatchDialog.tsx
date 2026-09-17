@@ -477,7 +477,7 @@ export default function WatchDialog({
                   idPrefix="watch"
                   seriesQuery={f.remotePath.split('/').filter(Boolean).slice(-1)[0] || ''}
                   seasonFolder={{
-                    name: f.localPath.split('/').filter(Boolean).pop() || '',
+                    name: f.localPath.split('/').findLast(Boolean) || '',
                     onUseParent: () =>
                       setF({ ...f, localPath: f.localPath.split('/').filter(Boolean).slice(0, -1).join('/') }),
                   }}

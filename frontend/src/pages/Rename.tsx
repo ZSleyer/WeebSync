@@ -170,7 +170,7 @@ export default function Rename() {
             idPrefix="rename"
             seriesQuery={path.split('/').filter(Boolean).slice(-1)[0] || ''}
             seasonFolder={{
-              name: path.split('/').filter(Boolean).pop() || '',
+              name: path.split('/').findLast(Boolean) || '',
               onUseParent: () => setPath(path.split('/').filter(Boolean).slice(0, -1).join('/')),
             }}
           />

@@ -211,7 +211,7 @@ export function truncMiddle(s: string, max = 48): string {
 }
 
 export function basename(p: string): string {
-  return p.split('/').filter(Boolean).pop() ?? p
+  return p.split('/').findLast(Boolean) ?? p
 }
 
 // Release-style folder names carry bracket/paren tags ("Title S1 [JapDub,CR]")

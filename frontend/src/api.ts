@@ -594,7 +594,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(method: string, url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
-  const h: Record<string, string> = { ...(headers ?? {}) }
+  const h: Record<string, string> = { ...headers }
   if (body !== undefined) h['Content-Type'] = 'application/json'
   const res = await fetch(url, {
     method,
