@@ -85,12 +85,6 @@ export default function Watches() {
   // the same requests the title card runs, so both refresh the same list
   const { check, applyPlexStreams, del, save, error, notice } = useWatchActions()
 
-  // sqlite datetimes are UTC without zone suffix
-  const ago = (dt: string) => {
-    if (!dt) return t('watch.never')
-    const min = Math.max(0, Math.round((Date.now() - Date.parse(dt.replace(' ', 'T') + 'Z')) / 60_000))
-    return t('watch.minAgo', { count: min })
-  }
   // AniList airingAt is an absolute unix time; render in the viewer's zone
   // (or a named zone like Asia/Tokyo for the JST hover)
   const airFmt = (ts: number, tz?: string) =>
@@ -139,6 +133,12 @@ export default function Watches() {
   // entries show seconds, a minute otherwise, so no countdown waits for a reload
   const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
   const now = useNow(view === 'calendar' && hasToday ? 1000 : 60_000)
+  // sqlite datetimes are UTC without zone suffix
+  const ago = (dt: string) => {
+    if (!dt) return t('watch.never')
+    const min = Math.max(0, Math.round((now - Date.parse(dt.replace(' ', 'T') + 'Z')) / 60_000))
+    return t('watch.minAgo', { count: min })
+  }
   // calendar: every release the backend knows about - the week it recorded
   // behind us and everything the providers have dated ahead
   const calEvents = upcomingAirings(watches, now)

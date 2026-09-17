@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { FolderOpen } from 'lucide-react'
@@ -33,19 +33,14 @@ export default function SyncDefaults() {
     retry: false,
     staleTime: 5 * 60_000,
   })
-  const [form, setForm] = useState<WatchDefaults>(EMPTY)
-  const [loaded, setLoaded] = useState<string>('')
+  // what the form shows until the first edit: the stored defaults, filled up
+  const stored = data ? { ...EMPTY, ...data, kinds: data.kinds ?? {}, common: { ...EMPTY.common, ...data.common } } : null
+  const [edited, setForm] = useState<WatchDefaults | null>(null)
+  const form = edited ?? stored ?? EMPTY
   const [kind, setKind] = useState<Kind>('anime-series')
   const [browse, setBrowse] = useState(false)
   const [saved, setSaved] = useState(false)
-  useEffect(() => {
-    if (data) {
-      const d = { ...EMPTY, ...data, kinds: data.kinds ?? {}, common: { ...EMPTY.common, ...data.common } }
-      setForm(d)
-      setLoaded(JSON.stringify(d))
-    }
-  }, [data])
-  const dirty = loaded !== '' && JSON.stringify(form) !== loaded
+  const dirty = !!stored && !!edited && JSON.stringify(edited) !== JSON.stringify(stored)
   // a path still carrying the slash the picker appends is stored clean
   const tidy = (d: WatchDefaults): WatchDefaults => ({
     ...d,
@@ -53,9 +48,11 @@ export default function SyncDefaults() {
   })
   const save = useMutation({
     mutationFn: (d: WatchDefaults) => api.put('/api/auth/watch-defaults', tidy(d)),
-    onSuccess: () => {
+    onSuccess: (_, d) => {
       setSaved(true)
-      setLoaded(JSON.stringify(form))
+      // the saved state is what the form shows from now on; the refetch confirms it
+      qc.setQueryData(['watch-defaults'], tidy(d))
+      setForm(null)
       qc.invalidateQueries({ queryKey: ['watch-defaults'] })
       setTimeout(() => setSaved(false), 3000)
     },

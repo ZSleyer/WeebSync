@@ -76,11 +76,10 @@ function EmailPrefsSection() {
 function PushSection() {
   const { t } = useTranslation()
   const [enabled, setEnabled] = useState(false)
-  const [state, setState] = useState<'ok' | 'denied' | 'unsupported' | ''>('')
+  const [state, setState] = useState<'ok' | 'denied' | 'unsupported' | ''>(() => (pushSupported() ? '' : 'unsupported'))
   const [sent, setSent] = useState(false)
   useEffect(() => {
     pushSubscription().then((s) => setEnabled(!!s)).catch(() => {})
-    if (!pushSupported()) setState('unsupported')
   }, [])
 
   const toggle = async (on: boolean) => {

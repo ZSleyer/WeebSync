@@ -883,9 +883,10 @@ function AnilistAccount() {
     },
     onError: (e: Error) => setError(e.message),
   })
+  const [now] = useState(() => Date.now())
   if (!data) return null
   const expires = data.expiresAt ? Date.parse(data.expiresAt.replace(' ', 'T') + 'Z') : 0
-  const expiringSoon = expires > 0 && expires - Date.now() < 30 * 86_400_000
+  const expiringSoon = expires > 0 && expires - now < 30 * 86_400_000
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
       {data.connected ? (

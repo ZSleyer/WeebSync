@@ -18,7 +18,9 @@ function LogPanel({ level }: { level: LogLevel }) {
   const [paused, setPaused] = useState(false)
   const [filter, setFilter] = useState<LogLevel | 'all'>('all')
   const pausedRef = useRef(paused)
-  pausedRef.current = paused
+  useEffect(() => {
+    pausedRef.current = paused
+  }, [paused])
   const endRef = useRef<HTMLDivElement>(null)
 
   const setLevel = useMutation({

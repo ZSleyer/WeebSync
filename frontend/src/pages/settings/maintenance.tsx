@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog, Input } from '@weebsync/design-system'
@@ -228,12 +228,11 @@ export function cleanTitle(name: string): string {
 // Debounced copy of a string; onSettle fires alongside (used to reset paging).
 export function useDebounced(value: string, onSettle: () => void): string {
   const [settled, setSettled] = useState(value)
-  const settle = useRef(onSettle)
-  settle.current = onSettle
+  const settle = useEffectEvent(onSettle)
   useEffect(() => {
     const id = setTimeout(() => {
       setSettled(value)
-      settle.current()
+      settle()
     }, 300)
     return () => clearTimeout(id)
   }, [value])
