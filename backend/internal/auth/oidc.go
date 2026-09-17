@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -319,7 +320,7 @@ func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool, gated bool) (int
 		}
 		return id, nil
 	}
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return 0, err
 	}
 	// new identity: provision only when access is actually gated by an allowlist,

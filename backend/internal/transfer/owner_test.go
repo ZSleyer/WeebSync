@@ -2,6 +2,7 @@ package transfer
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/dbtest"
@@ -29,7 +30,7 @@ func TestActivePauseCancelOwnerScoped(t *testing.T) {
 
 	// foreign user hits the DB path, which is user-scoped -> ErrNotFound, and
 	// the running download stays untouched
-	if err := m.Pause(2, id); err != ErrNotFound {
+	if err := m.Pause(2, id); !errors.Is(err, ErrNotFound) {
 		t.Errorf("foreign pause: got %v, want ErrNotFound", err)
 	}
 	if m.active[id].paused {

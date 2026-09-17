@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -397,7 +398,7 @@ func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFun
 		id := pathID(r)
 		if err := fn(u.ID, id); err != nil {
 			status := http.StatusInternalServerError
-			if err == transfer.ErrNotFound {
+			if errors.Is(err, transfer.ErrNotFound) {
 				status = http.StatusNotFound
 			}
 			writeErr(w, status, err.Error())
