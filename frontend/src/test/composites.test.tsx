@@ -135,11 +135,26 @@ describe('cover buttons', () => {
   it('makes the transfer poster a named button in both densities', () => {
     const open = vi.fn()
     const { rerender } = render(
-      <TransferCard cover="/p.jpg" title="Frieren" percent={0} progressLabel="x" onCover={open} coverLabel="Details zu Frieren" />,
+      <TransferCard
+        cover="/p.jpg"
+        title="Frieren"
+        percent={0}
+        progressLabel="x"
+        onCover={open}
+        coverLabel="Details zu Frieren"
+      />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Details zu Frieren' }))
     rerender(
-      <TransferCard variant="row" cover="/p.jpg" title="Frieren" percent={0} progressLabel="x" onCover={open} coverLabel="Details zu Frieren" />,
+      <TransferCard
+        variant="row"
+        cover="/p.jpg"
+        title="Frieren"
+        percent={0}
+        progressLabel="x"
+        onCover={open}
+        coverLabel="Details zu Frieren"
+      />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Details zu Frieren' }))
     expect(open).toHaveBeenCalledTimes(2)
@@ -154,7 +169,18 @@ describe('DayScroller', () => {
     { key: '2026-09-17', weekday: 'Do', day: 17 },
   ]
   const scroller = (over: Partial<Parameters<typeof DayScroller>[0]> = {}) =>
-    render(<DayScroller days={days} selected="2026-09-16" onSelect={() => {}} step={1} label="Mittwoch, 16.09." labels={labels} onNext={() => {}} {...over} />)
+    render(
+      <DayScroller
+        days={days}
+        selected="2026-09-16"
+        onSelect={() => {}}
+        step={1}
+        label="Mittwoch, 16.09."
+        labels={labels}
+        onNext={() => {}}
+        {...over}
+      />,
+    )
 
   it('presses the picked day, rings today and counts the releases', () => {
     const pick = vi.fn()
@@ -199,7 +225,8 @@ describe('DayScroller', () => {
     band.getBoundingClientRect = () => ({ left: 0, width: 150 }) as DOMRect
     Object.defineProperty(band, 'clientWidth', { value: 150, configurable: true })
     const cells = Array.from(band.querySelectorAll<HTMLElement>('[data-day]'))
-    const place = (offset: number) => cells.forEach((c, i) => (c.getBoundingClientRect = () => ({ left: i * 50 - offset, width: 50 }) as DOMRect))
+    const place = (offset: number) =>
+      cells.forEach((c, i) => (c.getBoundingClientRect = () => ({ left: i * 50 - offset, width: 50 }) as DOMRect))
     // the day already in the middle is not a new pick
     place(0)
     fireEvent.scroll(band)
@@ -258,11 +285,22 @@ describe('DayScroller', () => {
     band.getBoundingClientRect = () => ({ left: 0, width: 150 }) as DOMRect
     Object.defineProperty(band, 'clientWidth', { value: 150, configurable: true })
     const cells = Array.from(band.querySelectorAll<HTMLElement>('[data-day]'))
-    const place = (offset: number) => cells.forEach((c, i) => (c.getBoundingClientRect = () => ({ left: i * 50 - offset, width: 50 }) as DOMRect))
+    const place = (offset: number) =>
+      cells.forEach((c, i) => (c.getBoundingClientRect = () => ({ left: i * 50 - offset, width: 50 }) as DOMRect))
     place(0)
     // the caller moves the day, so the band starts centring the new cell and
     // ignores what sweeps past on the way
-    rerender(<DayScroller days={days} selected="2026-09-17" onSelect={pick} step={2} label="Donnerstag, 17.09." labels={labels} onNext={() => {}} />)
+    rerender(
+      <DayScroller
+        days={days}
+        selected="2026-09-17"
+        onSelect={pick}
+        step={2}
+        label="Donnerstag, 17.09."
+        labels={labels}
+        onNext={() => {}}
+      />,
+    )
     place(50)
     fireEvent.scroll(band)
     expect(pick).not.toHaveBeenCalled()
@@ -331,7 +369,9 @@ describe('DayScroller', () => {
     const band = document.querySelector('.t-dayband') as HTMLElement
     band.getBoundingClientRect = () => ({ left: 0, width: 150 }) as DOMRect
     Object.defineProperty(band, 'clientWidth', { value: 150, configurable: true })
-    Array.from(band.querySelectorAll<HTMLElement>('[data-day]')).forEach((c, i) => (c.getBoundingClientRect = () => ({ left: i * 50, width: 50 }) as DOMRect))
+    Array.from(band.querySelectorAll<HTMLElement>('[data-day]')).forEach(
+      (c, i) => (c.getBoundingClientRect = () => ({ left: i * 50, width: 50 }) as DOMRect),
+    )
     const [di] = Array.from(band.querySelectorAll('button'))
     const mouse = { pointerId: 7, pointerType: 'mouse', button: 0, clientY: 10 }
     jump.mockClear()
@@ -350,7 +390,15 @@ describe('DayScroller', () => {
     const { rerender } = scroller()
     expect(screen.getByText('Mittwoch, 16.09.')).toBeInTheDocument()
     rerender(
-      <DayScroller days={days} selected="2026-09-17" onSelect={() => {}} step={2} label="Donnerstag, 17.09." labels={labels} onNext={() => {}} />,
+      <DayScroller
+        days={days}
+        selected="2026-09-17"
+        onSelect={() => {}}
+        step={2}
+        label="Donnerstag, 17.09."
+        labels={labels}
+        onNext={() => {}}
+      />,
     )
     // both are on screen while the roll runs, the old one on its way out
     const slot = screen.getByText('Donnerstag, 17.09.').closest('.t-slot') as HTMLElement
@@ -380,7 +428,9 @@ describe('CalendarDay and CalendarEntry', () => {
 
 describe('CalendarEntry compact', () => {
   it('keeps the small poster and stacks the text beside it for a narrow week column', () => {
-    const { container } = render(<CalendarEntry compact title="Frieren" episode="Folge 3" time="14:00" countdown="in 2 Tg." cover="/p.jpg" />)
+    const { container } = render(
+      <CalendarEntry compact title="Frieren" episode="Folge 3" time="14:00" countdown="in 2 Tg." cover="/p.jpg" />,
+    )
     expect(container.querySelector('img')).toHaveClass('h-14', 'w-10')
     expect(container.firstElementChild).toHaveClass('items-start')
     expect(screen.getByText('14:00').parentElement).toContainElement(screen.getByText('Frieren'))
@@ -664,12 +714,23 @@ describe('AppBar and AppShell', () => {
 
   it('puts the footer row right above the tabs', () => {
     const { container } = render(
-      <AppShell bar={<AppBar title="A" />} tabs={<nav aria-label="Tabs" />} notice={<p>Update</p>} footer={<div role="toolbar" aria-label="Aktionen" />}>
+      <AppShell
+        bar={<AppBar title="A" />}
+        tabs={<nav aria-label="Tabs" />}
+        notice={<p>Update</p>}
+        footer={<div role="toolbar" aria-label="Aktionen" />}
+      >
         Inhalt
       </AppShell>,
     )
     const shell = container.firstElementChild as HTMLElement
-    expect([...shell.children].map((c) => c.getAttribute('aria-label') ?? c.tagName)).toEqual(['HEADER', 'MAIN', 'DIV', 'Aktionen', 'Tabs'])
+    expect([...shell.children].map((c) => c.getAttribute('aria-label') ?? c.tagName)).toEqual([
+      'HEADER',
+      'MAIN',
+      'DIV',
+      'Aktionen',
+      'Tabs',
+    ])
   })
 })
 
@@ -699,7 +760,12 @@ describe('ActionBar, Disclosure and Segmented', () => {
         <button type="button">Löschen</button>
       </ActionBar>,
     )
-    expect(screen.getByRole('toolbar', { name: 'Auswahl' })).toHaveClass('lg:sticky', 'lg:w-fit', 'lg:mx-auto', 'lg:border')
+    expect(screen.getByRole('toolbar', { name: 'Auswahl' })).toHaveClass(
+      'lg:sticky',
+      'lg:w-fit',
+      'lg:mx-auto',
+      'lg:border',
+    )
   })
 
   it('folds its block on the native details element and reports toggles', () => {
@@ -798,7 +864,14 @@ describe('StatTile', () => {
 describe('TransferCard', () => {
   it('leads with the medium poster and a named full-size bar as the hero', () => {
     const { container } = render(
-      <TransferCard cover="https://x/p.jpg" title="Frieren" percent={30} progressLabel="Fortschritt Frieren" active stats="1 / 4 GiB" />,
+      <TransferCard
+        cover="https://x/p.jpg"
+        title="Frieren"
+        percent={30}
+        progressLabel="Fortschritt Frieren"
+        active
+        stats="1 / 4 GiB"
+      />,
     )
     expect(container.querySelector('img')).toHaveClass('h-20', 'w-14')
     const bar = screen.getByRole('progressbar', { name: 'Fortschritt Frieren' })
@@ -810,7 +883,13 @@ describe('TransferCard', () => {
 
   it('is a row at list density with the small poster and the thin bar', () => {
     const { container } = render(
-      <TransferCard variant="row" cover="https://x/p.jpg" title="Frieren" percent={0} progressLabel="Fortschritt Frieren" />,
+      <TransferCard
+        variant="row"
+        cover="https://x/p.jpg"
+        title="Frieren"
+        percent={0}
+        progressLabel="Fortschritt Frieren"
+      />,
     )
     expect(container.querySelector('img')).toHaveClass('h-14', 'w-10')
     expect(screen.getByRole('progressbar')).toHaveClass('t-progress--sm')
@@ -849,7 +928,13 @@ describe('TransferCard', () => {
 })
 
 describe('TrendChart', () => {
-  const props = { label: 'Speed', format: (v: number) => `${v} B/s`, formatAge: (s: number) => `${s}s`, startLabel: 'start', endLabel: 'now' }
+  const props = {
+    label: 'Speed',
+    format: (v: number) => `${v} B/s`,
+    formatAge: (s: number) => `${s}s`,
+    startLabel: 'start',
+    endLabel: 'now',
+  }
 
   it('names the ceiling and the window ends, one point per value', () => {
     render(<TrendChart values={[1, 4, 2]} {...props} />)
@@ -876,7 +961,17 @@ describe('TrendChart', () => {
   it('reads a sample out under the pointer and lets go on leave', () => {
     render(<TrendChart values={[1, 4, 2]} {...props} />)
     const svg = screen.getByRole('img')
-    svg.getBoundingClientRect = () => ({ left: 0, width: 100, top: 0, height: 72, right: 100, bottom: 72, x: 0, y: 0, toJSON: () => ({}) })
+    svg.getBoundingClientRect = () => ({
+      left: 0,
+      width: 100,
+      top: 0,
+      height: 72,
+      right: 100,
+      bottom: 72,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
     fireEvent.pointerMove(svg, { clientX: 50 })
     expect(screen.getByText('4 B/s')).toBeInTheDocument()
     expect(screen.getByText('1s')).toBeInTheDocument()
@@ -907,7 +1002,9 @@ describe('CalendarEntry as a button', () => {
 describe('MediaCard cover button', () => {
   it('makes the poster a named button when given onCover, and nothing otherwise', () => {
     const onCover = vi.fn()
-    const { rerender } = render(<MediaCard title="Frieren" cover="/c.jpg" onCover={onCover} coverLabel="Details zu Frieren" />)
+    const { rerender } = render(
+      <MediaCard title="Frieren" cover="/c.jpg" onCover={onCover} coverLabel="Details zu Frieren" />,
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Details zu Frieren' }))
     expect(onCover).toHaveBeenCalledTimes(1)
     rerender(<MediaCard title="Frieren" cover="/c.jpg" />)
@@ -933,7 +1030,15 @@ describe('DayTimeline', () => {
   })
 
   it('says how long a cut stretch really was', () => {
-    render(<DayTimeline entries={[{ key: 'a', at: at(9), node: <span>A</span> }, { key: 'b', at: at(20), node: <span>B</span> }]} gapLabel={gapLabel} />)
+    render(
+      <DayTimeline
+        entries={[
+          { key: 'a', at: at(9), node: <span>A</span> },
+          { key: 'b', at: at(20), node: <span>B</span> },
+        ]}
+        gapLabel={gapLabel}
+      />,
+    )
     expect(screen.getByText('660min')).toBeTruthy()
   })
 
@@ -942,7 +1047,10 @@ describe('DayTimeline', () => {
   it('drops the now marker into place by time', () => {
     const { container } = render(
       <DayTimeline
-        entries={[{ key: 'a', at: at(9), node: <span>A</span> }, { key: 'b', at: at(20), node: <span>B</span> }]}
+        entries={[
+          { key: 'a', at: at(9), node: <span>A</span> },
+          { key: 'b', at: at(20), node: <span>B</span> },
+        ]}
         now={at(12) * 1000}
         nowLabel="Jetzt 12:00"
         gapLabel={gapLabel}
@@ -954,7 +1062,9 @@ describe('DayTimeline', () => {
   })
 
   it('leaves the marker out on any day but today', () => {
-    const { container } = render(<DayTimeline entries={[{ key: 'a', at: at(9), node: <span>A</span> }]} gapLabel={gapLabel} />)
+    const { container } = render(
+      <DayTimeline entries={[{ key: 'a', at: at(9), node: <span>A</span> }]} gapLabel={gapLabel} />,
+    )
     expect(container.querySelector('.t-timeline__now')).toBeNull()
   })
 })

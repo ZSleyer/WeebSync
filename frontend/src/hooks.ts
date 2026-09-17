@@ -168,10 +168,13 @@ export function useNow(stepMs = 60_000): number {
   useEffect(() => {
     let id = 0
     const arm = () => {
-      id = window.setTimeout(() => {
-        setNow(Date.now())
-        arm()
-      }, stepMs - (Date.now() % stepMs))
+      id = window.setTimeout(
+        () => {
+          setNow(Date.now())
+          arm()
+        },
+        stepMs - (Date.now() % stepMs),
+      )
     }
     arm()
     return () => clearTimeout(id)

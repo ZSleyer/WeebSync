@@ -533,7 +533,16 @@ export interface MediaExtras {
   recommendations: Media[]
   characters: { name: string; image?: string; role?: string; voiceActor?: string }[]
   links: { site: string; url: string; type?: string; icon?: string; color?: string; language?: string }[]
-  threads: { id: number; title: string; replies: number; views: number; repliedAt?: number; url: string; user?: string; category?: string }[]
+  threads: {
+    id: number
+    title: string
+    replies: number
+    views: number
+    repliedAt?: number
+    url: string
+    user?: string
+    category?: string
+  }[]
 }
 
 // the display title of a watch: the override, else the record's, else the folder
@@ -550,7 +559,8 @@ export interface TrashEntry {
   expiresAt: number
 }
 
-export const suggestionSource = (s: { category: string; isMovie?: boolean }) => (s.category.startsWith('anime') ? 'anilist' : s.isMovie || s.category === 'movie' ? 'tmdb:movie' : 'tmdb:tv')
+export const suggestionSource = (s: { category: string; isMovie?: boolean }) =>
+  s.category.startsWith('anime') ? 'anilist' : s.isMovie || s.category === 'movie' ? 'tmdb:movie' : 'tmdb:tv'
 
 export const watchTitle = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
 
@@ -578,7 +588,8 @@ export interface KeyConflict {
 // keyConflictOf reads a host key conflict off a failed request, null for any
 // other failure.
 export function keyConflictOf(e: unknown): KeyConflict | null {
-  if (e instanceof ApiError && e.status === 409 && (e.data as KeyConflict | undefined)?.newKey) return e.data as KeyConflict
+  if (e instanceof ApiError && e.status === 409 && (e.data as KeyConflict | undefined)?.newKey)
+    return e.data as KeyConflict
   return null
 }
 
@@ -731,7 +742,12 @@ export async function streamAiChat(
   const res = await fetch('/api/ai/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, model: model || undefined, tools: opts.tools?.length ? opts.tools : undefined, mode: opts.mode }),
+    body: JSON.stringify({
+      messages,
+      model: model || undefined,
+      tools: opts.tools?.length ? opts.tools : undefined,
+      mode: opts.mode,
+    }),
     signal,
   })
   if (!res.ok || !res.body) {
@@ -759,10 +775,7 @@ export async function streamAiChat(
 // syncOutcome turns a sync result into one sentence. Empty when files were
 // queued: then the queue itself is the answer. Otherwise it names the reason,
 // because "0 queued" alone reads like a failure.
-export function syncOutcome(
-  r: SyncResult,
-  t: (k: string, o?: Record<string, unknown>) => string,
-): string {
+export function syncOutcome(r: SyncResult, t: (k: string, o?: Record<string, unknown>) => string): string {
   if (r.queued > 0) return ''
   const parts: string[] = []
   if (r.skipped) parts.push(t('remote.syncSkipped', { count: r.skipped }))

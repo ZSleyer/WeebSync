@@ -33,7 +33,9 @@ export function seasonInPath(template: string, airedMapping: boolean): boolean {
 // token's padding - the rename engine reads the season off the file name and
 // falls back to 1, which in a "Season 02" folder names the files S01E01.
 export function pinSeason(template: string, season: number): string {
-  return template.replace(/\{season(?::0?(\d+))?\}/g, (_, w?: string) => String(season).padStart(w ? Number(w) : 1, '0'))
+  return template.replace(/\{season(?::0?(\d+))?\}/g, (_, w?: string) =>
+    String(season).padStart(w ? Number(w) : 1, '0'),
+  )
 }
 
 // subfolderMode reads the three-way choice off the fields a dialog starts

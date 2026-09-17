@@ -26,7 +26,18 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar, useSwipe, type SwipeHandlers } from '@weebsync/design-system'
+import {
+  AppBar,
+  AppShell,
+  Badge,
+  Button,
+  Dialog,
+  NavItem,
+  navItemClass,
+  TabBar,
+  useSwipe,
+  type SwipeHandlers,
+} from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
 import Logo from './components/Logo'
@@ -42,7 +53,13 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Files from './pages/Files'
 import Watches from './pages/Watches'
-import SuggestionsLayout, { BucketSection, DuplicatesSection, IgnoredSection, SuggestionsHub, UpgradesSection } from './pages/Suggestions'
+import SuggestionsLayout, {
+  BucketSection,
+  DuplicatesSection,
+  IgnoredSection,
+  SuggestionsHub,
+  UpgradesSection,
+} from './pages/Suggestions'
 import Assistant from './pages/Assistant'
 import Rename from './pages/Rename'
 import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/SettingsLayout'
@@ -140,11 +157,27 @@ export const router = createBrowserRouter(
       <Route path="/watches" element={<Watches />} handle={h('nav.watches')} />
       <Route path="/suggestions" element={<SuggestionsLayout />} handle={h('nav.suggestions')}>
         <Route index element={<SuggestionsHub />} />
-        <Route path="watchlist" element={<BucketSection bucket="watchlist" />} handle={inSuggestions('suggestions.tabWatchlist')} />
-        <Route path="recommended" element={<BucketSection bucket="recommended" />} handle={inSuggestions('suggestions.tabRecommended')} />
-        <Route path="trending" element={<BucketSection bucket="trending" />} handle={inSuggestions('suggestions.tabTrending')} />
+        <Route
+          path="watchlist"
+          element={<BucketSection bucket="watchlist" />}
+          handle={inSuggestions('suggestions.tabWatchlist')}
+        />
+        <Route
+          path="recommended"
+          element={<BucketSection bucket="recommended" />}
+          handle={inSuggestions('suggestions.tabRecommended')}
+        />
+        <Route
+          path="trending"
+          element={<BucketSection bucket="trending" />}
+          handle={inSuggestions('suggestions.tabTrending')}
+        />
         <Route path="upgrades" element={<UpgradesSection />} handle={inSuggestions('suggestions.tabUpgrades')} />
-        <Route path="incomplete" element={<BucketSection bucket="incomplete" />} handle={inSuggestions('suggestions.tabIncomplete')} />
+        <Route
+          path="incomplete"
+          element={<BucketSection bucket="incomplete" />}
+          handle={inSuggestions('suggestions.tabIncomplete')}
+        />
         <Route path="duplicates" element={<DuplicatesSection />} handle={inSuggestions('suggestions.tabDuplicates')} />
         <Route path="ignored" element={<IgnoredSection />} handle={inSuggestions('suggestions.ignored')} />
         <Route path="assistant" element={<Assistant />} handle={inSuggestions('nav.assistant')} />
@@ -162,12 +195,60 @@ export const router = createBrowserRouter(
         <Route path="sync" element={<SyncDefaults />} handle={inSettings('settings.nav.sync')} />
         <Route path="notifications" element={<Notifications />} handle={inSettings('settings.nav.notifications')} />
         <Route path="servers" element={<Servers />} handle={inSettings('nav.servers')} />
-        <Route path="transfers" element={<AdminRoute><Transfers /></AdminRoute>} handle={inSettings('settings.nav.transfers')} />
-        <Route path="security" element={<AdminRoute><Security /></AdminRoute>} handle={inSettings('settings.nav.security')} />
-        <Route path="integrations" element={<AdminRoute><Integrations /></AdminRoute>} handle={inSettings('settings.nav.integrations')} />
-        <Route path="jobs" element={<AdminRoute><Jobs /></AdminRoute>} handle={inSettings('settings.nav.jobs')} />
-        <Route path="matching" element={<AdminRoute><Matching /></AdminRoute>} handle={inSettings('settings.nav.matching')} />
-        <Route path="data" element={<AdminRoute><Data /></AdminRoute>} handle={inSettings('settings.nav.data')} />
+        <Route
+          path="transfers"
+          element={
+            <AdminRoute>
+              <Transfers />
+            </AdminRoute>
+          }
+          handle={inSettings('settings.nav.transfers')}
+        />
+        <Route
+          path="security"
+          element={
+            <AdminRoute>
+              <Security />
+            </AdminRoute>
+          }
+          handle={inSettings('settings.nav.security')}
+        />
+        <Route
+          path="integrations"
+          element={
+            <AdminRoute>
+              <Integrations />
+            </AdminRoute>
+          }
+          handle={inSettings('settings.nav.integrations')}
+        />
+        <Route
+          path="jobs"
+          element={
+            <AdminRoute>
+              <Jobs />
+            </AdminRoute>
+          }
+          handle={inSettings('settings.nav.jobs')}
+        />
+        <Route
+          path="matching"
+          element={
+            <AdminRoute>
+              <Matching />
+            </AdminRoute>
+          }
+          handle={inSettings('settings.nav.matching')}
+        />
+        <Route
+          path="data"
+          element={
+            <AdminRoute>
+              <Data />
+            </AdminRoute>
+          }
+          handle={inSettings('settings.nav.data')}
+        />
         {/* merged sections: the old paths land on their panel */}
         <Route path="email" element={<Navigate to="/settings/integrations#email" replace />} />
         <Route path="users" element={<Navigate to="/settings/security#users" replace />} />
@@ -238,7 +319,8 @@ function Shell({ email }: { email: string }) {
   // hides it) and a line in the rail's foot, so an admin sees it without
   // opening Settings; the About panel has the details
   const update = useUpdateHint()
-  const updateText = update && (update.channel === 'stable' ? t('about.updateStable', { version: update.latest }) : t('about.updateDev'))
+  const updateText =
+    update && (update.channel === 'stable' ? t('about.updateStable', { version: update.latest }) : t('about.updateDev'))
   // navigating (via sheet or otherwise) closes the sheet
   useEffect(() => setMoreOpen(false), [location.pathname])
 
@@ -316,7 +398,13 @@ function Shell({ email }: { email: string }) {
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto py-3" aria-label={t('nav.main')}>
         {[...TABS, ...overflow].map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.to === '/'} viewTransition className={({ isActive }) => navItemClass('sidebar', isActive)}>
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.to === '/'}
+            viewTransition
+            className={({ isActive }) => navItemClass('sidebar', isActive)}
+          >
             {dotted(icon(n), !!update && n.to === '/settings')}
             {t(n.key)}
           </NavLink>
@@ -369,7 +457,13 @@ function Shell({ email }: { email: string }) {
     <TabBar aria-label={t('nav.main')}>
       <div className="flex">
         {TABS.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.to === '/'} viewTransition className={({ isActive }) => navItemClass('bottomTab', isActive)}>
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.to === '/'}
+            viewTransition
+            className={({ isActive }) => navItemClass('bottomTab', isActive)}
+          >
             {icon(n)}
             <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
           </NavLink>
@@ -422,25 +516,25 @@ function Shell({ email }: { email: string }) {
     <AppBarActions.Provider value={actions}>
       <ShellFooter.Provider value={footer}>
         <SeriesModalProvider>
-        <AppShell
-          sidebar={sidebar}
-          bar={bar}
-          tabs={tabs}
-          mainKey={location.pathname}
-          notice={<UpdateToast />}
-          footer={<div ref={setFooter} className="shrink-0 empty:hidden lg:hidden" />}
-          before={
-            <>
-              <RouteTitle />
-              <ScrollMemory />
-              {more}
-            </>
-          }
-        >
-          <RouteTransition cls={transitionClass} swipe={pageSwipe}>
-            <Outlet />
-          </RouteTransition>
-        </AppShell>
+          <AppShell
+            sidebar={sidebar}
+            bar={bar}
+            tabs={tabs}
+            mainKey={location.pathname}
+            notice={<UpdateToast />}
+            footer={<div ref={setFooter} className="shrink-0 empty:hidden lg:hidden" />}
+            before={
+              <>
+                <RouteTitle />
+                <ScrollMemory />
+                {more}
+              </>
+            }
+          >
+            <RouteTransition cls={transitionClass} swipe={pageSwipe}>
+              <Outlet />
+            </RouteTransition>
+          </AppShell>
         </SeriesModalProvider>
       </ShellFooter.Provider>
     </AppBarActions.Provider>

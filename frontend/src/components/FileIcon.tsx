@@ -14,5 +14,7 @@ register(FileText, 'txt nfo md log')
 // accent color, files get a type-specific monochrome icon.
 export default function FileIcon({ isDir, name, className }: { isDir: boolean; name: string; className?: string }) {
   const Icon = isDir ? Folder : (BY_EXT[name.split('.').pop()?.toLowerCase() ?? ''] ?? File)
-  return <Icon aria-hidden size="1em" className={`shrink-0 ${isDir ? 'text-accent' : 'text-t-muted'} ${className ?? ''}`} />
+  return (
+    <Icon aria-hidden size="1em" className={`shrink-0 ${isDir ? 'text-accent' : 'text-t-muted'} ${className ?? ''}`} />
+  )
 }

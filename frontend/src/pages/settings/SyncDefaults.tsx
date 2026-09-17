@@ -13,10 +13,27 @@ import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
 const KINDS = ['anime-series', 'anime-movie', 'series', 'movie'] as const
 type Kind = (typeof KINDS)[number]
-const EMPTY_KIND: KindDefaults = { localPath: '', subfolder: false, subfolderSource: 'none', subfolderSeparator: '', template: '', separator: '' }
+const EMPTY_KIND: KindDefaults = {
+  localPath: '',
+  subfolder: false,
+  subfolderSource: 'none',
+  subfolderSeparator: '',
+  template: '',
+  separator: '',
+}
 const EMPTY: WatchDefaults = {
   kinds: {},
-  common: { renameProvider: '', renameOrdering: '', renameTitleLang: '', airedMapping: false, wantDub: '', wantSub: '', dubLagDays: 0, plexAudioLang: '', plexSubLang: '' },
+  common: {
+    renameProvider: '',
+    renameOrdering: '',
+    renameTitleLang: '',
+    airedMapping: false,
+    wantDub: '',
+    wantSub: '',
+    dubLagDays: 0,
+    plexAudioLang: '',
+    plexSubLang: '',
+  },
 }
 
 // What a new auto-sync or one-off sync starts from: a target folder and
@@ -26,7 +43,10 @@ const EMPTY: WatchDefaults = {
 export default function SyncDefaults() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const { data } = useQuery<WatchDefaults>({ queryKey: ['watch-defaults'], queryFn: () => api.get('/api/auth/watch-defaults') })
+  const { data } = useQuery<WatchDefaults>({
+    queryKey: ['watch-defaults'],
+    queryFn: () => api.get('/api/auth/watch-defaults'),
+  })
   const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean; tmdbApiKeySet?: boolean }>({
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
@@ -34,7 +54,9 @@ export default function SyncDefaults() {
     staleTime: 5 * 60_000,
   })
   // what the form shows until the first edit: the stored defaults, filled up
-  const stored = data ? { ...EMPTY, ...data, kinds: data.kinds ?? {}, common: { ...EMPTY.common, ...data.common } } : null
+  const stored = data
+    ? { ...EMPTY, ...data, kinds: data.kinds ?? {}, common: { ...EMPTY.common, ...data.common } }
+    : null
   const [edited, setForm] = useState<WatchDefaults | null>(null)
   const form = edited ?? stored ?? EMPTY
   const [kind, setKind] = useState<Kind>('anime-series')
@@ -44,7 +66,9 @@ export default function SyncDefaults() {
   // a path still carrying the slash the picker appends is stored clean
   const tidy = (d: WatchDefaults): WatchDefaults => ({
     ...d,
-    kinds: Object.fromEntries(Object.entries(d.kinds).map(([c, k]) => [c, { ...k, localPath: trimSlashes(k.localPath) }])),
+    kinds: Object.fromEntries(
+      Object.entries(d.kinds).map(([c, k]) => [c, { ...k, localPath: trimSlashes(k.localPath) }]),
+    ),
   })
   const save = useMutation({
     mutationFn: (d: WatchDefaults) => api.put('/api/auth/watch-defaults', tidy(d)),
@@ -59,9 +83,14 @@ export default function SyncDefaults() {
   })
 
   const k = form.kinds[kind] ?? EMPTY_KIND
-  const setKindField = (patch: Partial<KindDefaults>) => setForm({ ...form, kinds: { ...form.kinds, [kind]: { ...k, ...patch } } })
-  const setCommon = (patch: Partial<WatchDefaults['common']>) => setForm({ ...form, common: { ...form.common, ...patch } })
-  const ordering = form.common.renameProvider && form.common.renameOrdering ? `${form.common.renameProvider}:${form.common.renameOrdering}` : ''
+  const setKindField = (patch: Partial<KindDefaults>) =>
+    setForm({ ...form, kinds: { ...form.kinds, [kind]: { ...k, ...patch } } })
+  const setCommon = (patch: Partial<WatchDefaults['common']>) =>
+    setForm({ ...form, common: { ...form.common, ...patch } })
+  const ordering =
+    form.common.renameProvider && form.common.renameOrdering
+      ? `${form.common.renameProvider}:${form.common.renameOrdering}`
+      : ''
 
   return (
     <>
@@ -89,7 +118,13 @@ export default function SyncDefaults() {
                 queryKey={['local']}
                 ariaLabel={t('watch.localPath')}
               />
-              <Button size="sm" aria-expanded={browse} aria-label={t('rename.browse')} title={t('rename.browse')} onClick={() => setBrowse((b) => !b)}>
+              <Button
+                size="sm"
+                aria-expanded={browse}
+                aria-label={t('rename.browse')}
+                title={t('rename.browse')}
+                onClick={() => setBrowse((b) => !b)}
+              >
                 <FolderOpen aria-hidden size="1.2em" />
               </Button>
             </div>
@@ -109,7 +144,12 @@ export default function SyncDefaults() {
           />
           <div className={ROW_GRID}>
             <Field label={t('rename.template')}>
-              <Input className="font-mono" value={k.template} placeholder="{title} - S{season:02}E{episode:02}" onChange={(e) => setKindField({ template: e.target.value })} />
+              <Input
+                className="font-mono"
+                value={k.template}
+                placeholder="{title} - S{season:02}E{episode:02}"
+                onChange={(e) => setKindField({ template: e.target.value })}
+              />
             </Field>
             <Field label={t('rename.separator')}>
               <Select value={k.separator} onChange={(e) => setKindField({ separator: e.target.value })}>
@@ -150,7 +190,10 @@ export default function SyncDefaults() {
             </Select>
           </Field>
           <Field label={t('watch.renameTitleLang')}>
-            <Select value={form.common.renameTitleLang} onChange={(e) => setCommon({ renameTitleLang: e.target.value })}>
+            <Select
+              value={form.common.renameTitleLang}
+              onChange={(e) => setCommon({ renameTitleLang: e.target.value })}
+            >
               <option value="">{t('watch.titleLangOff')}</option>
               <option value="auto">{t('watch.langAuto')}</option>
               {TITLE_LANGS.map((l) => (
@@ -161,14 +204,28 @@ export default function SyncDefaults() {
             </Select>
           </Field>
           <label className="flex items-center gap-2 text-sm text-t-secondary sm:col-span-2">
-            <input type="checkbox" checked={form.common.airedMapping} onChange={(e) => setCommon({ airedMapping: e.target.checked })} />
+            <input
+              type="checkbox"
+              checked={form.common.airedMapping}
+              onChange={(e) => setCommon({ airedMapping: e.target.checked })}
+            />
             {t('watch.airedMapping')}
           </label>
           <Field label={t('watch.wantDub')}>
-            <Input className="font-mono" value={form.common.wantDub} placeholder="Ger" onChange={(e) => setCommon({ wantDub: e.target.value.trim() })} />
+            <Input
+              className="font-mono"
+              value={form.common.wantDub}
+              placeholder="Ger"
+              onChange={(e) => setCommon({ wantDub: e.target.value.trim() })}
+            />
           </Field>
           <Field label={t('watch.wantSub')}>
-            <Input className="font-mono" value={form.common.wantSub} placeholder="Ger" onChange={(e) => setCommon({ wantSub: e.target.value.trim() })} />
+            <Input
+              className="font-mono"
+              value={form.common.wantSub}
+              placeholder="Ger"
+              onChange={(e) => setCommon({ wantSub: e.target.value.trim() })}
+            />
           </Field>
           <Field label={t('watch.dubLag')}>
             <Input
@@ -182,10 +239,20 @@ export default function SyncDefaults() {
             />
           </Field>
           <Field label={t('watch.plexAudio')}>
-            <Input className="font-mono" value={form.common.plexAudioLang} placeholder="Ger" onChange={(e) => setCommon({ plexAudioLang: e.target.value.trim() })} />
+            <Input
+              className="font-mono"
+              value={form.common.plexAudioLang}
+              placeholder="Ger"
+              onChange={(e) => setCommon({ plexAudioLang: e.target.value.trim() })}
+            />
           </Field>
           <Field label={t('watch.plexSub')}>
-            <Input className="font-mono" value={form.common.plexSubLang} placeholder="off, Ger, Ger:forced" onChange={(e) => setCommon({ plexSubLang: e.target.value.trim() })} />
+            <Input
+              className="font-mono"
+              value={form.common.plexSubLang}
+              placeholder="off, Ger, Ger:forced"
+              onChange={(e) => setCommon({ plexSubLang: e.target.value.trim() })}
+            />
           </Field>
         </div>
         <p className="mt-3 text-xs text-t-muted">{t('settings.sync.langHint')}</p>

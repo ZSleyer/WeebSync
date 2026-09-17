@@ -9,7 +9,6 @@ import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSet
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import Smtp from './Smtp'
 
-
 // The five status queries, shared by the panels and the strip on top so
 // React Query serves both from one request.
 interface AnilistMe {
@@ -51,7 +50,10 @@ interface AiStatus {
 const ANILIST_ME = { queryKey: ['anilist-me'], queryFn: () => api.get<AnilistMe>('/api/anilist/me') }
 const TMDB_ME = { queryKey: ['tmdb-me'], queryFn: () => api.get<TmdbMe>('/api/tmdb/me') }
 const TVDB_ME = { queryKey: ['tvdb-me'], queryFn: () => api.get<TvdbMe>('/api/tvdb/me') }
-const ANIMESCHEDULE_ME = { queryKey: ['animeschedule-me'], queryFn: () => api.get<AnimescheduleMe>('/api/animeschedule/me') }
+const ANIMESCHEDULE_ME = {
+  queryKey: ['animeschedule-me'],
+  queryFn: () => api.get<AnimescheduleMe>('/api/animeschedule/me'),
+}
 const PLEX_ME = { queryKey: ['plex-me'], queryFn: () => api.get<PlexMe>('/api/plex/me') }
 const AI_STATUS = { queryKey: ['ai-status'], queryFn: () => api.get<AiStatus>('/api/ai/status') }
 
@@ -212,36 +214,37 @@ export default function Integrations() {
               <span className="mt-1 block">{t('settings.plexTokenHint')}</span>
             </label>
           </div>
-          {form.plexTokenSet && form.plexUrl && (
-            // the library block is the longest thing on the page: framed like
-            // the OIDC block on Security, so it reads as one unit
-            <fieldset className="rounded-lg border border-border-subtle p-3">
-              <Badge as="legend">{t('settings.plexSections')}</Badge>
-              <div className="grid grid-cols-1 gap-4">
-                <PlexSections
-                  value={form.plexSections}
-                  onChange={(v) => set('plexSections', v)}
-                  sources={form.plexSectionSources}
-                  onSources={(v) => set('plexSectionSources', v)}
-                  anime={form.plexSectionAnime}
-                  onAnime={(v) => set('plexSectionAnime', v)}
-                  tvdb={form.tvdbApiKeySet}
-                  libraries={form.plexLibraries}
-                />
-                <label className="text-xs text-t-muted">
-                  {t('settings.plexRoots')}
-                  <textarea
-                    className="t-input mt-1 font-mono"
-                    rows={3}
-                    placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
-                    value={form.plexRoots}
-                    onChange={(e) => set('plexRoots', e.target.value)}
+          {form.plexTokenSet &&
+            form.plexUrl && (
+              // the library block is the longest thing on the page: framed like
+              // the OIDC block on Security, so it reads as one unit
+              <fieldset className="rounded-lg border border-border-subtle p-3">
+                <Badge as="legend">{t('settings.plexSections')}</Badge>
+                <div className="grid grid-cols-1 gap-4">
+                  <PlexSections
+                    value={form.plexSections}
+                    onChange={(v) => set('plexSections', v)}
+                    sources={form.plexSectionSources}
+                    onSources={(v) => set('plexSectionSources', v)}
+                    anime={form.plexSectionAnime}
+                    onAnime={(v) => set('plexSectionAnime', v)}
+                    tvdb={form.tvdbApiKeySet}
+                    libraries={form.plexLibraries}
                   />
-                  <span className="mt-1 block">{t('settings.plexRootsHint')}</span>
-                </label>
-              </div>
-            </fieldset>
-          )}
+                  <label className="text-xs text-t-muted">
+                    {t('settings.plexRoots')}
+                    <textarea
+                      className="t-input mt-1 font-mono"
+                      rows={3}
+                      placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
+                      value={form.plexRoots}
+                      onChange={(e) => set('plexRoots', e.target.value)}
+                    />
+                    <span className="mt-1 block">{t('settings.plexRootsHint')}</span>
+                  </label>
+                </div>
+              </fieldset>
+            )}
         </div>
       </Panel>
 
@@ -342,7 +345,12 @@ function PlexSections({
     queryFn: () => api.get('/api/plex/sections'),
     retry: false,
   })
-  const selected = new Set(value.split(',').map((s) => s.trim()).filter(Boolean))
+  const selected = new Set(
+    value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  )
   const srcMap = new Map(
     sources
       .split(',')
@@ -379,8 +387,7 @@ function PlexSections({
     return s.title.toLowerCase().includes('anime') || agent.includes('hama') || agent.includes('anidb')
   }
   const isAnime = (s: PlexSection) => (animeMap.has(s.key) ? animeMap.get(s.key) === '1' : defaultAnime(s))
-  const writeAnime = (map: Map<string, string>) =>
-    onAnime([...map.entries()].map(([k, v]) => `${k}:${v}`).join(','))
+  const writeAnime = (map: Map<string, string>) => onAnime([...map.entries()].map(([k, v]) => `${k}:${v}`).join(','))
   const toggle = (s: PlexSection) => {
     const next = new Set(selected)
     const nextSrc = new Map(srcMap)
@@ -417,9 +424,7 @@ function PlexSections({
             <Badge>{s.type === 'movie' ? t('settings.plexMovies') : t('settings.plexShows')}</Badge>
             {/* what Plex itself uses, so the preselection is traceable */}
             {s.provider && (
-              <Badge title={s.ordering}>
-                {t('settings.plexUses', { name: s.provider.toUpperCase() })}
-              </Badge>
+              <Badge title={s.ordering}>{t('settings.plexUses', { name: s.provider.toUpperCase() })}</Badge>
             )}
             {selected.has(s.key) && (
               <>
@@ -505,9 +510,7 @@ function AnilistOwnApp({
 }) {
   const { t } = useTranslation()
   const { data } = useQuery(ANILIST_ME)
-  const [open, setOpen] = useState(
-    !!form.anilistClientId || form.anilistSecretSet || !!form.anilistRedirectUrl,
-  )
+  const [open, setOpen] = useState(!!form.anilistClientId || form.anilistSecretSet || !!form.anilistRedirectUrl)
   return (
     <div className="text-xs text-t-muted">
       <button
@@ -669,7 +672,11 @@ function TvdbAccount() {
   const test = async () => {
     setTesting(true)
     try {
-      await qc.fetchQuery({ queryKey: TVDB_ME.queryKey, queryFn: () => api.get<TvdbMe>('/api/tvdb/me?force=1'), staleTime: 0 })
+      await qc.fetchQuery({
+        queryKey: TVDB_ME.queryKey,
+        queryFn: () => api.get<TvdbMe>('/api/tvdb/me?force=1'),
+        staleTime: 0,
+      })
     } finally {
       setTesting(false)
     }
@@ -705,7 +712,11 @@ function AnimescheduleAccount() {
   const test = async () => {
     setTesting(true)
     try {
-      await qc.fetchQuery({ queryKey: ANIMESCHEDULE_ME.queryKey, queryFn: () => api.get<AnimescheduleMe>('/api/animeschedule/me?force=1'), staleTime: 0 })
+      await qc.fetchQuery({
+        queryKey: ANIMESCHEDULE_ME.queryKey,
+        queryFn: () => api.get<AnimescheduleMe>('/api/animeschedule/me?force=1'),
+        staleTime: 0,
+      })
     } finally {
       setTesting(false)
     }
@@ -745,7 +756,13 @@ function AiModelField({ value, locked, onChange }: { value: string; locked: bool
       <EnvBadge show={locked} />
       <span className="mt-1 flex gap-2">
         {options.length > 0 ? (
-          <Select className="font-mono" wrapperClassName="min-w-0 flex-1" value={value} disabled={locked} onChange={(e) => onChange(e.target.value)}>
+          <Select
+            className="font-mono"
+            wrapperClassName="min-w-0 flex-1"
+            value={value}
+            disabled={locked}
+            onChange={(e) => onChange(e.target.value)}
+          >
             {options.map((m) => (
               <option key={m} value={m}>
                 {m}
@@ -753,7 +770,13 @@ function AiModelField({ value, locked, onChange }: { value: string; locked: bool
             ))}
           </Select>
         ) : (
-          <Input className="font-mono" placeholder="gpt-4o-mini" value={value} disabled={locked} onChange={(e) => onChange(e.target.value)} />
+          <Input
+            className="font-mono"
+            placeholder="gpt-4o-mini"
+            value={value}
+            disabled={locked}
+            onChange={(e) => onChange(e.target.value)}
+          />
         )}
         {data && (
           <Button size="sm" className="shrink-0" disabled={isFetching} onClick={() => refetch()}>
@@ -781,7 +804,11 @@ function AiAccount() {
   const test = async () => {
     setTesting(true)
     try {
-      await qc.fetchQuery({ queryKey: AI_STATUS.queryKey, queryFn: () => api.get<AiStatus>('/api/ai/status?force=1'), staleTime: 0 })
+      await qc.fetchQuery({
+        queryKey: AI_STATUS.queryKey,
+        queryFn: () => api.get<AiStatus>('/api/ai/status?force=1'),
+        staleTime: 0,
+      })
     } finally {
       setTesting(false)
     }
@@ -846,11 +873,7 @@ function TmdbAccount() {
               {data.error}
             </span>
           )}
-          <Button
-            size="sm"
-            disabled={!data.configured}
-            onClick={() => (window.location.href = '/api/tmdb/connect')}
-          >
+          <Button size="sm" disabled={!data.configured} onClick={() => (window.location.href = '/api/tmdb/connect')}>
             {t('settings.tmdbConnect')}
           </Button>
           {!data.configured && <span>{t('settings.tmdbConnectHint')}</span>}

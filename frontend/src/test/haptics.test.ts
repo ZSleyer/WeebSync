@@ -31,9 +31,12 @@ describe('haptic', () => {
   it('survives a platform without the API', () => {
     patch(undefined, { hasBeenActive: true })
     expect(haptic(8)).toBe(false)
-    patch(() => {
-      throw new Error('refused')
-    }, { hasBeenActive: true })
+    patch(
+      () => {
+        throw new Error('refused')
+      },
+      { hasBeenActive: true },
+    )
     expect(haptic(8)).toBe(false)
   })
 })

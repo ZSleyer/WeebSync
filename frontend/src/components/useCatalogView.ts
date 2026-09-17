@@ -26,7 +26,8 @@ export function useCatalogView(serverId: number, path: string) {
   // the next probe loads so the view does not flicker on navigation
   const { data: scopeInfo } = useQuery<{ scope: string }>({
     queryKey: ['catalog-scope', serverId, path],
-    queryFn: () => api.get(`/api/servers/${serverId}/catalog/scope${path ? `?path=${encodeURIComponent('/' + path)}` : ''}`),
+    queryFn: () =>
+      api.get(`/api/servers/${serverId}/catalog/scope${path ? `?path=${encodeURIComponent('/' + path)}` : ''}`),
     enabled: serverId >= 0,
     staleTime: 60_000,
     placeholderData: (prev) => prev,

@@ -73,12 +73,24 @@ function inline(text: string, titles: TitleLink[], key: string): ReactNode[] {
   for (const m of text.matchAll(INLINE)) {
     if (m.index! > last) nodes.push(...linkTitles(text.slice(last, m.index), titles, `${key}-${n++}`))
     const tok = m[0]
-    if (tok.startsWith('**')) nodes.push(<strong key={`${key}-${n++}`}>{linkTitles(tok.slice(2, -2), titles, `${key}-b${n}`)}</strong>)
-    else if (tok.startsWith('`')) nodes.push(<code key={`${key}-${n++}`} className="font-mono text-[0.9em]">{tok.slice(1, -1)}</code>)
+    if (tok.startsWith('**'))
+      nodes.push(<strong key={`${key}-${n++}`}>{linkTitles(tok.slice(2, -2), titles, `${key}-b${n}`)}</strong>)
+    else if (tok.startsWith('`'))
+      nodes.push(
+        <code key={`${key}-${n++}`} className="font-mono text-[0.9em]">
+          {tok.slice(1, -1)}
+        </code>,
+      )
     else if (tok.startsWith('[')) {
       const close = tok.indexOf('](')
       nodes.push(
-        <a key={`${key}-${n++}`} href={tok.slice(close + 2, -1)} target="_blank" rel="noreferrer" className="text-accent underline underline-offset-2">
+        <a
+          key={`${key}-${n++}`}
+          href={tok.slice(close + 2, -1)}
+          target="_blank"
+          rel="noreferrer"
+          className="text-accent underline underline-offset-2"
+        >
           {tok.slice(1, close)}
         </a>,
       )
@@ -105,7 +117,12 @@ export function linkTitles(text: string, titles: TitleLink[], key: string): Reac
     if (m.index! > last) nodes.push(text.slice(last, m.index))
     const hit = sorted.find((t) => t.title.toLowerCase() === m[0].toLowerCase())
     nodes.push(
-      <button key={`${key}-t${n++}`} type="button" className="text-accent underline underline-offset-2 hover:text-t-primary" onClick={hit?.onClick}>
+      <button
+        key={`${key}-t${n++}`}
+        type="button"
+        className="text-accent underline underline-offset-2 hover:text-t-primary"
+        onClick={hit?.onClick}
+      >
         {m[0]}
       </button>,
     )
@@ -119,7 +136,15 @@ export function linkTitles(text: string, titles: TitleLink[], key: string): Reac
 // array to every render
 const NO_TITLES: TitleLink[] = []
 
-export default function Markdown({ text, titles = NO_TITLES, children }: { text: string; titles?: TitleLink[]; children?: ReactNode }) {
+export default function Markdown({
+  text,
+  titles = NO_TITLES,
+  children,
+}: {
+  text: string
+  titles?: TitleLink[]
+  children?: ReactNode
+}) {
   const blocks = parseMarkdown(text)
   return (
     <div className="space-y-2 wrap-break-word">
@@ -148,7 +173,10 @@ export default function Markdown({ text, titles = NO_TITLES, children }: { text:
             )
           case 'code':
             return (
-              <pre key={key} className="overflow-x-auto rounded-md border border-border-subtle bg-bg-card p-2 font-mono text-sm">
+              <pre
+                key={key}
+                className="overflow-x-auto rounded-md border border-border-subtle bg-bg-card p-2 font-mono text-sm"
+              >
                 {b.text}
               </pre>
             )

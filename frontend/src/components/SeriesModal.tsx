@@ -24,7 +24,20 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { Badge, Button, Cover, Dialog, IconButton, Menu, MenuItem, Progress, Tab, Tabs, useMenu, useSwipe } from '@weebsync/design-system'
+import {
+  Badge,
+  Button,
+  Cover,
+  Dialog,
+  IconButton,
+  Menu,
+  MenuItem,
+  Progress,
+  Tab,
+  Tabs,
+  useMenu,
+  useSwipe,
+} from '@weebsync/design-system'
 import { api, fmtMissing, mediaTitle, watchTitle, type Media, type MediaExtras, type Review, type Watch } from '../api'
 import { useNow } from '../hooks'
 import MediaDetail, { GenreChips } from './MediaDetail'
@@ -183,12 +196,19 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
         <header className="relative shrink-0">
           {media?.bannerImage && <img src={media.bannerImage} alt="" className="max-h-28 w-full object-cover" />}
           {stack.length > 1 && (
-            <IconButton aria-label={t('series.back')} title={t('series.back')} onClick={back} className="absolute top-2 left-2 bg-bg-card/90">
+            <IconButton
+              aria-label={t('series.back')}
+              title={t('series.back')}
+              onClick={back}
+              className="absolute top-2 left-2 bg-bg-card/90"
+            >
               <ArrowLeft aria-hidden size="1.2em" />
             </IconButton>
           )}
           <div className="flex gap-4 px-5 pt-4 pb-3">
-            {media?.coverImage?.large && <Cover src={media.coverImage.extraLarge || media.coverImage.large} size="md" />}
+            {media?.coverImage?.large && (
+              <Cover src={media.coverImage.extraLarge || media.coverImage.large} size="md" />
+            )}
             <div className="min-w-0 flex-1">
               <h3 className="font-display font-semibold tracking-wider">{name}</h3>
               {media?.title.english && media.title.english !== name && !/[぀-ヿ㐀-鿿]/.test(media.title.english) && (
@@ -207,7 +227,13 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
                   )}
                   {media.averageScore > 0 && (
                     <Badge tone="accent">
-                      <Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />
+                      <Star
+                        aria-hidden
+                        size="1em"
+                        className="mr-0.5 inline align-[-0.125em]"
+                        fill="currentColor"
+                        strokeWidth={0}
+                      />
                       {media.averageScore}
                     </Badge>
                   )}
@@ -218,7 +244,13 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
           </div>
           <Tabs scroll aria-label={t('series.tabsLabel')} className="mx-5">
             {tabs.map((k) => (
-              <Tab key={k} id={`${ids}-tab-${k}`} aria-controls={`${ids}-panel-${k}`} selected={tab === k} onClick={() => setTab(k)}>
+              <Tab
+                key={k}
+                id={`${ids}-tab-${k}`}
+                aria-controls={`${ids}-panel-${k}`}
+                selected={tab === k}
+                onClick={() => setTab(k)}
+              >
                 {t(`series.tab.${k}`)}
                 {k === 'sync' && mine.length > 1 && <span className="t-count ml-1.5">{mine.length}</span>}
               </Tab>
@@ -226,7 +258,13 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
           </Tabs>
         </header>
 
-        <div {...tabSwipe} id={`${ids}-panel-${tab}`} role="tabpanel" aria-labelledby={`${ids}-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          {...tabSwipe}
+          id={`${ids}-panel-${tab}`}
+          role="tabpanel"
+          aria-labelledby={`${ids}-tab-${tab}`}
+          className="min-h-0 flex-1 overflow-y-auto"
+        >
           {tab === 'overview' && media && (
             <MediaDetail media={media} source={source} airings={mine[0]?.airings} links={extras?.links} now={now}>
               {cur.extra}
@@ -247,21 +285,32 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
                 {extras?.characters.map((c) => (
                   <li key={`${c.name}-${c.voiceActor}`} className="flex items-center gap-2">
                     {c.image ? (
-                      <img src={c.image} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+                      <img
+                        src={c.image}
+                        alt=""
+                        loading="lazy"
+                        className="h-12 w-12 shrink-0 rounded-full object-cover"
+                      />
                     ) : (
                       <span aria-hidden className="t-hatch h-12 w-12 shrink-0 rounded-full" />
                     )}
                     <span className="min-w-0">
                       <span className="block truncate text-sm text-t-primary">{c.name}</span>
                       {c.voiceActor && <span className="block truncate text-[11px] text-t-muted">{c.voiceActor}</span>}
-                      {c.role && c.role !== 'MAIN' && <span className="block text-[10px] uppercase text-t-faint">{t(`series.role.${c.role}`, c.role)}</span>}
+                      {c.role && c.role !== 'MAIN' && (
+                        <span className="block text-[10px] uppercase text-t-faint">
+                          {t(`series.role.${c.role}`, c.role)}
+                        </span>
+                      )}
                     </span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          {tab === 'community' && <Community source={source} id={cur.id} threads={extras?.threads} failed={extrasFailed} />}
+          {tab === 'community' && (
+            <Community source={source} id={cur.id} threads={extras?.threads} failed={extrasFailed} />
+          )}
           {tab === 'similar' && (
             <div className="p-5">
               <Unavailable when={extrasFailed} source={source} />
@@ -272,7 +321,10 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
                 <section>
                   <h4 className="t-label mb-2">{t('series.relations')}</h4>
                   <PosterRow
-                    items={extras.relations.map((r) => ({ media: r.node, caption: t(`series.relation.${r.relationType}`, r.relationType) }))}
+                    items={extras.relations.map((r) => ({
+                      media: r.node,
+                      caption: t(`series.relation.${r.relationType}`, r.relationType),
+                    }))}
                     onPick={(m) => push({ id: m.id, media: m })}
                   />
                 </section>
@@ -280,7 +332,10 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
               {!!extras?.recommendations.length && (
                 <section className="mt-4">
                   <h4 className="t-label mb-2">{t('series.recommendations')}</h4>
-                  <PosterRow items={extras.recommendations.map((m) => ({ media: m }))} onPick={(m) => push({ source, id: m.id, media: m })} />
+                  <PosterRow
+                    items={extras.recommendations.map((m) => ({ media: m }))}
+                    onPick={(m) => push({ source, id: m.id, media: m })}
+                  />
                 </section>
               )}
             </div>
@@ -314,7 +369,12 @@ function PosterRow({ items, onPick }: { items: { media: Media; caption?: string 
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-3">
       {items.map(({ media: m, caption }) => (
         <li key={`${m.id}-${caption ?? ''}`} className="min-w-0">
-          <button type="button" onClick={() => onPick(m)} aria-label={t('remote.detailsFor', { name: mediaTitle(m) })} className="w-full cursor-pointer text-left">
+          <button
+            type="button"
+            onClick={() => onPick(m)}
+            aria-label={t('remote.detailsFor', { name: mediaTitle(m) })}
+            className="w-full cursor-pointer text-left"
+          >
             <Cover src={m.coverImage?.large} size="fill" loading="lazy" className="rounded-xs" />
             {caption && <span className="mt-1 block text-[10px] uppercase tracking-wider text-accent">{caption}</span>}
             <span className="line-clamp-2 text-xs text-t-primary">{mediaTitle(m)}</span>
@@ -326,7 +386,17 @@ function PosterRow({ items, onPick }: { items: { media: Media; caption?: string 
   )
 }
 
-function Community({ source, id, threads, failed }: { source: string; id: number; threads?: MediaExtras['threads']; failed: boolean }) {
+function Community({
+  source,
+  id,
+  threads,
+  failed,
+}: {
+  source: string
+  id: number
+  threads?: MediaExtras['threads']
+  failed: boolean
+}) {
   const { t } = useTranslation()
   const [allReviews, setAllReviews] = useState(false)
   const { data: rev, isError: reviewsFailed } = useQuery<{ reviews: Review[] }>({
@@ -380,7 +450,10 @@ function Community({ source, id, threads, failed }: { source: string; id: number
               {r.user.avatar?.medium ? (
                 <img src={r.user.avatar.medium} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
               ) : (
-                <div aria-hidden className="t-hatch flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-display text-xs text-t-muted">
+                <div
+                  aria-hidden
+                  className="t-hatch flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-display text-xs text-t-muted"
+                >
                   {r.user.name.slice(0, 1).toUpperCase()}
                 </div>
               )}
@@ -389,7 +462,13 @@ function Community({ source, id, threads, failed }: { source: string; id: number
                   <Badge>{r.user.name}</Badge>
                   {r.score > 0 && (
                     <Badge tone="accent">
-                      <Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />
+                      <Star
+                        aria-hidden
+                        size="1em"
+                        className="mr-0.5 inline align-[-0.125em]"
+                        fill="currentColor"
+                        strokeWidth={0}
+                      />
                       {r.score}
                     </Badge>
                   )}
@@ -419,7 +498,13 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
   const { t } = useTranslation()
   const act = useWatchActions()
   const [edit, setEdit] = useState(false)
-  const { open: menuOpen, setOpen: setMenuOpen, ref: menuRef, anchor: menuAnchor, anchorStyle: menuAnchorStyle } = useMenu()
+  const {
+    open: menuOpen,
+    setOpen: setMenuOpen,
+    ref: menuRef,
+    anchor: menuAnchor,
+    anchorStyle: menuAnchorStyle,
+  } = useMenu()
   const total = w.media?.episodes ?? 0
   const pct = total > 0 ? (w.localFiles / total) * 100 : w.complete ? 100 : 0
   const canPlex = !!(w.plexAudioLang || w.plexSubLang)
@@ -436,11 +521,20 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
           {t('watch.checkNow')}
         </Button>
         <div className="relative" ref={menuRef} style={menuAnchorStyle}>
-          <IconButton aria-label={t('watch.moreActions', { title: watchTitle(w) })} aria-haspopup="listbox" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+          <IconButton
+            aria-label={t('watch.moreActions', { title: watchTitle(w) })}
+            aria-haspopup="listbox"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
             <Ellipsis aria-hidden size="1.2em" />
           </IconButton>
           {menuOpen && (
-            <Menu anchor={menuAnchor} placement="bottom-end" aria-label={t('watch.moreActions', { title: watchTitle(w) })}>
+            <Menu
+              anchor={menuAnchor}
+              placement="bottom-end"
+              aria-label={t('watch.moreActions', { title: watchTitle(w) })}
+            >
               <MenuItem
                 onClick={() => {
                   setMenuOpen(false)
@@ -487,7 +581,13 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
             {t('watch.chipEp', { n: w.nextEpisode })}
             {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''}
             {' · '}
-            {new Date(w.nextAiringAt * 1000).toLocaleString([], { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            {new Date(w.nextAiringAt * 1000).toLocaleString([], {
+              weekday: 'short',
+              day: '2-digit',
+              month: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
           </Badge>
         )}
         {(w.behind ?? 0) > 0 && (
@@ -542,7 +642,13 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
         )}
       </div>
       <div className="mt-2 flex items-center gap-3 text-xs">
-        <Progress value={pct} size="sm" tone={w.complete ? 'ok' : 'accent'} label={t('series.progressLabel', { name: watchTitle(w) })} className="w-32" />
+        <Progress
+          value={pct}
+          size="sm"
+          tone={w.complete ? 'ok' : 'accent'}
+          label={t('series.progressLabel', { name: watchTitle(w) })}
+          className="w-32"
+        />
         <span className={w.complete ? 'text-ok' : 'text-t-secondary'}>
           {total > 0 ? t('watch.episodes', { have: w.localFiles, total }) : t('watch.files', { count: w.localFiles })}
         </span>

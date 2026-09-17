@@ -35,7 +35,9 @@ export default function HostKeyPrompt({
   }
   return (
     <div className={['rounded-lg border border-err/40 p-3 text-xs', className].filter(Boolean).join(' ')} role="alert">
-      <p className="mb-2 text-t-muted">{t(conflict.code === 'host_key_unknown' ? 'servers.hostKeyUnknown' : 'servers.hostKeyChanged')}</p>
+      <p className="mb-2 text-t-muted">
+        {t(conflict.code === 'host_key_unknown' ? 'servers.hostKeyUnknown' : 'servers.hostKeyChanged')}
+      </p>
       {conflict.oldFingerprint && (
         <p className="break-all font-mono">
           <span className="text-t-muted">{t('servers.hostKeyOld')}: </span>

@@ -1,13 +1,58 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowDownWideNarrow, Check, Download, Eye, Files as FilesIcon, Folder, Info, LayoutGrid, List, MoreHorizontal, Pencil, RefreshCw, Replace, Search, Star, Trash2, Undo2, X } from 'lucide-react'
+import {
+  ArrowDownWideNarrow,
+  Check,
+  Download,
+  Eye,
+  Files as FilesIcon,
+  Folder,
+  Info,
+  LayoutGrid,
+  List,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Replace,
+  Search,
+  Star,
+  Trash2,
+  Undo2,
+  X,
+} from 'lucide-react'
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSeriesModal } from '../components/SeriesModal'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
-import { Badge, Button, Cover, Dialog, EmptyState, IconButton, Input, MediaCard, Menu, MenuItem, Panel, Segmented, useMenu } from '@weebsync/design-system'
-import { api, fmtBytes, keyConflictOf, mediaTitle, type CatalogItem, type CatalogResponse, type Entry, type Media, type SearchResult, type ServerInfo, type SubfolderMode } from '../api'
+import {
+  Badge,
+  Button,
+  Cover,
+  Dialog,
+  EmptyState,
+  IconButton,
+  Input,
+  MediaCard,
+  Menu,
+  MenuItem,
+  Panel,
+  Segmented,
+  useMenu,
+} from '@weebsync/design-system'
+import {
+  api,
+  fmtBytes,
+  keyConflictOf,
+  mediaTitle,
+  type CatalogItem,
+  type CatalogResponse,
+  type Entry,
+  type Media,
+  type SearchResult,
+  type ServerInfo,
+  type SubfolderMode,
+} from '../api'
 import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../components/catalogSort'
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
@@ -95,7 +140,10 @@ export default function Files() {
   const [subMode, setSubMode] = useState<SubfolderMode | null>(null)
   const [subSep, setSubSep] = useState('')
   const { data: syncKind, isPending: syncKindPending } = useFolderKind(active, syncEntry?.path)
-  const syncSeed = syncEntry && !syncKindPending ? applyDefaults(blankWatch(syncEntry.path, localPath), syncKind?.kind, defaults, syncKind) : null
+  const syncSeed =
+    syncEntry && !syncKindPending
+      ? applyDefaults(blankWatch(syncEntry.path, localPath), syncKind?.kind, defaults, syncKind)
+      : null
   // a target picked on this page wins, the default one fills in otherwise;
   // the subfolder choice follows the default only while nothing was picked
   const syncLocal = localPath || syncSeed?.localPath || ''
@@ -107,7 +155,9 @@ export default function Files() {
   // the season folder, unless the default template lays the folders out itself
   const syncSeason = syncSeed?.seasonFolder ?? ''
   const syncTarget =
-    syncEntry && syncEntry.isDir ? subfolderTargetDir(syncLocal, syncEntry.path, syncMode, syncTitle, subSep, syncSeason) : syncLocal
+    syncEntry && syncEntry.isDir
+      ? subfolderTargetDir(syncLocal, syncEntry.path, syncMode, syncTitle, subSep, syncSeason)
+      : syncLocal
   const [query, setQuery] = useState(params.get('q') ?? '')
   // the last few searches, offered back through the input's completion list
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
@@ -270,7 +320,9 @@ export default function Files() {
     setSelection(null)
   }
   const browseUrl = (p: string) =>
-    isLocal ? `/api/browse/local?path=${encodeURIComponent(p)}` : `/api/servers/${active}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`
+    isLocal
+      ? `/api/browse/local?path=${encodeURIComponent(p)}`
+      : `/api/servers/${active}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`
   // rows are selectable wherever the selection bar has something to offer
   const selectable = !isLocal || canEdit
 
@@ -297,7 +349,11 @@ export default function Files() {
       {!isLocal && servers.length === 0 ? (
         <EmptyState>
           <Trans i18nKey="remote.noServers">
-            Erst unter <Link to="/settings/servers" className="text-accent underline">Server</Link> eine Quelle anlegen.
+            Erst unter{' '}
+            <Link to="/settings/servers" className="text-accent underline">
+              Server
+            </Link>{' '}
+            eine Quelle anlegen.
           </Trans>
         </EmptyState>
       ) : (
@@ -315,7 +371,9 @@ export default function Files() {
                   size="sm"
                   type="search"
                   list="remote-search-recent"
-                  placeholder={path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')}
+                  placeholder={
+                    path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')
+                  }
                   aria-label={t('remote.search')}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -387,7 +445,11 @@ export default function Files() {
           appears with a selection (or a pending notice) so the list keeps
           the full height otherwise. */}
       {(selection || notice) && (
-        <Panel role="region" aria-label={t('remote.selectionBar')} className="mt-4 flex flex-wrap items-center gap-2 p-3">
+        <Panel
+          role="region"
+          aria-label={t('remote.selectionBar')}
+          className="mt-4 flex flex-wrap items-center gap-2 p-3"
+        >
           {selection && (
             <span className="min-w-28 flex-1 truncate text-sm text-t-secondary" title={selection.path}>
               <FileIcon isDir={selection.isDir} name={selection.name} className="mr-1.5 inline align-[-2px]" />
@@ -407,11 +469,20 @@ export default function Files() {
           )}
           {selection && canEdit && (
             <>
-              <Button size="sm" aria-label={t('local.renameItem', { name: selection.name })} onClick={() => renameLocal(selection)}>
+              <Button
+                size="sm"
+                aria-label={t('local.renameItem', { name: selection.name })}
+                onClick={() => renameLocal(selection)}
+              >
                 <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('local.rename')}
               </Button>
-              <Button size="sm" variant="danger" aria-label={t('local.deleteItem', { name: selection.name })} onClick={() => removeLocal(selection)}>
+              <Button
+                size="sm"
+                variant="danger"
+                aria-label={t('local.deleteItem', { name: selection.name })}
+                onClick={() => removeLocal(selection)}
+              >
                 <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('local.delete')}
               </Button>
@@ -494,7 +565,10 @@ function SearchResults({
   }, [query])
   const { data, isLoading } = useQuery<SearchResult>({
     queryKey: ['search', serverId, path, q],
-    queryFn: () => api.get(`/api/servers/${serverId}/search?q=${encodeURIComponent(q)}${path ? `&path=${encodeURIComponent('/' + path)}` : ''}`),
+    queryFn: () =>
+      api.get(
+        `/api/servers/${serverId}/search?q=${encodeURIComponent(q)}${path ? `&path=${encodeURIComponent('/' + path)}` : ''}`,
+      ),
     enabled: !!q.trim(),
   })
 
@@ -540,9 +614,7 @@ function SearchResults({
           </li>
         ))}
       </ul>
-      {data && (
-        <p className="px-3 py-2 text-[10px] text-t-faint">{t('remote.indexCount', { count: data.indexed })}</p>
-      )}
+      {data && <p className="px-3 py-2 text-[10px] text-t-faint">{t('remote.indexCount', { count: data.indexed })}</p>}
     </div>
   )
 }
@@ -643,76 +715,74 @@ export function CatalogGrid({
   const actionsFor = (g: CatalogGroup): TileAction[] => {
     const it = g.items[0]
     const multi = g.items.length > 1
-    return (
-      g.media
-        ? [
-            {
-              key: 'details',
-              icon: <Info aria-hidden size="1.2em" />,
-              label: t('remote.details'),
-              aria: t('remote.detailsFor', { name: mediaTitle(g.media) }),
-              onClick: () => showDetail(g),
-            },
-            ...(multi
-              ? []
-              : [
-                  {
-                    key: 'files',
-                    icon: <FilesIcon aria-hidden size="1.2em" />,
-                    label: t('remote.showFiles'),
-                    aria: `${t('remote.showFiles')}: ${it.entry.name}`,
-                    onClick: () => onOpenFiles(it.entry.path),
-                  },
-                  ...(onSync
-                    ? [
-                        {
-                          key: 'sync',
-                          icon: <Download aria-hidden size="1.2em" />,
-                          label: t('plex.syncOnce'),
-                          aria: `${t('plex.syncOnce')}: ${it.entry.name}`,
-                          onClick: () => onSync(it.entry),
-                        },
-                      ]
-                    : []),
-                  ...(onWatch
-                    ? [
-                        {
-                          key: 'watch',
-                          icon: <Eye aria-hidden size="1.2em" />,
-                          label: t('watch.add'),
-                          aria: `${t('watch.add')}: ${it.entry.name}`,
-                          onClick: () => onWatch(it.entry),
-                        },
-                      ]
-                    : []),
-                  ...(cardActions?.(it.entry) ?? []),
-                ]),
-          ]
-        : [
-            {
-              key: 'files',
-              icon: <FilesIcon aria-hidden size="1.2em" />,
-              label: t('remote.showFiles'),
-              aria: `${t('remote.showFiles')}: ${it.entry.name}`,
-              onClick: () => onOpenFiles(it.entry.path),
-            },
-            // "Match ändern" spelled out needs 114px of a 131px
-            // tile, so it travels as the Replace glyph the detail
-            // dialog uses, with the name in title/aria
-            ...(!g.pending && it.source
-              ? [
-                  {
-                    key: 'rematch',
-                    icon: <Replace aria-hidden size="1.2em" />,
-                    label: t('remote.changeMatch'),
-                    aria: `${t('remote.changeMatch')}: ${it.entry.name}`,
-                    onClick: () => setRematch(it),
-                  },
-                ]
-              : []),
-            ...(cardActions?.(it.entry) ?? []),
-          ]
-    )
+    return g.media
+      ? [
+          {
+            key: 'details',
+            icon: <Info aria-hidden size="1.2em" />,
+            label: t('remote.details'),
+            aria: t('remote.detailsFor', { name: mediaTitle(g.media) }),
+            onClick: () => showDetail(g),
+          },
+          ...(multi
+            ? []
+            : [
+                {
+                  key: 'files',
+                  icon: <FilesIcon aria-hidden size="1.2em" />,
+                  label: t('remote.showFiles'),
+                  aria: `${t('remote.showFiles')}: ${it.entry.name}`,
+                  onClick: () => onOpenFiles(it.entry.path),
+                },
+                ...(onSync
+                  ? [
+                      {
+                        key: 'sync',
+                        icon: <Download aria-hidden size="1.2em" />,
+                        label: t('plex.syncOnce'),
+                        aria: `${t('plex.syncOnce')}: ${it.entry.name}`,
+                        onClick: () => onSync(it.entry),
+                      },
+                    ]
+                  : []),
+                ...(onWatch
+                  ? [
+                      {
+                        key: 'watch',
+                        icon: <Eye aria-hidden size="1.2em" />,
+                        label: t('watch.add'),
+                        aria: `${t('watch.add')}: ${it.entry.name}`,
+                        onClick: () => onWatch(it.entry),
+                      },
+                    ]
+                  : []),
+                ...(cardActions?.(it.entry) ?? []),
+              ]),
+        ]
+      : [
+          {
+            key: 'files',
+            icon: <FilesIcon aria-hidden size="1.2em" />,
+            label: t('remote.showFiles'),
+            aria: `${t('remote.showFiles')}: ${it.entry.name}`,
+            onClick: () => onOpenFiles(it.entry.path),
+          },
+          // "Match ändern" spelled out needs 114px of a 131px
+          // tile, so it travels as the Replace glyph the detail
+          // dialog uses, with the name in title/aria
+          ...(!g.pending && it.source
+            ? [
+                {
+                  key: 'rematch',
+                  icon: <Replace aria-hidden size="1.2em" />,
+                  label: t('remote.changeMatch'),
+                  aria: `${t('remote.changeMatch')}: ${it.entry.name}`,
+                  onClick: () => setRematch(it),
+                },
+              ]
+            : []),
+          ...(cardActions?.(it.entry) ?? []),
+        ]
   }
   const [scopeError, setScopeError] = useState('')
   // poster grid or rows; remembered across folders and visits
@@ -836,226 +906,259 @@ export function CatalogGrid({
           scroll gesture and the page never turned. It has to allow the
           horizontal axis itself. */}
       <div className="min-h-0 flex-1 overflow-y-auto p-4" style={{ touchAction: 'pan-y pinch-zoom' }}>
-      {/* one row of chips: what the folder is matched against, how the cards
+        {/* one row of chips: what the folder is matched against, how the cards
           are ordered, and the rest behind the overflow. It used to be two
           labelled selects and up to three buttons, which stacked into five
           rows on a phone before the first card */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <PillSelect
-          label={t('remote.scope')}
-          placeholder={t('remote.scopeNone')}
-          value={data?.scope ?? ''}
-          onChange={setScope}
-          options={[
-            { value: 'anime', label: t('remote.scopeAnime') },
-            { value: 'tv', label: t('remote.scopeTv') },
-            { value: 'movie', label: t('remote.scopeMovie') },
-            ...(caps?.tvdbApiKeySet ? [{ value: 'tvdb', label: t('remote.scopeTvdb') }] : []),
-          ]}
-        />
-        {groups.length > 1 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <PillSelect
-            label={t('remote.sort')}
-            value={sort}
-            onChange={(v) => setSort(v as CatalogSort)}
-            icon={<ArrowDownWideNarrow aria-hidden size="1em" className="shrink-0 text-t-muted" />}
-            options={CATALOG_SORTS.map((c) => ({ value: c, label: t(`remote.sort_${c}`) }))}
-          />
-        )}
-        {groups.length > 0 && (
-          <Segmented
-            aria-label={t('remote.layout')}
-            value={layout}
-            onChange={setLayout}
+            label={t('remote.scope')}
+            placeholder={t('remote.scopeNone')}
+            value={data?.scope ?? ''}
+            onChange={setScope}
             options={[
-              { value: 'grid', 'aria-label': t('remote.layoutGrid'), label: <LayoutGrid aria-hidden size="1em" /> },
-              { value: 'list', 'aria-label': t('remote.layoutList'), label: <List aria-hidden size="1em" /> },
+              { value: 'anime', label: t('remote.scopeAnime') },
+              { value: 'tv', label: t('remote.scopeTv') },
+              { value: 'movie', label: t('remote.scopeMovie') },
+              ...(caps?.tvdbApiKeySet ? [{ value: 'tvdb', label: t('remote.scopeTvdb') }] : []),
             ]}
           />
-        )}
-        <CatalogActions
-          canRematch={data?.scope !== '' && pendingCount === 0 && items.length > 0}
-          noMatchCount={noMatchCount}
-          onRematch={triggerRematch}
-          onClearScope={data && data.scope !== '' ? () => setScope('') : undefined}
-        />
-        {scopeError && (
-          <span className="text-xs text-err" role="alert">
-            {scopeError}
-          </span>
-        )}
-        {data?.scope === '' ? (
-          <p className="w-full text-xs text-t-muted" role="status">
-            {t('remote.scopePick')}
-          </p>
-        ) : (
-          pendingCount > 0 && (
-            <p className="text-xs text-t-muted" role="status">
-              {t('remote.matchingCount', { count: pendingCount })}
+          {groups.length > 1 && (
+            <PillSelect
+              label={t('remote.sort')}
+              value={sort}
+              onChange={(v) => setSort(v as CatalogSort)}
+              icon={<ArrowDownWideNarrow aria-hidden size="1em" className="shrink-0 text-t-muted" />}
+              options={CATALOG_SORTS.map((c) => ({ value: c, label: t(`remote.sort_${c}`) }))}
+            />
+          )}
+          {groups.length > 0 && (
+            <Segmented
+              aria-label={t('remote.layout')}
+              value={layout}
+              onChange={setLayout}
+              options={[
+                { value: 'grid', 'aria-label': t('remote.layoutGrid'), label: <LayoutGrid aria-hidden size="1em" /> },
+                { value: 'list', 'aria-label': t('remote.layoutList'), label: <List aria-hidden size="1em" /> },
+              ]}
+            />
+          )}
+          <CatalogActions
+            canRematch={data?.scope !== '' && pendingCount === 0 && items.length > 0}
+            noMatchCount={noMatchCount}
+            onRematch={triggerRematch}
+            onClearScope={data && data.scope !== '' ? () => setScope('') : undefined}
+          />
+          {scopeError && (
+            <span className="text-xs text-err" role="alert">
+              {scopeError}
+            </span>
+          )}
+          {data?.scope === '' ? (
+            <p className="w-full text-xs text-t-muted" role="status">
+              {t('remote.scopePick')}
             </p>
-          )
-        )}
-      </div>
-      {/* a leaf folder holds files, not titles: offer the classic list instead
-          of leaving the user at a dead end */}
-      {items.length === 0 && (
-        <div className="flex flex-wrap items-center gap-3 p-6">
-          <p className="text-sm text-t-muted">{t('remote.noFolders')}</p>
-          <Button size="sm" onClick={() => onOpenFiles(path)}>
-            {t('remote.showFiles')}
-          </Button>
+          ) : (
+            pendingCount > 0 && (
+              <p className="text-xs text-t-muted" role="status">
+                {t('remote.matchingCount', { count: pendingCount })}
+              </p>
+            )
+          )}
         </div>
-      )}
-      {layout === 'list' ? (
-        <ul className="grid gap-3">
-          {groups.map((g) => {
-            const it = g.items[0]
-            const multi = g.items.length > 1
-            const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
-            const isSelected = g.items.some((v) => v.entry.path === selected)
-            const name = mediaTitle(g.media, it.entry.name)
-            return (
-              <li key={g.key}>
-                <MediaCard
-                  className={isSelected ? 'outline-2 outline-accent' : undefined}
-                  cover={g.media?.coverImage?.large}
-                  onCover={g.media ? () => showDetail(g) : undefined}
-                  coverLabel={g.media ? t('remote.detailsFor', { name }) : undefined}
-                  title={name}
-                  pathTitle={g.items.map((v) => v.entry.path).join('\n')}
-                  path={multi ? t('remote.versions', { count: g.items.length }) : it.entry.name}
-                  meta={g.pending ? t('remote.matching') : !g.media && it.source ? t('remote.noMatch') : undefined}
-                  badges={
-                    <>
-                      {kind && <Badge size="sm" tone={kind === 'movie' ? 'accent' : 'neutral'}>{t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}</Badge>}
-                      {g.media && g.media.seasonYear > 0 && <Badge size="sm">{g.media.seasonYear}</Badge>}
-                      {g.media && g.media.episodes > 0 && <Badge size="sm">{g.media.episodes} EP</Badge>}
-                      {g.media && g.media.averageScore > 0 && (
-                        <Badge size="sm" tone="accent">
-                          <Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />
-                          {g.media.averageScore}
-                        </Badge>
+        {/* a leaf folder holds files, not titles: offer the classic list instead
+          of leaving the user at a dead end */}
+        {items.length === 0 && (
+          <div className="flex flex-wrap items-center gap-3 p-6">
+            <p className="text-sm text-t-muted">{t('remote.noFolders')}</p>
+            <Button size="sm" onClick={() => onOpenFiles(path)}>
+              {t('remote.showFiles')}
+            </Button>
+          </div>
+        )}
+        {layout === 'list' ? (
+          <ul className="grid gap-3">
+            {groups.map((g) => {
+              const it = g.items[0]
+              const multi = g.items.length > 1
+              const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
+              const isSelected = g.items.some((v) => v.entry.path === selected)
+              const name = mediaTitle(g.media, it.entry.name)
+              return (
+                <li key={g.key}>
+                  <MediaCard
+                    className={isSelected ? 'outline-2 outline-accent' : undefined}
+                    cover={g.media?.coverImage?.large}
+                    onCover={g.media ? () => showDetail(g) : undefined}
+                    coverLabel={g.media ? t('remote.detailsFor', { name }) : undefined}
+                    title={name}
+                    pathTitle={g.items.map((v) => v.entry.path).join('\n')}
+                    path={multi ? t('remote.versions', { count: g.items.length }) : it.entry.name}
+                    meta={g.pending ? t('remote.matching') : !g.media && it.source ? t('remote.noMatch') : undefined}
+                    badges={
+                      <>
+                        {kind && (
+                          <Badge size="sm" tone={kind === 'movie' ? 'accent' : 'neutral'}>
+                            {t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
+                          </Badge>
+                        )}
+                        {g.media && g.media.seasonYear > 0 && <Badge size="sm">{g.media.seasonYear}</Badge>}
+                        {g.media && g.media.episodes > 0 && <Badge size="sm">{g.media.episodes} EP</Badge>}
+                        {g.media && g.media.averageScore > 0 && (
+                          <Badge size="sm" tone="accent">
+                            <Star
+                              aria-hidden
+                              size="1em"
+                              className="mr-0.5 inline align-[-0.125em]"
+                              fill="currentColor"
+                              strokeWidth={0}
+                            />
+                            {g.media.averageScore}
+                          </Badge>
+                        )}
+                        {it.local && (
+                          <>
+                            <Badge
+                              size="sm"
+                              tone={
+                                g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes
+                                  ? 'ok'
+                                  : 'neutral'
+                              }
+                            >
+                              {t('local.videoCount', { count: it.local.videos })}
+                            </Badge>
+                            <Badge size="sm">{fmtBytes(it.local.bytes)}</Badge>
+                          </>
+                        )}
+                      </>
+                    }
+                    actions={<TileActions actions={actionsFor(g)} max={2} className="flex gap-1.5" />}
+                  />
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
+            {groups.map((g) => {
+              const it = g.items[0]
+              const multi = g.items.length > 1
+              // the file-count heuristic reads a season that has aired one episode
+              // so far as a film; where a match exists, it knows better
+              const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
+              const isSelected = g.items.some((v) => v.entry.path === selected)
+              return (
+                <Panel
+                  as="article"
+                  key={g.key}
+                  className={`group relative flex flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
+                >
+                  {/* rematch tucked away as a pencil over the cover (hover/focus);
+                  unmatched folders keep the explicit button below instead */}
+                  {g.media && !multi && !!it.source && (
+                    <Button
+                      size="sm"
+                      className="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                      aria-label={t('remote.changeMatch')}
+                      title={t('remote.changeMatch')}
+                      onClick={() => setRematch(it)}
+                    >
+                      <Pencil aria-hidden size="1.2em" />
+                    </Button>
+                  )}
+                  <button
+                    className="text-left"
+                    onClick={() => (g.media ? showDetail(g) : onSelect(it.entry))}
+                    // a matched tile is named by what it shows (WCAG 2.5.3); the
+                    // unmatched one shows no text of its own
+                    aria-label={g.media ? undefined : t('remote.selectItem', { name: it.entry.name })}
+                  >
+                    {g.media?.coverImage?.large ? (
+                      <Cover
+                        size="fill"
+                        src={g.media.coverImage.extraLarge || g.media.coverImage.large}
+                        loading="lazy"
+                        className="opacity-90 transition-opacity group-hover:opacity-100"
+                      />
+                    ) : g.pending ? (
+                      <Cover size="fill" className="animate-pulse text-t-muted">
+                        {t('remote.matching')}
+                      </Cover>
+                    ) : (
+                      <Cover size="fill" className="text-t-muted">
+                        {it.source ? t('remote.noMatch') : ''}
+                      </Cover>
+                    )}
+                    <div className="p-2">
+                      <h3
+                        className="line-clamp-2 text-sm font-medium text-t-primary"
+                        title={mediaTitle(g.media, it.entry.name)}
+                      >
+                        {mediaTitle(g.media, it.entry.name)}
+                      </h3>
+                      {multi ? (
+                        <p className="font-mono text-[10px] text-accent">
+                          {t('remote.versions', { count: g.items.length })}
+                        </p>
+                      ) : (
+                        <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
+                          {it.entry.name}
+                        </p>
                       )}
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {kind && (
+                          <Badge tone={kind === 'movie' ? 'accent' : 'neutral'}>
+                            {t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
+                          </Badge>
+                        )}
+                        {g.media && (
+                          <>
+                            {g.media.seasonYear > 0 && <Badge>{g.media.seasonYear}</Badge>}
+                            {g.media.episodes > 0 && <Badge>{g.media.episodes} EP</Badge>}
+                            {g.media.averageScore > 0 && (
+                              <Badge tone="accent">
+                                <Star
+                                  aria-hidden
+                                  size="1em"
+                                  className="mr-0.5 inline align-[-0.125em]"
+                                  fill="currentColor"
+                                  strokeWidth={0}
+                                />
+                                {g.media.averageScore}
+                              </Badge>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      {/* local catalog: what is actually on disk, and how it
+                      compares to what the provider lists */}
                       {it.local && (
-                        <>
-                          <Badge size="sm" tone={g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes ? 'ok' : 'neutral'}>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                          <Badge
+                            tone={
+                              g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes ? 'ok' : 'neutral'
+                            }
+                          >
                             {t('local.videoCount', { count: it.local.videos })}
                           </Badge>
-                          <Badge size="sm">{fmtBytes(it.local.bytes)}</Badge>
-                        </>
-                      )}
-                    </>
-                  }
-                  actions={<TileActions actions={actionsFor(g)} max={2} className="flex gap-1.5" />}
-                />
-              </li>
-            )
-          })}
-        </ul>
-      ) : (
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-        {groups.map((g) => {
-          const it = g.items[0]
-          const multi = g.items.length > 1
-          // the file-count heuristic reads a season that has aired one episode
-          // so far as a film; where a match exists, it knows better
-          const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
-          const isSelected = g.items.some((v) => v.entry.path === selected)
-          return (
-            <Panel
-              as="article"
-              key={g.key}
-              className={`group relative flex flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
-            >
-              {/* rematch tucked away as a pencil over the cover (hover/focus);
-                  unmatched folders keep the explicit button below instead */}
-              {g.media && !multi && !!it.source && (
-                <Button
-                  size="sm"
-                  className="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  aria-label={t('remote.changeMatch')}
-                  title={t('remote.changeMatch')}
-                  onClick={() => setRematch(it)}
-                >
-                  <Pencil aria-hidden size="1.2em" />
-                </Button>
-              )}
-              <button
-                className="text-left"
-                onClick={() => (g.media ? showDetail(g) : onSelect(it.entry))}
-                // a matched tile is named by what it shows (WCAG 2.5.3); the
-                // unmatched one shows no text of its own
-                aria-label={g.media ? undefined : t('remote.selectItem', { name: it.entry.name })}
-              >
-                {g.media?.coverImage?.large ? (
-                  <Cover
-                    size="fill"
-                    src={g.media.coverImage.extraLarge || g.media.coverImage.large}
-                    loading="lazy"
-                    className="opacity-90 transition-opacity group-hover:opacity-100"
-                  />
-                ) : g.pending ? (
-                  <Cover size="fill" className="animate-pulse text-t-muted">
-                    {t('remote.matching')}
-                  </Cover>
-                ) : (
-                  <Cover size="fill" className="text-t-muted">
-                    {it.source ? t('remote.noMatch') : ''}
-                  </Cover>
-                )}
-                <div className="p-2">
-                  <h3 className="line-clamp-2 text-sm font-medium text-t-primary" title={mediaTitle(g.media, it.entry.name)}>
-                    {mediaTitle(g.media, it.entry.name)}
-                  </h3>
-                  {multi ? (
-                    <p className="font-mono text-[10px] text-accent">{t('remote.versions', { count: g.items.length })}</p>
-                  ) : (
-                    <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
-                      {it.entry.name}
-                    </p>
-                  )}
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {kind && (
-                      <Badge tone={kind === 'movie' ? 'accent' : 'neutral'}>
-                        {t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
-                      </Badge>
-                    )}
-                    {g.media && (
-                      <>
-                        {g.media.seasonYear > 0 && <Badge>{g.media.seasonYear}</Badge>}
-                        {g.media.episodes > 0 && <Badge>{g.media.episodes} EP</Badge>}
-                        {g.media.averageScore > 0 && <Badge tone="accent"><Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{g.media.averageScore}</Badge>}
-                      </>
-                    )}
-                  </div>
-                  {/* local catalog: what is actually on disk, and how it
-                      compares to what the provider lists */}
-                  {it.local && (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                      <Badge
-                        tone={
-                          g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes ? 'ok' : 'neutral'
-                        }
-                      >
-                        {t('local.videoCount', { count: it.local.videos })}
-                      </Badge>
-                      <Badge>{fmtBytes(it.local.bytes)}</Badge>
-                      {it.local.modTime && (
-                        <span className="font-mono text-[10px] text-t-faint" title={t('local.lastChange')}>
-                          {new Date(it.local.modTime).toLocaleDateString()}
-                        </span>
+                          <Badge>{fmtBytes(it.local.bytes)}</Badge>
+                          {it.local.modTime && (
+                            <span className="font-mono text-[10px] text-t-faint" title={t('local.lastChange')}>
+                              {new Date(it.local.modTime).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </button>
-              <TileActions actions={actionsFor(g)} />
-            </Panel>
-          )
-        })}
-      </div>
-      )}
-      {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
+                  </button>
+                  <TileActions actions={actionsFor(g)} />
+                </Panel>
+              )
+            })}
+          </div>
+        )}
+        {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
       </div>
     </div>
   )
@@ -1194,7 +1297,15 @@ const SEARCH_KEEP = 8
 // in equal parts, so every tile ends in the same bar.
 const CARD_ACTIONS = 'relative mx-2 mb-2 mt-auto flex gap-1.5 [&_.t-btn]:min-w-6! [&_.t-btn]:flex-1 [&_.t-btn]:px-1!'
 
-function TileActions({ actions, max = 3, className = CARD_ACTIONS }: { actions: TileAction[]; max?: number; className?: string }) {
+function TileActions({
+  actions,
+  max = 3,
+  className = CARD_ACTIONS,
+}: {
+  actions: TileAction[]
+  max?: number
+  className?: string
+}) {
   const { t } = useTranslation()
   const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   if (actions.length === 0) return null
@@ -1325,7 +1436,12 @@ function SyncDialog({
   })
   // the preview runs regardless of the rename switch: it is also where the
   // target comparison is shown, and that matters most when nothing is renamed
-  const { pairs, sizes, busy: previewBusy, hasRule } = useRenamePreview({
+  const {
+    pairs,
+    sizes,
+    busy: previewBusy,
+    hasRule,
+  } = useRenamePreview({
     serverId,
     fields: { ...rule, remotePath: entry.path, localPath: target },
     enabled: true,
@@ -1336,11 +1452,7 @@ function SyncDialog({
   // mount-to-open: Escape and the backdrop end in onClose, the footer buttons
   // decide explicitly - the parent unmounts either way
   return (
-    <Dialog
-      width="max-w-lg"
-      aria-label={t('remote.syncTitle', { name: entry.name })}
-      onClose={onClose}
-    >
+    <Dialog width="max-w-lg" aria-label={t('remote.syncTitle', { name: entry.name })} onClose={onClose}>
       <div className="dialog-body">
         <header className="border-b border-border-subtle px-5 py-4">
           <h3 className="font-display font-semibold tracking-wider">{t('remote.syncTitle', { name: entry.name })}</h3>
@@ -1432,11 +1544,7 @@ function SyncDialog({
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('common.cancel')}
           </Button>
-          <Button
-            variant="primary"
-            disabled={pending}
-            onClick={() => onConfirm(renameOn && hasRule ? rule : null)}
-          >
+          <Button variant="primary" disabled={pending} onClick={() => onConfirm(renameOn && hasRule ? rule : null)}>
             <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {entry.isDir ? t('remote.syncFolder') : t('remote.downloadFile')}
           </Button>
@@ -1479,45 +1587,45 @@ function CatalogVersions({
 
   return (
     <>
-        <h4 className="t-label mt-4 mb-1 border-t border-border-subtle pt-4">
-          {t('remote.versions', { count: group.items.length })}
-        </h4>
-        <ul>
-          {group.items.map((it) => (
-            <li key={it.entry.path} className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-2 py-2">
-              <span
-                className={`min-w-0 flex-1 basis-full truncate text-sm sm:basis-auto ${selected === it.entry.path ? 'text-accent' : ''}`}
-                title={it.entry.path}
-              >
-                {it.entry.name}
-              </span>
-              <Button size="sm" variant="primary" className="shrink-0" onClick={() => onSelect(it.entry)}>
-                <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('remote.select')}
+      <h4 className="t-label mt-4 mb-1 border-t border-border-subtle pt-4">
+        {t('remote.versions', { count: group.items.length })}
+      </h4>
+      <ul>
+        {group.items.map((it) => (
+          <li key={it.entry.path} className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-2 py-2">
+            <span
+              className={`min-w-0 flex-1 basis-full truncate text-sm sm:basis-auto ${selected === it.entry.path ? 'text-accent' : ''}`}
+              title={it.entry.path}
+            >
+              {it.entry.name}
+            </span>
+            <Button size="sm" variant="primary" className="shrink-0" onClick={() => onSelect(it.entry)}>
+              <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('remote.select')}
+            </Button>
+            <Button size="sm" className="shrink-0" title={t('remote.showFiles')} onClick={() => onFiles(it.entry)}>
+              <FilesIcon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('remote.files')}
+            </Button>
+            {onSync && (
+              <Button size="sm" className="shrink-0" onClick={() => onSync(it.entry)}>
+                <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('plex.syncOnce')}
               </Button>
-              <Button size="sm" className="shrink-0" title={t('remote.showFiles')} onClick={() => onFiles(it.entry)}>
-                <FilesIcon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('remote.files')}
+            )}
+            {onWatch && (
+              <Button size="sm" className="shrink-0" onClick={() => onWatch(it.entry)}>
+                <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('watch.add')}
               </Button>
-              {onSync && (
-                <Button size="sm" className="shrink-0" onClick={() => onSync(it.entry)}>
-                  <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('plex.syncOnce')}
-                </Button>
-              )}
-              {onWatch && (
-                <Button size="sm" className="shrink-0" onClick={() => onWatch(it.entry)}>
-                  <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('watch.add')}
-                </Button>
-              )}
-              <Button size="sm" className="shrink-0" onClick={() => onRematch(it)}>
-                <Replace aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('remote.changeMatch')}
-              </Button>
-            </li>
-          ))}
-        </ul>
+            )}
+            <Button size="sm" className="shrink-0" onClick={() => onRematch(it)}>
+              <Replace aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('remote.changeMatch')}
+            </Button>
+          </li>
+        ))}
+      </ul>
     </>
   )
 }
@@ -1591,7 +1699,12 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
     // a search field over a list that caps itself at max-h-72: this one is
     // compact by construction, so it stays a centred box instead of stretching
     // to a full screen it cannot fill
-    <Dialog width="max-w-lg" sheet={false} aria-label={t('remote.matchFor', { name: item.entry.name })} onClose={onClose}>
+    <Dialog
+      width="max-w-lg"
+      sheet={false}
+      aria-label={t('remote.matchFor', { name: item.entry.name })}
+      onClose={onClose}
+    >
       <div className="p-5">
         <h3 className="mb-1 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
         {item.media && (

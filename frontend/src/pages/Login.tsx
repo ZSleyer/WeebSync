@@ -61,7 +61,13 @@ export default function Login() {
     try {
       // locale rides along on register so the verify email is localized
       const res = await api.post<
-        User & { needsVerification?: boolean; twoFactorRequired?: boolean; token?: string; totp?: boolean; webauthn?: boolean }
+        User & {
+          needsVerification?: boolean
+          twoFactorRequired?: boolean
+          token?: string
+          totp?: boolean
+          webauthn?: boolean
+        }
       >(`/api/auth/${mode}`, { email, password, locale: i18n.language })
       if (res.needsVerification) {
         // account created but must confirm email before logging in

@@ -27,8 +27,7 @@ const title = (g: SortableGroup) => mediaTitle(g.media, g.items[0]?.entry.name ?
 
 // added is the folder's own timestamp: the newest of the bundled versions, so
 // a title with a fresh release does not sort by its oldest folder.
-const added = (g: SortableGroup) =>
-  g.items.reduce((max, i) => Math.max(max, Date.parse(i.entry.modTime) || 0), 0)
+const added = (g: SortableGroup) => g.items.reduce((max, i) => Math.max(max, Date.parse(i.entry.modTime) || 0), 0)
 
 // asc flips a value for the descending comparator below, for the fields read
 // oldest/soonest first. 0 stays 0 so it still counts as missing.

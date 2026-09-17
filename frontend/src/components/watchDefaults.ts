@@ -8,7 +8,11 @@ export type WatchKind = keyof WatchDefaults['kinds']
 // The user's auto-sync defaults (settings › auto-sync defaults), cached for
 // the session: every dialog that opens without a plan of its own reads them.
 export function useWatchDefaults() {
-  return useQuery<WatchDefaults>({ queryKey: ['watch-defaults'], queryFn: () => api.get('/api/auth/watch-defaults'), staleTime: 5 * 60_000 })
+  return useQuery<WatchDefaults>({
+    queryKey: ['watch-defaults'],
+    queryFn: () => api.get('/api/auth/watch-defaults'),
+    staleTime: 5 * 60_000,
+  })
 }
 
 // FolderTarget is what the catalog knows about a remote folder: its kind and
@@ -50,7 +54,12 @@ export function suggestionKind(category: string): WatchKind {
 // folder keeps it); then the kind's naming and every common field still
 // blank. The season goes into the path and the template together, or into
 // neither (seasonInPath).
-export function applyDefaults(f: WatchFields, kind: string | undefined, d: WatchDefaults | undefined, folder?: FolderTarget): WatchFields {
+export function applyDefaults(
+  f: WatchFields,
+  kind: string | undefined,
+  d: WatchDefaults | undefined,
+  folder?: FolderTarget,
+): WatchFields {
   const out = { ...f }
   const k = d?.kinds[(kind as WatchKind) ?? 'anime-series'] ?? d?.kinds['anime-series']
   if (k && !out.template) {

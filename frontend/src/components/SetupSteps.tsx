@@ -171,7 +171,13 @@ export default function SetupSteps({
           </p>
         )}
         {keyConflict && (
-          <HostKeyPrompt className="mt-3" serverId={serverId} conflict={keyConflict} onAccepted={() => testServer(serverId)} onRejected={() => setKeyConflict(null)} />
+          <HostKeyPrompt
+            className="mt-3"
+            serverId={serverId}
+            conflict={keyConflict}
+            onAccepted={() => testServer(serverId)}
+            onRejected={() => setKeyConflict(null)}
+          />
         )}
         {nav(serverId ? t('setup.continue') : t('setup.skip'))}
       </Panel>
@@ -184,7 +190,9 @@ export default function SetupSteps({
         <p className="mb-4 text-sm text-t-secondary">{t('setup.storageHint')}</p>
         <Badge>{t('setup.roots')}</Badge>
         <ul className="mb-2 mt-1 rounded-lg border border-border-subtle p-2 font-mono text-xs text-t-secondary">
-          {form.downloadRoots?.map((r) => <li key={r}>{r}</li>)}
+          {form.downloadRoots?.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
         </ul>
         {!form.downloadsEnvSet && (
           <p className="mb-4 rounded-md border border-warn/40 bg-warn/5 px-3 py-2 text-xs text-warn" role="note">

@@ -459,7 +459,9 @@ export default function RenameOptions({
                   {t('watch.renameOrdering')}
                   <Select
                     wrapperClassName="mt-1 sm:max-w-xs"
-                    value={rule.renameProvider && rule.renameOrdering ? `${rule.renameProvider}:${rule.renameOrdering}` : ''}
+                    value={
+                      rule.renameProvider && rule.renameOrdering ? `${rule.renameProvider}:${rule.renameOrdering}` : ''
+                    }
                     onChange={(e) => {
                       const v = e.target.value
                       if (!v) onChange({ renameProvider: '', renameOrdering: '' })
@@ -476,19 +478,23 @@ export default function RenameOptions({
                     {caps?.tmdbApiKeySet && <option value="tmdb:aired">TMDB Aired</option>}
                   </Select>
                 </label>
-                {seasonFolder && isSeasonFolder(seasonFolder.name) && (rule.airedMapping || rule.template.includes('/')) && (
-                  // target is a season folder and the template lays out
-                  // folders of its own -> it would nest "Season NN/" inside
-                  // it; offer to move up to the series folder. A flat
-                  // template writes into the season folder, which is where a
-                  // season sync is meant to land.
-                  <div className="space-y-1">
-                    <p className="text-[11px] text-warn">{t('watch.localIsSeasonFolder', { folder: seasonFolder.name })}</p>
-                    <Button size="sm" onClick={seasonFolder.onUseParent}>
-                      {t('watch.useSeriesFolder')}
-                    </Button>
-                  </div>
-                )}
+                {seasonFolder &&
+                  isSeasonFolder(seasonFolder.name) &&
+                  (rule.airedMapping || rule.template.includes('/')) && (
+                    // target is a season folder and the template lays out
+                    // folders of its own -> it would nest "Season NN/" inside
+                    // it; offer to move up to the series folder. A flat
+                    // template writes into the season folder, which is where a
+                    // season sync is meant to land.
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-warn">
+                        {t('watch.localIsSeasonFolder', { folder: seasonFolder.name })}
+                      </p>
+                      <Button size="sm" onClick={seasonFolder.onUseParent}>
+                        {t('watch.useSeriesFolder')}
+                      </Button>
+                    </div>
+                  )}
               </div>
             )}
           </div>
@@ -503,7 +509,9 @@ export default function RenameOptions({
                 <div className="min-w-0 flex-1">
                   <span className="text-t-muted">{t('watch.renameSeries')}: </span>
                   {rule.renameSeriesId ? (
-                    <span className="text-t-primary">{pickedTitle || detected?.seriesTitle || `#${rule.renameSeriesId}`}</span>
+                    <span className="text-t-primary">
+                      {pickedTitle || detected?.seriesTitle || `#${rule.renameSeriesId}`}
+                    </span>
                   ) : detected?.ambiguous ? (
                     <Badge tone="warn">{t('watch.renameSeriesAmbiguous')}</Badge>
                   ) : (

@@ -196,7 +196,9 @@ export default function Setup({
 
         {step !== 'done' && (
           <>
-            <p className="mb-1 font-mono text-xs text-t-muted">{t('setup.stepOf', { n: STEPS.indexOf(step) + 1, total: STEPS.length })}</p>
+            <p className="mb-1 font-mono text-xs text-t-muted">
+              {t('setup.stepOf', { n: STEPS.indexOf(step) + 1, total: STEPS.length })}
+            </p>
             {/* one row that scrolls on a phone instead of two ragged wrapped lines */}
             <ol className="mb-5 flex gap-1 overflow-x-auto [scrollbar-width:none]" aria-label={t('setup.title')}>
               {STEPS.map((s, i) => (
@@ -281,7 +283,13 @@ export default function Setup({
           <Panel as="form" className="animate-fadeIn p-6" onSubmit={saveOidc}>
             {heading(t('setup.step.oidc'))}
             <p className="mb-4 text-sm text-t-secondary">{t(oidcOnly ? 'setup.oidcOnlyHint' : 'setup.oidcHint')}</p>
-            {field('oidcProviderName', t('settings.oidcProviderName'), 'text', false, t('settings.oidcProviderNameHint'))}
+            {field(
+              'oidcProviderName',
+              t('settings.oidcProviderName'),
+              'text',
+              false,
+              t('settings.oidcProviderNameHint'),
+            )}
             <div className="mb-3">
               <span className="mb-1 flex w-fit items-center">
                 <Badge as="label" htmlFor="setup-oidcIssuer" className="block w-fit">
@@ -314,8 +322,20 @@ export default function Setup({
               <p className="mt-1 text-xs text-t-muted">{t('settings.oidcIssuerHint')}</p>
             </div>
             {field('oidcClientId', t('settings.oidcClientId'), 'text', oidcOnly, t('settings.oidcClientIdHint'))}
-            {field('oidcClientSecret', t('settings.oidcClientSecret'), 'password', false, t('settings.oidcClientSecretHint'))}
-            {field('oidcRedirectUrl', t('settings.oidcRedirectUrl'), 'url', oidcOnly, t('settings.oidcRedirectUrlHint'))}
+            {field(
+              'oidcClientSecret',
+              t('settings.oidcClientSecret'),
+              'password',
+              false,
+              t('settings.oidcClientSecretHint'),
+            )}
+            {field(
+              'oidcRedirectUrl',
+              t('settings.oidcRedirectUrl'),
+              'url',
+              oidcOnly,
+              t('settings.oidcRedirectUrlHint'),
+            )}
             {field('oidcClaim', t('settings.oidcClaim'), 'text', false, t('settings.oidcClaimHint'))}
             {field('oidcAdminValues', t('settings.oidcAdminValues'), 'text', false, t('settings.oidcAdminValuesHint'))}
             {field('oidcUserValues', t('settings.oidcUserValues'), 'text', false, t('settings.oidcUserValuesHint'))}

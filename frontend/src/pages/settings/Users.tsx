@@ -61,23 +61,20 @@ export default function Users() {
   return (
     <Panel as="section" className="mb-4 p-5" aria-label={t('settings.users')}>
       <Badge tone="accent">{t('settings.users')}</Badge>
-      {rolesManagedByOidc && (
-        <p className="mt-2 text-xs text-t-muted">{t('settings.rolesManagedByOidc')}</p>
-      )}
+      {rolesManagedByOidc && <p className="mt-2 text-xs text-t-muted">{t('settings.rolesManagedByOidc')}</p>}
       <ul className="mt-3 grid grid-cols-1 gap-2">
         {(users ?? []).map((u) => (
           <li key={u.id} className="flex flex-wrap items-center gap-2 border-b border-border-subtle pb-2 text-sm">
             {/* full row on phones so the address stays readable */}
-            <span className="min-w-0 basis-full truncate font-mono text-xs text-t-secondary sm:flex-1 sm:basis-auto" title={u.email}>
+            <span
+              className="min-w-0 basis-full truncate font-mono text-xs text-t-secondary sm:flex-1 sm:basis-auto"
+              title={u.email}
+            >
               {u.email}
             </span>
             {u.id === meId && <Badge>{t('settings.usersYou')}</Badge>}
             {u.isAdmin && <Badge tone="accent">{t('settings.usersAdmin')}</Badge>}
-            <Button
-              size="sm"
-              disabled={rolesManagedByOidc || toggle.isPending}
-              onClick={() => toggle.mutate(u)}
-            >
+            <Button size="sm" disabled={rolesManagedByOidc || toggle.isPending} onClick={() => toggle.mutate(u)}>
               {u.isAdmin ? t('settings.usersRemoveAdmin') : t('settings.usersMakeAdmin')}
             </Button>
             <Button
@@ -97,40 +94,40 @@ export default function Users() {
       {settings && settings.authMode !== 'password' ? (
         <p className="mt-4 text-xs text-t-muted">{t('settings.usersOidcOnly')}</p>
       ) : (
-      <form
-        className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
-        onSubmit={(e) => {
-          e.preventDefault()
-          create.mutate()
-        }}
-      >
-        <label className="text-xs text-t-muted">
-          {t('login.email')}
-          <Input
-            className="mt-1 font-mono"
-            type="email"
-            required
-            autoComplete="off"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label className="text-xs text-t-muted">
-          {t('login.password')}
-          <Input
-            className="mt-1 font-mono"
-            type="password"
-            required
-            minLength={10}
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        <Button className="self-end" type="submit" disabled={create.isPending}>
-          {t('settings.usersCreate')}
-        </Button>
-      </form>
+        <form
+          className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
+          onSubmit={(e) => {
+            e.preventDefault()
+            create.mutate()
+          }}
+        >
+          <label className="text-xs text-t-muted">
+            {t('login.email')}
+            <Input
+              className="mt-1 font-mono"
+              type="email"
+              required
+              autoComplete="off"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          <label className="text-xs text-t-muted">
+            {t('login.password')}
+            <Input
+              className="mt-1 font-mono"
+              type="password"
+              required
+              minLength={10}
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <Button className="self-end" type="submit" disabled={create.isPending}>
+            {t('settings.usersCreate')}
+          </Button>
+        </form>
       )}
       {error && (
         <p className="mt-2 text-xs text-err" role="alert">

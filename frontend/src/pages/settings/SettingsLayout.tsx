@@ -1,5 +1,18 @@
 import type { ReactNode } from 'react'
-import { Activity, ArrowDownUp, Bell, Database, Link2, LogOut, Plug, RefreshCw, Server, Settings2, Shield, UserRound } from 'lucide-react'
+import {
+  Activity,
+  ArrowDownUp,
+  Bell,
+  Database,
+  Link2,
+  LogOut,
+  Plug,
+  RefreshCw,
+  Server,
+  Settings2,
+  Shield,
+  UserRound,
+} from 'lucide-react'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Button, Panel, useMediaQuery, useSwipe } from '@weebsync/design-system'
@@ -37,9 +50,17 @@ function useGroups(): SectionGroup[] {
   // the About panel lives on General: a newer build out marks that entry
   const update = useUpdateHint()
   return [
-    { label: 'settings.groupPersonal', items: PERSONAL.map((i) => (i.to === 'general' ? { ...i, alert: !!update } : i)) },
+    {
+      label: 'settings.groupPersonal',
+      items: PERSONAL.map((i) => (i.to === 'general' ? { ...i, alert: !!update } : i)),
+    },
     { label: 'settings.groupSources', items: SOURCES },
-    ...(user?.isAdmin ? [{ label: 'settings.groupAdmin', items: ADMIN }, { label: 'settings.groupMaintenance', items: MAINTENANCE }] : []),
+    ...(user?.isAdmin
+      ? [
+          { label: 'settings.groupAdmin', items: ADMIN },
+          { label: 'settings.groupMaintenance', items: MAINTENANCE },
+        ]
+      : []),
   ]
 }
 

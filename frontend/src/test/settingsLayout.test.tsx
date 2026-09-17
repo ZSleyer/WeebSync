@@ -44,20 +44,26 @@ describe('SettingsLayout', () => {
   it('swipes to the next section in the menu order', async () => {
     app('/settings/general')
     swipe(-100)
-    await waitFor(() => expect(screen.getByRole('link', { name: /settings.nav.account/ })).toHaveAttribute('aria-current', 'page'))
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /settings.nav.account/ })).toHaveAttribute('aria-current', 'page'),
+    )
   })
 
   it('stops at the first section', async () => {
     app('/settings/general')
     swipe(100)
-    await waitFor(() => expect(screen.getByRole('link', { name: /settings.nav.general/ })).toHaveAttribute('aria-current', 'page'))
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /settings.nav.general/ })).toHaveAttribute('aria-current', 'page'),
+    )
   })
 
   it('stops at the last section a non-admin has', async () => {
     // without the admin groups the server list is the end of the menu
     app('/settings/servers')
     swipe(-100)
-    await waitFor(() => expect(screen.getByRole('link', { name: /nav.servers/ })).toHaveAttribute('aria-current', 'page'))
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /nav.servers/ })).toHaveAttribute('aria-current', 'page'),
+    )
   })
 
   it('walks into the admin sections for an admin', async () => {
@@ -65,6 +71,8 @@ describe('SettingsLayout', () => {
     // the admin groups only join the menu once /api/auth/me has answered
     await screen.findByRole('link', { name: /settings.nav.transfers/ })
     swipe(-100)
-    await waitFor(() => expect(screen.getByRole('link', { name: /settings.nav.transfers/ })).toHaveAttribute('aria-current', 'page'))
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: /settings.nav.transfers/ })).toHaveAttribute('aria-current', 'page'),
+    )
   })
 })

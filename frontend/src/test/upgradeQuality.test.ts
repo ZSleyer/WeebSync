@@ -14,9 +14,8 @@ describe('variantDiff', () => {
   const from = { serverId: 0, folder: '/a', resRank: 1080, dub: ['Jap'], sub: ['Ger'], soft: [], probed: 1 }
   it('names the resolution step and added languages on enabled axes', () => {
     const v = { serverId: 1, folder: '/b', resRank: 2160, dub: ['Jap', 'Ger'], sub: ['Ger'], soft: ['Ger'], probed: 1 }
-    expect(variantDiff(from, v, { res: true, sub: true, dub: false, soft: true, order: ['res', 'soft', 'sub'] }, t)).toEqual([
-      '1080p → 4K',
-      'suggestions.upSoft Ger',
-    ])
+    expect(
+      variantDiff(from, v, { res: true, sub: true, dub: false, soft: true, order: ['res', 'soft', 'sub'] }, t),
+    ).toEqual(['1080p → 4K', 'suggestions.upSoft Ger'])
   })
 })

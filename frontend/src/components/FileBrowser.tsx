@@ -135,7 +135,11 @@ export function FileBrowser({
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const { data: entries = [], isLoading, error } = useQuery<Entry[]>({
+  const {
+    data: entries = [],
+    isLoading,
+    error,
+  } = useQuery<Entry[]>({
     queryKey: [...queryKey, path],
     queryFn: () => api.get(fetchPath(path)),
   })
@@ -174,7 +178,11 @@ export function FileBrowser({
             onRejected={() => setRejectedFor(listing)}
           />
         ) : (
-          error && <p className="wrap-break-word p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>
+          error && (
+            <p className="wrap-break-word p-4 text-sm text-err">
+              {error instanceof Error ? error.message : t('app.error')}
+            </p>
+          )
         )}
         {!isLoading && !error && entries.length === 0 && (
           <p className="p-4 text-sm text-t-muted">{emptyHint ?? t('remote.emptyDir')}</p>

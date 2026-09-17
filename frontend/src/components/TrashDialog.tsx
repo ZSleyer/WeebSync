@@ -19,7 +19,13 @@ export function TrashButton() {
     // the same small button as the pin beside the view switch: icon alone in
     // the app bar on a phone, icon and label on desktop, the count on both
     <>
-      <Button size="sm" aria-label={t('trash.open', { count: entries.length })} title={t('trash.label')} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <Button
+        size="sm"
+        aria-label={t('trash.open', { count: entries.length })}
+        title={t('trash.label')}
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
         <Trash2 aria-hidden size="1em" />
         <span className="ml-1 hidden lg:inline">{t('trash.label')}</span>
         {entries.length > 0 && (
@@ -52,8 +58,16 @@ function TrashDialog({ onClose }: { onClose: () => void }) {
     void qc.invalidateQueries({ queryKey: ['local'] })
   }
   const fail = (e: unknown) => setActionError(e instanceof Error ? e.message : String(e))
-  const restore = useMutation({ mutationFn: (path: string) => api.post('/api/trash/restore', { path }), onSuccess: done, onError: fail })
-  const remove = useMutation({ mutationFn: (path: string) => api.del('/api/trash', { path }), onSuccess: done, onError: fail })
+  const restore = useMutation({
+    mutationFn: (path: string) => api.post('/api/trash/restore', { path }),
+    onSuccess: done,
+    onError: fail,
+  })
+  const remove = useMutation({
+    mutationFn: (path: string) => api.del('/api/trash', { path }),
+    onSuccess: done,
+    onError: fail,
+  })
   const empty = useMutation({ mutationFn: () => api.del('/api/trash'), onSuccess: done, onError: fail })
   const busy = restore.isPending || remove.isPending || empty.isPending
   const [now] = useState(() => Date.now() / 1000) // once per opening: the list is short-lived
@@ -61,10 +75,24 @@ function TrashDialog({ onClose }: { onClose: () => void }) {
   const total = (entries ?? []).reduce((n, e) => n + e.size, 0)
 
   const del = async (e: TrashEntry) => {
-    if (await confirm({ message: t('trash.deleteConfirm', { name: e.name }), confirmLabel: t('trash.delete'), destructive: true })) remove.mutate(e.path)
+    if (
+      await confirm({
+        message: t('trash.deleteConfirm', { name: e.name }),
+        confirmLabel: t('trash.delete'),
+        destructive: true,
+      })
+    )
+      remove.mutate(e.path)
   }
   const emptyAll = async () => {
-    if (await confirm({ message: t('trash.emptyConfirm', { count: entries?.length ?? 0, size: fmtBytes(total) }), confirmLabel: t('trash.empty'), destructive: true })) empty.mutate()
+    if (
+      await confirm({
+        message: t('trash.emptyConfirm', { count: entries?.length ?? 0, size: fmtBytes(total) }),
+        confirmLabel: t('trash.empty'),
+        destructive: true,
+      })
+    )
+      empty.mutate()
   }
 
   return (
@@ -87,7 +115,11 @@ function TrashDialog({ onClose }: { onClose: () => void }) {
             <ul className="divide-y divide-border-subtle">
               {entries!.map((e) => (
                 <li key={e.path} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2">
-                  {e.isDir ? <Folder aria-hidden size="1.2em" className="shrink-0 text-t-muted" /> : <File aria-hidden size="1.2em" className="shrink-0 text-t-muted" />}
+                  {e.isDir ? (
+                    <Folder aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
+                  ) : (
+                    <File aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-t-primary" title={e.name}>
                       {e.name}
@@ -108,7 +140,11 @@ function TrashDialog({ onClose }: { onClose: () => void }) {
                         <Undo2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                         {t('trash.restore')}
                       </Button>
-                      <IconButton aria-label={t('trash.deleteItem', { name: e.name })} disabled={busy} onClick={() => void del(e)}>
+                      <IconButton
+                        aria-label={t('trash.deleteItem', { name: e.name })}
+                        disabled={busy}
+                        onClick={() => void del(e)}
+                      >
                         <Trash2 aria-hidden size="1.1em" />
                       </IconButton>
                     </div>
@@ -124,7 +160,11 @@ function TrashDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          {entries && entries.length > 0 && <span className="mr-auto text-xs text-t-muted">{t('trash.total', { count: entries.length, size: fmtBytes(total) })}</span>}
+          {entries && entries.length > 0 && (
+            <span className="mr-auto text-xs text-t-muted">
+              {t('trash.total', { count: entries.length, size: fmtBytes(total) })}
+            </span>
+          )}
           {admin && entries && entries.length > 0 && (
             <Button size="sm" variant="danger" disabled={busy} onClick={() => void emptyAll()}>
               {t('trash.empty')}

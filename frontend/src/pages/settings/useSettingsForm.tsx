@@ -98,7 +98,17 @@ export function useSettingsForm() {
       qc.setQueryData(['settings'], fresh)
       // dependent queries gate UI on the saved config (AniList connect button,
       // Plex sections, SMTP availability, suggestion pages) - refetch them all
-      for (const key of ['anilist-me', 'plex-me', 'plex-sections', 'email-prefs', 'anilist-suggestions', 'plex-suggestions', 'tmdb-me', 'tmdb-suggestions', 'tvdb-me'])
+      for (const key of [
+        'anilist-me',
+        'plex-me',
+        'plex-sections',
+        'email-prefs',
+        'anilist-suggestions',
+        'plex-suggestions',
+        'tmdb-me',
+        'tmdb-suggestions',
+        'tvdb-me',
+      ])
         qc.invalidateQueries({ queryKey: [key] })
       setForm({ ...fresh, ...BLANK_SECRETS })
       setSaved(true)
@@ -128,10 +138,7 @@ export function EnvBadge({ show }: { show: boolean }) {
   const { t } = useTranslation()
   if (!show) return null
   return (
-    <span
-      className="ml-1.5 inline-block align-[-1px] text-t-muted"
-      title={`ENV - ${t('settings.envLockedHint')}`}
-    >
+    <span className="ml-1.5 inline-block align-[-1px] text-t-muted" title={`ENV - ${t('settings.envLockedHint')}`}>
       <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12 2a5 5 0 0 0-5 5v3H5v12h14V10h-2V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z" />
       </svg>

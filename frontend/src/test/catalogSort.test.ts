@@ -16,7 +16,12 @@ describe('sortGroups', () => {
   })
 
   it('puts groups without the sorted field last, ordered by title', () => {
-    const gs = [group('unmatched'), group('low', { popularity: 5 }), group('empty', {}), group('high', { popularity: 50 })]
+    const gs = [
+      group('unmatched'),
+      group('low', { popularity: 5 }),
+      group('empty', {}),
+      group('high', { popularity: 50 }),
+    ]
     expect(names(sortGroups(gs, 'popularity'))).toEqual(['high', 'low', 'empty', 'unmatched'])
   })
 
