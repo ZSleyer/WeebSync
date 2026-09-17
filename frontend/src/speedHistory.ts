@@ -74,7 +74,9 @@ export function useSpeedSampler(enabled: boolean) {
   // the interval reads the newest total through a ref, so it is not torn
   // down and set up again on every progress tick
   const latest = useRef(total)
-  latest.current = total
+  useEffect(() => {
+    latest.current = total
+  }, [total])
   useEffect(() => {
     if (!enabled) return
     const tick = () => pushSpeedSample(latest.current)

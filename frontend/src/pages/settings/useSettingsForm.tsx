@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ActionBar, Badge, Button } from '@weebsync/design-system'
@@ -86,12 +86,11 @@ export function useSettingsForm() {
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
   })
-  const [form, setForm] = useState<SettingsState | null>(null)
+  // what the form shows until the first edit: the fetched state, secrets blanked
+  const seeded = data ? { ...data, ...BLANK_SECRETS, oidcClaim: data.oidcClaim || 'groups' } : null
+  const [edited, setForm] = useState<SettingsState | null>(null)
+  const form = edited ?? seeded
   const [saved, setSaved] = useState(false)
-  useEffect(() => {
-    if (data && !form)
-      setForm({ ...data, ...BLANK_SECRETS, oidcClaim: data.oidcClaim || 'groups' })
-  }, [data, form])
 
   const save = useMutation({
     mutationFn: (s: SettingsState) => api.put<SettingsState>('/api/settings', s),
@@ -108,15 +107,17 @@ export function useSettingsForm() {
   })
 
   const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) =>
-    setForm((f) => (f ? { ...f, [k]: v } : f))
+    setForm((f) => {
+      const base = f ?? seeded
+      return base ? { ...base, [k]: v } : base
+    })
 
   // field value comes from an env var: input is disabled, EnvBadge shown
   const locked = (k: keyof SettingsState) => form?.envLocked?.includes(k) ?? false
 
-  // unsaved changes: form differs from the saved cache. Write-only secrets are
-  // always "" in the form (BLANK_SECRETS) but absent from `data`, so seed the
-  // baseline the same way before comparing.
-  const dirty = !!form && !!data && JSON.stringify(form) !== JSON.stringify({ ...data, ...BLANK_SECRETS, oidcClaim: data.oidcClaim || 'groups' })
+  // unsaved changes: the edits differ from the fetched state, compared with
+  // the same blanked secrets
+  const dirty = !!edited && !!seeded && JSON.stringify(edited) !== JSON.stringify(seeded)
 
   return { form, set, save, saved, locked, dirty }
 }

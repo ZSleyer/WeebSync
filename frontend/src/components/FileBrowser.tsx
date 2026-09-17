@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { FolderOpen, FolderPlus, Pencil } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -140,9 +140,9 @@ export function FileBrowser({
     queryFn: () => api.get(fetchPath(path)),
   })
   // a key the user rejected stays out of the way until the next listing
-  const [rejected, setRejected] = useState(false)
-  useEffect(() => setRejected(false), [path, serverId])
-  const conflict = serverId !== undefined && !rejected ? keyConflictOf(error) : null
+  const listing = `${serverId}:${path}`
+  const [rejectedFor, setRejectedFor] = useState<string | null>(null)
+  const conflict = serverId !== undefined && rejectedFor !== listing ? keyConflictOf(error) : null
 
   const crumbs = path.split('/').filter(Boolean)
 
@@ -171,7 +171,7 @@ export function FileBrowser({
             serverId={serverId!}
             conflict={conflict}
             onAccepted={() => qc.invalidateQueries({ queryKey })}
-            onRejected={() => setRejected(true)}
+            onRejected={() => setRejectedFor(listing)}
           />
         ) : (
           error && <p className="wrap-break-word p-4 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>

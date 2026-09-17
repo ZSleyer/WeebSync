@@ -594,8 +594,8 @@ export function CatalogGrid({
     staleTime: 5 * 60_000,
   })
   const qc = useQueryClient()
-  const [keyRejected, setKeyRejected] = useState(false)
-  useEffect(() => setKeyRejected(false), [serverId, path])
+  const listing = `${serverId}:${path}`
+  const [keyRejectedFor, setKeyRejectedFor] = useState<string | null>(null)
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   // the title card is the app's one; the catalog adds its folder versions
   // under the record, each selectable, syncable, watchable, re-matchable
@@ -808,7 +808,7 @@ export function CatalogGrid({
     )
   if (error) {
     // a host key to review is offered here, not behind the connection test
-    const conflict = keyRejected ? null : keyConflictOf(error)
+    const conflict = keyRejectedFor === listing ? null : keyConflictOf(error)
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {crumbs}
@@ -818,7 +818,7 @@ export function CatalogGrid({
             serverId={serverId}
             conflict={conflict}
             onAccepted={() => qc.invalidateQueries({ queryKey: ['catalog', serverId] })}
-            onRejected={() => setKeyRejected(true)}
+            onRejected={() => setKeyRejectedFor(listing)}
           />
         ) : (
           <p className="p-6 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>

@@ -65,19 +65,19 @@ export const isSeasonFolder = (name: string) => SEASON_FOLDER.test(name)
 // near the bottom edge and is clamped horizontally to stay on screen.
 export function Hint({ text }: { text: string }) {
   const ref = useRef<HTMLSpanElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-  // portal into the <dialog> (its top layer sits above everything); body would
-  // render behind the modal backdrop
-  const container = ref.current?.closest('dialog') ?? document.body
+  const [pos, setPos] = useState<{ top: number; left: number; container: Element } | null>(null)
   const show = () => {
     const r = ref.current?.getBoundingClientRect()
     if (!r) return
+    // portal into the <dialog> (its top layer sits above everything); body
+    // would render behind the modal backdrop
+    const container = ref.current?.closest('dialog') ?? document.body
     const w = Math.min(256, window.innerWidth * 0.7)
     const tipH = 96
     let top = r.bottom + 4
     if (top + tipH > window.innerHeight) top = Math.max(4, r.top - tipH - 4)
     const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8))
-    setPos({ top, left })
+    setPos({ top, left, container })
   }
   return (
     <span ref={ref} className="relative ml-1 inline-block align-middle">
@@ -108,7 +108,7 @@ export function Hint({ text }: { text: string }) {
           >
             {text}
           </span>,
-          container,
+          pos.container,
         )}
     </span>
   )

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 
@@ -15,13 +15,12 @@ export type CatalogViewValue = 'classic' | 'catalogOnce' | 'catalogPersist'
 // for real servers and the local pseudo server (serverId 0).
 export function useCatalogView(serverId: number, path: string) {
   const qc = useQueryClient()
-  const [override, setOverride] = useState<'classic' | 'catalog' | null>(null)
-
-  // reset the transient override whenever the folder or source changes, so a
-  // "once" peek does not leak into the next folder
-  useEffect(() => {
-    setOverride(null)
-  }, [serverId, path])
+  // the transient override remembers the folder it was set for, so a "once"
+  // peek does not leak into the next folder or source
+  const folder = `${serverId}:${path}`
+  const [peek, setPeek] = useState<{ folder: string; view: 'classic' | 'catalog' } | null>(null)
+  const override = peek?.folder === folder ? peek.view : null
+  const setOverride = (view: 'classic' | 'catalog') => setPeek({ folder, view })
 
   // cheap scope probe (no listing/matching); previous data carries over while
   // the next probe loads so the view does not flicker on navigation
