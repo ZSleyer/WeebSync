@@ -78,7 +78,11 @@ describe('Button', () => {
   })
 
   it('forwards the remaining button attributes', () => {
-    render(<Button disabled aria-describedby="hint">Warten</Button>)
+    render(
+      <Button disabled aria-describedby="hint">
+        Warten
+      </Button>,
+    )
     const btn = screen.getByRole('button', { name: 'Warten' })
     expect(btn).toBeDisabled()
     expect(btn).toHaveAttribute('aria-describedby', 'hint')
@@ -380,11 +384,7 @@ describe('Surface, Toolbar, Tabs and Count', () => {
     const { container, rerender } = render(<Surface theme="light">x</Surface>)
     expect(container.firstElementChild).toHaveAttribute('data-theme', 'light')
     expect(container.firstElementChild).toHaveClass('p-4')
-    rerender(
-      <Surface flush>
-        x
-      </Surface>,
-    )
+    rerender(<Surface flush>x</Surface>)
     expect(container.firstElementChild).not.toHaveAttribute('data-theme')
     expect(container.firstElementChild).not.toHaveClass('p-4')
   })

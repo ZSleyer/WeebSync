@@ -21,7 +21,7 @@ type Begin = { sessionId: string; publicKey: unknown }
 export async function registerCredential(kind: 'passkey' | 'key', name: string): Promise<void> {
   const begin = await api.post<Begin>('/api/auth/webauthn/register/begin', undefined, { 'X-WA-Type': kind })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const att = await startRegistration({ optionsJSON: (begin.publicKey as any) })
+  const att = await startRegistration({ optionsJSON: begin.publicKey as any })
   await api.post('/api/auth/webauthn/register/finish', att, {
     'X-WA-Session': begin.sessionId,
     'X-WA-Type': kind,
@@ -33,7 +33,7 @@ export async function registerCredential(kind: 'passkey' | 'key', name: string):
 export async function loginPasskey(): Promise<void> {
   const begin = await api.post<Begin>('/api/auth/webauthn/login/begin')
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const asse = await startAuthentication({ optionsJSON: (begin.publicKey as any) })
+  const asse = await startAuthentication({ optionsJSON: begin.publicKey as any })
   await api.post('/api/auth/webauthn/login/finish', asse, { 'X-WA-Session': begin.sessionId })
 }
 
@@ -41,7 +41,7 @@ export async function loginPasskey(): Promise<void> {
 export async function assertSecurityKey(token: string): Promise<void> {
   const begin = await api.post<Begin>('/api/auth/webauthn/2fa/begin', { token })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const asse = await startAuthentication({ optionsJSON: (begin.publicKey as any) })
+  const asse = await startAuthentication({ optionsJSON: begin.publicKey as any })
   await api.post('/api/auth/webauthn/2fa/finish', asse, {
     'X-WA-Token': token,
     'X-WA-Session': begin.sessionId,

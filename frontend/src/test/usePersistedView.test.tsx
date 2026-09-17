@@ -5,7 +5,9 @@ import type { ReactNode } from 'react'
 import { usePersistedView } from '../hooks/usePersistedView'
 
 const VIEWS = ['list', 'grid', 'calendar'] as const
-const wrap = (url = '/watches') => ({ children }: { children: ReactNode }) => <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
+const wrap =
+  (url = '/watches') =>
+  ({ children }: { children: ReactNode }) => <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
 
 afterEach(() => localStorage.clear())
 
@@ -22,7 +24,9 @@ describe('usePersistedView', () => {
 
   it('lets the URL win over what was saved and ignores a value it does not know', () => {
     localStorage.setItem('t.view', 'grid')
-    const { result } = renderHook(() => usePersistedView('t.view', VIEWS, 'list'), { wrapper: wrap('/watches?view=calendar') })
+    const { result } = renderHook(() => usePersistedView('t.view', VIEWS, 'list'), {
+      wrapper: wrap('/watches?view=calendar'),
+    })
     expect(result.current[0]).toBe('calendar')
     const bad = renderHook(() => usePersistedView('t.view', VIEWS, 'list'), { wrapper: wrap('/watches?view=nope') })
     expect(bad.result.current[0]).toBe('grid')

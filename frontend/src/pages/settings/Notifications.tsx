@@ -79,7 +79,9 @@ function PushSection() {
   const [state, setState] = useState<'ok' | 'denied' | 'unsupported' | ''>(() => (pushSupported() ? '' : 'unsupported'))
   const [sent, setSent] = useState(false)
   useEffect(() => {
-    pushSubscription().then((s) => setEnabled(!!s)).catch(() => {})
+    pushSubscription()
+      .then((s) => setEnabled(!!s))
+      .catch(() => {})
   }, [])
 
   const toggle = async (on: boolean) => {
@@ -146,7 +148,10 @@ interface NotifyPrefs {
 function NotifyPrefsSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const { data } = useQuery<NotifyPrefs>({ queryKey: ['notify-prefs'], queryFn: () => api.get('/api/auth/notify-prefs') })
+  const { data } = useQuery<NotifyPrefs>({
+    queryKey: ['notify-prefs'],
+    queryFn: () => api.get('/api/auth/notify-prefs'),
+  })
   const save = useMutation({
     mutationFn: (body: { push: string[]; freq: string }) => api.put('/api/auth/notify-prefs', body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notify-prefs'] }),

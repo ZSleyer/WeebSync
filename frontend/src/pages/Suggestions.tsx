@@ -91,15 +91,25 @@ type Bucket = (typeof BUCKETS)[number]
 // blob is the same query every section reads, so the menu costs no request.
 function useGroups(): SectionGroup[] {
   const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
-  const { data: dismissed } = usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
+  const { data: dismissed } = usePersistedQuery<DismissedItem[]>('dismissed', () =>
+    api.get('/api/suggestions/dismissed'),
+  )
   const { data: ai } = useAiStatus()
   const n = (k: Exclude<Bucket, 'ignored'>) => (data && !data.building ? (data[k]?.length ?? 0) : undefined)
-  const item = (to: Bucket | 'assistant', key: string, icon: LucideIcon, count?: number) => ({ to, key, icon, hint: `suggestions.hub.${to}`, count })
+  const item = (to: Bucket | 'assistant', key: string, icon: LucideIcon, count?: number) => ({
+    to,
+    key,
+    icon,
+    hint: `suggestions.hub.${to}`,
+    count,
+  })
   return [
     // the assistant leads: it is what the section opens on, and it is optional
     // - without a configured endpoint its entry stays out of the menu (the
     // page itself explains when opened directly)
-    ...(ai?.configured ? [{ label: 'suggestions.groupAssistant', items: [item('assistant', 'nav.assistant', Bot)] }] : []),
+    ...(ai?.configured
+      ? [{ label: 'suggestions.groupAssistant', items: [item('assistant', 'nav.assistant', Bot)] }]
+      : []),
     {
       label: 'suggestions.groupDiscover',
       items: [
@@ -136,7 +146,9 @@ export default function SuggestionsLayout() {
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="mb-6 hidden lg:block">
         <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>
-        <Badge multiline className="mt-1">{t('suggestions.sub')}</Badge>
+        <Badge multiline className="mt-1">
+          {t('suggestions.sub')}
+        </Badge>
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
         <SectionNav label={t('suggestions.navLabel')} groups={groups} />
@@ -182,17 +194,14 @@ export function SuggestionsHub() {
 // (Zeichentrick, non-Japanese), then live-action. Movies before series.
 const CATS = ['anime-movie', 'anime-tv', 'animation-movie', 'animation-tv', 'movie', 'tv'] as const
 
-
 // BucketSection renders one functional bucket. Trending and Watchlist are
 // sub-grouped into the four categories (Anime series/movies, series, movies);
 // Incomplete is a flat list.
 export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recommended' | 'incomplete' }) {
   const { t } = useTranslation()
-  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>(
-    'suggestions',
-    () => api.get('/api/suggestions'),
-    { refetchInterval: (q) => (q.state.data?.building ? 4000 : false) },
-  )
+  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
+    refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
+  })
   const [watch, setWatch] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
   const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
   const [notice, setNotice] = useState('')
@@ -200,7 +209,8 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
   if (isLoading) return <SkeletonCards />
   const items = (data?.[bucket] ?? []) as SuggestionItem[]
   if (!items.length && data?.building) return <SkeletonCards />
-  if (!items.length) return <Badge multiline>{t(bucket === 'recommended' ? 'suggestions.emptyRecommended' : 'suggestions.empty')}</Badge>
+  if (!items.length)
+    return <Badge multiline>{t(bucket === 'recommended' ? 'suggestions.emptyRecommended' : 'suggestions.empty')}</Badge>
 
   const cards = (list: SuggestionItem[]) => (
     <ul className="grid grid-cols-1 gap-2">
@@ -215,7 +225,8 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
   // Animeserien / Filme / Serien) as collapsible sub-groups. Items without a
   // status fall into Planned; Completed starts collapsed and is never
   // proactively suggested.
-  const statusOf = (it: SuggestionItem) => (it.status === 'CURRENT' || it.status === 'COMPLETED' ? it.status : 'PLANNING')
+  const statusOf = (it: SuggestionItem) =>
+    it.status === 'CURRENT' || it.status === 'COMPLETED' ? it.status : 'PLANNING'
   const statusRows = [
     ['PLANNING', 'suggestions.statusPlanning'],
     ['CURRENT', 'suggestions.statusCurrent'],
@@ -357,38 +368,46 @@ function SugCard({
     if (it.sync?.localPath) return applyDefaults(syncFields(it.sync, it.title, path), kind, defaults)
     const season = guessSeason(it.title)
     const movie = it.category.endsWith('movie')
-    return applyDefaults({
-      remotePath: path,
-      localPath: it.plexFolder ?? '',
-      mode: 'template',
-      template: movie
-        ? ''
-        : season > 0
-          ? `{title} - S${String(season).padStart(2, '0')}E{episode:02}`
-          : '{title} - S{season:02}E{episode:02}',
-      separator: '',
-      titleOverride: it.title,
-      pattern: '',
-      replacement: '',
-      subfolder: false,
-      mediaId: 0,
-      mediaSource: 'anilist',
-      fromEpisode: 0,
-      airedMapping: false,
-      renameProvider: '',
-      renameOrdering: '',
-      renameTitleLang: '',
-      renameSeriesId: 0,
-      wantDub: '',
-      wantSub: '',
-      plexAudioLang: '',
-      plexSubLang: '',
-    }, kind, defaults)
+    return applyDefaults(
+      {
+        remotePath: path,
+        localPath: it.plexFolder ?? '',
+        mode: 'template',
+        template: movie
+          ? ''
+          : season > 0
+            ? `{title} - S${String(season).padStart(2, '0')}E{episode:02}`
+            : '{title} - S{season:02}E{episode:02}',
+        separator: '',
+        titleOverride: it.title,
+        pattern: '',
+        replacement: '',
+        subfolder: false,
+        mediaId: 0,
+        mediaSource: 'anilist',
+        fromEpisode: 0,
+        airedMapping: false,
+        renameProvider: '',
+        renameOrdering: '',
+        renameTitleLang: '',
+        renameSeriesId: 0,
+        wantDub: '',
+        wantSub: '',
+        plexAudioLang: '',
+        plexSubLang: '',
+      },
+      kind,
+      defaults,
+    )
   }
 
   const syncOnce = async (serverId: number, path: string) => {
     try {
-      const r = await api.post<{ queued: number }>('/api/downloads', { serverId, remotePath: path, localPath: it.plexFolder ?? '' })
+      const r = await api.post<{ queued: number }>('/api/downloads', {
+        serverId,
+        remotePath: path,
+        localPath: it.plexFolder ?? '',
+      })
       onNotice(t('remote.queued', { count: r.queued }))
     } catch (e) {
       onNotice(e instanceof Error ? e.message : t('app.error'))
@@ -429,7 +448,11 @@ function SugCard({
     <li>
       <SuggestionCard
         cover={it.cover}
-        onCover={it.media ? () => openSeries({ source: suggestionSource(it), id: it.media.id, media: it.media, title: it.title }) : undefined}
+        onCover={
+          it.media
+            ? () => openSeries({ source: suggestionSource(it), id: it.media.id, media: it.media, title: it.title })
+            : undefined
+        }
         coverLabel={it.media ? t('remote.detailsFor', { name: it.title }) : undefined}
         title={it.title}
         year={it.year}
@@ -460,7 +483,11 @@ function SugCard({
               </span>
             ) : null}
             {it.missing?.length ? (
-              <Badge tone="warn" multiline aria-label={t('suggestions.missingEpisodes', { list: fmtEpisodeRanges(it.missing) })}>
+              <Badge
+                tone="warn"
+                multiline
+                aria-label={t('suggestions.missingEpisodes', { list: fmtEpisodeRanges(it.missing) })}
+              >
                 {t('suggestions.missingEpisodes', { list: fmtEpisodeRanges(it.missing) })}
               </Badge>
             ) : null}
@@ -478,7 +505,13 @@ function SugCard({
             )}
             {it.media.averageScore > 0 && (
               <Badge tone="accent">
-                <Star aria-hidden size="1em" className="mr-0.5 inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />
+                <Star
+                  aria-hidden
+                  size="1em"
+                  className="mr-0.5 inline align-[-0.125em]"
+                  fill="currentColor"
+                  strokeWidth={0}
+                />
                 {it.media.averageScore}
               </Badge>
             )}
@@ -510,13 +543,13 @@ function SugCard({
         {/* two differently styled detail lines plus the candidate list - more
             than the card's single `detail` slot, so they ride along as children */}
         {!!it.because?.length && (
-          <p className="mt-1 text-[11px] text-t-muted">
-            {t('suggestions.because', { titles: it.because.join(', ') })}
-          </p>
+          <p className="mt-1 text-[11px] text-t-muted">{t('suggestions.because', { titles: it.because.join(', ') })}</p>
         )}
         {it.why && <p className="mt-1 text-[11px] text-t-secondary">{it.why}</p>}
         {it.sequel && (
-          <p className="mt-1 truncate text-[11px] text-t-muted">{t('suggestions.missing')}: {mediaTitle(it.sequel)}</p>
+          <p className="mt-1 truncate text-[11px] text-t-muted">
+            {t('suggestions.missing')}: {mediaTitle(it.sequel)}
+          </p>
         )}
         {it.plexFolder && (
           <p className="mt-1 break-all font-mono text-[11px] text-t-muted" title={it.plexFolder}>
@@ -537,7 +570,11 @@ function SugCard({
                   {c.path}
                 </span>
                 <span className="flex gap-1.5">
-                  <Button size="sm" variant="primary" onClick={() => onWatch({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => onWatch({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })}
+                  >
                     <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('watch.add')}
                   </Button>
@@ -552,7 +589,10 @@ function SugCard({
                     <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.syncOnce')}
                   </Button>
-                  <Button size="sm" onClick={() => navigate(`/files?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}>
+                  <Button
+                    size="sm"
+                    onClick={() => navigate(`/files?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}
+                  >
                     <FolderOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                     {t('plex.open')}
                   </Button>
@@ -583,7 +623,10 @@ export function IgnoredSection() {
   return (
     <ul className="space-y-1">
       {items.map((d) => (
-        <li key={`${d.kind}-${d.refKey}`} className="flex items-center justify-between gap-2 border-b border-border-subtle/50 py-1 text-sm">
+        <li
+          key={`${d.kind}-${d.refKey}`}
+          className="flex items-center justify-between gap-2 border-b border-border-subtle/50 py-1 text-sm"
+        >
           <span className="min-w-0 truncate">
             {d.label || d.refKey} <Badge>{d.kind}</Badge>
           </span>
@@ -604,11 +647,9 @@ export function UpgradesSection() {
   const { data: defaults } = useWatchDefaults()
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>(
-    'suggestions',
-    () => api.get('/api/suggestions'),
-    { refetchInterval: (q) => (q.state.data?.building ? 4000 : false) },
-  )
+  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
+    refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
+  })
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   const [sync, setSync] = useState<SyncRequest | null>(null)
   const [notice, setNotice] = useState('')
@@ -621,7 +662,10 @@ export function UpgradesSection() {
   const AXES = ['res', 'soft', 'sub', 'dub'] as const
   type Axis = (typeof AXES)[number]
   const order: Axis[] = dims
-    ? [...(dims.order ?? []).filter((a): a is Axis => (AXES as readonly string[]).includes(a)), ...AXES.filter((a) => !(dims.order ?? []).includes(a))]
+    ? [
+        ...(dims.order ?? []).filter((a): a is Axis => (AXES as readonly string[]).includes(a)),
+        ...AXES.filter((a) => !(dims.order ?? []).includes(a)),
+      ]
     : [...AXES]
   const saveDims = async (next: UpgradeDims) => {
     await api.put('/api/auth/upgrade-dims', next)
@@ -653,30 +697,39 @@ export function UpgradesSection() {
     <div className="space-y-3">
       {notice && <Badge tone="accent">{notice}</Badge>}
       {dims && (
-        <Disclosure small defaultOpen={false} title={t('suggestions.upgradeWhat')} count={order.filter((a) => dims[a]).length}>
+        <Disclosure
+          small
+          defaultOpen={false}
+          title={t('suggestions.upgradeWhat')}
+          count={order.filter((a) => dims[a]).length}
+        >
           <Panel className="px-3 py-2.5">
             <p className="text-xs text-t-muted">{t('suggestions.upgradeOrderHint')}</p>
             <ol className="mt-2 space-y-1">
-            {order.map((k, i) => (
-              <li key={k} className={`flex items-center gap-2 ${dims[k] ? '' : 'text-t-muted'}`}>
-                <span className="w-5 shrink-0 font-mono text-xs text-t-muted" aria-hidden>
-                  {dims[k] ? `${i + 1}.` : ''}
-                </span>
-                <Checkbox checked={dims[k]} onChange={() => toggle(k)} label={t(`suggestions.upgradeWhat_${k}`)} />
-                <span className="ml-auto flex gap-1">
-                  <IconButton aria-label={t('suggestions.moveUp', { axis: t(`suggestions.upgradeWhat_${k}`) })} disabled={!dims[k] || i === 0} onClick={() => move(k, -1)}>
-                    <ChevronUp aria-hidden size="1em" />
-                  </IconButton>
-                  <IconButton
-                    aria-label={t('suggestions.moveDown', { axis: t(`suggestions.upgradeWhat_${k}`) })}
-                    disabled={!dims[k] || i === order.length - 1 || !dims[order[i + 1]]}
-                    onClick={() => move(k, 1)}
-                  >
-                    <ChevronDown aria-hidden size="1em" />
-                  </IconButton>
-                </span>
-              </li>
-            ))}
+              {order.map((k, i) => (
+                <li key={k} className={`flex items-center gap-2 ${dims[k] ? '' : 'text-t-muted'}`}>
+                  <span className="w-5 shrink-0 font-mono text-xs text-t-muted" aria-hidden>
+                    {dims[k] ? `${i + 1}.` : ''}
+                  </span>
+                  <Checkbox checked={dims[k]} onChange={() => toggle(k)} label={t(`suggestions.upgradeWhat_${k}`)} />
+                  <span className="ml-auto flex gap-1">
+                    <IconButton
+                      aria-label={t('suggestions.moveUp', { axis: t(`suggestions.upgradeWhat_${k}`) })}
+                      disabled={!dims[k] || i === 0}
+                      onClick={() => move(k, -1)}
+                    >
+                      <ChevronUp aria-hidden size="1em" />
+                    </IconButton>
+                    <IconButton
+                      aria-label={t('suggestions.moveDown', { axis: t(`suggestions.upgradeWhat_${k}`) })}
+                      disabled={!dims[k] || i === order.length - 1 || !dims[order[i + 1]]}
+                      onClick={() => move(k, 1)}
+                    >
+                      <ChevronDown aria-hidden size="1em" />
+                    </IconButton>
+                  </span>
+                </li>
+              ))}
             </ol>
           </Panel>
         </Disclosure>
@@ -697,7 +750,9 @@ export function UpgradesSection() {
               onSync={(r) => setSync({ ...r, initial: applyDefaults(r.initial, suggestionKind(u.category), defaults) })}
               onDismiss={dismiss}
               onOpenRemote={(v) => navigate(`/files?server=${v.serverId}&path=${encodeURIComponent(v.folder)}`)}
-              onDetails={(u) => openSeries({ source: suggestionSource(u), id: u.media!.id, media: u.media, title: u.title })}
+              onDetails={(u) =>
+                openSeries({ source: suggestionSource(u), id: u.media!.id, media: u.media, title: u.title })
+              }
             />
           )
           return (
@@ -748,11 +803,9 @@ export function DuplicatesSection() {
   const confirm = useConfirm()
   const { data: user } = useAuth()
   const [notice, setNotice] = useState('')
-  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>(
-    'suggestions',
-    () => api.get('/api/suggestions'),
-    { refetchInterval: (q) => (q.state.data?.building ? 4000 : false) },
-  )
+  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
+    refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
+  })
   const dismiss = async (d: DuplicateItem) => {
     await api.post('/api/suggestions/dismiss', { kind: 'duplicate', refKey: d.refKey, label: d.title })
     qc.invalidateQueries({ queryKey: ['suggestions'] })
@@ -762,7 +815,11 @@ export function DuplicatesSection() {
   // folder beside it; the server rebuilds the suggestions afterwards
   const trash = async (path: string) => {
     const name = path.split('/').findLast(Boolean) ?? path
-    const ok = await confirm({ message: t('suggestions.dupTrashConfirm', { name }), confirmLabel: t('suggestions.dupTrash'), destructive: true })
+    const ok = await confirm({
+      message: t('suggestions.dupTrashConfirm', { name }),
+      confirmLabel: t('suggestions.dupTrash'),
+      destructive: true,
+    })
     if (!ok) return
     try {
       await api.post('/api/suggestions/duplicates/trash', { path })
@@ -783,7 +840,11 @@ export function DuplicatesSection() {
   const items = data?.duplicates ?? []
   if (!items.length) return <Badge multiline>{t('suggestions.noDuplicates')}</Badge>
   const card = (d: DuplicateItem) => {
-    const seasonLabel = d.isMovie ? t('suggestions.movie') : d.season > 0 ? t('suggestions.season', { season: d.season }) : ''
+    const seasonLabel = d.isMovie
+      ? t('suggestions.movie')
+      : d.season > 0
+        ? t('suggestions.season', { season: d.season })
+        : ''
     return (
       <Panel key={d.refKey} className="flex flex-wrap items-start gap-4 p-3">
         <Cover src={d.cover} />
@@ -803,9 +864,14 @@ export function DuplicatesSection() {
           </p>
           <ul className="mt-2 space-y-1">
             {d.copies.map((c) => (
-              <li key={c.folder} className={`rounded-lg border p-2 text-xs ${c.folder === d.keep ? 'border-accent' : 'border-border-subtle'}`}>
+              <li
+                key={c.folder}
+                className={`rounded-lg border p-2 text-xs ${c.folder === d.keep ? 'border-accent' : 'border-border-subtle'}`}
+              >
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {c.folder === d.keep && d.copies.length > 1 && <Badge tone="accent">{t('suggestions.dupKeep')}</Badge>}
+                  {c.folder === d.keep && d.copies.length > 1 && (
+                    <Badge tone="accent">{t('suggestions.dupKeep')}</Badge>
+                  )}
                   <span className="text-t-muted">
                     {variantQuality(c, t)} · {t('suggestions.dupFiles', { count: c.files })} · {fmtBytes(c.bytes)}
                   </span>
@@ -813,7 +879,9 @@ export function DuplicatesSection() {
                 <div className="mt-1 break-all font-mono text-t-secondary" title={c.folder}>
                   {c.folder}
                 </div>
-                {d.copies.length > 1 && c.folder !== d.keep && <div className="mt-1.5 flex justify-end">{trashButton(c.folder)}</div>}
+                {d.copies.length > 1 && c.folder !== d.keep && (
+                  <div className="mt-1.5 flex justify-end">{trashButton(c.folder)}</div>
+                )}
               </li>
             ))}
           </ul>

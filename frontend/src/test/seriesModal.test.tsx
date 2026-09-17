@@ -11,10 +11,39 @@ vi.mock(import('react-i18next'), async (importOriginal) => ({
   useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o?.name ? `${k}:${o.name}` : k) }) as never,
 }))
 
-const media = { id: 7, title: { romaji: 'Frieren', english: 'Frieren' }, coverImage: { large: '/c.jpg' }, bannerImage: '', episodes: 28, seasonYear: 2023, format: 'TV', status: 'FINISHED', averageScore: 90, genres: ['Adventure'], description: 'Eine Elfe.' } as Media
+const media = {
+  id: 7,
+  title: { romaji: 'Frieren', english: 'Frieren' },
+  coverImage: { large: '/c.jpg' },
+  bannerImage: '',
+  episodes: 28,
+  seasonYear: 2023,
+  format: 'TV',
+  status: 'FINISHED',
+  averageScore: 90,
+  genres: ['Adventure'],
+  description: 'Eine Elfe.',
+} as Media
 const sequel = { id: 8, title: { romaji: 'Frieren 2' }, coverImage: { large: '/d.jpg' }, seasonYear: 2026 } as Media
 const watch = (id: number): Watch =>
-  ({ id, serverName: 'srv', remotePath: `/x/Frieren${id}`, localPath: '/media', mediaSource: 'anilist', media, localFiles: 10, active: 0, complete: false, lastResult: '', lastUploading: 0, lastQueued: 0, nextCheck: 0, lastCheck: '', langWaiting: 0, waiting: false }) as unknown as Watch
+  ({
+    id,
+    serverName: 'srv',
+    remotePath: `/x/Frieren${id}`,
+    localPath: '/media',
+    mediaSource: 'anilist',
+    media,
+    localFiles: 10,
+    active: 0,
+    complete: false,
+    lastResult: '',
+    lastUploading: 0,
+    lastQueued: 0,
+    nextCheck: 0,
+    lastCheck: '',
+    langWaiting: 0,
+    waiting: false,
+  }) as unknown as Watch
 
 let target: SeriesTarget = { id: 7, media }
 function Opener() {
@@ -111,7 +140,15 @@ describe('SeriesModalProvider', () => {
   })
 
   it('opens a related title inside the card and finds its way back', async () => {
-    serve({ extras: { relations: [{ relationType: 'SEQUEL', node: sequel }], recommendations: [], characters: [], links: [], threads: [] } })
+    serve({
+      extras: {
+        relations: [{ relationType: 'SEQUEL', node: sequel }],
+        recommendations: [],
+        characters: [],
+        links: [],
+        threads: [],
+      },
+    })
     app()
     fireEvent.click(screen.getByText('öffnen'))
     fireEvent.click(screen.getByRole('tab', { name: 'series.tab.similar' }))
@@ -125,7 +162,15 @@ describe('SeriesModalProvider', () => {
   })
 
   it('moves between tabs with the arrow keys', async () => {
-    serve({ extras: { relations: [], recommendations: [], characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose' }], links: [], threads: [] } })
+    serve({
+      extras: {
+        relations: [],
+        recommendations: [],
+        characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose' }],
+        links: [],
+        threads: [],
+      },
+    })
     app()
     fireEvent.click(screen.getByText('öffnen'))
     const overview = screen.getByRole('tab', { name: 'series.tab.overview' })
@@ -136,7 +181,15 @@ describe('SeriesModalProvider', () => {
   })
 
   it('swipes the panel from one tab to the next and stops at the ends', async () => {
-    serve({ extras: { relations: [], recommendations: [], characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose' }], links: [], threads: [] } })
+    serve({
+      extras: {
+        relations: [],
+        recommendations: [],
+        characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose' }],
+        links: [],
+        threads: [],
+      },
+    })
     app()
     fireEvent.click(screen.getByText('öffnen'))
     const panel = screen.getByRole('tabpanel')

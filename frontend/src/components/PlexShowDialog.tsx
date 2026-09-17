@@ -98,9 +98,7 @@ export default function PlexShowDialog({
                 onClick={() => pick(c.ratingKey)}
               >
                 <span className="block truncate text-sm">{c.title}</span>
-                <span className="text-xs text-t-muted">
-                  {[c.year || null, c.library].filter(Boolean).join(' · ')}
-                </span>
+                <span className="text-xs text-t-muted">{[c.year || null, c.library].filter(Boolean).join(' · ')}</span>
               </button>
             </li>
           ))}

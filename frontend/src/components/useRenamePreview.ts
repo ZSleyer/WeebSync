@@ -46,9 +46,7 @@ export function useRenamePreview({
       try {
         const files = fileName
           ? [{ name: fileName, size: fileSize ?? 0 }]
-          : (
-              await api.get<Entry[]>(`/api/servers/${serverId}/browse?path=${encodeURIComponent(fields.remotePath)}`)
-            )
+          : (await api.get<Entry[]>(`/api/servers/${serverId}/browse?path=${encodeURIComponent(fields.remotePath)}`))
               .filter((e) => !e.isDir)
               .slice(0, PREVIEW_LIMIT)
         const names = files.map((f) => f.name)

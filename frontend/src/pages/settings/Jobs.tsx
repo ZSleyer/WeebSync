@@ -213,9 +213,7 @@ export default function Jobs() {
             </Badge>
           )}
         </div>
-        {(jobsStatus?.paused ?? []).length > 0 && (
-          <p className="mt-2 text-xs text-warn">{t('jobs.pausedNote')}</p>
-        )}
+        {(jobsStatus?.paused ?? []).length > 0 && <p className="mt-2 text-xs text-warn">{t('jobs.pausedNote')}</p>}
         <p className="mt-2 text-xs text-t-muted">
           {t('settings.jobs.watchSummary', { count: data.watch.count, min: data.watch.intervalMin })}
         </p>

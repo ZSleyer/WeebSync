@@ -13,7 +13,16 @@ export type Airing = { at: number; episode: number; episodeAbs?: number; dub?: s
 export function upcomingAirings(watches: Watch[], now = Date.now(), withinDays?: number): Airing[] {
   const until = withinDays ? now + withinDays * 86_400_000 : Infinity
   return watches
-    .flatMap((w) => (w.airings ?? []).map((a) => ({ at: a.at, episode: a.episode, episodeAbs: a.episodeAbs, dub: a.dub, est: a.est, watch: w })))
+    .flatMap((w) =>
+      (w.airings ?? []).map((a) => ({
+        at: a.at,
+        episode: a.episode,
+        episodeAbs: a.episodeAbs,
+        dub: a.dub,
+        est: a.est,
+        watch: w,
+      })),
+    )
     .filter((e) => e.at * 1000 <= until)
     .sort((a, b) => a.at - b.at)
 }
@@ -23,7 +32,10 @@ export function upcomingAirings(watches: Watch[], now = Date.now(), withinDays?:
  * number in parentheses when the watch renumbers, and for a dub slot the
  * language it releases in - prefixed "~" when the date is only projected.
  */
-export function episodeLabel(t: (key: string, opts?: Record<string, unknown>) => string, e: { episode: number; episodeAbs?: number; dub?: string; est?: boolean }): string {
+export function episodeLabel(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  e: { episode: number; episodeAbs?: number; dub?: string; est?: boolean },
+): string {
   let s = e.dub ? t('watch.dubEp', { n: e.episode, lang: e.dub.toUpperCase() }) : t('watch.nextEp', { n: e.episode })
   if (e.episodeAbs && e.episodeAbs !== e.episode) s += ` (${e.episodeAbs})`
   return e.est ? `~ ${s}` : s
@@ -33,7 +45,8 @@ export function episodeLabel(t: (key: string, opts?: Record<string, unknown>) =>
 export const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 
 /** `days` days after `d`, at the same local time (DST-safe: by date, not by ms). */
-export const addDays = (d: Date, days: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + days, d.getHours(), d.getMinutes())
+export const addDays = (d: Date, days: number) =>
+  new Date(d.getFullYear(), d.getMonth(), d.getDate() + days, d.getHours(), d.getMinutes())
 
 /**
  * Local midnight of the first day of the week `d` is in. `firstDay` is the
@@ -45,12 +58,16 @@ export function startOfWeek(d: Date, firstDay = 1): Date {
 }
 
 /** The key a day is grouped under: its local date, YYYY-MM-DD. */
-export const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+export const dayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 /** The locale's first day of the week, Monday where the engine cannot say. */
 export function localeFirstDay(): number {
   try {
-    const loc = new Intl.Locale(navigator.language) as Intl.Locale & { weekInfo?: { firstDay: number }; getWeekInfo?: () => { firstDay: number } }
+    const loc = new Intl.Locale(navigator.language) as Intl.Locale & {
+      weekInfo?: { firstDay: number }
+      getWeekInfo?: () => { firstDay: number }
+    }
     return loc.weekInfo?.firstDay ?? loc.getWeekInfo?.().firstDay ?? 1
   } catch {
     return 1

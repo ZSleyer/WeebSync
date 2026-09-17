@@ -119,7 +119,8 @@ describe('fmtSpeed', () => {
 describe('syncOutcome', () => {
   // t is only used for lookups here, so echoing the key with its count keeps
   // the assertions about the logic rather than about the wording
-  const t = (k: string, o?: Record<string, unknown>) => (o?.count !== undefined ? `${k}:${o.count}` : (o?.reasons as string) ?? k)
+  const t = (k: string, o?: Record<string, unknown>) =>
+    o?.count !== undefined ? `${k}:${o.count}` : ((o?.reasons as string) ?? k)
 
   it('says nothing when files were queued - the queue is the answer', () => {
     expect(syncOutcome({ queued: 3, skipped: 2 }, t)).toBe('')
@@ -141,8 +142,7 @@ describe('syncOutcome', () => {
 })
 
 describe('downloadLabel', () => {
-  const dl = (remotePath: string, localPath = remotePath): Download =>
-    ({ id: 1, remotePath, localPath }) as Download
+  const dl = (remotePath: string, localPath = remotePath): Download => ({ id: 1, remotePath, localPath }) as Download
 
   it('falls back to the file name without metadata', () => {
     expect(downloadLabel(dl('/lib/Show/e1.mkv'))).toMatchObject({ label: 'e1.mkv', ep: '' })

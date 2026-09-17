@@ -1,4 +1,16 @@
-import { Box, Cloud, Database, Film, Globe, HardDrive, Rocket, SatelliteDish, Server, Tv, type LucideProps } from 'lucide-react'
+import {
+  Box,
+  Cloud,
+  Database,
+  Film,
+  Globe,
+  HardDrive,
+  Rocket,
+  SatelliteDish,
+  Server,
+  Tv,
+  type LucideProps,
+} from 'lucide-react'
 
 // The pictures a server may pick for the source switch, keyed by the name the
 // backend stores (its allowlist mirrors this map). The local library always

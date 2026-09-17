@@ -84,7 +84,9 @@ export default function Data() {
       case 'anilist':
         return (
           <>
-            <span className="text-xs text-t-muted">{t('settings.jobs.accounts', { count: data.anilist.accounts })}</span>
+            <span className="text-xs text-t-muted">
+              {t('settings.jobs.accounts', { count: data.anilist.accounts })}
+            </span>
             <Button
               size="sm"
               disabled={data.anilist.accounts === 0 || run.isPending}
@@ -178,7 +180,12 @@ export default function Data() {
         <Panel className="mb-4 p-5 text-sm text-t-secondary">{t('settings.jobs.empty')}</Panel>
       ) : (
         groups.map((g) => (
-          <Panel as="section" key={g.kind} className="mb-4 p-5" aria-label={t(`settings.jobs.data.kindTitle.${g.kind}`)}>
+          <Panel
+            as="section"
+            key={g.kind}
+            className="mb-4 p-5"
+            aria-label={t(`settings.jobs.data.kindTitle.${g.kind}`)}
+          >
             <Disclosure
               title={
                 <span className="flex min-w-0 items-center gap-2">
@@ -194,9 +201,13 @@ export default function Data() {
                 g.providers.map((p) => (
                   <div key={p.provider} className="mt-4">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle pb-2">
-                      <span className="font-semibold text-t-primary">{t(`settings.jobs.data.providers.${p.provider}`)}</span>
+                      <span className="font-semibold text-t-primary">
+                        {t(`settings.jobs.data.providers.${p.provider}`)}
+                      </span>
                       {sums(p, true)}
-                      <span className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">{providerTools(p.provider)}</span>
+                      <span className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+                        {providerTools(p.provider)}
+                      </span>
                     </div>
                     <ul>{p.stores.map(storeRow)}</ul>
                   </div>
@@ -215,7 +226,13 @@ export default function Data() {
       <Panel danger as="section" className="mb-4 p-5" aria-label={t('settings.jobs.data.reset.title')}>
         <Badge tone="err">{t('settings.jobs.data.reset.title')}</Badge>
         <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.data.dangerHint')}</p>
-        <Button size="sm" variant="danger" className="mt-3" disabled={stores.length === 0} onClick={() => setResetOpen(true)}>
+        <Button
+          size="sm"
+          variant="danger"
+          className="mt-3"
+          disabled={stores.length === 0}
+          onClick={() => setResetOpen(true)}
+        >
           <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('settings.jobs.data.reset.button')}
         </Button>
@@ -282,7 +299,10 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
       ? ([
           [t('settings.jobs.data.size'), fmtBytes(store.bytes)],
           [t('settings.jobs.ttl'), fmtTtl(store.ttlSec)],
-          [t('settings.jobs.data.pruneAfter'), store.pruneSec > 0 ? fmtTtl(store.pruneSec) : t('settings.jobs.data.pruneNever')],
+          [
+            t('settings.jobs.data.pruneAfter'),
+            store.pruneSec > 0 ? fmtTtl(store.pruneSec) : t('settings.jobs.data.pruneNever'),
+          ],
         ] as [string, string][])
       : []),
     [t('settings.jobs.oldest'), fmtTs(store.oldest)],
@@ -357,7 +377,11 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
                     <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={e.key}>
                       {truncMiddle(e.key)}
                     </span>
-                    {e.stale && <Badge tone="warn" className="shrink-0">{t('settings.jobs.staleBadge')}</Badge>}
+                    {e.stale && (
+                      <Badge tone="warn" className="shrink-0">
+                        {t('settings.jobs.staleBadge')}
+                      </Badge>
+                    )}
                   </span>
                   <span className={CELL_RIGHT}>
                     <span className={`whitespace-nowrap ${NUM}`}>{fmtTs(e.fetchedAt)}</span>
@@ -367,7 +391,12 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
                       variant="danger"
                       disabled={del.isPending}
                       onClick={async () => {
-                        if (await confirm({ message: t('settings.jobs.confirmDeleteEntry', { key: truncMiddle(e.key, 80) }), destructive: true }))
+                        if (
+                          await confirm({
+                            message: t('settings.jobs.confirmDeleteEntry', { key: truncMiddle(e.key, 80) }),
+                            destructive: true,
+                          })
+                        )
                           del.mutate(e.key)
                       }}
                     >
@@ -446,7 +475,11 @@ function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => v
     >
       {result ? (
         <div className="text-sm text-t-secondary">
-          <p>{t('settings.jobs.data.reset.done', { n: fmtNum(Object.values(result.deleted).reduce((a, b) => a + b, 0)) })}</p>
+          <p>
+            {t('settings.jobs.data.reset.done', {
+              n: fmtNum(Object.values(result.deleted).reduce((a, b) => a + b, 0)),
+            })}
+          </p>
           <p className="mt-2">{t('settings.jobs.data.reset.doneQueued', { n: fmtNum(result.queued) })}</p>
           <p className="mt-2 text-xs text-t-muted">
             {t('settings.jobs.data.reset.doneKept', {

@@ -9,12 +9,33 @@ vi.mock(import('react-i18next'), async (importOriginal) => ({
   useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o?.name ? `${k}:${o.name}` : k) }) as never,
 }))
 let admin = true
-vi.mock(import('../hooks'), async (importOriginal) => ({ ...(await importOriginal()), useAuth: () => ({ data: { isAdmin: admin } }) as never }))
+vi.mock(import('../hooks'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useAuth: () => ({ data: { isAdmin: admin } }) as never,
+}))
 vi.mock('../components/confirm', () => ({ useConfirm: () => async () => true }))
 
 const entries: TrashEntry[] = [
-  { path: '/m/Show/S1/.weebsync-trash/ep1.mkv', name: 'ep1.mkv', dir: '/m/Show/S1', isDir: false, size: 1024, files: 2, trashedAt: 0, expiresAt: Date.now() / 1000 + 3 * 86_400 },
-  { path: '/m/Show/.weebsync-trash/old', name: 'old', dir: '/m/Show', isDir: true, size: 2048, files: 1, trashedAt: 0, expiresAt: Date.now() / 1000 + 86_400 },
+  {
+    path: '/m/Show/S1/.weebsync-trash/ep1.mkv',
+    name: 'ep1.mkv',
+    dir: '/m/Show/S1',
+    isDir: false,
+    size: 1024,
+    files: 2,
+    trashedAt: 0,
+    expiresAt: Date.now() / 1000 + 3 * 86_400,
+  },
+  {
+    path: '/m/Show/.weebsync-trash/old',
+    name: 'old',
+    dir: '/m/Show',
+    isDir: true,
+    size: 2048,
+    files: 1,
+    trashedAt: 0,
+    expiresAt: Date.now() / 1000 + 86_400,
+  },
 ]
 
 function app() {

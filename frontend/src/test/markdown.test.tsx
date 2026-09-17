@@ -4,7 +4,9 @@ import Markdown, { parseMarkdown } from '../components/Markdown'
 
 describe('parseMarkdown', () => {
   it('splits headings, lists, code and paragraphs', () => {
-    const blocks = parseMarkdown('# Picks\n\nTwo for you:\n- Frieren\n- Dan Da Dan\n\n1. first\n2) second\n```\nx = 1\n```\ntail')
+    const blocks = parseMarkdown(
+      '# Picks\n\nTwo for you:\n- Frieren\n- Dan Da Dan\n\n1. first\n2) second\n```\nx = 1\n```\ntail',
+    )
     expect(blocks.map((b) => b.kind)).toEqual(['heading', 'para', 'list', 'list', 'code', 'para'])
     expect(blocks[2]).toEqual({ kind: 'list', ordered: false, items: ['Frieren', 'Dan Da Dan'] })
     expect(blocks[3]).toEqual({ kind: 'list', ordered: true, items: ['first', 'second'] })

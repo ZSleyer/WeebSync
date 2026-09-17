@@ -2,11 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { episodeLabel, upcomingAirings } from '../airings'
 import type { Watch } from '../api'
 
-const watch = (id: number, airings: { at: number; episode: number; episodeAbs?: number }[]) => ({ id, airings }) as unknown as Watch
+const watch = (id: number, airings: { at: number; episode: number; episodeAbs?: number }[]) =>
+  ({ id, airings }) as unknown as Watch
 
 describe('upcomingAirings', () => {
   const now = 1_000_000 * 1000
-  const ws = [watch(1, [{ at: 1_000_100, episode: 3 }, { at: 999_000, episode: 2 }]), watch(2, [{ at: 1_000_050, episode: 12, episodeAbs: 1112 }]), watch(3, [])]
+  const ws = [
+    watch(1, [
+      { at: 1_000_100, episode: 3 },
+      { at: 999_000, episode: 2 },
+    ]),
+    watch(2, [{ at: 1_000_050, episode: 12, episodeAbs: 1112 }]),
+    watch(3, []),
+  ]
 
   // the backend hands out the week it recorded behind us as well, and the
   // calendar shows it - the list must not filter the past away again
@@ -45,7 +53,8 @@ describe('week helpers', () => {
 })
 
 describe('episodeLabel', () => {
-  const t = (key: string, opts?: Record<string, unknown>) => `${key}:${opts?.n ?? ''}${opts?.lang ? ':' + opts.lang : ''}`
+  const t = (key: string, opts?: Record<string, unknown>) =>
+    `${key}:${opts?.n ?? ''}${opts?.lang ? ':' + opts.lang : ''}`
   it('names the original, the dub and an estimate apart', () => {
     expect(episodeLabel(t, { episode: 14 })).toBe('watch.nextEp:14')
     expect(episodeLabel(t, { episode: 14, episodeAbs: 80 })).toBe('watch.nextEp:14 (80)')

@@ -137,7 +137,11 @@ export default function WatchDialog({
   // the preview runs regardless of the rename switch: it is also where the
   // target comparison is shown, and that matters most when nothing is renamed.
   // It reads the folder the sync will really use, not the base path.
-  const { pairs, sizes, busy: previewBusy } = useRenamePreview({
+  const {
+    pairs,
+    sizes,
+    busy: previewBusy,
+  } = useRenamePreview({
     serverId,
     fields: { ...f, localPath: targetDir },
     enabled: true,
@@ -304,7 +308,11 @@ export default function WatchDialog({
             />
             {f.replaceOld !== undefined && (
               <label className="flex items-center gap-2 text-sm text-t-secondary">
-                <input type="checkbox" checked={f.replaceOld} onChange={(e) => setF({ ...f, replaceOld: e.target.checked })} />
+                <input
+                  type="checkbox"
+                  checked={f.replaceOld}
+                  onChange={(e) => setF({ ...f, replaceOld: e.target.checked })}
+                />
                 {t('watch.replaceOld')}
                 <Hint text={t('watch.replaceOldHint')} />
               </label>

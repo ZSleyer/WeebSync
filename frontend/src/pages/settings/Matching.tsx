@@ -78,7 +78,12 @@ export default function Matching() {
   // a server with matches but no index (the local library) still gets a card
   const byServer = new Map<number, MatchStat[]>()
   for (const m of data.matches) byServer.set(m.serverId, [...(byServer.get(m.serverId) ?? []), m])
-  const cards: ServerCardData[] = data.index.servers.map((s) => ({ id: s.id, name: s.name, index: s, matches: byServer.get(s.id) ?? [] }))
+  const cards: ServerCardData[] = data.index.servers.map((s) => ({
+    id: s.id,
+    name: s.name,
+    index: s,
+    matches: byServer.get(s.id) ?? [],
+  }))
   for (const [id, matches] of byServer) {
     if (!cards.some((c) => c.id === id)) cards.push({ id, name: matches[0].name, matches })
   }
@@ -193,11 +198,22 @@ function ServerCard({
             </>
           )}
           {s && (
-            <Button size="sm" disabled={run.isPending} onClick={() => run.mutate({ name: 'index-crawl', body: { serverId: c.id } })}>
+            <Button
+              size="sm"
+              disabled={run.isPending}
+              onClick={() => run.mutate({ name: 'index-crawl', body: { serverId: c.id } })}
+            >
               {t('settings.jobs.crawlNow')}
             </Button>
           )}
-          <Button size="sm" aria-label={more} title={more} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <Button
+            size="sm"
+            aria-label={more}
+            title={more}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+          >
             <MoreHorizontal aria-hidden size="1.2em" />
           </Button>
           {open && (
@@ -382,12 +398,7 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
       <label className="sr-only" htmlFor="matches-q">
         {t('remote.search')}
       </label>
-      <Input
-        id="matches-q"
-        placeholder={t('remote.search')}
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
+      <Input id="matches-q" placeholder={t('remote.search')} value={q} onChange={(e) => setQ(e.target.value)} />
       {data && data.entries.length === 0 ? (
         <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
       ) : (
@@ -407,7 +418,9 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                       {m.title}
                     </span>
                   ) : (
-                    <Badge tone="warn" className="shrink-0">-</Badge>
+                    <Badge tone="warn" className="shrink-0">
+                      -
+                    </Badge>
                   )}
                   <Button
                     size="sm"
@@ -423,7 +436,12 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
                     variant="danger"
                     disabled={del.isPending}
                     onClick={async () => {
-                      if (await confirm({ message: t('settings.jobs.confirmDeleteMatch', { name: basename(m.folder) }), destructive: true }))
+                      if (
+                        await confirm({
+                          message: t('settings.jobs.confirmDeleteMatch', { name: basename(m.folder) }),
+                          destructive: true,
+                        })
+                      )
                         del.mutate(m.folder)
                     }}
                   >

@@ -8,7 +8,13 @@ import { SwipeDeck } from '@weebsync/design-system'
 
 const deck = (props: { index?: number; onIndex?: (i: number) => void; canPrev?: boolean; step?: number }) =>
   render(
-    <SwipeDeck index={props.index ?? 0} onIndex={props.onIndex ?? (() => {})} canPrev={props.canPrev} step={props.step} className="deck">
+    <SwipeDeck
+      index={props.index ?? 0}
+      onIndex={props.onIndex ?? (() => {})}
+      canPrev={props.canPrev}
+      step={props.step}
+      className="deck"
+    >
       {(i) => <p>Seite {i}</p>}
     </SwipeDeck>,
   )

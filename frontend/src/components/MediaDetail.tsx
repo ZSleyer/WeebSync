@@ -18,7 +18,10 @@ const fuzzyDate = (d?: number) => {
   const m = Math.floor((d % 10000) / 100)
   const day = d % 100
   if (!m) return String(y)
-  return new Date(y, m - 1, day || 1).toLocaleDateString([], day ? { year: 'numeric', month: '2-digit', day: '2-digit' } : { year: 'numeric', month: 'long' })
+  return new Date(y, m - 1, day || 1).toLocaleDateString(
+    [],
+    day ? { year: 'numeric', month: '2-digit', day: '2-digit' } : { year: 'numeric', month: 'long' },
+  )
 }
 
 function Section({ title, children }: { title: ReactNode; children: ReactNode }) {
@@ -56,10 +59,15 @@ export default function MediaDetail({
   const l = mediaLink(source, m.id)
   // the title's own schedule: the dub slots a watch adds belong to the calendar
   const upcoming = (airings ?? []).filter((a) => a.at * 1000 > now && !a.dub).slice(0, 5)
-  const next = upcoming.length === 0 && m.nextAiringEpisode ? [{ at: m.nextAiringEpisode.airingAt, episode: m.nextAiringEpisode.episode }] : upcoming
+  const next =
+    upcoming.length === 0 && m.nextAiringEpisode
+      ? [{ at: m.nextAiringEpisode.airingAt, episode: m.nextAiringEpisode.episode }]
+      : upcoming
   const facts = [
     m.studios?.length ? [t('series.studios'), m.studios.join(', ')] : null,
-    m.startDate ? [t('series.aired'), [fuzzyDate(m.startDate), fuzzyDate(m.endDate)].filter(Boolean).join(' bis ')] : null,
+    m.startDate
+      ? [t('series.aired'), [fuzzyDate(m.startDate), fuzzyDate(m.endDate)].filter(Boolean).join(' bis ')]
+      : null,
   ].filter((f): f is string[] => !!f)
   // streaming first: that is the link a reader is after; the rest stays a
   // muted second row
@@ -72,9 +80,7 @@ export default function MediaDetail({
           <p className="text-sm whitespace-pre-line text-t-secondary">
             {/* AniList descriptions still carry some inline HTML; strip via
                 the browser's own parser (rendered as a text node, never HTML) */}
-            {new DOMParser()
-              .parseFromString(m.description.replace(/<br\s*\/?>/gi, '\n'), 'text/html')
-              .body.textContent}
+            {new DOMParser().parseFromString(m.description.replace(/<br\s*\/?>/gi, '\n'), 'text/html').body.textContent}
           </p>
         </Section>
       )}
@@ -95,7 +101,13 @@ export default function MediaDetail({
               <li key={`${a.episode}-${a.at}`} className="flex flex-wrap items-baseline gap-x-3">
                 <span className="text-t-primary">{t('watch.chipEp', { n: a.episode })}</span>
                 <span className="font-mono text-xs text-t-secondary">
-                  {new Date(a.at * 1000).toLocaleString([], { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(a.at * 1000).toLocaleString([], {
+                    weekday: 'short',
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </span>
                 <span className="text-xs text-accent">{countdown(t, a.at, false, now)}</span>
               </li>
@@ -105,12 +117,25 @@ export default function MediaDetail({
       )}
       <Section title={t('series.links')}>
         <div className="flex flex-wrap gap-1.5">
-          <ButtonLink size="sm" className="inline-flex items-center gap-1.5" href={l.href} target="_blank" rel="noreferrer">
+          <ButtonLink
+            size="sm"
+            className="inline-flex items-center gap-1.5"
+            href={l.href}
+            target="_blank"
+            rel="noreferrer"
+          >
             {l.label} #{m.id}
             <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
           </ButtonLink>
           {streaming.map((x) => (
-            <ButtonLink key={x.url} size="sm" className="inline-flex items-center gap-1.5" href={x.url} target="_blank" rel="noreferrer">
+            <ButtonLink
+              key={x.url}
+              size="sm"
+              className="inline-flex items-center gap-1.5"
+              href={x.url}
+              target="_blank"
+              rel="noreferrer"
+            >
               <Play aria-hidden size="1em" fill="currentColor" strokeWidth={0} />
               {x.site}
               {x.language && <span className="text-t-muted">{x.language}</span>}
@@ -121,7 +146,13 @@ export default function MediaDetail({
           <p className="mt-2 flex flex-wrap gap-x-3 text-xs">
             {/* min-h-6: a text link is 18px tall, the target floor is 24 (WCAG 2.5.8) */}
             {other.map((x) => (
-              <a key={x.url} href={x.url} target="_blank" rel="noreferrer" className="inline-flex min-h-6 items-center text-t-secondary underline decoration-border-input hover:text-t-primary">
+              <a
+                key={x.url}
+                href={x.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-6 items-center text-t-secondary underline decoration-border-input hover:text-t-primary"
+              >
                 {x.site}
               </a>
             ))}
@@ -158,7 +189,8 @@ export default function MediaDetail({
               target="_blank"
               rel="noreferrer"
             >
-              <Play aria-hidden size="1em" className="inline align-[-0.125em]" fill="currentColor" strokeWidth={0} /> {t('remote.trailer')}
+              <Play aria-hidden size="1em" className="inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{' '}
+              {t('remote.trailer')}
               {m.trailer.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
               <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
             </ButtonLink>

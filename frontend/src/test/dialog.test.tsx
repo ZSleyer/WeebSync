@@ -40,7 +40,13 @@ describe('Dialog', () => {
     // overflow-y-auto is the scroll container of last resort: without it a
     // dialog whose content outgrows the screen is simply cut off, since the
     // dialog element itself is overflow:hidden by design
-    expect(dialog.firstElementChild).toHaveClass('flex', 'flex-col', 'overflow-y-auto', 't-panel--danger', 'dialog-body')
+    expect(dialog.firstElementChild).toHaveClass(
+      'flex',
+      'flex-col',
+      'overflow-y-auto',
+      't-panel--danger',
+      'dialog-body',
+    )
   })
 
   it('reports the close exactly once through the dialog close event', async () => {
@@ -270,8 +276,12 @@ describe('Dialog', () => {
   // stubbed. Restored per test, since the component reads it on first render.
   const withNarrowViewport = (matches: boolean) => {
     const real = window.matchMedia
-    window.matchMedia = ((q: string) =>
-      ({ matches, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
+    window.matchMedia = ((q: string) => ({
+      matches,
+      media: q,
+      addEventListener() {},
+      removeEventListener() {},
+    })) as unknown as typeof window.matchMedia
     return () => {
       window.matchMedia = real
     }
@@ -373,14 +383,26 @@ describe('Dialog', () => {
   })
 
   it('derives the sheet from the width - wide dialogs cover a phone, max-w-md does not', () => {
-    const wide = render(<Dialog onClose={() => {}} width="max-w-2xl">Inhalt</Dialog>)
+    const wide = render(
+      <Dialog onClose={() => {}} width="max-w-2xl">
+        Inhalt
+      </Dialog>,
+    )
     expect(dialogOf(wide.container)).toHaveClass('dialog-sheet')
-    const box = render(<Dialog onClose={() => {}} width="max-w-md">Inhalt</Dialog>)
+    const box = render(
+      <Dialog onClose={() => {}} width="max-w-md">
+        Inhalt
+      </Dialog>,
+    )
     expect(dialogOf(box.container)).not.toHaveClass('dialog-sheet')
   })
 
   it('honours an explicit sheet prop over the width default', () => {
-    const { container } = render(<Dialog onClose={() => {}} width="max-w-2xl" sheet={false}>Inhalt</Dialog>)
+    const { container } = render(
+      <Dialog onClose={() => {}} width="max-w-2xl" sheet={false}>
+        Inhalt
+      </Dialog>,
+    )
     expect(dialogOf(container)).not.toHaveClass('dialog-sheet')
   })
 
@@ -424,7 +446,11 @@ describe('Dialog', () => {
     const restore = withNarrowViewport(false)
     try {
       const onClose = vi.fn()
-      const { container } = render(<Dialog onClose={onClose} width="max-w-2xl">Inhalt</Dialog>)
+      const { container } = render(
+        <Dialog onClose={onClose} width="max-w-2xl">
+          Inhalt
+        </Dialog>,
+      )
       expect(screen.queryByRole('button', { name: 'Schließen' })).toBeNull()
       clickBackdrop(dialogOf(container))
       await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
@@ -528,7 +554,10 @@ describe('Dialog', () => {
   /** Give the sheet its two heights, so the hook can measure the difference:
    *  jsdom lays nothing out and reads 0 for both. 700 opening, 920 full. */
   const withHeights = (dialog: HTMLDialogElement) =>
-    Object.defineProperty(dialog, 'clientHeight', { configurable: true, get: () => (dialog.hasAttribute('data-expanded') ? 920 : 700) })
+    Object.defineProperty(dialog, 'clientHeight', {
+      configurable: true,
+      get: () => (dialog.hasAttribute('data-expanded') ? 920 : 700),
+    })
 
   // One long pull from the full height is both steps in one: past the opening
   // height and a dismissal's distance beyond it, the sheet goes.

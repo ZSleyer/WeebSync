@@ -2,7 +2,18 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Lock, LockOpen, Pencil, Plus, PlugZap, Save, Trash2, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ActionBar, Badge, Button, Dialog, EmptyState, Field, Input, Panel, Segmented, Select } from '@weebsync/design-system'
+import {
+  ActionBar,
+  Badge,
+  Button,
+  Dialog,
+  EmptyState,
+  Field,
+  Input,
+  Panel,
+  Segmented,
+  Select,
+} from '@weebsync/design-system'
 import { api, keyConflictOf, type KeyConflict, type ServerInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import HostKeyPrompt from '../../components/HostKeyPrompt'
@@ -110,7 +121,11 @@ export default function Servers() {
               </Button>
               {testResult[s.id] && (
                 <Badge tone={testResult[s.id] === 'ok' ? 'ok' : testResult[s.id] === '…' ? 'neutral' : 'err'}>
-                  {testResult[s.id] === 'ok' ? t('servers.connected') : testResult[s.id] === '…' ? t('servers.testing') : t('servers.failed')}
+                  {testResult[s.id] === 'ok'
+                    ? t('servers.connected')
+                    : testResult[s.id] === '…'
+                      ? t('servers.testing')
+                      : t('servers.failed')}
                 </Badge>
               )}
             </div>
@@ -120,7 +135,13 @@ export default function Servers() {
               </p>
             )}
             {keyConflict[s.id] && (
-              <HostKeyPrompt className="mt-2" serverId={s.id} conflict={keyConflict[s.id]!} onAccepted={() => test(s.id)} onRejected={() => rejectKey(s.id)} />
+              <HostKeyPrompt
+                className="mt-2"
+                serverId={s.id}
+                conflict={keyConflict[s.id]!}
+                onAccepted={() => test(s.id)}
+                onRejected={() => rejectKey(s.id)}
+              />
             )}
           </Panel>
         ))}
@@ -136,8 +157,8 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   const confirm = useConfirm()
   const qc = useQueryClient()
   const [error, setError] = useState('')
-	const [protocol, setProtocol] = useState(editing?.protocol ?? 'sftp')
-	const [icon, setIcon] = useState(editing?.icon ?? '')
+  const [protocol, setProtocol] = useState(editing?.protocol ?? 'sftp')
+  const [icon, setIcon] = useState(editing?.icon ?? '')
   // uncontrolled form: any input change marks it dirty for the close guard
   const [dirty, setDirty] = useState(false)
   // Dialog asks this before Escape or a backdrop click closes it
@@ -215,12 +236,20 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
               onChange={setIcon}
               options={[
                 { value: '', label: t('servers.iconNone') },
-                ...Object.keys(SERVER_ICONS).map((k) => ({ value: k, 'aria-label': k.replace('-', ' '), label: <ServerIcon name={k} aria-hidden size="1em" /> })),
+                ...Object.keys(SERVER_ICONS).map((k) => ({
+                  value: k,
+                  'aria-label': k.replace('-', ' '),
+                  label: <ServerIcon name={k} aria-hidden size="1em" />,
+                })),
               ]}
             />
           </Field>
           <Field label={t('servers.protocol')}>
-            <Select name="protocol" value={protocol} onChange={(e) => setProtocol(e.target.value as ServerInfo['protocol'])}>
+            <Select
+              name="protocol"
+              value={protocol}
+              onChange={(e) => setProtocol(e.target.value as ServerInfo['protocol'])}
+            >
               <option value="sftp">SFTP (SSH)</option>
               <option value="ftps">FTPS (TLS)</option>
               <option value="ftp">FTP</option>
@@ -267,11 +296,11 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
               defaultValue={editing?.maxConnections ?? 3}
             />
           </Field>
-			{protocol === 'ftp' && (
-				<p className="sm:col-span-2 rounded-md border border-warn/50 px-3 py-2 text-sm text-warn" role="status">
-					{t('servers.ftpWarning')}
-				</p>
-			)}
+          {protocol === 'ftp' && (
+            <p className="sm:col-span-2 rounded-md border border-warn/50 px-3 py-2 text-sm text-warn" role="status">
+              {t('servers.ftpWarning')}
+            </p>
+          )}
           <p className="sm:col-span-2 text-xs text-t-muted">{t('servers.maxConnectionsHint')}</p>
         </div>
         {error && (

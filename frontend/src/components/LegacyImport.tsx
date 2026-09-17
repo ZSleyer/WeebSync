@@ -222,7 +222,14 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
               </Select>
             </Field>
             <Field label={t('servers.port')}>
-              <Input name="port" className="font-mono" type="number" min={1} max={65535} defaultValue={plan.server.port} />
+              <Input
+                name="port"
+                className="font-mono"
+                type="number"
+                min={1}
+                max={65535}
+                defaultValue={plan.server.port}
+              />
             </Field>
             <Field label={t('servers.host')} className="sm:col-span-2">
               <Input name="host" className="font-mono" required defaultValue={plan.server.host} />
@@ -302,13 +309,9 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
                     {w.remotePath} → {w.localPath || '?'}
                   </span>
                   <span className="mt-1 block font-mono text-[11px] text-t-secondary">
-                    {w.mode === 'regex'
-                      ? `${w.pattern} → ${w.replacement}`
-                      : w.template || t('legacy.noRename')}
+                    {w.mode === 'regex' ? `${w.pattern} → ${w.replacement}` : w.template || t('legacy.noRename')}
                   </span>
-                  {w.error && (
-                    <span className="mt-1 block text-[11px] text-err">{t(`legacy.${w.error}`)}</span>
-                  )}
+                  {w.error && <span className="mt-1 block text-[11px] text-err">{t(`legacy.${w.error}`)}</span>}
                   {w.warnings?.map((g) => (
                     <span key={g} className="mt-1 block text-[11px] text-warn">
                       {t(`legacy.${g}`)}

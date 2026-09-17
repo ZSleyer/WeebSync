@@ -37,9 +37,7 @@ function Row({ ep, showLocal }: { ep: WatchEpisode; showLocal: boolean }) {
         <span className="shrink-0 font-mono text-[11px] tabular-nums text-t-faint">{ep.absolute}</span>
       ) : null}
       {/* the date is the first thing to go when the row gets tight */}
-      {ep.aired && (
-        <span className="hidden shrink-0 tabular-nums text-[11px] text-t-faint sm:inline">{ep.aired}</span>
-      )}
+      {ep.aired && <span className="hidden shrink-0 tabular-nums text-[11px] text-t-faint sm:inline">{ep.aired}</span>}
     </li>
   )
 }
@@ -72,7 +70,13 @@ export default function WatchEpisodesList({ watch }: { watch: Watch }) {
           <Badge tone="err">{t('watch.gaps.missingCount', { count: data.missing, total: eps.length })}</Badge>
         )}
         {data?.url && (
-          <ButtonLink size="xs" className="ml-auto inline-flex items-center gap-1" href={data.url} target="_blank" rel="noreferrer">
+          <ButtonLink
+            size="xs"
+            className="ml-auto inline-flex items-center gap-1"
+            href={data.url}
+            target="_blank"
+            rel="noreferrer"
+          >
             {t('watch.gaps.viewAt', { provider })}
             <ExternalLink aria-hidden size="1em" />
           </ButtonLink>

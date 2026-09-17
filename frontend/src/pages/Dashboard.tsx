@@ -1,5 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronDown, ChevronRight, Clock, Download as DownloadIcon, Eye, FolderOpen, HardDrive, Pause, Play, RefreshCw, RotateCcw, Trash2, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+import {
+  ArrowRight,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Download as DownloadIcon,
+  Eye,
+  FolderOpen,
+  HardDrive,
+  Pause,
+  Play,
+  RefreshCw,
+  RotateCcw,
+  Trash2,
+  TriangleAlert,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 
 // icon per download status, shown inside the t-label chips (inline-flex, 4px gap)
 const STATUS_ICON: Record<Download['status'], LucideIcon> = {
@@ -34,7 +53,19 @@ import {
   useMediaQuery,
   type BadgeTone,
 } from '@weebsync/design-system'
-import { api, downloadLabel, fmtBytes, fmtMissing, fmtSpeed, mediaTitle, type Download, type DownloadMeta, type JobsStatus, type SystemStatus, type Watch } from '../api'
+import {
+  api,
+  downloadLabel,
+  fmtBytes,
+  fmtMissing,
+  fmtSpeed,
+  mediaTitle,
+  type Download,
+  type DownloadMeta,
+  type JobsStatus,
+  type SystemStatus,
+  type Watch,
+} from '../api'
 import { episodeLabel, upcomingAirings } from '../airings'
 import { avgSpeed, SPEED_SPAN, useSpeedHistory } from '../speedHistory'
 import { countdown } from '../countdown'
@@ -115,7 +146,8 @@ function FoldHeader({
 // remaining puts a duration into the countdown's words. Under a minute it
 // counts seconds - "in 0 min" is what the last stretch of every download
 // read otherwise - and a duration already spent is no time at all.
-const remaining = (t: Parameters<typeof countdown>[0], secs: number) => (secs > 0 ? countdown(t, Date.now() / 1000 + secs, secs < 60) : null)
+const remaining = (t: Parameters<typeof countdown>[0], secs: number) =>
+  secs > 0 ? countdown(t, Date.now() / 1000 + secs, secs < 60) : null
 
 export default function Dashboard() {
   const { t } = useTranslation()
@@ -131,9 +163,13 @@ export default function Dashboard() {
   // list is what knows the year, the studio and the score. Persisted, so a
   // return to the page never waits on it.
   const { open: openSeries } = useSeriesModal()
-  const { data: watches = [], isLoading: watchesLoading } = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'), {
-    refetchInterval: () => 30_000,
-  })
+  const { data: watches = [], isLoading: watchesLoading } = usePersistedQuery<Watch[]>(
+    'watches',
+    () => api.get('/api/watches'),
+    {
+      refetchInterval: () => 30_000,
+    },
+  )
   // series metadata lives behind its own key: the list above is patched in
   // place by the event stream (whole object per progress tick) and polled every
   // 5s, while a folder's cover and links change about never. The ['downloads']
@@ -160,7 +196,8 @@ export default function Dashboard() {
   const [statusFilter, setStatusFilter] = useState<Set<Download['status']>>(new Set())
   const filtering = query.trim() !== ''
   const historyFiltering = historyQuery.trim() !== '' || statusFilter.size > 0
-  const nameMatch = (d: Download, q: string) => q.trim() === '' || d.remotePath.toLowerCase().includes(q.trim().toLowerCase())
+  const nameMatch = (d: Download, q: string) =>
+    q.trim() === '' || d.remotePath.toLowerCase().includes(q.trim().toLowerCase())
 
   const activeAll = downloads.filter((d) => d.status === 'running' || d.status === 'queued' || d.status === 'paused')
   const matched = activeAll.filter((d) => nameMatch(d, query))
@@ -292,13 +329,23 @@ export default function Dashboard() {
             destructive and stays down at the queue's toolbar */}
         <PageActions>
           {anyActive && (
-            <Button size="sm" disabled={bulk.isPending} aria-label={t('dash.pauseAll')} onClick={() => bulk.mutate({ a: 'pause' })}>
+            <Button
+              size="sm"
+              disabled={bulk.isPending}
+              aria-label={t('dash.pauseAll')}
+              onClick={() => bulk.mutate({ a: 'pause' })}
+            >
               <Pause aria-hidden size="1em" className="inline align-[-0.125em] lg:mr-1" />
               <span className="hidden lg:inline">{t('dash.pauseAll')}</span>
             </Button>
           )}
           {anyPaused && (
-            <Button size="sm" disabled={bulk.isPending} aria-label={t('dash.resumeAll')} onClick={() => bulk.mutate({ a: 'resume' })}>
+            <Button
+              size="sm"
+              disabled={bulk.isPending}
+              aria-label={t('dash.resumeAll')}
+              onClick={() => bulk.mutate({ a: 'resume' })}
+            >
               <Play aria-hidden size="1em" className="inline align-[-0.125em] lg:mr-1" />
               <span className="hidden lg:inline">{t('dash.resumeAll')}</span>
             </Button>
@@ -332,7 +379,11 @@ export default function Dashboard() {
           ) : watches.length === 0 ? (
             <EmptyState>
               <Trans i18nKey="dash.noWatches">
-                Noch keine Serie überwacht. In <Link to="/files" className="text-accent underline">Dateien</Link> einen Ordner beobachten.
+                Noch keine Serie überwacht. In{' '}
+                <Link to="/files" className="text-accent underline">
+                  Dateien
+                </Link>{' '}
+                einen Ordner beobachten.
               </Trans>
             </EmptyState>
           ) : (
@@ -345,233 +396,250 @@ export default function Dashboard() {
           <BackgroundWork />
         </aside>
 
-          <section aria-label={t('dash.transferSection')} className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
-            <FoldHeader
-              icon={<DownloadIcon aria-hidden size="1em" />}
-              label={t('dash.transferSection')}
-              count={activeAll.length}
-              open={queueOpen}
-              onToggle={toggleQueue}
-            />
-            {queueOpen && (
+        <section aria-label={t('dash.transferSection')} className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
+          <FoldHeader
+            icon={<DownloadIcon aria-hidden size="1em" />}
+            label={t('dash.transferSection')}
+            count={activeAll.length}
+            open={queueOpen}
+            onToggle={toggleQueue}
+          />
+          {queueOpen && (
             <>
-            {/* the bulk controls earn their row from the second download on:
+              {/* the bulk controls earn their row from the second download on:
                 select-all, search and cancel-everything over a single card
                 are chrome in front of the one thing on screen. The global
                 limit is the one control that is about the next transfer as
                 much as the current one, so an admin always has it here */}
-            {(many || !!user?.isAdmin) && (
-            <Toolbar className="mb-3">
-              {many && (
-              <>
-              <input
-                ref={activeAllRef}
-                type="checkbox"
-                title={t('dash.selectAll')}
-                aria-label={t('dash.selectAll')}
-                checked={allActiveSelected}
-                onChange={() => toggleSection(activeIds, allActiveSelected)}
-              />
-              {/* the checkbox and the search share the first row on a phone,
+              {(many || !!user?.isAdmin) && (
+                <Toolbar className="mb-3">
+                  {many && (
+                    <>
+                      <input
+                        ref={activeAllRef}
+                        type="checkbox"
+                        title={t('dash.selectAll')}
+                        aria-label={t('dash.selectAll')}
+                        checked={allActiveSelected}
+                        onChange={() => toggleSection(activeIds, allActiveSelected)}
+                      />
+                      {/* the checkbox and the search share the first row on a phone,
                   the bulk controls take the second */}
-              <Input
-                className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
-                type="search"
-                placeholder={t('dash.search')}
-                aria-label={t('dash.search')}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              </>
+                      <Input
+                        className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
+                        type="search"
+                        placeholder={t('dash.search')}
+                        aria-label={t('dash.search')}
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                    </>
+                  )}
+                  <Toolbar className="ml-auto basis-full sm:basis-auto">
+                    {many && (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={bulk.isPending}
+                        onClick={async () => {
+                          if (await confirm({ message: t('dash.cancelAllConfirm'), destructive: true }))
+                            bulk.mutate({ a: 'cancel' })
+                        }}
+                      >
+                        <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('dash.cancelAll')}
+                      </Button>
+                    )}
+                    {!!user?.isAdmin && <GlobalLimitInput caption={!many} />}
+                  </Toolbar>
+                </Toolbar>
               )}
-              <Toolbar className="ml-auto basis-full sm:basis-auto">
-                {many && (
-                <Button
-                  size="sm"
-                  variant="danger"
-                  disabled={bulk.isPending}
-                  onClick={async () => {
-                    if (await confirm({ message: t('dash.cancelAllConfirm'), destructive: true })) bulk.mutate({ a: 'cancel' })
-                  }}
-                >
-                  <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('dash.cancelAll')}
-                </Button>
-                )}
-                {!!user?.isAdmin && <GlobalLimitInput caption={!many} />}
-              </Toolbar>
-            </Toolbar>
-            )}
 
-            {/* a phone reads the rate here, above the card it belongs to; the
+              {/* a phone reads the rate here, above the card it belongs to; the
                 desktop keeps it in the column beside the queue */}
-            {!wide && transferring && <SpeedPanel downloads={activeAll} />}
+              {!wide && transferring && <SpeedPanel downloads={activeAll} />}
 
-            {/* the first answer is still out: a card in the hero's shape and
+              {/* the first answer is still out: a card in the hero's shape and
                 two rows, so the page does not jump when it lands. Only then -
                 a refetch never shows this */}
-            {isLoading && (
-              <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-3">
-                <Panel className="flex gap-4 p-4">
-                  <Skeleton shape="cover" />
-                  <div className="min-w-0 flex-1 space-y-2.5 py-1">
-                    <Skeleton className="w-2/3" />
-                    <Skeleton className="w-1/3" />
-                    <Skeleton shape="block" className="mt-4 h-2 w-full" />
-                  </div>
-                </Panel>
-                {[0, 1].map((i) => (
-                  <Panel key={i} className="flex gap-3 p-3">
-                    <Skeleton shape="cover" size="sm" />
-                    <div className="min-w-0 flex-1 space-y-2 py-1">
-                      <Skeleton className="w-1/2" />
-                      <Skeleton shape="block" className="h-1 w-full" />
+              {isLoading && (
+                <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-3">
+                  <Panel className="flex gap-4 p-4">
+                    <Skeleton shape="cover" />
+                    <div className="min-w-0 flex-1 space-y-2.5 py-1">
+                      <Skeleton className="w-2/3" />
+                      <Skeleton className="w-1/3" />
+                      <Skeleton shape="block" className="mt-4 h-2 w-full" />
                     </div>
                   </Panel>
+                  {[0, 1].map((i) => (
+                    <Panel key={i} className="flex gap-3 p-3">
+                      <Skeleton shape="cover" size="sm" />
+                      <div className="min-w-0 flex-1 space-y-2 py-1">
+                        <Skeleton className="w-1/2" />
+                        <Skeleton shape="block" className="h-1 w-full" />
+                      </div>
+                    </Panel>
+                  ))}
+                </div>
+              )}
+              {!isLoading &&
+                active.length === 0 &&
+                (filtering ? (
+                  <EmptyState>{t('dash.noMatches')}</EmptyState>
+                ) : (
+                  // idle is the normal state, and it must not cost a screen: one
+                  // line with the way to the next download, not a tall blank
+                  <Panel className="p-3 text-sm text-t-muted">
+                    <Trans i18nKey="dash.idle">
+                      Nichts wird übertragen.{' '}
+                      <Link to="/files" className="text-accent underline">
+                        Dateien
+                      </Link>{' '}
+                      öffnen, um etwas zu laden.
+                    </Trans>
+                  </Panel>
+                ))}
+              <div className="flex flex-col gap-3">
+                {active.map((d) => (
+                  <DownloadRow
+                    key={d.id}
+                    d={d}
+                    meta={meta}
+                    watches={watches}
+                    variant={d === hero ? 'hero' : 'row'}
+                    selected={selected.has(d.id)}
+                    onSelect={(shift) => selectRow(d.id, shift)}
+                    onAction={(verb) => action.mutate({ id: d.id, verb })}
+                  />
                 ))}
               </div>
-            )}
-            {!isLoading &&
-              active.length === 0 &&
-              (filtering ? (
-                <EmptyState>{t('dash.noMatches')}</EmptyState>
-              ) : (
-                // idle is the normal state, and it must not cost a screen: one
-                // line with the way to the next download, not a tall blank
-                <Panel className="p-3 text-sm text-t-muted">
-                  <Trans i18nKey="dash.idle">
-                    Nichts wird übertragen. <Link to="/files" className="text-accent underline">Dateien</Link> öffnen, um etwas zu laden.
-                  </Trans>
-                </Panel>
-              ))}
-            <div className="flex flex-col gap-3">
-              {active.map((d) => (
-                <DownloadRow
-                  key={d.id}
-                  d={d}
-                  meta={meta}
-                  watches={watches}
-                  variant={d === hero ? 'hero' : 'row'}
-                  selected={selected.has(d.id)}
-                  onSelect={(shift) => selectRow(d.id, shift)}
-                  onAction={(verb) => action.mutate({ id: d.id, verb })}
-                />
-              ))}
-            </div>
             </>
-            )}
-          </section>
+          )}
+        </section>
 
-          {finishedAll.length > 0 && (
-            <section aria-label={t('dash.finishedSection')} className="order-3 min-w-0 lg:col-start-1 lg:row-start-2">
-              <FoldHeader icon={null} label={t('dash.history')} count={finished.length} open={historyOpen} onToggle={toggleHistory} />
-              {historyOpen && (
-                <>
-                  <Toolbar className="mb-2">
-                    <input
-                      ref={historyAllRef}
-                      type="checkbox"
-                      title={t('dash.selectAll')}
-                      aria-label={t('dash.selectAll')}
-                      checked={allHistorySelected}
-                      onChange={() => toggleSection(historyIds, allHistorySelected)}
-                    />
-                    <Input
-                      className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
-                      type="search"
-                      placeholder={phone ? t('dash.searchShort') : t('dash.search')}
-                      aria-label={t('dash.search')}
-                      value={historyQuery}
-                      onChange={(e) => setHistoryQuery(e.target.value)}
-                    />
-                    {/* one select on a phone, so the filter shares the row
+        {finishedAll.length > 0 && (
+          <section aria-label={t('dash.finishedSection')} className="order-3 min-w-0 lg:col-start-1 lg:row-start-2">
+            <FoldHeader
+              icon={null}
+              label={t('dash.history')}
+              count={finished.length}
+              open={historyOpen}
+              onToggle={toggleHistory}
+            />
+            {historyOpen && (
+              <>
+                <Toolbar className="mb-2">
+                  <input
+                    ref={historyAllRef}
+                    type="checkbox"
+                    title={t('dash.selectAll')}
+                    aria-label={t('dash.selectAll')}
+                    checked={allHistorySelected}
+                    onChange={() => toggleSection(historyIds, allHistorySelected)}
+                  />
+                  <Input
+                    className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
+                    type="search"
+                    placeholder={phone ? t('dash.searchShort') : t('dash.search')}
+                    aria-label={t('dash.search')}
+                    value={historyQuery}
+                    onChange={(e) => setHistoryQuery(e.target.value)}
+                  />
+                  {/* one select on a phone, so the filter shares the row
                         with the search instead of taking a second one as
                         three chips. Single choice there: the chips' multi
                         select is a desktop nicety, not something the phone
                         row has room for */}
-                    <Select
-                      size="sm"
-                      // important: .t-select-wrap sets display outside the
-                      // utilities layer and would win over a plain sm:hidden
-                      wrapperClassName="sm:hidden!"
-                      aria-label={t('dash.filterStatus')}
-                      value={statusFilter.size === 1 ? [...statusFilter][0] : ''}
-                      onChange={(e) => setStatusFilter(e.target.value ? new Set([e.target.value as Download['status']]) : new Set())}
-                    >
-                      <option value="">{t('dash.filterAll')}</option>
-                      {HISTORY_STATUSES.map((st) => (
-                        <option key={st} value={st}>
-                          {t(`status.${st}`)}
-                        </option>
-                      ))}
-                    </Select>
-                    {/* toggle chips: <Badge> renders a span, these have to stay
+                  <Select
+                    size="sm"
+                    // important: .t-select-wrap sets display outside the
+                    // utilities layer and would win over a plain sm:hidden
+                    wrapperClassName="sm:hidden!"
+                    aria-label={t('dash.filterStatus')}
+                    value={statusFilter.size === 1 ? [...statusFilter][0] : ''}
+                    onChange={(e) =>
+                      setStatusFilter(e.target.value ? new Set([e.target.value as Download['status']]) : new Set())
+                    }
+                  >
+                    <option value="">{t('dash.filterAll')}</option>
+                    {HISTORY_STATUSES.map((st) => (
+                      <option key={st} value={st}>
+                        {t(`status.${st}`)}
+                      </option>
+                    ))}
+                  </Select>
+                  {/* toggle chips: <Badge> renders a span, these have to stay
                         buttons with aria-pressed - kept hand-written */}
-                    <div role="group" aria-label={t('dash.filterStatus')} className="hidden flex-wrap items-center gap-1 sm:flex">
-                      {HISTORY_STATUSES.map((st) => {
-                        const Icon = STATUS_ICON[st]
-                        return (
-                          <button
-                            key={st}
-                            aria-pressed={statusFilter.has(st)}
-                            className={`t-label cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
-                            onClick={() => toggleStatus(st)}
-                          >
-                            <Icon aria-hidden size="1em" />
-                            {t(`status.${st}`)}
-                          </button>
-                        )
-                      })}
-                      {historyFiltering && (
+                  <div
+                    role="group"
+                    aria-label={t('dash.filterStatus')}
+                    className="hidden flex-wrap items-center gap-1 sm:flex"
+                  >
+                    {HISTORY_STATUSES.map((st) => {
+                      const Icon = STATUS_ICON[st]
+                      return (
                         <button
-                          className="t-label cursor-pointer hover:text-accent"
-                          onClick={() => {
-                            setHistoryQuery('')
-                            setStatusFilter(new Set())
-                          }}
+                          key={st}
+                          aria-pressed={statusFilter.has(st)}
+                          className={`t-label cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
+                          onClick={() => toggleStatus(st)}
                         >
-                          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                          {t('dash.filterClear')}
+                          <Icon aria-hidden size="1em" />
+                          {t(`status.${st}`)}
                         </button>
-                      )}
-                    </div>
-                    {/* clears what the search and status filter currently
+                      )
+                    })}
+                    {historyFiltering && (
+                      <button
+                        className="t-label cursor-pointer hover:text-accent"
+                        onClick={() => {
+                          setHistoryQuery('')
+                          setStatusFilter(new Set())
+                        }}
+                      >
+                        <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('dash.filterClear')}
+                      </button>
+                    )}
+                  </div>
+                  {/* clears what the search and status filter currently
                         match, so one button covers "everything" and "only the
                         failed ones". Disabled on an empty match: the bulk
                         endpoint reads an empty id list as "all of it" */}
-                    <Toolbar className="ml-auto">
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        aria-label={t('dash.clearHistory')}
-                        title={t('dash.clearHistory')}
-                        disabled={bulk.isPending || historyIds.length === 0}
-                        onClick={async () => {
-                          if (
-                            await confirm({
-                              message: t('dash.clearHistoryConfirm', { count: historyIds.length }),
-                              destructive: true,
-                            })
-                          )
-                            bulk.mutate({ a: 'delete', ids: historyIds })
-                        }}
-                      >
-                        <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                        <span className="hidden sm:inline">{t('dash.clearHistory')}</span>
-                      </Button>
-                    </Toolbar>
+                  <Toolbar className="ml-auto">
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      aria-label={t('dash.clearHistory')}
+                      title={t('dash.clearHistory')}
+                      disabled={bulk.isPending || historyIds.length === 0}
+                      onClick={async () => {
+                        if (
+                          await confirm({
+                            message: t('dash.clearHistoryConfirm', { count: historyIds.length }),
+                            destructive: true,
+                          })
+                        )
+                          bulk.mutate({ a: 'delete', ids: historyIds })
+                      }}
+                    >
+                      <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                      <span className="hidden sm:inline">{t('dash.clearHistory')}</span>
+                    </Button>
                   </Toolbar>
-                  {/* not <EmptyState>: this one is the compact p-6/text-sm
+                </Toolbar>
+                {/* not <EmptyState>: this one is the compact p-6/text-sm
                       variant, and its padding must not be overridden */}
-                  {finished.length === 0 && historyFiltering && (
-                    <Panel className="p-6 text-center text-sm text-t-muted">{t('dash.noMatches')}</Panel>
-                  )}
-                  {/* one bracketed block with hairlines between the rows,
+                {finished.length === 0 && historyFiltering && (
+                  <Panel className="p-6 text-center text-sm text-t-muted">{t('dash.noMatches')}</Panel>
+                )}
+                {/* one bracketed block with hairlines between the rows,
                       the sync summary's recipe: twenty bordered cards under
                       each other read as twenty boxes, not as a list */}
-                  <Panel className="mt-2">
-                    <ul className="divide-y divide-border-subtle">
-                      {(() => {
+                <Panel className="mt-2">
+                  <ul className="divide-y divide-border-subtle">
+                    {(() => {
                       // One unwritable directory fails every episode of a
                       // season, so the same explanation would repeat down the
                       // whole list - hundreds of pixels saying one thing. Spell
@@ -601,39 +669,52 @@ export default function Dashboard() {
                         )
                       })
                     })()}
-                    </ul>
-                  </Panel>
-                  {finished.length > finishedShown.length && (
-                    <Button size="sm" className="mt-3" onClick={() => setShowAllHistory(true)}>
-                      {t('dash.showAllHistory', { count: finished.length })}
-                    </Button>
-                  )}
-                </>
-              )}
-            </section>
-          )}
-          {/* the selection's actions while rows are selected: the shell's footer
+                  </ul>
+                </Panel>
+                {finished.length > finishedShown.length && (
+                  <Button size="sm" className="mt-3" onClick={() => setShowAllHistory(true)}>
+                    {t('dash.showAllHistory', { count: finished.length })}
+                  </Button>
+                )}
+              </>
+            )}
+          </section>
+        )}
+        {/* the selection's actions while rows are selected: the shell's footer
               row above the tab bar on a phone, a floating toolbar at the foot
               of the viewport on desktop. Inside the queue column, not under the
               whole grid: the summary column is usually the taller one, and the
               bar sat at its foot with a screen's worth of nothing between it
               and the rows */}
-          {selected.size > 0 && (
-            <div className="order-4 lg:col-start-1">
+        {selected.size > 0 && (
+          <div className="order-4 lg:col-start-1">
             <PageFooter>
               <ActionBar aria-label={t('dash.selectionActions')} floating>
                 <Badge tone="accent">{t('dash.selectedCount', { count: selected.size })}</Badge>
                 {activeSelected.length > 0 && (
                   <>
-                    <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}>
+                    <Button
+                      size="sm"
+                      disabled={bulk.isPending}
+                      onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}
+                    >
                       <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('dash.pause')}
                     </Button>
-                    <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}>
+                    <Button
+                      size="sm"
+                      disabled={bulk.isPending}
+                      onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}
+                    >
                       <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('dash.resume')}
                     </Button>
-                    <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={bulk.isPending}
+                      onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}
+                    >
                       <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('dash.cancel')}
                     </Button>
@@ -641,11 +722,20 @@ export default function Dashboard() {
                 )}
                 {historySelected.length > 0 && (
                   <>
-                    <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}>
+                    <Button
+                      size="sm"
+                      disabled={bulk.isPending}
+                      onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}
+                    >
                       <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('dash.retry')}
                     </Button>
-                    <Button size="sm" variant="danger" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={bulk.isPending}
+                      onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}
+                    >
                       <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       {t('dash.removeSelected')}
                     </Button>
@@ -657,8 +747,8 @@ export default function Dashboard() {
                 </Button>
               </ActionBar>
             </PageFooter>
-            </div>
-          )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -679,7 +769,8 @@ function SpeedPanel({ downloads }: { downloads: Download[] }) {
   // the mean of the last ten seconds, not the instant: a burst would swing
   // the arrival by hours. Nothing while it is still zero
   const avg = avgSpeed(10)
-  const age = (s: number) => (s === 0 ? t('dash.chartEnd') : t('dash.chartAgo', { m: Math.floor(s / 60), s: String(s % 60).padStart(2, '0') }))
+  const age = (s: number) =>
+    s === 0 ? t('dash.chartEnd') : t('dash.chartAgo', { m: Math.floor(s / 60), s: String(s % 60).padStart(2, '0') })
   return (
     <div className="flex flex-col gap-3">
       <Panel className="px-3 py-2 text-accent sm:px-4">
@@ -710,7 +801,13 @@ function SpeedPanel({ downloads }: { downloads: Download[] }) {
 
 // what a watch hands the title card: its record, and itself as the watch to
 // list first
-const seriesTarget = (w: Watch) => ({ source: w.mediaSource, id: w.media!.id, media: w.media, watchId: w.id, title: w.titleOverride || undefined })
+const seriesTarget = (w: Watch) => ({
+  source: w.mediaSource,
+  id: w.media!.id,
+  media: w.media,
+  watchId: w.id,
+  title: w.titleOverride || undefined,
+})
 
 // The next releases the providers know of, for the coming week: the reason
 // to open the app between downloads, two taps closer than the calendar. The
@@ -723,7 +820,8 @@ function UpNext({ watches }: { watches: Watch[] }) {
   const all = upcomingAirings(watches, now, 7).filter((e) => e.at * 1000 >= now - 86_400_000)
   const firstAhead = all.findIndex((e) => e.at * 1000 > now)
   const events = firstAhead < 0 ? all : all.slice(0, firstAhead + 5)
-  const when = (ts: number) => new Date(ts * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+  const when = (ts: number) =>
+    new Date(ts * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
   const [open, toggle] = useFold('upnext')
   // a tap on an entry opens the title's card, the same one the catalog shows
   const { open: openSeries } = useSeriesModal()
@@ -784,78 +882,95 @@ function Attention({ watches }: { watches: Watch[] }) {
   const shown = needy.slice(0, 5)
   return (
     <section aria-label={t('dash.attention')}>
-      <FoldHeader className="mb-2" icon={<Eye aria-hidden size="1em" />} label={t('dash.attention')} count={needy.length} open={open} onToggle={toggle} />
+      <FoldHeader
+        className="mb-2"
+        icon={<Eye aria-hidden size="1em" />}
+        label={t('dash.attention')}
+        count={needy.length}
+        open={open}
+        onToggle={toggle}
+      />
       {open && (
-      <>
-      <Panel>
-          <ul className="divide-y divide-border-subtle">
-            {shown.map((w) => (
-              // the cover is its own button beside the link, not inside it: a
-              // button in an anchor is not HTML, and the two lead to different
-              // places - the card here, the list there
-              <li key={w.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-                {w.media?.coverImage?.large && (
-                  <button type="button" aria-label={t('remote.detailsFor', { name: watchTitle(w) })} onClick={() => openSeries(seriesTarget(w))} className="shrink-0 cursor-pointer rounded-xs">
-                    <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />
-                  </button>
-                )}
-                {/* title above, chips below and wrapping: side by side the
+        <>
+          <Panel>
+            <ul className="divide-y divide-border-subtle">
+              {shown.map((w) => (
+                // the cover is its own button beside the link, not inside it: a
+                // button in an anchor is not HTML, and the two lead to different
+                // places - the card here, the list there
+                <li key={w.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  {w.media?.coverImage?.large && (
+                    <button
+                      type="button"
+                      aria-label={t('remote.detailsFor', { name: watchTitle(w) })}
+                      onClick={() => openSeries(seriesTarget(w))}
+                      className="shrink-0 cursor-pointer rounded-xs"
+                    >
+                      <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />
+                    </button>
+                  )}
+                  {/* title above, chips below and wrapping: side by side the
                     failed-check chip alone is wider than the aside column and
                     left the title no room at all */}
-                <Link to="/watches" className="min-w-0 flex-1 hover:underline">
-                  <span className="block truncate text-t-secondary" title={w.remotePath}>
-                    {watchTitle(w)}
-                  </span>
-                  <span className="mt-1 flex flex-wrap gap-1">
-                  {/* compact chips: icon + count only, the column is too narrow
+                  <Link to="/watches" className="min-w-0 flex-1 hover:underline">
+                    <span className="block truncate text-t-secondary" title={w.remotePath}>
+                      {watchTitle(w)}
+                    </span>
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      {/* compact chips: icon + count only, the column is too narrow
                       for the sentences - they live in the tooltip */}
-                  {(w.behind ?? 0) > 0 && (
-                    <Badge tone="warn" className="shrink-0" title={t('watch.behind', { count: w.behind })}>
-                      <Clock aria-hidden size="1em" />
-                      {w.behind}
-                    </Badge>
-                  )}
-                  {(w.missing?.length ?? 0) > 0 && (
-                    <Badge
-                      tone="err"
-                      className="shrink-0"
-                      title={`${t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })} (${w.missing!.join(', ')})`}
-                    >
-                      <TriangleAlert aria-hidden size="1em" />
-                      {w.missing!.length}
-                    </Badge>
-                  )}
-                  {(w.langWaiting ?? 0) > 0 && (
-                    <Badge
-                      tone="warn"
-                      className="shrink-0"
-                      title={t('watch.langWaiting', {
-                        count: w.langWaiting,
-                        lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
-                      })}
-                    >
-                      <Clock aria-hidden size="1em" />
-                      {w.langWaiting}
-                    </Badge>
-                  )}
-                  {w.lastResult !== '' && (
-                    <Badge tone="err" className="shrink-0" title={w.lastResult}>
-                      <X aria-hidden size="1em" />
-                      {t('dash.checkFailed')}
-                    </Badge>
-                  )}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      {needy.length > shown.length && (
-        <Link to="/watches" className="mt-2 inline-flex min-h-6 items-center text-[11px] text-accent hover:underline">
-          {t('dash.attentionMore', { count: needy.length - shown.length })}
-        </Link>
-      )}
-      </>
+                      {(w.behind ?? 0) > 0 && (
+                        <Badge tone="warn" className="shrink-0" title={t('watch.behind', { count: w.behind })}>
+                          <Clock aria-hidden size="1em" />
+                          {w.behind}
+                        </Badge>
+                      )}
+                      {(w.missing?.length ?? 0) > 0 && (
+                        <Badge
+                          tone="err"
+                          className="shrink-0"
+                          title={`${t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })} (${w.missing!.join(', ')})`}
+                        >
+                          <TriangleAlert aria-hidden size="1em" />
+                          {w.missing!.length}
+                        </Badge>
+                      )}
+                      {(w.langWaiting ?? 0) > 0 && (
+                        <Badge
+                          tone="warn"
+                          className="shrink-0"
+                          title={t('watch.langWaiting', {
+                            count: w.langWaiting,
+                            lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`]
+                              .filter(Boolean)
+                              .join('/'),
+                          })}
+                        >
+                          <Clock aria-hidden size="1em" />
+                          {w.langWaiting}
+                        </Badge>
+                      )}
+                      {w.lastResult !== '' && (
+                        <Badge tone="err" className="shrink-0" title={w.lastResult}>
+                          <X aria-hidden size="1em" />
+                          {t('dash.checkFailed')}
+                        </Badge>
+                      )}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+          {needy.length > shown.length && (
+            <Link
+              to="/watches"
+              className="mt-2 inline-flex min-h-6 items-center text-[11px] text-accent hover:underline"
+            >
+              {t('dash.attentionMore', { count: needy.length - shown.length })}
+            </Link>
+          )}
+        </>
       )}
     </section>
   )
@@ -889,43 +1004,45 @@ function StorageTile() {
         open={open}
         onToggle={toggle}
       />
-    {open && (
-    <Panel className="px-3 sm:px-4">
-      <ul className="divide-y divide-border-subtle">
-        {disks.map((disk) => {
-          const pct = (disk.usedBytes / disk.totalBytes) * 100
-          return (
-            <li key={disk.path} className="py-2">
-              <p className="truncate font-mono text-[11px] text-t-muted" title={disk.path}>
-                {disk.path}
-              </p>
-              {/* the other roots on the same drive, so a Plex library under
+      {open && (
+        <Panel className="px-3 sm:px-4">
+          <ul className="divide-y divide-border-subtle">
+            {disks.map((disk) => {
+              const pct = (disk.usedBytes / disk.totalBytes) * 100
+              return (
+                <li key={disk.path} className="py-2">
+                  <p className="truncate font-mono text-[11px] text-t-muted" title={disk.path}>
+                    {disk.path}
+                  </p>
+                  {/* the other roots on the same drive, so a Plex library under
                   a mount reads as part of that drive, not as one of its own */}
-              {disk.paths?.map((p) => (
-                <p key={p} className="truncate font-mono text-[11px] text-t-faint" title={p}>
-                  <span aria-hidden>└ </span>
-                  {p}
-                </p>
-              ))}
-              <div className="flex items-end gap-3">
-                <p className="min-w-0 flex-1 truncate font-mono text-lg text-t-primary tabular-nums">
-                  {t('dash.storageFree', { size: fmtBytes(disk.freeBytes) })}
-                </p>
-                <Progress
-                  value={pct}
-                  tone={pct >= 95 ? 'err' : pct >= 85 ? 'warn' : 'ok'}
-                  size="sm"
-                  label={t('dash.storageUsed', { path: disk.path, pct: Math.round(pct) })}
-                  className="mb-2 w-20"
-                />
-              </div>
-              <p className="text-[11px] text-t-muted">{t('dash.storageOf', { used: fmtBytes(disk.usedBytes), total: fmtBytes(disk.totalBytes) })}</p>
-            </li>
-          )
-        })}
-      </ul>
-    </Panel>
-    )}
+                  {disk.paths?.map((p) => (
+                    <p key={p} className="truncate font-mono text-[11px] text-t-faint" title={p}>
+                      <span aria-hidden>└ </span>
+                      {p}
+                    </p>
+                  ))}
+                  <div className="flex items-end gap-3">
+                    <p className="min-w-0 flex-1 truncate font-mono text-lg text-t-primary tabular-nums">
+                      {t('dash.storageFree', { size: fmtBytes(disk.freeBytes) })}
+                    </p>
+                    <Progress
+                      value={pct}
+                      tone={pct >= 95 ? 'err' : pct >= 85 ? 'warn' : 'ok'}
+                      size="sm"
+                      label={t('dash.storageUsed', { path: disk.path, pct: Math.round(pct) })}
+                      className="mb-2 w-20"
+                    />
+                  </div>
+                  <p className="text-[11px] text-t-muted">
+                    {t('dash.storageOf', { used: fmtBytes(disk.usedBytes), total: fmtBytes(disk.totalBytes) })}
+                  </p>
+                </li>
+              )
+            })}
+          </ul>
+        </Panel>
+      )}
     </section>
   )
 }
@@ -974,7 +1091,15 @@ function BackgroundWork() {
 export function StatusChip({ status }: { status: Download['status'] }) {
   const { t } = useTranslation()
   const tone: BadgeTone =
-    status === 'done' ? 'ok' : status === 'error' ? 'err' : status === 'running' ? 'accent' : status === 'paused' ? 'warn' : 'neutral'
+    status === 'done'
+      ? 'ok'
+      : status === 'error'
+        ? 'err'
+        : status === 'running'
+          ? 'accent'
+          : status === 'paused'
+            ? 'warn'
+            : 'neutral'
   const Icon = STATUS_ICON[status]
   return (
     <Badge tone={tone}>
@@ -988,7 +1113,15 @@ export function StatusChip({ status }: { status: Download['status'] }) {
 // the parent), Space works natively via the checkbox semantics. The label
 // pads the hit area out to 40px without moving anything: the negative margin
 // gives the padding back, so the visible box stays the 24px it is.
-function SelectBox({ checked, name, onSelect }: { checked: boolean; name: string; onSelect: (shift: boolean) => void }) {
+function SelectBox({
+  checked,
+  name,
+  onSelect,
+}: {
+  checked: boolean
+  name: string
+  onSelect: (shift: boolean) => void
+}) {
   const { t } = useTranslation()
   return (
     <label className="-m-2 flex shrink-0 p-2">
@@ -1051,7 +1184,13 @@ function PathLink({ path, to }: { path: string; to: string }) {
 function DetailsToggle({ open, name, onToggle }: { open: boolean; name: string; onToggle: () => void }) {
   const { t } = useTranslation()
   return (
-    <Button size="sm" className="aspect-square px-0!" aria-expanded={open} aria-label={t('dash.details', { name })} onClick={onToggle}>
+    <Button
+      size="sm"
+      className="aspect-square px-0!"
+      aria-expanded={open}
+      aria-label={t('dash.details', { name })}
+      onClick={onToggle}
+    >
       {open ? <ChevronDown aria-hidden size="1.2em" /> : <ChevronRight aria-hidden size="1.2em" />}
     </Button>
   )
@@ -1126,7 +1265,9 @@ function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
               <FolderOpen aria-hidden size="1em" />
               {t('dash.openShow')}
             </Link>
-            {group?.providers && group.providers.length > 0 && <ProviderBadges providers={group.providers} links={group.links} />}
+            {group?.providers && group.providers.length > 0 && (
+              <ProviderBadges providers={group.providers} links={group.links} />
+            )}
           </dd>
         </div>
       </dl>
@@ -1162,7 +1303,9 @@ function DownloadRow({
   const media = variant === 'hero' ? watch?.media : undefined
   const { open: openSeries } = useSeriesModal()
   const about = media
-    ? [media.seasonYear || null, media.studios?.[0], media.averageScore ? `${media.averageScore} %` : null].filter(Boolean).join(' · ')
+    ? [media.seasonYear || null, media.studios?.[0], media.averageScore ? `${media.averageScore} %` : null]
+        .filter(Boolean)
+        .join(' · ')
     : undefined
   // the arrival, from the backend's own smoothed rate; nothing while the
   // rate is still zero, a division by that is not a time
@@ -1171,7 +1314,11 @@ function DownloadRow({
   // phone breaks the line, and "26.7 / KiB/s" split across two is not a
   // rate. The separators sit between the pieces, not inside them - inside,
   // the whole line was one unbreakable run and ran off the card
-  const stats = [`${fmtBytes(d.transferred)} / ${fmtBytes(d.size)}`, running && d.bytesPerSec != null ? fmtSpeed(d.bytesPerSec) : null, eta]
+  const stats = [
+    `${fmtBytes(d.transferred)} / ${fmtBytes(d.size)}`,
+    running && d.bytesPerSec != null ? fmtSpeed(d.bytesPerSec) : null,
+    eta,
+  ]
     .filter(Boolean)
     .flatMap((part, i) => [
       i > 0 ? (
@@ -1300,7 +1447,12 @@ function HistoryRow({
             hatched placeholder on every unmatched row would be noise */}
         {group?.cover ? (
           onCover ? (
-            <button type="button" aria-label={coverLabel} onClick={onCover} className="shrink-0 cursor-pointer rounded-xs">
+            <button
+              type="button"
+              aria-label={coverLabel}
+              onClick={onCover}
+              className="shrink-0 cursor-pointer rounded-xs"
+            >
               <Cover src={group.cover} size="sm" loading="lazy" />
             </button>
           ) : (
@@ -1311,7 +1463,12 @@ function HistoryRow({
         )}
         {/* no aria-label: the visible title and meta line are the button's
             name, aria-expanded says what it does */}
-        <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+        >
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm text-t-primary" title={d.remotePath}>
               {label}
@@ -1361,7 +1518,12 @@ function HistoryRow({
                 {t('dash.retry')}
               </Button>
             )}
-            <Button size="sm" variant="danger" aria-label={t('dash.remove', { id: d.id })} onClick={() => onAction('delete')}>
+            <Button
+              size="sm"
+              variant="danger"
+              aria-label={t('dash.remove', { id: d.id })}
+              onClick={() => onAction('delete')}
+            >
               <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {t('dash.removeSelected')}
             </Button>

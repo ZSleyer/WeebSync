@@ -86,7 +86,9 @@ export default function Look() {
                 >
                   {accent === a && <Check size="1.1em" strokeWidth={3} className="text-bg-primary" />}
                 </span>
-                <span className="text-[11px] text-t-muted peer-checked:text-t-primary">{t(`settings.accents.${a}`)}</span>
+                <span className="text-[11px] text-t-muted peer-checked:text-t-primary">
+                  {t(`settings.accents.${a}`)}
+                </span>
               </label>
             ))}
           </div>

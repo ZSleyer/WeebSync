@@ -31,7 +31,13 @@ export default function SourcePicker({
   // a server draws its own picture when it picked one, the plain server
   // otherwise; the local library always draws the drive
   const mark = (s: ServerInfo | undefined, local: boolean) =>
-    local ? <HardDrive aria-hidden size="1em" className="shrink-0" /> : s?.icon ? <ServerIcon name={s.icon} aria-hidden size="1em" className="shrink-0" /> : <Server aria-hidden size="1em" className="shrink-0" />
+    local ? (
+      <HardDrive aria-hidden size="1em" className="shrink-0" />
+    ) : s?.icon ? (
+      <ServerIcon name={s.icon} aria-hidden size="1em" className="shrink-0" />
+    ) : (
+      <Server aria-hidden size="1em" className="shrink-0" />
+    )
 
   const pick = (s: Source) => {
     onChange(s)

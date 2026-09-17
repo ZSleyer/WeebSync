@@ -28,11 +28,13 @@ import i18n from '../../locales'
 export const ROW_GRID =
   'grid grid-cols-[minmax(10rem,1fr)_auto] items-center gap-x-4 gap-y-1 border-b border-border-subtle text-sm'
 export const CELL_LEFT = 'col-span-full flex min-w-0 flex-wrap items-center gap-2 md:col-span-1'
-export const CELL_RIGHT = 'col-span-full flex flex-wrap items-center justify-end gap-2 md:col-span-1 md:justify-self-end'
+export const CELL_RIGHT =
+  'col-span-full flex flex-wrap items-center justify-end gap-2 md:col-span-1 md:justify-self-end'
 export const NUM = 'text-right font-mono text-xs tabular-nums text-t-muted'
 export const NUMEDIT_GRID = 'grid grid-cols-[auto_5rem] items-center gap-x-2 gap-y-1'
 // extra utilities handed to <Badge>, which supplies the chip base itself
-export const COUNT_BADGE = 'min-h-6 min-w-28 shrink-0 justify-center px-2.5 tabular-nums [@media(pointer:coarse)]:min-h-8'
+export const COUNT_BADGE =
+  'min-h-6 min-w-28 shrink-0 justify-center px-2.5 tabular-nums [@media(pointer:coarse)]:min-h-8'
 
 // Pinned contract with the admin endpoints (Workstream A) - keep in sync.
 

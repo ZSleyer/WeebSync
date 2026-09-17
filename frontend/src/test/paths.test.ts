@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 import type { Entry } from '../api'
 import { suggestDirs, trimSlashes } from '../components/PathInput'
 import { isSeasonFolder } from '../components/RenameOptions'
-import { classifyTargets, pinSeason, seasonInPath, subfolderTargetDir, syncRequestPath, syncTargetDir, titleFolder } from '../components/useTargetFolder'
+import {
+  classifyTargets,
+  pinSeason,
+  seasonInPath,
+  subfolderTargetDir,
+  syncRequestPath,
+  syncTargetDir,
+  titleFolder,
+} from '../components/useTargetFolder'
 
 const dir = (name: string): Entry => ({ name, path: name, size: 0, isDir: true, modTime: '' })
 const file = (name: string): Entry => ({ ...dir(name), isDir: false })
@@ -84,7 +92,9 @@ describe('titleFolder', () => {
 
 describe('subfolderTargetDir', () => {
   it('names the folder after the title', () => {
-    expect(subfolderTargetDir('Anime', '/ftp/Meitantei Conan [GerSub]', 'title', 'Detective Conan', '_')).toBe('Anime/Detective_Conan')
+    expect(subfolderTargetDir('Anime', '/ftp/Meitantei Conan [GerSub]', 'title', 'Detective Conan', '_')).toBe(
+      'Anime/Detective_Conan',
+    )
   })
 
   it('falls back to the remote folder when no title is known', () => {
@@ -96,8 +106,12 @@ describe('subfolderTargetDir', () => {
   })
 
   it('puts the season folder under the title folder, spelled alike', () => {
-    expect(subfolderTargetDir('Anime', '/ftp/Frieren S02', 'title', 'Frieren', '', 'Season 02')).toBe('Anime/Frieren/Season 02')
-    expect(subfolderTargetDir('Anime', '/ftp/One Piece', 'title', 'One Piece', '_', 'Season 23')).toBe('Anime/One_Piece/Season_23')
+    expect(subfolderTargetDir('Anime', '/ftp/Frieren S02', 'title', 'Frieren', '', 'Season 02')).toBe(
+      'Anime/Frieren/Season 02',
+    )
+    expect(subfolderTargetDir('Anime', '/ftp/One Piece', 'title', 'One Piece', '_', 'Season 23')).toBe(
+      'Anime/One_Piece/Season_23',
+    )
     // the other modes name no season: the remote folder is the folder
     expect(subfolderTargetDir('Anime', '/ftp/Show S02', 'remote', 'Show', '', 'Season 02')).toBe('Anime/Show S02')
   })

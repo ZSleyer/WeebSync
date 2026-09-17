@@ -110,24 +110,58 @@ export default function Watches() {
   // list or grid, an inline switch like the calendar's week or list
   const [layout, setLayout] = usePersistedView('weebsync.watches.layout', ['list', 'grid'] as const, 'list', 'layout')
   // the calendar as a week, or as the plain list by day it used to be
-  const [calMode, setCalMode] = usePersistedView('weebsync.watches.calendar', ['week', 'agenda'] as const, 'week', 'cal')
+  const [calMode, setCalMode] = usePersistedView(
+    'weebsync.watches.calendar',
+    ['week', 'agenda'] as const,
+    'week',
+    'cal',
+  )
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
   // a tap on a calendar entry opens the title's card
   // the cover and a calendar entry open the app's one title card
   const { open: openSeries } = useSeriesModal()
-  const showSeries = (w: Watch, tab?: 'sync') => w.media && openSeries({ source: w.mediaSource, id: w.media.id, media: w.media, watchId: w.id, title: w.titleOverride || undefined, tab })
+  const showSeries = (w: Watch, tab?: 'sync') =>
+    w.media &&
+    openSeries({
+      source: w.mediaSource,
+      id: w.media.id,
+      media: w.media,
+      watchId: w.id,
+      title: w.titleOverride || undefined,
+      tab,
+    })
   // the gap list is the card's auto-sync tab; a watch without a record has no card
   const showGaps = (w: Watch) => showSeries(w, 'sync')
   // everything but "check now", for the desktop menu and the phone sheet alike
   const rowActions = (w: Watch): RowAction[] => [
     { key: 'edit', icon: <Pencil aria-hidden size="1em" />, label: t('servers.edit'), onClick: () => setEdit(w) },
     ...(w.plexAudioLang || w.plexSubLang
-      ? [{ key: 'plex', icon: <Languages aria-hidden size="1em" />, label: t('watch.plexApplyAll'), onClick: () => void applyPlexStreams(w.id) }]
+      ? [
+          {
+            key: 'plex',
+            icon: <Languages aria-hidden size="1em" />,
+            label: t('watch.plexApplyAll'),
+            onClick: () => void applyPlexStreams(w.id),
+          },
+        ]
       : []),
     ...((w.missing?.length ?? 0) > 0 && w.media
-      ? [{ key: 'gaps', icon: <TriangleAlert aria-hidden size="1em" />, label: t('watch.gapsAction'), onClick: () => showGaps(w) }]
+      ? [
+          {
+            key: 'gaps',
+            icon: <TriangleAlert aria-hidden size="1em" />,
+            label: t('watch.gapsAction'),
+            onClick: () => showGaps(w),
+          },
+        ]
       : []),
-    { key: 'delete', icon: <Trash2 aria-hidden size="1em" />, label: t('servers.delete'), onClick: () => void del(w), danger: true },
+    {
+      key: 'delete',
+      icon: <Trash2 aria-hidden size="1em" />,
+      label: t('servers.delete'),
+      onClick: () => void del(w),
+      danger: true,
+    },
   ]
   // the clock behind every countdown: a second while today's calendar
   // entries show seconds, a minute otherwise, so no countdown waits for a reload
@@ -177,10 +211,13 @@ export default function Watches() {
   // how long a folded-away stretch really was, in the roughest unit that still
   // says something: a quiet day reads "14 Std.", not "840 Min."
   const gapLabel = (minutes: number) =>
-    minutes >= 60 ? t('watch.week.gapHours', { h: Math.round(minutes / 60) }) : t('watch.week.gapMinutes', { m: Math.round(minutes) })
+    minutes >= 60
+      ? t('watch.week.gapHours', { h: Math.round(minutes / 60) })
+      : t('watch.week.gapMinutes', { m: Math.round(minutes) })
   // the agenda: every release still ahead, grouped by day, as far as the
   // providers date them - the week behind belongs to the calendar, not here
-  const calDayKey = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
+  const calDayKey = (ts: number) =>
+    new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
   const calGroups: { day: string; items: Airing[] }[] = []
   for (const e of calShown) {
     if (e.at * 1000 <= now) continue // an agenda of what is coming, not a log
@@ -204,7 +241,11 @@ export default function Watches() {
           time={
             // the JST hover lives on the text itself - CalendarEntry owns the <p> around it
             <span title={e.watch.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(e.at, 'Asia/Tokyo')} JST`}>
-              {new Date(e.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...(isToday(e.at) ? { second: '2-digit' } : {}) })}
+              {new Date(e.at * 1000).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                ...(isToday(e.at) ? { second: '2-digit' } : {}),
+              })}
             </span>
           }
           countdown={countdown(t, e.at, isToday(e.at), now)}
@@ -217,7 +258,13 @@ export default function Watches() {
 
   const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
   // outside-click + Escape come from the design system's menu hook
-  const { open: sortOpen, setOpen: setSortOpen, ref: sortRef, anchor: sortAnchor, anchorStyle: sortAnchorStyle } = useMenu()
+  const {
+    open: sortOpen,
+    setOpen: setSortOpen,
+    ref: sortRef,
+    anchor: sortAnchor,
+    anchorStyle: sortAnchorStyle,
+  } = useMenu()
   const SORT_OPTS = [
     { v: 'next', k: 'watch.sortNext' },
     { v: 'last', k: 'watch.sortLast' },
@@ -225,12 +272,16 @@ export default function Watches() {
     { v: 'season', k: 'watch.sortSeason' },
   ] as const
   const nextTs = (w: Watch) => (w.nextAiringAt ? w.nextAiringAt * 1000 : w.nextCheck * 1000)
-  const nameOf = (w: Watch) => (w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')).toLowerCase()
+  const nameOf = (w: Watch) =>
+    (w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')).toLowerCase()
   const seasonOf = (w: Watch) => Number(w.template.match(/S(\d+)E/i)?.[1] ?? 0)
   const sorted = [...watches].sort((a, b) => {
     switch (sort) {
       case 'last':
-        return (Date.parse(b.lastCheck.replace(' ', 'T') + 'Z') || 0) - (Date.parse(a.lastCheck.replace(' ', 'T') + 'Z') || 0)
+        return (
+          (Date.parse(b.lastCheck.replace(' ', 'T') + 'Z') || 0) -
+          (Date.parse(a.lastCheck.replace(' ', 'T') + 'Z') || 0)
+        )
       case 'name':
         return nameOf(a).localeCompare(nameOf(b))
       case 'season':
@@ -244,7 +295,9 @@ export default function Watches() {
   const groupOf = (w: Watch): 'syncing' | 'waiting' | 'idle' | 'complete' =>
     w.active > 0 ? 'syncing' : w.complete ? 'complete' : w.waiting ? 'waiting' : 'idle'
   const GROUP_ORDER = ['syncing', 'idle', 'waiting', 'complete'] as const
-  const grouped = GROUP_ORDER.map((g) => ({ g, items: sorted.filter((w) => groupOf(w) === g) })).filter((x) => x.items.length > 0)
+  const grouped = GROUP_ORDER.map((g) => ({ g, items: sorted.filter((w) => groupOf(w) === g) })).filter(
+    (x) => x.items.length > 0,
+  )
 
   return (
     <div>
@@ -334,8 +387,26 @@ export default function Watches() {
             value={layout}
             onChange={setLayout}
             options={[
-              { value: 'list', 'aria-label': t('watch.viewList'), label: <><List aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.viewList')}</span></> },
-              { value: 'grid', 'aria-label': t('watch.viewGrid'), label: <><LayoutGrid aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.viewGrid')}</span></> },
+              {
+                value: 'list',
+                'aria-label': t('watch.viewList'),
+                label: (
+                  <>
+                    <List aria-hidden size="1em" />
+                    <span className="ml-1 hidden sm:inline">{t('watch.viewList')}</span>
+                  </>
+                ),
+              },
+              {
+                value: 'grid',
+                'aria-label': t('watch.viewGrid'),
+                label: (
+                  <>
+                    <LayoutGrid aria-hidden size="1em" />
+                    <span className="ml-1 hidden sm:inline">{t('watch.viewGrid')}</span>
+                  </>
+                ),
+              },
             ]}
           />
         </div>
@@ -344,11 +415,24 @@ export default function Watches() {
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           {calCats.length > 1 && (
             <div role="group" aria-label={t('watch.calFilter')} className="mr-auto flex flex-wrap gap-1.5">
-              <Badge as="button" type="button" tone={calCat === 'all' ? 'accent' : 'neutral'} aria-pressed={calCat === 'all'} onClick={() => setCalCat('all')}>
+              <Badge
+                as="button"
+                type="button"
+                tone={calCat === 'all' ? 'accent' : 'neutral'}
+                aria-pressed={calCat === 'all'}
+                onClick={() => setCalCat('all')}
+              >
                 {t('watch.calAll')}
               </Badge>
               {calCats.map((c) => (
-                <Badge key={c} as="button" type="button" tone={calCat === c ? 'accent' : 'neutral'} aria-pressed={calCat === c} onClick={() => setCalCat(c)}>
+                <Badge
+                  key={c}
+                  as="button"
+                  type="button"
+                  tone={calCat === c ? 'accent' : 'neutral'}
+                  aria-pressed={calCat === c}
+                  onClick={() => setCalCat(c)}
+                >
                   {t(`watch.cat.${c}`)}
                 </Badge>
               ))}
@@ -359,8 +443,26 @@ export default function Watches() {
             value={calMode}
             onChange={setCalMode}
             options={[
-              { value: 'week', 'aria-label': t('watch.calWeek'), label: <><CalendarRange aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.calWeek')}</span></> },
-              { value: 'agenda', 'aria-label': t('watch.calAgenda'), label: <><List aria-hidden size="1em" /><span className="ml-1 hidden sm:inline">{t('watch.calAgenda')}</span></> },
+              {
+                value: 'week',
+                'aria-label': t('watch.calWeek'),
+                label: (
+                  <>
+                    <CalendarRange aria-hidden size="1em" />
+                    <span className="ml-1 hidden sm:inline">{t('watch.calWeek')}</span>
+                  </>
+                ),
+              },
+              {
+                value: 'agenda',
+                'aria-label': t('watch.calAgenda'),
+                label: (
+                  <>
+                    <List aria-hidden size="1em" />
+                    <span className="ml-1 hidden sm:inline">{t('watch.calAgenda')}</span>
+                  </>
+                ),
+              },
             ]}
           />
         </div>
@@ -382,7 +484,11 @@ export default function Watches() {
       ) : watches.length === 0 ? (
         <EmptyState>
           <Trans i18nKey="watch.empty">
-            In der <Link to="/files" className="text-accent underline">Remote</Link>-Ansicht einen Ordner auswählen und „Beobachten" klicken.
+            In der{' '}
+            <Link to="/files" className="text-accent underline">
+              Remote
+            </Link>
+            -Ansicht einen Ordner auswählen und „Beobachten" klicken.
           </Trans>
         </EmptyState>
       ) : view === 'calendar' ? (
@@ -418,7 +524,12 @@ export default function Watches() {
                 onPrev={dayIdx > -PAST_DAYS ? () => setDayIdx(Math.max(-PAST_DAYS, dayIdx - 7)) : undefined}
                 onNext={() => setDayIdx(dayIdx + 7)}
                 onToday={dayIdx !== 0 ? () => setDayIdx(0) : undefined}
-                labels={{ prev: t('watch.week.prev'), next: t('watch.week.next'), today: t('watch.week.today'), strip: t('watch.week.strip') }}
+                labels={{
+                  prev: t('watch.week.prev'),
+                  next: t('watch.week.next'),
+                  today: t('watch.week.today'),
+                  strip: t('watch.week.strip'),
+                }}
               />
               {/* the phone shows one day and pages days; the desktop grid
                   shows the picked day with three days either side and a drag
@@ -435,7 +546,11 @@ export default function Watches() {
                           <li className="text-sm text-t-muted">
                             {t('watch.week.free')}
                             {i === dayIdx && nextAfter && (
-                              <Button size="sm" className="ml-3" onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}>
+                              <Button
+                                size="sm"
+                                className="ml-3"
+                                onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}
+                              >
                                 {t('watch.week.jump')}
                               </Button>
                             )}
@@ -453,7 +568,9 @@ export default function Watches() {
                         <DayTimeline
                           entries={items.map((e) => ({ key: entryKey(e), at: e.at, node: entryBody(e) }))}
                           now={d.getTime() === today.getTime() ? now : undefined}
-                          nowLabel={t('watch.week.now', { time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
+                          nowLabel={t('watch.week.now', {
+                            time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                          })}
                           gapLabel={gapLabel}
                         />
                       </section>
@@ -467,7 +584,11 @@ export default function Watches() {
                       <EmptyState>
                         <p>{t('watch.week.empty')}</p>
                         {i === dayIdx && nextAfter && (
-                          <Button size="sm" className="mt-3" onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}>
+                          <Button
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}
+                          >
                             {t('watch.week.jump')}
                           </Button>
                         )}
@@ -482,10 +603,20 @@ export default function Watches() {
                           return (
                             <CalendarDay
                               key={k}
-                              className={k === selectedDay ? 'rounded-md outline-2 outline-offset-4 outline-accent/40' : d.getTime() < today.getTime() ? 'opacity-60' : undefined}
+                              className={
+                                k === selectedDay
+                                  ? 'rounded-md outline-2 outline-offset-4 outline-accent/40'
+                                  : d.getTime() < today.getTime()
+                                    ? 'opacity-60'
+                                    : undefined
+                              }
                               day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
                             >
-                              {items.length === 0 ? <li className="text-xs text-t-faint">{t('watch.week.free')}</li> : items.map((e) => entryOf(e, true))}
+                              {items.length === 0 ? (
+                                <li className="text-xs text-t-faint">{t('watch.week.free')}</li>
+                              ) : (
+                                items.map((e) => entryOf(e, true))
+                              )}
                             </CalendarDay>
                           )
                         })}
@@ -502,222 +633,240 @@ export default function Watches() {
           {grouped.map(({ g, items }) => {
             const GroupIcon = GROUP_ICON[g]
             return (
-            <section key={g}>
-              <Divider
-                className="mb-3"
-                label={
-                  <>
-                    <GroupIcon aria-hidden size="1em" />
-                    {t(`watch.group.${g}`)}
-                  </>
-                }
-                count={items.length}
-              />
-              {layout === 'grid' ? (
-                <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-                  {items.map((w) => (
-                    <li key={w.id} className="min-w-0">
-                      <WatchTile
-                        watch={w}
-                        onOpen={() => showSeries(w)}
-                        actions={
-                          <>
-                            {/* the same two actions the list row carries, as far
+              <section key={g}>
+                <Divider
+                  className="mb-3"
+                  label={
+                    <>
+                      <GroupIcon aria-hidden size="1em" />
+                      {t(`watch.group.${g}`)}
+                    </>
+                  }
+                  count={items.length}
+                />
+                {layout === 'grid' ? (
+                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
+                    {items.map((w) => (
+                      <li key={w.id} className="min-w-0">
+                        <WatchTile
+                          watch={w}
+                          onOpen={() => showSeries(w)}
+                          actions={
+                            <>
+                              {/* the same two actions the list row carries, as far
                                 as 140px of tile allows: the label rides along as
                                 the accessible name */}
-                            <IconButton
-                              aria-label={t('watch.checkNow')}
-                              title={t('watch.checkNow')}
-                              className="min-w-0! flex-1 border border-border-subtle"
-                              onClick={() => check(w.id)}
-                            >
-                              <RefreshCw aria-hidden size="1.1em" />
-                            </IconButton>
-                            {narrow ? (
                               <IconButton
-                                aria-label={t('watch.moreActions', { title: nameOf(w) })}
-                                aria-haspopup="dialog"
-                                className="min-w-0! border border-border-subtle"
-                                onClick={() => setMore(w)}
+                                aria-label={t('watch.checkNow')}
+                                title={t('watch.checkNow')}
+                                className="min-w-0! flex-1 border border-border-subtle"
+                                onClick={() => check(w.id)}
                               >
-                                <Ellipsis aria-hidden size="1.2em" />
+                                <RefreshCw aria-hidden size="1.1em" />
                               </IconButton>
-                            ) : (
-                              <RowMenu label={t('watch.moreActions', { title: nameOf(w) })} items={rowActions(w)} />
-                            )}
-                          </>
-                        }
-                      />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-              <ul className="grid grid-cols-1 gap-3">
-                {items.map((w) => (
-                  <li key={w.id}>
-                    <MediaCard
-                      cover={w.media?.coverImage?.large}
-                      onCover={w.media ? () => showSeries(w) : undefined}
-                      coverLabel={
-                        w.media ? t('remote.detailsFor', { name: w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '') }) : undefined
-                      }
-                      title={w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')}
-                      pathTitle={w.remotePath}
-                      path={
-                        <>
-                          {w.serverName}:{w.remotePath} → {w.localPath}
-                        </>
-                      }
-                      // the error text stays plain text rather than a chip
-                      // title: it is the one status that has to be readable in
-                      // full, and it can be a whole sentence long. Under it the
-                      // schedule and the counters as one caption: they are the
-                      // same on every watch, and a row of identical chips said
-                      // nothing a line of text does not
-                      meta={
-                        <>
-                          {w.lastResult && <span className="block text-err">{w.lastResult}</span>}
-                          <span className="block">
-                            {[
-                              t('watch.chipLast', { when: ago(w.lastCheck) }) + (!w.lastResult && w.lastQueued >= 0 ? ` (${t('watch.lastQueued', { count: w.lastQueued })})` : ''),
-                              w.checkAttempts
-                                ? t('watch.chipRetry', { n: w.checkAttempts, when: untilCheck(w.nextCheck) })
-                                : t('watch.chipNext', { when: untilCheck(w.nextCheck) }),
-                              (w.seenEpisodes ?? 0) > 0 ? t('watch.seen', { count: w.seenEpisodes }) : null,
-                              w.template || w.pattern ? t('watch.renamed') : null,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </span>
-                        </>
-                      }
-                      badges={
-                        <>
-                          {/* the upcoming episode leads the row: it is what the
+                              {narrow ? (
+                                <IconButton
+                                  aria-label={t('watch.moreActions', { title: nameOf(w) })}
+                                  aria-haspopup="dialog"
+                                  className="min-w-0! border border-border-subtle"
+                                  onClick={() => setMore(w)}
+                                >
+                                  <Ellipsis aria-hidden size="1.2em" />
+                                </IconButton>
+                              ) : (
+                                <RowMenu label={t('watch.moreActions', { title: nameOf(w) })} items={rowActions(w)} />
+                              )}
+                            </>
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <ul className="grid grid-cols-1 gap-3">
+                    {items.map((w) => (
+                      <li key={w.id}>
+                        <MediaCard
+                          cover={w.media?.coverImage?.large}
+                          onCover={w.media ? () => showSeries(w) : undefined}
+                          coverLabel={
+                            w.media
+                              ? t('remote.detailsFor', {
+                                  name: w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || ''),
+                                })
+                              : undefined
+                          }
+                          title={w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')}
+                          pathTitle={w.remotePath}
+                          path={
+                            <>
+                              {w.serverName}:{w.remotePath} → {w.localPath}
+                            </>
+                          }
+                          // the error text stays plain text rather than a chip
+                          // title: it is the one status that has to be readable in
+                          // full, and it can be a whole sentence long. Under it the
+                          // schedule and the counters as one caption: they are the
+                          // same on every watch, and a row of identical chips said
+                          // nothing a line of text does not
+                          meta={
+                            <>
+                              {w.lastResult && <span className="block text-err">{w.lastResult}</span>}
+                              <span className="block">
+                                {[
+                                  t('watch.chipLast', { when: ago(w.lastCheck) }) +
+                                    (!w.lastResult && w.lastQueued >= 0
+                                      ? ` (${t('watch.lastQueued', { count: w.lastQueued })})`
+                                      : ''),
+                                  w.checkAttempts
+                                    ? t('watch.chipRetry', { n: w.checkAttempts, when: untilCheck(w.nextCheck) })
+                                    : t('watch.chipNext', { when: untilCheck(w.nextCheck) }),
+                                  (w.seenEpisodes ?? 0) > 0 ? t('watch.seen', { count: w.seenEpisodes }) : null,
+                                  w.template || w.pattern ? t('watch.renamed') : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              </span>
+                            </>
+                          }
+                          badges={
+                            <>
+                              {/* the upcoming episode leads the row: it is what the
                               page is watched for. Number and date share one chip
                               so they cannot end up on separate lines. */}
-                          {!!w.nextAiringAt && (
-                            <Badge
-                              tone={w.behind ? 'warn' : 'ok'}
-                              size="sm"
-                              title={w.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`}
-                            >
-                              <CalendarDays aria-hidden size="1em" />
-                              {t('watch.chipEp', { n: w.nextEpisode })}
-                              {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''}
-                              {` · ${airFmtChip(w.nextAiringAt)}`}
-                            </Badge>
-                          )}
-                          {(w.behind ?? 0) > 0 && (
-                            <Badge tone="warn" size="sm">
-                              <Clock aria-hidden size="1em" />
-                              {t('watch.behind', { count: w.behind })}
-                            </Badge>
-                          )}
-                          {(w.missing?.length ?? 0) > 0 && (
-                            // the episode list is this badge's own detail view,
-                            // so the chip is the button that opens it - a span
-                            // with onClick would be unreachable by keyboard
-                            <Badge
-                              as="button"
-                              type="button"
-                              tone="err"
-                              size="sm"
-                              title={w.missing!.join(', ')}
-                              onClick={() => showGaps(w)}
-                            >
-                              <TriangleAlert aria-hidden size="1em" />
-                              {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
-                            </Badge>
-                          )}
-                          {(w.unsorted ?? 0) > 0 && (
-                            // not an error: the file is here, only its place is
-                            // still open until the provider lists the number
-                            <Badge tone="warn" size="sm" title={t('watch.unsortedHint')}>
-                              <FolderClock aria-hidden size="1em" />
-                              {t('watch.unsorted', { count: w.unsorted })}
-                            </Badge>
-                          )}
-                          {(w.langWaiting ?? 0) > 0 && (
-                            <Badge tone="warn" size="sm">
-                              <Clock aria-hidden size="1em" />
-                              {t('watch.langWaiting', {
-                                count: w.langWaiting,
-                                lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
-                              })}
-                            </Badge>
-                          )}
-                          {w.plexStreamMiss && (
-                            // the one setting that used to fail in total silence:
-                            // a language the files do not carry left Plex on its
-                            // own default and said nothing
-                            <Badge tone="warn" size="sm" title={t('watch.plexMissHint')}>
-                              <Languages aria-hidden size="1em" />
-                              {t('watch.plexMiss', {
-                                what: w.plexStreamMiss
-                                  .split(',')
-                                  .map((d) => t(d === 'audio' ? 'watch.plexAudio' : 'watch.plexSub'))
-                                  .join(', '),
-                              })}
-                            </Badge>
-                          )}
-                          {w.lastUploading > 0 && (
-                            <Badge tone="warn" size="sm">
-                              <Upload aria-hidden size="1em" />
-                              {t('watch.uploading')}
-                            </Badge>
-                          )}
-                          {w.active > 0 && (
-                            <Badge tone="accent" size="sm">
-                              <Download aria-hidden size="1em" />
-                              {t('watch.active', { count: w.active })}
-                            </Badge>
-                          )}
-                        </>
-                      }
-                      status={
-                        <>
-                          {w.media && w.media.episodes > 0 ? (
-                            <p className={w.complete ? 'text-ok' : 'text-t-secondary'}>
-                              {t('watch.episodes', { have: w.localFiles, total: w.media.episodes })}
-                            </p>
-                          ) : (
-                            <p className="text-t-secondary">{t('watch.files', { count: w.localFiles })}</p>
-                          )}
-                          {w.complete && (
-                            <p className="mt-1 text-ok" role="status">
-                              <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                              {t('watch.complete')}
-                            </p>
-                          )}
-                        </>
-                      }
-                      actions={
-                        <>
-                          <Button size="sm" className="flex-1 sm:flex-none" onClick={() => check(w.id)}>
-                            <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                            {t('watch.checkNow')}
-                          </Button>
-                          {narrow ? (
-                            <IconButton
-                              aria-label={t('watch.moreActions', { title: nameOf(w) })}
-                              aria-haspopup="dialog"
-                              className="min-w-0! border border-border-subtle"
-                              onClick={() => setMore(w)}
-                            >
-                              <Ellipsis aria-hidden size="1.2em" />
-                            </IconButton>
-                          ) : (
-                            <RowMenu label={t('watch.moreActions', { title: nameOf(w) })} items={rowActions(w)} />
-                          )}
-                        </>
-                      }
-                    />
-                  </li>
-                ))}
-              </ul>
-              )}
-            </section>
+                              {!!w.nextAiringAt && (
+                                <Badge
+                                  tone={w.behind ? 'warn' : 'ok'}
+                                  size="sm"
+                                  title={
+                                    w.mediaSource?.startsWith('tmdb')
+                                      ? undefined
+                                      : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`
+                                  }
+                                >
+                                  <CalendarDays aria-hidden size="1em" />
+                                  {t('watch.chipEp', { n: w.nextEpisode })}
+                                  {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode
+                                    ? ` (${w.nextEpisodeAbs})`
+                                    : ''}
+                                  {` · ${airFmtChip(w.nextAiringAt)}`}
+                                </Badge>
+                              )}
+                              {(w.behind ?? 0) > 0 && (
+                                <Badge tone="warn" size="sm">
+                                  <Clock aria-hidden size="1em" />
+                                  {t('watch.behind', { count: w.behind })}
+                                </Badge>
+                              )}
+                              {(w.missing?.length ?? 0) > 0 && (
+                                // the episode list is this badge's own detail view,
+                                // so the chip is the button that opens it - a span
+                                // with onClick would be unreachable by keyboard
+                                <Badge
+                                  as="button"
+                                  type="button"
+                                  tone="err"
+                                  size="sm"
+                                  title={w.missing!.join(', ')}
+                                  onClick={() => showGaps(w)}
+                                >
+                                  <TriangleAlert aria-hidden size="1em" />
+                                  {t('watch.missing', {
+                                    count: w.missing!.length,
+                                    eps: fmtMissing(w.missing!, w.offset),
+                                  })}
+                                </Badge>
+                              )}
+                              {(w.unsorted ?? 0) > 0 && (
+                                // not an error: the file is here, only its place is
+                                // still open until the provider lists the number
+                                <Badge tone="warn" size="sm" title={t('watch.unsortedHint')}>
+                                  <FolderClock aria-hidden size="1em" />
+                                  {t('watch.unsorted', { count: w.unsorted })}
+                                </Badge>
+                              )}
+                              {(w.langWaiting ?? 0) > 0 && (
+                                <Badge tone="warn" size="sm">
+                                  <Clock aria-hidden size="1em" />
+                                  {t('watch.langWaiting', {
+                                    count: w.langWaiting,
+                                    lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`]
+                                      .filter(Boolean)
+                                      .join('/'),
+                                  })}
+                                </Badge>
+                              )}
+                              {w.plexStreamMiss && (
+                                // the one setting that used to fail in total silence:
+                                // a language the files do not carry left Plex on its
+                                // own default and said nothing
+                                <Badge tone="warn" size="sm" title={t('watch.plexMissHint')}>
+                                  <Languages aria-hidden size="1em" />
+                                  {t('watch.plexMiss', {
+                                    what: w.plexStreamMiss
+                                      .split(',')
+                                      .map((d) => t(d === 'audio' ? 'watch.plexAudio' : 'watch.plexSub'))
+                                      .join(', '),
+                                  })}
+                                </Badge>
+                              )}
+                              {w.lastUploading > 0 && (
+                                <Badge tone="warn" size="sm">
+                                  <Upload aria-hidden size="1em" />
+                                  {t('watch.uploading')}
+                                </Badge>
+                              )}
+                              {w.active > 0 && (
+                                <Badge tone="accent" size="sm">
+                                  <Download aria-hidden size="1em" />
+                                  {t('watch.active', { count: w.active })}
+                                </Badge>
+                              )}
+                            </>
+                          }
+                          status={
+                            <>
+                              {w.media && w.media.episodes > 0 ? (
+                                <p className={w.complete ? 'text-ok' : 'text-t-secondary'}>
+                                  {t('watch.episodes', { have: w.localFiles, total: w.media.episodes })}
+                                </p>
+                              ) : (
+                                <p className="text-t-secondary">{t('watch.files', { count: w.localFiles })}</p>
+                              )}
+                              {w.complete && (
+                                <p className="mt-1 text-ok" role="status">
+                                  <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                                  {t('watch.complete')}
+                                </p>
+                              )}
+                            </>
+                          }
+                          actions={
+                            <>
+                              <Button size="sm" className="flex-1 sm:flex-none" onClick={() => check(w.id)}>
+                                <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                                {t('watch.checkNow')}
+                              </Button>
+                              {narrow ? (
+                                <IconButton
+                                  aria-label={t('watch.moreActions', { title: nameOf(w) })}
+                                  aria-haspopup="dialog"
+                                  className="min-w-0! border border-border-subtle"
+                                  onClick={() => setMore(w)}
+                                >
+                                  <Ellipsis aria-hidden size="1.2em" />
+                                </IconButton>
+                              ) : (
+                                <RowMenu label={t('watch.moreActions', { title: nameOf(w) })} items={rowActions(w)} />
+                              )}
+                            </>
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             )
           })}
         </div>
@@ -776,7 +925,13 @@ function RowMenu({ label, items }: { label: string; items: RowAction[] }) {
   const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   return (
     <div className="relative" ref={ref} style={anchorStyle}>
-      <IconButton aria-label={label} aria-haspopup="listbox" aria-expanded={open} className="border border-border-subtle" onClick={() => setOpen(!open)}>
+      <IconButton
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="border border-border-subtle"
+        onClick={() => setOpen(!open)}
+      >
         <Ellipsis aria-hidden size="1.2em" />
       </IconButton>
       {open && (
@@ -811,8 +966,15 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
   const attention = (w.missing?.length ?? 0) > 0 || (w.langWaiting ?? 0) > 0 || w.lastResult !== ''
   // what the warning chip stands for, as its tooltip and for a screen reader
   const attentionText = [
-    (w.missing?.length ?? 0) > 0 ? t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) }) : null,
-    (w.langWaiting ?? 0) > 0 ? t('watch.langWaiting', { count: w.langWaiting, lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/') }) : null,
+    (w.missing?.length ?? 0) > 0
+      ? t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })
+      : null,
+    (w.langWaiting ?? 0) > 0
+      ? t('watch.langWaiting', {
+          count: w.langWaiting,
+          lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
+        })
+      : null,
     w.lastResult || null,
   ]
     .filter(Boolean)
@@ -822,16 +984,19 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
   return (
     // h-full down the whole stack: the grid stretches its cells, and without
     // it a tile with a one-line title ended shorter than the one beside it
-    <Panel as="article" className="group relative flex h-full flex-col overflow-clip transition-colors hover:border-accent/50!">
+    <Panel
+      as="article"
+      className="group relative flex h-full flex-col overflow-clip transition-colors hover:border-accent/50!"
+    >
       {/* named by what it shows: a label of its own would hide the visible
           text from the accessible name (WCAG 2.5.3) */}
-      <button
-        type="button"
-        className="flex flex-1 flex-col text-left"
-        onClick={onOpen}
-        disabled={!w.media}
-      >
-        <Cover size="fill" src={w.media?.coverImage?.extraLarge || w.media?.coverImage?.large} loading="lazy" className="opacity-90 transition-opacity group-hover:opacity-100">
+      <button type="button" className="flex flex-1 flex-col text-left" onClick={onOpen} disabled={!w.media}>
+        <Cover
+          size="fill"
+          src={w.media?.coverImage?.extraLarge || w.media?.coverImage?.large}
+          loading="lazy"
+          className="opacity-90 transition-opacity group-hover:opacity-100"
+        >
           {!w.media && <span className="p-2 text-center text-xs text-t-muted">{name}</span>}
         </Cover>
         <div className="flex flex-1 flex-col p-2">
@@ -865,7 +1030,9 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
               across a row however long the titles above them ran */}
           <div className="mt-auto pt-1">
             <p className={`text-[11px] ${w.complete ? 'text-ok' : 'text-t-muted'}`}>
-              {total > 0 ? t('watch.episodes', { have: w.localFiles, total }) : t('watch.files', { count: w.localFiles })}
+              {total > 0
+                ? t('watch.episodes', { have: w.localFiles, total })
+                : t('watch.files', { count: w.localFiles })}
             </p>
             {total > 0 && (
               <Progress

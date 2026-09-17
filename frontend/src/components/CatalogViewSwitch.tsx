@@ -7,7 +7,13 @@ import type { CatalogViewValue } from './useCatalogView'
 // auto-sync page uses for list and calendar, and a pin next to it while the
 // catalog is up: pressed, the folder is saved as a catalog folder and reopens
 // that way. Icons alone in the app bar on a phone, icon and label on desktop.
-export function CatalogViewSwitch({ value, onChange }: { value: CatalogViewValue; onChange: (v: CatalogViewValue) => void }) {
+export function CatalogViewSwitch({
+  value,
+  onChange,
+}: {
+  value: CatalogViewValue
+  onChange: (v: CatalogViewValue) => void
+}) {
   const { t } = useTranslation()
   const catalog = value !== 'classic'
   const opt = (v: 'classic' | 'catalog', icon: React.ReactNode) => ({
@@ -26,7 +32,10 @@ export function CatalogViewSwitch({ value, onChange }: { value: CatalogViewValue
         aria-label={t('remote.view')}
         value={catalog ? 'catalog' : 'classic'}
         onChange={(v) => onChange(v === 'classic' ? 'classic' : 'catalogOnce')}
-        options={[opt('classic', <List aria-hidden size="1em" />), opt('catalog', <LayoutGrid aria-hidden size="1em" />)]}
+        options={[
+          opt('classic', <List aria-hidden size="1em" />),
+          opt('catalog', <LayoutGrid aria-hidden size="1em" />),
+        ]}
       />
       {catalog && (
         <Button
