@@ -13,9 +13,42 @@ linters:
     # through Manager.execRetry instead, which retries and logs. Turning
     # errcheck on would report fifty of those and hide anything else.
     - errcheck
+  enable:
+    # an HTTP response body left open leaks the connection
+    - bodyclose
+    # `err == io.EOF` misses a wrapped error; errors.Is is the comparison
+    # that survives a %w somewhere down the call chain
+    - errorlint
+    # the pre-1.22 `x := x` loop copy is dead weight now
+    - copyloopvar
+    # copy-pasted blocks over the threshold; clean today, kept as a ratchet
+    - dupl
+    # typos in identifiers and comments. No locale: the tree writes British
+    # English on purpose (serialise, catalogue) and AniList's own enum values
+    # (CANCELLED) must stay as the API spells them
+    - misspell
+  # nilerr is deliberately absent: every place it reports swallows an error
+  # on purpose (an unreadable entry in a WalkDir, the last admin kept) and
+  # says so in a comment.
   settings:
     staticcheck:
       checks:
         - all
         - -ST* # naming and doc-comment style
         - -QF* # refactoring suggestions (tagged switch, De Morgan)
+    dupl:
+      threshold: 150
+  exclusions:
+    paths:
+      # generated Swagger output and the bundled Swagger UI
+      - docs
+    rules:
+      # tests repeat themselves by design
+      - path: _test\.go
+        linters:
+          - dupl
+          - bodyclose
+
+formatters:
+  enable:
+    - gofmt
