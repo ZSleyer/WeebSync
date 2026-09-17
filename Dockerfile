@@ -1,5 +1,5 @@
 # ── frontend build ── (arch-independent JS, always native)
-FROM --platform=$BUILDPLATFORM node:26-alpine AS web
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868 AS web
 # node images stopped shipping yarn and corepack with node 25
 RUN npm i -g yarn@1.22.22
 # the frontend keeps its place in the tree: @weebsync/design-system resolves to
@@ -16,7 +16,7 @@ COPY frontend/ ./
 RUN yarn build
 
 # ── backend build ── (native toolchain, cross-compiled to $TARGETARCH)
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS build
 ARG TARGETOS TARGETARCH
 # build metadata surfaced on the About page (see internal/version)
 ARG VERSION=dev CHANNEL=dev COMMIT= REPO=
@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # resolution / audio / subtitle tracks of local files, whose names often lack
 # those tokens. ca-certificates for provider HTTPS; nonroot uid matches the
 # distroless one we used before.
-FROM alpine:3.24
+FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 RUN apk upgrade --no-cache \
     && apk add --no-cache ffmpeg ca-certificates \
     && adduser -D -H -u 65532 nonroot
