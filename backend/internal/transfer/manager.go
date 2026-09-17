@@ -369,7 +369,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 			d.Transferred, d.BytesPerSec, d.Status = transferred, bps, "running"
 			m.publish(d)
 		}
-		if rerr == io.EOF {
+		if errors.Is(rerr, io.EOF) {
 			break
 		}
 		if rerr != nil {

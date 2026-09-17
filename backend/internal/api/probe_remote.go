@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -121,7 +122,7 @@ func probeRemoteHead(ctx context.Context, client remote.Client, remotePath, ext 
 	}
 	defer os.Remove(tmp.Name())
 	// EOF (file smaller than the window) is fine - we still probe what came
-	if _, err := io.CopyN(tmp, rc, window); err != nil && err != io.EOF {
+	if _, err := io.CopyN(tmp, rc, window); err != nil && !errors.Is(err, io.EOF) {
 		tmp.Close()
 		return nil, readFailed
 	}

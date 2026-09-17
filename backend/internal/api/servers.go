@@ -312,7 +312,7 @@ func writeDialErr(w http.ResponseWriter, err error) {
 		return
 	}
 	status := http.StatusBadGateway
-	if err == errNotFound {
+	if errors.Is(err, errNotFound) {
 		status = http.StatusNotFound
 	}
 	writeErr(w, status, err.Error())
@@ -387,7 +387,7 @@ func (s *Server) dialServer(ctx context.Context, userID, serverID int64, prio po
 	err := s.DB.QueryRow(`SELECT protocol, host, port, username, secret_enc, root_path, host_key, max_connections
 		FROM servers WHERE id = ? AND user_id = ?`, serverID, userID).
 		Scan(&cfg.Protocol, &cfg.Host, &cfg.Port, &cfg.Username, &enc, &rootPath, &cfg.HostKey, &cfg.MaxConns)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, "", errNotFound
 	}
 	if err != nil {

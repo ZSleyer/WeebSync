@@ -3,6 +3,7 @@ package secret
 import (
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -71,7 +72,7 @@ func MigrateSettings(d *sql.DB) error {
 	for _, key := range settingKeys {
 		var value string
 		err := tx.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&value)
-		if err == sql.ErrNoRows || value == "" {
+		if errors.Is(err, sql.ErrNoRows) || value == "" {
 			continue
 		}
 		if err != nil {

@@ -425,7 +425,6 @@ func TestAiRecommendSkipsWhatTheUserHas(t *testing.T) {
 		{ID: 154587, Status: "FINISHED", Schema: anilist.MediaSchema},
 		{ID: 21, Status: "RELEASING", Schema: anilist.MediaSchema},
 	} {
-		m := m
 		if m.ID == 154587 {
 			m.Title.Romaji, m.Title.English = "Sousou no Frieren", "Frieren: Beyond Journey's End"
 		} else {
