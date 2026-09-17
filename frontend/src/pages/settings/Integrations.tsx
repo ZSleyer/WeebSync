@@ -214,37 +214,36 @@ export default function Integrations() {
               <span className="mt-1 block">{t('settings.plexTokenHint')}</span>
             </label>
           </div>
-          {form.plexTokenSet &&
-            form.plexUrl && (
-              // the library block is the longest thing on the page: framed like
-              // the OIDC block on Security, so it reads as one unit
-              <fieldset className="rounded-lg border border-border-subtle p-3">
-                <Badge as="legend">{t('settings.plexSections')}</Badge>
-                <div className="grid grid-cols-1 gap-4">
-                  <PlexSections
-                    value={form.plexSections}
-                    onChange={(v) => set('plexSections', v)}
-                    sources={form.plexSectionSources}
-                    onSources={(v) => set('plexSectionSources', v)}
-                    anime={form.plexSectionAnime}
-                    onAnime={(v) => set('plexSectionAnime', v)}
-                    tvdb={form.tvdbApiKeySet}
-                    libraries={form.plexLibraries}
+          {form.plexTokenSet && form.plexUrl && (
+            // the library block is the longest thing on the page: framed like
+            // the OIDC block on Security, so it reads as one unit
+            <fieldset className="rounded-lg border border-border-subtle p-3">
+              <Badge as="legend">{t('settings.plexSections')}</Badge>
+              <div className="grid grid-cols-1 gap-4">
+                <PlexSections
+                  value={form.plexSections}
+                  onChange={(v) => set('plexSections', v)}
+                  sources={form.plexSectionSources}
+                  onSources={(v) => set('plexSectionSources', v)}
+                  anime={form.plexSectionAnime}
+                  onAnime={(v) => set('plexSectionAnime', v)}
+                  tvdb={form.tvdbApiKeySet}
+                  libraries={form.plexLibraries}
+                />
+                <label className="text-xs text-t-muted">
+                  {t('settings.plexRoots')}
+                  <textarea
+                    className="t-input mt-1 font-mono"
+                    rows={3}
+                    placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
+                    value={form.plexRoots}
+                    onChange={(e) => set('plexRoots', e.target.value)}
                   />
-                  <label className="text-xs text-t-muted">
-                    {t('settings.plexRoots')}
-                    <textarea
-                      className="t-input mt-1 font-mono"
-                      rows={3}
-                      placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
-                      value={form.plexRoots}
-                      onChange={(e) => set('plexRoots', e.target.value)}
-                    />
-                    <span className="mt-1 block">{t('settings.plexRootsHint')}</span>
-                  </label>
-                </div>
-              </fieldset>
-            )}
+                  <span className="mt-1 block">{t('settings.plexRootsHint')}</span>
+                </label>
+              </div>
+            </fieldset>
+          )}
         </div>
       </Panel>
 
