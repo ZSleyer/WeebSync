@@ -510,10 +510,10 @@ function SearchResults({
       )}
       <ul>
         {data?.results.map((e) => (
-          <li key={e.path} className="border-b border-border-subtle/50">
+          <li key={e.path} className="flex items-stretch border-b border-border-subtle/50">
             <button
               type="button"
-              className={`flex w-full min-w-0 items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${
+              className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${
                 selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'
               }`}
               onClick={() => (e.isDir ? onOpenDir(e.path) : onSelect(e))}
@@ -525,6 +525,18 @@ function SearchResults({
               </span>
               {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>}
             </button>
+            {/* a found folder can be picked where it stands, same as in the
+                folder list - the row itself still opens it */}
+            {e.isDir && (
+              <Button
+                size="sm"
+                className="my-1 mr-2 shrink-0 self-center"
+                aria-label={t('remote.selectItem', { name: e.name })}
+                onClick={() => onSelect(e)}
+              >
+                {t('remote.select')}
+              </Button>
+            )}
           </li>
         ))}
       </ul>
