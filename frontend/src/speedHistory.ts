@@ -27,7 +27,7 @@ export function pushSpeedSample(bps: number, now = Date.now()) {
   const sec = Math.floor(now / 1000)
   if (lastAt && sec <= lastAt) return
   const gap = lastAt ? Math.min(sec - lastAt - 1, SPEED_SPAN) : 0
-  samples = [...samples, ...new Array<number>(gap).fill(0), bps].slice(-SPEED_SPAN)
+  samples = [...samples, ...Array.from({ length: gap }, () => 0), bps].slice(-SPEED_SPAN)
   lastAt = sec
   listeners.forEach((l) => l())
 }

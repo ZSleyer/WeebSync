@@ -7,7 +7,7 @@ import { ApiError, api, type Entry, type RenamePair, type SubfolderMode } from '
 // it the files land straight in localPath. Mirrors the flat handling of
 // transfer.Enqueue, so what the dialog checks is what the transfer uses.
 export function syncTargetDir(localPath: string, remotePath: string, subfolder: boolean): string {
-  const base = remotePath.split('/').filter(Boolean).pop() ?? ''
+  const base = remotePath.split('/').findLast(Boolean) ?? ''
   return subfolder && base ? [localPath, base].filter(Boolean).join('/') : localPath
 }
 
@@ -63,7 +63,7 @@ export function subfolderTargetDir(
   if (mode !== 'title') return syncTargetDir(localPath, remotePath, mode === 'remote')
   const seg = titleFolder(title, separator)
   if (!seg) return syncTargetDir(localPath, remotePath, true)
-  const last = localPath.split('/').filter(Boolean).pop() ?? ''
+  const last = localPath.split('/').findLast(Boolean) ?? ''
   const show = last.toLowerCase() === seg.toLowerCase() ? localPath : [localPath, seg].filter(Boolean).join('/')
   const season = titleFolder(seasonFolder, separator)
   return season ? `${show}/${season}` : show

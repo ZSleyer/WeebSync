@@ -761,7 +761,7 @@ export function DuplicatesSection() {
   // one copy (a folder, or one file of a doubled episode) goes to the trash
   // folder beside it; the server rebuilds the suggestions afterwards
   const trash = async (path: string) => {
-    const name = path.split('/').filter(Boolean).pop() ?? path
+    const name = path.split('/').findLast(Boolean) ?? path
     const ok = await confirm({ message: t('suggestions.dupTrashConfirm', { name }), confirmLabel: t('suggestions.dupTrash'), destructive: true })
     if (!ok) return
     try {

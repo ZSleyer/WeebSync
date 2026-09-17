@@ -138,6 +138,14 @@ export default function MediaDetail({
               // the page sends no referrer at all, which the player rejects
               // with "error 153"; this hands it the bare origin, no path
               referrerPolicy="strict-origin"
+              // the player needs its scripts and its own origin (without the
+              // latter it is a black box); popups are the "watch on YouTube"
+              // link, which opens a normal tab, not a sandboxed one. Forms,
+              // downloads and navigating the page stay blocked. The rule
+              // objects to scripts plus origin together, which for a
+              // cross-origin frame is still a sandbox
+              // eslint-disable-next-line react/iframe-missing-sandbox
+              sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
               allow="encrypted-media; fullscreen"
               allowFullScreen
             />

@@ -21,10 +21,10 @@ export function parseMarkdown(text: string): Block[] {
   }
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
-    if (/^```/.test(line)) {
+    if (line.startsWith('```')) {
       flush()
       const code: string[] = []
-      for (i++; i < lines.length && !/^```/.test(lines[i]); i++) code.push(lines[i])
+      for (i++; i < lines.length && !lines[i].startsWith('```'); i++) code.push(lines[i])
       out.push({ kind: 'code', text: code.join('\n') })
       continue
     }
@@ -115,7 +115,11 @@ export function linkTitles(text: string, titles: TitleLink[], key: string): Reac
   return nodes
 }
 
-export default function Markdown({ text, titles = [], children }: { text: string; titles?: TitleLink[]; children?: ReactNode }) {
+// one shared empty list, so a caller without titles does not hand a fresh
+// array to every render
+const NO_TITLES: TitleLink[] = []
+
+export default function Markdown({ text, titles = NO_TITLES, children }: { text: string; titles?: TitleLink[]; children?: ReactNode }) {
   const blocks = parseMarkdown(text)
   return (
     <div className="space-y-2 wrap-break-word">
