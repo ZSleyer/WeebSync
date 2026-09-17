@@ -1,25 +1,78 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "react",
-    "typescript",
-    "oxc"
-  ],
+  "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "import", "promise", "vitest"],
+  // A finding fails the run. Warnings never failed CI, so they piled up; from
+  // here on the tree is clean or the build is red.
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "env": { "browser": true, "es2024": true },
   "rules": {
+    // the automatic JSX runtime imports React itself
+    "react/react-in-jsx-scope": "off",
     "react/rules-of-hooks": "error",
-    "react/only-export-components": [
-      "warn",
-      {
-        "allowConstantExport": true
-      }
-    ],
+    "react-hooks/exhaustive-deps": "error",
     "no-unused-vars": [
       "error",
-      {
-        "argsIgnorePattern": "^_",
-        "varsIgnorePattern": "^_",
-        "caughtErrors": "none"
-      }
-    ]
-  }
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrors": "none" }
+    ],
+    // no cycles in the tree today; this keeps it that way
+    "import/no-cycle": "error",
+
+    // ---- rules that ask for a different style, not a fix ----
+    // vi.fn() without a type parameter is the normal mock in these tests
+    "vitest/require-mock-type-parameters": "off",
+    // a helper next to the code that uses it reads better than one hoisted
+    // out of the component for the rule's sake
+    "unicorn/consistent-function-scoping": "off",
+    // static lists (crumbs, chips, weekdays) have no better key than their index
+    "react/no-array-index-key": "off",
+    // .sort() on a fresh copy is the idiom here; toSorted() adds nothing
+    "unicorn/no-array-sort": "off",
+    // an EventSource has exactly one handler per event; on<event> says so
+    "unicorn/prefer-add-event-listener": "off",
+    // a name reused in an inner callback is not a defect
+    "no-shadow": "off",
+    // the loops that await are sequential on purpose (one request at a time
+    // against a rate-limited API)
+    "no-await-in-loop": "off",
+    // fonts and stylesheets are imported for their side effect
+    "import/no-unassigned-import": "off",
+    // a .then that only sets state has nothing to return
+    "promise/always-return": "off",
+    // spreading in a map is how an immutable update is written; the perf
+    // case the rule has in mind does not apply to lists this size
+    "oxc/no-map-spread": "off",
+    // a Set for a three-element list is more code, not faster code
+    "unicorn/prefer-set-has": "off",
+    // i18next's API is `i18n.use(...)`: the default export carries the members
+    "import/no-named-as-default-member": "off",
+    // the compiler's variant flags effects that run "when X changes" with X
+    // unused inside, which is the documented way to write them; the classic
+    // react-hooks/exhaustive-deps above covers the real omissions
+    "react/exhaustive-effect-dependencies": "off",
+
+    // ---- accessibility rules that flag the documented ARIA pattern ----
+    // role="status" on a span is valid; <output> means a calculation result
+    "jsx-a11y/prefer-tag-over-role": "off",
+    // a dialog moves focus to its first control when it opens: that is the
+    // focus management WCAG asks for, not a focus theft on page load
+    "jsx-a11y/no-autofocus": "off",
+    // <ul role="menu"> with <li role="separator"> and <ul role="listbox"> are
+    // the patterns the ARIA authoring guide gives
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": "off",
+    // flags menu separators and <option> children of a <datalist>
+    "jsx-a11y/control-has-associated-label": "off",
+    // the input sits inside the label; the rule does not see the component
+    "jsx-a11y/label-has-associated-control": "off",
+    // a popover wrapper listening for blur and Escape is not a control
+    "jsx-a11y/no-static-element-interactions": "off",
+    // a click on the path bar or a drop on the composer is a shortcut; the
+    // keyboard path is the button beside it
+    "jsx-a11y/no-noninteractive-element-interactions": "off",
+    "jsx-a11y/click-events-have-key-events": "off"
+  },
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**"]
 }
