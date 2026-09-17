@@ -41,7 +41,9 @@ updates:
       audit:
         patterns: ["*"]
 
-  # the actions are pinned by commit sha, which is why they need updating at all
+  # the actions are pinned by commit sha, which is why they need updating at
+  # all. Majors stay out of the group: they are the ones with a changelog to
+  # read, and one PR each keeps them from hiding in a weekly bump
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -51,7 +53,11 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        update-types: [minor, patch]
 
+  # the base images are pinned by digest as well as by tag, so a rebuild
+  # cannot pull in a different image than the one CI scanned; these PRs move
+  # the digest along. A new major (node 27, alpine 3.25) comes on its own
   - package-ecosystem: docker
     directory: /
     schedule:
@@ -61,3 +67,4 @@ updates:
     groups:
       images:
         patterns: ["*"]
+        update-types: [minor, patch]
