@@ -5,7 +5,7 @@ go 1.26.8
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/go-jose/go-jose/v4 v4.1.4
+	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/go-webauthn/webauthn v0.18.1
 	github.com/jlaffaye/ftp v0.2.4
 	github.com/nssteinbrenner/anitogo v1.0.0
