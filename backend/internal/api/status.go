@@ -8,8 +8,10 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // mountSources maps every mount point to the device it is mounted from, read
@@ -106,16 +108,47 @@ type statusDisk struct {
 	Paths []string `json:"paths,omitempty"`
 }
 
+// statusAttention is one watch that needs a hand, with the backend's
+// attention reasons (see watchAttention).
+type statusAttention struct {
+	ID      int64    `json:"id"`
+	Name    string   `json:"name"`
+	Reasons []string `json:"reasons"`
+}
+
+// statusRelease is one upcoming episode slot across every watch, for a
+// "next releases" sensor: the original schedule and, for dub-filtered
+// watches, the dub's own dates (est marks a projection).
+type statusRelease struct {
+	At      int64  `json:"at"`
+	Name    string `json:"name"`
+	Episode int    `json:"episode"`
+	Dub     string `json:"dub,omitempty"`
+	Est     bool   `json:"est,omitempty"`
+}
+
 // StatusResponse is the aggregate machine-readable status payload: current
-// downloads, the last finished ones, watch check summaries and disk usage.
+// downloads, the last finished ones, watch check summaries, attention,
+// upcoming releases, background jobs and disk usage.
 type StatusResponse struct {
 	Downloads struct {
 		Active  int             `json:"active"`
 		Queued  int             `json:"queued"`
 		Running []statusRunning `json:"running"`
+		// TotalBytesPerSec sums the running transfers; EtaSeconds is the
+		// queue's remaining bytes at that rate, 0 while nothing moves.
+		TotalBytesPerSec int64 `json:"totalBytesPerSec"`
+		EtaSeconds       int64 `json:"etaSeconds"`
 	} `json:"downloads"`
 	LastFinished []statusFinished `json:"lastFinished"`
 	Watches      []statusWatch    `json:"watches"`
+	Attention    struct {
+		Count   int               `json:"count"`
+		Reasons map[string]int    `json:"reasons"`
+		Watches []statusAttention `json:"watches"`
+	} `json:"attention"`
+	NextReleases []statusRelease `json:"nextReleases"`
+	Jobs         JobsStatus      `json:"jobs"`
 	// Disk is the download root's filesystem, kept for consumers that read
 	// one value; Disks is every filesystem the library spans, the root first
 	Disk      statusDisk      `json:"disk"`
@@ -205,7 +238,7 @@ func (s *Server) diskUsage() []statusDisk {
 // polled state instead of SSE, so a dumb REST sensor can consume it.
 //
 // @Summary      Aggregate status
-// @Description  Machine-readable snapshot of downloads, recent finishes, watches and disk usage for polling consumers (Home Assistant etc.). Reachable with an admin session cookie or a machine API token.
+// @Description  Machine-readable snapshot of downloads (with total speed and queue ETA), recent finishes, watches, the needs-attention aggregate, the next upcoming releases, background jobs and disk usage for polling consumers (Home Assistant etc.). Reachable with an admin session cookie or a machine API token.
 // @Tags         Status
 // @Produce      json
 // @Success      200  {object}  StatusResponse
@@ -220,6 +253,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	out.LastFinished = []statusFinished{}
 	out.Watches = []statusWatch{}
 
+	var remaining int64
 	rates := s.Transfers.RunningRates()
 	rows, err := s.DB.Query(`SELECT id, remote_path, status, size, transferred FROM downloads
 		WHERE status IN ('queued','running','paused') ORDER BY id`)
@@ -244,9 +278,16 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		case "queued":
 			out.Downloads.Queued++
 		}
+		out.Downloads.TotalBytesPerSec += d.BytesPerSec
+		if left := d.Size - d.Transferred; left > 0 {
+			remaining += left
+		}
 		out.Downloads.Running = append(out.Downloads.Running, d)
 	}
 	rows.Close()
+	if out.Downloads.TotalBytesPerSec > 0 {
+		out.Downloads.EtaSeconds = remaining / out.Downloads.TotalBytesPerSec
+	}
 
 	// updated_at is stamped exactly when a download reaches done/error, so it
 	// doubles as finishedAt - HA detects "new finish" by watching the newest entry
@@ -295,6 +336,10 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 
+	out.Attention.Reasons, out.Attention.Watches, out.NextReleases = s.statusAttention()
+	out.Attention.Count = len(out.Attention.Watches)
+	out.Jobs = s.jobsStatus()
+
 	// who the process writes as: the missing half of every "permission denied"
 	// on a bind-mounted media directory
 	out.Container.UID, out.Container.GID = os.Getuid(), os.Getgid()
@@ -309,4 +354,59 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, out)
+}
+
+// statusAttention aggregates the per-user watch enrichment for the machine
+// status: who needs a hand and why, and the next few upcoming release slots
+// across every user's calendar.
+// ponytail: a full watchesFor per user per poll (disk walks); cache with a
+// short TTL if HA ends up polling faster than every 30s.
+func (s *Server) statusAttention() (map[string]int, []statusAttention, []statusRelease) {
+	reasons := map[string]int{}
+	needy := []statusAttention{}
+	releases := []statusRelease{}
+	rows, err := s.DB.Query(`SELECT DISTINCT user_id FROM watches ORDER BY user_id`)
+	if err != nil {
+		return reasons, needy, releases
+	}
+	var users []int64
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil {
+			users = append(users, id)
+		}
+	}
+	rows.Close()
+	now := time.Now().Unix()
+	for _, uid := range users {
+		list, err := s.watchesFor(uid)
+		if err != nil {
+			continue
+		}
+		for _, w := range list {
+			name := w.TitleOverride
+			if name == "" && w.Media != nil && w.Media.Title.Preferred != "" {
+				name = w.Media.Title.Preferred
+			}
+			if name == "" {
+				name = path.Base(w.RemotePath)
+			}
+			if len(w.Attention) > 0 {
+				needy = append(needy, statusAttention{ID: w.ID, Name: name, Reasons: w.Attention})
+				for _, r := range w.Attention {
+					reasons[r]++
+				}
+			}
+			for _, a := range w.Airings {
+				if a.At > now {
+					releases = append(releases, statusRelease{At: a.At, Name: name, Episode: a.Episode, Dub: a.Dub, Est: a.Est})
+				}
+			}
+		}
+	}
+	sort.Slice(releases, func(i, j int) bool { return releases[i].At < releases[j].At })
+	if len(releases) > 5 {
+		releases = releases[:5]
+	}
+	return reasons, needy, releases
 }
