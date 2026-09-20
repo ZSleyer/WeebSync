@@ -31,6 +31,7 @@ export interface SettingsState {
   aiApiKeySet: boolean
   aiApiKey?: string
   aiSearchUrl: string
+  haWebhookUrl: string
   plexUrl: string
   plexTokenSet: boolean
   plexToken?: string

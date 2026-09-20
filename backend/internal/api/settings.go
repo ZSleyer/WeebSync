@@ -152,6 +152,7 @@ type settingsPayload struct {
 	AiApiKeySet           bool           `json:"aiApiKeySet"`
 	AiApiKey              string         `json:"aiApiKey,omitempty"` // write-only, optional (local servers need none)
 	AiSearchURL           string         `json:"aiSearchUrl"`        // SearXNG base for the assistant's web search; empty = off
+	HaWebhookURL          string         `json:"haWebhookUrl"`       // Home Assistant webhook the backend POSTs events to; empty = off
 	PlexURL               string         `json:"plexUrl"`
 	PlexTokenSet          bool           `json:"plexTokenSet"`
 	PlexToken             string         `json:"plexToken,omitempty"` // write-only
@@ -214,6 +215,7 @@ func (s *Server) settingsState() settingsPayload {
 		AiModel:               db.SettingOrEnv(s.DB, "ai_model", "AI_MODEL"),
 		AiApiKeySet:           secret.SettingOrEnv(s.DB, "ai_api_key", "AI_API_KEY") != "",
 		AiSearchURL:           db.SettingOrEnv(s.DB, "ai_search_url", "AI_SEARCH_URL"),
+		HaWebhookURL:          db.Setting(s.DB, "ha_webhook_url"),
 		PlexURL:               db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"),
 		PlexTokenSet:          secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN") != "",
 		PlexSections:          db.Setting(s.DB, "plex_sections"),
@@ -407,6 +409,21 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	setSetting(s.DB, "ai_search_url", searchURL)
+	// Home Assistant webhook: outbound POST target, the webhook id in the
+	// path is the secret per HA's own model
+	haURL := strings.TrimSpace(in.HaWebhookURL)
+	if haURL != "" {
+		u, err := url.Parse(haURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			writeErr(w, http.StatusBadRequest, "haWebhookUrl must be an absolute http(s) URL")
+			return
+		}
+		if err := netguard.Allowed(u.Hostname()); err != nil {
+			writeErr(w, http.StatusBadRequest, "haWebhookUrl: "+err.Error())
+			return
+		}
+	}
+	setSetting(s.DB, "ha_webhook_url", haURL)
 	setSetting(s.DB, "ai_model", strings.TrimSpace(in.AiModel))
 	setSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
 	setSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))

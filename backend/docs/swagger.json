@@ -3726,6 +3726,10 @@
                         "description": "bytes/s, 0 = unlimited",
                         "type": "integer"
                     },
+                    "haWebhookUrl": {
+                        "description": "Home Assistant webhook the backend POSTs events to; empty = off",
+                        "type": "string"
+                    },
                     "maxConcurrent": {
                         "type": "integer"
                     },

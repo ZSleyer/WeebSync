@@ -154,7 +154,8 @@ func main() {
 	go srv.ClearStaleSuggestionCache() // drop cached suggestion blobs once when their format changed
 	go srv.RefreshPlexRoots()          // auto-detect Plex library mounts up front (not just on the hourly index)
 	go srv.SweepLoop(rootCtx)
-	go srv.LangProbeLoop(rootCtx) // measures remote copies an upgrade is waiting on (dials, so not part of the sweep)
+	go srv.HaAttentionLoop(rootCtx) // webhook push when the needs-attention picture changes
+	go srv.LangProbeLoop(rootCtx)   // measures remote copies an upgrade is waiting on (dials, so not part of the sweep)
 	mux := http.NewServeMux()
 	srv.Register(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
