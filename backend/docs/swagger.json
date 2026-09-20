@@ -1367,6 +1367,27 @@
             },
             "api.StatusResponse": {
                 "properties": {
+                    "attention": {
+                        "properties": {
+                            "count": {
+                                "type": "integer"
+                            },
+                            "reasons": {
+                                "additionalProperties": {
+                                    "type": "integer"
+                                },
+                                "type": "object"
+                            },
+                            "watches": {
+                                "items": {
+                                    "$ref": "#/components/schemas/api.statusAttention"
+                                },
+                                "type": "array",
+                                "uniqueItems": false
+                            }
+                        },
+                        "type": "object"
+                    },
                     "container": {
                         "$ref": "#/components/schemas/api.statusContainer"
                     },
@@ -1385,6 +1406,9 @@
                             "active": {
                                 "type": "integer"
                             },
+                            "etaSeconds": {
+                                "type": "integer"
+                            },
                             "queued": {
                                 "type": "integer"
                             },
@@ -1394,13 +1418,27 @@
                                 },
                                 "type": "array",
                                 "uniqueItems": false
+                            },
+                            "totalBytesPerSec": {
+                                "description": "TotalBytesPerSec sums the running transfers; EtaSeconds is the\nqueue's remaining bytes at that rate, 0 while nothing moves.",
+                                "type": "integer"
                             }
                         },
                         "type": "object"
                     },
+                    "jobs": {
+                        "$ref": "#/components/schemas/api.JobsStatus"
+                    },
                     "lastFinished": {
                         "items": {
                             "$ref": "#/components/schemas/api.statusFinished"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "nextReleases": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.statusRelease"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -1866,6 +1904,14 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "attention": {
+                        "description": "Attention: why this watch needs a hand, ordered by severity; empty =\nfine. The one needs-attention source - dashboard, tile and the machine\nstatus all read this, never their own arithmetic.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "behind": {
                         "description": "episodes aired per AniList but not yet available locally (the source release can lag the original broadcast)",
                         "type": "integer"
@@ -1885,9 +1931,21 @@
                     "createdAt": {
                         "type": "string"
                     },
+                    "dubExpectedAt": {
+                        "description": "forecast unix seconds of the next dub release; 0 = no date known",
+                        "type": "integer"
+                    },
                     "dubLagDays": {
                         "description": "days the WantDub release trails the original when no release has shown the lag yet; 0 = observed only",
                         "type": "integer"
+                    },
+                    "dubOverdue": {
+                        "description": "the forecast plus a week of grace passed without a release",
+                        "type": "boolean"
+                    },
+                    "dubWaiting": {
+                        "description": "DubWaiting: the watch is caught up on the dub it filters for; the\noriginal is ahead but the dub is not due yet - expected waiting, not\nsomething to look at.",
+                        "type": "boolean"
                     },
                     "fromEpisode": {
                         "description": "count only local episodes >= this (shared season folder); 0 = all",
@@ -3806,6 +3864,24 @@
                 },
                 "type": "object"
             },
+            "api.statusAttention": {
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "reasons": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "api.statusContainer": {
                 "properties": {
                     "gid": {
@@ -3862,6 +3938,26 @@
                         "type": "string"
                     },
                     "status": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.statusRelease": {
+                "properties": {
+                    "at": {
+                        "type": "integer"
+                    },
+                    "dub": {
+                        "type": "string"
+                    },
+                    "episode": {
+                        "type": "integer"
+                    },
+                    "est": {
+                        "type": "boolean"
+                    },
+                    "name": {
                         "type": "string"
                     }
                 },
@@ -11956,7 +12052,7 @@
         },
         "/api/status": {
             "get": {
-                "description": "Machine-readable snapshot of downloads, recent finishes, watches and disk usage for polling consumers (Home Assistant etc.). Reachable with an admin session cookie or a machine API token.",
+                "description": "Machine-readable snapshot of downloads (with total speed and queue ETA), recent finishes, watches, the needs-attention aggregate, the next upcoming releases, background jobs and disk usage for polling consumers (Home Assistant etc.). Reachable with an admin session cookie or a machine API token.",
                 "responses": {
                     "200": {
                         "content": {

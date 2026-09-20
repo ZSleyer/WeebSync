@@ -87,6 +87,12 @@ type JobsStatus struct {
 // @Security     CookieAuth
 // @Router       /api/jobs [get]
 func (s *Server) handleJobsStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.jobsStatus())
+}
+
+// jobsStatus is the running/paused snapshot behind /api/jobs, shared with
+// the machine status payload.
+func (s *Server) jobsStatus() JobsStatus {
 	keys, _ := s.jobsSnapshot()
 	families := []string{}
 	for _, k := range keys {
@@ -99,7 +105,7 @@ func (s *Server) handleJobsStatus(w http.ResponseWriter, r *http.Request) {
 	if paused == nil {
 		paused = []string{}
 	}
-	writeJSON(w, http.StatusOK, JobsStatus{Running: families, Paused: paused})
+	return JobsStatus{Running: families, Paused: paused}
 }
 
 // JobPauseRequest is the body of handleAdminJobPause.
