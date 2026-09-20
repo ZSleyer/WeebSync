@@ -57,7 +57,6 @@ import {
   api,
   downloadLabel,
   fmtBytes,
-  fmtMissing,
   fmtSpeed,
   mediaTitle,
   type Download,
@@ -67,6 +66,7 @@ import {
   type Watch,
 } from '../api'
 import { episodeLabel, upcomingAirings } from '../airings'
+import { attentionInfo } from '../attention'
 import { avgSpeed, SPEED_SPAN, useSpeedHistory } from '../speedHistory'
 import { countdown } from '../countdown'
 import { jobLabel } from '../jobs'
@@ -873,9 +873,7 @@ function UpNext({ watches }: { watches: Watch[] }) {
 // still has to read past.
 function Attention({ watches }: { watches: Watch[] }) {
   const { t } = useTranslation()
-  const needy = watches.filter(
-    (w) => (w.behind ?? 0) > 0 || (w.missing?.length ?? 0) > 0 || (w.langWaiting ?? 0) > 0 || w.lastResult !== '',
-  )
+  const needy = watches.filter((w) => (w.attention?.length ?? 0) > 0)
   const [open, toggle] = useFold('attention')
   const { open: openSeries } = useSeriesModal()
   if (needy.length === 0) return null
@@ -903,7 +901,7 @@ function Attention({ watches }: { watches: Watch[] }) {
                     <button
                       type="button"
                       aria-label={t('remote.detailsFor', { name: watchTitle(w) })}
-                      onClick={() => openSeries(seriesTarget(w))}
+                      onClick={() => openSeries({ ...seriesTarget(w), tab: 'sync' })}
                       className="shrink-0 cursor-pointer rounded-xs"
                     >
                       <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />
@@ -912,50 +910,17 @@ function Attention({ watches }: { watches: Watch[] }) {
                   {/* title above, chips below and wrapping: side by side the
                     failed-check chip alone is wider than the aside column and
                     left the title no room at all */}
-                  <Link to="/watches" className="min-w-0 flex-1 hover:underline">
+                  <Link to="/watches?filter=attention" className="min-w-0 flex-1 hover:underline">
                     <span className="block truncate text-t-secondary" title={w.remotePath}>
                       {watchTitle(w)}
                     </span>
                     <span className="mt-1 flex flex-wrap gap-1">
-                      {/* compact chips: icon + count only, the column is too narrow
-                      for the sentences - they live in the tooltip */}
-                      {(w.behind ?? 0) > 0 && (
-                        <Badge tone="warn" className="shrink-0" title={t('watch.behind', { count: w.behind })}>
-                          <Clock aria-hidden size="1em" />
-                          {w.behind}
+                      {/* the reasons in words: tooltips don't exist on touch */}
+                      {attentionInfo(t, w).map((c) => (
+                        <Badge key={c.key} tone={c.tone} title={c.key === 'checkFailed' ? w.lastResult : undefined}>
+                          {c.text}
                         </Badge>
-                      )}
-                      {(w.missing?.length ?? 0) > 0 && (
-                        <Badge
-                          tone="err"
-                          className="shrink-0"
-                          title={`${t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })} (${w.missing!.join(', ')})`}
-                        >
-                          <TriangleAlert aria-hidden size="1em" />
-                          {w.missing!.length}
-                        </Badge>
-                      )}
-                      {(w.langWaiting ?? 0) > 0 && (
-                        <Badge
-                          tone="warn"
-                          className="shrink-0"
-                          title={t('watch.langWaiting', {
-                            count: w.langWaiting,
-                            lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`]
-                              .filter(Boolean)
-                              .join('/'),
-                          })}
-                        >
-                          <Clock aria-hidden size="1em" />
-                          {w.langWaiting}
-                        </Badge>
-                      )}
-                      {w.lastResult !== '' && (
-                        <Badge tone="err" className="shrink-0" title={w.lastResult}>
-                          <X aria-hidden size="1em" />
-                          {t('dash.checkFailed')}
-                        </Badge>
-                      )}
+                      ))}
                     </span>
                   </Link>
                 </li>
@@ -964,7 +929,7 @@ function Attention({ watches }: { watches: Watch[] }) {
           </Panel>
           {needy.length > shown.length && (
             <Link
-              to="/watches"
+              to="/watches?filter=attention"
               className="mt-2 inline-flex min-h-6 items-center text-[11px] text-accent hover:underline"
             >
               {t('dash.attentionMore', { count: needy.length - shown.length })}

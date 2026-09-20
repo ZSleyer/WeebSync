@@ -244,6 +244,12 @@ export interface Watch {
   waiting: boolean
   airings?: Airing[]
   category?: 'anime-series' | 'anime-movie' | 'series' | 'movie'
+  // caught up on the dub it filters for: the original is ahead but the dub
+  // is not due yet - expected waiting, not a problem
+  dubWaiting?: boolean
+  dubExpectedAt?: number // forecast unix seconds of the next dub release; missing = no date known
+  dubOverdue?: boolean // the forecast plus a week of grace passed without a release
+  attention?: string[] // why this watch needs a hand, worst first; the backend's one source
 }
 
 // What a sync did. The counters answer the question a bare "0 queued" leaves
@@ -801,6 +807,12 @@ export function plexStreamLabel(value: string, t: (k: string) => string): string
   const [code, variant] = value.split(':')
   if (variant !== 'forced') return value
   return `${code} (${t('watch.plexSubForced')})`
+}
+
+// langLabel names what a watch's language filter asks for: "Ger-Dub",
+// "Ger-Sub" or both joined, '' when the filter is off.
+export function langLabel(w: Pick<Watch, 'wantDub' | 'wantSub'>): string {
+  return [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/')
 }
 
 // fmtMissing renders missing episode numbers, appending the original absolute
