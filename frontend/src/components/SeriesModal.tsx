@@ -38,7 +38,18 @@ import {
   useMenu,
   useSwipe,
 } from '@weebsync/design-system'
-import { api, fmtMissing, mediaTitle, watchTitle, type Media, type MediaExtras, type Review, type Watch } from '../api'
+import {
+  api,
+  fmtMissing,
+  langLabel,
+  mediaTitle,
+  watchTitle,
+  type Media,
+  type MediaExtras,
+  type Review,
+  type Watch,
+} from '../api'
+import { dubOverdueLabel, dubWaitingLabel } from '../attention'
 import { useNow } from '../hooks'
 import MediaDetail, { GenreChips } from './MediaDetail'
 import WatchEpisodesList from './WatchEpisodes'
@@ -608,14 +619,23 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
             {t('watch.unsorted', { count: w.unsorted })}
           </Badge>
         )}
-        {(w.langWaiting ?? 0) > 0 && (
-          <Badge tone="warn" size="sm">
+        {w.dubOverdue ? (
+          <Badge tone="err" size="sm">
             <Clock aria-hidden size="1em" />
-            {t('watch.langWaiting', {
-              count: w.langWaiting,
-              lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
-            })}
+            {dubOverdueLabel(t, w)}
           </Badge>
+        ) : w.dubWaiting ? (
+          <Badge size="sm">
+            <Clock aria-hidden size="1em" />
+            {dubWaitingLabel(t, w)}
+          </Badge>
+        ) : (
+          (w.langWaiting ?? 0) > 0 && (
+            <Badge tone="warn" size="sm">
+              <Clock aria-hidden size="1em" />
+              {t('watch.langWaiting', { count: w.langWaiting, lang: langLabel(w) })}
+            </Badge>
+          )
         )}
         {w.plexStreamMiss && (
           <Badge tone="warn" size="sm" title={t('watch.plexMissHint')}>

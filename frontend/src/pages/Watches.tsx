@@ -21,8 +21,9 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-// icon per status group divider (syncing / idle / waiting / complete)
+// icon per status group divider (attention / syncing / idle / waiting / complete)
 const GROUP_ICON: Record<string, LucideIcon> = {
+  attention: TriangleAlert,
   syncing: Download,
   idle: Eye,
   waiting: Clock,
@@ -34,6 +35,7 @@ import { Link } from 'react-router'
 import {
   Badge,
   Button,
+  Count,
   CalendarDay,
   DayTimeline,
   CalendarEntry,
@@ -54,7 +56,8 @@ import {
   useMediaQuery,
   useMenu,
 } from '@weebsync/design-system'
-import { api, fmtMissing, mediaTitle, type Watch } from '../api'
+import { api, fmtMissing, langLabel, mediaTitle, type Watch } from '../api'
+import { attentionInfo, dubOverdueLabel, dubWaitingLabel } from '../attention'
 import { addDays, dayKey, episodeLabel, startOfDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
@@ -109,6 +112,14 @@ export default function Watches() {
   const [view, setView] = usePersistedView('weebsync.watches.view', ['list', 'calendar'] as const, 'list')
   // list or grid, an inline switch like the calendar's week or list
   const [layout, setLayout] = usePersistedView('weebsync.watches.layout', ['list', 'grid'] as const, 'list', 'layout')
+  // the dashboard's "+N more" lands here with ?filter=attention; the chip
+  // below toggles it by hand
+  const [filter, setFilter] = usePersistedView(
+    'weebsync.watches.filter',
+    ['all', 'attention'] as const,
+    'all',
+    'filter',
+  )
   // the calendar as a week, or as the plain list by day it used to be
   const [calMode, setCalMode] = usePersistedView(
     'weebsync.watches.calendar',
@@ -290,12 +301,24 @@ export default function Watches() {
         return nextTs(a) - nextTs(b)
     }
   })
-  // group by status: actively downloading on top, waiting in the middle,
-  // finished at the bottom (each keeps the chosen sort order within it)
-  const groupOf = (w: Watch): 'syncing' | 'waiting' | 'idle' | 'complete' =>
-    w.active > 0 ? 'syncing' : w.complete ? 'complete' : w.waiting ? 'waiting' : 'idle'
-  const GROUP_ORDER = ['syncing', 'idle', 'waiting', 'complete'] as const
-  const grouped = GROUP_ORDER.map((g) => ({ g, items: sorted.filter((w) => groupOf(w) === g) })).filter(
+  // group by status: whatever needs a hand on top, then actively
+  // downloading, waiting in the middle, finished at the bottom (each keeps
+  // the chosen sort order within it)
+  const needsAttention = (w: Watch) => (w.attention?.length ?? 0) > 0
+  const attentionCount = watches.filter(needsAttention).length
+  const groupOf = (w: Watch): 'attention' | 'syncing' | 'waiting' | 'idle' | 'complete' =>
+    needsAttention(w)
+      ? 'attention'
+      : w.active > 0
+        ? 'syncing'
+        : w.complete
+          ? 'complete'
+          : w.waiting
+            ? 'waiting'
+            : 'idle'
+  const GROUP_ORDER = ['attention', 'syncing', 'idle', 'waiting', 'complete'] as const
+  const shownWatches = filter === 'attention' ? sorted.filter(needsAttention) : sorted
+  const grouped = GROUP_ORDER.map((g) => ({ g, items: shownWatches.filter((w) => groupOf(w) === g) })).filter(
     (x) => x.items.length > 0,
   )
 
@@ -382,6 +405,18 @@ export default function Watches() {
           views read alike: what is shown up top, how it is laid out here */}
       {view === 'list' && watches.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          {(attentionCount > 0 || filter === 'attention') && (
+            <Button
+              size="sm"
+              aria-pressed={filter === 'attention'}
+              onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')}
+              className={filter === 'attention' ? 'border-warn text-warn' : ''}
+            >
+              <TriangleAlert aria-hidden size="1em" />
+              <span className="ml-1">{t('watch.group.attention')}</span>
+              <Count className="ml-1">{attentionCount}</Count>
+            </Button>
+          )}
           <Segmented
             aria-label={t('watch.layout')}
             value={layout}
@@ -785,16 +820,27 @@ export default function Watches() {
                                   {t('watch.unsorted', { count: w.unsorted })}
                                 </Badge>
                               )}
-                              {(w.langWaiting ?? 0) > 0 && (
-                                <Badge tone="warn" size="sm">
+                              {w.dubOverdue ? (
+                                // the forecast plus a week of grace passed: this
+                                // is no longer expected waiting
+                                <Badge tone="err" size="sm">
                                   <Clock aria-hidden size="1em" />
-                                  {t('watch.langWaiting', {
-                                    count: w.langWaiting,
-                                    lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`]
-                                      .filter(Boolean)
-                                      .join('/'),
-                                  })}
+                                  {dubOverdueLabel(t, w)}
                                 </Badge>
+                              ) : w.dubWaiting ? (
+                                // calm: the dub simply is not out yet, dated when
+                                // the forecast has a date
+                                <Badge size="sm">
+                                  <Clock aria-hidden size="1em" />
+                                  {dubWaitingLabel(t, w)}
+                                </Badge>
+                              ) : (
+                                (w.langWaiting ?? 0) > 0 && (
+                                  <Badge tone="warn" size="sm">
+                                    <Clock aria-hidden size="1em" />
+                                    {t('watch.langWaiting', { count: w.langWaiting, lang: langLabel(w) })}
+                                  </Badge>
+                                )
                               )}
                               {w.plexStreamMiss && (
                                 // the one setting that used to fail in total silence:
@@ -963,21 +1009,10 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
   const { t } = useTranslation()
   const name = w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
   const total = w.media?.episodes ?? 0
-  const attention = (w.missing?.length ?? 0) > 0 || (w.langWaiting ?? 0) > 0 || w.lastResult !== ''
+  const attention = (w.attention?.length ?? 0) > 0
   // what the warning chip stands for, as its tooltip and for a screen reader
-  const attentionText = [
-    (w.missing?.length ?? 0) > 0
-      ? t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })
-      : null,
-    (w.langWaiting ?? 0) > 0
-      ? t('watch.langWaiting', {
-          count: w.langWaiting,
-          lang: [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/'),
-        })
-      : null,
-    w.lastResult || null,
-  ]
-    .filter(Boolean)
+  const attentionText = attentionInfo(t, w)
+    .map((c) => c.text)
     .join('. ')
   // day and month only: with the weekday the chip ran past a 140px tile
   const when = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { day: '2-digit', month: '2-digit' })
