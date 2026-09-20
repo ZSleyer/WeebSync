@@ -315,3 +315,108 @@ func TestSimuldubProjectsAtZeroLag(t *testing.T) {
 		t.Fatalf("dub slots = %+v, want the release of 10 and episode 11 projected at the original's time", got)
 	}
 }
+
+// dubStanding measures a watch against the dub schedule, not the original
+// broadcast: released-but-not-local is behind, everything else is expected
+// waiting - dated when the next original slot is known, overdue once the
+// forecast plus the grace has passed.
+func TestDubStanding(t *testing.T) {
+	now := time.Now()
+	day := int64(86400)
+	fc := dubForecast{
+		Known: true,
+		Lag:   21 * day,
+		Released: []Airing{
+			{At: now.Unix() - 8*day, Episode: 1},
+			{At: now.Unix() - day, Episode: 2},
+		},
+		OrigAt: map[int]int64{
+			1: now.Unix() - 29*day, 2: now.Unix() - 22*day,
+			3: now.Unix() - 15*day, 4: now.Unix() - 8*day,
+		},
+	}
+	tests := []struct {
+		name       string
+		fc         dubForecast
+		localFiles int
+		behind     int
+		expectedIn int64 // expectedAt - now, in days; 0 = no date
+		overdue    bool
+	}{
+		{"caught up, next dub a week out", fc, 2, 0, 6, false},
+		{"released but not local", fc, 1, 1, -1, false},
+		{"nothing released yet, dub late", dubForecast{Known: true, Lag: 21 * day, OrigAt: fc.OrigAt}, 0, 0, -8, true},
+		{"grace passed without a release", dubForecast{Known: true, Lag: 7 * day, OrigAt: fc.OrigAt}, 2, 0, -8, true},
+		{"no original slot known", dubForecast{Known: true, Lag: 21 * day}, 2, 0, 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			behind, expectedAt, overdue := dubStanding(tt.fc, 0, 1, tt.localFiles, now)
+			if behind != tt.behind {
+				t.Errorf("behind = %d, want %d", behind, tt.behind)
+			}
+			if overdue != tt.overdue {
+				t.Errorf("overdue = %v, want %v", overdue, tt.overdue)
+			}
+			if tt.expectedIn == 0 {
+				if expectedAt != 0 {
+					t.Errorf("expectedAt = %d, want none", expectedAt)
+				}
+			} else if got := expectedAt - now.Unix(); got != tt.expectedIn*day {
+				t.Errorf("expectedAt is %d days out, want %d", got/day, tt.expectedIn)
+			}
+		})
+	}
+}
+
+// A dub watch whose backlog the forecast explains is waiting, not behind:
+// Behind drops to what the dub itself has released, the language backlog
+// stops being attention, and the expected date rides along. Once the
+// forecast plus the grace has passed, the same watch is overdue.
+func TestDubWatchWaitsInsteadOfBehind(t *testing.T) {
+	d := dbtest.Open(t)
+	s := &Server{DB: d, Anilist: anilist.New(d)}
+
+	now := time.Now()
+	day := int64(86400)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	d.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, want_dub, dub_lag_days, last_filtered)
+		VALUES (1, 1, '/x/Show', 'Show', 'template', 'Show - E{episode:02}', 'Ger', 28, 2)`)
+	d.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, source) VALUES (1, '/x/Show', 5, 'anilist')`)
+	// episode 1 aired the day before yesterday, 3 is dated ahead
+	d.Exec(`INSERT INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', 5, ?, 1, '')`, now.Unix()-2*day)
+	d.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('media:5', ?)`,
+		fmt.Sprintf(`{"id":5,"schema":%d,"status":"FINISHED","schedule":[{"airingAt":%d,"episode":3}]}`, anilist.MediaSchema, now.Unix()+5*day))
+
+	list, err := s.watchesFor(1)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("watches: %v, %d", err, len(list))
+	}
+	w := list[0]
+	if w.Behind != 0 {
+		t.Errorf("Behind = %d, want 0: trailing the original is what a dub watch does", w.Behind)
+	}
+	if !w.DubWaiting || w.DubOverdue {
+		t.Errorf("DubWaiting = %v, DubOverdue = %v, want waiting and not overdue", w.DubWaiting, w.DubOverdue)
+	}
+	if want := now.Unix() - 2*day + 28*day; w.DubExpectedAt != want {
+		t.Errorf("DubExpectedAt = %d, want %d (original plus the configured lag)", w.DubExpectedAt, want)
+	}
+	if len(w.Attention) != 0 {
+		t.Errorf("Attention = %v, want none: the waiting is expected", w.Attention)
+	}
+
+	// the same watch with the forecast long past: overdue, and that is attention
+	d.Exec(`UPDATE watches SET dub_lag_days = 1`)
+	d.Exec(`UPDATE airings SET airing_at = ? WHERE lang = ''`, now.Unix()-20*day)
+	list, _ = s.watchesFor(1)
+	w = list[0]
+	if !w.DubOverdue {
+		t.Fatalf("DubOverdue = false, want true: expected %d days ago", 19)
+	}
+	if len(w.Attention) != 1 || w.Attention[0] != "dubOverdue" {
+		t.Errorf("Attention = %v, want [dubOverdue]", w.Attention)
+	}
+}

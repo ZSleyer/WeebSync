@@ -138,6 +138,48 @@ func dubLang(wantDub string) string {
 	return ""
 }
 
+// dubForecast is what dubSlots learned on the way: the lag, the recorded
+// releases and the original slots, kept so the caller can judge the watch's
+// standing against the dub schedule without a second query.
+type dubForecast struct {
+	Known    bool          // a lag is known, observed or configured
+	Lag      int64         // seconds the dub trails the original
+	Released []Airing      // recorded dub releases, absolute episode numbers
+	OrigAt   map[int]int64 // original slot per absolute episode
+}
+
+// dubGrace is how long past the forecast a dub may run late before the
+// waiting stops being expected and becomes something to look at.
+const dubGrace = 7 * 24 * time.Hour
+
+// dubStanding reads a watch's position against the dub schedule: behind is
+// released dub episodes not yet local, expectedAt the forecast date of the
+// next un-owned episode's dub (0 when no original slot is known), overdue
+// true once that date plus the grace has passed without a release.
+func dubStanding(fc dubForecast, offset, start, localFiles int, now time.Time) (behind int, expectedAt int64, overdue bool) {
+	if start < 1 {
+		start = 1 // same clamp Behind applies to from_episode
+	}
+	maxRel := 0
+	for _, a := range fc.Released {
+		if a.At <= now.Unix() && a.Episode > maxRel {
+			maxRel = a.Episode
+		}
+	}
+	if maxRel > 0 {
+		if aired := maxRel + offset - start + 1; aired > localFiles {
+			behind = aired - localFiles
+		}
+	}
+	// same contiguity assumption Behind makes; gaps are the missing reason
+	nextUnownedAbs := start + localFiles - offset
+	if at, ok := fc.OrigAt[nextUnownedAbs]; ok {
+		expectedAt = at + fc.Lag
+		overdue = now.Unix() > expectedAt+int64(dubGrace/time.Second)
+	}
+	return behind, expectedAt, overdue
+}
+
 // dubSlots lists a title's releases in one dub language, in the watch's
 // local numbering: what was recorded as released, and for every original
 // slot without a release yet a projection. Nobody publishes the projected
@@ -148,7 +190,7 @@ func dubLang(wantDub string) string {
 //
 // ponytail: constant lag. Catch-up weeks (two episodes at once) and
 // skipped weeks shift the projection until the next release corrects it.
-func (s *Server) dubSlots(source string, mediaID int, lang string, lagDays int, orig []Airing, from time.Time, offset, start int) []Airing {
+func (s *Server) dubSlots(source string, mediaID int, lang string, lagDays int, orig []Airing, from time.Time, offset, start int) ([]Airing, dubForecast) {
 	released := s.langAirings(source, mediaID, lang)
 	// the originals for the lag: everything recorded, plus what the provider
 	// still has dated ahead (orig carries the past week and the future)
@@ -163,6 +205,7 @@ func (s *Server) dubSlots(source string, mediaID int, lang string, lagDays int, 
 	if !known {
 		lag, known = int64(lagDays)*86400, lagDays > 0
 	}
+	fc := dubForecast{Known: known, Lag: lag, Released: released, OrigAt: origAt}
 	var out []Airing
 	add := func(at int64, episode int, est bool) {
 		if at < from.Unix() || episode+offset < start {
@@ -180,7 +223,7 @@ func (s *Server) dubSlots(source string, mediaID int, lang string, lagDays int, 
 		add(a.At, a.Episode, false)
 	}
 	if !known {
-		return out
+		return out, fc
 	}
 	seen := map[int]bool{}
 	for _, a := range orig {
@@ -190,7 +233,7 @@ func (s *Server) dubSlots(source string, mediaID int, lang string, lagDays int, 
 		seen[a.Episode] = true
 		add(a.At+lag, a.Episode, true)
 	}
-	return out
+	return out, fc
 }
 
 // lagFromReleases is the median gap between a dub release and the original

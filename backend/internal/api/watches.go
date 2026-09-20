@@ -92,6 +92,16 @@ type Watch struct {
 	Offset         int            `json:"offset,omitempty"`         // {episode-N} renumber offset: absolute episode = local - offset (for showing the original number)
 	Airings        []Airing       `json:"airings,omitempty"`        // every scheduled future release the provider knows (multi-week calendar)
 	Category       string         `json:"category,omitempty"`       // anime-series | anime-movie | series | movie (calendar filter)
+	// DubWaiting: the watch is caught up on the dub it filters for; the
+	// original is ahead but the dub is not due yet - expected waiting, not
+	// something to look at.
+	DubWaiting    bool  `json:"dubWaiting,omitempty"`
+	DubExpectedAt int64 `json:"dubExpectedAt,omitempty"` // forecast unix seconds of the next dub release; 0 = no date known
+	DubOverdue    bool  `json:"dubOverdue,omitempty"`    // the forecast plus a week of grace passed without a release
+	// Attention: why this watch needs a hand, ordered by severity; empty =
+	// fine. The one needs-attention source - dashboard, tile and the machine
+	// status all read this, never their own arithmetic.
+	Attention []string `json:"attention,omitempty"`
 }
 
 // Airing is one upcoming episode slot for the calendar, in the watch's local
@@ -1160,7 +1170,25 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 			// releases recorded in that language, and for the rest of the
 			// original slots a projection (see dubSlots).
 			if lang := dubLang(it.WantDub); lang != "" {
-				it.Airings = append(it.Airings, s.dubSlots(it.MediaSource, it.MediaID, lang, it.DubLagDays, slots, from, offset, start)...)
+				dubbed, fc := s.dubSlots(it.MediaSource, it.MediaID, lang, it.DubLagDays, slots, from, offset, start)
+				it.Airings = append(it.Airings, dubbed...)
+				// A dub watch is measured against the dub schedule, not the
+				// original broadcast: trailing the original is the deal, not
+				// a problem. Without a known lag the original stays the ruler.
+				if fc.Known && !it.AiredMapping {
+					origBehind := it.Behind
+					behind, expectedAt, overdue := dubStanding(fc, offset, start, it.LocalFiles, now)
+					if it.Media != nil && it.Media.NextAiring != nil {
+						it.Behind = min(behind, origBehind) // the dub is never ahead of the original
+					} else {
+						it.Behind = behind
+					}
+					if it.Behind == 0 && (origBehind > 0 || it.LangWaiting > 0) {
+						it.DubWaiting = true
+						it.DubExpectedAt = expectedAt
+						it.DubOverdue = overdue
+					}
+				}
 			}
 			sort.Slice(it.Airings, func(i, j int) bool {
 				if it.Airings[i].At != it.Airings[j].At {
@@ -1172,9 +1200,40 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 				return it.Airings[i].Dub < it.Airings[j].Dub
 			})
 		}
+		it.Attention = watchAttention(it)
 		list = append(list, it)
 	}
 	return list, nil
+}
+
+// watchAttention is THE needs-a-hand predicate, worst first. Expected dub
+// waiting is not attention: the language backlog only counts while the dub
+// schedule does not explain it (DubWaiting), and an overdue dub is its own
+// reason.
+func watchAttention(w Watch) []string {
+	var out []string
+	if w.LastResult != "" {
+		out = append(out, "checkFailed")
+	}
+	if w.Behind > 0 {
+		out = append(out, "behind")
+	}
+	if len(w.Missing) > 0 {
+		out = append(out, "missing")
+	}
+	if w.DubOverdue {
+		out = append(out, "dubOverdue")
+	}
+	if w.LangWaiting > 0 && !w.DubWaiting {
+		out = append(out, "langWaiting")
+	}
+	if w.Unsorted > 0 {
+		out = append(out, "unsorted")
+	}
+	if w.PlexStreamMiss != "" {
+		out = append(out, "plexStreamMiss")
+	}
+	return out
 }
 
 var epNumRe = regexp.MustCompile(`(?i)S\d+E(\d+)`)
