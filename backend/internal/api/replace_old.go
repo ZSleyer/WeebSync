@@ -45,6 +45,7 @@ func (s *Server) DownloadFinished(d *transfer.Download) {
 		s.replaceOldCopy(d)
 	}
 	s.NotifyDownloadFinished(d)
+	s.NotifyHaDownload(d)
 }
 
 // replaceOldCopy moves the older copy of the episode a finished download

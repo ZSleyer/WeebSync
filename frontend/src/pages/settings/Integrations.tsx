@@ -61,7 +61,7 @@ type Tone = 'ok' | 'err' | 'neutral'
 
 // One chip per provider, coloured by its state, linking to its panel: the
 // overview of a long page, and the way to reach the one that needs work.
-function StatusStrip({ smtp }: { smtp: boolean }) {
+function StatusStrip({ smtp, ha }: { smtp: boolean; ha: boolean }) {
   const { t } = useTranslation()
   const anilist = useQuery(ANILIST_ME).data
   const tmdb = useQuery(TMDB_ME).data
@@ -86,6 +86,7 @@ function StatusStrip({ smtp }: { smtp: boolean }) {
     ['animeschedule', 'AnimeSchedule', state(animeschedule?.connected, animeschedule?.configured)],
     ['plex', t('settings.plex'), state(plex?.connected, plex?.configured)],
     ['ai', t('settings.ai'), state(ai?.connected, !!ai?.error, ai?.configured)],
+    ['homeassistant', t('settings.homeAssistant'), state(false, false, ha)],
     ['email', t('settings.email'), state(false, false, smtp)],
   ]
   return (
@@ -109,7 +110,7 @@ export default function Integrations() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
-      <StatusStrip smtp={!!form.smtpHost} />
+      <StatusStrip smtp={!!form.smtpHost} ha={!!form.haWebhookUrl} />
       <Panel as="section" id="anilist" className="mb-4 p-5" aria-label="AniList">
         <Badge tone="accent">AniList</Badge>
         <div className="mt-3 grid grid-cols-1 gap-4">
@@ -292,6 +293,22 @@ export default function Integrations() {
               <span className="mt-1 block">{t('settings.aiSearchUrlHint')}</span>
             </label>
           </div>
+        </div>
+      </Panel>
+
+      <Panel as="section" id="homeassistant" className="mb-4 p-5" aria-label={t('settings.homeAssistant')}>
+        <Badge tone="accent">{t('settings.homeAssistant')}</Badge>
+        <div className="mt-3 grid grid-cols-1 gap-4">
+          <label className="text-xs text-t-muted">
+            {t('settings.haWebhookUrl')}
+            <Input
+              className="mt-1 font-mono"
+              placeholder="http://homeassistant.local:8123/api/webhook/weebsync"
+              value={form.haWebhookUrl}
+              onChange={(e) => set('haWebhookUrl', e.target.value)}
+            />
+            <span className="mt-1 block">{t('settings.haWebhookUrlHint')}</span>
+          </label>
         </div>
       </Panel>
 
