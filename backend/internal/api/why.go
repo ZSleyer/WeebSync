@@ -105,8 +105,13 @@ var seasonTokenRe = regexp.MustCompile(`(?i)\bS(\d{1,2})E\d`)
 // remoteShowRoot reports whether a remote folder is a whole show rather than
 // one season: it holds season folders, or files of more than one season.
 func (s *Server) remoteShowRoot(serverID int64, folder string) bool {
-	rows, err := s.DB.Query(`SELECT name, is_dir FROM remote_index WHERE server_id = ? AND (parent = ? OR parent LIKE ? || '/%')`,
-		serverID, folder, folder)
+	// a range on (server_id, parent) instead of LIKE: LIKE leaves the index at
+	// server_id and scans the whole server, and loadUnits asks once per show
+	// folder. '0' follows '/', so the range holds the folder and its subtree
+	// plus siblings like "<folder> (2)", which the last clause drops.
+	rows, err := s.DB.Query(`SELECT name, is_dir FROM remote_index WHERE server_id = ?
+		AND parent >= ? AND parent < ? || '0' AND (parent = ? OR parent >= ? || '/')`,
+		serverID, folder, folder, folder, folder)
 	if err != nil {
 		return false
 	}

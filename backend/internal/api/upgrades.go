@@ -1250,6 +1250,15 @@ func localSeasonsByShow(units catUnits) map[string][]LocalSeason {
 // created the bucket decided its form and every other row's is_movie was
 // dropped, so a series could be offered a film as "the better copy" of itself.
 func (s *Server) loadUnits() catUnits {
+	u := s.loadRawUnits()
+	s.pruneImplausibleRemotes(u)
+	return u
+}
+
+// loadRawUnits is loadUnits without the plausibility check on the remotes,
+// for callers that only read the local copies: the check walks the whole
+// catalog and costs seconds.
+func (s *Server) loadRawUnits() catUnits {
 	names := s.serverNames()
 	canon := s.showKeyCanon()
 	u := catUnits{byKey: map[string]*catUnit{}}
@@ -1291,8 +1300,6 @@ func (s *Server) loadUnits() catUnits {
 			cu.remotes = append(cu.remotes, v)
 		}
 	}
-	rows.Close()
-	s.pruneImplausibleRemotes(u)
 	return u
 }
 
