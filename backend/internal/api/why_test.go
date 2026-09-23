@@ -45,4 +45,9 @@ func TestRemoteShowRootSkipsWholeShowFolders(t *testing.T) {
 	if !s.remoteShowRoot(1, "/x/Show") {
 		t.Error("a season folder inside: a show folder")
 	}
+	// a sibling that shares the name's prefix is not inside the folder
+	addRemoteFiles(t, s, 1, "/x/Specials (Extra)", map[string]int64{"Show.S01E01.mkv": 1, "Show.S02E01.mkv": 1})
+	if s.remoteShowRoot(1, "/x/Specials") {
+		t.Error("a sibling's files counted as the folder's own")
+	}
 }

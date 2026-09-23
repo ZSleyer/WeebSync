@@ -178,7 +178,7 @@ func (s *Server) folderTarget(serverID int64, folder string) folderTarget {
 		showKey = c
 	}
 	scope := showScope(showKey, isMovie)
-	units := s.loadUnits()
+	units := s.loadRawUnits() // only the locals are read
 	var sibling, same string
 	for _, key := range units.order {
 		u := units.byKey[key]
