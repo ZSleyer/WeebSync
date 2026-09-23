@@ -457,7 +457,11 @@ export default function Dashboard() {
 
               {/* a phone reads the rate here, above the card it belongs to; the
                 desktop keeps it in the column beside the queue */}
-              {!wide && transferring && <SpeedPanel downloads={activeAll} />}
+              {!wide && transferring && (
+                <div className="mb-3">
+                  <SpeedPanel downloads={activeAll} />
+                </div>
+              )}
 
               {/* the first answer is still out: a card in the hero's shape and
                 two rows, so the page does not jump when it lands. Only then -
