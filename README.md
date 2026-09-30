@@ -2,7 +2,7 @@
 
 Container-based web app for downloading and syncing files and folders from your own S/FTP servers - with a metadata catalog, a download manager with live speed throttling, and a rename engine.
 
-> **Status: early, use at your own risk.** Not a mature or well-tested app. Expect rough edges and breaking changes.
+> **Status: stable (v1.0.0).** Releases are tagged `vMAJOR.MINOR.PATCH`; `:latest` follows the newest release. Use it at your own risk - it is a spare-time project without warranty.
 
 Inspired by [BastianGanze/weebsync](https://github.com/BastianGanze/weebsync). This is a full ground-up reimplementation, built with heavy LLM assistance - it shares the idea, not the code.
 
@@ -30,11 +30,11 @@ Runs **behind a TLS reverse proxy** (Traefik/Nginx/Caddy); it does not terminate
 
 | Tag | When | Use |
 |---|---|---|
-| `ghcr.io/zsleyer/weebsync:nightly` | daily (03:00 UTC) from green `main` | **recommended** - moves at most once a day |
+| `ghcr.io/zsleyer/weebsync:latest` | newest release | **recommended** - only moves on a release |
+| `:vX.Y.Z` / `:X.Y` | each release | pin an exact release / follow a minor line |
+| `:nightly` | daily (03:00 UTC) from green `main` | unreleased changes, moves at most once a day |
 | `:dev` | every push to `main` that passes CI | the same code a few hours earlier |
 | `:nightly-<sha>` / `:dev-<sha>` | with each build | pin an exact build |
-
-No `:vX.Y.Z` releases yet - the schema still changes, so there is nothing to freeze.
 
 ### File ownership (UID/GID)
 

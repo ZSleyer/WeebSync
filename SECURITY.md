@@ -11,8 +11,8 @@ is no guaranteed response time and no bug bounty.
 
 ## Supported versions
 
-Only the current `main` and the `:nightly` image built from it. There is no
-backporting to older tags.
+Only the latest release (`:latest`), the current `main` and the `:nightly` image
+built from it. There is no backporting to older tags.
 
 ## What this app touches
 
