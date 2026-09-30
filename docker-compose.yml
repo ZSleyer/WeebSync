@@ -1,6 +1,6 @@
 services:
   weebsync:
-    image: ghcr.io/zsleyer/weebsync:nightly # or :dev for every green push
+    image: ghcr.io/zsleyer/weebsync:latest # or :nightly / :dev for unreleased changes, :v1.0.0 to pin
     # build: . # build from this checkout instead
     # run as the owner of your media instead of the image's nonroot (65532);
     # `./data` must belong to that user too (README, "File ownership")
