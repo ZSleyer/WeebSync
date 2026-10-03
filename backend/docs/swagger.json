@@ -3031,6 +3031,14 @@
                     "scope": {
                         "description": "\"\" | anime | tv | movie",
                         "type": "string"
+                    },
+                    "upcoming": {
+                        "description": "Upcoming: series of a season folder's season that the folder lacks\nbecause they have not aired yet (or only just started). Anime scope,\nseason folders and fully matched listings only.",
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.Media"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "type": "object"

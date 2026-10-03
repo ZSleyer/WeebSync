@@ -189,6 +189,8 @@ export interface LocalStat {
 export interface CatalogResponse {
   scope: string // '' = anime (AniList), 'tv' | 'movie' = TMDB
   items: CatalogItem[]
+  // season folders: series of that season not on the server yet (AniList)
+  upcoming?: Media[]
 }
 
 export interface Watch {

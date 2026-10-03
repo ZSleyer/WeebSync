@@ -489,6 +489,14 @@
     "moreReviews": "{{count}} weitere anzeigen",
     "details": "Details"
   },
+  "upcoming": {
+    "title_one": "Erscheint noch ({{count}})",
+    "title_other": "Erscheinen noch ({{count}})",
+    "hint": "Serien dieser Season, die auf dem Server noch fehlen. Termine laut AniList, Ausstrahlung und Upload können sich verzögern.",
+    "uploadPending": "läuft, Upload ausstehend",
+    "expected": "voraussichtlich {{when}}",
+    "undated": "Termin offen"
+  },
   "watch": {
     "moreActions": "Mehr Aktionen für {{title}}",
     "gapsAction": "Fehlende Episoden",

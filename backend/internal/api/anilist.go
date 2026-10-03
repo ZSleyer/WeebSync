@@ -513,6 +513,10 @@ var (
 type catalogResponse struct {
 	Scope string        `json:"scope"` // "" | anime | tv | movie
 	Items []catalogItem `json:"items"`
+	// Upcoming: series of a season folder's season that the folder lacks
+	// because they have not aired yet (or only just started). Anime scope,
+	// season folders and fully matched listings only.
+	Upcoming []anilist.Media `json:"upcoming,omitempty"`
 }
 
 // handleCatalog lists remote folders enriched with AniList metadata. The
@@ -627,7 +631,64 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, item)
 	}
-	writeJSON(w, http.StatusOK, catalogResponse{Scope: scope, Items: items})
+	writeJSON(w, http.StatusOK, catalogResponse{Scope: scope, Items: items, Upcoming: s.upcomingFor(r.Context(), dir, scope, items)})
+}
+
+// upcomingGrace is how long after its start a series still counts as coming
+// rather than missing: release groups lag behind the broadcast, sometimes by
+// days, and start dates slip.
+const upcomingGrace = 14 * 24 * time.Hour
+
+// upcomingFor lists the season's series that a season folder ("2026-4 Fall")
+// doesn't hold yet. Empty while matches are pending (a fresh match would show
+// up as missing), outside the anime scope, and when AniList is unreachable:
+// the catalog itself must never wait on or fail over this extra.
+func (s *Server) upcomingFor(ctx context.Context, dir, scope string, items []catalogItem) []anilist.Media {
+	season, year := seasonFromPath(path.Base(dir))
+	if season == "" || scope != "anime" {
+		return nil
+	}
+	have := map[int]bool{}
+	for _, it := range items {
+		if it.Pending {
+			return nil
+		}
+		if it.Media != nil && it.Source == "anilist" {
+			have[it.Media.ID] = true
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	list, err := s.Anilist.Season(ctx, season, year)
+	if err != nil {
+		slog.Debug("upcoming season", "season", season, "year", year, "err", err)
+		return nil
+	}
+	return upcomingOf(list, have, time.Now())
+}
+
+// upcomingOf keeps the series (TV, TV short, ONA) not in have that are yet to start, or started
+// within upcomingGrace.
+func upcomingOf(list []anilist.Media, have map[int]bool, now time.Time) []anilist.Media {
+	cutoff := now.Add(-upcomingGrace)
+	since := anilist.Date(cutoff.Year(), int(cutoff.Month()), cutoff.Day())
+	out := []anilist.Media{}
+	for _, m := range list {
+		// the season list also carries films, specials and music videos,
+		// which a season folder of series never holds
+		if have[m.ID] || (m.Format != "TV" && m.Format != "TV_SHORT" && m.Format != "ONA") {
+			continue
+		}
+		// a start date without a day (YYYYMM00) sorts before any day of its
+		// month, so a vague "October" stays in for the whole month
+		fresh := m.Status == "RELEASING" && m.StartDate%100 != 0 && m.StartDate >= since
+		if m.Status != "NOT_YET_RELEASED" && !fresh {
+			continue
+		}
+		m.Title.Preferred = displayTitle(m, "anilist")
+		out = append(out, m)
+	}
+	return out
 }
 
 // reuseMatch looks for a folder with the same base name that another source
