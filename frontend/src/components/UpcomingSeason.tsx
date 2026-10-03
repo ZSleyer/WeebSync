@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { Badge, Cover, Panel } from '@weebsync/design-system'
+import { Files as FilesIcon } from 'lucide-react'
+import { Badge, Button, Cover, Panel } from '@weebsync/design-system'
 import { mediaTitle, type Media } from '../api'
 import { countdown } from '../countdown'
 import { useSeriesModal } from './SeriesModal'
@@ -54,22 +55,102 @@ export function expectedOf(t: TFunction, m: Media, lang: string, now = Date.now(
   return { label: t('upcoming.undated'), tone: 'neutral', at: Number.MAX_SAFE_INTEGER }
 }
 
+// missingOf words a series that has been on air for a while without turning up
+// on the server: since when, as far as AniList knows the start.
+export function missingOf(t: TFunction, m: Media, lang: string): Expected {
+  const d = m.startDate ?? 0
+  const date = new Date(Math.floor(d / 10000), (Math.floor(d / 100) % 100) - 1, d % 100)
+  return {
+    label:
+      d % 100
+        ? t('upcoming.missingSince', { when: date.toLocaleDateString(lang, { day: 'numeric', month: 'short' }) })
+        : t('upcoming.missingBadge'),
+    tone: 'warn',
+    at: 0,
+  }
+}
+
 // UpcomingSeason lists the series of a season folder's season that the server
-// doesn't carry yet, apart from the ones it does, each with when to expect it.
-export default function UpcomingSeason({ media }: { media: Media[] }) {
+// doesn't carry there, apart from the ones it does: those still to come with
+// when to expect them, those on air for a while but missing, and those the
+// server files elsewhere, typically a continuation under its first season.
+export default function UpcomingSeason({
+  upcoming,
+  missing,
+  elsewhere,
+  onOpenFolder,
+}: {
+  upcoming: Media[]
+  missing: Media[]
+  elsewhere: Record<number, string>
+  onOpenFolder: (path: string) => void
+}) {
   const { t, i18n } = useTranslation()
-  const series = useSeriesModal()
-  if (media.length === 0) return null
-  const rows = media.map((m) => ({ m, e: expectedOf(t, m, i18n.language) })).sort((a, b) => a.e.at - b.e.at)
+  const rows = upcoming.map((m) => ({ m, e: expectedOf(t, m, i18n.language) })).sort((a, b) => a.e.at - b.e.at)
+  // AniList's order: most popular first
+  const missingRows = missing.map((m) => ({ m, e: missingOf(t, m, i18n.language) }))
+  const props = { elsewhere, onOpenFolder }
   return (
-    <section className="mt-8" aria-labelledby="upcoming-heading">
-      <h2 id="upcoming-heading" className="text-sm font-medium text-t-primary">
-        {t('upcoming.title', { count: media.length })}
+    <>
+      <Section
+        id="upcoming"
+        title={t('upcoming.title', { count: upcoming.length })}
+        hint={t('upcoming.hint')}
+        rows={rows}
+        {...props}
+      />
+      <Section
+        id="missing"
+        title={t('upcoming.missingTitle', { count: missingRows.filter((r) => !elsewhere[r.m.id]).length })}
+        hint={t('upcoming.missingHint')}
+        rows={missingRows.filter((r) => !elsewhere[r.m.id])}
+        {...props}
+      />
+      <Section
+        id="elsewhere"
+        title={t('upcoming.elsewhereTitle', { count: missingRows.filter((r) => elsewhere[r.m.id]).length })}
+        hint={t('upcoming.elsewhereHint')}
+        rows={missingRows
+          .filter((r) => elsewhere[r.m.id])
+          .map(({ m }) => ({ m, e: { label: t('upcoming.elsewhereBadge'), tone: 'neutral' as const, at: 0 } }))}
+        {...props}
+      />
+    </>
+  )
+}
+
+// folderName keeps the last two segments ("2026-2 Spring/Show"): the season
+// folder says why it lives there, the leaf which folder it is
+const folderName = (p: string) => p.split('/').filter(Boolean).slice(-2).join('/')
+
+function Section({
+  id,
+  title,
+  hint,
+  rows,
+  elsewhere,
+  onOpenFolder,
+}: {
+  id: string
+  title: string
+  hint: string
+  rows: { m: Media; e: Expected }[]
+  elsewhere: Record<number, string>
+  onOpenFolder: (path: string) => void
+}) {
+  const { t } = useTranslation()
+  const series = useSeriesModal()
+  if (rows.length === 0) return null
+  return (
+    <section className="mt-8" aria-labelledby={`${id}-heading`}>
+      <h2 id={`${id}-heading`} className="text-sm font-medium text-t-primary">
+        {title}
       </h2>
-      <p className="mb-3 text-xs text-t-muted">{t('upcoming.hint')}</p>
+      <p className="mb-3 text-xs text-t-muted">{hint}</p>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
         {rows.map(({ m, e }) => {
           const name = mediaTitle(m)
+          const folder = elsewhere[m.id]
           return (
             <Panel as="article" key={m.id} className="group flex flex-col overflow-clip">
               <button
@@ -92,6 +173,20 @@ export default function UpcomingSeason({ media }: { media: Media[] }) {
                   </div>
                 </div>
               </button>
+              {folder && (
+                <div className="mx-2 mt-auto mb-2 flex">
+                  <Button
+                    size="sm"
+                    className="min-w-0 flex-1"
+                    title={folder}
+                    aria-label={t('upcoming.openFolder', { folder })}
+                    onClick={() => onOpenFolder(folder)}
+                  >
+                    <FilesIcon aria-hidden size="1.2em" className="shrink-0" />
+                    <span className="truncate">{folderName(folder)}</span>
+                  </Button>
+                </div>
+              )}
             </Panel>
           )
         })}

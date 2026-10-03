@@ -191,6 +191,10 @@ export interface CatalogResponse {
   items: CatalogItem[]
   // season folders: series of that season not on the server yet (AniList)
   upcoming?: Media[]
+  // ...and those on air for a while that it still lacks
+  missing?: Media[]
+  // media id -> folder on the same server holding it or its prequel
+  elsewhere?: Record<number, string>
 }
 
 export interface Watch {

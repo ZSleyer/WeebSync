@@ -1159,7 +1159,12 @@ export function CatalogGrid({
             })}
           </div>
         )}
-        <UpcomingSeason media={data?.upcoming ?? []} />
+        <UpcomingSeason
+          upcoming={data?.upcoming ?? []}
+          missing={data?.missing ?? []}
+          elsewhere={data?.elsewhere ?? {}}
+          onOpenFolder={onOpenFiles}
+        />
         {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
       </div>
     </div>
