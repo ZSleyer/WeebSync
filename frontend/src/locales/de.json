@@ -495,7 +495,17 @@
     "hint": "Serien dieser Season, die auf dem Server noch fehlen. Termine laut AniList, Ausstrahlung und Upload können sich verzögern.",
     "uploadPending": "läuft, Upload ausstehend",
     "expected": "voraussichtlich {{when}}",
-    "undated": "Termin offen"
+    "undated": "Termin offen",
+    "missingTitle_one": "Fehlt auf dem Server ({{count}})",
+    "missingTitle_other": "Fehlen auf dem Server ({{count}})",
+    "missingHint": "Serien dieser Season, die schon länger laufen, aber auf dem Server nicht auftauchen.",
+    "missingSince": "fehlt, läuft seit {{when}}",
+    "missingBadge": "fehlt, läuft bereits",
+    "elsewhereTitle_one": "In anderem Ordner ({{count}})",
+    "elsewhereTitle_other": "In anderen Ordnern ({{count}})",
+    "elsewhereHint": "Laufende Serien dieser Season, die der Server woanders führt, meist Fortsetzungen nach einer Pause im Ordner ihrer ersten Season.",
+    "elsewhereBadge": "liegt in anderem Ordner",
+    "openFolder": "Ordner öffnen: {{folder}}"
   },
   "watch": {
     "moreActions": "Mehr Aktionen für {{title}}",

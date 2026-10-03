@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TFunction } from 'i18next'
 import type { Media } from '../api'
-import { expectedOf } from '../components/UpcomingSeason'
+import { expectedOf, missingOf } from '../components/UpcomingSeason'
 
 // echo key and params, so the test reads which branch was taken
 const t = ((k: string, o?: Record<string, unknown>) => (o ? `${k} ${JSON.stringify(o)}` : k)) as unknown as TFunction
@@ -30,5 +30,12 @@ describe('expectedOf', () => {
     const at = (p: Partial<Media>) => expectedOf(t, media(p), 'en', now).at
     expect(at({ startDate: 20261130 })).toBeLessThan(at({ startDate: 20261100 }) + 1)
     expect(at({ startDate: 20261100 })).toBeLessThan(at({}))
+  })
+})
+
+describe('missingOf', () => {
+  it('names the start when AniList knows the day', () => {
+    expect(missingOf(t, media({ startDate: 20261003 }), 'en').label).toMatch(/^upcoming\.missingSince/)
+    expect(missingOf(t, media({ startDate: 20261000 }), 'en').label).toBe('upcoming.missingBadge')
   })
 })

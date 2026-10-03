@@ -3021,9 +3021,24 @@
             },
             "api.catalogResponse": {
                 "properties": {
+                    "elsewhere": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "description": "Elsewhere: upcoming/missing media id -> a folder on the same server\nthat holds it or its direct prequel, outside this season folder. A\ncontinuation after a break is often filed under its first season.",
+                        "type": "object"
+                    },
                     "items": {
                         "items": {
                             "$ref": "#/components/schemas/api.catalogItem"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "missing": {
+                        "description": "Missing: series of that season already on air for longer than the\ngrace period that the folder still lacks.",
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.Media"
                         },
                         "type": "array",
                         "uniqueItems": false

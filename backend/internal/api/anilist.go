@@ -517,6 +517,13 @@ type catalogResponse struct {
 	// because they have not aired yet (or only just started). Anime scope,
 	// season folders and fully matched listings only.
 	Upcoming []anilist.Media `json:"upcoming,omitempty"`
+	// Missing: series of that season already on air for longer than the
+	// grace period that the folder still lacks.
+	Missing []anilist.Media `json:"missing,omitempty"`
+	// Elsewhere: upcoming/missing media id -> a folder on the same server
+	// that holds it or its direct prequel, outside this season folder. A
+	// continuation after a break is often filed under its first season.
+	Elsewhere map[int]string `json:"elsewhere,omitempty"`
 }
 
 // handleCatalog lists remote folders enriched with AniList metadata. The
@@ -631,7 +638,10 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, item)
 	}
-	writeJSON(w, http.StatusOK, catalogResponse{Scope: scope, Items: items, Upcoming: s.upcomingFor(r.Context(), dir, scope, items)})
+	resp := catalogResponse{Scope: scope, Items: items}
+	resp.Upcoming, resp.Missing = s.upcomingFor(r.Context(), dir, scope, items)
+	resp.Elsewhere = s.elsewhereFor(r.Context(), serverID, append(resp.Upcoming, resp.Missing...))
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // upcomingGrace is how long after its start a series still counts as coming
@@ -640,18 +650,18 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 const upcomingGrace = 14 * 24 * time.Hour
 
 // upcomingFor lists the season's series that a season folder ("2026-4 Fall")
-// doesn't hold yet. Empty while matches are pending (a fresh match would show
+// doesn't hold: still to come, and on air but missing. Empty while matches are pending (a fresh match would show
 // up as missing), outside the anime scope, and when AniList is unreachable:
 // the catalog itself must never wait on or fail over this extra.
-func (s *Server) upcomingFor(ctx context.Context, dir, scope string, items []catalogItem) []anilist.Media {
+func (s *Server) upcomingFor(ctx context.Context, dir, scope string, items []catalogItem) (upcoming, missing []anilist.Media) {
 	season, year := seasonFromPath(path.Base(dir))
 	if season == "" || scope != "anime" {
-		return nil
+		return nil, nil
 	}
 	have := map[int]bool{}
 	for _, it := range items {
 		if it.Pending {
-			return nil
+			return nil, nil
 		}
 		if it.Media != nil && it.Source == "anilist" {
 			have[it.Media.ID] = true
@@ -662,33 +672,74 @@ func (s *Server) upcomingFor(ctx context.Context, dir, scope string, items []cat
 	list, err := s.Anilist.Season(ctx, season, year)
 	if err != nil {
 		slog.Debug("upcoming season", "season", season, "year", year, "err", err)
-		return nil
+		return nil, nil
 	}
 	return upcomingOf(list, have, time.Now())
 }
 
-// upcomingOf keeps the series (TV, TV short, ONA) not in have that are yet to start, or started
-// within upcomingGrace.
-func upcomingOf(list []anilist.Media, have map[int]bool, now time.Time) []anilist.Media {
+// elsewhereFor finds, per series, a folder on the same server that is matched
+// to it or to its direct prequel/parent. Only a folder outside the listing can
+// match: the listing's own matches were filtered out already. Relations come
+// from cache or a batched lookup; what a slow AniList doesn't answer within
+// the budget simply stays unknown until the next visit.
+func (s *Server) elsewhereFor(ctx context.Context, serverID int64, list []anilist.Media) map[int]string {
+	if len(list) == 0 {
+		return nil
+	}
+	ids := make([]int, len(list))
+	for i, m := range list {
+		ids[i] = m.ID
+	}
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	rels, err := s.Anilist.RelationsBatch(ctx, ids)
+	if err != nil {
+		slog.Debug("upcoming relations", "err", err)
+	}
+	out := map[int]string{}
+	for _, id := range ids {
+		cands := []int{id}
+		for _, r := range rels[id] {
+			if r.RelationType == "PREQUEL" || r.RelationType == "PARENT" {
+				cands = append(cands, r.Node.ID)
+			}
+		}
+		for _, c := range cands {
+			// several folders: the latest season folder sorts last
+			var folder string
+			if s.DB.QueryRow(`SELECT folder FROM catalog_matches
+				WHERE server_id = ? AND source = 'anilist' AND media_id = ?
+				ORDER BY folder DESC LIMIT 1`, serverID, c).Scan(&folder) == nil {
+				out[id] = folder
+				break
+			}
+		}
+	}
+	return out
+}
+
+// upcomingOf sorts the series (TV, TV short, ONA) not in have into those yet
+// to start or started within upcomingGrace, and those on air for longer.
+func upcomingOf(list []anilist.Media, have map[int]bool, now time.Time) (upcoming, missing []anilist.Media) {
 	cutoff := now.Add(-upcomingGrace)
 	since := anilist.Date(cutoff.Year(), int(cutoff.Month()), cutoff.Day())
-	out := []anilist.Media{}
 	for _, m := range list {
 		// the season list also carries films, specials and music videos,
 		// which a season folder of series never holds
 		if have[m.ID] || (m.Format != "TV" && m.Format != "TV_SHORT" && m.Format != "ONA") {
 			continue
 		}
-		// a start date without a day (YYYYMM00) sorts before any day of its
-		// month, so a vague "October" stays in for the whole month
-		fresh := m.Status == "RELEASING" && m.StartDate%100 != 0 && m.StartDate >= since
-		if m.Status != "NOT_YET_RELEASED" && !fresh {
-			continue
-		}
 		m.Title.Preferred = displayTitle(m, "anilist")
-		out = append(out, m)
+		switch {
+		case m.Status == "NOT_YET_RELEASED",
+			// a start without a day can't be told fresh: on air, so missing
+			m.Status == "RELEASING" && m.StartDate%100 != 0 && m.StartDate >= since:
+			upcoming = append(upcoming, m)
+		case m.Status == "RELEASING":
+			missing = append(missing, m)
+		}
 	}
-	return out
+	return upcoming, missing
 }
 
 // reuseMatch looks for a folder with the same base name that another source
