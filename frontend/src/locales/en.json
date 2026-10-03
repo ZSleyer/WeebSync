@@ -489,6 +489,14 @@
     "moreReviews": "Show {{count}} more",
     "details": "Details"
   },
+  "upcoming": {
+    "title_one": "Still to come ({{count}})",
+    "title_other": "Still to come ({{count}})",
+    "hint": "Series of this season the server doesn't have yet. Dates per AniList; broadcasts and uploads can be delayed.",
+    "uploadPending": "airing, upload pending",
+    "expected": "expected {{when}}",
+    "undated": "date unknown"
+  },
   "watch": {
     "moreActions": "More actions for {{title}}",
     "gapsAction": "Missing episodes",

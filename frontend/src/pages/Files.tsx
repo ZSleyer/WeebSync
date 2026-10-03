@@ -69,6 +69,7 @@ import { useRenamePreview } from '../components/useRenamePreview'
 import { subfolderMode, subfolderTargetDir, syncRequestPath, useTargetFolder } from '../components/useTargetFolder'
 import HostKeyPrompt from '../components/HostKeyPrompt'
 import SubfolderChoice from '../components/SubfolderChoice'
+import UpcomingSeason from '../components/UpcomingSeason'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, useFolderKind, useWatchDefaults } from '../components/watchDefaults'
 import { useConfirm } from '../components/confirm'
@@ -1158,6 +1159,7 @@ export function CatalogGrid({
             })}
           </div>
         )}
+        <UpcomingSeason media={data?.upcoming ?? []} />
         {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
       </div>
     </div>
