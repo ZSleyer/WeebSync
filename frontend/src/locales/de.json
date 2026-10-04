@@ -442,6 +442,8 @@
     "changeMatch": "Match ändern",
     "matchFor": "AniList-Match für {{name}}",
     "search": "Suchen…",
+    "recentSearches": "Letzte Suchen",
+    "forgetSearch": "Suche „{{q}}“ entfernen",
     "searchIn": "Suchen in {{dir}}",
     "removeMatch": "Match entfernen",
     "close": "Schließen",
