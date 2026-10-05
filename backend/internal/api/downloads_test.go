@@ -106,7 +106,7 @@ func TestDownloadsReorder(t *testing.T) {
 		}
 		return out + `]}`
 	}
-	if rec := doReq(mux, "POST", "/api/downloads/reorder", body(b, a), adminC); rec.Code != http.StatusNoContent {
+	if rec := doReq(mux, "POST", "/api/downloads/reorder", body(b, a), adminC); rec.Code != http.StatusOK {
 		t.Fatalf("reorder: got %d: %s", rec.Code, rec.Body)
 	}
 	// b takes a's slot, a takes b's; the other user's file keeps its place
