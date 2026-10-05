@@ -1,4 +1,5 @@
 import { useEffect, useRef, type PointerEvent, type RefObject } from 'react'
+import { EASE_THROW, moveVelocity, project, releaseVelocity, startVelocity, throwMs, type Velocity } from './gesture'
 
 // A bottom sheet follows the finger from anywhere on its surface. Restricting
 // the pull to a handle or a header is the thing people notice as wrong: every
@@ -20,29 +21,30 @@ import { useEffect, useRef, type PointerEvent, type RefObject } from 'react'
 //   up, and the sheet is at its opening height              -> the sheet's
 //   up, and it is already open to full height               -> the scroller's
 //
+// A move that is wider than it is tall is never the sheet's: it is a swipe
+// between the tabs inside it, or the browser's. Without that lock a diagonal
+// swipe in the series dialog moved the sheet and the tab deck at once.
+//
 // Once the sheet owns the gesture it follows the finger 1:1 in both directions
 // - up as far as its full height, with a rubber band past that - and nothing
-// is decided until the finger lifts: the nearest height wins, or a flick
-// carries it over. Deciding mid-gesture (the old 32px trigger) made the sheet
-// snap open under a finger that was still pulling.
+// is decided until the finger lifts. What decides is where the throw would come
+// to rest (gesture.ts): the release position carried on at the release speed,
+// measured over the last 100ms rather than over the whole gesture. So a slow
+// pull that ends in a flick closes, and a long pull flicked back up does not.
+// Deciding mid-gesture (the old 32px trigger) made the sheet snap open under a
+// finger that was still pulling.
 //
 // A gesture the sheet claims is cancelled with `preventDefault` on a
 // non-passive `touchmove`, which is the only thing that stops a browser scroll
 // once a finger is down. React attaches its own touch handlers passively, so
 // these have to be native listeners.
 
-// px/ms, measured over the whole gesture: a flick this fast closes the sheet
-// however short the pull was.
-const VELOCITY = 0.4
-// or a pull past a quarter of the sheet's height. The fraction alone is too
-// twitchy on a short sheet, hence the floor.
+// A throw that would come to rest past a quarter of the sheet's height closes
+// it. The fraction alone is too twitchy on a short sheet, hence the floor.
 const CLOSE_FRACTION = 0.25
 const CLOSE_MIN = 64
 // a move shorter than this is a tap with a shaky thumb, not a pull
 const SLOP = 6
-// a flick this fast between the two heights carries the sheet over, however
-// short the pull. Gentler than the dismissal, which throws the sheet away.
-const DETENT_VELOCITY = 0.3
 // the first move of a touch gesture decides who owns it, and it has to decide
 // on less than the tap slop - waiting longer means the browser has already
 // started scrolling and `preventDefault` is ignored from then on
@@ -60,9 +62,10 @@ const SCROLL_LOCK_MS = 100
 // following, which is what reads as rubber rather than as a broken constraint.
 const OVERDRAG_LIMIT = 40
 const OVERDRAG_R = 0.55
-// the slide-out, and the safety net in case transitionend never fires. The
-// settle back into place has no number here: it runs on the stylesheet's own
-// transition, which is the one that also moves the height.
+// the slide-out of a sheet let go at rest, and the base of the safety net in
+// case transitionend never fires. A thrown sheet takes its time from the throw
+// instead. The settle back into place has no number here: it runs on the
+// stylesheet's own transition, which is the one that also moves the height.
 const CLOSE_MS = 250
 
 // Controls that own the pointer themselves, plus the opt-out for anything that
@@ -134,7 +137,7 @@ export function useSheetDrag({
   onRequestClose,
   onClose,
 }: SheetDragOptions): SheetDragHandlers {
-  const drag = useRef<{ id: number; y: number; t: number; from: Element; on: boolean; frozen: HTMLElement | null; span: number } | null>(null)
+  const drag = useRef<{ id: number; x: number; y: number; vel: Velocity; from: Element; on: boolean; frozen: HTMLElement | null; span: number } | null>(null)
   const lastScroll = useRef(0)
   // the callbacks and the detent change between renders; the native listeners
   // are installed once and read them from here
@@ -203,13 +206,13 @@ export function useSheetDrag({
   }
 
   // What a finished pull does: dismiss, step between the two heights, or
-  // settle. Shared by the mouse and the touch path.
-  const finish = async (el: HTMLElement, dy: number, dt: number, span: number) => {
+  // settle. Shared by the mouse and the touch path. `v` is the release speed in
+  // px/ms, downward positive.
+  const finish = async (el: HTMLElement, dy: number, v: number, span: number) => {
     const { expanded: isExpanded, onCollapse: collapse, onExpand: expand, onRequestClose: guard, onClose: close } = live.current
-    // two events carrying the same timestamp say nothing about speed; the
-    // distance still does
-    const v = dt > 0 ? dy / dt : 0
-    const far = dy > Math.max(el.clientHeight * CLOSE_FRACTION, CLOSE_MIN)
+    // where the throw would come to rest, not where the finger let go
+    const to = project(dy, v)
+    const far = to > Math.max(el.clientHeight * CLOSE_FRACTION, CLOSE_MIN)
     // the point between the two heights, past which the other one is nearer
     const half = span > 0 ? span / 2 : EXPAND_AT
     // Back to the stylesheet's transition, not to an inline one: the sheet's
@@ -227,9 +230,9 @@ export function useSheetDrag({
       el.toggleAttribute('data-expanded', on)
       ;(on ? live.current.onExpand : live.current.onCollapse)?.()
     }
-    // a pull up from the opening height: the full height, once it is nearer
-    if (dy < 0) {
-      if (!isExpanded && expand && (-dy >= half || -v > DETENT_VELOCITY)) detent(true)
+    // a throw up from the opening height: the full height, once it is nearer
+    if (to < 0) {
+      if (!isExpanded && expand && -to >= half) detent(true)
       settle()
       return
     }
@@ -239,25 +242,32 @@ export function useSheetDrag({
     // pull that carries the sheet past the opening height and a dismissal's
     // distance beyond it is both pulls in one; where the height difference
     // could not be measured the sheet steps back rather than guess.
-    const past = span > 0 && dy >= span + Math.max((el.clientHeight - span) * CLOSE_FRACTION, CLOSE_MIN)
+    const past = span > 0 && to >= span + Math.max((el.clientHeight - span) * CLOSE_FRACTION, CLOSE_MIN)
     if (isExpanded && collapse && !past) {
-      if (dy >= half || v > DETENT_VELOCITY) detent(false)
+      if (to >= half) detent(false)
       settle()
       return
     }
-    if (far || v > VELOCITY) {
+    if (far) {
       if (!guard || (await guard())) {
         // the backdrop fades with the slide, not after it
         grip(el, false)
         el.style.setProperty('--sheet-pull', '1')
-        el.style.transition = reducedMotion() ? 'none' : `transform ${CLOSE_MS}ms var(--ease-in)`
+        // thrown: carry on at the finger's speed; let go at rest: ease in
+        const thrown = v > 0 ? throwMs(Math.max(0, el.clientHeight - dy), v) : null
+        const ms = thrown ?? CLOSE_MS
+        el.style.transition = reducedMotion()
+          ? 'none'
+          : thrown
+            ? `transform ${thrown}ms ${EASE_THROW}`
+            : `transform ${CLOSE_MS}ms var(--ease-in)`
         el.style.transform = 'translateY(100%)'
         const done = () => {
           el.removeEventListener('transitionend', done)
           clearTimeout(timer)
           close()
         }
-        const timer = setTimeout(done, CLOSE_MS + 100)
+        const timer = setTimeout(done, ms + 100)
         el.addEventListener('transitionend', done)
         return
       }
@@ -275,8 +285,9 @@ export function useSheetDrag({
     // 'none' = undecided, 'sheet' = ours to drag, 'scroll' = the content's,
     // hands off for the rest of the gesture
     let mode: 'none' | 'sheet' | 'scroll' = 'none'
+    let startX = 0
     let startY = 0
-    let startT = 0
+    let vel = startVelocity(0)
     let room = 0
     let from: Element | null = null
     let frozen: HTMLElement | null = null
@@ -294,17 +305,25 @@ export function useSheetDrag({
       const target = t.target as HTMLElement | null
       if (!target?.closest || target.closest(NO_DRAG)) return reset()
       mode = 'none'
+      startX = t.clientX
       startY = t.clientY
-      startT = performance.now()
+      vel = startVelocity(t.clientY)
       from = target
     }
 
     const onMove = (e: TouchEvent) => {
       if (!from || e.touches.length !== 1) return
+      const dx = e.touches[0].clientX - startX
       const dy = e.touches[0].clientY - startY
       if (mode === 'scroll') return
+      moveVelocity(vel, e.touches[0].clientY)
       if (mode === 'none') {
-        if (Math.abs(dy) < DECIDE) return
+        if (Math.abs(dy) < DECIDE && Math.abs(dx) < DECIDE) return
+        // the axis lock: wider than tall is a sideways swipe, not a pull
+        if (Math.abs(dx) > Math.abs(dy)) {
+          mode = 'scroll'
+          return
+        }
         // a flick that just ended its momentum at the top of the content must
         // not turn into a dismissal
         if (performance.now() - lastScroll.current < SCROLL_LOCK_MS) {
@@ -341,10 +360,9 @@ export function useSheetDrag({
 
     const onEnd = (e: TouchEvent) => {
       const claimed = mode === 'sheet'
-      const dy = (e.changedTouches[0]?.clientY ?? startY) - startY
-      const dt = performance.now() - startT
+      const y = e.changedTouches[0]?.clientY ?? startY
       reset()
-      if (claimed) void finish(el, dy, dt, room)
+      if (claimed) void finish(el, y - startY, releaseVelocity(vel, y), room)
     }
 
     const onCancel = () => {
@@ -390,7 +408,7 @@ export function useSheetDrag({
       el.style.transform = ''
       return
     }
-    await finish(el, e.clientY - d.y, performance.now() - d.t, d.span)
+    await finish(el, e.clientY - d.y, releaseVelocity(d.vel, e.clientY), d.span)
   }
 
   return {
@@ -399,15 +417,18 @@ export function useSheetDrag({
       const el = sheet.current
       const target = e.target as HTMLElement | null
       if (!el || !target?.closest || target.closest(NO_DRAG)) return
-      drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), from: target, on: false, frozen: null, span: 0 }
+      drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, vel: startVelocity(e.clientY), from: target, on: false, frozen: null, span: 0 }
     },
     onPointerMove: (e) => {
       const d = drag.current
       const el = sheet.current
       if (!d || !el || e.pointerId !== d.id) return
       const dy = e.clientY - d.y
+      moveVelocity(d.vel, e.clientY)
       if (!d.on) {
-        if (Math.abs(dy) < SLOP) return
+        if (Math.abs(dy) < SLOP && Math.abs(e.clientX - d.x) < SLOP) return
+        // the axis lock, as on touch
+        if (Math.abs(e.clientX - d.x) > Math.abs(dy)) return (drag.current = null) as null
         // upward with no height left to take: not ours
         if (dy < 0 && (live.current.expanded || !live.current.onExpand)) return (drag.current = null) as null
         if (performance.now() - lastScroll.current < SCROLL_LOCK_MS) return (drag.current = null) as null

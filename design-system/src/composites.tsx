@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
+import { VELOCITY_MS } from './gesture'
 import { haptic } from './haptics'
 import { Badge, buttonClass, COVER_BOX, markOverflow, Panel, Progress, Slot } from './primitives'
 
@@ -635,9 +636,6 @@ const DRAG_SLOP = 10
 // the tick as a day passes the middle. Shorter than a page turn's - this one
 // fires for every day the thumb drags past, so it has to stay light.
 const TICK_MS = 3
-// the window a release reads its speed over: a hand that came to rest before
-// letting go has thrown nothing, however fast it travelled before that
-const VELOCITY_MS = 100
 // px/ms a flick is capped at - two events a millisecond apart must not throw
 // the band across a year
 const MAX_V = 4

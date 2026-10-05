@@ -481,6 +481,87 @@ describe('Dialog', () => {
     expect(cancel.defaultPrevented).toBe(true)
   })
 
+  // The axis lock: a move wider than it is tall is a swipe between the tabs
+  // inside, never a pull. Without it a diagonal swipe moved both at once.
+  it('leaves a sideways move to the content', async () => {
+    const restore = withNarrowViewport(true)
+    const onClose = vi.fn()
+    try {
+      const { container } = sheet({ onClose })
+      const dialog = dialogOf(container)
+      const body = screen.getByText('Inhalt')
+      fireEvent.pointerDown(body, { clientX: 100, clientY: 100, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientX: 140, clientY: 110, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientX: 200, clientY: 130, pointerId: 1 })
+      expect(dialog.hasAttribute('data-dragging')).toBe(false)
+      expect(dialog.style.transform).toBe('')
+      fireEvent.pointerUp(dialog, { clientX: 200, clientY: 130, pointerId: 1 })
+      expect(onClose).not.toHaveBeenCalled()
+    } finally {
+      restore()
+    }
+  })
+
+  // The speed is read over the last 100ms, not averaged over the gesture: a
+  // slow pull that ends in a flick is a flick. Averaged, this one read as
+  // 0.2px/ms and settled back.
+  it('closes a slow pull that ends in a flick, and slides out at its speed', async () => {
+    // narrow, but without reduced motion - the blanket stub matches that too
+    const real = window.matchMedia
+    window.matchMedia = ((q: string) => ({
+      matches: !q.includes('reduced-motion'),
+      media: q,
+      addEventListener() {},
+      removeEventListener() {},
+    })) as unknown as typeof window.matchMedia
+    const restore = () => {
+      window.matchMedia = real
+    }
+    try {
+      const { container } = sheet()
+      const dialog = dialogOf(container)
+      const body = screen.getByText('Inhalt')
+      fireEvent.pointerDown(body, { clientY: 100, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 130, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 150, pointerId: 1 })
+      await new Promise((r) => setTimeout(r, 300))
+      fireEvent.pointerMove(dialog, { clientY: 155, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 160, pointerId: 1 })
+      await new Promise((r) => setTimeout(r, 20))
+      fireEvent.pointerUp(dialog, { clientY: 160, pointerId: 1 })
+      await waitFor(() => expect(dialog.style.transform).toBe('translateY(100%)'))
+      // carried on at the finger's speed, not slowed into an ease-in
+      expect(dialog.style.transition).toContain('cubic-bezier(0.25, 0.75, 0.4, 1)')
+    } finally {
+      restore()
+    }
+  })
+
+  // ...and the other way round: a long pull flicked back up is called off.
+  it('keeps a sheet open that was pulled far and flicked back', async () => {
+    const restore = withNarrowViewport(true)
+    const onClose = vi.fn()
+    try {
+      const { container } = sheet({ onClose })
+      const dialog = dialogOf(container)
+      const body = screen.getByText('Inhalt')
+      fireEvent.pointerDown(body, { clientY: 100, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 200, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 300, pointerId: 1 })
+      await new Promise((r) => setTimeout(r, 300))
+      fireEvent.pointerMove(dialog, { clientY: 290, pointerId: 1 })
+      fireEvent.pointerMove(dialog, { clientY: 250, pointerId: 1 })
+      await new Promise((r) => setTimeout(r, 20))
+      fireEvent.pointerUp(dialog, { clientY: 250, pointerId: 1 })
+      await new Promise((r) => setTimeout(r, 20))
+      expect(dialog.style.transform).not.toBe('translateY(100%)')
+      expect(onClose).not.toHaveBeenCalled()
+      expect(dialog.open).toBe(true)
+    } finally {
+      restore()
+    }
+  })
+
   // ── the sheet's second height ──
   // A pull upwards asks for it, and a pull down from there gives the opening
   // height back rather than throwing the sheet away.

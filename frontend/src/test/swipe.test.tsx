@@ -51,6 +51,20 @@ describe('useSwipe', () => {
     expect(onNext).not.toHaveBeenCalled()
   })
 
+  // A bottom sheet decides on less movement than a swipe; once it has taken
+  // the pointer for its pull (and marked itself dragging), the tabs inside
+  // stay put even if the pull drifts sideways.
+  it('leaves a pointer alone that a sheet around it is already pulling', () => {
+    const onNext = vi.fn()
+    render(
+      <div data-dragging="">
+        <Zone onNext={onNext} />
+      </div>,
+    )
+    swipe(screen.getByTestId('zone'), -100)
+    expect(onNext).not.toHaveBeenCalled()
+  })
+
   it('gives a mostly vertical drag to the browser', () => {
     const onNext = vi.fn()
     render(<Zone onNext={onNext} />)

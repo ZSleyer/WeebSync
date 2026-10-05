@@ -198,6 +198,13 @@ export function useSwipe({ onPrev, onNext, mouse = false, disabled, onDrag }: Sw
           g.dead = true
           return
         }
+        // a bottom sheet that already took this pointer for its pull (it
+        // decides on less movement than this) keeps it: the tabs inside must
+        // not slide along with a diagonal pull
+        if (g.zones[0]?.el?.closest('[data-dragging]')) {
+          g.dead = true
+          return
+        }
         g.owner = g.zones.find((z) => (dx < 0 ? z.cb.onNext : z.cb.onPrev)) ?? null
         if (!g.owner?.el) {
           g.dead = true
