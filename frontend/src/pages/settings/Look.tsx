@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Check } from 'lucide-react'
-import { Badge, Checkbox, Panel, Segmented } from '@weebsync/design-system'
+import { Badge, Checkbox, Panel, revealTransition, Segmented } from '@weebsync/design-system'
 import { LOCALES } from '../../locales'
 import { applyTheme, readThemePref, THEME_KEY, type ThemePref } from '../../theme'
 import { setFavicon } from '../../favicon'
@@ -28,11 +29,19 @@ export default function Look() {
     localStorage.setItem(THEME_KEY, th)
     applyTheme(th)
   }
-  const pickAccent = (a: string) => {
-    setAccent(a)
-    root.dataset.accent = a
+  // the new accent spreads from the swatch that was picked, over the whole
+  // page - the page is the preview of the choice
+  const pickAccent = (a: string, swatch: Element | null) => {
+    const apply = () => {
+      flushSync(() => setAccent(a))
+      root.dataset.accent = a
+      // the icon reads the accent off the root, so only once it is set
+      setFavicon()
+    }
     localStorage.setItem('weebsync.accent', a)
-    setFavicon()
+    const r = swatch?.getBoundingClientRect()
+    if (r) void revealTransition(r.left + r.width / 2, r.top + r.height / 2, apply)
+    else apply()
   }
   const pickMotion = (m: boolean) => {
     setMotion(m)
@@ -73,7 +82,7 @@ export default function Look() {
                   name="accent"
                   value={a}
                   checked={accent === a}
-                  onChange={() => pickAccent(a)}
+                  onChange={(e) => pickAccent(a, e.currentTarget.nextElementSibling)}
                   className="peer sr-only"
                 />
                 {/* the swatch paints its own preset: the [data-accent] rules
