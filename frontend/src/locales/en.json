@@ -239,6 +239,7 @@
     "oidcReady": "OIDC is active. Sign in now - the first login becomes admin and setup continues afterwards."
   },
   "dash": {
+    "openSeries": "Open series",
     "canceledOne": "“{{name}}” canceled",
     "undo": "Undo",
     "sumRunning_one": "{{count}} running",

@@ -41,7 +41,6 @@ import {
   CalendarEntry,
   DayScroller,
   Cover,
-  Dialog,
   Divider,
   EmptyState,
   IconButton,
@@ -54,11 +53,12 @@ import {
   Segmented,
   SHEET_MQ,
   SwipeDeck,
-  useLongPress,
   useMediaQuery,
   useMenu,
 } from '@weebsync/design-system'
 import { api, fmtMissing, langLabel, mediaTitle, type Watch } from '../api'
+import ActionSheet from '../components/ActionSheet'
+import Press from '../components/Press'
 import { attentionInfo, dubOverdueLabel, dubWaitingLabel } from '../attention'
 import { addDays, dayKey, episodeLabel, startOfDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
@@ -247,7 +247,8 @@ export default function Watches() {
   const entryBody = (e: Airing, compact?: boolean) => {
     const name = e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '')
     return (
-      <>
+      // a long press opens the series' actions, as on its tile
+      <Press onLongPress={() => setMore(e.watch)}>
         <CalendarEntry
           compact={compact}
           cover={e.watch.media?.coverImage?.large}
@@ -267,7 +268,7 @@ export default function Watches() {
           onClick={e.watch.media ? () => showSeries(e.watch) : undefined}
           aria-label={e.watch.media ? t('remote.detailsFor', { name }) : undefined}
         />
-      </>
+      </Press>
     )
   }
 
@@ -694,7 +695,7 @@ export default function Watches() {
                 {layout === 'grid' ? (
                   <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
                     {items.map((w) => (
-                      <PressItem key={w.id} className="min-w-0" onLongPress={narrow ? () => setMore(w) : undefined}>
+                      <Press as="li" key={w.id} className="min-w-0" onLongPress={narrow ? () => setMore(w) : undefined}>
                         <WatchTile
                           watch={w}
                           onOpen={() => showSeries(w)}
@@ -726,13 +727,13 @@ export default function Watches() {
                             </>
                           }
                         />
-                      </PressItem>
+                      </Press>
                     ))}
                   </ul>
                 ) : (
                   <ul className="grid grid-cols-1 gap-3">
                     {items.map((w) => (
-                      <PressItem key={w.id} onLongPress={narrow ? () => setMore(w) : undefined}>
+                      <Press as="li" key={w.id} onLongPress={narrow ? () => setMore(w) : undefined}>
                         <MediaCard
                           cover={w.media?.coverImage?.large}
                           coverTint={w.media?.coverImage?.color ?? undefined}
@@ -921,7 +922,7 @@ export default function Watches() {
                             </>
                           }
                         />
-                      </PressItem>
+                      </Press>
                     ))}
                   </ul>
                 )}
@@ -942,29 +943,11 @@ export default function Watches() {
         />
       )}
       {more && (
-        <Dialog width="max-w-sm" onClose={() => setMore(null)} aria-labelledby="watch-more-title">
-          <header className="border-b border-border-subtle px-5 py-4">
-            <h3 id="watch-more-title" className="truncate font-display font-semibold tracking-wider">
-              {more.titleOverride || mediaTitle(more.media, more.remotePath.split('/').pop() || '')}
-            </h3>
-          </header>
-          <div className="flex flex-col gap-1 p-2">
-            {rowActions(more).map((a) => (
-              <Button
-                key={a.key}
-                variant={a.danger ? 'danger' : 'default'}
-                className="justify-start gap-2"
-                onClick={() => {
-                  setMore(null)
-                  a.onClick()
-                }}
-              >
-                {a.icon}
-                {a.label}
-              </Button>
-            ))}
-          </div>
-        </Dialog>
+        <ActionSheet
+          title={more.titleOverride || mediaTitle(more.media, more.remotePath.split('/').pop() || '')}
+          actions={rowActions(more)}
+          onClose={() => setMore(null)}
+        />
       )}
     </div>
   )
@@ -976,24 +959,6 @@ interface RowAction {
   label: string
   onClick: () => void
   danger?: boolean
-}
-
-// A watch's list item: a long press with a finger opens the same overflow
-// sheet as its ⋯ button, on a phone, where that sheet is the menu.
-function PressItem({
-  onLongPress,
-  className,
-  children,
-}: {
-  onLongPress?: () => void
-  className?: string
-  children: ReactNode
-}) {
-  return (
-    <li {...useLongPress(onLongPress)} className={className}>
-      {children}
-    </li>
-  )
 }
 
 // The overflow of a watch row on desktop: the same entries the phone sheet

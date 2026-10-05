@@ -25,6 +25,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSeriesModal } from '../components/SeriesModal'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
+import ActionSheet from '../components/ActionSheet'
+import Press from '../components/Press'
 import {
   Badge,
   Button,
@@ -750,6 +752,9 @@ export function CatalogGrid({
     })
   // what a matched or unmatched folder can have done to it, for the tile's
   // footer and the list row's menu alike
+  // a long press on a tile or row (touch) lists all its actions in a sheet,
+  // the ones behind the overflow button included
+  const [sheet, setSheet] = useState<CatalogGroup | null>(null)
   const actionsFor = (g: CatalogGroup): TileAction[] => {
     const it = g.items[0]
     const multi = g.items.length > 1
@@ -1023,7 +1028,7 @@ export function CatalogGrid({
               const isSelected = g.items.some((v) => v.entry.path === selected)
               const name = mediaTitle(g.media, it.entry.name)
               return (
-                <li key={g.key}>
+                <Press as="li" key={g.key} onLongPress={() => setSheet(g)}>
                   <MediaCard
                     className={isSelected ? 'outline-2 outline-accent' : undefined}
                     cover={g.media?.coverImage?.large}
@@ -1073,7 +1078,7 @@ export function CatalogGrid({
                     }
                     actions={<TileActions actions={actionsFor(g)} max={2} className="flex gap-1.5" />}
                   />
-                </li>
+                </Press>
               )
             })}
           </ul>
@@ -1087,114 +1092,124 @@ export function CatalogGrid({
               const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
               const isSelected = g.items.some((v) => v.entry.path === selected)
               return (
-                <Panel
-                  as="article"
-                  key={g.key}
-                  className={`group relative flex flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
-                >
-                  {/* rematch tucked away as a pencil over the cover (hover/focus);
-                  unmatched folders keep the explicit button below instead */}
-                  {g.media && !multi && !!it.source && (
-                    <Button
-                      size="sm"
-                      className="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                      aria-label={t('remote.changeMatch')}
-                      title={t('remote.changeMatch')}
-                      onClick={() => setRematch(it)}
-                    >
-                      <Pencil aria-hidden size="1.2em" />
-                    </Button>
-                  )}
-                  <button
-                    className="text-left"
-                    onClick={() => (g.media ? showDetail(g) : onSelect(it.entry))}
-                    // a matched tile is named by what it shows (WCAG 2.5.3); the
-                    // unmatched one shows no text of its own
-                    aria-label={g.media ? undefined : t('remote.selectItem', { name: it.entry.name })}
+                <Press key={g.key} onLongPress={() => setSheet(g)} className="flex">
+                  <Panel
+                    as="article"
+                    className={`group relative flex flex-1 flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
                   >
-                    {g.media?.coverImage?.large ? (
-                      <Cover
-                        size="fill"
-                        src={g.media.coverImage.extraLarge || g.media.coverImage.large}
-                        loading="lazy"
-                        className="opacity-90 transition-opacity group-hover:opacity-100"
-                      />
-                    ) : g.pending ? (
-                      <Cover size="fill" className="animate-pulse text-t-muted">
-                        {t('remote.matching')}
-                      </Cover>
-                    ) : (
-                      <Cover size="fill" className="text-t-muted">
-                        {it.source ? t('remote.noMatch') : ''}
-                      </Cover>
-                    )}
-                    <div className="p-2">
-                      <h3
-                        className="line-clamp-2 text-sm font-medium text-t-primary"
-                        title={mediaTitle(g.media, it.entry.name)}
+                    {/* rematch tucked away as a pencil over the cover (hover/focus);
+                  unmatched folders keep the explicit button below instead */}
+                    {g.media && !multi && !!it.source && (
+                      <Button
+                        size="sm"
+                        className="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                        aria-label={t('remote.changeMatch')}
+                        title={t('remote.changeMatch')}
+                        onClick={() => setRematch(it)}
                       >
-                        {mediaTitle(g.media, it.entry.name)}
-                      </h3>
-                      {multi ? (
-                        <p className="font-mono text-[10px] text-accent">
-                          {t('remote.versions', { count: g.items.length })}
-                        </p>
+                        <Pencil aria-hidden size="1.2em" />
+                      </Button>
+                    )}
+                    <button
+                      className="text-left"
+                      onClick={() => (g.media ? showDetail(g) : onSelect(it.entry))}
+                      // a matched tile is named by what it shows (WCAG 2.5.3); the
+                      // unmatched one shows no text of its own
+                      aria-label={g.media ? undefined : t('remote.selectItem', { name: it.entry.name })}
+                    >
+                      {g.media?.coverImage?.large ? (
+                        <Cover
+                          size="fill"
+                          src={g.media.coverImage.extraLarge || g.media.coverImage.large}
+                          loading="lazy"
+                          className="opacity-90 transition-opacity group-hover:opacity-100"
+                        />
+                      ) : g.pending ? (
+                        <Cover size="fill" className="animate-pulse text-t-muted">
+                          {t('remote.matching')}
+                        </Cover>
                       ) : (
-                        <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
-                          {it.entry.name}
-                        </p>
+                        <Cover size="fill" className="text-t-muted">
+                          {it.source ? t('remote.noMatch') : ''}
+                        </Cover>
                       )}
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {kind && (
-                          <Badge tone={kind === 'movie' ? 'accent' : 'neutral'}>
-                            {t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
-                          </Badge>
+                      <div className="p-2">
+                        <h3
+                          className="line-clamp-2 text-sm font-medium text-t-primary"
+                          title={mediaTitle(g.media, it.entry.name)}
+                        >
+                          {mediaTitle(g.media, it.entry.name)}
+                        </h3>
+                        {multi ? (
+                          <p className="font-mono text-[10px] text-accent">
+                            {t('remote.versions', { count: g.items.length })}
+                          </p>
+                        ) : (
+                          <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
+                            {it.entry.name}
+                          </p>
                         )}
-                        {g.media && (
-                          <>
-                            {g.media.seasonYear > 0 && <Badge>{g.media.seasonYear}</Badge>}
-                            {g.media.episodes > 0 && <Badge>{g.media.episodes} EP</Badge>}
-                            {g.media.averageScore > 0 && (
-                              <Badge tone="accent">
-                                <Star
-                                  aria-hidden
-                                  size="1em"
-                                  className="mr-0.5 inline align-[-0.125em]"
-                                  fill="currentColor"
-                                  strokeWidth={0}
-                                />
-                                {g.media.averageScore}
-                              </Badge>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      {/* local catalog: what is actually on disk, and how it
-                      compares to what the provider lists */}
-                      {it.local && (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                          <Badge
-                            tone={
-                              g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes ? 'ok' : 'neutral'
-                            }
-                          >
-                            {t('local.videoCount', { count: it.local.videos })}
-                          </Badge>
-                          <Badge>{fmtBytes(it.local.bytes)}</Badge>
-                          {it.local.modTime && (
-                            <span className="font-mono text-[10px] text-t-faint" title={t('local.lastChange')}>
-                              {new Date(it.local.modTime).toLocaleDateString()}
-                            </span>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {kind && (
+                            <Badge tone={kind === 'movie' ? 'accent' : 'neutral'}>
+                              {t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
+                            </Badge>
+                          )}
+                          {g.media && (
+                            <>
+                              {g.media.seasonYear > 0 && <Badge>{g.media.seasonYear}</Badge>}
+                              {g.media.episodes > 0 && <Badge>{g.media.episodes} EP</Badge>}
+                              {g.media.averageScore > 0 && (
+                                <Badge tone="accent">
+                                  <Star
+                                    aria-hidden
+                                    size="1em"
+                                    className="mr-0.5 inline align-[-0.125em]"
+                                    fill="currentColor"
+                                    strokeWidth={0}
+                                  />
+                                  {g.media.averageScore}
+                                </Badge>
+                              )}
+                            </>
                           )}
                         </div>
-                      )}
-                    </div>
-                  </button>
-                  <TileActions actions={actionsFor(g)} />
-                </Panel>
+                        {/* local catalog: what is actually on disk, and how it
+                      compares to what the provider lists */}
+                        {it.local && (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                            <Badge
+                              tone={
+                                g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes
+                                  ? 'ok'
+                                  : 'neutral'
+                              }
+                            >
+                              {t('local.videoCount', { count: it.local.videos })}
+                            </Badge>
+                            <Badge>{fmtBytes(it.local.bytes)}</Badge>
+                            {it.local.modTime && (
+                              <span className="font-mono text-[10px] text-t-faint" title={t('local.lastChange')}>
+                                {new Date(it.local.modTime).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                    <TileActions actions={actionsFor(g)} />
+                  </Panel>
+                </Press>
               )
             })}
           </div>
+        )}
+        {sheet && (
+          <ActionSheet
+            title={mediaTitle(sheet.media, sheet.items[0].entry.name)}
+            actions={actionsFor(sheet)}
+            onClose={() => setSheet(null)}
+          />
         )}
         <UpcomingSeason
           upcoming={data?.upcoming ?? []}
