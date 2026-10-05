@@ -1283,6 +1283,15 @@ details[open]::details-content { height: auto; }
 .t-digit { display: inline-block; height: 1lh; overflow: clip; vertical-align: top; }
 .t-digit > span { display: flex; flex-direction: column; transition: transform var(--dur-3) var(--ease-out); }
 
+/* A long press (useLongPress): the element sinks while the finger rests, so
+   the hold reads as building up to something, and comes back at once when
+   the menu opens or the finger moves off. On a touch screen the text inside
+   is not selectable, or the hold would select a word instead, and iOS keeps
+   its image callout away. */
+[data-longpress] { transition: scale var(--dur-1) var(--ease-out); -webkit-touch-callout: none; }
+[data-longpress][data-pressing] { scale: 0.98; transition: scale 450ms linear; }
+@media (pointer: coarse) { [data-longpress] { user-select: none; -webkit-user-select: none; } }
+
 /* A row with an action under each side (SwipeRow). The ground of the side the
    row is dragged towards shows, faint until the drag reaches the commit
    distance and solid from there - the moment letting go will run it. */

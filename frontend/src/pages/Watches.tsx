@@ -54,6 +54,7 @@ import {
   Segmented,
   SHEET_MQ,
   SwipeDeck,
+  useLongPress,
   useMediaQuery,
   useMenu,
 } from '@weebsync/design-system'
@@ -693,7 +694,7 @@ export default function Watches() {
                 {layout === 'grid' ? (
                   <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
                     {items.map((w) => (
-                      <li key={w.id} className="min-w-0">
+                      <PressItem key={w.id} className="min-w-0" onLongPress={narrow ? () => setMore(w) : undefined}>
                         <WatchTile
                           watch={w}
                           onOpen={() => showSeries(w)}
@@ -725,13 +726,13 @@ export default function Watches() {
                             </>
                           }
                         />
-                      </li>
+                      </PressItem>
                     ))}
                   </ul>
                 ) : (
                   <ul className="grid grid-cols-1 gap-3">
                     {items.map((w) => (
-                      <li key={w.id}>
+                      <PressItem key={w.id} onLongPress={narrow ? () => setMore(w) : undefined}>
                         <MediaCard
                           cover={w.media?.coverImage?.large}
                           coverTint={w.media?.coverImage?.color ?? undefined}
@@ -920,7 +921,7 @@ export default function Watches() {
                             </>
                           }
                         />
-                      </li>
+                      </PressItem>
                     ))}
                   </ul>
                 )}
@@ -975,6 +976,24 @@ interface RowAction {
   label: string
   onClick: () => void
   danger?: boolean
+}
+
+// A watch's list item: a long press with a finger opens the same overflow
+// sheet as its ⋯ button, on a phone, where that sheet is the menu.
+function PressItem({
+  onLongPress,
+  className,
+  children,
+}: {
+  onLongPress?: () => void
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <li {...useLongPress(onLongPress)} className={className}>
+      {children}
+    </li>
+  )
 }
 
 // The overflow of a watch row on desktop: the same entries the phone sheet
