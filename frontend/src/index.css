@@ -1154,6 +1154,19 @@ details[open]::details-content { height: auto; }
 .t-dayband[data-overflow="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
 .t-dayband[data-overflow="both"] { mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent); }
 
+/* A list row that folds away: its height runs to nothing and the list's gap
+   with it, so the rows below close up instead of jumping. Exits ease in and
+   stay short. The clip is on only while it folds, or it would cut focus rings
+   and popovers of a row that stays. */
+.t-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-2) var(--ease-in), opacity var(--dur-2) var(--ease-in), margin var(--dur-2) var(--ease-in);
+}
+.t-collapse > * { min-height: 0; }
+.t-collapse[data-gone] { grid-template-rows: 0fr; opacity: 0; margin-top: -0.75rem; }
+.t-collapse[data-gone] > * { overflow: hidden; }
+
 /* directional route slide: matches nav order - moving to a lower-numbered
    tab enters from the right, a higher-numbered one from the left */
 @keyframes t-slide-from-right { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -1230,7 +1243,7 @@ details[open]::details-content { height: auto; }
   height: 100%;
   border-radius: 9999px;
   background: var(--progress-color, var(--accent-blue));
-  transition: width var(--dur-3) var(--ease-out);
+  transition: width var(--dur-3) var(--ease-out), background-color var(--dur-2) var(--ease-out);
 }
 .t-progress--ok { --progress-color: var(--accent-green); }
 .t-progress--warn { --progress-color: var(--accent-yellow); }

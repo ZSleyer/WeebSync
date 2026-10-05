@@ -23,6 +23,15 @@ import {
 } from 'lucide-react'
 
 // icon per download status, shown inside the t-label chips (inline-flex, 4px gap)
+// the order a download moves through, for the status chip's roll direction
+const STATUS_STEP: Record<Download['status'], number> = {
+  paused: 0,
+  queued: 1,
+  running: 2,
+  done: 3,
+  error: 3,
+  canceled: 3,
+}
 const STATUS_ICON: Record<Download['status'], LucideIcon> = {
   running: Play,
   queued: Clock,
@@ -50,6 +59,7 @@ import {
   Segmented,
   Select,
   Skeleton,
+  Slot,
   StatTile,
   Toolbar,
   TransferCard,
@@ -205,6 +215,13 @@ export default function Dashboard() {
     q.trim() === '' || d.remotePath.toLowerCase().includes(q.trim().toLowerCase())
 
   const activeAll = downloads.filter((d) => d.status === 'running' || d.status === 'queued' || d.status === 'paused')
+  // A download that just finished stays in the queue for a moment: the bar
+  // fills, turns green and the status rolls over to done, then the row folds
+  // away and the next one moves up. Without it a finished file simply vanished
+  // from the queue between two polls.
+  const [leaving, setLeaving] = useState<{ d: Download; hero: boolean; gone: boolean }[]>([])
+  const wasActive = useRef(new Map<number, boolean>())
+  const leavingIds = new Set(leaving.map((l) => l.d.id))
   const matched = activeAll.filter((d) => nameMatch(d, query))
   // the waiting rows in the order they will start
   const byQueue = (a: Download, b: Download) => a.queuePos - b.queuePos || a.id - b.id
@@ -216,6 +233,22 @@ export default function Dashboard() {
     matched[0]
   const rank = (d: Download) => (d === hero ? 0 : d.status === 'running' ? 1 : d.status === 'paused' ? 2 : 3)
   const active = [...matched].sort((a, b) => rank(a) - rank(b) || (rank(a) === 3 ? byQueue(a, b) : 0))
+  useEffect(() => {
+    const done = downloads.filter((d) => d.status === 'done' && wasActive.current.has(d.id) && !leavingIds.has(d.id))
+    if (done.length > 0) {
+      setLeaving((l) => [...l, ...done.map((d) => ({ d, hero: wasActive.current.get(d.id)!, gone: false }))])
+      const ids = new Set(done.map((d) => d.id))
+      setTimeout(() => setLeaving((l) => l.map((x) => (ids.has(x.d.id) ? { ...x, gone: true } : x))), LEAVE_MS)
+      setTimeout(() => setLeaving((l) => l.filter((x) => !ids.has(x.d.id))), LEAVE_MS + FOLD_MS)
+    }
+    wasActive.current = new Map(activeAll.map((d) => [d.id, d === hero]))
+    // the snapshot is of this render's list; it only has to follow `downloads`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [downloads])
+  // the leaving row keeps the hero's place while it folds
+  const leavingHero = leaving.find((l) => l.hero)?.d
+  const shown = [...leaving.map((l) => l.d), ...active]
+
   // what the reorder works on: every queued row, a search filter or not - the
   // server takes the whole set or nothing
   const queued = activeAll.filter((d) => d.status === 'queued').sort(byQueue)
@@ -224,7 +257,9 @@ export default function Dashboard() {
   const transferring = activeAll.some((d) => d.status === 'running')
   // section visibility keys off the unfiltered set: a filter with zero hits
   // must not hide the section (and with it the very chips to undo the filter)
-  const finishedAll = downloads.filter((d) => d.status !== 'running' && d.status !== 'queued' && d.status !== 'paused')
+  const finishedAll = downloads.filter(
+    (d) => d.status !== 'running' && d.status !== 'queued' && d.status !== 'paused' && !leavingIds.has(d.id),
+  )
   const finished = finishedAll.filter(
     (d) => (statusFilter.size === 0 || statusFilter.has(d.status)) && nameMatch(d, historyQuery),
   )
@@ -532,7 +567,7 @@ export default function Dashboard() {
                 </div>
               )}
               {!isLoading &&
-                active.length === 0 &&
+                shown.length === 0 &&
                 (filtering ? (
                   <EmptyState>{t('dash.noMatches')}</EmptyState>
                 ) : (
@@ -549,13 +584,19 @@ export default function Dashboard() {
                   </Panel>
                 ))}
               <div ref={queueList} className="flex flex-col gap-3">
-                {active.map((d) => (
-                  <div key={d.id} data-reorder-id={d.id} style={{ '--vt': `dl-${d.id}` } as CSSProperties}>
+                {shown.map((d) => (
+                  <div
+                    key={d.id}
+                    data-reorder-id={d.id}
+                    data-gone={leaving.some((l) => l.d.id === d.id && l.gone) || undefined}
+                    className="t-collapse"
+                    style={{ '--vt': `dl-${d.id}` } as CSSProperties}
+                  >
                     <DownloadRow
                       d={d}
                       meta={meta}
                       watches={watches}
-                      variant={d === hero ? 'hero' : 'row'}
+                      variant={d === (leavingHero ?? hero) ? 'hero' : 'row'}
                       selected={selected.has(d.id)}
                       onSelect={(shift) => selectRow(d.id, shift)}
                       onAction={(verb) => action.mutate({ id: d.id, verb })}
@@ -1394,7 +1435,11 @@ function DownloadRow({
               {t('dash.retryIn', { n: d.attempts ?? 1, when: countdown(t, d.retryAt!, true) })}
             </Badge>
           ) : (
-            <StatusChip status={d.status} />
+            // the status rolls over rather than swapping: queued, then
+            // running, then done reads as one chip moving on
+            <Slot step={STATUS_STEP[d.status]}>
+              <StatusChip status={d.status} />
+            </Slot>
           )}
           {ep && <Badge tone="accent">{ep}</Badge>}
           {/* why it is waiting, in the row's own words - a countdown without
@@ -1409,42 +1454,45 @@ function DownloadRow({
       meta={about}
       stats={stats}
       trailing={<DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />}
-      percent={pct}
+      percent={d.status === 'done' ? 100 : pct}
       progressLabel={t('dash.progressOf', { name })}
       active={running}
+      tone={d.status === 'done' ? 'ok' : undefined}
       actions={
-        <>
-          {/* on a phone the buttons drop their captions and keep the icon,
+        d.status === 'done' ? undefined : (
+          <>
+            {/* on a phone the buttons drop their captions and keep the icon,
               which is what leaves the limit control room to stay on the line */}
-          {running || d.status === 'queued' ? (
-            <Button size="sm" className="shrink-0" aria-label={t('dash.pause')} onClick={() => onAction('pause')}>
-              <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-              <span className="hidden sm:inline">{t('dash.pause')}</span>
+            {running || d.status === 'queued' ? (
+              <Button size="sm" className="shrink-0" aria-label={t('dash.pause')} onClick={() => onAction('pause')}>
+                <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="hidden sm:inline">{t('dash.pause')}</span>
+              </Button>
+            ) : (
+              <Button size="sm" className="shrink-0" aria-label={t('dash.resume')} onClick={() => onAction('resume')}>
+                <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="hidden sm:inline">{t('dash.resume')}</span>
+              </Button>
+            )}
+            {reorder?.toFront && (
+              <Button size="sm" className="shrink-0" aria-label={t('dash.toFront')} onClick={reorder.toFront}>
+                <ArrowUpToLine aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="hidden sm:inline">{t('dash.toFront')}</span>
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="danger"
+              className="shrink-0"
+              aria-label={t('dash.cancel')}
+              onClick={() => onAction('cancel')}
+            >
+              <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+              <span className="hidden sm:inline">{t('dash.cancel')}</span>
             </Button>
-          ) : (
-            <Button size="sm" className="shrink-0" aria-label={t('dash.resume')} onClick={() => onAction('resume')}>
-              <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-              <span className="hidden sm:inline">{t('dash.resume')}</span>
-            </Button>
-          )}
-          {reorder?.toFront && (
-            <Button size="sm" className="shrink-0" aria-label={t('dash.toFront')} onClick={reorder.toFront}>
-              <ArrowUpToLine aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-              <span className="hidden sm:inline">{t('dash.toFront')}</span>
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="danger"
-            className="shrink-0"
-            aria-label={t('dash.cancel')}
-            onClick={() => onAction('cancel')}
-          >
-            <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-            <span className="hidden sm:inline">{t('dash.cancel')}</span>
-          </Button>
-          <RateLimitInput d={d} />
-        </>
+            <RateLimitInput d={d} />
+          </>
+        )
       }
     >
       {open && <DownloadDetails d={d} meta={meta} />}
@@ -1583,6 +1631,10 @@ function HistoryRow({
 }
 
 const MIB = 1024 * 1024
+// how long a finished download stays in the queue before it folds away, and
+// the fold itself (--dur-2 and a frame)
+const LEAVE_MS = 1100
+const FOLD_MS = 220
 
 // Rate limit input with a KiB/s | MiB/s unit picker; stores bytes/s.
 // Single line by design (whitespace-nowrap).
