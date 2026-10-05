@@ -228,7 +228,7 @@ type DownloadsReorderRequest struct {
 // @Accept   json
 // @Produce  json
 // @Param    body body DownloadsReorderRequest true "Queued download ids in the new order"
-// @Success  204
+// @Success  200 {object} OkResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  409 {object} ErrorResponse
@@ -251,7 +251,7 @@ func (s *Server) handleDownloadsReorder(w http.ResponseWriter, r *http.Request) 
 	case err != nil:
 		dbErr(w)
 	default:
-		w.WriteHeader(http.StatusNoContent)
+		writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 	}
 }
 
