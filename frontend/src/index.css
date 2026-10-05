@@ -1374,6 +1374,17 @@ details[open]::details-content { height: auto; }
 :root[data-vt-local] .app-shell > main { view-transition-name: none; }
 [data-vt] > * { view-transition-name: var(--vt, none); }
 :root[data-vt-morph] [data-morph-target] { view-transition-name: morph; }
+/* the dialog a morph opens comes in as part of the same transition: its own
+   entry transition is off, and its new image rises as a sheet on a phone or
+   settles in the middle on a desktop, under the flying poster */
+:root[data-vt-morph] dialog[open] { view-transition-name: morph-dialog; transition: none; }
+:root[data-vt-morph] dialog[open]::backdrop { transition: none; }
+::view-transition-new(morph-dialog) { animation: t-dialog-in var(--dur-3) var(--ease-out) both; }
+@media (width < 40rem) {
+  ::view-transition-new(morph-dialog) { animation-name: t-sheet-up; }
+}
+@keyframes t-dialog-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@keyframes t-sheet-up { from { transform: translateY(100%); } }
 :root[data-vt-local]::view-transition-group(*) {
   animation-duration: var(--dur-3);
   animation-timing-function: var(--ease-out);
