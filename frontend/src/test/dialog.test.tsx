@@ -562,6 +562,32 @@ describe('Dialog', () => {
     }
   })
 
+  // The native hand-over: content scrolled down, the finger scrolls it back
+  // to the top and goes on down - the same movement now pulls the sheet,
+  // from where the finger is, without lifting it.
+  it('hands a scroll that reaches the top over to the pull', async () => {
+    const restore = withNarrowViewport(true)
+    try {
+      const { container } = sheet()
+      const dialog = dialogOf(container)
+      const body = screen.getByText('Inhalt')
+      asScroller(body, 120)
+      const touch = (type: 'touchStart' | 'touchMove', y: number) =>
+        fireEvent[type](body, { touches: [{ clientX: 100, clientY: y, target: body }] })
+      touch('touchStart', 100)
+      touch('touchMove', 140)
+      // still the content's: it is not at its top yet
+      expect(dialog.style.transform).toBe('')
+      asScroller(body, 0)
+      touch('touchMove', 160)
+      touch('touchMove', 230)
+      expect(dialog.hasAttribute('data-dragging')).toBe(true)
+      expect(dialog.style.transform).toBe('translate3d(0, 70px, 0)')
+    } finally {
+      restore()
+    }
+  })
+
   // ── the sheet's second height ──
   // A pull upwards asks for it, and a pull down from there gives the opening
   // height back rather than throwing the sheet away.

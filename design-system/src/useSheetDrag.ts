@@ -282,9 +282,15 @@ export function useSheetDrag({
   useEffect(() => {
     const el = sheet.current
     if (!el || !enabled) return
-    // 'none' = undecided, 'sheet' = ours to drag, 'scroll' = the content's,
-    // hands off for the rest of the gesture
-    let mode: 'none' | 'sheet' | 'scroll' = 'none'
+    // 'none' = undecided, 'sheet' = ours to drag, 'scroll' = not ours for the
+    // rest of the gesture (sideways, or a flick's momentum), 'content' = the
+    // content scrolls vertically - until it reaches its top under a finger
+    // still moving down. Then the same movement carries on as the pull, the
+    // way a native sheet hands over: scroll up to the top and keep going, and
+    // the sheet comes down without lifting the finger.
+    let mode: 'none' | 'sheet' | 'scroll' | 'content' = 'none'
+    let content: HTMLElement | null = null
+    let lastY = 0
     let startX = 0
     let startY = 0
     let vel = startVelocity(0)
@@ -296,6 +302,7 @@ export function useSheetDrag({
       if (frozen) frozen.style.overflow = ''
       frozen = null
       mode = 'none'
+      content = null
       from = null
     }
 
@@ -305,18 +312,38 @@ export function useSheetDrag({
       const target = t.target as HTMLElement | null
       if (!target?.closest || target.closest(NO_DRAG)) return reset()
       mode = 'none'
+      content = null
       startX = t.clientX
       startY = t.clientY
+      lastY = t.clientY
       vel = startVelocity(t.clientY)
       from = target
     }
 
     const onMove = (e: TouchEvent) => {
       if (!from || e.touches.length !== 1) return
+      const y = e.touches[0].clientY
       const dx = e.touches[0].clientX - startX
-      const dy = e.touches[0].clientY - startY
+      const down = y > lastY
+      lastY = y
       if (mode === 'scroll') return
-      moveVelocity(vel, e.touches[0].clientY)
+      if (mode === 'content') {
+        if (!down || (content && content.scrollTop > 0)) return
+        // the hand-over: the content is at its top and the finger goes on
+        // down. The pull starts here, from where the finger is now.
+        startY = y
+        vel = startVelocity(y)
+        mode = 'sheet'
+        if (content) {
+          frozen = content
+          content.style.overflow = 'hidden'
+        }
+        el.style.transition = 'none'
+        grip(el, true)
+        room = span(el)
+      }
+      const dy = y - startY
+      moveVelocity(vel, y)
       if (mode === 'none') {
         if (Math.abs(dy) < DECIDE && Math.abs(dx) < DECIDE) return
         // the axis lock: wider than tall is a sideways swipe, not a pull
@@ -333,12 +360,15 @@ export function useSheetDrag({
         const { el: scroller, atTop } = scrollerAtTop(from, el)
         if (dy > 0) {
           if (!atTop) {
-            mode = 'scroll'
+            mode = 'content'
+            content = scroller
             return
           }
         } else if (live.current.expanded || !live.current.onExpand) {
-          // upward with no height left to take: the move belongs to the content
-          mode = 'scroll'
+          // upward with no height left to take: the move belongs to the
+          // content - and may come back down to the sheet
+          mode = 'content'
+          content = scroller
           return
         }
         mode = 'sheet'
