@@ -14,7 +14,10 @@ const pad = (n: number) => String(n).padStart(2, '0')
 function Row({ ep, showLocal }: { ep: WatchEpisode; showLocal: boolean }) {
   const { t } = useTranslation()
   return (
-    <li className="flex items-baseline gap-2 border-b border-border-subtle py-1 text-sm last:border-0">
+    <li
+      data-state={ep.have ? 'have' : ep.upcoming ? 'upcoming' : 'gone'}
+      className="t-ep flex items-baseline gap-2 border-b border-border-subtle py-1 text-sm last:border-0"
+    >
       {/* an episode that has not aired yet is absent, not missing - marking it
           red would paint every running series as half broken */}
       {ep.have ? (
