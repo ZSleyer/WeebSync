@@ -54,8 +54,10 @@ type Download struct {
 	RetryAt  int64 `json:"retryAt,omitempty"`
 	// ReplaceOld: once this file is in place, the older copy of the same
 	// episode next to it is moved out of the way (an upgrade sync).
-	ReplaceOld bool   `json:"replaceOld,omitempty"`
-	CreatedAt  string `json:"createdAt"`
+	ReplaceOld bool `json:"replaceOld,omitempty"`
+	// QueuePos orders the queue: the scheduler starts the lowest first.
+	QueuePos  int64  `json:"queuePos"`
+	CreatedAt string `json:"createdAt"`
 }
 
 type running struct {
@@ -200,7 +202,7 @@ func (m *Manager) startPending() {
 	// retry_at gates a row that failed and is waiting out its backoff. The
 	// clock comes from Go rather than SQLite's strftime: one source of "now"
 	// for the queue and the tests, and no column-affinity surprises.
-	rows, err := m.DB.Query(`SELECT id FROM downloads WHERE status = 'queued' AND retry_at <= ? ORDER BY id LIMIT ?`,
+	rows, err := m.DB.Query(`SELECT id FROM downloads WHERE status = 'queued' AND retry_at <= ? ORDER BY queue_pos, id LIMIT ?`,
 		time.Now().Unix(), free)
 	if err != nil {
 		return
@@ -615,8 +617,9 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		if m.blocked(userID, serverID, j.remote, filepath.Dir(local), probed) {
 			continue
 		}
-		ins, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, replace_old)
-			VALUES (?, ?, ?, ?, ?, ?)`, userID, serverID, j.remote, local, j.size, replaceOld)
+		// a new row joins the end of the queue
+		ins, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, replace_old, queue_pos)
+			VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(queue_pos), 0) + 1 FROM downloads))`, userID, serverID, j.remote, local, j.size, replaceOld)
 		if ierr == nil {
 			if id, lerr := ins.LastInsertId(); lerr == nil {
 				res.IDs = append(res.IDs, id)
@@ -746,6 +749,62 @@ func (m *Manager) Cancel(userID, id int64) error {
 	return m.setStatusOwned(userID, id, "canceled", []string{"queued", "paused", "error"})
 }
 
+// ErrQueueChanged: a reorder named a different set of queued downloads than
+// the user has now - a row started, finished or was added in between. The
+// client reloads and asks again rather than having half its order applied.
+var ErrQueueChanged = errors.New("queue changed")
+
+// Reorder puts the user's queued downloads into the given order. It only
+// permutes the positions those rows already hold, so a user can move their own
+// files ahead of each other but never ahead of someone else's. ids must name
+// exactly the user's queued downloads.
+func (m *Manager) Reorder(userID int64, ids []int64) error {
+	tx, err := m.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	rows, err := tx.Query(`SELECT id, queue_pos FROM downloads WHERE user_id = ? AND status = 'queued' ORDER BY queue_pos, id`, userID)
+	if err != nil {
+		return err
+	}
+	var slots []int64
+	queued := map[int64]bool{}
+	for rows.Next() {
+		var id, pos int64
+		if err := rows.Scan(&id, &pos); err != nil {
+			rows.Close()
+			return err
+		}
+		slots = append(slots, pos)
+		queued[id] = true
+	}
+	rows.Close()
+	if len(ids) != len(slots) {
+		return ErrQueueChanged
+	}
+	for _, id := range ids {
+		if !queued[id] {
+			return ErrQueueChanged
+		}
+		delete(queued, id) // a duplicate id is then missing on its second turn
+	}
+	for i, id := range ids {
+		if _, err := tx.Exec(`UPDATE downloads SET queue_pos = ? WHERE id = ?`, slots[i], id); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if d, err := m.get(id); err == nil {
+			m.publish(d)
+		}
+	}
+	return nil
+}
+
 // SetRateLimit updates a per-download limit (bytes/s, 0 = unlimited), live.
 func (m *Manager) SetRateLimit(userID, id, bytesPerSec int64) error {
 	res, err := m.DB.Exec(`UPDATE downloads SET rate_limit = ? WHERE id = ? AND user_id = ?`, bytesPerSec, id, userID)
@@ -783,9 +842,9 @@ func (m *Manager) RunningRates() map[int64]int64 {
 
 func (m *Manager) get(id int64) (*Download, error) {
 	var d Download
-	err := m.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, replace_old, created_at
+	err := m.DB.QueryRow(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, replace_old, queue_pos, created_at
 		FROM downloads WHERE id = ?`, id).
-		Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size, &d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.CreatedAt)
+		Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size, &d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.QueuePos, &d.CreatedAt)
 	if err != nil {
 		return nil, ErrNotFound
 	}

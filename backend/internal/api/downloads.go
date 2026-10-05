@@ -23,7 +23,7 @@ import (
 // @Router   /api/downloads [get]
 func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, replace_old, created_at
+	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, replace_old, queue_pos, created_at
 		FROM downloads WHERE user_id = ? ORDER BY id DESC LIMIT 500`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -38,7 +38,7 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var d transfer.Download
 		if err := rows.Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size,
-			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.CreatedAt); err != nil {
+			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.QueuePos, &d.CreatedAt); err != nil {
 			dbErr(w)
 			return
 		}
@@ -212,6 +212,47 @@ func (s *Server) handleDownloadsCancel(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, CancelResponse{Canceled: canceled})
+}
+
+// DownloadsReorderRequest is the body of handleDownloadsReorder.
+type DownloadsReorderRequest struct {
+	IDs []int64 `json:"ids"` // every queued download of the caller, in the new order
+}
+
+// handleDownloadsReorder sets the order in which the caller's queued downloads
+// start. Only the positions the caller's own rows hold are permuted, so a
+// reorder never moves anything ahead of another user's files.
+// @Summary  Reorder queue
+// @Description Sets the start order of the caller's queued downloads. ids must list exactly the caller's queued downloads; 409 when the queue changed in the meantime.
+// @Tags     Downloads
+// @Accept   json
+// @Produce  json
+// @Param    body body DownloadsReorderRequest true "Queued download ids in the new order"
+// @Success  204
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/reorder [post]
+func (s *Server) handleDownloadsReorder(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	var in DownloadsReorderRequest
+	if !readJSON(w, r, &in) {
+		return
+	}
+	if len(in.IDs) == 0 {
+		writeErr(w, http.StatusBadRequest, "ids required")
+		return
+	}
+	switch err := s.Transfers.Reorder(u.ID, in.IDs); {
+	case errors.Is(err, transfer.ErrQueueChanged):
+		writeErr(w, http.StatusConflict, "queue changed")
+	case err != nil:
+		dbErr(w)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 // DownloadsBulkRequest is the body of handleDownloadsBulk.
