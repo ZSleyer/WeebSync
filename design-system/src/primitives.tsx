@@ -519,6 +519,39 @@ export function Tabs({ scroll, className, children, onKeyDown, ref, ...rest }: T
   // when the selection moved to another element, or a bar the user swiped to
   // peek at the far tabs would snap back on the next clock tick.
   const lastSel = useRef<Element | null>(null)
+  // The selection indicator is one element that glides to the selected tab,
+  // so a change of tab reads as one bar moving rather than two tabs swapping
+  // their styles. It is placed after every render (a label can change width)
+  // and on resize; `data-ink` hands the selected tab's own fill and underline
+  // over to it once it stands, so the first paint is never without either.
+  const ink = useRef<HTMLSpanElement>(null)
+  const placeInk = (animate: boolean) => {
+    const el = own.current
+    const bar = ink.current
+    const sel = el?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+    if (!el || !bar) return
+    if (!sel) {
+      delete el.dataset.ink
+      return
+    }
+    if (!animate || !el.dataset.ink) bar.style.transition = 'none'
+    bar.style.width = `${sel.offsetWidth}px`
+    bar.style.height = `${sel.offsetHeight}px`
+    bar.style.transform = `translate(${sel.offsetLeft}px, ${sel.offsetTop}px)`
+    if (bar.style.transition === 'none') {
+      void bar.offsetWidth
+      bar.style.transition = ''
+    }
+    el.dataset.ink = ''
+  }
+  useEffect(() => placeInk(true))
+  useEffect(() => {
+    const el = own.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => placeInk(false))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   useEffect(() => {
     const el = own.current
     if (!scroll || !el) return
@@ -560,6 +593,7 @@ export function Tabs({ scroll, className, children, onKeyDown, ref, ...rest }: T
   }
   return (
     <div ref={setRef} role="tablist" {...rest} onKeyDown={rove} className={cx('t-tabs', scroll && 't-tabs--scroll', className)}>
+      <span ref={ink} aria-hidden className="t-tabs-ink" />
       {children}
     </div>
   )
