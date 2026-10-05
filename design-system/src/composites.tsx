@@ -373,6 +373,8 @@ export interface TransferCardProps {
   progressLabel: string
   /** bytes are flowing */
   active?: boolean
+  /** the bar's colour, e.g. ok for a finished download */
+  tone?: 'ok' | 'warn' | 'err'
   /** pause and cancel, the limit control: one row that never wraps */
   actions?: ReactNode
   /** the expanded details */
@@ -402,6 +404,7 @@ export function TransferCard({
   percent,
   progressLabel,
   active,
+  tone,
   actions,
   children,
   selected,
@@ -431,7 +434,7 @@ export function TransferCard({
           {stats && <p className={cx('mt-1 font-mono text-xs text-t-secondary', hero && 'sm:text-sm')}>{stats}</p>}
         </div>
       </div>
-      <Progress value={percent} size={hero ? 'md' : 'sm'} active={active} label={progressLabel} className="mt-3" />
+      <Progress value={percent} size={hero ? 'md' : 'sm'} active={active} tone={tone} label={progressLabel} className="mt-3" />
       {children}
       {/* one row at every width: on a phone the buttons keep their icons and
           drop the captions, which is what leaves the limit control its place */}
