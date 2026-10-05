@@ -11,7 +11,7 @@ const SWIPE_SLOP = 10
 // how far the content is dragged before letting go pages: a quarter of the
 // zone, but never a phone-sized 15px and never a 300px haul across a desktop
 // week grid
-const commitDistance = (width: number) => Math.min(120, Math.max(60, width * 0.25))
+export const commitDistance = (width: number) => Math.min(120, Math.max(60, width * 0.25))
 // the offset the arriving content starts from, on the side the finger came from
 const ENTER_OFFSET = 40
 // safety net for the settle transition, in case transitionend never fires

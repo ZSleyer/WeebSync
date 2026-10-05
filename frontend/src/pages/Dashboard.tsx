@@ -63,11 +63,13 @@ import {
   Skeleton,
   Slot,
   StatTile,
+  SwipeRow,
   Toolbar,
   TransferCard,
   TrendChart,
   useMediaQuery,
   type BadgeTone,
+  type SwipeAction,
 } from '@weebsync/design-system'
 import {
   api,
@@ -389,6 +391,44 @@ export default function Dashboard() {
   }
   const handle = useDragReorder({ list: queueList, ids: queuedIds, onMove: moveQueued })
 
+  // Swipe a queue row (touch): to the right for its forward step - the front
+  // of the queue, or resume when it is paused - to the left to cancel. A
+  // cancel offers its undo for a few seconds; resuming puts the row back where
+  // it was, its queue position is kept.
+  const [undo, setUndo] = useState<{ id: number; name: string } | null>(null)
+  const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(undoTimer.current), [])
+  const swipeEnd = (d: Download): SwipeAction | undefined =>
+    d.status === 'done'
+      ? undefined
+      : {
+          label: t('dash.cancel'),
+          icon: <X aria-hidden size="1.1em" />,
+          tone: 'err',
+          leaves: true,
+          run: () => {
+            action.mutate({ id: d.id, verb: 'cancel' })
+            setUndo({ id: d.id, name: downloadLabel(d, meta).name })
+            clearTimeout(undoTimer.current)
+            undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS)
+          },
+        }
+  const swipeStart = (d: Download): SwipeAction | undefined =>
+    d.status === 'paused'
+      ? {
+          label: t('dash.resume'),
+          icon: <Play aria-hidden size="1.1em" />,
+          tone: 'ok',
+          run: () => action.mutate({ id: d.id, verb: 'resume' }),
+        }
+      : d.status === 'queued' && queuedIds[0] !== d.id && !filtering
+        ? {
+            label: t('dash.toFront'),
+            icon: <ArrowUpToLine aria-hidden size="1.1em" />,
+            run: () => moveQueued(d.id, 0, false),
+          }
+        : undefined
+
   // the header's line: what is going on right now, not what the page is
   const running = activeAll.filter((d) => d.status === 'running')
   const summary = [
@@ -591,6 +631,20 @@ export default function Dashboard() {
                     </Trans>
                   </Panel>
                 ))}
+              {undo && (
+                <Panel role="status" className="mb-3 flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <span className="min-w-0 truncate">{t('dash.canceledOne', { name: undo.name })}</span>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      action.mutate({ id: undo.id, verb: 'resume' })
+                      setUndo(null)
+                    }}
+                  >
+                    {t('dash.undo')}
+                  </Button>
+                </Panel>
+              )}
               <div ref={queueList} className="flex flex-col gap-3">
                 {shown.map((d) => (
                   <div
@@ -600,25 +654,27 @@ export default function Dashboard() {
                     className="t-collapse"
                     style={{ '--vt': `dl-${d.id}` } as CSSProperties}
                   >
-                    <DownloadRow
-                      d={d}
-                      meta={meta}
-                      watches={watches}
-                      variant={d === (leavingHero ?? hero) ? 'hero' : 'row'}
-                      selected={selected.has(d.id)}
-                      onSelect={(shift) => selectRow(d.id, shift)}
-                      onAction={(verb) => action.mutate({ id: d.id, verb })}
-                      // a search shows a slice of the queue; reordering a slice
-                      // would move rows the reader cannot see
-                      reorder={
-                        d.status === 'queued' && queued.length > 1 && !filtering
-                          ? {
-                              handle: handle(d.id),
-                              toFront: queuedIds[0] === d.id ? undefined : () => moveQueued(d.id, 0, false),
-                            }
-                          : undefined
-                      }
-                    />
+                    <SwipeRow start={swipeStart(d)} end={swipeEnd(d)}>
+                      <DownloadRow
+                        d={d}
+                        meta={meta}
+                        watches={watches}
+                        variant={d === (leavingHero ?? hero) ? 'hero' : 'row'}
+                        selected={selected.has(d.id)}
+                        onSelect={(shift) => selectRow(d.id, shift)}
+                        onAction={(verb) => action.mutate({ id: d.id, verb })}
+                        // a search shows a slice of the queue; reordering a slice
+                        // would move rows the reader cannot see
+                        reorder={
+                          d.status === 'queued' && queued.length > 1 && !filtering
+                            ? {
+                                handle: handle(d.id),
+                                toFront: queuedIds[0] === d.id ? undefined : () => moveQueued(d.id, 0, false),
+                              }
+                            : undefined
+                        }
+                      />
+                    </SwipeRow>
                   </div>
                 ))}
               </div>
@@ -1644,6 +1700,8 @@ const MIB = 1024 * 1024
 // how long a finished download stays in the queue before it folds away, and
 // the fold itself (--dur-2 and a frame)
 const LEAVE_MS = 1100
+// how long a swiped-away cancel can be taken back
+const UNDO_MS = 6000
 const FOLD_MS = 220
 
 // Rate limit input with a KiB/s | MiB/s unit picker; stores bytes/s.
