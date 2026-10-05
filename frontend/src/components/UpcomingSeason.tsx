@@ -161,6 +161,7 @@ function Section({
                 <Cover
                   size="fill"
                   src={m.coverImage.extraLarge || m.coverImage.large}
+                  tint={m.coverImage.color ?? undefined}
                   loading="lazy"
                   className="opacity-60 grayscale-[40%] transition group-hover:opacity-90 group-hover:grayscale-0"
                 />

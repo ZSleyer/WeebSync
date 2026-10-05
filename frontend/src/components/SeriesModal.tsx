@@ -218,7 +218,11 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
           )}
           <div className="flex gap-4 px-5 pt-4 pb-3">
             {media?.coverImage?.large && (
-              <Cover src={media.coverImage.extraLarge || media.coverImage.large} size="md" />
+              <Cover
+                src={media.coverImage.extraLarge || media.coverImage.large}
+                tint={media.coverImage.color ?? undefined}
+                size="md"
+              />
             )}
             <div className="min-w-0 flex-1">
               <h3 className="font-display font-semibold tracking-wider">{name}</h3>
@@ -386,7 +390,13 @@ function PosterRow({ items, onPick }: { items: { media: Media; caption?: string 
             aria-label={t('remote.detailsFor', { name: mediaTitle(m) })}
             className="w-full cursor-pointer text-left"
           >
-            <Cover src={m.coverImage?.large} size="fill" loading="lazy" className="rounded-xs" />
+            <Cover
+              src={m.coverImage?.large}
+              tint={m.coverImage?.color ?? undefined}
+              size="fill"
+              loading="lazy"
+              className="rounded-xs"
+            />
             {caption && <span className="mt-1 block text-[10px] uppercase tracking-wider text-accent">{caption}</span>}
             <span className="line-clamp-2 text-xs text-t-primary">{mediaTitle(m)}</span>
             {m.seasonYear > 0 && <span className="block text-[11px] text-t-muted">{m.seasonYear}</span>}

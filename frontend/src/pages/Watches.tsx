@@ -723,6 +723,7 @@ export default function Watches() {
                       <li key={w.id}>
                         <MediaCard
                           cover={w.media?.coverImage?.large}
+                          coverTint={w.media?.coverImage?.color ?? undefined}
                           onCover={w.media ? () => showSeries(w) : undefined}
                           coverLabel={
                             w.media
@@ -1029,6 +1030,7 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
         <Cover
           size="fill"
           src={w.media?.coverImage?.extraLarge || w.media?.coverImage?.large}
+          tint={w.media?.coverImage?.color ?? undefined}
           loading="lazy"
           className="opacity-90 transition-opacity group-hover:opacity-100"
         >

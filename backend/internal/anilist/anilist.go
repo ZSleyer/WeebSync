@@ -110,6 +110,10 @@ type Media struct {
 		// pixel ratios those screens run at. Empty on cache entries written
 		// before the field existed; consumers fall back to Large.
 		ExtraLarge string `json:"extraLarge,omitempty"`
+		// Color is the artwork's dominant colour as a hex string. The poster
+		// frame shows it while the file loads. Empty on older cache entries
+		// and for artwork AniList has not measured.
+		Color string `json:"color,omitempty"`
 	} `json:"coverImage"`
 	BannerImage string `json:"bannerImage"`
 	Trailer     *struct {
@@ -194,7 +198,7 @@ func (m *Media) Airings() []AiringSlot {
 	return nil
 }
 
-const mediaFields = `id title { romaji english native } coverImage { large extraLarge } bannerImage
+const mediaFields = `id title { romaji english native } coverImage { large extraLarge color } bannerImage
 	trailer { id site thumbnail }
 	nextAiringEpisode { airingAt episode }
 	airingSchedule(notYetAired: true, perPage: 25) { nodes { airingAt episode } }
@@ -506,7 +510,7 @@ type Recommendation struct {
 // recFields is the trimmed field set for recommended media: enough for a
 // suggestion card, without description/trailer/schedule. Those would multiply
 // the size of every cached batch and the detail dialog fetches them anyway.
-const recFields = `id title { romaji english native } coverImage { large }
+const recFields = `id title { romaji english native } coverImage { large color }
 	episodes seasonYear format status averageScore popularity genres siteUrl`
 
 // RecommendationsBatch resolves the recommendation lists of several media,

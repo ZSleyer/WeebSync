@@ -76,6 +76,10 @@
                     },
                     "coverImage": {
                         "properties": {
+                            "color": {
+                                "description": "Color is the artwork's dominant colour as a hex string. The poster\nframe shows it while the file loads. Empty on older cache entries\nand for artwork AniList has not measured.",
+                                "type": "string"
+                            },
                             "extraLarge": {
                                 "description": "ExtraLarge is the same artwork at twice the edge (460px rather than\n230px). A poster tile on a phone is around 200 CSS px wide, which a\n230px file has to stretch two to three times over at the device\npixel ratios those screens run at. Empty on cache entries written\nbefore the field existed; consumers fall back to Large.",
                                 "type": "string"

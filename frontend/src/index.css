@@ -1154,6 +1154,12 @@ details[open]::details-content { height: auto; }
 .t-dayband[data-overflow="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
 .t-dayband[data-overflow="both"] { mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent); }
 
+/* A poster frame (Cover): the poster's colour, or the hover ground, until the
+   file arrives, then the image fades in over it. */
+.t-cover { display: block; overflow: hidden; background: var(--cover-tint, var(--bg-hover)); }
+.t-cover > img { display: block; opacity: 0; transition: opacity var(--dur-3) var(--ease-out); }
+.t-cover > img[data-loaded] { opacity: 1; }
+
 /* Odometer digits (Digits): each digit a column of 0-9 behind a one-line
    window, slid to its value. The column is ten lines tall, so a tenth of it
    is one digit. */
