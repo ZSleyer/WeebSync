@@ -1124,8 +1124,10 @@ dialog .overflow-y-auto {
      nothing to scroll, so the drag died in the browser and the sheet never
      moved. `contain` stays: it keeps an over-scroll from reaching the page
      behind, which would scroll the app under the open sheet. */
+  /* `none`, not just `contain`: iOS also bounces the scroller itself at its
+     top, and that bounce would run under the hand-over from scroll to pull */
   dialog.dialog-sheet .overflow-y-auto {
-    overscroll-behavior-y: contain;
+    overscroll-behavior-y: none;
   }
   /* The backdrop dims in step with the pull: `--sheet-pull` (0..1, set by
      useSheetDrag) is how far the sheet has been dragged off the screen, and
