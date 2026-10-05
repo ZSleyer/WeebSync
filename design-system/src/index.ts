@@ -6,6 +6,7 @@ export {
   buttonClass,
   Checkbox,
   Count,
+  Digits,
   Divider,
   Field,
   FieldRow,
@@ -27,6 +28,7 @@ export {
 export type {
   BadgeProps,
   BadgeTone,
+  DigitsProps,
   ButtonLabelProps,
   ButtonLinkProps,
   ButtonProps,

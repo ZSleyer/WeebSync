@@ -479,6 +479,44 @@ export function Slot({ step, children, className }: SlotProps) {
   )
 }
 
+export interface DigitsProps {
+  /** the text to show; its digits roll, everything else stands */
+  value: string
+  className?: string
+}
+
+/**
+ * A figure whose digits roll like an odometer when it changes: each digit is a
+ * column of 0-9 that slides to its value, so only the places that changed
+ * move. Columns are keyed from the right, which keeps a unit suffix and the
+ * low places in place when the number grows a digit. Screen readers get the
+ * plain value.
+ */
+export function Digits({ value, className }: DigitsProps) {
+  const chars = [...value]
+  return (
+    <span className={cx('t-digits', className)}>
+      <span className="sr-only">{value}</span>
+      <span aria-hidden>
+        {chars.map((c, i) => {
+          const key = chars.length - i
+          return /[0-9]/.test(c) ? (
+            <span key={key} className="t-digit">
+              <span style={{ transform: `translateY(${-Number(c) * 10}%)` }}>
+                {'0123456789'.split('').map((d) => (
+                  <span key={d}>{d}</span>
+                ))}
+              </span>
+            </span>
+          ) : (
+            <span key={key}>{c}</span>
+          )
+        })}
+      </span>
+    </span>
+  )
+}
+
 export interface TabsProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
   /** the tablist element */

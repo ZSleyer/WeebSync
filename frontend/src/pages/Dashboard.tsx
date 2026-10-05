@@ -51,6 +51,7 @@ import {
   CalendarEntry,
   Count,
   Cover,
+  Digits,
   EmptyState,
   Input,
   localTransition,
@@ -875,7 +876,9 @@ function SpeedPanel({ downloads }: { downloads: Download[] }) {
     <div className="flex flex-col gap-3">
       <Panel className="px-3 py-2 text-accent sm:px-4">
         <Badge>{t('dash.speed')}</Badge>
-        <p className="mt-1 font-mono text-lg text-t-primary tabular-nums">{fmtSpeed(total)}</p>
+        <p className="mt-1 font-mono text-lg text-t-primary tabular-nums">
+          <Digits value={fmtSpeed(total)} />
+        </p>
         <p className="text-[11px] text-t-muted">{t('dash.speedOver', { count: running.length })}</p>
         <TrendChart
           className="mt-3"

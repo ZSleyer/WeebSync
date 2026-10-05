@@ -9,6 +9,7 @@ import {
   buttonClass,
   Checkbox,
   Count,
+  Digits,
   Divider,
   Field,
   FieldRow,
@@ -521,5 +522,16 @@ describe('Skeleton', () => {
     const { container } = render(<Skeleton shape="block" className="h-2 w-1/2" />)
     expect(container.firstElementChild).toHaveClass('rounded-xs', 'h-2', 'w-1/2')
     expect(container.firstElementChild).not.toHaveClass('h-3')
+  })
+})
+
+describe('Digits', () => {
+  it('rolls only the digits and reads the plain value out', () => {
+    const { container } = render(<Digits value="41.7 MiB/s" />)
+    expect(screen.getByText('41.7 MiB/s')).toHaveClass('sr-only')
+    const cols = container.querySelectorAll('.t-digit > span')
+    expect(cols).toHaveLength(3)
+    expect((cols[0] as HTMLElement).style.transform).toBe('translateY(-40%)')
+    expect((cols[2] as HTMLElement).style.transform).toBe('translateY(-70%)')
   })
 })
