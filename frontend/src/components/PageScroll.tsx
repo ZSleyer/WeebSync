@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowUp, RefreshCw } from 'lucide-react'
+import { ArrowUp, Check, RefreshCw } from 'lucide-react'
 import { haptic, useMediaQuery } from '@weebsync/design-system'
 import { WIDE_MQ } from './PageActions'
 
@@ -20,6 +20,8 @@ const PULL_AT = 64
 const PULL_MAX = 96
 // the spinner stays at least this long, or a fast answer reads as a flicker
 const PULL_MIN_MS = 600
+// and the "refreshed" line stays this long before the page goes back up
+const DONE_MS = 700
 // controls that pan or scroll sideways on their own keep the gesture
 const NO_PULL = 'input, textarea, select, [contenteditable], [data-no-pull]'
 
@@ -38,6 +40,7 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
   const button = useRef<HTMLButtonElement>(null)
   const ring = useRef<SVGCircleElement>(null)
   const pullMark = useRef<HTMLDivElement>(null)
+  const pullText = useRef<HTMLSpanElement>(null)
 
   // Pull to refresh, on a top-level page and with a finger: at the top of the
   // page a pull down brings the page and a spinner with it, and letting go past
@@ -50,30 +53,42 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
     const shell = main?.closest<HTMLElement>('.app-shell')
     const mark = pullMark.current
     if (wide || stacked || !main || !shell || !mark) return
+    const say = (key: string) => {
+      if (pullText.current) pullText.current.textContent = t(key)
+    }
     let y0 = 0
     let x0 = 0
     let mode: 'none' | 'pull' | 'off' = 'off'
     let busy = false
     let armed = false
     const page = () => main.firstElementChild as HTMLElement | null
+    // the page and the mark above it come down together; the mark turns
+    // with the pull and fades in on the way
     const show = (d: number) => {
       const p = page()
       if (p) p.style.transform = d > 0 ? `translateY(${d}px)` : ''
-      mark.style.top = `${main.offsetTop + 8}px`
-      mark.style.opacity = String(clamp(d / PULL_AT))
+      mark.style.top = `${main.offsetTop}px`
+      mark.style.setProperty('--d', `${d}px`)
       mark.style.setProperty('--pull', String(clamp(d / PULL_AT)))
     }
-    const settle = () => {
+    const glide = (on: boolean) => {
+      const v = on ? 'transform var(--dur-2) var(--ease-out)' : 'none'
       const p = page()
-      if (p) {
-        p.style.transition = 'transform var(--dur-2) var(--ease-out)'
-        p.style.transform = ''
-        // never leave a transform behind: it would trap position:fixed children
-        setTimeout(() => p && (p.style.transition = ''), 250)
-      }
-      mark.style.transition = 'opacity var(--dur-2) var(--ease-out)'
-      mark.style.opacity = '0'
-      setTimeout(() => (mark.style.transition = ''), 250)
+      if (p) p.style.transition = v
+      mark.style.transition = on
+        ? 'translate var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out)'
+        : 'none'
+    }
+    const settle = () => {
+      glide(true)
+      show(0)
+      // never leave a transform behind: it would trap position:fixed children
+      setTimeout(() => {
+        const p = page()
+        if (p) p.style.transition = ''
+        mark.style.transition = ''
+        delete mark.dataset.state
+      }, 250)
     }
     const onStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null
@@ -97,15 +112,17 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
           return
         }
         mode = 'pull'
-        const p = page()
-        if (p) p.style.transition = 'none'
-        mark.style.transition = 'none'
+        glide(false)
+        mark.dataset.state = 'pull'
+        say('app.pullHint')
       }
       if (e.cancelable) e.preventDefault()
       const d = Math.min(PULL_MAX, Math.max(0, dy) / 2)
       show(d)
       if (d >= PULL_AT !== armed) {
         armed = d >= PULL_AT
+        mark.dataset.state = armed ? 'armed' : 'pull'
+        say(armed ? 'app.pullRelease' : 'app.pullHint')
         if (armed) haptic(8)
       }
     }
@@ -114,14 +131,17 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
       mode = 'off'
       if (!armed) return settle()
       busy = true
-      mark.dataset.busy = ''
+      // the page settles to the mark's height and stays there while it loads
+      glide(true)
       show(PULL_AT)
-      const page0 = page()
-      if (page0) page0.style.transition = 'transform var(--dur-2) var(--ease-out)'
+      mark.dataset.state = 'busy'
+      say('app.refreshing')
       const t0 = performance.now()
       await qc.refetchQueries({ type: 'active' }).catch(() => {})
       await new Promise((r) => setTimeout(r, Math.max(0, PULL_MIN_MS - (performance.now() - t0))))
-      delete mark.dataset.busy
+      mark.dataset.state = 'done'
+      say('app.refreshed')
+      await new Promise((r) => setTimeout(r, DONE_MS))
       busy = false
       settle()
     }
@@ -137,7 +157,7 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
       const p = page()
       if (p) p.style.transform = ''
     }
-  }, [wide, stacked, qc])
+  }, [wide, stacked, qc, t])
 
   // a layout effect: the attributes have to be on the shell before the first
   // paint, or a stacked screen flashes its large title and a top-level one
@@ -193,16 +213,22 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
   }
 
   return (
-    <div className="t-totop-wrap">
-      <div ref={pullMark} className="t-pull" role="status" aria-label={t('app.refreshing')}>
-        <RefreshCw aria-hidden size="1.1em" />
+    <>
+      {/* outside the sticky wrapper below: a sticky box is a containing block,
+          and the mark drew itself at the bottom edge of the page */}
+      <div ref={pullMark} className="t-pull" role="status" aria-live="polite">
+        <RefreshCw aria-hidden size="1.1em" className="t-pull-spin" />
+        <Check aria-hidden size="1.1em" className="t-pull-done" />
+        <span ref={pullText} />
       </div>
-      <button ref={button} type="button" className="t-totop" aria-label={t('app.toTop')} onClick={toTop}>
-        <svg className="t-totop-ring" viewBox="0 0 44 44" aria-hidden>
-          <circle ref={ring} cx="22" cy="22" r="20" strokeDasharray={RING} strokeDashoffset={RING} />
-        </svg>
-        <ArrowUp aria-hidden size="1.1em" />
-      </button>
-    </div>
+      <div className="t-totop-wrap">
+        <button ref={button} type="button" className="t-totop" aria-label={t('app.toTop')} onClick={toTop}>
+          <svg className="t-totop-ring" viewBox="0 0 44 44" aria-hidden>
+            <circle ref={ring} cx="22" cy="22" r="20" strokeDasharray={RING} strokeDashoffset={RING} />
+          </svg>
+          <ArrowUp aria-hidden size="1.1em" />
+        </button>
+      </div>
+    </>
   )
 }
