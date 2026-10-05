@@ -3,6 +3,7 @@ import {
   ArrowUpDown,
   CalendarDays,
   CalendarRange,
+  GalleryHorizontal,
   Check,
   Clock,
   Download,
@@ -49,7 +50,9 @@ import {
   MenuItem,
   PageHeader,
   Panel,
+  PosterBand,
   Progress,
+  Slot,
   Segmented,
   SHEET_MQ,
   SwipeDeck,
@@ -122,10 +125,11 @@ export default function Watches() {
     'all',
     'filter',
   )
-  // the calendar as a week, or as the plain list by day it used to be
+  // the calendar as a week, as the plain list by day it used to be, or as a
+  // band of posters, one release after the other
   const [calMode, setCalMode] = usePersistedView(
     'weebsync.watches.calendar',
-    ['week', 'agenda'] as const,
+    ['week', 'agenda', 'poster'] as const,
     'week',
     'cal',
   )
@@ -511,6 +515,16 @@ export default function Watches() {
                   </>
                 ),
               },
+              {
+                value: 'poster',
+                'aria-label': t('watch.calPoster'),
+                label: (
+                  <>
+                    <GalleryHorizontal aria-hidden size="1em" />
+                    <span className="ml-1 hidden sm:inline">{t('watch.calPoster')}</span>
+                  </>
+                ),
+              },
             ]}
           />
         </div>
@@ -543,6 +557,8 @@ export default function Watches() {
         <div className="flex flex-col gap-4">
           {calShown.length === 0 ? (
             <EmptyState>{t('watch.calEmpty')}</EmptyState>
+          ) : calMode === 'poster' ? (
+            <PosterCalendar events={calShown} now={now} onOpen={showSeries} />
           ) : calMode === 'agenda' ? (
             <div className="flex flex-col gap-5">
               {calGroups.map((g) => (
@@ -959,6 +975,61 @@ interface RowAction {
   label: string
   onClick: () => void
   danger?: boolean
+}
+
+// The calendar as a band of posters: every release in order, opening on the
+// next one to air. Under the band the middle poster's title, episode, time and
+// countdown roll over as the band moves.
+function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number; onOpen: (w: Watch) => void }) {
+  const { t } = useTranslation()
+  const first = Math.max(
+    0,
+    events.findIndex((e) => e.at * 1000 >= now),
+  )
+  const [at, setAt] = useState(first)
+  const i = Math.min(at, events.length - 1)
+  const e = events[i]
+  const nameOf = (x: Airing) =>
+    x.watch.titleOverride || mediaTitle(x.watch.media, x.watch.remotePath.split('/').pop() || '')
+  const chip = (ts: number) => {
+    const d = new Date(ts * 1000)
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const days = Math.round((startOfDay(d).getTime() - startOfDay(new Date(now)).getTime()) / 86_400_000)
+    if (days === 0) return `${t('watch.week.today')} ${time}`
+    if (Math.abs(days) < 7) return `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`
+    return `${d.toLocaleDateString([], { day: '2-digit', month: '2-digit' })} ${time}`
+  }
+  return (
+    <section className="flex min-w-0 flex-col gap-3" aria-label={t('watch.calPoster')}>
+      <PosterBand
+        label={t('watch.calPoster')}
+        items={events.map((x) => ({
+          key: `${x.watch.id}-${x.episode}-${x.at}-${x.dub ?? ''}`,
+          cover: x.watch.media?.coverImage?.extraLarge || x.watch.media?.coverImage?.large,
+          tint: x.watch.media?.coverImage?.color ?? undefined,
+          chip: chip(x.at),
+          label: `${nameOf(x)}, ${episodeLabel(t, x)}, ${chip(x.at)}`,
+          past: x.at * 1000 < now,
+        }))}
+        index={i}
+        onIndex={setAt}
+        onOpen={(k) => events[k].watch.media && onOpen(events[k].watch)}
+      />
+      {e && (
+        <div className="flex flex-col items-center gap-1 text-center" aria-live="polite">
+          <Slot step={i} className="max-w-full">
+            <h3 className="truncate font-display text-lg font-semibold tracking-wider">{nameOf(e)}</h3>
+          </Slot>
+          <Slot step={i}>
+            <p className="font-mono text-xs text-t-secondary">
+              {episodeLabel(t, e)} · {chip(e.at)}
+              {e.at * 1000 >= now && <span className="text-accent"> · {countdown(t, e.at, isToday(e.at), now)}</span>}
+            </p>
+          </Slot>
+        </div>
+      )}
+    </section>
+  )
 }
 
 // The overflow of a watch row on desktop: the same entries the phone sheet
