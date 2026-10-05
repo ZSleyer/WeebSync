@@ -13,9 +13,9 @@ import {
   Shield,
   UserRound,
 } from 'lucide-react'
-import { Navigate, Outlet, useLocation, useNavigate } from 'react-router'
+import { Navigate, Outlet } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Button, Panel, useMediaQuery, useSwipe } from '@weebsync/design-system'
+import { Button, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useAuth, useUpdateHint } from '../../hooks'
 import { WIDE_MQ } from '../../components/PageActions'
@@ -103,25 +103,10 @@ export function SettingsHub() {
 export default function SettingsLayout() {
   const { t } = useTranslation()
   const groups = useGroups()
-  // A swipe walks the sections in the order the menu lists them - the same
-  // order on the hub and in the side menu, and already filtered by role, so
-  // a non-admin never swipes into a section they cannot see. Touch and pen
-  // only: a settings page is text and form fields, a mouse drag has to select.
-  // The unsaved-changes guard sits on the navigation, so a swipe out of a
-  // dirty form asks the same way a click in the menu does.
-  const sections = groups.flatMap((g) => g.items.map((i) => i.to))
-  const { pathname } = useLocation()
-  const navigate = useNavigate()
-  const at = sections.indexOf(pathname.split('/').filter(Boolean)[1] ?? '')
-  const swipe = useSwipe({
-    onPrev: at > 0 ? () => navigate(sections[at - 1]) : undefined,
-    onNext: at >= 0 && at < sections.length - 1 ? () => navigate(sections[at + 1]) : undefined,
-  })
+  // no swipe between the sections: like the page swipe it fought the
+  // gestures inside the page, and the menu is one tap away
   return (
-    // the whole page is the swipe zone, not just the box the section renders
-    // into: on a phone a thumb lands anywhere, and a short section left the
-    // gesture dead below its last panel
-    <div {...swipe} className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* the desktop's heading; on a phone the app bar carries the section
           title and a back link to the hub */}
       <header className="mb-6 hidden lg:block">
