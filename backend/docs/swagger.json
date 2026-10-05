@@ -555,6 +555,19 @@
                 },
                 "type": "object"
             },
+            "api.DownloadsReorderRequest": {
+                "properties": {
+                    "ids": {
+                        "description": "every queued download of the caller, in the new order",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "api.DuplicateCopy": {
                 "properties": {
                     "bytes": {
@@ -4279,6 +4292,10 @@
                     },
                     "localPath": {
                         "type": "string"
+                    },
+                    "queuePos": {
+                        "description": "QueuePos orders the queue: the scheduler starts the lowest first.",
+                        "type": "integer"
                     },
                     "rateLimit": {
                         "type": "integer"
@@ -9143,6 +9160,85 @@
                     }
                 ],
                 "summary": "Set global rate limit",
+                "tags": [
+                    "Downloads"
+                ]
+            }
+        },
+        "/api/downloads/reorder": {
+            "post": {
+                "description": "Sets the start order of the caller's queued downloads. ids must list exactly the caller's queued downloads; 409 when the queue changed in the meantime.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.DownloadsReorderRequest",
+                                        "summary": "body",
+                                        "description": "Queued download ids in the new order"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Queued download ids in the new order",
+                    "required": true
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Reorder queue",
                 "tags": [
                     "Downloads"
                 ]

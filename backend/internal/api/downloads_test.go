@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -63,5 +64,72 @@ func TestDownloadsBulk(t *testing.T) {
 	}
 	if rec := doReq(mux, "PUT", "/api/downloads/ratelimit", `{"rateLimit":-1}`, adminC); rec.Code != http.StatusBadRequest {
 		t.Errorf("negative limit: got %d, want 400", rec.Code)
+	}
+}
+
+func TestDownloadsReorder(t *testing.T) {
+	mux, s, adminC, _, adminID, userID := setupUsersTest(t)
+	db.SetSetting(s.DB, "max_concurrent", "0")
+	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
+
+	res, err := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc)
+		VALUES (?, 'srv', 'sftp', 'example.com', 22, 'u', x'00')`, adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srvID, _ := res.LastInsertId()
+	ins := func(uid int64, path, status string, pos int) int64 {
+		r, err := s.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, status, queue_pos)
+			VALUES (?, ?, ?, '/dl', ?, ?)`, uid, srvID, path, status, pos)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := r.LastInsertId()
+		return id
+	}
+	a := ins(adminID, "/a.mkv", "queued", 1)
+	c := ins(userID, "/c.mkv", "queued", 2) // someone else's, between the two
+	b := ins(adminID, "/b.mkv", "queued", 3)
+	run := ins(adminID, "/r.mkv", "running", 4)
+	pos := func(id int64) (p int) {
+		s.DB.QueryRow(`SELECT queue_pos FROM downloads WHERE id = ?`, id).Scan(&p)
+		return
+	}
+
+	body := func(ids ...int64) string {
+		out := `{"ids":[`
+		for i, id := range ids {
+			if i > 0 {
+				out += ","
+			}
+			out += strconv.FormatInt(id, 10)
+		}
+		return out + `]}`
+	}
+	if rec := doReq(mux, "POST", "/api/downloads/reorder", body(b, a), adminC); rec.Code != http.StatusNoContent {
+		t.Fatalf("reorder: got %d: %s", rec.Code, rec.Body)
+	}
+	// b takes a's slot, a takes b's; the other user's file keeps its place
+	// between them, so nobody jumped ahead of it
+	if pos(b) != 1 || pos(a) != 3 || pos(c) != 2 {
+		t.Errorf("positions: b=%d a=%d c=%d, want 1 3 2", pos(b), pos(a), pos(c))
+	}
+
+	for name, ids := range map[string][]int64{
+		"missing one":   {a},
+		"running row":   {a, b, run},
+		"foreign row":   {a, c},
+		"duplicate id":  {a, a},
+		"unknown extra": {a, b, 9999},
+	} {
+		if rec := doReq(mux, "POST", "/api/downloads/reorder", body(ids...), adminC); rec.Code != http.StatusConflict {
+			t.Errorf("%s: got %d, want 409", name, rec.Code)
+		}
+	}
+	if rec := doReq(mux, "POST", "/api/downloads/reorder", `{"ids":[]}`, adminC); rec.Code != http.StatusBadRequest {
+		t.Errorf("empty: got %d, want 400", rec.Code)
+	}
+	if pos(b) != 1 || pos(a) != 3 {
+		t.Error("a rejected reorder changed the queue")
 	}
 }
