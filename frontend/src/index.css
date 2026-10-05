@@ -970,6 +970,26 @@ main:has(.page-fill) {
     transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out);
   }
   .t-totop[data-show] { opacity: 1; translate: 0 -100%; pointer-events: auto; }
+  /* the pull-to-refresh mark: above the page while it is pulled down, turning
+     with the pull, spinning while the page reloads */
+  .t-pull {
+    position: absolute;
+    left: 50%;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    translate: -50% 0;
+    border-radius: 9999px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-card);
+    color: var(--accent-blue);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .t-pull > svg { rotate: calc(var(--pull, 0) * 300deg); }
+  .t-pull[data-busy] > svg { animation: t-spin 800ms linear infinite; }
   .t-totop svg.t-totop-ring { position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px); rotate: -90deg; }
   .t-totop-ring circle { fill: none; stroke: var(--accent-blue); stroke-width: 2.5; }
 }
@@ -1296,6 +1316,7 @@ details[open]::details-content { height: auto; }
 :root[data-nav="fwd"]::view-transition-new(main) { animation-name: t-slide-from-left; }
 :root[data-nav="back"]::view-transition-new(main) { animation-name: t-slide-from-right; }
 @keyframes t-fade-out { to { opacity: 0; } }
+@keyframes t-spin { to { rotate: 360deg; } }
 
 /* A local view transition (localTransition in the design system): <main>
    loses its name for the duration, so the page stays where it is, and the
