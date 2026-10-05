@@ -122,7 +122,7 @@ export { useMenu } from './useMenu'
 export { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 
 export { haptic } from './haptics'
-export { localTransition, revealTransition } from './viewTransition'
+export { localTransition, morphTransition, revealTransition } from './viewTransition'
 export { SwipeRow, type SwipeAction, type SwipeRowProps } from './swipeRow'
 export { useLongPress, type LongPressHandlers } from './useLongPress'
 export { EASE_THROW, moveVelocity, project, releaseVelocity, startVelocity, throwMs, type Velocity } from './gesture'

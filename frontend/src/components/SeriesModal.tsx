@@ -1,4 +1,15 @@
-import { createContext, useCallback, useContext, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { flushSync } from 'react-dom'
 import { useLocation } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -32,7 +43,9 @@ import {
   IconButton,
   Menu,
   MenuItem,
+  morphTransition,
   Progress,
+  SHEET_MQ,
   Tab,
   Tabs,
   useMenu,
@@ -106,7 +119,28 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
     setAt(pathname)
     setTarget(null)
   }
-  const open = useCallback((t: SeriesTarget) => setTarget({ ...t, source: t.source || 'anilist' }), [])
+  // The poster that was clicked flies into the dialog's head (morphTransition)
+  // where the dialog opens centred; a phone's sheet rises from the bottom
+  // edge, and a poster flying up past it would fight that. The poster is the
+  // one under the click that opened the card: a capture listener notes it just
+  // before the click reaches the page's own handler.
+  const lastCover = useRef<{ el: HTMLElement; at: number } | null>(null)
+  useEffect(() => {
+    const note = (e: Event) => {
+      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>('.t-cover')
+      lastCover.current = el ? { el, at: performance.now() } : null
+    }
+    document.addEventListener('click', note, true)
+    return () => document.removeEventListener('click', note, true)
+  }, [])
+  const open = useCallback((t: SeriesTarget) => {
+    const next = () => setTarget({ ...t, source: t.source || 'anilist' })
+    const from = lastCover.current
+    lastCover.current = null
+    if (from && from.el.isConnected && performance.now() - from.at < 500 && !matchMedia(SHEET_MQ).matches) {
+      void morphTransition(from.el, () => flushSync(next))
+    } else next()
+  }, [])
   const close = useCallback(() => setTarget(null), [])
   const api = useMemo(() => ({ open, close }), [open, close])
   return (
@@ -246,11 +280,13 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
             )}
             <div className="flex gap-4 px-5 pt-4 pb-3">
               {media?.coverImage?.large && (
-                <Cover
-                  src={media.coverImage.extraLarge || media.coverImage.large}
-                  tint={media.coverImage.color ?? undefined}
-                  size="md"
-                />
+                <div data-morph-target className="shrink-0">
+                  <Cover
+                    src={media.coverImage.extraLarge || media.coverImage.large}
+                    tint={media.coverImage.color ?? undefined}
+                    size="md"
+                  />
+                </div>
               )}
               <div className="min-w-0 flex-1">
                 <h3 className="font-display font-semibold tracking-wider">{name}</h3>

@@ -1360,6 +1360,7 @@ details[open]::details-content { height: auto; }
    children of the scope move as themselves, each named from its own --vt. */
 :root[data-vt-local] .app-shell > main { view-transition-name: none; }
 [data-vt] > * { view-transition-name: var(--vt, none); }
+:root[data-vt-morph] [data-morph-target] { view-transition-name: morph; }
 :root[data-vt-local]::view-transition-group(*) {
   animation-duration: var(--dur-3);
   animation-timing-function: var(--ease-out);
