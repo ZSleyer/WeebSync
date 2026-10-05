@@ -263,6 +263,8 @@
     "pause": "Pause",
     "resume": "Resume",
     "cancel": "Cancel",
+    "reorder": "Change order: {{name}} (arrow keys move)",
+    "toFront": "Move to front",
     "retry": "Retry",
     "retryIn": "attempt {{n}}, retrying {{when}}",
     "remove": "Remove entry {{id}}",

@@ -263,6 +263,8 @@
     "pause": "Pause",
     "resume": "Fortsetzen",
     "cancel": "Abbrechen",
+    "reorder": "Reihenfolge ändern: {{name}} (Pfeiltasten verschieben)",
+    "toFront": "An den Anfang",
     "retry": "Erneut",
     "retryIn": "Versuch {{n}}, erneut {{when}}",
     "remove": "Eintrag {{id}} entfernen",
