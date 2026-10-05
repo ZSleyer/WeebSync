@@ -589,6 +589,11 @@ export interface DayTimelineProps {
  * runs. Nothing is positioned absolutely, so a cluster of releases simply
  * stacks and nothing can overlap.
  *
+ * What lies before the marker has aired: its stretch of the axis is filled
+ * and its rows step back. The marker itself sticks to the top or bottom edge
+ * of the screen once it would scroll away, with the time beside it, so the
+ * reader always knows which way "now" is.
+ *
  * ponytail: the page scrolls, not this. A day fits on a screen once the gaps
  * are cut; an own scroller anchored on the marker is the upgrade if a day ever
  * does not.
@@ -598,22 +603,27 @@ export function DayTimeline({ entries, now, nowLabel, gapLabel, className }: Day
     ...entries.map((e) => ({ key: e.key, at: e.at, node: e.node })),
     ...(now ? [{ key: '__now', at: now / 1000, node: null }] : []),
   ].sort((a, b) => a.at - b.at)
+  const nowAt = rows.findIndex((r) => r.node === null)
   return (
     <ul className={cx('t-timeline', className)}>
       {rows.map((r, i) => {
         const mins = i === 0 ? 0 : (r.at - rows[i - 1].at) / 60
         const gap = timelineGap(mins)
+        // everything above the marker, gaps included, has already happened
+        const past = nowAt >= 0 && i < nowAt ? '' : undefined
         return (
           <Fragment key={r.key}>
             {i > 0 && (
-              <li aria-hidden className="t-timeline__gap" style={{ height: gap.height }}>
+              <li aria-hidden className="t-timeline__gap" data-past={past ?? (nowAt >= 0 && i === nowAt ? '' : undefined)} style={{ height: gap.height }}>
                 {gap.cut && <span>{gapLabel(mins)}</span>}
               </li>
             )}
             {r.node === null ? (
-              <li className="t-timeline__now" aria-label={nowLabel} role="separator" />
+              <li className="t-timeline__now" aria-label={nowLabel} role="separator" data-label={nowLabel} />
             ) : (
-              <li className="t-timeline__row">{r.node}</li>
+              <li className="t-timeline__row" data-past={past}>
+                {r.node}
+              </li>
             )}
           </Fragment>
         )

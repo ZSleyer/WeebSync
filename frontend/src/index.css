@@ -1472,11 +1472,43 @@ details[open]::details-content { height: auto; }
   line-height: 1;
   white-space: nowrap;
 }
-/* now, on today's panel: it drifts down past the releases as the clock runs */
-.t-timeline__now {
+/* what has already aired: its stretch of the axis is filled, its rows step
+   back and their dots are full */
+.t-timeline > li[data-past]::after {
+  content: '';
+  position: absolute;
+  left: -0.825rem;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--color-accent);
+  translate: -0.5px 0;
+}
+.t-timeline__row[data-past] { opacity: 0.6; }
+.t-timeline__row[data-past]::before { background: var(--color-accent); }
+/* now, on today's panel: it drifts down past the releases as the clock runs,
+   and sticks to the edge of the screen instead of scrolling out of it, the
+   time beside it saying what the line is */
+.t-timeline > .t-timeline__now {
   height: 0;
   border-top: 2px solid var(--color-accent);
   margin-left: -1.125rem;
+  position: sticky;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 2;
+}
+.t-timeline__now::after {
+  content: attr(data-label);
+  position: absolute;
+  right: 0;
+  top: -0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--r-chip);
+  background: var(--color-accent);
+  color: var(--bg-primary);
+  font: 600 0.625rem/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .t-timeline__now::before {
   content: '';
