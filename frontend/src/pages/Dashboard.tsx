@@ -819,17 +819,38 @@ export default function Dashboard() {
                         const watchId = downloadLabel(d, meta).group?.watchId
                         const watch = watchId ? watches.find((w) => w.id === watchId) : undefined
                         return (
-                          <HistoryRow
+                          <SwipeRow
                             key={d.id}
-                            d={d}
-                            meta={meta}
-                            explain={first}
-                            selected={selected.has(d.id)}
-                            onSelect={(shift) => selectRow(d.id, shift)}
-                            onAction={(verb) => action.mutate({ id: d.id, verb })}
-                            onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
-                            coverLabel={watch ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
-                          />
+                            as="li"
+                            start={
+                              d.status === 'error' || d.status === 'canceled'
+                                ? {
+                                    label: t('dash.retry'),
+                                    icon: <RotateCcw aria-hidden size="1.1em" />,
+                                    tone: 'ok',
+                                    run: () => action.mutate({ id: d.id, verb: 'resume' }),
+                                  }
+                                : undefined
+                            }
+                            end={{
+                              label: t('dash.removeSelected'),
+                              icon: <Trash2 aria-hidden size="1.1em" />,
+                              tone: 'err',
+                              leaves: true,
+                              run: () => action.mutate({ id: d.id, verb: 'delete' }),
+                            }}
+                          >
+                            <HistoryRow
+                              d={d}
+                              meta={meta}
+                              explain={first}
+                              selected={selected.has(d.id)}
+                              onSelect={(shift) => selectRow(d.id, shift)}
+                              onAction={(verb) => action.mutate({ id: d.id, verb })}
+                              onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
+                              coverLabel={watch ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
+                            />
+                          </SwipeRow>
                         )
                       })
                     })()}
@@ -1600,7 +1621,9 @@ function HistoryRow({
   const StatusIcon = STATUS_ICON[d.status]
   const tone = d.status === 'done' ? 'text-ok' : d.status === 'error' ? 'text-err' : 'text-t-muted'
   return (
-    <li className={`px-3 py-2 text-sm ${selected ? 'bg-bg-hover' : ''}`}>
+    // a div: the list item is the SwipeRow around it; opaque, so the swipe's
+    // ground stays hidden until the row moves
+    <div className={`px-3 py-2 text-sm ${selected ? 'bg-bg-hover' : 'bg-bg-card'}`}>
       {/* box, cover, then the whole rest of the line is the details toggle -
           a sibling of the checkbox, never its parent */}
       <div className="flex items-center gap-3">
@@ -1692,7 +1715,7 @@ function HistoryRow({
           </div>
         </>
       )}
-    </li>
+    </div>
   )
 }
 

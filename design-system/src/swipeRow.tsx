@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { EASE_THROW } from './gesture'
 import { haptic } from './haptics'
 import { commitDistance, useSwipe } from './useSwipe'
@@ -21,6 +21,8 @@ export interface SwipeRowProps {
   /** uncovered by a swipe to the left */
   end?: SwipeAction
   children: ReactNode
+  /** the root element: an li inside a list */
+  as?: 'div' | 'li'
   className?: string
 }
 
@@ -37,8 +39,8 @@ const RETURN_MS = 1500
  * 2.5.7). Built on useSwipe's deck mode, so it is one zone among the others:
  * a direction the row has no action for falls through to the page swipe.
  */
-export function SwipeRow({ start, end, children, className }: SwipeRowProps) {
-  const root = useRef<HTMLDivElement>(null)
+export function SwipeRow({ start, end, children, as: Tag = 'div', className }: SwipeRowProps) {
+  const root = useRef<HTMLElement>(null)
   const face = useRef<HTMLDivElement>(null)
   const back = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(back.current), [])
@@ -82,7 +84,7 @@ export function SwipeRow({ start, end, children, className }: SwipeRowProps) {
   })
 
   return (
-    <div ref={root} className={cx('t-swiperow', className)}>
+    <Tag ref={root as RefObject<HTMLDivElement & HTMLLIElement>} className={cx('t-swiperow', className)}>
       {start && (
         <div aria-hidden className="t-swiperow__ground t-swiperow__ground--start" data-tone={start.tone}>
           {start.icon}
@@ -98,6 +100,6 @@ export function SwipeRow({ start, end, children, className }: SwipeRowProps) {
       <div ref={face} {...swipe} className="t-swiperow__face">
         {children}
       </div>
-    </div>
+    </Tag>
   )
 }
