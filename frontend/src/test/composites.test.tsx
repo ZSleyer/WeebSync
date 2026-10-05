@@ -1061,6 +1061,25 @@ describe('DayTimeline', () => {
     expect(screen.getByLabelText('Jetzt 12:00')).toBeTruthy()
   })
 
+  // what lies above the marker has aired: its rows and the stretch of axis
+  // leading into the marker are marked, what lies below is not
+  it('marks what has already aired', () => {
+    const { container } = render(
+      <DayTimeline
+        entries={[
+          { key: 'a', at: at(9), node: <span>A</span> },
+          { key: 'b', at: at(20), node: <span>B</span> },
+        ]}
+        now={at(12) * 1000}
+        nowLabel="Jetzt 12:00"
+        gapLabel={gapLabel}
+      />,
+    )
+    const items = [...container.querySelectorAll('.t-timeline > li')]
+    expect(items.map((li) => li.hasAttribute('data-past'))).toEqual([true, true, false, false, false])
+    expect(screen.getByLabelText('Jetzt 12:00')).toHaveAttribute('data-label', 'Jetzt 12:00')
+  })
+
   it('leaves the marker out on any day but today', () => {
     const { container } = render(
       <DayTimeline entries={[{ key: 'a', at: at(9), node: <span>A</span> }]} gapLabel={gapLabel} />,
