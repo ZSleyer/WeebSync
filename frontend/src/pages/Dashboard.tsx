@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ArrowRight,
   ArrowUpToLine,
@@ -95,6 +95,8 @@ import { useAuth, useNow, usePersistedQuery } from '../hooks'
 import { ProviderBadges } from '../components/ProviderBadges'
 import { useSeriesModal } from '../components/SeriesModal'
 import { useDragReorder } from '../hooks/useDragReorder'
+import ActionSheet, { type SheetAction } from '../components/ActionSheet'
+import Press from '../components/Press'
 
 // history-only status filter: the active queue is short and searchable, its
 // three states never need chips
@@ -429,6 +431,43 @@ export default function Dashboard() {
           }
         : undefined
 
+  // A long press on a row (touch) opens all its actions as a sheet - the
+  // queue row's buttons and the history row's, plus the series it belongs to.
+  const [sheet, setSheet] = useState<{ title: string; actions: SheetAction[] } | null>(null)
+  const openRowSheet = (d: Download) => {
+    const { name, group } = downloadLabel(d, meta)
+    const watch = group?.watchId ? watches.find((w) => w.id === group.watchId) : undefined
+    const verb = (v: string) => () => action.mutate({ id: d.id, verb: v })
+    const act = (key: string, label: string, icon: ReactNode, onClick: () => void, danger?: boolean): SheetAction => ({
+      key,
+      label,
+      icon,
+      onClick,
+      danger,
+    })
+    const ico = { size: '1.1em', 'aria-hidden': true } as const
+    const actions: SheetAction[] =
+      d.status === 'running' || d.status === 'queued' || d.status === 'paused'
+        ? [
+            d.status === 'paused'
+              ? act('resume', t('dash.resume'), <Play {...ico} />, verb('resume'))
+              : act('pause', t('dash.pause'), <Pause {...ico} />, verb('pause')),
+            ...(d.status === 'queued' && queuedIds[0] !== d.id && !filtering
+              ? [act('front', t('dash.toFront'), <ArrowUpToLine {...ico} />, () => moveQueued(d.id, 0, false))]
+              : []),
+            act('cancel', t('dash.cancel'), <X {...ico} />, verb('cancel'), true),
+          ]
+        : [
+            ...(d.status === 'error' || d.status === 'canceled'
+              ? [act('retry', t('dash.retry'), <RotateCcw {...ico} />, verb('resume'))]
+              : []),
+            act('remove', t('dash.removeSelected'), <Trash2 {...ico} />, verb('delete'), true),
+          ]
+    if (watch?.media)
+      actions.unshift(act('series', t('dash.openSeries'), <Eye {...ico} />, () => openSeries(seriesTarget(watch))))
+    setSheet({ title: name, actions })
+  }
+
   // the header's line: what is going on right now, not what the page is
   const running = activeAll.filter((d) => d.status === 'running')
   const summary = [
@@ -450,6 +489,7 @@ export default function Dashboard() {
 
   return (
     <div>
+      {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
       <PageHeader className="mb-4 lg:mb-6" title={t('dash.title')} sub={summary}>
         {/* the page-wide, reversible actions: top right of the header on
             desktop, the app bar on a phone. Cancelling everything is
@@ -647,12 +687,13 @@ export default function Dashboard() {
               )}
               <div ref={queueList} className="flex flex-col gap-3">
                 {shown.map((d) => (
-                  <div
+                  <Press
                     key={d.id}
                     data-reorder-id={d.id}
                     data-gone={leaving.some((l) => l.d.id === d.id && l.gone) || undefined}
                     className="t-collapse"
                     style={{ '--vt': `dl-${d.id}` } as CSSProperties}
+                    onLongPress={d.status === 'done' ? undefined : () => openRowSheet(d)}
                   >
                     <SwipeRow start={swipeStart(d)} end={swipeEnd(d)}>
                       <DownloadRow
@@ -675,7 +716,7 @@ export default function Dashboard() {
                         }
                       />
                     </SwipeRow>
-                  </div>
+                  </Press>
                 ))}
               </div>
             </>
@@ -819,38 +860,38 @@ export default function Dashboard() {
                         const watchId = downloadLabel(d, meta).group?.watchId
                         const watch = watchId ? watches.find((w) => w.id === watchId) : undefined
                         return (
-                          <SwipeRow
-                            key={d.id}
-                            as="li"
-                            start={
-                              d.status === 'error' || d.status === 'canceled'
-                                ? {
-                                    label: t('dash.retry'),
-                                    icon: <RotateCcw aria-hidden size="1.1em" />,
-                                    tone: 'ok',
-                                    run: () => action.mutate({ id: d.id, verb: 'resume' }),
-                                  }
-                                : undefined
-                            }
-                            end={{
-                              label: t('dash.removeSelected'),
-                              icon: <Trash2 aria-hidden size="1.1em" />,
-                              tone: 'err',
-                              leaves: true,
-                              run: () => action.mutate({ id: d.id, verb: 'delete' }),
-                            }}
-                          >
-                            <HistoryRow
-                              d={d}
-                              meta={meta}
-                              explain={first}
-                              selected={selected.has(d.id)}
-                              onSelect={(shift) => selectRow(d.id, shift)}
-                              onAction={(verb) => action.mutate({ id: d.id, verb })}
-                              onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
-                              coverLabel={watch ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
-                            />
-                          </SwipeRow>
+                          <Press as="li" key={d.id} onLongPress={() => openRowSheet(d)}>
+                            <SwipeRow
+                              start={
+                                d.status === 'error' || d.status === 'canceled'
+                                  ? {
+                                      label: t('dash.retry'),
+                                      icon: <RotateCcw aria-hidden size="1.1em" />,
+                                      tone: 'ok',
+                                      run: () => action.mutate({ id: d.id, verb: 'resume' }),
+                                    }
+                                  : undefined
+                              }
+                              end={{
+                                label: t('dash.removeSelected'),
+                                icon: <Trash2 aria-hidden size="1.1em" />,
+                                tone: 'err',
+                                leaves: true,
+                                run: () => action.mutate({ id: d.id, verb: 'delete' }),
+                              }}
+                            >
+                              <HistoryRow
+                                d={d}
+                                meta={meta}
+                                explain={first}
+                                selected={selected.has(d.id)}
+                                onSelect={(shift) => selectRow(d.id, shift)}
+                                onAction={(verb) => action.mutate({ id: d.id, verb })}
+                                onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
+                                coverLabel={watch ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
+                              />
+                            </SwipeRow>
+                          </Press>
                         )
                       })
                     })()}
