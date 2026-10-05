@@ -1154,6 +1154,13 @@ details[open]::details-content { height: auto; }
 .t-dayband[data-overflow="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
 .t-dayband[data-overflow="both"] { mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent); }
 
+/* Odometer digits (Digits): each digit a column of 0-9 behind a one-line
+   window, slid to its value. The column is ten lines tall, so a tenth of it
+   is one digit. */
+.t-digits { white-space: nowrap; }
+.t-digit { display: inline-block; height: 1lh; overflow: clip; vertical-align: top; }
+.t-digit > span { display: flex; flex-direction: column; transition: transform var(--dur-3) var(--ease-out); }
+
 /* A list row that folds away: its height runs to nothing and the list's gap
    with it, so the rows below close up instead of jumping. Exits ease in and
    stay short. The clip is on only while it folds, or it would cut focus rings
