@@ -55,6 +55,7 @@ import {
   EmptyState,
   Input,
   localTransition,
+  PageHeader,
   Panel,
   Progress,
   Segmented,
@@ -388,6 +389,16 @@ export default function Dashboard() {
   }
   const handle = useDragReorder({ list: queueList, ids: queuedIds, onMove: moveQueued })
 
+  // the header's line: what is going on right now, not what the page is
+  const running = activeAll.filter((d) => d.status === 'running')
+  const summary = [
+    running.length > 0 ? t('dash.sumRunning', { count: running.length }) : t('dash.sumIdle'),
+    running.length > 0 ? fmtSpeed(running.reduce((s, d) => s + (d.bytesPerSec ?? 0), 0)) : null,
+    queued.length > 0 ? t('dash.sumQueued', { count: queued.length }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   const toggleStatus = (st: Download['status']) => {
     setStatusFilter((prev) => {
       const next = new Set(prev)
@@ -399,11 +410,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <header className="mb-6 hidden items-start justify-between gap-4 lg:flex">
-        <div>
-          <h2 className="font-display text-xl font-semibold tracking-wider">{t('dash.title')}</h2>
-          <Badge className="mt-1">{t('dash.sub')}</Badge>
-        </div>
+      <PageHeader className="mb-4 lg:mb-6" title={t('dash.title')} sub={summary}>
         {/* the page-wide, reversible actions: top right of the header on
             desktop, the app bar on a phone. Cancelling everything is
             destructive and stays down at the queue's toolbar */}
@@ -431,7 +438,7 @@ export default function Dashboard() {
             </Button>
           )}
         </PageActions>
-      </header>
+      </PageHeader>
 
       {/* a phone reads top to bottom: the queue, then what is coming and what
           needs a hand, then the history. From lg the middle part is the
