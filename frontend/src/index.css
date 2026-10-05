@@ -1283,6 +1283,34 @@ details[open]::details-content { height: auto; }
 .t-digit { display: inline-block; height: 1lh; overflow: clip; vertical-align: top; }
 .t-digit > span { display: flex; flex-direction: column; transition: transform var(--dur-3) var(--ease-out); }
 
+/* A row with an action under each side (SwipeRow). The ground of the side the
+   row is dragged towards shows, faint until the drag reaches the commit
+   distance and solid from there - the moment letting go will run it. */
+.t-swiperow { position: relative; border-radius: var(--r-panel); }
+.t-swiperow__face { position: relative; }
+.t-swiperow__ground {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1.25rem;
+  border-radius: inherit;
+  font: 600 0.8125rem var(--font-display);
+  letter-spacing: 0.04em;
+  color: var(--tone, var(--accent-blue));
+  background: color-mix(in srgb, var(--tone, var(--accent-blue)) 14%, var(--bg-primary));
+  visibility: hidden;
+  transition: background-color var(--dur-1), color var(--dur-1);
+}
+.t-swiperow__ground--end { justify-content: flex-end; }
+.t-swiperow__ground[data-tone="ok"] { --tone: var(--accent-green); }
+.t-swiperow__ground[data-tone="warn"] { --tone: var(--accent-yellow); }
+.t-swiperow__ground[data-tone="err"] { --tone: var(--accent-red); }
+.t-swiperow[data-side="start"] .t-swiperow__ground--start,
+.t-swiperow[data-side="end"] .t-swiperow__ground--end { visibility: visible; }
+.t-swiperow[data-armed] .t-swiperow__ground { background: var(--tone, var(--accent-blue)); color: var(--bg-primary); }
+
 /* A list row that folds away: its height runs to nothing and the list's gap
    with it, so the rows below close up instead of jumping. Exits ease in and
    stay short. The clip is on only while it folds, or it would cut focus rings
