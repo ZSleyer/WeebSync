@@ -625,6 +625,7 @@
     "calMode": "Calendar layout",
     "calWeek": "Week",
     "calAgenda": "List",
+    "calPoster": "Posters",
     "calEmpty": "No upcoming episodes with an air date.",
     "calFilter": "Filter by type",
     "calAll": "All",
