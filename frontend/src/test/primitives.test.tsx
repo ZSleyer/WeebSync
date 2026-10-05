@@ -440,6 +440,28 @@ describe('Surface, Toolbar, Tabs and Count', () => {
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
   })
 
+  // One indicator glides under the selected tab; once it stands, the tablist
+  // says so and the selected tab gives up its own fill and underline.
+  it('places one hidden selection indicator, and only with a selection', () => {
+    const { rerender } = render(
+      <Tabs>
+        <Tab selected>Alle</Tab>
+        <Tab>Offen</Tab>
+      </Tabs>,
+    )
+    const list = screen.getByRole('tablist')
+    const ink = list.querySelector('.t-tabs-ink')
+    expect(ink).toHaveAttribute('aria-hidden', 'true')
+    expect(list).toHaveAttribute('data-ink')
+    rerender(
+      <Tabs>
+        <Tab>Alle</Tab>
+        <Tab>Offen</Tab>
+      </Tabs>,
+    )
+    expect(list).not.toHaveAttribute('data-ink')
+  })
+
   it('adds the scroll modifier next to the base tabs class', () => {
     render(
       <Tabs scroll>

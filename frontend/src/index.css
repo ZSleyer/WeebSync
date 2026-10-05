@@ -494,6 +494,24 @@ a.t-label:hover {
   background: var(--bg-card);
   border-bottom-color: var(--accent-blue);
 }
+/* The gliding selection (Tabs places it): the card fill and the underline
+   move as one piece. The tabs sit above it; once it stands, the selected tab
+   hands its own fill and underline over, so the first paint never lacks them.
+   Only the indicator moves, and only on a change of tab - no hover motion. */
+.t-tabs { position: relative; }
+.t-tab { position: relative; z-index: 1; }
+.t-tabs-ink {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  pointer-events: none;
+  background: var(--bg-card);
+  border-bottom: 2px solid var(--accent-blue);
+  transition: transform var(--dur-2) var(--ease-out), width var(--dur-2) var(--ease-out), height var(--dur-2) var(--ease-out);
+}
+.t-tabs:not([data-ink]) .t-tabs-ink { display: none; }
+.t-tabs[data-ink] .t-tab[aria-selected="true"] { background: transparent; border-bottom-color: transparent; }
 /* A bar with more tabs than a phone is wide: one row that scrolls sideways
    instead of two or three wrapped rows above the content. Wrapping is still
    the default (see above); this is opt-in for the one bar that has seven.
