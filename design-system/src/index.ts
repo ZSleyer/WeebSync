@@ -121,7 +121,7 @@ export { useMenu } from './useMenu'
 export { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 
 export { haptic } from './haptics'
-export { localTransition } from './viewTransition'
+export { localTransition, revealTransition } from './viewTransition'
 export { EASE_THROW, moveVelocity, project, releaseVelocity, startVelocity, throwMs, type Velocity } from './gesture'
 export { SwipeDeck } from './swipeDeck'
 export type { SwipeDeckProps } from './swipeDeck'

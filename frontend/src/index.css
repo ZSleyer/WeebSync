@@ -1188,7 +1188,7 @@ details[open]::details-content { height: auto; }
    the wrapper animation above. ── */
 .app-shell > main { view-transition-name: main; }
 ::view-transition-old(root),
-::view-transition-new(root) { animation: none; }
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 ::view-transition-old(main) { animation: t-fade-out var(--dur-1) var(--ease-in) both; }
 ::view-transition-new(main) { animation: t-reveal var(--dur-2) var(--ease-out) both; }
 :root[data-nav="fwd"]::view-transition-new(main) { animation-name: t-slide-from-left; }

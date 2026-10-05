@@ -28,3 +28,37 @@ export function localTransition(scope: HTMLElement | null, update: () => void): 
   }
   return document.startViewTransition(update).finished.then(done, done)
 }
+
+// how long the accent wave takes to cover the screen: over the usual 300ms on
+// purpose - it happens once per choice, and it is the choice's confirmation
+const REVEAL_MS = 420
+
+/**
+ * The page repaints from a point outwards: the new state grows as a circle
+ * from (x, y) until it covers the screen. For a change of the whole look - a
+ * new accent - picked at that point. <main> loses its route name meanwhile,
+ * as in localTransition, or it would cross-fade on its own above the wave.
+ */
+export function revealTransition(x: number, y: number, update: () => void): Promise<void> {
+  const root = document.documentElement
+  const still =
+    root.dataset.motion === 'off' ||
+    (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+  if (!document.startViewTransition || still) {
+    update()
+    return Promise.resolve()
+  }
+  root.setAttribute('data-vt-local', '')
+  const t = document.startViewTransition(update)
+  const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))
+  t.ready
+    .then(() =>
+      root.animate(
+        { clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
+        { duration: REVEAL_MS, easing: 'cubic-bezier(0.2, 0, 0, 1)', pseudoElement: '::view-transition-new(root)' },
+      ),
+    )
+    .catch(() => {})
+  const done = () => root.removeAttribute('data-vt-local')
+  return t.finished.then(done, done)
+}
