@@ -45,7 +45,6 @@ import {
   MenuItem,
   morphTransition,
   Progress,
-  SHEET_MQ,
   Tab,
   Tabs,
   useMenu,
@@ -120,10 +119,11 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
     setTarget(null)
   }
   // The poster that was clicked flies into the dialog's head (morphTransition)
-  // where the dialog opens centred; a phone's sheet rises from the bottom
-  // edge, and a poster flying up past it would fight that. The poster is the
-  // one under the click that opened the card: a capture listener notes it just
-  // before the click reaches the page's own handler.
+  // while the dialog comes in around it - centred on a desktop, rising from
+  // the bottom edge as a sheet on a phone (the stylesheet animates it as part
+  // of the same transition). The poster is the one under the click that
+  // opened the card: a capture listener notes it just before the click
+  // reaches the page's own handler.
   const lastCover = useRef<{ el: HTMLElement; at: number } | null>(null)
   useEffect(() => {
     const note = (e: Event) => {
@@ -137,7 +137,7 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
     const next = () => setTarget({ ...t, source: t.source || 'anilist' })
     const from = lastCover.current
     lastCover.current = null
-    if (from && from.el.isConnected && performance.now() - from.at < 500 && !matchMedia(SHEET_MQ).matches) {
+    if (from && from.el.isConnected && performance.now() - from.at < 500) {
       void morphTransition(from.el, () => flushSync(next))
     } else next()
   }, [])
@@ -235,7 +235,7 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
     retry: false,
   })
 
-  // The banner's lag: it moves down at 0.4 of the scroll, so the head slides
+  // The banner's lag: it moves down at half the scroll, so the head slides
   // up over it. A transform only, written straight to the element - a state
   // update per scroll frame would re-render the whole dialog.
   const scroller = useRef<HTMLDivElement>(null)
@@ -245,8 +245,13 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
     const still =
       document.documentElement.dataset.motion === 'off' ||
       (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
-    if (banner.current)
-      banner.current.style.transform = still || top <= 0 ? '' : `translateY(${Math.min(top, 160) * 0.4}px)`
+    const b = banner.current
+    if (!b) return
+    // half the scroll, and darker as it goes: the head slides up over a
+    // picture that falls back and dims
+    const y = Math.min(top, 200)
+    b.style.transform = still || y <= 0 ? '' : `translateY(${y * 0.5}px)`
+    b.style.opacity = still || y <= 0 ? '' : String(1 - Math.min(1, y / 144) * 0.6)
   }
 
   return (
@@ -259,12 +264,12 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
         <div ref={scroller} onScroll={lag} className="min-h-0 flex-1 overflow-y-auto">
           <header className="relative">
             {media?.bannerImage && (
-              <div className="max-h-28 overflow-hidden">
+              <div className="h-36 overflow-hidden bg-bg-hover">
                 <img
                   ref={banner}
                   src={media.bannerImage}
                   alt=""
-                  className="max-h-28 w-full object-cover will-change-transform"
+                  className="h-full w-full object-cover will-change-transform"
                 />
               </div>
             )}
