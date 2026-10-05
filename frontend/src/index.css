@@ -881,6 +881,38 @@ main:has(.page-fill) {
   }
 }
 
+/* ── A season's episodes on a rail (WatchEpisodes): the marks are joined by
+   a line coloured by what each episode is, so the holes in a season show as
+   red stretches before a single title is read. Rows slide in as they enter
+   the scroller where the browser can tie an animation to that (view
+   timelines); elsewhere they simply stand. ── */
+.t-ep { position: relative; }
+.t-ep::before {
+  content: "";
+  position: absolute;
+  left: calc(0.5em - 1px);
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--rail, var(--border-subtle));
+}
+.t-ep:first-child::before { top: 50%; }
+.t-ep:last-child::before { bottom: 50%; }
+.t-ep:only-child::before { display: none; }
+.t-ep > svg:first-child { position: relative; border-radius: 9999px; background: var(--bg-card); }
+.t-ep[data-state="have"] { --rail: color-mix(in srgb, var(--accent-green) 55%, transparent); }
+.t-ep[data-state="gone"] { --rail: color-mix(in srgb, var(--accent-red) 55%, transparent); }
+@keyframes t-ep-in { from { opacity: 0.3; transform: translateX(8px); } }
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not([data-motion="off"]) .t-ep {
+      animation: t-ep-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 80%;
+    }
+  }
+}
+
 /* ── The page's large title and the app bar (PageHeader, PageScroll) ──
    On a desktop the page header is the heading over the content. On a phone a
    top-level page opens with it as a large title; scrolling shrinks and fades
