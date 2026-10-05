@@ -70,6 +70,7 @@ import { SkeletonCards } from '../components/Loading'
 
 type CalCategory = 'anime-series' | 'anime-movie' | 'series' | 'movie'
 const CAL_CATEGORIES: readonly CalCategory[] = ['anime-series', 'anime-movie', 'series', 'movie']
+const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
 
 // Watches: persistent auto-sync overview. Each watch re-checks its remote
 // folder on an interval; the list polls so check results appear live.
@@ -106,7 +107,6 @@ export default function Watches() {
   // the backend owns the schedule (interval, smart sync, 12h stale re-check),
   // so this only formats what it sends
   const untilCheck = (ts: number) => (ts * 1000 <= now ? t('watch.checkDue') : countdown(t, ts, false, now))
-  const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
   // the dashboard links straight into the calendar; the rest of the time the
   // page opens the way it was left
   const [view, setView] = usePersistedView('weebsync.watches.view', ['list', 'calendar'] as const, 'list')
