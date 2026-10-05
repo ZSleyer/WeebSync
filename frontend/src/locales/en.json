@@ -26,6 +26,7 @@
     "updateCheckToggle": "Automatically check for updates (GitHub)"
   },
   "app": {
+    "refreshing": "Refreshing",
     "toTop": "Back to top",
     "tagline": "かしら",
     "updateHint": "Update available",

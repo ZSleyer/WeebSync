@@ -1,23 +1,26 @@
 import { fireEvent, render, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import PageScroll from '../components/PageScroll'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
 
 // jsdom's matchMedia matches nothing, so the component sees a phone
-const page = (stacked: boolean) =>
+const page = (stacked: boolean, qc = new QueryClient()) =>
   render(
-    <div className="app-shell">
-      <header>
-        <span className="t-scroll-line" />
-      </header>
-      <main>
-        <div>
-          <header className="t-page-header">Titel</header>
-        </div>
-        <PageScroll stacked={stacked} />
-      </main>
-    </div>,
+    <QueryClientProvider client={qc}>
+      <div className="app-shell">
+        <header>
+          <span className="t-scroll-line" />
+        </header>
+        <main>
+          <div>
+            <header className="t-page-header">Titel</header>
+          </div>
+          <PageScroll stacked={stacked} />
+        </main>
+      </div>
+    </QueryClientProvider>,
   )
 
 describe('PageScroll', () => {
@@ -39,5 +42,25 @@ describe('PageScroll', () => {
     expect(shell).toHaveAttribute('data-stacked')
     expect(shell).not.toHaveAttribute('data-large')
     expect(shell).toHaveAttribute('data-docked')
+  })
+  // at the top of a top-level page a pull down brings the page along, and
+  // letting go past the mark reloads what the page shows
+  it('reloads the page on a pull from the top, and only past the mark', async () => {
+    const qc = new QueryClient()
+    const refetch = vi.spyOn(qc, 'refetchQueries').mockResolvedValue()
+    const { container } = page(false, qc)
+    const main = container.querySelector('main')!
+    const content = main.firstElementChild as HTMLElement
+    const pull = (dy: number) => {
+      fireEvent.touchStart(main, { touches: [{ clientX: 100, clientY: 100 }] })
+      fireEvent.touchMove(main, { touches: [{ clientX: 100, clientY: 110 }] })
+      fireEvent.touchMove(main, { touches: [{ clientX: 100, clientY: 100 + dy }] })
+      expect(content.style.transform).toBe(`translateY(${Math.min(96, dy / 2)}px)`)
+      fireEvent.touchEnd(main, { changedTouches: [{ clientX: 100, clientY: 100 + dy }] })
+    }
+    pull(60)
+    expect(refetch).not.toHaveBeenCalled()
+    pull(200)
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1))
   })
 })

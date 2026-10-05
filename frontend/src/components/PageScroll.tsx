@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowUp } from 'lucide-react'
-import { useMediaQuery } from '@weebsync/design-system'
+import { ArrowUp, RefreshCw } from 'lucide-react'
+import { haptic, useMediaQuery } from '@weebsync/design-system'
 import { WIDE_MQ } from './PageActions'
 
 // How far a phone page has to scroll before the large title has gone and the
@@ -11,6 +12,16 @@ const DOCK_PX = 56
 const RING = 2 * Math.PI * 20
 
 const clamp = (v: number) => Math.min(1, Math.max(0, v))
+
+// Pull to refresh: how far the page has to come down before letting go
+// reloads it, and how far it can come down at all. The finger travels about
+// twice as far as the page - the resistance is what says it is a pull.
+const PULL_AT = 64
+const PULL_MAX = 96
+// the spinner stays at least this long, or a fast answer reads as a flicker
+const PULL_MIN_MS = 600
+// controls that pan or scroll sideways on their own keep the gesture
+const NO_PULL = 'input, textarea, select, [contenteditable], [data-no-pull]'
 
 /**
  * What a phone page does while it scrolls (below lg <main> is the scroller):
@@ -22,9 +33,111 @@ const clamp = (v: number) => Math.min(1, Math.max(0, v))
  */
 export default function PageScroll({ stacked }: { stacked: boolean }) {
   const { t } = useTranslation()
+  const qc = useQueryClient()
   const wide = useMediaQuery(WIDE_MQ)
   const button = useRef<HTMLButtonElement>(null)
   const ring = useRef<SVGCircleElement>(null)
+  const pullMark = useRef<HTMLDivElement>(null)
+
+  // Pull to refresh, on a top-level page and with a finger: at the top of the
+  // page a pull down brings the page and a spinner with it, and letting go past
+  // the mark reloads what the page shows. The data polls anyway; this is the
+  // gesture a phone reader reaches for when they want it now. Native and
+  // non-passive, as in the sheet: preventDefault on the first move is the only
+  // way to keep the browser's own overscroll out of it.
+  useEffect(() => {
+    const main = button.current?.closest('main')
+    const shell = main?.closest<HTMLElement>('.app-shell')
+    const mark = pullMark.current
+    if (wide || stacked || !main || !shell || !mark) return
+    let y0 = 0
+    let x0 = 0
+    let mode: 'none' | 'pull' | 'off' = 'off'
+    let busy = false
+    let armed = false
+    const page = () => main.firstElementChild as HTMLElement | null
+    const show = (d: number) => {
+      const p = page()
+      if (p) p.style.transform = d > 0 ? `translateY(${d}px)` : ''
+      mark.style.top = `${main.offsetTop + 8}px`
+      mark.style.opacity = String(clamp(d / PULL_AT))
+      mark.style.setProperty('--pull', String(clamp(d / PULL_AT)))
+    }
+    const settle = () => {
+      const p = page()
+      if (p) {
+        p.style.transition = 'transform var(--dur-2) var(--ease-out)'
+        p.style.transform = ''
+        // never leave a transform behind: it would trap position:fixed children
+        setTimeout(() => p && (p.style.transition = ''), 250)
+      }
+      mark.style.transition = 'opacity var(--dur-2) var(--ease-out)'
+      mark.style.opacity = '0'
+      setTimeout(() => (mark.style.transition = ''), 250)
+    }
+    const onStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null
+      mode = 'off'
+      if (busy || e.touches.length !== 1 || main.scrollTop > 0 || !shell.hasAttribute('data-large')) return
+      if (target?.closest(NO_PULL)) return
+      mode = 'none'
+      y0 = e.touches[0].clientY
+      x0 = e.touches[0].clientX
+      armed = false
+    }
+    const onMove = (e: TouchEvent) => {
+      if (mode === 'off') return
+      const dy = e.touches[0].clientY - y0
+      const dx = e.touches[0].clientX - x0
+      if (mode === 'none') {
+        if (Math.abs(dy) < 4 && Math.abs(dx) < 4) return
+        // sideways is the page swipe's, upwards is a normal scroll
+        if (Math.abs(dx) > Math.abs(dy) || dy < 0 || main.scrollTop > 0) {
+          mode = 'off'
+          return
+        }
+        mode = 'pull'
+        const p = page()
+        if (p) p.style.transition = 'none'
+        mark.style.transition = 'none'
+      }
+      if (e.cancelable) e.preventDefault()
+      const d = Math.min(PULL_MAX, Math.max(0, dy) / 2)
+      show(d)
+      if (d >= PULL_AT !== armed) {
+        armed = d >= PULL_AT
+        if (armed) haptic(8)
+      }
+    }
+    const onEnd = async () => {
+      if (mode !== 'pull') return
+      mode = 'off'
+      if (!armed) return settle()
+      busy = true
+      mark.dataset.busy = ''
+      show(PULL_AT)
+      const page0 = page()
+      if (page0) page0.style.transition = 'transform var(--dur-2) var(--ease-out)'
+      const t0 = performance.now()
+      await qc.refetchQueries({ type: 'active' }).catch(() => {})
+      await new Promise((r) => setTimeout(r, Math.max(0, PULL_MIN_MS - (performance.now() - t0))))
+      delete mark.dataset.busy
+      busy = false
+      settle()
+    }
+    main.addEventListener('touchstart', onStart, { passive: true })
+    main.addEventListener('touchmove', onMove, { passive: false })
+    main.addEventListener('touchend', onEnd, { passive: true })
+    main.addEventListener('touchcancel', onEnd, { passive: true })
+    return () => {
+      main.removeEventListener('touchstart', onStart)
+      main.removeEventListener('touchmove', onMove)
+      main.removeEventListener('touchend', onEnd)
+      main.removeEventListener('touchcancel', onEnd)
+      const p = page()
+      if (p) p.style.transform = ''
+    }
+  }, [wide, stacked, qc])
 
   // a layout effect: the attributes have to be on the shell before the first
   // paint, or a stacked screen flashes its large title and a top-level one
@@ -81,6 +194,9 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
 
   return (
     <div className="t-totop-wrap">
+      <div ref={pullMark} className="t-pull" role="status" aria-label={t('app.refreshing')}>
+        <RefreshCw aria-hidden size="1.1em" />
+      </div>
       <button ref={button} type="button" className="t-totop" aria-label={t('app.toTop')} onClick={toTop}>
         <svg className="t-totop-ring" viewBox="0 0 44 44" aria-hidden>
           <circle ref={ring} cx="22" cy="22" r="20" strokeDasharray={RING} strokeDashoffset={RING} />
