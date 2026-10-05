@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   ArrowRight,
+  ArrowUpToLine,
   CalendarDays,
   Check,
   ChevronDown,
@@ -9,6 +10,7 @@ import {
   Download as DownloadIcon,
   Eye,
   FolderOpen,
+  GripVertical,
   HardDrive,
   Pause,
   Play,
@@ -31,6 +33,7 @@ const STATUS_ICON: Record<Download['status'], LucideIcon> = {
 }
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
+import { flushSync } from 'react-dom'
 import { Link } from 'react-router'
 import {
   ActionBar,
@@ -41,6 +44,7 @@ import {
   Cover,
   EmptyState,
   Input,
+  localTransition,
   Panel,
   Progress,
   Segmented,
@@ -76,6 +80,7 @@ import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth, useNow, usePersistedQuery } from '../hooks'
 import { ProviderBadges } from '../components/ProviderBadges'
 import { useSeriesModal } from '../components/SeriesModal'
+import { useDragReorder } from '../hooks/useDragReorder'
 
 // history-only status filter: the active queue is short and searchable, its
 // three states never need chips
@@ -201,12 +206,20 @@ export default function Dashboard() {
 
   const activeAll = downloads.filter((d) => d.status === 'running' || d.status === 'queued' || d.status === 'paused')
   const matched = activeAll.filter((d) => nameMatch(d, query))
-  // the transfer in progress leads the queue as the hero card, ahead of the
-  // list's newest-first order; while nothing runs, the first one waiting
-  // takes its place
-  const hero = matched.find((d) => d.status === 'running') ?? matched[0]
+  // the waiting rows in the order they will start
+  const byQueue = (a: Download, b: Download) => a.queuePos - b.queuePos || a.id - b.id
+  // the transfer in progress leads the queue as the hero card; while nothing
+  // runs, the next one to start takes its place
+  const hero =
+    matched.find((d) => d.status === 'running') ??
+    matched.filter((d) => d.status === 'queued').sort(byQueue)[0] ??
+    matched[0]
   const rank = (d: Download) => (d === hero ? 0 : d.status === 'running' ? 1 : d.status === 'paused' ? 2 : 3)
-  const active = [...matched].sort((a, b) => rank(a) - rank(b))
+  const active = [...matched].sort((a, b) => rank(a) - rank(b) || (rank(a) === 3 ? byQueue(a, b) : 0))
+  // what the reorder works on: every queued row, a search filter or not - the
+  // server takes the whole set or nothing
+  const queued = activeAll.filter((d) => d.status === 'queued').sort(byQueue)
+  const queuedIds = queued.map((d) => d.id)
   const many = activeAll.length > 1
   const transferring = activeAll.some((d) => d.status === 'running')
   // section visibility keys off the unfiltered set: a filter with zero hits
@@ -308,6 +321,37 @@ export default function Dashboard() {
       setSelected(new Set())
     },
   })
+  // Reorder: the new positions are the old slots in the new order, written to
+  // the cache at once (the list moves under the finger, not after a round
+  // trip); a refused order (409, the queue changed) reloads the real one.
+  const queueList = useRef<HTMLDivElement>(null)
+  const reorder = useMutation({
+    mutationFn: (ids: number[]) => api.post('/api/downloads/reorder', { ids }),
+    // a poll already in flight would land the old order over the new one
+    onMutate: () => qc.cancelQueries({ queryKey: ['downloads'], exact: true }),
+    onError: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
+  })
+  const moveQueued = (id: number, to: number, dragged: boolean) => {
+    const ids = queuedIds.filter((x) => x !== id)
+    ids.splice(to, 0, id)
+    const slots = queued.map((d) => d.queuePos).sort((a, b) => a - b)
+    const write = () =>
+      flushSync(() =>
+        qc.setQueryData<Download[]>(['downloads'], (old) =>
+          old?.map((d) => {
+            const k = ids.indexOf(d.id)
+            return k < 0 ? d : { ...d, queuePos: slots[k] }
+          }),
+        ),
+      )
+    // a drag already put every row in its new place; a key or button press
+    // lets the rows travel there
+    if (dragged) write()
+    else void localTransition(queueList.current, write)
+    reorder.mutate(ids)
+  }
+  const handle = useDragReorder({ list: queueList, ids: queuedIds, onMove: moveQueued })
+
   const toggleStatus = (st: Download['status']) => {
     setStatusFilter((prev) => {
       const next = new Set(prev)
@@ -504,18 +548,29 @@ export default function Dashboard() {
                     </Trans>
                   </Panel>
                 ))}
-              <div className="flex flex-col gap-3">
+              <div ref={queueList} className="flex flex-col gap-3">
                 {active.map((d) => (
-                  <DownloadRow
-                    key={d.id}
-                    d={d}
-                    meta={meta}
-                    watches={watches}
-                    variant={d === hero ? 'hero' : 'row'}
-                    selected={selected.has(d.id)}
-                    onSelect={(shift) => selectRow(d.id, shift)}
-                    onAction={(verb) => action.mutate({ id: d.id, verb })}
-                  />
+                  <div key={d.id} data-reorder-id={d.id} style={{ '--vt': `dl-${d.id}` } as CSSProperties}>
+                    <DownloadRow
+                      d={d}
+                      meta={meta}
+                      watches={watches}
+                      variant={d === hero ? 'hero' : 'row'}
+                      selected={selected.has(d.id)}
+                      onSelect={(shift) => selectRow(d.id, shift)}
+                      onAction={(verb) => action.mutate({ id: d.id, verb })}
+                      // a search shows a slice of the queue; reordering a slice
+                      // would move rows the reader cannot see
+                      reorder={
+                        d.status === 'queued' && queued.length > 1 && !filtering
+                          ? {
+                              handle: handle(d.id),
+                              toFront: queuedIds[0] === d.id ? undefined : () => moveQueued(d.id, 0, false),
+                            }
+                          : undefined
+                      }
+                    />
+                  </div>
                 ))}
               </div>
             </>
@@ -1252,6 +1307,7 @@ function DownloadRow({
   selected,
   onSelect,
   onAction,
+  reorder,
 }: {
   d: Download
   meta?: DownloadMeta
@@ -1260,6 +1316,8 @@ function DownloadRow({
   selected: boolean
   onSelect: (shift: boolean) => void
   onAction: (verb: string) => void
+  /** a queued row among others: the drag handle, and the jump to the front */
+  reorder?: { handle: ReturnType<ReturnType<typeof useDragReorder>>; toFront?: () => void }
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -1303,7 +1361,22 @@ function DownloadRow({
     <TransferCard
       variant={variant}
       selected={selected}
-      leading={<SelectBox checked={selected} name={name} onSelect={onSelect} />}
+      leading={
+        <>
+          <SelectBox checked={selected} name={name} onSelect={onSelect} />
+          {reorder && (
+            <button
+              type="button"
+              {...reorder.handle}
+              aria-label={t('dash.reorder', { name })}
+              aria-keyshortcuts="ArrowUp ArrowDown Home End"
+              className="t-iconbtn -mx-1 shrink-0 self-center text-t-muted hover:text-t-primary"
+            >
+              <GripVertical aria-hidden size="1.1em" />
+            </button>
+          )}
+        </>
+      }
       cover={group?.cover}
       onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
       coverLabel={watch?.media ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
@@ -1352,6 +1425,12 @@ function DownloadRow({
             <Button size="sm" className="shrink-0" aria-label={t('dash.resume')} onClick={() => onAction('resume')}>
               <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
               <span className="hidden sm:inline">{t('dash.resume')}</span>
+            </Button>
+          )}
+          {reorder?.toFront && (
+            <Button size="sm" className="shrink-0" aria-label={t('dash.toFront')} onClick={reorder.toFront}>
+              <ArrowUpToLine aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+              <span className="hidden sm:inline">{t('dash.toFront')}</span>
             </Button>
           )}
           <Button

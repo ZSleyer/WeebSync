@@ -123,6 +123,8 @@ export interface Download {
   // `error`, so the UI can show the reason next to the countdown.
   attempts?: number
   retryAt?: number
+  // start order of the queue: the scheduler takes the lowest first
+  queuePos: number
   createdAt: string
 }
 

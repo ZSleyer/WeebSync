@@ -1157,6 +1157,16 @@ details[open]::details-content { height: auto; }
 :root[data-nav="back"]::view-transition-new(main) { animation-name: t-slide-from-right; }
 @keyframes t-fade-out { to { opacity: 0; } }
 
+/* A local view transition (localTransition in the design system): <main>
+   loses its name for the duration, so the page stays where it is, and the
+   children of the scope move as themselves, each named from its own --vt. */
+:root[data-vt-local] .app-shell > main { view-transition-name: none; }
+[data-vt] > * { view-transition-name: var(--vt, none); }
+:root[data-vt-local]::view-transition-group(*) {
+  animation-duration: var(--dur-3);
+  animation-timing-function: var(--ease-out);
+}
+
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .animate-fadeIn { animation: fadeIn var(--dur-2) var(--ease-out); }
 
