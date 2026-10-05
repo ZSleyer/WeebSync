@@ -45,6 +45,7 @@ import { useSpeedSampler } from './speedHistory'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
+import PageScroll from './components/PageScroll'
 import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions, ShellFooter } from './components/PageActions'
 import { SeriesModalProvider } from './components/SeriesModal'
@@ -534,6 +535,7 @@ function Shell({ email }: { email: string }) {
             <RouteTransition cls={transitionClass} swipe={pageSwipe}>
               <Outlet />
             </RouteTransition>
+            <PageScroll stacked={!!back} />
           </AppShell>
         </SeriesModalProvider>
       </ShellFooter.Provider>

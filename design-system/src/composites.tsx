@@ -1472,19 +1472,53 @@ export function AppBar({ leading, title, actions, children, className, ...rest }
     <header
       {...rest}
       className={cx(
-        'flex items-center gap-2 border-b border-border-subtle bg-bg-secondary px-3 py-2 pt-[calc(0.5rem+var(--safe-t))] lg:hidden',
+        'relative flex items-center gap-2 border-b border-border-subtle bg-bg-secondary px-3 py-2 pt-[calc(0.5rem+var(--safe-t))] lg:hidden',
         className,
       )}
     >
       {children ?? (
         <>
           {leading && <div className="flex min-h-(--ctl-h) shrink-0 items-center">{leading}</div>}
-          <h1 className="min-w-0 flex-1 truncate font-display text-base font-bold tracking-wider text-t-primary">
+          <h1 className="t-appbar-title min-w-0 flex-1 truncate font-display text-base font-bold tracking-wider text-t-primary">
             {title}
           </h1>
           {actions && <div className="flex min-h-(--ctl-h) shrink-0 items-center gap-1">{actions}</div>}
         </>
       )}
+      {/* how far the page below has been read; the shell moves it */}
+      <span aria-hidden className="t-scroll-line" />
+    </header>
+  )
+}
+
+export interface PageHeaderProps {
+  title: ReactNode
+  /** one line under the title: what the page holds right now, e.g. its counts */
+  sub?: ReactNode
+  /** the page's controls, at the right */
+  children?: ReactNode
+  className?: string
+}
+
+/**
+ * A top-level page's own heading. On a desktop it is the header over the
+ * content. On a phone it is the large title under the app bar, and as the
+ * page scrolls it shrinks and fades while the app bar's own title fades in -
+ * the shell drives that through `--dock`. A stacked screen (one with a back
+ * link) has no large title: the app bar names it.
+ */
+export function PageHeader({ title, sub, children, className }: PageHeaderProps) {
+  return (
+    <header className={cx('t-page-header flex flex-wrap items-start justify-between gap-x-4 gap-y-2', className)}>
+      <div className="t-page-heading min-w-0">
+        <h2 className="t-page-title font-display font-semibold tracking-wider">{title}</h2>
+        {sub && (
+          <Badge multiline className="mt-1">
+            {sub}
+          </Badge>
+        )}
+      </div>
+      {children}
     </header>
   )
 }

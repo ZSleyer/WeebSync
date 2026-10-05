@@ -881,6 +881,70 @@ main:has(.page-fill) {
   }
 }
 
+/* ── The page's large title and the app bar (PageHeader, PageScroll) ──
+   On a desktop the page header is the heading over the content. On a phone a
+   top-level page opens with it as a large title; scrolling shrinks and fades
+   it while the app bar's own title fades in once it has gone (`--dock` 0..1
+   and `data-docked`, both set by PageScroll). A stacked screen has a back link
+   and its title in the bar, so the large title stays out of the way. */
+.t-page-title { font-size: 1.25rem; line-height: 1.75rem; }
+.t-scroll-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent-blue);
+  transform-origin: left;
+  transform: scaleX(0);
+  pointer-events: none;
+}
+@media (width < 64rem) {
+  .t-page-title { font-size: 1.75rem; line-height: 2.25rem; }
+  .t-page-heading {
+    transform-origin: left bottom;
+    transform: scale(calc(1 - var(--dock, 0) * 0.12));
+    opacity: calc(1 - var(--dock, 0));
+  }
+  .app-shell[data-stacked] .t-page-header { display: none; }
+  .t-appbar-title { transition: opacity var(--dur-2) var(--ease-out); }
+  .app-shell[data-large]:not([data-docked]) .t-appbar-title { opacity: 0; }
+  /* back to the top: a round button riding the bottom edge of <main>, with
+     a ring that shows how far down the page is. Sticky at the end of the
+     scroller, so it needs no fixed positioning (see the shell notes above). */
+  .app-shell > main > .t-totop-wrap {
+    flex: none;
+    position: sticky;
+    bottom: 0.75rem;
+    z-index: 5;
+    height: 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .t-totop {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    translate: 0 calc(-100% + 0.5rem);
+    border-radius: 9999px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out);
+  }
+  .t-totop[data-show] { opacity: 1; translate: 0 -100%; pointer-events: auto; }
+  .t-totop svg.t-totop-ring { position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px); rotate: -90deg; }
+  .t-totop-ring circle { fill: none; stroke: var(--accent-blue); stroke-width: 2.5; }
+}
+@media (width >= 64rem) {
+  .t-totop-wrap { display: none; }
+}
+
 /* ── Native dialog: Tempest panel + CRT reveal ── */
 
 /* An open <dialog> makes the rest of the document inert, but inert does not

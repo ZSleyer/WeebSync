@@ -48,6 +48,7 @@ import {
   MediaCard,
   Menu,
   MenuItem,
+  PageHeader,
   Panel,
   Progress,
   Segmented,
@@ -187,6 +188,8 @@ export default function Watches() {
   // calendar: every release the backend knows about - the week it recorded
   // behind us and everything the providers have dated ahead
   const calEvents = upcomingAirings(watches, now)
+  // the header's line counts today's releases, aired or still to come
+  const todayCount = calEvents.filter((e) => isToday(e.at)).length
   const calCats = CAL_CATEGORIES.filter((c) => calEvents.some((e) => e.watch.category === c))
   const calShown = calCat === 'all' ? calEvents : calEvents.filter((e) => e.watch.category === calCat)
   const today = startOfDay(new Date(now))
@@ -328,12 +331,20 @@ export default function Watches() {
           every view, so switching list/calendar never moves it. The
           view-specific controls (calendar filter / list sort) sit on their own
           row below and only they change - critical on a narrow phone viewport. */}
-      <header className="mb-4 hidden flex-wrap items-end justify-between gap-3 lg:flex">
-        <div>
-          <h2 className="font-display text-xl font-semibold tracking-wider">{t('watch.title')}</h2>
-          <Badge className="mt-1">{t('watch.sub')}</Badge>
-        </div>
-      </header>
+      <PageHeader
+        className="mb-4"
+        title={t('watch.title')}
+        sub={
+          watches.length > 0
+            ? [
+                t('watch.sumSeries', { count: watches.length }),
+                todayCount > 0 ? t('watch.sumToday', { count: todayCount }) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : t('watch.sub')
+        }
+      />
       {/* the view toggle and the sort menu are the page's secondary controls:
           in the app bar on a phone, in a row under the header on desktop.
           The row is right-aligned and the sort menu is the list's alone, so

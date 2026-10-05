@@ -26,6 +26,7 @@
     "updateCheckToggle": "Automatically check for updates (GitHub)"
   },
   "app": {
+    "toTop": "Back to top",
     "tagline": "かしら",
     "updateHint": "Update available",
     "loading": "loading",
@@ -234,6 +235,11 @@
     "oidcReady": "OIDC is active. Sign in now - the first login becomes admin and setup continues afterwards."
   },
   "dash": {
+    "sumRunning_one": "{{count}} running",
+    "sumRunning_other": "{{count}} running",
+    "sumQueued_one": "{{count}} waiting",
+    "sumQueued_other": "{{count}} waiting",
+    "sumIdle": "nothing running",
     "title": "DASHBOARD",
     "sub": "transfer queue",
     "transferSection": "Transfer",
@@ -512,6 +518,10 @@
     "openFolder": "Open folder: {{folder}}"
   },
   "watch": {
+    "sumSeries_one": "{{count}} series",
+    "sumSeries_other": "{{count}} series",
+    "sumToday_one": "{{count}} episode today",
+    "sumToday_other": "{{count}} episodes today",
     "moreActions": "More actions for {{title}}",
     "gapsAction": "Missing episodes",
     "title": "AUTO-SYNC",

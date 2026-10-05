@@ -26,6 +26,7 @@
     "updateCheckToggle": "Automatisch auf Updates prüfen (GitHub)"
   },
   "app": {
+    "toTop": "Nach oben",
     "tagline": "かしら",
     "updateHint": "Update verfügbar",
     "loading": "lädt",
@@ -234,6 +235,11 @@
     "oidcReady": "OIDC ist aktiv. Melde dich jetzt an, der erste Login wird Admin und die Einrichtung läuft danach weiter."
   },
   "dash": {
+    "sumRunning_one": "{{count}} läuft",
+    "sumRunning_other": "{{count}} laufen",
+    "sumQueued_one": "{{count}} wartet",
+    "sumQueued_other": "{{count}} warten",
+    "sumIdle": "nichts läuft",
     "title": "DASHBOARD",
     "sub": "transfer queue",
     "transferSection": "Übertragung",
@@ -512,6 +518,10 @@
     "openFolder": "Ordner öffnen: {{folder}}"
   },
   "watch": {
+    "sumSeries_one": "{{count}} Serie",
+    "sumSeries_other": "{{count}} Serien",
+    "sumToday_one": "{{count}} Folge heute",
+    "sumToday_other": "{{count}} Folgen heute",
     "moreActions": "Mehr Aktionen für {{title}}",
     "gapsAction": "Fehlende Episoden",
     "title": "AUTO-SYNC",

@@ -50,6 +50,7 @@ import {
   Cover,
   Disclosure,
   IconButton,
+  PageHeader,
   Panel,
   SuggestionCard,
   useMediaQuery,
@@ -144,12 +145,7 @@ export default function SuggestionsLayout() {
   // the remaining height; a list section is unaffected
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="mb-6 hidden lg:block">
-        <h2 className="font-display text-xl font-semibold tracking-wider">{t('suggestions.title')}</h2>
-        <Badge multiline className="mt-1">
-          {t('suggestions.sub')}
-        </Badge>
-      </header>
+      <PageHeader className="mb-4 lg:mb-6" title={t('suggestions.title')} sub={t('suggestions.sub')} />
       <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
         <SectionNav label={t('suggestions.navLabel')} groups={groups} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
