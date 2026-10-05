@@ -5,6 +5,10 @@ import { Badge, Checkbox, Panel } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useAuth, useVersion } from '../../hooks'
 
+// read once per page load; the year does not change during a session
+const year = new Date().getFullYear()
+const copyright = year <= 2026 ? '© 2026 ZSleyer' : `© 2026–${year} ZSleyer`
+
 export default function About() {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -16,8 +20,6 @@ export default function About() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['version'] }),
   })
 
-  const year = new Date().getFullYear()
-  const copyright = year <= 2026 ? '© 2026 ZSleyer' : `© 2026–${year} ZSleyer`
   const dev = data ? data.channel !== 'stable' : false
   const repoUrl = data?.repo ? `https://github.com/${data.repo}` : undefined
 
