@@ -62,3 +62,34 @@ export function revealTransition(x: number, y: number, update: () => void): Prom
   const done = () => root.removeAttribute('data-vt-local')
   return t.finished.then(done, done)
 }
+
+/**
+ * One element becomes another: the element clicked (a poster in a list) flies
+ * to where its counterpart stands once `update` has run (the poster in the
+ * dialog it opened), while the rest of the change happens around it. The
+ * counterpart carries `data-morph-target`; the stylesheet names it only while
+ * the root carries `data-vt-morph`, so two names never meet.
+ */
+export function morphTransition(from: HTMLElement, update: () => void): Promise<void> {
+  const root = document.documentElement
+  const still =
+    root.dataset.motion === 'off' ||
+    (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+  if (!document.startViewTransition || still) {
+    update()
+    return Promise.resolve()
+  }
+  root.setAttribute('data-vt-local', '')
+  root.setAttribute('data-vt-morph', '')
+  from.style.viewTransitionName = 'morph'
+  const t = document.startViewTransition(() => {
+    from.style.viewTransitionName = ''
+    update()
+  })
+  const done = () => {
+    root.removeAttribute('data-vt-local')
+    root.removeAttribute('data-vt-morph')
+    from.style.viewTransitionName = ''
+  }
+  return t.finished.then(done, done)
+}
