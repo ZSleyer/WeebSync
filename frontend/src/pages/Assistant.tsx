@@ -1046,6 +1046,7 @@ export default function Assistant() {
                                 className="h-full"
                                 title={mediaTitle(c.media)}
                                 cover={c.media.coverImage?.large}
+                                coverTint={c.media.coverImage?.color ?? undefined}
                                 onCover={() => setCard(c)}
                                 coverLabel={t('remote.detailsFor', { name: mediaTitle(c.media) })}
                                 meta={c.why}

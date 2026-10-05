@@ -131,7 +131,8 @@ export interface Download {
 export interface Media {
   id: number
   title: { romaji: string; english: string; preferred?: string }
-  coverImage: { large: string; extraLarge?: string }
+  // color: the poster's dominant colour (AniList), the frame's fill until it loads
+  coverImage: { large: string; extraLarge?: string; color?: string | null }
   bannerImage: string
   trailer?: { id: string; site: string; thumbnail: string } | null
   nextAiringEpisode?: { airingAt: number; episode: number } | null

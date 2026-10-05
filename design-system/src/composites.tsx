@@ -7,6 +7,7 @@ import {
   type HTMLAttributes,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type CSSProperties,
   type ReactNode,
 } from 'react'
 import { VELOCITY_MS } from './gesture'
@@ -27,6 +28,8 @@ export interface CoverProps {
   alt?: string
   /** defer offscreen posters - grids of dozens of tiles */
   loading?: 'eager' | 'lazy'
+  /** the poster's own colour (AniList's coverImage.color), shown until it loads */
+  tint?: string
   /** shown over the placeholder, e.g. a matching hint */
   children?: ReactNode
   className?: string
@@ -36,14 +39,34 @@ export interface CoverProps {
  * Poster thumbnail in a fixed frame. The frame decides the size and the image
  * is cropped into it, so a poster of any aspect ratio leaves the layout alone.
  */
-export function Cover({ src, size = 'md', alt = '', loading, children, className }: CoverProps) {
-  const box = cx(COVER_BOX[size], size === 'fill' ? undefined : 'shrink-0', className)
+export function Cover({ src, size = 'md', alt = '', loading, tint, children, className }: CoverProps) {
+  const frame = cx(COVER_BOX[size], size === 'fill' ? undefined : 'shrink-0')
+  const box = cx(frame, className)
   if (!src) {
     return (
       <div className={cx('t-hatch grid place-items-center', box)}>{children}</div>
     )
   }
-  return <img src={src} alt={alt} loading={loading} className={cx('object-cover', box)} />
+  // The frame stands in the poster's own colour until the file arrives, and
+  // the image fades in over it: a grid of covers loading one by one fills
+  // with colour, not with grey boxes that flash. An image already in the
+  // cache is marked loaded before its first paint, so it never fades.
+  return (
+    <span className={cx('t-cover', box)} style={tint ? ({ '--cover-tint': tint } as CSSProperties) : undefined}>
+      <img
+        src={src}
+        alt={alt}
+        loading={loading}
+        ref={(img) => {
+          if (img?.complete && img.naturalWidth > 0) img.dataset.loaded = ''
+        }}
+        onLoad={(e) => {
+          e.currentTarget.dataset.loaded = ''
+        }}
+        className={cx('object-cover', frame)}
+      />
+    </span>
+  )
 }
 
 /**
@@ -51,11 +74,11 @@ export function Cover({ src, size = 'md', alt = '', loading, children, className
  * reader (the title's card), the bare frame otherwise. Every card composite
  * draws its poster through this, so a cover opens the same thing everywhere.
  */
-function CoverButton({ src, onClick, label, size, loading }: { src?: string; onClick?: () => void; label?: string; size?: CoverProps['size']; loading?: CoverProps['loading'] }) {
-  if (!onClick) return <Cover src={src} size={size} loading={loading} />
+function CoverButton({ src, tint, onClick, label, size, loading }: { src?: string; tint?: string; onClick?: () => void; label?: string; size?: CoverProps['size']; loading?: CoverProps['loading'] }) {
+  if (!onClick) return <Cover src={src} tint={tint} size={size} loading={loading} />
   return (
     <button type="button" aria-label={label} onClick={onClick} className="shrink-0 cursor-pointer rounded-xs">
-      <Cover src={src} size={size} loading={loading} />
+      <Cover src={src} tint={tint} size={size} loading={loading} />
     </button>
   )
 }
@@ -71,6 +94,8 @@ export interface MediaCardProps {
   meta?: ReactNode
   /** poster URL */
   cover?: string
+  /** the poster's own colour, shown until it has loaded */
+  coverTint?: string
   /** with it the poster is a button, e.g. opening the title's card */
   onCover?: () => void
   /** the poster button's accessible name */
@@ -94,6 +119,7 @@ export function MediaCard({
   pathTitle,
   meta,
   cover,
+  coverTint,
   onCover,
   coverLabel,
   badges,
@@ -103,7 +129,7 @@ export function MediaCard({
 }: MediaCardProps) {
   return (
     <Panel className={cx('flex flex-wrap items-center gap-4 p-3', className)}>
-      <CoverButton src={cover} onClick={onCover} label={coverLabel} />
+      <CoverButton src={cover} tint={coverTint} onClick={onCover} label={coverLabel} />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium text-t-primary">{title}</h3>
         {path && (
