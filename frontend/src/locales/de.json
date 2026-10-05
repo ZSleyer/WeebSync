@@ -26,6 +26,9 @@
     "updateCheckToggle": "Automatisch auf Updates prüfen (GitHub)"
   },
   "app": {
+    "pullHint": "Ziehen zum Aktualisieren",
+    "pullRelease": "Loslassen zum Aktualisieren",
+    "refreshed": "Aktualisiert",
     "refreshing": "Wird aktualisiert",
     "toTop": "Nach oben",
     "tagline": "かしら",

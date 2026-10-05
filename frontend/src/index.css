@@ -970,26 +970,37 @@ main:has(.page-fill) {
     transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out);
   }
   .t-totop[data-show] { opacity: 1; translate: 0 -100%; pointer-events: auto; }
-  /* the pull-to-refresh mark: above the page while it is pulled down, turning
-     with the pull, spinning while the page reloads */
+  /* The pull-to-refresh mark (PageScroll): a pill that comes down with the
+     page, fading in and turning with the pull. It says what letting go does
+     at every stage - pull, release, loading, done - and the arrow turns into
+     a spinner and then a tick. */
   .t-pull {
     position: absolute;
     left: 50%;
     z-index: 5;
-    display: grid;
-    place-items: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    translate: -50% 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
     border-radius: 9999px;
     border: 1px solid var(--border-subtle);
     background: var(--bg-card);
-    color: var(--accent-blue);
-    opacity: 0;
+    box-shadow: 0 8px 24px -10px rgb(0 0 0 / 0.5);
+    color: var(--text-secondary);
+    font: 500 0.75rem/1 var(--font-mono);
+    white-space: nowrap;
+    translate: -50% calc(var(--d, 0px) - 2.75rem);
+    opacity: calc(var(--pull, 0) * 1.2 - 0.2);
     pointer-events: none;
   }
-  .t-pull > svg { rotate: calc(var(--pull, 0) * 300deg); }
-  .t-pull[data-busy] > svg { animation: t-spin 800ms linear infinite; }
+  .t-pull:not([data-state]) { visibility: hidden; }
+  .t-pull > svg { color: var(--accent-blue); flex: none; }
+  .t-pull-spin { rotate: calc(var(--pull, 0) * 270deg); }
+  .t-pull-done { display: none; }
+  .t-pull[data-state="armed"] { color: var(--text-primary); border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent); }
+  .t-pull[data-state="busy"] .t-pull-spin { animation: t-spin 800ms linear infinite; }
+  .t-pull[data-state="done"] .t-pull-spin { display: none; }
+  .t-pull[data-state="done"] .t-pull-done { display: block; color: var(--accent-green); animation: t-tick var(--dur-1) var(--ease-out); }
   .t-totop svg.t-totop-ring { position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px); rotate: -90deg; }
   .t-totop-ring circle { fill: none; stroke: var(--accent-blue); stroke-width: 2.5; }
 }
