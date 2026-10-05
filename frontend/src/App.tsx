@@ -25,16 +25,7 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  AppBar,
-  AppShell,
-  Badge,
-  Button,
-  Dialog,
-  NavItem,
-  navItemClass,
-  TabBar,
-} from '@weebsync/design-system'
+import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar } from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
 import Logo from './components/Logo'
