@@ -178,6 +178,35 @@ export function useSheetDrag({
     return Math.abs(other - before)
   }
 
+  // A pull up from the opening height lifts the sheet as one block, as a
+  // sheet pushed up the screen: the full height goes on at once, offset down
+  // by the difference so nothing moves, and the pull takes the offset away.
+  // Growing the height instead re-laid the content every frame and the new
+  // room opened at the bottom - the sheet spread out rather than rose.
+  // `lifted` is that offset while it lasts, 0 otherwise.
+  const lifted = useRef(0)
+  const begin = (el: HTMLElement, dy: number) => {
+    el.style.transition = 'none'
+    grip(el, true)
+    const s = span(el)
+    lifted.current = 0
+    if (dy < 0 && s > 0 && !live.current.expanded && live.current.onExpand) {
+      el.toggleAttribute('data-expanded', true)
+      lifted.current = s
+    }
+    return s
+  }
+  // a lift that is called off: back to the opening height without a jump
+  const unlift = (el: HTMLElement) => {
+    if (!lifted.current) return
+    lifted.current = 0
+    el.style.transition = 'none'
+    el.toggleAttribute('data-expanded', false)
+    el.style.transform = ''
+    void el.offsetHeight
+    el.style.transition = ''
+  }
+
   // How far the sheet has been pulled off the screen, 0..1, for the backdrop:
   // it dims in step with the sheet rather than staying dark until the close.
   // The stylesheet reads the property on `::backdrop`, which inherits from the
@@ -197,7 +226,11 @@ export function useSheetDrag({
   // when it already stands at its full height)
   const follow = (el: HTMLElement, dy: number, span: number) => {
     let y = dy
-    if (dy < 0) {
+    if (lifted.current) {
+      // the full height stands; the pull eats the offset, then rubber-bands
+      y = lifted.current + dy
+      if (y < 0) y = -dampen(-y)
+    } else if (dy < 0) {
       const room = live.current.expanded ? 0 : span > 0 ? span : Infinity
       y = -dy <= room ? dy : -room - dampen(-dy - room)
     }
@@ -230,6 +263,31 @@ export function useSheetDrag({
       el.toggleAttribute('data-expanded', on)
       ;(on ? live.current.onExpand : live.current.onCollapse)?.()
     }
+    // A lift: the full height once it is nearer - the block slides the rest
+    // of the way up - or back down by the offset and only then the opening
+    // height again, out of sight. A long pull down from it still dismisses.
+    const base = lifted.current
+    if (base && !far) {
+      lifted.current = 0
+      if (-to >= half) {
+        detent(true)
+        settle()
+        return
+      }
+      grip(el, false)
+      el.style.transition = ''
+      el.style.transform = `translate3d(0, ${base}px, 0)`
+      const down = () => {
+        el.removeEventListener('transitionend', down)
+        clearTimeout(timer)
+        lifted.current = base
+        unlift(el)
+      }
+      const timer = setTimeout(down, reducedMotion() ? 0 : 400)
+      el.addEventListener('transitionend', down)
+      return
+    }
+    lifted.current = 0
     // a throw up from the opening height: the full height, once it is nearer
     if (to < 0) {
       if (!isExpanded && expand && -to >= half) detent(true)
@@ -338,9 +396,7 @@ export function useSheetDrag({
           frozen = content
           content.style.overflow = 'hidden'
         }
-        el.style.transition = 'none'
-        grip(el, true)
-        room = span(el)
+        room = begin(el, 1)
       }
       const dy = y - startY
       moveVelocity(vel, y)
@@ -379,9 +435,7 @@ export function useSheetDrag({
           frozen = scroller
           scroller.style.overflow = 'hidden'
         }
-        el.style.transition = 'none'
-        grip(el, true)
-        room = span(el)
+        room = begin(el, dy)
       }
       // ours: keep the browser from scrolling and follow the finger
       if (e.cancelable) e.preventDefault()
@@ -398,7 +452,9 @@ export function useSheetDrag({
     const onCancel = () => {
       const claimed = mode === 'sheet'
       reset()
-      if (claimed) {
+      // a lift goes back down the way it came; anything else just settles
+      if (claimed && lifted.current) void finish(el, 0, 0, room)
+      else if (claimed) {
         grip(el, false)
         el.style.transition = ''
         el.style.transform = ''
@@ -433,6 +489,7 @@ export function useSheetDrag({
     if (!d.on) return
     if (!commit) {
       // the browser took the pointer for its own pan: settle back
+      if (lifted.current) return void (await finish(el, 0, 0, d.span))
       grip(el, false)
       el.style.transition = ''
       el.style.transform = ''
@@ -477,9 +534,7 @@ export function useSheetDrag({
           d.frozen = scroller
           scroller.style.overflow = 'hidden'
         }
-        el.style.transition = 'none'
-        grip(el, true)
-        d.span = span(el)
+        d.span = begin(el, dy)
       }
       follow(el, dy, d.span)
     },
