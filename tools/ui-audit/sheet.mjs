@@ -74,6 +74,7 @@ for (const vp of VIEWPORTS) {
         transform: d.style.transform,
         h: Math.round(d.getBoundingClientRect().height),
         top: Math.round(d.getBoundingClientRect().top),
+        foot: Math.round([...d.querySelectorAll('footer')].pop()?.getBoundingClientRect().bottom ?? NaN),
         vh: innerHeight,
         expanded: d.hasAttribute('data-expanded'),
         backdrop: parseFloat(getComputedStyle(d, '::backdrop').opacity),
@@ -111,6 +112,13 @@ for (const vp of VIEWPORTS) {
                   return d ? d.getBoundingClientRect().top : NaN
                 }
           const ys = []
+          // the sheet's footer as well: a lift must not drop it off the screen
+          const fs = []
+          const foot = () => {
+            const d = [...document.querySelectorAll('dialog[open]')].pop()
+            const f = d && [...d.querySelectorAll('footer')].pop()
+            return f ? f.getBoundingClientRect().top : NaN
+          }
           const wrap =
             what === 'deck'
               ? [...document.querySelectorAll('[style*="touch-action"]')].reverse().find((e) => e.querySelector('h3'))?.clientWidth
@@ -118,6 +126,7 @@ for (const vp of VIEWPORTS) {
           const t0 = performance.now()
           const tick = () => {
             ys.push(read())
+            if (what !== 'deck') fs.push(foot())
             if (performance.now() - t0 < ms) requestAnimationFrame(tick)
             else {
               let max = 0
@@ -128,7 +137,12 @@ for (const vp of VIEWPORTS) {
                 if (what === 'deck' && wrap) d = Math.min(d, Math.abs(d - wrap))
                 if (Number.isFinite(d) && d > max) max = d
               }
-              done({ max: Math.round(max), frames: ys.length, from: Math.round(ys[0]), to: Math.round(ys[ys.length - 1]) })
+              let footer = 0
+              for (let i = 1; i < fs.length; i++) {
+                const d = Math.abs(fs[i] - fs[i - 1])
+                if (Number.isFinite(d) && d > footer) footer = d
+              }
+              done({ max: Math.round(max), footer: Math.round(footer), frames: ys.length, from: Math.round(ys[0]), to: Math.round(ys[ys.length - 1]) })
             }
           }
           requestAnimationFrame(tick)
@@ -225,6 +239,7 @@ for (const vp of VIEWPORTS) {
     bad(`${tag}: nach kurzem Zug nach oben auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}%, erwartet ${OPENING * 100}%`)
   else if (r.after.transform) bad(`${tag}: kurzer Zug nach oben bleibt versetzt (transform "${r.after.transform}")`)
   else if (r.motion.max > JUMP) bad(`${tag}: Zurücksinken springt um ${r.motion.max}px in einem Frame`)
+  else if (r.motion.footer > JUMP) bad(`${tag}: Footer springt beim Zurücksinken um ${r.motion.footer}px in einem Frame`)
   else good(`kurzer Zug nach oben sinkt zurück (max ${r.motion.max}px/Frame)`)
 
   // 3 - a pull up lifts the sheet with the finger (as one block: the full
@@ -238,10 +253,13 @@ for (const vp of VIEWPORTS) {
   r = await swipe(g.x, g.face, -lift)
   if (Math.abs(top0 - r.during.top - lift) > 12)
     bad(`${tag}: Zug nach oben folgt dem Finger nicht (Oberkante ${top0} -> ${r.during.top}, Zug ${lift}px)`)
+  else if (r.during.foot > r.during.vh + 1)
+    bad(`${tag}: Footer fällt beim Zug nach oben aus dem Bild (Unterkante ${r.during.foot}, Viewport ${r.during.vh})`)
   else if (!r.after.expanded) bad(`${tag}: Zug nach oben öffnet nicht`)
   else if (Math.abs(r.after.h / r.after.vh - FULL) > 0.015)
     bad(`${tag}: nach oben auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}%, erwartet ${FULL * 100}%`)
   else if (r.motion.max > JUMP) bad(`${tag}: Öffnen auf volle Höhe springt um ${r.motion.max}px in einem Frame`)
+  else if (r.motion.footer > JUMP) bad(`${tag}: Footer springt beim Öffnen um ${r.motion.footer}px in einem Frame`)
   else good(`Zug nach oben folgt und öffnet auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}% (max ${r.motion.max}px/Frame)`)
 
   // 4a - from the full height a short slow pull is not a step back: the

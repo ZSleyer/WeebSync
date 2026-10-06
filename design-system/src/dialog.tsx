@@ -114,15 +114,16 @@ export function Dialog({
       if ((e.target as HTMLElement).scrollTop <= 0) return
       // The sheet rises as one block rather than growing: the full height goes
       // on at once, offset down by the difference so nothing moves, and the
-      // stylesheet's transform transition slides the offset away.
+      // stylesheet's transition slides the offset away.
       const before = el.clientHeight
       el.style.transition = 'none'
       el.toggleAttribute('data-expanded', true)
       const grow = el.clientHeight - before
-      if (grow > 0) el.style.transform = `translate3d(0, ${grow}px, 0)`
+      // --lift, not a transform: the footer rides against it and stays put
+      if (grow > 0) el.style.setProperty('--lift', `${grow}px`)
       void el.offsetHeight
       el.style.transition = ''
-      el.style.transform = ''
+      el.style.setProperty('--lift', '0px')
       setExpanded(true)
     }
     el.addEventListener('scroll', onScroll, true)

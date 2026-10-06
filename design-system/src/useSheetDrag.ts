@@ -192,6 +192,7 @@ export function useSheetDrag({
     lifted.current = 0
     if (dy < 0 && s > 0 && !live.current.expanded && live.current.onExpand) {
       el.toggleAttribute('data-expanded', true)
+      el.style.setProperty('--lift', `${s}px`)
       lifted.current = s
     }
     return s
@@ -202,6 +203,7 @@ export function useSheetDrag({
     lifted.current = 0
     el.style.transition = 'none'
     el.toggleAttribute('data-expanded', false)
+    el.style.removeProperty('--lift')
     el.style.transform = ''
     void el.offsetHeight
     el.style.transition = ''
@@ -227,9 +229,13 @@ export function useSheetDrag({
   const follow = (el: HTMLElement, dy: number, span: number) => {
     let y = dy
     if (lifted.current) {
-      // the full height stands; the pull eats the offset, then rubber-bands
+      // the full height stands; the pull eats the offset (--lift, which the
+      // footer rides against), then rubber-bands
       y = lifted.current + dy
-      if (y < 0) y = -dampen(-y)
+      el.style.setProperty('--lift', `${Math.max(0, y)}px`)
+      el.style.transform = y < 0 ? `translate3d(0, ${-dampen(-y)}px, 0)` : ''
+      pulled(el, dy)
+      return
     } else if (dy < 0) {
       const room = live.current.expanded ? 0 : span > 0 ? span : Infinity
       y = -dy <= room ? dy : -room - dampen(-dy - room)
@@ -272,11 +278,13 @@ export function useSheetDrag({
       if (-to >= half) {
         detent(true)
         settle()
+        el.style.setProperty('--lift', '0px')
         return
       }
       grip(el, false)
       el.style.transition = ''
-      el.style.transform = `translate3d(0, ${base}px, 0)`
+      el.style.transform = ''
+      el.style.setProperty('--lift', `${base}px`)
       const down = () => {
         el.removeEventListener('transitionend', down)
         clearTimeout(timer)

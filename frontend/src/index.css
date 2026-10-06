@@ -1096,8 +1096,19 @@ dialog {
     /* the phone sheet growing to its second height; a centred dialog's
        height is auto and never animates */
     height var(--dur-3) var(--ease-out),
+    --lift var(--dur-3) var(--ease-out),
     overlay var(--dur-3) allow-discrete,
     display var(--dur-3) allow-discrete;
+}
+/* The sheet's lift (useSheetDrag, Dialog): the full height stands and the
+   sheet sits this far down, sliding up as it drains. Registered so it
+   animates, and inherited so the footer can ride against it - the footer
+   stays at the bottom edge while the sheet rises past it, instead of
+   dropping out of the screen for the length of the lift. */
+@property --lift {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
 }
 /* The box inside inherits the cap, so a dialog whose content outgrows the
    screen scrolls there instead of at the dialog (whose fractional border
@@ -1203,7 +1214,21 @@ dialog .overflow-y-auto {
   /* the last row clears the home indicator */
   dialog.dialog-sheet .dialog-body > footer {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    translate: 0 calc(var(--lift) * -1);
+    /* riding against a lift it stands over content that scrolls on under it:
+       opaque, above it, and covering the stretch below it down to the edge */
+    position: relative;
+    z-index: 1;
+    background: var(--bg-card);
   }
+  dialog.dialog-sheet .dialog-body > footer::after {
+    content: "";
+    position: absolute;
+    inset: 100% 0 auto;
+    height: var(--lift);
+    background: inherit;
+  }
+  dialog.dialog-sheet { translate: 0 var(--lift); }
 }
 /* The page behind a dialog is blurred as well as dimmed: on a phone the box
    sits over content of the same colours and the hairline border alone did
