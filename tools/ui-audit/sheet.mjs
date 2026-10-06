@@ -278,6 +278,10 @@ for (const vp of VIEWPORTS) {
   if (!r.after.open) bad(`${tag}: Zug nach unten aus voller Höhe schliesst statt einzuklappen`)
   else if (r.after.expanded) bad(`${tag}: klappt nicht auf die Öffnungshöhe zurück`)
   else if (r.motion.max > JUMP) bad(`${tag}: Einklappen springt um ${r.motion.max}px in einem Frame (${r.motion.from} -> ${r.motion.to})`)
+  else if (r.during.foot > r.during.vh + 1)
+    bad(`${tag}: Footer fällt beim Zug nach unten aus dem Bild (Unterkante ${r.during.foot}, Viewport ${r.during.vh})`)
+  else if (r.motion.footer > JUMP) bad(`${tag}: Footer springt beim Einklappen um ${r.motion.footer}px in einem Frame`)
+  else if (r.after.foot > r.after.vh + 1) bad(`${tag}: Footer nach dem Einklappen nicht im Bild (Unterkante ${r.after.foot})`)
   else good(`Zug nach unten aus voller Höhe klappt ein ohne Sprung (max ${r.motion.max}px/Frame)`)
 
   // 5 - and the next one from there does dismiss
