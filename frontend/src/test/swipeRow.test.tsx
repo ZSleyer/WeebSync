@@ -2,75 +2,61 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SwipeRow } from '@weebsync/design-system'
 
-// jsdom lays nothing out: the commit distance is the 60px floor
-const swipe = (el: HTMLElement, dx: number) => {
-  fireEvent.pointerDown(el, { clientX: 200, clientY: 100, pointerId: 1, button: 0, pointerType: 'touch' })
+// jsdom lays nothing out: the buttons measure 0 wide, so any swipe past the
+// slop towards a side with buttons opens the row on them
+const swipe = (el: HTMLElement, dx: number, pointerType = 'touch') => {
+  fireEvent.pointerDown(el, { clientX: 200, clientY: 100, pointerId: 1, button: 0, pointerType })
   fireEvent.pointerMove(el, { clientX: 200 + dx / 4, clientY: 100, pointerId: 1 })
   fireEvent.pointerMove(el, { clientX: 200 + dx, clientY: 100, pointerId: 1 })
   fireEvent.pointerUp(el, { clientX: 200 + dx, clientY: 100, pointerId: 1 })
 }
 
+const row = (run = vi.fn(), onRowClick = vi.fn()) => {
+  render(
+    <SwipeRow end={[{ key: 'cancel', label: 'Abbrechen', run }]}>
+      <button type="button" onClick={onRowClick}>
+        Zeile
+      </button>
+    </SwipeRow>,
+  )
+  return { run, onRowClick, ground: screen.getByText('Abbrechen').closest('.t-swiperow__ground') as HTMLElement }
+}
+
 describe('SwipeRow', () => {
-  it('runs the action under the side the row was swiped past the mark', () => {
-    const start = vi.fn()
-    const end = vi.fn()
-    render(
-      <SwipeRow start={{ label: 'Nach vorn', run: start }} end={{ label: 'Abbrechen', leaves: true, run: end }}>
-        <span>Zeile</span>
-      </SwipeRow>,
-    )
-    const row = screen.getByText('Zeile')
-    swipe(row, -30)
-    expect(end).not.toHaveBeenCalled()
-    swipe(row, -120)
-    expect(end).toHaveBeenCalledTimes(1)
-    swipe(row, 120)
-    expect(start).toHaveBeenCalledTimes(1)
+  // the swipe only uncovers; the tap on the button is what runs it
+  it('opens on its buttons and runs one only when it is tapped', () => {
+    const { run, ground } = row()
+    expect(ground).toHaveAttribute('inert')
+    swipe(screen.getByText('Zeile'), -120)
+    expect(ground).not.toHaveAttribute('inert')
+    expect(run).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('Abbrechen'))
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(ground).toHaveAttribute('inert')
   })
 
-  it('names the actions only visually - the row keeps its own buttons', () => {
-    const { container } = render(
-      <SwipeRow end={{ label: 'Abbrechen', run: vi.fn() }}>
-        <span>Zeile</span>
-      </SwipeRow>,
-    )
-    expect(container.querySelector('.t-swiperow__ground')).toHaveAttribute('aria-hidden', 'true')
-    expect(container.querySelector('.t-swiperow__ground--start')).toBeNull()
+  it('closes on a tap elsewhere, and a tap on the row only closes it', () => {
+    const { onRowClick, ground } = row()
+    const face = screen.getByText('Zeile')
+    swipe(face, -120)
+    fireEvent.pointerDown(document.body)
+    expect(ground).toHaveAttribute('inert')
+    swipe(face, -120)
+    fireEvent.pointerDown(face)
+    fireEvent.click(face)
+    expect(onRowClick).not.toHaveBeenCalled()
+    expect(ground).toHaveAttribute('inert')
+  })
+
+  it('does not open towards a side without buttons', () => {
+    const { ground } = row()
+    swipe(screen.getByText('Zeile'), 120)
+    expect(ground).toHaveAttribute('inert')
   })
 
   it('ignores a mouse, which selects text on a row', () => {
-    const end = vi.fn()
-    render(
-      <SwipeRow end={{ label: 'Abbrechen', run: end }}>
-        <span>Zeile</span>
-      </SwipeRow>,
-    )
-    const row = screen.getByText('Zeile')
-    fireEvent.pointerDown(row, { clientX: 200, clientY: 100, pointerId: 2, button: 0, pointerType: 'mouse' })
-    fireEvent.pointerMove(row, { clientX: 150, clientY: 100, pointerId: 2 })
-    fireEvent.pointerMove(row, { clientX: 60, clientY: 100, pointerId: 2 })
-    fireEvent.pointerUp(row, { clientX: 60, clientY: 100, pointerId: 2 })
-    expect(end).not.toHaveBeenCalled()
-  })
-  // a destructive swipe asks first; the row waits open on its action and
-  // springs back on a no
-  it('asks before a confirmed action and runs it only on a yes', async () => {
-    const run = vi.fn()
-    let answer = false
-    const confirm = vi.fn(() => Promise.resolve(answer))
-    render(
-      <SwipeRow end={{ label: 'Abbrechen', leaves: true, confirm, run }}>
-        <span>Zeile</span>
-      </SwipeRow>,
-    )
-    const row = screen.getByText('Zeile')
-    swipe(row, -120)
-    expect(confirm).toHaveBeenCalledTimes(1)
-    await Promise.resolve()
-    await Promise.resolve()
-    expect(run).not.toHaveBeenCalled()
-    answer = true
-    swipe(row, -120)
-    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1))
+    const { ground } = row()
+    swipe(screen.getByText('Zeile'), -120, 'mouse')
+    expect(ground).toHaveAttribute('inert')
   })
 })

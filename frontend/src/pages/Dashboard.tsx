@@ -394,37 +394,69 @@ export default function Dashboard() {
   }
   const handle = useDragReorder({ list: queueList, ids: queuedIds, onMove: moveQueued })
 
-  // Swipe a queue row (touch): to the right for its forward step - the front
-  // of the queue, or resume when it is paused - to the left to cancel, after
-  // a question.
-  const swipeEnd = (d: Download): SwipeAction | undefined =>
+  // Swipe a row (touch) and it rests open on its buttons, a tap runs one:
+  // to the left the row's own actions - cancel at the edge, pause or resume
+  // beside it - to the right the jump to the front of the queue. Finished
+  // rows: remove at the edge, retry beside it for a failed or cancelled one.
+  const ico = { size: '1.2em', 'aria-hidden': true } as const
+  const swipeEnd = (d: Download): SwipeAction[] =>
     d.status === 'done'
-      ? undefined
-      : {
-          label: t('dash.cancel'),
-          icon: <X aria-hidden size="1.1em" />,
-          tone: 'err',
-          leaves: true,
-          // a swipe is easy to do by accident; the question keeps it honest
-          confirm: () =>
-            confirm({ message: t('dash.cancelConfirm', { name: downloadLabel(d, meta).name }), destructive: true }),
-          run: () => action.mutate({ id: d.id, verb: 'cancel' }),
-        }
-  const swipeStart = (d: Download): SwipeAction | undefined =>
-    d.status === 'paused'
-      ? {
-          label: t('dash.resume'),
-          icon: <Play aria-hidden size="1.1em" />,
-          tone: 'ok',
-          run: () => action.mutate({ id: d.id, verb: 'resume' }),
-        }
-      : d.status === 'queued' && queuedIds[0] !== d.id && !filtering
-        ? {
+      ? []
+      : [
+          {
+            key: 'cancel',
+            label: t('dash.cancel'),
+            icon: <X {...ico} />,
+            tone: 'err',
+            run: () => action.mutate({ id: d.id, verb: 'cancel' }),
+          },
+          d.status === 'paused'
+            ? {
+                key: 'resume',
+                label: t('dash.resume'),
+                icon: <Play {...ico} />,
+                tone: 'ok',
+                run: () => action.mutate({ id: d.id, verb: 'resume' }),
+              }
+            : {
+                key: 'pause',
+                label: t('dash.pause'),
+                icon: <Pause {...ico} />,
+                tone: 'warn',
+                run: () => action.mutate({ id: d.id, verb: 'pause' }),
+              },
+        ]
+  const swipeStart = (d: Download): SwipeAction[] =>
+    d.status === 'queued' && queuedIds[0] !== d.id && !filtering
+      ? [
+          {
+            key: 'front',
             label: t('dash.toFront'),
-            icon: <ArrowUpToLine aria-hidden size="1.1em" />,
+            icon: <ArrowUpToLine {...ico} />,
             run: () => moveQueued(d.id, 0, false),
-          }
-        : undefined
+          },
+        ]
+      : []
+  const swipeHistory = (d: Download): SwipeAction[] => [
+    {
+      key: 'remove',
+      label: t('dash.removeSelected'),
+      icon: <Trash2 {...ico} />,
+      tone: 'err',
+      run: () => action.mutate({ id: d.id, verb: 'delete' }),
+    },
+    ...(d.status === 'error' || d.status === 'canceled'
+      ? [
+          {
+            key: 'retry',
+            label: t('dash.retry'),
+            icon: <RotateCcw {...ico} />,
+            tone: 'ok' as const,
+            run: () => action.mutate({ id: d.id, verb: 'resume' }),
+          },
+        ]
+      : []),
+  ]
 
   // A long press on a row (touch) opens all its actions as a sheet - the
   // queue row's buttons and the history row's, plus the series it belongs to.
@@ -440,7 +472,6 @@ export default function Dashboard() {
       onClick,
       danger,
     })
-    const ico = { size: '1.1em', 'aria-hidden': true } as const
     const actions: SheetAction[] =
       d.status === 'running' || d.status === 'queued' || d.status === 'paused'
         ? [
@@ -844,30 +875,7 @@ export default function Dashboard() {
                         const watch = watchId ? watches.find((w) => w.id === watchId) : undefined
                         return (
                           <Press as="li" key={d.id} onLongPress={() => openRowSheet(d)}>
-                            <SwipeRow
-                              start={
-                                d.status === 'error' || d.status === 'canceled'
-                                  ? {
-                                      label: t('dash.retry'),
-                                      icon: <RotateCcw aria-hidden size="1.1em" />,
-                                      tone: 'ok',
-                                      run: () => action.mutate({ id: d.id, verb: 'resume' }),
-                                    }
-                                  : undefined
-                              }
-                              end={{
-                                label: t('dash.removeSelected'),
-                                icon: <Trash2 aria-hidden size="1.1em" />,
-                                tone: 'err',
-                                leaves: true,
-                                confirm: () =>
-                                  confirm({
-                                    message: t('dash.removeConfirm', { name: downloadLabel(d, meta).name }),
-                                    destructive: true,
-                                  }),
-                                run: () => action.mutate({ id: d.id, verb: 'delete' }),
-                              }}
-                            >
+                            <SwipeRow end={swipeHistory(d)}>
                               <HistoryRow
                                 d={d}
                                 meta={meta}

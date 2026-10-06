@@ -1348,33 +1348,44 @@ details[open]::details-content { height: auto; }
 :root[data-motion="off"] .t-posterband__item { transform: none; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .t-posterband__item { transform: none; opacity: 1; } }
 
-/* A row with an action under each side (SwipeRow). The ground of the side the
-   row is dragged towards shows, faint until the drag reaches the commit
-   distance and solid from there - the moment letting go will run it. */
-.t-swiperow { position: relative; border-radius: var(--r-panel); }
+/* A row with buttons under each side (SwipeRow): swiped open, it rests on
+   them and a tap runs one. The buttons sit in the ground at their side and
+   are as tall as the row; the face slides off them by their width. */
+.t-swiperow { position: relative; overflow: hidden; border-radius: var(--r-panel); }
+/* a row of a flat, divided list keeps square corners */
+li.t-swiperow { border-radius: 0; }
 .t-swiperow__face { position: relative; }
 .t-swiperow__ground {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0 1.25rem;
-  border-radius: inherit;
-  font: 600 0.8125rem var(--font-display);
-  letter-spacing: 0.04em;
-  color: var(--tone, var(--accent-blue));
-  background: color-mix(in srgb, var(--tone, var(--accent-blue)) 14%, var(--bg-primary));
   visibility: hidden;
-  transition: background-color var(--dur-1), color var(--dur-1);
 }
-.t-swiperow__ground--end { justify-content: flex-end; }
-.t-swiperow__ground[data-tone="ok"] { --tone: var(--accent-green); }
-.t-swiperow__ground[data-tone="warn"] { --tone: var(--accent-yellow); }
-.t-swiperow__ground[data-tone="err"] { --tone: var(--accent-red); }
+.t-swiperow__ground--start { left: 0; }
+.t-swiperow__ground--end { right: 0; flex-direction: row-reverse; }
 .t-swiperow[data-side="start"] .t-swiperow__ground--start,
 .t-swiperow[data-side="end"] .t-swiperow__ground--end { visibility: visible; }
-.t-swiperow[data-armed] .t-swiperow__ground { background: var(--tone, var(--accent-blue)); color: var(--bg-primary); }
+.t-swiperow__action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  width: 4.75rem;
+  padding: 0 0.25rem;
+  border: 0;
+  cursor: pointer;
+  font: 600 0.6875rem/1.2 var(--font-display);
+  letter-spacing: 0.03em;
+  text-align: center;
+  color: var(--bg-primary);
+  background: var(--tone, var(--accent-blue));
+}
+.t-swiperow__action[data-tone="ok"] { --tone: var(--accent-green); }
+.t-swiperow__action[data-tone="warn"] { --tone: var(--accent-yellow); }
+.t-swiperow__action[data-tone="err"] { --tone: var(--accent-red); }
+.t-swiperow__action:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -4px; }
 
 /* A list row that folds away: its height runs to nothing and the list's gap
    with it, so the rows below close up instead of jumping. Exits ease in and
