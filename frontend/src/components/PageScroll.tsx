@@ -50,9 +50,8 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
   // way to keep the browser's own overscroll out of it.
   useEffect(() => {
     const main = button.current?.closest('main')
-    const shell = main?.closest<HTMLElement>('.app-shell')
     const mark = pullMark.current
-    if (wide || stacked || !main || !shell || !mark) return
+    if (wide || stacked || !main || !mark) return
     const say = (key: string) => {
       if (pullText.current) pullText.current.textContent = t(key)
     }
@@ -93,7 +92,9 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
     const onStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null
       mode = 'off'
-      if (busy || e.touches.length !== 1 || main.scrollTop > 0 || !shell.hasAttribute('data-large')) return
+      // any top-level page, with or without a large title: on Files it is how
+      // a folder is listed again
+      if (busy || e.touches.length !== 1 || main.scrollTop > 0) return
       if (target?.closest(NO_PULL)) return
       mode = 'none'
       y0 = e.touches[0].clientY
