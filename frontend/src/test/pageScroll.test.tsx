@@ -90,4 +90,22 @@ describe('PageScroll', () => {
     expect(refetch).not.toHaveBeenCalled()
     expect((main.firstElementChild as HTMLElement).style.transform).toBe('')
   })
+  // Files scrolls its list in a box of its own: pulling that box back up
+  // is a scroll, not a refresh
+  it('leaves a scrolled inner box its own scroll', async () => {
+    const qc = new QueryClient()
+    const refetch = vi.spyOn(qc, 'refetchQueries').mockResolvedValue()
+    const { container } = page(false, qc, false)
+    const main = container.querySelector('main')!
+    const box = main.firstElementChild!.appendChild(document.createElement('div'))
+    Object.defineProperty(box, 'scrollHeight', { value: 2000 })
+    Object.defineProperty(box, 'clientHeight', { value: 500 })
+    box.scrollTop = 300
+    fireEvent.touchStart(box, { touches: [{ clientX: 100, clientY: 100 }] })
+    fireEvent.touchMove(box, { touches: [{ clientX: 100, clientY: 110 }] })
+    fireEvent.touchMove(box, { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchEnd(box, { changedTouches: [{ clientX: 100, clientY: 300 }] })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(refetch).not.toHaveBeenCalled()
+  })
 })
