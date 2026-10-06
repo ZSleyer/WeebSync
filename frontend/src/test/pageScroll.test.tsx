@@ -73,4 +73,21 @@ describe('PageScroll', () => {
     fireEvent.touchEnd(main, { changedTouches: [{ clientX: 100, clientY: 300 }] })
     await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1))
   })
+  // a dialog renders inside <main>: a drag in it is the dialog's, never a
+  // pull on the page behind
+  it('leaves a drag inside a dialog alone', async () => {
+    const qc = new QueryClient()
+    const refetch = vi.spyOn(qc, 'refetchQueries').mockResolvedValue()
+    const { container } = page(false, qc)
+    const main = container.querySelector('main')!
+    const dialog = main.appendChild(document.createElement('dialog'))
+    const inside = dialog.appendChild(document.createElement('p'))
+    fireEvent.touchStart(inside, { touches: [{ clientX: 100, clientY: 100 }] })
+    fireEvent.touchMove(inside, { touches: [{ clientX: 100, clientY: 110 }] })
+    fireEvent.touchMove(inside, { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchEnd(inside, { changedTouches: [{ clientX: 100, clientY: 300 }] })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(refetch).not.toHaveBeenCalled()
+    expect((main.firstElementChild as HTMLElement).style.transform).toBe('')
+  })
 })

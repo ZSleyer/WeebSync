@@ -119,7 +119,18 @@ export function SwipeRow({ start = [], end = [], children, as: Tag = 'div', clas
       const t = e.target as Node
       if (ground?.contains(t)) return
       // a tap on the row itself only closes it; its click is swallowed below
-      if (face.current?.contains(t)) swallow.current = true
+      if (face.current?.contains(t)) {
+        swallow.current = true
+        // only this touch's click: a touch that turns into a scroll has none,
+        // and the next real tap must not be eaten
+        const clear = () => {
+          setTimeout(() => (swallow.current = false), 0)
+          document.removeEventListener('pointerup', clear, true)
+          document.removeEventListener('pointercancel', clear, true)
+        }
+        document.addEventListener('pointerup', clear, true)
+        document.addEventListener('pointercancel', clear, true)
+      }
       close()
     }
     const onScroll = (e: Event) => {

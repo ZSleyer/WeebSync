@@ -27,19 +27,25 @@ export interface Velocity {
   /** anchor position and time: where the window starts */
   p: number
   t: number
-  /** time of the last move */
+  /** the last move: position and time */
+  lp: number
   lt: number
 }
 
-export const startVelocity = (p: number, now = performance.now()): Velocity => ({ p, t: now, lt: now })
+export const startVelocity = (p: number, now = performance.now()): Velocity => ({ p, t: now, lp: p, lt: now })
 
-/** Record a move; the anchor follows once it is older than the window. */
+/**
+ * Record a move; once the anchor is older than the window it moves up to the
+ * move before this one - not to this one, or a reset on the last move would
+ * sit exactly where the finger lets go and read a flick as a drop.
+ */
 export function moveVelocity(v: Velocity, p: number, now = performance.now()) {
-  v.lt = now
   if (now - v.t > VELOCITY_MS) {
-    v.p = p
-    v.t = now
+    v.p = v.lp
+    v.t = v.lt
   }
+  v.lp = p
+  v.lt = now
 }
 
 /** px/ms at release, signed; 0 when the hand rested before letting go. */

@@ -27,6 +27,10 @@ export interface LongPressHandlers {
  * tab, copy the image - and reaches the same menu through the visible button,
  * which every element using this has to keep (WCAG 2.5.7).
  */
+// a part of the row with a press of its own - the reorder grip, where a finger
+// rests before it drags - never opens the sheet
+const NO_PRESS = '[data-reorder-handle], [data-no-longpress]'
+
 export function useLongPress(onLongPress: (() => void) | undefined): LongPressHandlers {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const start = useRef<{ x: number; y: number; el: HTMLElement } | null>(null)
@@ -48,6 +52,7 @@ export function useLongPress(onLongPress: (() => void) | undefined): LongPressHa
       touch.current = e.pointerType === 'touch'
       fired.current = false
       if (!touch.current || !live.current) return
+      if ((e.target as HTMLElement | null)?.closest?.(NO_PRESS)) return
       const el = e.currentTarget
       start.current = { x: e.clientX, y: e.clientY, el }
       el.setAttribute('data-pressing', '')

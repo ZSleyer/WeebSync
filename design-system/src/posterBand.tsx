@@ -115,6 +115,14 @@ export function PosterBand({ items, index, onIndex, onOpen, label, className }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index])
 
+  const endDrag = (el: HTMLElement) => {
+    const d = drag.current
+    if (!d) return
+    delete el.dataset.drag
+    drag.current = null
+    if (d.moved) centre(at.current, true)
+  }
+
   const step = (to: number) => {
     const i = Math.max(0, Math.min(items.length - 1, to))
     if (i !== index) onIndex(i)
@@ -131,6 +139,10 @@ export function PosterBand({ items, index, onIndex, onOpen, label, className }: 
       onKeyDown={(e: KeyboardEvent) => {
         if (e.key === 'ArrowRight') step(index + 1)
         else if (e.key === 'ArrowLeft') step(index - 1)
+        else if (e.key === 'Home') step(0)
+        else if (e.key === 'End') step(items.length - 1)
+        // the band is the one tab stop: Enter opens the poster in the middle
+        else if (e.key === 'Enter' || e.key === ' ') onOpen(index)
         else return
         e.preventDefault()
       }}
@@ -141,6 +153,8 @@ export function PosterBand({ items, index, onIndex, onOpen, label, className }: 
       onPointerMove={(e: PointerEvent<HTMLDivElement>) => {
         const d = drag.current
         if (!d) return
+        // the button came up somewhere else: this is a hover, not a drag
+        if (!(e.buttons & 1)) return endDrag(e.currentTarget)
         const dx = e.clientX - d.x
         if (!d.moved) {
           if (Math.abs(dx) < DRAG_SLOP) return
@@ -161,6 +175,11 @@ export function PosterBand({ items, index, onIndex, onOpen, label, className }: 
           setTimeout(() => (drag.current = null), 0)
         } else drag.current = null
       }}
+      // a cancelled drag (the browser took the pointer) settles like a let-go
+      onPointerCancel={(e: PointerEvent<HTMLDivElement>) => endDrag(e.currentTarget)}
+      // the cover is an image: the browser's own image drag would take the
+      // pointer away mid-drag
+      onDragStart={(e) => e.preventDefault()}
       onClickCapture={(e: MouseEvent) => {
         if (drag.current?.moved) {
           e.preventDefault()

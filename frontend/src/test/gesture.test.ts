@@ -11,6 +11,14 @@ describe('gesture', () => {
     expect(releaseVelocity(v, 130, 420)).toBe(1)
   })
 
+  // the release repeats the last move's position: a window that restarted on
+  // that move must not read the flick as a drop
+  it('keeps the speed when the window restarts on the last move', () => {
+    const v = startVelocity(0, 0)
+    for (let t = 16; t <= 112; t += 16) moveVelocity(v, t * 2, t)
+    expect(releaseVelocity(v, 224, 112)).toBe(2)
+  })
+
   it('throws nothing when the hand rested before letting go', () => {
     const v = startVelocity(0, 0)
     moveVelocity(v, 80, 20)

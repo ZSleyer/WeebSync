@@ -995,9 +995,12 @@ main:has(.page-fill) {
     box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.5);
     opacity: 0;
     pointer-events: none;
-    transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out);
+    /* hidden, not only clear: an invisible button must not take Tab or a
+       screen reader's cursor. The visibility flips after the fade out. */
+    visibility: hidden;
+    transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out), visibility 0s var(--dur-2);
   }
-  .t-totop[data-show] { opacity: 1; translate: 0 -100%; pointer-events: auto; }
+  .t-totop[data-show] { opacity: 1; translate: 0 -100%; pointer-events: auto; visibility: visible; transition-delay: 0s; }
   /* The pull-to-refresh mark (PageScroll): a pill that comes down with the
      page, fading in and turning with the pull. It says what letting go does
      at every stage - pull, release, loading, done - and the arrow turns into

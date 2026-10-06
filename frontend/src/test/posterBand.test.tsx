@@ -25,5 +25,15 @@ describe('PosterBand', () => {
     expect(onIndex).not.toHaveBeenCalled()
     fireEvent.keyDown(band, { key: 'ArrowRight' })
     expect(onIndex).toHaveBeenLastCalledWith(1)
+    fireEvent.keyDown(band, { key: 'End' })
+    expect(onIndex).toHaveBeenLastCalledWith(2)
+  })
+
+  // the band is the only tab stop, so the keyboard opens the middle poster
+  it('opens the middle poster with Enter', () => {
+    const onOpen = vi.fn()
+    render(<PosterBand items={items} index={1} onIndex={vi.fn()} onOpen={onOpen} label="Poster" />)
+    fireEvent.keyDown(screen.getByRole('group', { name: 'Poster' }), { key: 'Enter' })
+    expect(onOpen).toHaveBeenCalledWith(1)
   })
 })
