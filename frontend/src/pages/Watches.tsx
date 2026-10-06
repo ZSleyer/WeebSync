@@ -1013,7 +1013,15 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
       disabled={to < 0 || to >= events.length}
       onClick={() => setAt(to)}
     >
-      <svg aria-hidden="true" viewBox="0 0 24 24" width="1.2em" height="1.2em" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        width="1.2em"
+        height="1.2em"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <path d={path} />
       </svg>
     </IconButton>
@@ -1025,14 +1033,22 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         {arrow(t('watch.calPosterPrev'), i - 1, 'm15 6-6 6 6 6')}
         {e && (
-          <Slot step={startOfDay(new Date(e.at * 1000)).getTime()} className="min-w-0 text-center font-display text-sm font-semibold tracking-wider text-t-secondary">
+          <Slot
+            step={startOfDay(new Date(e.at * 1000)).getTime()}
+            className="min-w-0 text-center font-display text-sm font-semibold tracking-wider text-t-secondary"
+          >
             <span className="truncate">
               {new Date(e.at * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}
             </span>
           </Slot>
         )}
         <div className="flex items-center justify-end gap-2">
-          <Button size="sm" className="shrink-0 disabled:cursor-default disabled:opacity-40" disabled={onToday} onClick={() => setAt(todayAt)}>
+          <Button
+            size="sm"
+            className="shrink-0 disabled:cursor-default disabled:opacity-40"
+            disabled={onToday}
+            onClick={() => setAt(todayAt)}
+          >
             {t('watch.week.today')}
           </Button>
           {arrow(t('watch.calPosterNext'), i + 1, 'm9 6 6 6-6 6')}
