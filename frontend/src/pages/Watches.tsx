@@ -986,21 +986,58 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
     0,
     events.findIndex((e) => e.at * 1000 >= now),
   )
+  // "today" brings back the day's first release, or the next one when today
+  // has none
+  const dayStart = startOfDay(new Date(now)).getTime()
+  const todayAt = Math.max(
+    0,
+    events.findIndex((e) => e.at * 1000 >= dayStart),
+  )
   const [at, setAt] = useState(first)
   const i = Math.min(at, events.length - 1)
   const e = events[i]
+  const onToday = e && (startOfDay(new Date(e.at * 1000)).getTime() === dayStart || i === todayAt)
   const nameOf = (x: Airing) =>
     x.watch.titleOverride || mediaTitle(x.watch.media, x.watch.remotePath.split('/').pop() || '')
   const chip = (ts: number) => {
     const d = new Date(ts * 1000)
     const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    const days = Math.round((startOfDay(d).getTime() - startOfDay(new Date(now)).getTime()) / 86_400_000)
-    if (days === 0) return `${t('watch.week.today')} ${time}`
-    if (Math.abs(days) < 7) return `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`
-    return `${d.toLocaleDateString([], { day: '2-digit', month: '2-digit' })} ${time}`
+    if (startOfDay(d).getTime() === dayStart) return `${t('watch.week.today')} ${time}`
+    return `${d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })} ${time}`
   }
+  const arrow = (label: string, to: number, path: string) => (
+    <IconButton
+      aria-label={label}
+      title={label}
+      className="shrink-0 disabled:cursor-default disabled:opacity-40"
+      disabled={to < 0 || to >= events.length}
+      onClick={() => setAt(to)}
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="1.2em" height="1.2em" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d={path} />
+      </svg>
+    </IconButton>
+  )
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-label={t('watch.calPoster')}>
+      {/* the same row as the week's: the date of the middle poster between
+          the arrows, "today" disabled rather than gone so it holds its place */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        {arrow(t('watch.calPosterPrev'), i - 1, 'm15 6-6 6 6 6')}
+        {e && (
+          <Slot step={startOfDay(new Date(e.at * 1000)).getTime()} className="min-w-0 text-center font-display text-sm font-semibold tracking-wider text-t-secondary">
+            <span className="truncate">
+              {new Date(e.at * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}
+            </span>
+          </Slot>
+        )}
+        <div className="flex items-center justify-end gap-2">
+          <Button size="sm" className="shrink-0 disabled:cursor-default disabled:opacity-40" disabled={onToday} onClick={() => setAt(todayAt)}>
+            {t('watch.week.today')}
+          </Button>
+          {arrow(t('watch.calPosterNext'), i + 1, 'm9 6 6 6-6 6')}
+        </div>
+      </div>
       <PosterBand
         label={t('watch.calPoster')}
         items={events.map((x) => ({

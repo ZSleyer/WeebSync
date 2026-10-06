@@ -1005,7 +1005,8 @@ main:has(.page-fill) {
   .t-totop-ring circle { fill: none; stroke: var(--accent-blue); stroke-width: 2.5; }
 }
 @media (width >= 64rem) {
-  .t-totop-wrap { display: none; }
+  .t-totop-wrap,
+  .t-pull { display: none; }
 }
 
 /* ── Native dialog: Tempest panel + CRT reveal ── */
