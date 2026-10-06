@@ -625,6 +625,8 @@
     "calWeek": "Woche",
     "calAgenda": "Liste",
     "calPoster": "Poster",
+    "calPosterPrev": "Vorige Folge",
+    "calPosterNext": "Nächste Folge",
     "calEmpty": "Keine anstehenden Folgen mit Airing-Termin.",
     "calFilter": "Nach Art filtern",
     "calAll": "Alle",

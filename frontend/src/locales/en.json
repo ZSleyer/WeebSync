@@ -625,6 +625,8 @@
     "calWeek": "Week",
     "calAgenda": "List",
     "calPoster": "Posters",
+    "calPosterPrev": "Previous release",
+    "calPosterNext": "Next release",
     "calEmpty": "No upcoming episodes with an air date.",
     "calFilter": "Filter by type",
     "calAll": "All",
