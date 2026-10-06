@@ -236,6 +236,14 @@ export function useSheetDrag({
       el.style.transform = y < 0 ? `translate3d(0, ${-dampen(-y)}px, 0)` : ''
       pulled(el, dy)
       return
+    } else if (dy > 0 && live.current.expanded && span > 0) {
+      // from the full height a pull down first gives back the extra room as
+      // --lift, the footer staying at the edge; past that the whole sheet
+      // goes down with the finger, footer and all
+      el.style.setProperty('--lift', `${Math.min(dy, span)}px`)
+      el.style.transform = dy > span ? `translate3d(0, ${dy - span}px, 0)` : ''
+      pulled(el, dy)
+      return
     } else if (dy < 0) {
       const room = live.current.expanded ? 0 : span > 0 ? span : Infinity
       y = -dy <= room ? dy : -room - dampen(-dy - room)
@@ -262,6 +270,18 @@ export function useSheetDrag({
       grip(el, false)
       el.style.transition = ''
       el.style.transform = ''
+      if (el.style.getPropertyValue('--lift')) el.style.setProperty('--lift', '0px')
+    }
+    // after the stylesheet's transition of --lift, not of anything else
+    const afterLift = (then: () => void) => {
+      const done = (e?: TransitionEvent) => {
+        if (e && e.propertyName !== '--lift') return
+        el.removeEventListener('transitionend', done)
+        clearTimeout(timer)
+        then()
+      }
+      const timer = setTimeout(done, reducedMotion() ? 0 : 400)
+      el.addEventListener('transitionend', done)
     }
     // The detent flips on the element first, so the height and the transform
     // start moving in the same frame; React's commit writes the same value.
@@ -285,14 +305,10 @@ export function useSheetDrag({
       el.style.transition = ''
       el.style.transform = ''
       el.style.setProperty('--lift', `${base}px`)
-      const down = () => {
-        el.removeEventListener('transitionend', down)
-        clearTimeout(timer)
+      afterLift(() => {
         lifted.current = base
         unlift(el)
-      }
-      const timer = setTimeout(down, reducedMotion() ? 0 : 400)
-      el.addEventListener('transitionend', down)
+      })
       return
     }
     lifted.current = 0
@@ -310,6 +326,24 @@ export function useSheetDrag({
     // could not be measured the sheet steps back rather than guess.
     const past = span > 0 && to >= span + Math.max((el.clientHeight - span) * CLOSE_FRACTION, CLOSE_MIN)
     if (isExpanded && collapse && !past) {
+      if (to >= half && span > 0) {
+        // the sheet slides down as one block by the extra room, the footer
+        // staying at the edge, and only then takes the opening height - out
+        // of sight, the footer is where it was either way
+        grip(el, false)
+        el.style.transition = ''
+        el.style.transform = ''
+        el.style.setProperty('--lift', `${span}px`)
+        afterLift(() => {
+          el.style.transition = 'none'
+          el.toggleAttribute('data-expanded', false)
+          el.style.removeProperty('--lift')
+          void el.offsetHeight
+          el.style.transition = ''
+          live.current.onCollapse?.()
+        })
+        return
+      }
       if (to >= half) detent(false)
       settle()
       return
@@ -325,9 +359,11 @@ export function useSheetDrag({
         el.style.transition = reducedMotion()
           ? 'none'
           : thrown
-            ? `transform ${thrown}ms ${EASE_THROW}`
-            : `transform ${CLOSE_MS}ms var(--ease-in)`
+            ? `transform ${thrown}ms ${EASE_THROW}, --lift ${thrown}ms ${EASE_THROW}`
+            : `transform ${CLOSE_MS}ms var(--ease-in), --lift ${CLOSE_MS}ms var(--ease-in)`
         el.style.transform = 'translateY(100%)'
+        // the footer goes with the sheet now
+        if (el.style.getPropertyValue('--lift')) el.style.setProperty('--lift', '0px')
         const done = () => {
           el.removeEventListener('transitionend', done)
           clearTimeout(timer)
