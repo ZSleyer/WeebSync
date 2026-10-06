@@ -22,8 +22,10 @@ const PULL_MAX = 96
 const PULL_MIN_MS = 600
 // and the "refreshed" line stays this long before the page goes back up
 const DONE_MS = 700
-// controls that pan or scroll sideways on their own keep the gesture
-const NO_PULL = 'input, textarea, select, [contenteditable], [data-no-pull]'
+// controls that pan or scroll sideways on their own keep the gesture, and so
+// do a dialog (it renders inside <main>, and a sheet has its own pull) and a
+// row's reorder grip
+const NO_PULL = 'input, textarea, select, [contenteditable], [data-no-pull], dialog, [data-reorder-handle]'
 
 /**
  * What a phone page does while it scrolls (below lg <main> is the scroller):
@@ -149,12 +151,18 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
     main.addEventListener('touchstart', onStart, { passive: true })
     main.addEventListener('touchmove', onMove, { passive: false })
     main.addEventListener('touchend', onEnd, { passive: true })
-    main.addEventListener('touchcancel', onEnd, { passive: true })
+    // a cancelled touch never refreshes, however far it had come
+    const onCancel = () => {
+      if (mode !== 'pull') return
+      mode = 'off'
+      settle()
+    }
+    main.addEventListener('touchcancel', onCancel, { passive: true })
     return () => {
       main.removeEventListener('touchstart', onStart)
       main.removeEventListener('touchmove', onMove)
       main.removeEventListener('touchend', onEnd)
-      main.removeEventListener('touchcancel', onEnd)
+      main.removeEventListener('touchcancel', onCancel)
       const p = page()
       if (p) p.style.transform = ''
     }

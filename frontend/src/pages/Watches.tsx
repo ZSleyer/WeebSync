@@ -558,7 +558,7 @@ export default function Watches() {
           {calShown.length === 0 ? (
             <EmptyState>{t('watch.calEmpty')}</EmptyState>
           ) : calMode === 'poster' ? (
-            <PosterCalendar events={calShown} now={now} onOpen={showSeries} />
+            <PosterCalendar key={calCat} events={calShown} now={now} onOpen={showSeries} />
           ) : calMode === 'agenda' ? (
             <div className="flex flex-col gap-5">
               {calGroups.map((g) => (
@@ -1049,7 +1049,12 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
       />
       {e && (
         <div className="flex flex-col items-center gap-0.5 text-center">
-          <div aria-live="polite" className="flex max-w-full flex-col items-center gap-0.5">
+          {/* what a screen reader hears as the band moves: the poster, never
+              the countdown ticking beside it */}
+          <span aria-live="polite" className="sr-only">
+            {`${nameOf(e)}, ${episodeLabel(t, e)}, ${when(e.at)}`}
+          </span>
+          <div className="flex max-w-full flex-col items-center gap-0.5">
             <Slot step={i} className="max-w-full">
               <h3 className="truncate font-display text-base font-semibold tracking-wider lg:text-lg">{nameOf(e)}</h3>
             </Slot>

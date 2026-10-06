@@ -13,6 +13,20 @@ import { SHEET_MQ } from './useMediaQuery'
 //
 // `update` must change the DOM synchronously: a React state update goes through
 // flushSync, or the transition captures the new state before it exists.
+// Overlapping local transitions share the root's flag: counted, so the first
+// to finish does not hand <main> its route name back under the second.
+let locals = 0
+const holdLocal = () => {
+  locals++
+  document.documentElement.setAttribute('data-vt-local', '')
+}
+const dropLocal = () => {
+  if (--locals <= 0) {
+    locals = 0
+    document.documentElement.removeAttribute('data-vt-local')
+  }
+}
+
 export function localTransition(scope: HTMLElement | null, update: () => void): Promise<void> {
   const root = document.documentElement
   const still =
@@ -22,13 +36,16 @@ export function localTransition(scope: HTMLElement | null, update: () => void): 
     update()
     return Promise.resolve()
   }
-  root.setAttribute('data-vt-local', '')
+  holdLocal()
   scope?.setAttribute('data-vt', '')
   const done = () => {
-    root.removeAttribute('data-vt-local')
+    dropLocal()
     scope?.removeAttribute('data-vt')
   }
-  return document.startViewTransition(update).finished.then(done, done)
+  const t = document.startViewTransition(update)
+  // a transition skipped by the next one rejects `ready`; nothing to report
+  t.ready.catch(() => {})
+  return t.finished.then(done, done)
 }
 
 // how long the accent wave takes to cover the screen: over the usual 300ms on
@@ -50,7 +67,7 @@ export function revealTransition(x: number, y: number, update: () => void): Prom
     update()
     return Promise.resolve()
   }
-  root.setAttribute('data-vt-local', '')
+  holdLocal()
   const t = document.startViewTransition(update)
   const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))
   t.ready
@@ -61,8 +78,7 @@ export function revealTransition(x: number, y: number, update: () => void): Prom
       ),
     )
     .catch(() => {})
-  const done = () => root.removeAttribute('data-vt-local')
-  return t.finished.then(done, done)
+  return t.finished.then(dropLocal, dropLocal)
 }
 
 /**
@@ -85,7 +101,7 @@ export function morphTransition(from: HTMLElement, update: () => void, back = fa
     return Promise.resolve()
   }
   const pair = typeof matchMedia !== 'function' || !matchMedia(SHEET_MQ).matches
-  root.setAttribute('data-vt-local', '')
+  holdLocal()
   root.setAttribute('data-vt-morph', '')
   if (back) root.setAttribute('data-vt-back', '')
   const name = (on: boolean) => {
@@ -97,8 +113,9 @@ export function morphTransition(from: HTMLElement, update: () => void, back = fa
     name(back)
     update()
   })
+  t.ready.catch(() => {})
   const done = () => {
-    root.removeAttribute('data-vt-local')
+    dropLocal()
     root.removeAttribute('data-vt-morph')
     root.removeAttribute('data-vt-back')
     from.style.viewTransitionName = ''

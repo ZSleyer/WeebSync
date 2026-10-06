@@ -188,11 +188,16 @@ function SeriesDialog({
   const [wanted, setTab] = useState<SeriesTab>(target.tab ?? 'overview')
   const cur = stack[stack.length - 1]
   const source = cur.source || 'anilist'
+  // another title in the same card starts at its top, head and back button
+  // in view, whatever the last one was scrolled to
+  const fresh = useRef(false)
   const push = (next: SeriesTarget) => {
+    fresh.current = true
     setStack((s) => [...s, { ...next, source: next.source || 'anilist' }])
     setTab('overview')
   }
   const back = () => {
+    fresh.current = true
     setStack((s) => (s.length > 1 ? s.slice(0, -1) : s))
     setTab('overview')
   }
@@ -289,7 +294,9 @@ function SeriesDialog({
   // dock is redone, as the content height has jumped.
   useLayoutEffect(() => {
     const sc = scroller.current
-    if (sc && pinned.current) sc.scrollTop = stick()
+    if (sc && fresh.current) sc.scrollTop = 0
+    else if (sc && pinned.current) sc.scrollTop = stick()
+    fresh.current = false
     lag()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, cur.id])
