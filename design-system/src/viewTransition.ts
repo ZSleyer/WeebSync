@@ -27,6 +27,16 @@ const dropLocal = () => {
   }
 }
 
+/**
+ * Keeps <main> out of the route transition for a moment: a dialog taking its
+ * history entry back on close is a POP to the same page, and the router would
+ * fade the whole page out and in for it.
+ */
+export function quietRoute(ms = 500) {
+  holdLocal()
+  setTimeout(dropLocal, ms)
+}
+
 export function localTransition(scope: HTMLElement | null, update: () => void): Promise<void> {
   const root = document.documentElement
   const still =
