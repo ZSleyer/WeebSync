@@ -1719,6 +1719,28 @@ li.t-swiperow { border-radius: 0; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* now in today's column of the desktop week: a line between what has aired
+   and what is to come, the time on it - the week has no time axis, so the
+   line marks the order, not a position on the clock */
+.t-nowline {
+  position: relative;
+  height: 0;
+  margin: 0.5rem 0;
+  border-top: 2px solid var(--color-accent);
+}
+.t-nowline::after {
+  content: attr(data-label);
+  position: absolute;
+  right: 0;
+  top: -0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--r-chip);
+  background: var(--color-accent);
+  color: var(--bg-primary);
+  font: 600 0.625rem/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .t-timeline__now::before {
   content: '';
   position: absolute;
