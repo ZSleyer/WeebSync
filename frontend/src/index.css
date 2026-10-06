@@ -1313,6 +1313,7 @@ details[open]::details-content { height: auto; }
    choice, not a day to scrub through. */
 .t-posterband {
   /* the posters' offsetLeft is measured from here, not from the page */
+  --poster-w: 9rem;
   position: relative;
   display: flex;
   gap: 1rem;
@@ -1320,15 +1321,17 @@ details[open]::details-content { height: auto; }
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
-  padding: 1rem calc(50% - 4.5rem);
+  padding: 0.5rem calc(50% - var(--poster-w) / 2);
   outline-offset: 4px;
 }
 .t-posterband::-webkit-scrollbar { display: none; }
+/* a phone shows the middle poster and a turned one either side */
+@media (width < 64rem) { .t-posterband { --poster-w: 7.5rem; gap: 0.75rem; } }
 .t-posterband[data-drag] { scroll-snap-type: none; cursor: grabbing; user-select: none; }
 @media (pointer: fine) { .t-posterband { cursor: grab; } }
 .t-posterband__item {
   position: relative;
-  flex: 0 0 9rem;
+  flex: 0 0 var(--poster-w);
   scroll-snap-align: center;
   border-radius: var(--r-menu);
   overflow: hidden;
