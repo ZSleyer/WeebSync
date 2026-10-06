@@ -999,17 +999,22 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
   const onToday = e && (startOfDay(new Date(e.at * 1000)).getTime() === dayStart || i === todayAt)
   const nameOf = (x: Airing) =>
     x.watch.titleOverride || mediaTitle(x.watch.media, x.watch.remotePath.split('/').pop() || '')
-  const chip = (ts: number) => {
+  // the poster carries only the time; the date goes in the line under the band
+  const time = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const when = (ts: number) => {
     const d = new Date(ts * 1000)
-    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    if (startOfDay(d).getTime() === dayStart) return `${t('watch.week.today')} ${time}`
-    return `${d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })} ${time}`
+    const day =
+      startOfDay(d).getTime() === dayStart
+        ? t('watch.week.today')
+        : d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })
+    return `${day} ${time(ts)}`
   }
+  // a finger flicks the band, so the arrows are for a mouse only
   const arrow = (label: string, to: number, path: string) => (
     <IconButton
       aria-label={label}
       title={label}
-      className="shrink-0 disabled:cursor-default disabled:opacity-40"
+      className="shrink-0 disabled:cursor-default disabled:opacity-40 pointer-coarse:hidden!"
       disabled={to < 0 || to >= events.length}
       onClick={() => setAt(to)}
     >
@@ -1027,41 +1032,15 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
     </IconButton>
   )
   return (
-    <section className="flex min-w-0 flex-col gap-3" aria-label={t('watch.calPoster')}>
-      {/* the same row as the week's: the date of the middle poster between
-          the arrows, "today" disabled rather than gone so it holds its place */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        {arrow(t('watch.calPosterPrev'), i - 1, 'm15 6-6 6 6 6')}
-        {e && (
-          <Slot
-            step={startOfDay(new Date(e.at * 1000)).getTime()}
-            className="min-w-0 text-center font-display text-sm font-semibold tracking-wider text-t-secondary"
-          >
-            <span className="truncate">
-              {new Date(e.at * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}
-            </span>
-          </Slot>
-        )}
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            size="sm"
-            className="shrink-0 disabled:cursor-default disabled:opacity-40"
-            disabled={onToday}
-            onClick={() => setAt(todayAt)}
-          >
-            {t('watch.week.today')}
-          </Button>
-          {arrow(t('watch.calPosterNext'), i + 1, 'm9 6 6 6-6 6')}
-        </div>
-      </div>
+    <section className="flex min-w-0 flex-col gap-1" aria-label={t('watch.calPoster')}>
       <PosterBand
         label={t('watch.calPoster')}
         items={events.map((x) => ({
           key: `${x.watch.id}-${x.episode}-${x.at}-${x.dub ?? ''}`,
           cover: x.watch.media?.coverImage?.extraLarge || x.watch.media?.coverImage?.large,
           tint: x.watch.media?.coverImage?.color ?? undefined,
-          chip: chip(x.at),
-          label: `${nameOf(x)}, ${episodeLabel(t, x)}, ${chip(x.at)}`,
+          chip: time(x.at),
+          label: `${nameOf(x)}, ${episodeLabel(t, x)}, ${when(x.at)}`,
           past: x.at * 1000 < now,
         }))}
         index={i}
@@ -1069,16 +1048,36 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
         onOpen={(k) => events[k].watch.media && onOpen(events[k].watch)}
       />
       {e && (
-        <div className="flex flex-col items-center gap-1 text-center" aria-live="polite">
-          <Slot step={i} className="max-w-full">
-            <h3 className="truncate font-display text-lg font-semibold tracking-wider">{nameOf(e)}</h3>
-          </Slot>
-          <Slot step={i}>
-            <p className="font-mono text-xs text-t-secondary">
-              {episodeLabel(t, e)} · {chip(e.at)}
-              {e.at * 1000 >= now && <span className="text-accent"> · {countdown(t, e.at, isToday(e.at), now)}</span>}
-            </p>
-          </Slot>
+        <div className="flex flex-col items-center gap-0.5 text-center">
+          <div aria-live="polite" className="flex max-w-full flex-col items-center gap-0.5">
+            <Slot step={i} className="max-w-full">
+              <h3 className="truncate font-display text-base font-semibold tracking-wider lg:text-lg">{nameOf(e)}</h3>
+            </Slot>
+            <Slot step={i} className="max-w-full">
+              <p className="font-mono text-xs text-balance text-t-secondary">
+                {episodeLabel(t, e)} · <span className="whitespace-nowrap text-t-primary">{when(e.at)}</span>
+                {e.at * 1000 >= now && (
+                  <>
+                    {' · '}
+                    <span className="whitespace-nowrap text-accent">{countdown(t, e.at, isToday(e.at), now)}</span>
+                  </>
+                )}
+              </p>
+            </Slot>
+          </div>
+          {/* "today" is disabled rather than gone, so it holds its place */}
+          <div className="mt-1.5 flex items-center gap-2">
+            {arrow(t('watch.calPosterPrev'), i - 1, 'm15 6-6 6 6 6')}
+            <Button
+              size="sm"
+              className="disabled:cursor-default disabled:opacity-40"
+              disabled={onToday}
+              onClick={() => setAt(todayAt)}
+            >
+              {t('watch.week.today')}
+            </Button>
+            {arrow(t('watch.calPosterNext'), i + 1, 'm9 6 6 6-6 6')}
+          </div>
         </div>
       )}
     </section>
