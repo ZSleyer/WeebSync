@@ -1311,6 +1311,8 @@ details[open]::details-content { height: auto; }
    the scroll position). Snapping per poster is wanted here: a poster is a
    choice, not a day to scrub through. */
 .t-posterband {
+  /* the posters' offsetLeft is measured from here, not from the page */
+  position: relative;
   display: flex;
   gap: 1rem;
   overflow-x: auto;
