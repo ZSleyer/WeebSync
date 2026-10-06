@@ -97,6 +97,11 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
       // any top-level page, with or without a large title: on Files it is how
       // a folder is listed again
       if (busy || e.touches.length !== 1 || main.scrollTop > 0) return
+      // a page that scrolls a box of its own (Files' list) keeps the pull
+      // for that box until it too is at its top
+      for (let n = target; n && n !== main; n = n.parentElement) {
+        if (n.scrollTop > 0 && n.scrollHeight > n.clientHeight + 1) return
+      }
       if (target?.closest(NO_PULL)) return
       mode = 'none'
       y0 = e.touches[0].clientY
