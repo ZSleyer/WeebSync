@@ -96,6 +96,7 @@ import { ProviderBadges } from '../components/ProviderBadges'
 import { useSeriesModal } from '../components/SeriesModal'
 import { useDragReorder } from '../hooks/useDragReorder'
 import ActionSheet, { type SheetAction } from '../components/ActionSheet'
+import ActionMenu from '../components/ActionMenu'
 import Press from '../components/Press'
 
 // history-only status filter: the active queue is short and searchable, its
@@ -394,12 +395,8 @@ export default function Dashboard() {
   const handle = useDragReorder({ list: queueList, ids: queuedIds, onMove: moveQueued })
 
   // Swipe a queue row (touch): to the right for its forward step - the front
-  // of the queue, or resume when it is paused - to the left to cancel. A
-  // cancel offers its undo for a few seconds; resuming puts the row back where
-  // it was, its queue position is kept.
-  const [undo, setUndo] = useState<{ id: number; name: string } | null>(null)
-  const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => () => clearTimeout(undoTimer.current), [])
+  // of the queue, or resume when it is paused - to the left to cancel, after
+  // a question.
   const swipeEnd = (d: Download): SwipeAction | undefined =>
     d.status === 'done'
       ? undefined
@@ -408,12 +405,10 @@ export default function Dashboard() {
           icon: <X aria-hidden size="1.1em" />,
           tone: 'err',
           leaves: true,
-          run: () => {
-            action.mutate({ id: d.id, verb: 'cancel' })
-            setUndo({ id: d.id, name: downloadLabel(d, meta).name })
-            clearTimeout(undoTimer.current)
-            undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS)
-          },
+          // a swipe is easy to do by accident; the question keeps it honest
+          confirm: () =>
+            confirm({ message: t('dash.cancelConfirm', { name: downloadLabel(d, meta).name }), destructive: true }),
+          run: () => action.mutate({ id: d.id, verb: 'cancel' }),
         }
   const swipeStart = (d: Download): SwipeAction | undefined =>
     d.status === 'paused'
@@ -434,7 +429,7 @@ export default function Dashboard() {
   // A long press on a row (touch) opens all its actions as a sheet - the
   // queue row's buttons and the history row's, plus the series it belongs to.
   const [sheet, setSheet] = useState<{ title: string; actions: SheetAction[] } | null>(null)
-  const openRowSheet = (d: Download) => {
+  const rowActions = (d: Download): { title: string; actions: SheetAction[] } => {
     const { name, group } = downloadLabel(d, meta)
     const watch = group?.watchId ? watches.find((w) => w.id === group.watchId) : undefined
     const verb = (v: string) => () => action.mutate({ id: d.id, verb: v })
@@ -465,8 +460,9 @@ export default function Dashboard() {
           ]
     if (watch?.media)
       actions.unshift(act('series', t('dash.openSeries'), <Eye {...ico} />, () => openSeries(seriesTarget(watch))))
-    setSheet({ title: name, actions })
+    return { title: name, actions }
   }
+  const openRowSheet = (d: Download) => setSheet(rowActions(d))
 
   // the header's line: what is going on right now, not what the page is
   const running = activeAll.filter((d) => d.status === 'running')
@@ -671,20 +667,6 @@ export default function Dashboard() {
                     </Trans>
                   </Panel>
                 ))}
-              {undo && (
-                <Panel role="status" className="mb-3 flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                  <span className="min-w-0 truncate">{t('dash.canceledOne', { name: undo.name })}</span>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      action.mutate({ id: undo.id, verb: 'resume' })
-                      setUndo(null)
-                    }}
-                  >
-                    {t('dash.undo')}
-                  </Button>
-                </Panel>
-              )}
               <div ref={queueList} className="flex flex-col gap-3">
                 {shown.map((d) => (
                   <Press
@@ -704,6 +686,7 @@ export default function Dashboard() {
                         selected={selected.has(d.id)}
                         onSelect={(shift) => selectRow(d.id, shift)}
                         onAction={(verb) => action.mutate({ id: d.id, verb })}
+                        menu={d.status === 'done' ? undefined : rowActions(d)}
                         // a search shows a slice of the queue; reordering a slice
                         // would move rows the reader cannot see
                         reorder={
@@ -877,6 +860,11 @@ export default function Dashboard() {
                                 icon: <Trash2 aria-hidden size="1.1em" />,
                                 tone: 'err',
                                 leaves: true,
+                                confirm: () =>
+                                  confirm({
+                                    message: t('dash.removeConfirm', { name: downloadLabel(d, meta).name }),
+                                    destructive: true,
+                                  }),
                                 run: () => action.mutate({ id: d.id, verb: 'delete' }),
                               }}
                             >
@@ -887,6 +875,7 @@ export default function Dashboard() {
                                 selected={selected.has(d.id)}
                                 onSelect={(shift) => selectRow(d.id, shift)}
                                 onAction={(verb) => action.mutate({ id: d.id, verb })}
+                                menu={rowActions(d)}
                                 onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
                                 coverLabel={watch ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
                               />
@@ -1477,6 +1466,7 @@ function DownloadRow({
   onSelect,
   onAction,
   reorder,
+  menu,
 }: {
   d: Download
   meta?: DownloadMeta
@@ -1487,6 +1477,8 @@ function DownloadRow({
   onAction: (verb: string) => void
   /** a queued row among others: the drag handle, and the jump to the front */
   reorder?: { handle: ReturnType<ReturnType<typeof useDragReorder>>; toFront?: () => void }
+  /** every action of the row, behind its ⋯ button */
+  menu?: { title: string; actions: SheetAction[] }
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -1581,7 +1573,12 @@ function DownloadRow({
       }
       meta={about}
       stats={stats}
-      trailing={<DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />}
+      trailing={
+        <div className="flex shrink-0 items-start gap-1">
+          {menu && <ActionMenu label={t('dash.moreActions', { name })} title={menu.title} actions={menu.actions} />}
+          <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
+        </div>
+      }
       percent={d.status === 'done' ? 100 : pct}
       progressLabel={t('dash.progressOf', { name })}
       active={running}
@@ -1642,6 +1639,7 @@ function HistoryRow({
   onAction,
   onCover,
   coverLabel,
+  menu,
 }: {
   d: Download
   meta?: DownloadMeta
@@ -1654,6 +1652,8 @@ function HistoryRow({
   /** with it the cover is a button opening the title's card */
   onCover?: () => void
   coverLabel?: string
+  /** every action of the row, behind its ⋯ button */
+  menu?: { title: string; actions: SheetAction[] }
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -1721,6 +1721,7 @@ function HistoryRow({
             <ChevronRight aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
           )}
         </button>
+        {menu && <ActionMenu label={t('dash.moreActions', { name })} title={menu.title} actions={menu.actions} />}
       </div>
       {/* the failure gets its own line under the row, explained or not: inline
           it fought the title for the little width left, and on a tablet the
@@ -1764,8 +1765,6 @@ const MIB = 1024 * 1024
 // how long a finished download stays in the queue before it folds away, and
 // the fold itself (--dur-2 and a frame)
 const LEAVE_MS = 1100
-// how long a swiped-away cancel can be taken back
-const UNDO_MS = 6000
 const FOLD_MS = 220
 
 // Rate limit input with a KiB/s | MiB/s unit picker; stores bytes/s.

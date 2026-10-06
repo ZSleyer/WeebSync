@@ -239,9 +239,10 @@
     "oidcReady": "OIDC ist aktiv. Melde dich jetzt an, der erste Login wird Admin und die Einrichtung läuft danach weiter."
   },
   "dash": {
+    "cancelConfirm": "„{{name}}“ abbrechen?",
+    "removeConfirm": "„{{name}}“ aus dem Verlauf entfernen?",
+    "moreActions": "Aktionen für {{name}}",
     "openSeries": "Serie öffnen",
-    "canceledOne": "„{{name}}“ abgebrochen",
-    "undo": "Rückgängig",
     "sumRunning_one": "{{count}} läuft",
     "sumRunning_other": "{{count}} laufen",
     "sumQueued_one": "{{count}} wartet",

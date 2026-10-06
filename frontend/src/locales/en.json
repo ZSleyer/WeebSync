@@ -239,9 +239,10 @@
     "oidcReady": "OIDC is active. Sign in now - the first login becomes admin and setup continues afterwards."
   },
   "dash": {
+    "cancelConfirm": "Cancel “{{name}}”?",
+    "removeConfirm": "Remove “{{name}}” from the history?",
+    "moreActions": "Actions for {{name}}",
     "openSeries": "Open series",
-    "canceledOne": "“{{name}}” canceled",
-    "undo": "Undo",
     "sumRunning_one": "{{count}} running",
     "sumRunning_other": "{{count}} running",
     "sumQueued_one": "{{count}} waiting",
