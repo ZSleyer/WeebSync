@@ -678,6 +678,35 @@ export default function Watches() {
                             >
                               {items.length === 0 ? (
                                 <li className="text-xs text-t-faint">{t('watch.week.free')}</li>
+                              ) : d.getTime() === today.getTime() ? (
+                                // today: now stands between what has aired and
+                                // what is still to come, as on the phone's axis
+                                <>
+                                  {items
+                                    .filter((e) => e.at * 1000 < now)
+                                    .map((e) => (
+                                      <li key={entryKey(e)} className="opacity-60">
+                                        {entryBody(e, true)}
+                                      </li>
+                                    ))}
+                                  <li
+                                    role="separator"
+                                    className="t-nowline"
+                                    data-label={t('watch.week.now', {
+                                      time: new Date(now).toLocaleTimeString([], {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      }),
+                                    })}
+                                    aria-label={t('watch.week.now', {
+                                      time: new Date(now).toLocaleTimeString([], {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      }),
+                                    })}
+                                  />
+                                  {items.filter((e) => e.at * 1000 >= now).map((e) => entryOf(e, true))}
+                                </>
                               ) : (
                                 items.map((e) => entryOf(e, true))
                               )}
