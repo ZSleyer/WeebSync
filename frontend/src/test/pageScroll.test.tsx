@@ -6,7 +6,7 @@ import PageScroll from '../components/PageScroll'
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
 
 // jsdom's matchMedia matches nothing, so the component sees a phone
-const page = (stacked: boolean, qc = new QueryClient()) =>
+const page = (stacked: boolean, qc = new QueryClient(), title = true) =>
   render(
     <QueryClientProvider client={qc}>
       <div className="app-shell">
@@ -14,9 +14,7 @@ const page = (stacked: boolean, qc = new QueryClient()) =>
           <span className="t-scroll-line" />
         </header>
         <main>
-          <div>
-            <header className="t-page-header">Titel</header>
-          </div>
+          <div>{title && <header className="t-page-header">Titel</header>}</div>
           <PageScroll stacked={stacked} />
         </main>
       </div>
@@ -61,6 +59,18 @@ describe('PageScroll', () => {
     pull(60)
     expect(refetch).not.toHaveBeenCalled()
     pull(200)
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1))
+  })
+  // Files has no large title; a pull there lists the folder again
+  it('reloads a top-level page without a large title too', async () => {
+    const qc = new QueryClient()
+    const refetch = vi.spyOn(qc, 'refetchQueries').mockResolvedValue()
+    const { container } = page(false, qc, false)
+    const main = container.querySelector('main')!
+    fireEvent.touchStart(main, { touches: [{ clientX: 100, clientY: 100 }] })
+    fireEvent.touchMove(main, { touches: [{ clientX: 100, clientY: 110 }] })
+    fireEvent.touchMove(main, { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchEnd(main, { changedTouches: [{ clientX: 100, clientY: 300 }] })
     await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1))
   })
 })

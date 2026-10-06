@@ -1055,11 +1055,14 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
             </Slot>
             <Slot step={i} className="max-w-full">
               <p className="font-mono text-xs text-balance text-t-secondary">
-                {episodeLabel(t, e)} · <span className="whitespace-nowrap text-t-primary">{when(e.at)}</span>
+                {episodeLabel(t, e)} ·{' '}
+                <span className="font-mono text-xs whitespace-nowrap text-t-primary">{when(e.at)}</span>
                 {e.at * 1000 >= now && (
                   <>
                     {' · '}
-                    <span className="whitespace-nowrap text-accent">{countdown(t, e.at, isToday(e.at), now)}</span>
+                    <span className="font-mono text-xs whitespace-nowrap text-accent">
+                      {countdown(t, e.at, isToday(e.at), now)}
+                    </span>
                   </>
                 )}
               </p>
