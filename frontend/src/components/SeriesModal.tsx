@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -163,6 +164,9 @@ const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
 }
 
 const TABS: SeriesTab[] = ['overview', 'sync', 'cast', 'community', 'similar']
+// the docked title bar's height (h-11), and the scroll over which it fades in
+const DOCK_PX = 44
+const DOCK_FADE = 40
 
 function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () => void }) {
   const { t } = useTranslation()
@@ -240,11 +244,25 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
   // update per scroll frame would re-render the whole dialog.
   const scroller = useRef<HTMLDivElement>(null)
   const banner = useRef<HTMLImageElement>(null)
+  // Once the head has scrolled away, a slim bar holds the title above the
+  // tabs: it fades in over the last stretch before the tabs stick (--q, 0..1),
+  // so the reader never loses which series this is.
+  const head = useRef<HTMLElement>(null)
+  const dock = useRef<HTMLDivElement>(null)
+  const pinned = useRef(false)
+  const stick = () => (head.current?.offsetHeight ?? 0) - DOCK_PX
   const lag = () => {
+    // before the dialog has laid out there is no head to measure
+    if (!head.current?.offsetHeight) return
     const top = scroller.current?.scrollTop ?? 0
     const still =
       document.documentElement.dataset.motion === 'off' ||
       (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+    const s = stick()
+    pinned.current = top >= s - 1
+    // information, not decoration: without motion it is there or not
+    const q = still ? (pinned.current ? 1 : 0) : Math.min(1, Math.max(0, (top - s + DOCK_FADE) / DOCK_FADE))
+    dock.current?.style.setProperty('--q', q.toFixed(3))
     const b = banner.current
     if (!b) return
     // half the scroll, and darker as it goes: the head slides up over a
@@ -254,15 +272,28 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
     b.style.opacity = still || y <= 0 ? '' : String(1 - Math.min(1, y / 144) * 0.6)
   }
 
+  // A new tab under stuck tabs starts right below them, not wherever the old
+  // one was scrolled to; above that point the scroll stays as it is. Then the
+  // dock is redone, as the content height has jumped.
+  useLayoutEffect(() => {
+    const sc = scroller.current
+    if (sc && pinned.current) sc.scrollTop = stick()
+    lag()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, cur.id])
+
   return (
     <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name })} onClose={onClose}>
-      <div className="dialog-body">
+      <div className="dialog-body relative">
+        <div ref={dock} aria-hidden className="t-dock">
+          <span className="truncate">{name}</span>
+        </div>
         {/* One scroller for the head and the panel: the banner and the title
             scroll away and leave the room to the content, the tabs stay at the
             top. The banner lags behind the scroll, so it reads as further back
             than the page sliding over it. */}
         <div ref={scroller} onScroll={lag} className="min-h-0 flex-1 overflow-y-auto">
-          <header className="relative">
+          <header ref={head} className="relative">
             {media?.bannerImage && (
               <div className="h-36 overflow-hidden bg-bg-hover">
                 <img
@@ -327,8 +358,8 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
               </div>
             </div>
           </header>
-          <div className="sticky top-0 z-10 bg-bg-card pt-1">
-            <Tabs scroll aria-label={t('series.tabsLabel')} className="mx-5">
+          <div className="sticky top-11 z-10 border-b border-border-subtle bg-bg-card">
+            <Tabs scroll aria-label={t('series.tabsLabel')} className="t-tabs--line px-3">
               {tabs.map((k) => (
                 <Tab
                   key={k}

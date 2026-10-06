@@ -529,6 +529,34 @@ a.t-label:hover {
 .t-tabs--scroll[data-overflow="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); }
 .t-tabs--scroll[data-overflow="start"] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
 .t-tabs--scroll[data-overflow="both"] { mask-image: linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2rem), transparent); }
+/* Tabs that divide one thing into its parts (a series' overview, cast,
+   similar titles) rather than pick between a few options: no box, the full
+   width, a hairline under the row (drawn by the caller) and only the underline
+   moving - the box of the default bar sat as a second frame inside a dialog. */
+.t-tabs--line { border: 0; border-radius: 0; background: none; }
+.t-tabs--line .t-tab { min-height: 44px; padding: 10px 12px; }
+.t-tabs--line .t-tab:hover { background: none; }
+.t-tabs--line .t-tab[aria-selected="true"] { background: none; }
+.t-tabs--line .t-tabs-ink { background: none; }
+
+/* A dialog's docked title: a slim bar over the top of its scroller that is
+   clear while the head is in view and fills in with the title as the head
+   scrolls away (--q, written from the scroll). It never takes a click - the
+   head under it keeps its own buttons. */
+.t-dock {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  height: 2.75rem;
+  padding: 0 1.25rem;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg-card) calc(var(--q, 0) * 100%), transparent);
+  font: 600 0.9375rem/1.2 var(--font-display);
+  letter-spacing: 0.04em;
+}
+.t-dock > span { min-width: 0; opacity: var(--q, 0); }
 
 /* Disclosure on the native details element: the marker is drawn as a chevron
    by the component, so the platform's own triangle goes. */
