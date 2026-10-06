@@ -915,10 +915,12 @@ main:has(.page-fill) {
    the scroller where the browser can tie an animation to that (view
    timelines); elsewhere they simply stand. ── */
 .t-ep { position: relative; }
+/* the rail runs through the middle of each mark: the mark is the 1em icon
+   plus its 2px padding and 1.5px ring either side */
 .t-ep::before {
   content: "";
   position: absolute;
-  left: calc(0.5em - 1px);
+  left: calc(0.5em + 3.5px - 1px);
   top: 0;
   bottom: 0;
   width: 2px;
@@ -927,17 +929,32 @@ main:has(.page-fill) {
 .t-ep:first-child::before { top: 50%; }
 .t-ep:last-child::before { bottom: 50%; }
 .t-ep:only-child::before { display: none; }
-.t-ep > svg:first-child { position: relative; border-radius: 9999px; background: var(--bg-card); }
+/* each episode is a node on the rail: its state icon in a ring of its colour,
+   so the line reads as joined marks rather than broken dashes */
+.t-ep > svg:first-child {
+  position: relative;
+  box-sizing: content-box;
+  padding: 2px;
+  border: 1.5px solid currentColor;
+  border-radius: 9999px;
+  background: var(--bg-card);
+}
 .t-ep[data-state="have"] { --rail: color-mix(in srgb, var(--accent-green) 55%, transparent); }
 .t-ep[data-state="gone"] { --rail: color-mix(in srgb, var(--accent-red) 55%, transparent); }
 @keyframes t-ep-in { from { opacity: 0.3; transform: translateX(8px); } }
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
     :root:not([data-motion="off"]) .t-ep {
       animation: t-ep-in linear both;
       animation-timeline: view();
       animation-range: entry 0% entry 80%;
     }
+  }
+  /* where rows cannot be tied to the scroll (Firefox), they slide in once as
+     they come into view: WatchEpisodes marks them with data-in */
+  @supports not (animation-timeline: view()) {
+    :root:not([data-motion="off"]) .t-ep[data-in="0"] { opacity: 0.3; transform: translateX(8px); }
+    :root:not([data-motion="off"]) .t-ep[data-in="1"] { transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
   }
 }
 

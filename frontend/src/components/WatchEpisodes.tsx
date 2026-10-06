@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Check, Clock, ExternalLink, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +17,7 @@ function Row({ ep, showLocal }: { ep: WatchEpisode; showLocal: boolean }) {
   return (
     <li
       data-state={ep.have ? 'have' : ep.upcoming ? 'upcoming' : 'gone'}
-      className="t-ep flex items-baseline gap-2 border-b border-border-subtle py-1 text-sm last:border-0"
+      className="t-ep flex items-center gap-2 py-1 text-sm"
     >
       {/* an episode that has not aired yet is absent, not missing - marking it
           red would paint every running series as half broken */}
@@ -59,12 +60,34 @@ export default function WatchEpisodesList({ watch }: { watch: Watch }) {
   })
 
   const eps = data?.episodes ?? []
+
+  // Rows slide in as they come into view. The stylesheet ties that to the
+  // scroll where the browser can (view timelines); elsewhere each row is
+  // marked once as it enters, and the mark's transition runs instead.
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = box.current
+    if (!el || typeof IntersectionObserver === 'undefined' || CSS.supports?.('animation-timeline: view()')) return
+    const rows = [...el.querySelectorAll<HTMLElement>('.t-ep')]
+    const io = new IntersectionObserver((seen) => {
+      for (const e of seen) {
+        if (!e.isIntersecting) continue
+        ;(e.target as HTMLElement).dataset.in = '1'
+        io.unobserve(e.target)
+      }
+    })
+    for (const r of rows) {
+      r.dataset.in = '0'
+      io.observe(r)
+    }
+    return () => io.disconnect()
+  }, [eps.length])
   const showLocal = eps.some((e) => e.local)
   const seasons = [...new Set(eps.map((e) => e.season))]
   const provider = data?.provider ? PROVIDER_LABEL[data.provider] : ''
 
   return (
-    <div>
+    <div ref={box}>
       <p className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] text-t-secondary">
         {provider && <Badge>{provider}</Badge>}
         {seasons.length === 1 && <Badge>{t('watch.gaps.season', { n: seasons[0] })}</Badge>}
