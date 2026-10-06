@@ -46,6 +46,12 @@ export interface DialogProps {
    * also knows how to give up its height cap inside a bottom sheet.
    */
   bodyClassName?: string
+  /**
+   * Runs the close inside a transition (the poster morph back): every way out
+   * - Escape, the backdrop, the grabber, the back gesture - hands its close to
+   * it instead of closing at once.
+   */
+  closeTransition?: (close: () => void) => void
 }
 
 /**
@@ -63,9 +69,15 @@ export function Dialog({
   closeLabel = 'Schließen',
   className,
   bodyClassName,
+  closeTransition,
   ...aria
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
+  const shut = () => {
+    const close = () => ref.current?.close()
+    if (closeTransition) closeTransition(close)
+    else close()
+  }
   // pointerdown started on the backdrop - a drag that began inside a control
   // and ended on the backdrop must not count as a click outside
   const backdropDown = useRef(false)
@@ -82,7 +94,7 @@ export function Dialog({
 
   const guarded = async () => {
     if (onRequestClose && !(await onRequestClose())) return
-    ref.current?.close()
+    shut()
   }
   const menuOpen = () => !!ref.current?.querySelector('[aria-haspopup][aria-expanded="true"]')
 
@@ -127,6 +139,8 @@ export function Dialog({
   const id = useId()
   const onRequestCloseRef = useRef(onRequestClose)
   onRequestCloseRef.current = onRequestClose
+  const shutRef = useRef(shut)
+  shutRef.current = shut
   useEffect(() => {
     if (typeof history === 'undefined') return
     // StrictMode mounts, unmounts and mounts again: the entry from the first
@@ -142,7 +156,7 @@ export function Dialog({
       if (history.state?.wsDialog === id) return // an inner dialog's entry went, not ours
       // the guard declined (unsaved changes): put the entry back
       if (onRequestCloseRef.current && !(await onRequestCloseRef.current())) return history.pushState(mark, '')
-      ref.current?.close()
+      shutRef.current()
     }
     window.addEventListener('popstate', onPop)
     return () => {

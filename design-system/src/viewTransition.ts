@@ -1,3 +1,5 @@
+import { SHEET_MQ } from './useMediaQuery'
+
 // A view transition for one part of the page - a list that reorders, a colour
 // that changes - rather than for a route.
 //
@@ -64,31 +66,41 @@ export function revealTransition(x: number, y: number, update: () => void): Prom
 }
 
 /**
- * One element becomes another: the element clicked (a poster in a list) flies
- * to where its counterpart stands once `update` has run (the poster in the
- * dialog it opened), while the rest of the change happens around it. The
- * counterpart carries `data-morph-target`; the stylesheet names it only while
- * the root carries `data-vt-morph`, so two names never meet.
+ * A poster opens into its dialog (a container transform): the dialog grows
+ * out of the poster's own box, the picture fading into the dialog on the way,
+ * so the dialog reads as the poster opened up rather than a layer laid over
+ * the page. `back` runs it the other way as the dialog closes: it shrinks into
+ * the poster it came from. The stylesheet names the open dialog while the root
+ * carries `data-vt-morph`; this names the poster. A bottom sheet on a phone is
+ * not paired - it rises from the edge, and a poster growing into a sheet would
+ * fly against the way it moves.
  */
-export function morphTransition(from: HTMLElement, update: () => void): Promise<void> {
+export function morphTransition(from: HTMLElement, update: () => void, back = false): Promise<void> {
   const root = document.documentElement
   const still =
     root.dataset.motion === 'off' ||
     (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
-  if (!document.startViewTransition || still) {
+  if (!document.startViewTransition || still || !from.isConnected) {
     update()
     return Promise.resolve()
   }
+  const pair = typeof matchMedia !== 'function' || !matchMedia(SHEET_MQ).matches
   root.setAttribute('data-vt-local', '')
   root.setAttribute('data-vt-morph', '')
-  from.style.viewTransitionName = 'morph'
+  if (back) root.setAttribute('data-vt-back', '')
+  const name = (on: boolean) => {
+    if (pair) from.style.viewTransitionName = on ? 'morph-dialog' : ''
+  }
+  // the poster is the dialog's other half on the side where the dialog is not
+  name(!back)
   const t = document.startViewTransition(() => {
-    from.style.viewTransitionName = ''
+    name(back)
     update()
   })
   const done = () => {
     root.removeAttribute('data-vt-local')
     root.removeAttribute('data-vt-morph')
+    root.removeAttribute('data-vt-back')
     from.style.viewTransitionName = ''
   }
   return t.finished.then(done, done)

@@ -119,12 +119,11 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
     setAt(pathname)
     setTarget(null)
   }
-  // The poster that was clicked flies into the dialog's head (morphTransition)
-  // while the dialog comes in around it - centred on a desktop, rising from
-  // the bottom edge as a sheet on a phone (the stylesheet animates it as part
-  // of the same transition). The poster is the one under the click that
-  // opened the card: a capture listener notes it just before the click
-  // reaches the page's own handler.
+  // The dialog grows out of the poster that was clicked and shrinks back into
+  // it on close (morphTransition) - on a desktop; on a phone the sheet rises
+  // from the bottom edge. The poster is the one under the click that opened
+  // the card: a capture listener notes it just before the click reaches the
+  // page's own handler.
   const lastCover = useRef<{ el: HTMLElement; at: number } | null>(null)
   useEffect(() => {
     const note = (e: Event) => {
@@ -134,13 +133,17 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
     document.addEventListener('click', note, true)
     return () => document.removeEventListener('click', note, true)
   }, [])
+  const [origin, setOrigin] = useState<HTMLElement | null>(null)
   const open = useCallback((t: SeriesTarget) => {
-    const next = () => setTarget({ ...t, source: t.source || 'anilist' })
     const from = lastCover.current
     lastCover.current = null
-    if (from && from.el.isConnected && performance.now() - from.at < 500) {
-      void morphTransition(from.el, () => flushSync(next))
-    } else next()
+    const el = from && from.el.isConnected && performance.now() - from.at < 500 ? from.el : null
+    const next = () => {
+      setTarget({ ...t, source: t.source || 'anilist' })
+      setOrigin(el)
+    }
+    if (el) void morphTransition(el, () => flushSync(next))
+    else next()
   }, [])
   const close = useCallback(() => setTarget(null), [])
   const api = useMemo(() => ({ open, close }), [open, close])
@@ -149,7 +152,7 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
       {children}
       {/* keyed on the title: a second open() from a page is a new card, while
           a related title picked inside the card stacks within the same one */}
-      {target && <SeriesDialog key={`${target.source}:${target.id}`} target={target} onClose={close} />}
+      {target && <SeriesDialog key={`${target.source}:${target.id}`} target={target} origin={origin} onClose={close} />}
     </Ctx.Provider>
   )
 }
@@ -168,7 +171,16 @@ const TABS: SeriesTab[] = ['overview', 'sync', 'cast', 'community', 'similar']
 const DOCK_PX = 44
 const DOCK_FADE = 40
 
-function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () => void }) {
+function SeriesDialog({
+  target,
+  origin,
+  onClose,
+}: {
+  target: SeriesTarget
+  /** the poster the dialog grew out of, to shrink back into */
+  origin: HTMLElement | null
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   // the trail of related titles opened from inside the card; the first entry
   // is what the page opened, the last is what is shown
@@ -283,7 +295,12 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
   }, [tab, cur.id])
 
   return (
-    <Dialog width="max-w-3xl" aria-label={t('remote.detailsFor', { name })} onClose={onClose}>
+    <Dialog
+      width="max-w-3xl"
+      aria-label={t('remote.detailsFor', { name })}
+      onClose={onClose}
+      closeTransition={origin ? (close) => void morphTransition(origin, close, true) : undefined}
+    >
       <div className="dialog-body relative">
         <div ref={dock} aria-hidden className="t-dock">
           <span className="truncate">{name}</span>
@@ -316,7 +333,7 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
             )}
             <div className="flex gap-4 px-5 pt-4 pb-3">
               {media?.coverImage?.large && (
-                <div data-morph-target className="shrink-0">
+                <div className="shrink-0">
                   <Cover
                     src={media.coverImage.extraLarge || media.coverImage.large}
                     tint={media.coverImage.color ?? undefined}
@@ -459,7 +476,10 @@ function SeriesDialog({ target, onClose }: { target: SeriesTarget; onClose: () =
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          <Button size="sm" onClick={onClose}>
+          <Button
+            size="sm"
+            onClick={() => (origin ? void morphTransition(origin, () => flushSync(onClose), true) : onClose())}
+          >
             {t('common.close')}
           </Button>
         </footer>
