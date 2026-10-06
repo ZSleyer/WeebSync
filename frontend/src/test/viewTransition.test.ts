@@ -37,20 +37,28 @@ describe('view transitions', () => {
     expect(scope.hasAttribute('data-vt')).toBe(false)
   })
 
-  // the source carries the name into the old state only; in the new one the
-  // counterpart has it, so two elements never share it
-  it('hands the morph name from the source to its counterpart', async () => {
+  // the poster shares the dialog's name on the side the dialog is not: before
+  // the update on the way in, after it on the way back - never both at once
+  it('names the poster on the side the dialog is not, both ways', async () => {
     fake()
-    const from = document.createElement('img')
-    let named = 'x'
-    let morphing = false
-    await morphTransition(from, () => {
-      named = from.style.viewTransitionName
-      morphing = document.documentElement.hasAttribute('data-vt-morph')
-    })
-    expect(named).toBe('')
-    expect(morphing).toBe(true)
+    const from = document.body.appendChild(document.createElement('img'))
+    const seen = async (back: boolean) => {
+      const at: string[] = []
+      doc.startViewTransition = vi.fn((cb: () => void) => {
+        at.push(from.style.viewTransitionName)
+        cb()
+        at.push(from.style.viewTransitionName)
+        return { finished: Promise.resolve(), ready: Promise.resolve() }
+      })
+      await morphTransition(from, () => {}, back)
+      return at
+    }
+    expect(await seen(false)).toEqual(['morph-dialog', ''])
+    expect(await seen(true)).toEqual(['', 'morph-dialog'])
+    expect(from.style.viewTransitionName).toBe('')
     expect(document.documentElement.hasAttribute('data-vt-morph')).toBe(false)
+    expect(document.documentElement.hasAttribute('data-vt-back')).toBe(false)
+    from.remove()
   })
 
   it('stays still with motion turned off', async () => {

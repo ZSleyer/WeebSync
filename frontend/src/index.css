@@ -1461,18 +1461,36 @@ li.t-swiperow { border-radius: 0; }
    children of the scope move as themselves, each named from its own --vt. */
 :root[data-vt-local] .app-shell > main { view-transition-name: none; }
 [data-vt] > * { view-transition-name: var(--vt, none); }
-:root[data-vt-morph] [data-morph-target] { view-transition-name: morph; }
-/* the dialog a morph opens comes in as part of the same transition: its own
-   entry transition is off, and its new image rises as a sheet on a phone or
-   settles in the middle on a desktop, under the flying poster */
+/* The poster morph (morphTransition): the open dialog and the poster share a
+   name, so the dialog's box grows out of the poster's and shrinks back into
+   it. The poster's picture gives way quickly and the dialog fades in over the
+   growth; both fill the moving box instead of stretching across it. Closing
+   is the exit: ease-in and shorter. The dialog's own entry transition is off
+   meanwhile, this is its entry. */
 :root[data-vt-morph] dialog[open] { view-transition-name: morph-dialog; transition: none; }
 :root[data-vt-morph] dialog[open]::backdrop { transition: none; }
-::view-transition-new(morph-dialog) { animation: t-dialog-in var(--dur-3) var(--ease-out) both; }
+/* clipped: a picture that covers the box would otherwise spill past it */
+::view-transition-group(morph-dialog) {
+  overflow: clip;
+  border-radius: var(--r-dialog);
+  animation-duration: var(--dur-3);
+  animation-timing-function: var(--ease-out);
+}
+:root[data-vt-back]::view-transition-group(morph-dialog) { animation-duration: var(--dur-2); animation-timing-function: var(--ease-in); }
+::view-transition-old(morph-dialog),
+::view-transition-new(morph-dialog) { height: 100%; object-fit: cover; }
+::view-transition-old(morph-dialog) { animation: t-fade-out var(--dur-1) var(--ease-in) both; }
+::view-transition-new(morph-dialog) { animation: t-fade-in var(--dur-2) var(--ease-out) both; }
+/* not paired - a phone's sheet, or a poster gone from the page: the dialog
+   comes and goes on its own */
+::view-transition-new(morph-dialog):only-child { animation: t-dialog-in var(--dur-3) var(--ease-out) both; }
+::view-transition-old(morph-dialog):only-child { animation: t-fade-out var(--dur-1) var(--ease-in) both; }
 @media (width < 40rem) {
-  ::view-transition-new(morph-dialog) { animation-name: t-sheet-up; }
+  ::view-transition-new(morph-dialog):only-child { animation-name: t-sheet-up; }
 }
 @keyframes t-dialog-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
 @keyframes t-sheet-up { from { transform: translateY(100%); } }
+@keyframes t-fade-in { from { opacity: 0; } }
 :root[data-vt-local]::view-transition-group(*) {
   animation-duration: var(--dur-3);
   animation-timing-function: var(--ease-out);
