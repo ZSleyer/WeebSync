@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 import { useSheetDrag } from './useSheetDrag'
+import { quietRoute } from './viewTransition'
 
 // The native <dialog> mechanics WeebSync repeats in every modal: open it as a
 // modal on mount, close on a backdrop click but not on a drag that merely ended
@@ -180,7 +181,10 @@ export function Dialog({
       // ponytail: a navigate({replace:true}) while a dialog is open wipes the
       // mark and leaves one dead entry behind - one wasted back, never a leave
       pendingBack.current = setTimeout(() => {
-        if (history.state?.wsDialog === id) history.back()
+        if (history.state?.wsDialog !== id) return
+        // the same page, not a navigation: no route transition for it
+        quietRoute()
+        history.back()
       })
     }
   }, [id])
