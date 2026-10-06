@@ -12,6 +12,12 @@ export interface SwipeAction {
   tone?: 'accent' | 'ok' | 'warn' | 'err'
   /** the row goes away with it (cancel, remove): it slides out instead of back */
   leaves?: boolean
+  /**
+   * Asked before the action runs - for the destructive ones, where a swipe is
+   * too easy to do by accident. The row stays open on its action meanwhile
+   * and springs back on a no.
+   */
+  confirm?: () => Promise<boolean>
   run: () => void
 }
 
@@ -67,8 +73,19 @@ export function SwipeRow({ start, end, children, as: Tag = 'div', className }: S
       if (armed) haptic(8)
     }
   }
-  const commit = (a: SwipeAction, dir: 1 | -1) => {
+  const commit = async (a: SwipeAction, dir: 1 | -1) => {
     const el = face.current
+    if (a.confirm) {
+      // hold the row open on its action while the question is up
+      const r = root.current
+      if (el && r) {
+        el.style.transition = `transform var(--dur-2) ${EASE_THROW}`
+        el.style.transform = `translateX(${dir * commitDistance(r.clientWidth)}px)`
+        r.dataset.side = dir > 0 ? 'start' : 'end'
+        r.setAttribute('data-armed', '')
+      }
+      if (!(await a.confirm())) return reset(true)
+    }
     if (el && a.leaves) {
       el.style.transition = `transform var(--dur-2) ${EASE_THROW}`
       el.style.transform = `translateX(${dir * 105}%)`
@@ -78,8 +95,8 @@ export function SwipeRow({ start, end, children, as: Tag = 'div', className }: S
     a.run()
   }
   const swipe = useSwipe({
-    onPrev: start ? () => commit(start, 1) : undefined,
-    onNext: end ? () => commit(end, -1) : undefined,
+    onPrev: start ? () => void commit(start, 1) : undefined,
+    onNext: end ? () => void commit(end, -1) : undefined,
     onDrag: drag,
   })
 

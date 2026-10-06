@@ -52,4 +52,25 @@ describe('SwipeRow', () => {
     fireEvent.pointerUp(row, { clientX: 60, clientY: 100, pointerId: 2 })
     expect(end).not.toHaveBeenCalled()
   })
+  // a destructive swipe asks first; the row waits open on its action and
+  // springs back on a no
+  it('asks before a confirmed action and runs it only on a yes', async () => {
+    const run = vi.fn()
+    let answer = false
+    const confirm = vi.fn(() => Promise.resolve(answer))
+    render(
+      <SwipeRow end={{ label: 'Abbrechen', leaves: true, confirm, run }}>
+        <span>Zeile</span>
+      </SwipeRow>,
+    )
+    const row = screen.getByText('Zeile')
+    swipe(row, -120)
+    expect(confirm).toHaveBeenCalledTimes(1)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(run).not.toHaveBeenCalled()
+    answer = true
+    swipe(row, -120)
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1))
+  })
 })
