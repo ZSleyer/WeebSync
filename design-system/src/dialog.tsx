@@ -111,7 +111,19 @@ export function Dialog({
     const el = ref.current
     if (!el || !isSheet || expanded) return
     const onScroll = (e: Event) => {
-      if ((e.target as HTMLElement).scrollTop > 0) setExpanded(true)
+      if ((e.target as HTMLElement).scrollTop <= 0) return
+      // The sheet rises as one block rather than growing: the full height goes
+      // on at once, offset down by the difference so nothing moves, and the
+      // stylesheet's transform transition slides the offset away.
+      const before = el.clientHeight
+      el.style.transition = 'none'
+      el.toggleAttribute('data-expanded', true)
+      const grow = el.clientHeight - before
+      if (grow > 0) el.style.transform = `translate3d(0, ${grow}px, 0)`
+      void el.offsetHeight
+      el.style.transition = ''
+      el.style.transform = ''
+      setExpanded(true)
     }
     el.addEventListener('scroll', onScroll, true)
     return () => el.removeEventListener('scroll', onScroll, true)

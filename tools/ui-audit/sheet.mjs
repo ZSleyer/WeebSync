@@ -73,6 +73,7 @@ for (const vp of VIEWPORTS) {
         open: true,
         transform: d.style.transform,
         h: Math.round(d.getBoundingClientRect().height),
+        top: Math.round(d.getBoundingClientRect().top),
         vh: innerHeight,
         expanded: d.hasAttribute('data-expanded'),
         backdrop: parseFloat(getComputedStyle(d, '::backdrop').opacity),
@@ -213,15 +214,30 @@ for (const vp of VIEWPORTS) {
   if (r.after.open) bad(`${tag}: langer Zug auf der Fläche schliesst nicht`)
   else good('langer Zug auf der Fläche schliesst')
 
-  // 3 - a pull up follows the finger, and past the midpoint between the two
-  //     heights the release opens the sheet to its full height - without a
-  //     jump, since the height and the transform settle on one curve
+  // 3a - a short pull up, let go before the midpoint, sinks back to the
+  //      opening height: the lift's offset slides back and the height swaps
+  //      out of sight, so no frame jumps
   await open()
   g = await geo()
-  r = await swipe(g.x, g.face, -Math.round(span / 2) - 40)
-  if (r.during.expanded) bad(`${tag}: Zug nach oben springt unter dem Finger auf volle Höhe (transform "${r.during.transform}")`)
-  else if (!/translate3d\(0(px)?, -/.test(r.during.transform || ''))
-    bad(`${tag}: Zug nach oben folgt dem Finger nicht (transform "${r.during.transform}")`)
+  r = await swipe(g.x, g.face, -Math.max(20, Math.round(span / 2) - 40))
+  if (r.after.expanded) bad(`${tag}: kurzer Zug nach oben öffnet schon`)
+  else if (Math.abs(r.after.h / r.after.vh - OPENING) > 0.015)
+    bad(`${tag}: nach kurzem Zug nach oben auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}%, erwartet ${OPENING * 100}%`)
+  else if (r.after.transform) bad(`${tag}: kurzer Zug nach oben bleibt versetzt (transform "${r.after.transform}")`)
+  else if (r.motion.max > JUMP) bad(`${tag}: Zurücksinken springt um ${r.motion.max}px in einem Frame`)
+  else good(`kurzer Zug nach oben sinkt zurück (max ${r.motion.max}px/Frame)`)
+
+  // 3 - a pull up lifts the sheet with the finger (as one block: the full
+  //     height is on, offset down, and the pull takes the offset away), and
+  //     past the midpoint between the two heights the release opens it to
+  //     its full height - without a jump
+  await open()
+  g = await geo()
+  const top0 = (await state()).top
+  const lift = Math.round(span / 2) + 40
+  r = await swipe(g.x, g.face, -lift)
+  if (Math.abs(top0 - r.during.top - lift) > 12)
+    bad(`${tag}: Zug nach oben folgt dem Finger nicht (Oberkante ${top0} -> ${r.during.top}, Zug ${lift}px)`)
   else if (!r.after.expanded) bad(`${tag}: Zug nach oben öffnet nicht`)
   else if (Math.abs(r.after.h / r.after.vh - FULL) > 0.015)
     bad(`${tag}: nach oben auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}%, erwartet ${FULL * 100}%`)
