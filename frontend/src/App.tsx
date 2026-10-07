@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   RefreshCw,
+  Search,
   Settings,
   Sparkles,
 } from 'lucide-react'
@@ -32,6 +33,7 @@ import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
 import PageScroll from './components/PageScroll'
+import CommandPalette from './components/CommandPalette'
 import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions, ShellFooter } from './components/PageActions'
 import { SeriesModalProvider } from './components/SeriesModal'
@@ -301,6 +303,7 @@ function Shell({ email }: { email: string }) {
   const [actions, setActions] = useState<HTMLElement | null>(null)
   // the shell's footer row, same deal: a page's action bar portals in
   const [footer, setFooter] = useState<HTMLElement | null>(null)
+  const [palette, setPalette] = useState(false)
   // a newer build out: a dot on the Settings entry (the gear on a phone) and
   // a line in the rail's foot, so an admin sees it without opening Settings;
   // the About panel has the details
@@ -372,6 +375,18 @@ function Shell({ email }: { email: string }) {
           </Link>
         </h1>
         <Badge className="mt-2">{t('app.tagline')}</Badge>
+      </div>
+      {/* the way into the palette, and where its shortcut is learnt */}
+      <div className="px-3 pt-3">
+        <button
+          type="button"
+          onClick={() => setPalette(true)}
+          className="flex w-full items-center gap-2 rounded-md border border-border-subtle px-3 py-1.5 text-sm text-t-muted hover:border-border-input hover:text-t-secondary"
+        >
+          <Search aria-hidden size="1em" className="shrink-0" />
+          <span className="flex-1 text-left">{t('palette.title')}</span>
+          <kbd className="font-mono text-[11px]">{/Mac|iP/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+        </button>
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto py-3" aria-label={t('nav.main')}>
         {TABS.map((n) => (
@@ -488,6 +503,7 @@ function Shell({ email }: { email: string }) {
               <>
                 <RouteTitle />
                 <ScrollMemory />
+                <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />
               </>
             }
           >
