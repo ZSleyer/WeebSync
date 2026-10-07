@@ -41,6 +41,14 @@
     "reloadNow": "Jetzt neu laden",
     "later": "Später"
   },
+  "palette": {
+    "title": "Suchen",
+    "placeholder": "Seite, Serie oder Einstellung",
+    "page": "Seite",
+    "recent": "Zuletzt geöffnet",
+    "none": "Nichts gefunden.",
+    "hint": "Einen Namen tippen: Kalender, Plex, eine Serie …"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "watches": "Auto-Sync",

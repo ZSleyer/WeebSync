@@ -1,0 +1,84 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { CalendarDays, LayoutDashboard } from 'lucide-react'
+import CommandPalette from '../components/CommandPalette'
+import { SeriesModalProvider } from '../components/SeriesModal'
+import { api } from '../api'
+
+vi.mock(import('react-i18next'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useTranslation: () => ({ t: (k: string) => k }) as never,
+}))
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  localStorage.clear()
+})
+
+const PAGES = [
+  { to: '/', key: 'nav.dashboard', icon: LayoutDashboard },
+  { to: '/calendar', key: 'nav.calendar', icon: CalendarDays },
+]
+
+function Harness() {
+  const [open, setOpen] = useState(false)
+  return <CommandPalette pages={PAGES} open={open} onOpenChange={setOpen} />
+}
+
+const app = (isAdmin = false) => {
+  vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+    if (url === '/api/auth/me') return { email: 'a@b.c', isAdmin }
+    if (url === '/api/watches') return []
+    return {}
+  })
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={['/']}>
+        <SeriesModalProvider>
+          <Harness />
+          <Routes>
+            <Route path="/" element={<p>home</p>} />
+            <Route path="/calendar" element={<p>calendar page</p>} />
+            <Route path="/settings/*" element={<p>settings page</p>} />
+          </Routes>
+        </SeriesModalProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+describe('CommandPalette', () => {
+  it('opens on Ctrl+K and goes where Enter points', async () => {
+    app()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    const field = await screen.findByRole('combobox')
+    fireEvent.change(field, { target: { value: 'calendar' } })
+    expect(screen.getByRole('option', { name: /nav\.calendar/ })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(await screen.findByText('calendar page')).toBeInTheDocument()
+    // and remembers it for the empty field next time
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    await screen.findByRole('combobox')
+    expect(screen.getByRole('option', { name: /nav\.calendar/ })).toBeInTheDocument()
+  })
+
+  it('lists a settings panel only for whoever may open its section', async () => {
+    app(false)
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'settings.plex' } })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByRole('option', { name: /settings\.plex/ })).toBeNull()
+  })
+
+  it('lists the panel for an admin', async () => {
+    app(true)
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'settings.plex' } })
+    expect(await screen.findByRole('option', { name: /settings\.plex/ })).toBeInTheDocument()
+  })
+})
