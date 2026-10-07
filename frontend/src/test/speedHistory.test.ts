@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { avgSpeed, pushSpeedSample, resetSpeedHistory, SPEED_SPAN, speedSamples } from '../speedHistory'
+import { avgSpeed, pushSpeedSample, resetSpeedHistory, seedSpeedHistory, SPEED_SPAN, speedSamples } from '../speedHistory'
 
 describe('speedHistory', () => {
   beforeEach(() => resetSpeedHistory())
@@ -43,5 +43,15 @@ describe('speedHistory', () => {
     for (let i = 0; i < 20; i++) pushSpeedSample(i < 10 ? 100 : 200, 1000 * (i + 1))
     expect(avgSpeed(10)).toBe(200)
     expect(avgSpeed(20)).toBe(150)
+  })
+
+  it('starts from the server window and keeps what was sampled here since', () => {
+    pushSpeedSample(7, 9000) // second 9
+    pushSpeedSample(8, 10000) // second 10, newer than the server's end
+    seedSpeedHistory([1, 2, 3], 9)
+    expect(speedSamples()).toEqual([1, 2, 3, 8])
+    // the next local second follows on without a gap
+    pushSpeedSample(9, 11000)
+    expect(speedSamples()).toEqual([1, 2, 3, 8, 9])
   })
 })

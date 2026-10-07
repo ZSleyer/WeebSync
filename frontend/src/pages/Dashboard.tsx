@@ -980,20 +980,26 @@ export default function Dashboard() {
 // what to call a watch: the override, else the matched title, else the folder
 const watchTitle = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
 
-// The rate now and over the last ten minutes, and how long the queue has
-// left. Beside the queue on desktop, under the queue's toolbar on a phone.
-// Only while something runs: a chart of nothing says nothing.
+// The rate now and over a window of the last ten minutes, and how long the
+// queue has left. Beside the queue on desktop, under the queue's toolbar on a
+// phone. Only while something runs: a chart of nothing says nothing.
+// The window: four presets as buttons, the single-pointer way, and a pinch
+// on the chart in between. Three minutes by default - at ten a second is half
+// a pixel and the line's glide can't be seen.
+const SPEED_WINDOWS = ['60', '180', '300', '600'] as const
+
 function SpeedPanel({ downloads }: { downloads: Download[] }) {
   const { t } = useTranslation()
   const hist = useSpeedHistory()
+  const [span, setSpan] = useState(180)
   const running = downloads.filter((d) => d.status === 'running')
   const total = running.reduce((s, d) => s + (d.bytesPerSec ?? 0), 0)
   const open = downloads.reduce((s, d) => s + Math.max(0, d.size - d.transferred), 0)
   // the mean of the last ten seconds, not the instant: a burst would swing
   // the arrival by hours. Nothing while it is still zero
   const avg = avgSpeed(10)
-  const age = (s: number) =>
-    s === 0 ? t('dash.chartEnd') : t('dash.chartAgo', { m: Math.floor(s / 60), s: String(s % 60).padStart(2, '0') })
+  const mmss = (s: number) => ({ m: Math.floor(s / 60), s: String(s % 60).padStart(2, '0') })
+  const age = (s: number) => (s === 0 ? t('dash.chartEnd') : t('dash.chartAgo', mmss(s)))
   return (
     <div className="flex flex-col gap-3">
       <Panel className="px-3 py-2 text-accent sm:px-4">
@@ -1005,12 +1011,24 @@ function SpeedPanel({ downloads }: { downloads: Download[] }) {
         <TrendChart
           className="mt-3"
           values={hist}
-          span={SPEED_SPAN}
-          label={t('dash.speedChart')}
+          span={span}
+          glide={1000}
+          onSpanChange={setSpan}
+          minSpan={60}
+          maxSpan={SPEED_SPAN}
+          label={t('dash.speedChart', mmss(span))}
           format={fmtSpeed}
           formatAge={age}
-          startLabel={t('dash.chartStart')}
+          startLabel={age(span)}
           endLabel={t('dash.chartEnd')}
+        />
+        <Segmented
+          aria-label={t('dash.speedWindow')}
+          size="sm"
+          className="mt-2"
+          value={String(span) as (typeof SPEED_WINDOWS)[number]}
+          onChange={(v) => setSpan(Number(v))}
+          options={SPEED_WINDOWS.map((v) => ({ value: v, label: t('dash.speedWindowMin', { count: Number(v) / 60 }) }))}
         />
       </Panel>
       {avg > 0 && (
