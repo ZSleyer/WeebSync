@@ -911,6 +911,7 @@
     "groupPersonal": "Personal",
     "groupAdmin": "Administration",
     "groupSources": "Sources",
+    "groupAbout": "WeebSync",
     "groupMaintenance": "Maintenance",
     "sync": {
       "targets": "Target folder per media kind",
@@ -920,7 +921,7 @@
       "langHint": "Language codes as they appear in file names (Ger, Eng, Jap). Plex subtitles: off, Ger or Ger:forced."
     },
     "hub": {
-      "general": "Theme, language, version",
+      "general": "Theme, accent, language, motion",
       "account": "Passkeys, two-factor",
       "sync": "Target folders, rename, languages",
       "notifications": "Push and email",
@@ -928,10 +929,11 @@
       "transfers": "Limits and interval",
       "security": "Sign-in, OIDC, API token",
       "integrations": "AniList, TMDB, TVDB, Plex, assistant",
-      "jobs": "Running jobs, live log", "matching": "File index and matches per server", "data": "Caches, data stores, rebuild, import"
+      "jobs": "Running jobs, live log", "matching": "File index and matches per server", "data": "Caches, data stores, rebuild, import",
+      "about": "Version, updates, license"
     },
     "nav": {
-      "general": "General",
+      "general": "Appearance",
       "account": "Account",
       "sync": "Auto-sync defaults",
       "notifications": "Notifications",
@@ -939,7 +941,7 @@
       "security": "Security",
       "integrations": "Integrations",
       "jobs": "Tasks & log", "matching": "Index & matching", "data": "Caches & data",
-      "about": "About"
+      "about": "About WeebSync"
     },
     "jobs": {
       "activity": "Active tasks",

@@ -52,6 +52,7 @@ import Rename from './pages/Rename'
 import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/SettingsLayout'
 import SyncDefaults from './pages/settings/SyncDefaults'
 import General from './pages/settings/General'
+import About from './pages/settings/About'
 import Servers from './pages/settings/Servers'
 import Account from './pages/settings/Account'
 import Notifications from './pages/settings/Notifications'
@@ -181,7 +182,7 @@ export const router = createBrowserRouter(
         <Route index element={<SettingsHub />} />
         <Route path="general" element={<General />} handle={inSettings('settings.nav.general')} />
         <Route path="look" element={<Navigate to="/settings/general" replace />} />
-        <Route path="about" element={<Navigate to="/settings/general#about" replace />} />
+        <Route path="about" element={<About />} handle={inSettings('settings.nav.about')} />
         <Route path="account" element={<Account />} handle={inSettings('settings.nav.account')} />
         <Route path="sync" element={<SyncDefaults />} handle={inSettings('settings.nav.sync')} />
         <Route path="notifications" element={<Notifications />} handle={inSettings('settings.nav.notifications')} />
@@ -396,7 +397,7 @@ function Shell({ email }: { email: string }) {
       </div>
       <div className="border-t border-border-subtle p-4">
         {update && (
-          <Link to="/settings/general#about" className="mb-3 flex items-center gap-2 text-xs text-warn hover:underline">
+          <Link to="/settings/about" className="mb-3 flex items-center gap-2 text-xs text-warn hover:underline">
             <span aria-hidden className="size-2 shrink-0 rounded-full bg-warn" />
             <span className="min-w-0 truncate">{updateText}</span>
           </Link>
