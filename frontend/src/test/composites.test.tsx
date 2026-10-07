@@ -982,6 +982,42 @@ describe('TrendChart', () => {
   })
 })
 
+describe('TrendChart window', () => {
+  const props = {
+    label: 'Speed',
+    format: (v: number) => `${v} B/s`,
+    formatAge: (s: number) => `${s}s`,
+    startLabel: 'start',
+    endLabel: 'now',
+  }
+  const box = (el: Element) =>
+    (el.getBoundingClientRect = () => ({ left: 0, width: 100, top: 0, height: 72, right: 100, bottom: 72, x: 0, y: 0, toJSON: () => ({}) }))
+
+  it('shows only the newest span of a longer history, scaled to that window', () => {
+    render(<TrendChart values={[9, 1, 2, 3]} span={3} {...props} />)
+    // the 9 has left the window: the ceiling is the 3 in view
+    expect(screen.getByText('3 B/s')).toBeInTheDocument()
+    const pts = screen.getByRole('img').querySelector('polyline')!.getAttribute('points')!.split(' ')
+    // one sample of overhang left of the edge keeps the line whole while it slides
+    expect(pts.map((p) => p.split(',')[0])).toEqual(['-300', '0', '300', '600'])
+  })
+
+  it('zooms the span with two fingers', () => {
+    const onSpanChange = vi.fn()
+    render(<TrendChart values={[1, 2, 3, 4]} span={100} minSpan={60} maxSpan={600} onSpanChange={onSpanChange} {...props} />)
+    const svg = screen.getByRole('img')
+    box(svg)
+    fireEvent.pointerDown(svg, { pointerId: 1, clientX: 40 })
+    fireEvent.pointerDown(svg, { pointerId: 2, clientX: 60 })
+    // fingers twice as far apart: half the span, clamped at the minimum
+    fireEvent.pointerMove(svg, { pointerId: 2, clientX: 80 })
+    expect(onSpanChange).toHaveBeenLastCalledWith(60)
+    // closer together: a wider window
+    fireEvent.pointerMove(svg, { pointerId: 2, clientX: 50 })
+    expect(onSpanChange).toHaveBeenLastCalledWith(200)
+  })
+})
+
 describe('CalendarEntry as a button', () => {
   it('is one button around the whole tile when it opens something', () => {
     const onClick = vi.fn()

@@ -275,64 +275,201 @@ export interface TrendChartProps {
   /**
    * how many samples the window holds: with fewer than that the line keeps
    * to the right end and the rest stays empty, so the axis stays honest
-   * while the history fills. Default: the values fill the width.
+   * while the history fills; with more, only the newest that many show.
+   * Default: the values fill the width.
    */
   span?: number
+  /**
+   * slide the line left over each step instead of jumping a whole step when
+   * the next sample lands - the time one step takes, in ms. Off by default.
+   */
+  glide?: number
+  /** with these, two fingers (or ctrl + wheel, a trackpad pinch) zoom the span */
+  onSpanChange?: (span: number) => void
+  minSpan?: number
+  maxSpan?: number
   height?: number
   className?: string
+}
+
+// Reduced motion has two switches here - the system's and the one in Look -
+// and until now only CSS read either. A coast or a sliding chart is motion, so it has to ask.
+const stillness = () =>
+  document.documentElement.dataset.motion === 'off' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+
+const TREND_W = 600
+
+// Where everything sits for a given slide f (0 = the newest sample has just
+// landed off the right edge, 1 = it has arrived there) and ceiling. One
+// sample of overhang on the left keeps the line whole while it slides.
+function trendGeometry(values: number[], span: number, f: number, top: number, height: number) {
+  const shown = values.slice(-(span + 1))
+  const step = TREND_W / Math.max(span - 1, 1)
+  const last = shown.length - 1
+  const x = (j: number) => TREND_W - (last - j - f + 1) * step
+  const y = (v: number) => height - (v / top) * (height - 2) - 1
+  const pts = shown.map((v, j) => `${+x(j).toFixed(1)},${+y(v).toFixed(1)}`).join(' ')
+  // the dot rides the line where it meets the right edge
+  const edge = last > 0 ? shown[last - 1] + (shown[last] - shown[last - 1]) * f : (shown[0] ?? 0)
+  return { shown, step, last, x, y, pts, area: `${+x(0).toFixed(1)},${height} ${pts} ${+x(last).toFixed(1)},${height}`, edgeY: y(edge) }
 }
 
 /**
  * One measure over time: a 2px line in the current text colour over a faint
  * fill, a hairline baseline, the ceiling named at the top and the two ends
  * of the window below. Hovering or touching reads a sample out - value and
- * age - in the caption row, so the chart carries no numbers of its own.
+ * age - in the caption row, so the chart carries no numbers of its own. A
+ * dot marks the newest value, or the one being read. When the ceiling
+ * changes the scale eases there instead of jumping; with glide the line
+ * slides between samples. Reduced motion keeps both still.
  */
-export function TrendChart({ values, label, format, formatAge, startLabel, endLabel, span, height = 72, className }: TrendChartProps) {
-  const [hover, setHover] = useState<number | null>(null)
-  const w = 600
-  const top = Math.max(...values, 1)
-  const last = values.length - 1
-  // the newest sample sits at the right edge; with a span the oldest slot
-  // of the window is the left edge, whether or not a sample fills it yet
-  const slots = Math.max(span ?? values.length, values.length)
-  const offset = slots - values.length
-  const x = (i: number) => ((i + offset) / Math.max(slots - 1, 1)) * w
-  const y = (v: number) => height - (v / top) * (height - 2) - 1
-  const points = values.map((v, i) => `${x(i)},${y(v)}`).join(' ')
-  const at = hover !== null && values[hover] !== undefined ? hover : null
-  const pick = (e: React.PointerEvent<SVGSVGElement>) => {
-    const r = e.currentTarget.getBoundingClientRect()
-    const slot = Math.round(((e.clientX - r.left) / r.width) * (slots - 1)) - offset
-    setHover(Math.min(last, Math.max(0, slot)))
+export function TrendChart({
+  values,
+  label,
+  format,
+  formatAge,
+  startLabel,
+  endLabel,
+  span,
+  glide,
+  onSpanChange,
+  minSpan = 2,
+  maxSpan = Infinity,
+  height = 72,
+  className,
+}: TrendChartProps) {
+  const [back, setBack] = useState<number | null>(null) // steps back from the newest
+  const n = Math.max(span ?? values.length, 2)
+  const target = Math.max(...values.slice(-n), 1)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const dotRef = useRef<HTMLSpanElement>(null)
+  // what the frame loop reads; refreshed every render
+  const live = useRef({ values, n, height, back, glide, top: target, from: target, to: target, eased: 0, landed: 0 })
+  const st = live.current
+  // the scale eases from wherever it stands towards a new ceiling
+  if (target !== st.to) Object.assign(st, { from: st.top, to: target, eased: performance.now() })
+  // a new sample: the slide restarts
+  if (values !== st.values) st.landed = performance.now()
+  Object.assign(st, { values, n, height, back, glide })
+
+  useEffect(() => {
+    let raf = 0
+    const paint = (now: number) => {
+      const s = live.current
+      const still = stillness()
+      const k = still ? 1 : Math.min(1, (now - s.eased) / 280)
+      s.top = s.from + (s.to - s.from) * (1 - Math.pow(1 - k, 3))
+      const f = !s.glide || still ? 1 : Math.min(1, (now - s.landed) / s.glide)
+      const g = trendGeometry(s.values, s.n, f, s.top, s.height)
+      const svg = svgRef.current
+      const dot = dotRef.current
+      if (svg && g.last > 0) {
+        svg.querySelector('polyline')?.setAttribute('points', g.pts)
+        svg.querySelector('polygon')?.setAttribute('points', g.area)
+        const j = s.back === null ? null : Math.max(0, g.last - s.back)
+        const hx = j === null ? TREND_W : g.x(j)
+        svg.querySelector('line')?.setAttribute('x1', String(hx))
+        svg.querySelector('line')?.setAttribute('x2', String(hx))
+        if (dot) {
+          dot.style.left = `${(hx / TREND_W) * 100}%`
+          dot.style.top = `${((j === null ? g.edgeY : g.y(g.shown[j])) / s.height) * 100}%`
+        }
+      }
+      // keep going while something moves; a still chart costs no frames
+      if (!still && (k < 1 || (s.glide && f < 1))) raf = requestAnimationFrame(paint)
+    }
+    raf = requestAnimationFrame(paint)
+    return () => cancelAnimationFrame(raf)
+  })
+
+  // the first render draws the settled state; the frame loop takes over
+  const g = trendGeometry(values, n, 1, st.top, height)
+  const at = back !== null && back <= g.last ? back : null
+  const pickAt = (clientX: number) => {
+    const r = svgRef.current!.getBoundingClientRect()
+    const steps = Math.round(((r.width - (clientX - r.left)) / r.width) * (TREND_W / g.step))
+    setBack(Math.min(g.last, Math.max(0, steps)))
   }
+
+  // pinch: two pointers, the span scales with how far they spread
+  const fingers = useRef(new Map<number, number>())
+  const pinch = useRef<{ d: number; span: number } | null>(null)
+  const zoom = (next: number) => onSpanChange?.(Math.round(Math.min(maxSpan, Math.max(minSpan, next))))
+  const spread = () => {
+    const [a, b] = [...fingers.current.values()]
+    return Math.abs(a - b) || 1
+  }
+  const lift = (e: React.PointerEvent) => {
+    fingers.current.delete(e.pointerId)
+    if (fingers.current.size < 2) pinch.current = null
+  }
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg || !onSpanChange) return
+    // ctrl + wheel is what a trackpad pinch sends; it must not zoom the page
+    const wheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      zoom(live.current.n * Math.exp(e.deltaY * 0.01))
+    }
+    svg.addEventListener('wheel', wheel, { passive: false })
+    return () => svg.removeEventListener('wheel', wheel)
+  })
+
   return (
     <div className={cx('min-w-0', className)}>
       <p className="mb-1 flex justify-between font-mono text-[11px] text-t-muted tabular-nums" aria-live="polite">
-        <span>{at !== null ? format(values[at]) : format(top)}</span>
-        {at !== null && <span>{formatAge(last - at)}</span>}
+        <span>{at !== null ? format(g.shown[g.last - at]) : format(target)}</span>
+        {at !== null && <span>{formatAge(at)}</span>}
       </p>
-      <svg
-        role="img"
-        aria-label={label}
-        viewBox={`0 0 ${w} ${height}`}
-        preserveAspectRatio="none"
-        className="block w-full touch-none border-b border-border-subtle"
-        style={{ height }}
-        onPointerMove={pick}
-        onPointerDown={pick}
-        onPointerLeave={() => setHover(null)}
-      >
-        {values.length > 1 && (
-          <>
-            <polygon points={`${x(0)},${height} ${points} ${w},${height}`} fill="currentColor" fillOpacity={0.08} />
-            <polyline points={points} fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-            {at !== null && (
-              <line x1={x(at)} x2={x(at)} y1={0} y2={height} stroke="currentColor" strokeOpacity={0.5} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-            )}
-          </>
+      <div className="relative">
+        <svg
+          ref={svgRef}
+          role="img"
+          aria-label={label}
+          viewBox={`0 0 ${TREND_W} ${height}`}
+          preserveAspectRatio="none"
+          className="block w-full touch-none overflow-hidden border-b border-border-subtle"
+          style={{ height }}
+          onPointerDown={(e) => {
+            fingers.current.set(e.pointerId, e.clientX)
+            if (onSpanChange && fingers.current.size === 2) {
+              pinch.current = { d: spread(), span: n }
+              setBack(null)
+            } else pickAt(e.clientX)
+          }}
+          onPointerMove={(e) => {
+            if (fingers.current.has(e.pointerId)) fingers.current.set(e.pointerId, e.clientX)
+            if (pinch.current && fingers.current.size === 2) zoom((pinch.current.span * pinch.current.d) / spread())
+            else if (!pinch.current) pickAt(e.clientX)
+          }}
+          onPointerUp={lift}
+          onPointerCancel={lift}
+          onPointerLeave={(e) => {
+            lift(e)
+            setBack(null)
+          }}
+        >
+          {g.last > 0 && (
+            <>
+              <polygon points={g.area} fill="currentColor" fillOpacity={0.08} />
+              <polyline points={g.pts} fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+              {at !== null && (
+                <line x1={g.x(g.last - at)} x2={g.x(g.last - at)} y1={0} y2={height} stroke="currentColor" strokeOpacity={0.5} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+              )}
+            </>
+          )}
+        </svg>
+        {/* over the stretched SVG a dot stays round; inside it, it would be an oval */}
+        {g.last > 0 && (
+          <span
+            ref={dotRef}
+            aria-hidden
+            className="pointer-events-none absolute size-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current shadow-[0_0_0_2px_var(--bg-card)]"
+            style={{ left: `${((at === null ? TREND_W : g.x(g.last - at)) / TREND_W) * 100}%`, top: `${((at === null ? g.edgeY : g.y(g.shown[g.last - at])) / height) * 100}%` }}
+          />
         )}
-      </svg>
+      </div>
       <p className="mt-1 flex justify-between text-[11px] text-t-muted">
         <span>{startLabel}</span>
         <span>{endLabel}</span>
@@ -699,10 +836,6 @@ const nearest = (el: HTMLElement, x: number) => {
 }
 const middleOf = (el: HTMLElement) => el.getBoundingClientRect().left + el.clientWidth / 2
 
-// Reduced motion has two switches here - the system's and the one in Look -
-// and until now only CSS read either. A coast is motion, so it has to ask.
-const stillness = () =>
-  document.documentElement.dataset.motion === 'off' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
 /**
  * A band of days that scrolls day by day and snaps whichever one sits in the
