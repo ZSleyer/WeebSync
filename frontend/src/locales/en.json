@@ -43,11 +43,13 @@
   },
   "palette": {
     "title": "Search",
-    "placeholder": "Page, series or setting",
+    "placeholder": "Page, series, folder or file",
     "page": "Page",
     "recent": "Recently opened",
     "none": "Nothing found.",
-    "hint": "Type a name: calendar, Plex, a series …"
+    "hint": "Type a name: calendar, Plex, a series …",
+    "local": "Local library",
+    "searching": "Searching the server indexes …"
   },
   "nav": {
     "dashboard": "Dashboard",

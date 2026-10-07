@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CalendarDays, LayoutDashboard } from 'lucide-react'
 import CommandPalette from '../components/CommandPalette'
@@ -23,6 +23,11 @@ const PAGES = [
   { to: '/calendar', key: 'nav.calendar', icon: CalendarDays },
 ]
 
+function FilesProbe() {
+  const { search } = useLocation()
+  return <p>files {search}</p>
+}
+
 function Harness() {
   const [open, setOpen] = useState(false)
   return <CommandPalette pages={PAGES} open={open} onOpenChange={setOpen} />
@@ -32,6 +37,13 @@ const app = (isAdmin = false) => {
   vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
     if (url === '/api/auth/me') return { email: 'a@b.c', isAdmin }
     if (url === '/api/watches') return []
+    if (url.startsWith('/api/search?q=frieren'))
+      return {
+        results: [
+          { serverId: 3, serverName: 'seedbox', path: '/anime/Frieren/ep1.mkv', name: 'ep1.mkv', isDir: false },
+          { serverId: 0, path: '/media/Frieren', name: 'Frieren', isDir: true },
+        ],
+      }
     return {}
   })
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -44,6 +56,7 @@ const app = (isAdmin = false) => {
             <Route path="/" element={<p>home</p>} />
             <Route path="/calendar" element={<p>calendar page</p>} />
             <Route path="/settings/*" element={<p>settings page</p>} />
+            <Route path="/files" element={<FilesProbe />} />
           </Routes>
         </SeriesModalProvider>
       </MemoryRouter>
@@ -80,5 +93,18 @@ describe('CommandPalette', () => {
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
     fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'settings.plex' } })
     expect(await screen.findByRole('option', { name: /settings\.plex/ })).toBeInTheDocument()
+  })
+
+  it('finds files in the server indexes and the local library, and opens their folder', async () => {
+    app()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'frieren' } })
+    // a file opens the folder it lies in, on its own server
+    fireEvent.click(await screen.findByRole('option', { name: /ep1\.mkv.*seedbox/ }))
+    expect(await screen.findByText('files ?server=3&path=anime%2FFrieren')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'frieren' } })
+    fireEvent.click(await screen.findByRole('option', { name: /Frieren.*palette\.local/ }))
+    expect(await screen.findByText('files ?source=local&path=media%2FFrieren')).toBeInTheDocument()
   })
 })
