@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"testing"
@@ -131,5 +132,23 @@ func TestDownloadsReorder(t *testing.T) {
 	}
 	if pos(b) != 1 || pos(a) != 3 {
 		t.Error("a rejected reorder changed the queue")
+	}
+}
+
+func TestSpeedHistoryEndpoint(t *testing.T) {
+	mux, s, _, userC, _, _ := setupUsersTest(t)
+	db.SetSetting(s.DB, "max_concurrent", "0")
+	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
+
+	rec := doReq(mux, "GET", "/api/downloads/speed", "", userC)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("speed history: got %d: %s", rec.Code, rec.Body)
+	}
+	var body SpeedHistoryResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Samples) != transfer.SpeedSpan || body.End == 0 {
+		t.Fatalf("got %d samples, end %d; want %d and a timestamp", len(body.Samples), body.End, transfer.SpeedSpan)
 	}
 }
