@@ -79,6 +79,10 @@ const TABS = [
   { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
   { to: '/files', key: 'nav.files', icon: FolderOpen },
 ]
+// The phone's tab bar holds four of them; the search stands apart at its
+// right end, under the thumb, and the suggestions open from the search's
+// empty field instead of a tab of their own.
+const PHONE_TABS = TABS.filter((n) => n.to !== '/suggestions')
 const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings }
 const NAV = [...TABS, SETTINGS]
 type NavEntry = (typeof NAV)[number]
@@ -454,17 +458,6 @@ function Shell({ email }: { email: string }) {
       actions={
         <>
           <div ref={setActions} className="flex items-center gap-1" />
-          {/* the search, as Ctrl+K is on the desktop */}
-          {!back && (
-            <button
-              type="button"
-              onClick={() => setPalette(true)}
-              aria-label={t('palette.title')}
-              className="t-iconbtn text-t-secondary hover:text-t-primary"
-            >
-              <Search aria-hidden size="1.25em" />
-            </button>
-          )}
           {/* the gear on every top-level page; a stacked screen has its back
               link instead, and Settings itself needs no way into itself */}
           {!back && !onPath(SETTINGS, location.pathname) && (
@@ -484,18 +477,31 @@ function Shell({ email }: { email: string }) {
   // the phone's tab bar: every top-level page
   const tabs = (
     <TabBar aria-label={t('nav.main')}>
-      <div className="flex">
-        {TABS.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.to === '/'}
-            className={({ isActive }) => navItemClass('bottomTab', isActive)}
-          >
-            {icon(n)}
-            <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
-          </NavLink>
-        ))}
+      <div className="flex items-center">
+        <div className="flex min-w-0 flex-1">
+          {PHONE_TABS.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.to === '/'}
+              className={({ isActive }) => navItemClass('bottomTab', isActive)}
+            >
+              {icon(n)}
+              <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
+            </NavLink>
+          ))}
+        </div>
+        {/* the search as Ctrl+K is on the desktop: its own round button at
+            the bar's end, where the thumb rests */}
+        <button
+          type="button"
+          onClick={() => setPalette(true)}
+          aria-label={t('palette.title')}
+          aria-haspopup="dialog"
+          className="t-tabsearch"
+        >
+          <Search aria-hidden size="1.35em" />
+        </button>
       </div>
     </TabBar>
   )

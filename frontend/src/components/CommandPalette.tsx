@@ -1,9 +1,9 @@
-import { useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Fragment, useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { File, Folder, Search, Sparkles, Settings, Tv, type LucideIcon } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Dialog } from '@weebsync/design-system'
+import { Count, Dialog } from '@weebsync/design-system'
 import { api, mediaTitle, type Watch } from '../api'
 import { useSeriesModal } from './SeriesModal'
 import { PANELS, useSettingsGroups } from '../pages/settings/SettingsLayout'
@@ -22,6 +22,8 @@ interface Entry {
   sub: string
   icon: LucideIcon
   run: () => void
+  /** a number at the end, e.g. how many suggestions wait in a list */
+  count?: number
 }
 
 const RECENT_KEY = 'weebsync.palette.recent'
@@ -163,6 +165,20 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   ]
 
   const needle = q.trim().toLocaleLowerCase()
+  // the empty field: what was opened last, then what there is to discover -
+  // the suggestion lists with how much waits in each and the assistant. On a
+  // phone the search took the suggestions' place in the tab bar.
+  const recent = readRecent().flatMap((id) => entries.filter((e) => e.id === id))
+  const discover: Entry[] = suggestions.flatMap((g) =>
+    g.items.map((i) => ({
+      id: `/suggestions/${i.to}`,
+      label: t(i.key),
+      sub: t(g.label),
+      icon: i.icon,
+      count: i.count,
+      run: go(`/suggestions/${i.to}`),
+    })),
+  )
   // a file opens the folder it lies in
   const files: Entry[] =
     needle && asked.toLocaleLowerCase() === needle
@@ -191,7 +207,7 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
           .map((x) => x.e),
         ...files,
       ]
-    : readRecent().flatMap((id) => entries.filter((e) => e.id === id))
+    : [...recent, ...discover.filter((d) => !recent.some((r) => r.id === d.id))]
   const sel = Math.min(at, shown.length - 1)
 
   const run = (e: Entry) => {
@@ -214,77 +230,104 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
     }
   }
 
+  // On a phone the field sits at the bottom, under the thumb, right above the
+  // keyboard: iOS does not shrink the layout for the keyboard, so the dialog
+  // is lifted by what the visual viewport lost at the bottom.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const root = document.documentElement
+    const lift = () => root.style.setProperty('--kb', `${Math.max(0, innerHeight - vv.height - vv.offsetTop)}px`)
+    lift()
+    vv.addEventListener('resize', lift)
+    vv.addEventListener('scroll', lift)
+    return () => {
+      vv.removeEventListener('resize', lift)
+      vv.removeEventListener('scroll', lift)
+      root.style.removeProperty('--kb')
+    }
+  }, [])
+
   const optionId = (i: number) => `${listId}-${i}`
+  const heading = (text: string) => (
+    <li role="presentation" className="px-2 pt-2 pb-1.5 font-mono text-[11px] tracking-wider text-t-muted uppercase">
+      {text}
+    </li>
+  )
   return (
-    // on a phone it hangs from the top: the keyboard takes the bottom half
+    // a centred box on a desktop; on a phone it stands at the bottom with the
+    // field last, so field and results are where the thumb is
     <Dialog
       width="max-w-lg"
       sheet={false}
       onClose={onClose}
       aria-label={t('palette.title')}
-      className="max-sm:mt-[max(1rem,var(--safe-t))] max-sm:mb-auto"
+      className="max-sm:mt-auto max-sm:mb-[calc(var(--kb,0px)+var(--safe-b)+0.5rem)]"
     >
-      <div className="flex items-center gap-2 border-b border-border-subtle px-4">
-        <Search aria-hidden size="1.1em" className="shrink-0 text-t-muted" />
-        <input
-          autoFocus
-          role="combobox"
-          aria-expanded
-          aria-controls={listId}
-          aria-activedescendant={shown[sel] ? optionId(sel) : undefined}
-          aria-label={t('palette.title')}
-          placeholder={t('palette.placeholder')}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value)
-            setAt(0)
-          }}
-          onKeyDown={onKeyDown}
-          className="min-w-0 flex-1 bg-transparent py-3.5 text-sm text-t-primary outline-none placeholder:text-t-muted"
-        />
-        <kbd className="rounded-xs border border-border-subtle px-1.5 font-mono text-[11px] text-t-muted">Esc</kbd>
-      </div>
-      <div className="max-h-[min(60dvh,26rem)] overflow-y-auto p-2">
-        {!needle && shown.length > 0 && (
-          <p className="px-2 pt-1 pb-1.5 font-mono text-[11px] tracking-wider text-t-muted uppercase">
-            {t('palette.recent')}
-          </p>
-        )}
-        <ul id={listId} role="listbox" aria-label={t('palette.title')}>
-          {shown.map((e, i) => (
-            <li
-              key={e.id}
-              id={optionId(i)}
-              role="option"
-              aria-selected={i === sel}
-              onMouseMove={() => i !== sel && setAt(i)}
-              onClick={() => run(e)}
-              className={`flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm ${
-                i === sel ? 'bg-bg-hover text-t-primary' : 'text-t-secondary'
-              }`}
-            >
-              <e.icon aria-hidden size="1.1em" className="shrink-0" />
-              <span className="min-w-0 flex-1 truncate">{e.label}</span>
-              <span className="shrink-0 truncate text-xs text-t-muted">{e.sub}</span>
-            </li>
-          ))}
-        </ul>
-        {needle.length >= 2 && (isFetching || asked.toLocaleLowerCase() !== needle) && (
-          <p className="px-2 py-2 text-xs text-t-muted" role="status">
-            {t('palette.searching')}
-          </p>
-        )}
-        {needle && shown.length === 0 && !isFetching && asked.toLocaleLowerCase() === needle && (
-          <p className="px-2 py-3 text-sm text-t-muted" role="status">
-            {t('palette.none')}
-          </p>
-        )}
-        {!needle && shown.length === 0 && (
-          <p className="flex items-center gap-2 px-2 py-3 text-sm text-t-muted">
-            <Sparkles aria-hidden size="1em" />
-            {t('palette.hint')}
-          </p>
-        )}
+      <div className="flex flex-col max-sm:flex-col-reverse">
+        <div className="flex items-center gap-2 border-b border-border-subtle px-4 max-sm:border-t max-sm:border-b-0">
+          <Search aria-hidden size="1.1em" className="shrink-0 text-t-muted" />
+          <input
+            autoFocus
+            role="combobox"
+            aria-expanded
+            aria-controls={listId}
+            aria-activedescendant={shown[sel] ? optionId(sel) : undefined}
+            aria-label={t('palette.title')}
+            placeholder={t('palette.placeholder')}
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value)
+              setAt(0)
+            }}
+            onKeyDown={onKeyDown}
+            className="min-w-0 flex-1 bg-transparent py-3.5 text-base text-t-primary outline-none placeholder:text-t-muted sm:text-sm"
+          />
+          <kbd className="rounded-xs border border-border-subtle px-1.5 font-mono text-[11px] text-t-muted max-sm:hidden">
+            Esc
+          </kbd>
+        </div>
+        <div className="max-h-[min(60dvh,26rem)] overflow-y-auto p-2 max-sm:max-h-[min(50dvh,26rem)]">
+          <ul id={listId} role="listbox" aria-label={t('palette.title')}>
+            {shown.map((e, i) => (
+              <Fragment key={e.id}>
+                {!needle && i === 0 && recent.length > 0 && heading(t('palette.recent'))}
+                {!needle && i === recent.length && heading(t('palette.discover'))}
+                <li
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={i === sel}
+                  onMouseMove={() => i !== sel && setAt(i)}
+                  onClick={() => run(e)}
+                  className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm ${
+                    i === sel ? 'bg-bg-hover text-t-primary' : 'text-t-secondary'
+                  }`}
+                >
+                  <e.icon aria-hidden size="1.1em" className="shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{e.label}</span>
+                  {e.count ? <Count className="shrink-0">{e.count}</Count> : null}
+                  <span className="shrink-0 truncate text-xs text-t-muted">{e.sub}</span>
+                </li>
+              </Fragment>
+            ))}
+          </ul>
+          {needle.length >= 2 && (isFetching || asked.toLocaleLowerCase() !== needle) && (
+            <p className="px-2 py-2 text-xs text-t-muted" role="status">
+              {t('palette.searching')}
+            </p>
+          )}
+          {needle && shown.length === 0 && !isFetching && asked.toLocaleLowerCase() === needle && (
+            <p className="px-2 py-3 text-sm text-t-muted" role="status">
+              {t('palette.none')}
+            </p>
+          )}
+          {!needle && shown.length === 0 && (
+            <p className="flex items-center gap-2 px-2 py-3 text-sm text-t-muted">
+              <Sparkles aria-hidden size="1em" />
+              {t('palette.hint')}
+            </p>
+          )}
+        </div>
       </div>
     </Dialog>
   )
