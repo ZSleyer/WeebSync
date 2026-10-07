@@ -381,6 +381,14 @@
       "missing": "erste Lücke: Folge {{ep}}",
       "next": "nächste: Folge {{n}}, {{when}}"
     },
+    "action": {
+      "syncNow": "Jetzt syncen",
+      "autoSync": "Auto-Sync",
+      "rematch": "Zuordnung ändern",
+      "files": "Dateien zeigen",
+      "setupWatch": "Auto-Sync einrichten"
+    },
+    "moreActions": "Weitere Aktionen für {{name}}",
     "progressLabel": "Fortschritt {{name}}",
     "role": {
       "SUPPORTING": "Nebenrolle",

@@ -61,6 +61,8 @@ import {
 } from '../api'
 import { dubOverdueLabel, dubWaitingLabel } from '../attention'
 import { useNow } from '../hooks'
+import ActionMenu from './ActionMenu'
+import type { SheetAction } from './ActionSheet'
 import MediaDetail, { GenreChips } from './MediaDetail'
 import WatchEpisodesList from './WatchEpisodes'
 import { WatchForm } from './WatchDialog'
@@ -81,6 +83,20 @@ export interface SeriesTarget {
   tab?: SeriesTab
   /** caller-specific rows under the record, e.g. the catalog's folder versions */
   extra?: ReactNode
+  /**
+   * What can be done with the title where the card was opened, for its action
+   * bar. Without any, a card opened from a watch offers checking and editing
+   * that watch.
+   */
+  actions?: SeriesAction[]
+}
+
+/** One action of the card's bar. */
+export interface SeriesAction extends SheetAction {
+  /** the one filled button, at the end of the bar */
+  primary?: boolean
+  /** a rare one, behind the ⋯ menu */
+  more?: boolean
 }
 
 export type SeriesTab = 'overview' | 'sync' | 'cast' | 'community' | 'similar'
@@ -247,15 +263,37 @@ function SeriesDialog({
   const [editing, setEditing] = useState<Watch | null>(null)
   const [returned, setReturned] = useState(false)
   const guard = useRef<() => Promise<boolean>>(async () => true)
-  const away = useRef<{ top: number; id: number } | null>(null)
-  const edit = (w: Watch) => {
-    away.current = { top: scroller.current?.scrollTop ?? 0, id: w.id }
+  const away = useRef<{ top: number; focus: string } | null>(null)
+  // `focus` is where focus goes on the way back: by default the menu of the
+  // watch's block, since the menu item that had it is gone
+  const edit = (w: Watch, focus = `[data-watch="${w.id}"] [aria-haspopup]`) => {
+    away.current = { top: scroller.current?.scrollTop ?? 0, focus }
     setEditing(w)
   }
   const leave = () => {
     setEditing(null)
     setReturned(true)
   }
+  const from = mine.find((w) => w.id === cur.watchId)
+  const actions: SeriesAction[] =
+    cur.actions ??
+    (from
+      ? [
+          {
+            key: 'check',
+            label: t('watch.checkNow'),
+            icon: <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />,
+            primary: true,
+            onClick: () => void act.check(from.id),
+          },
+          {
+            key: 'edit',
+            label: t('servers.edit'),
+            icon: <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />,
+            onClick: () => edit(from, '[data-action="edit"]'),
+          },
+        ]
+      : [])
 
   // Cast, similar titles and the community load once their sections come
   // near the viewport, as the tabs loaded on first sight: a card opened for
@@ -364,15 +402,14 @@ function SeriesDialog({
     if (sec.current[k]) jump(k, false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mine.length, watchesIn])
-  // back from the editor: the scroll it left, and focus on the menu the
-  // edit came from, since the menu item that had it is gone
+  // back from the editor: the scroll it left, and focus where the edit came from
   useLayoutEffect(() => {
     const was = away.current
     if (editing || !was) return
     away.current = null
     if (scroller.current) scroller.current.scrollTop = was.top
     lag()
-    scroller.current?.querySelector<HTMLElement>(`[data-watch="${was.id}"] [aria-haspopup]`)?.focus()
+    scroller.current?.parentElement?.querySelector<HTMLElement>(was.focus)?.focus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing])
 
@@ -402,9 +439,18 @@ function SeriesDialog({
         />
       ) : (
         <div className={`dialog-body relative ${returned ? 'anim-route-pop' : ''}`}>
-          <div ref={dock} aria-hidden className="t-dock">
+          <div ref={dock} aria-hidden className="t-dock pr-12">
             <span className="truncate">{name}</span>
           </div>
+          {/* outside the scroller, so it stays at hand once the head is gone */}
+          <IconButton
+            aria-label={t('common.close')}
+            title={t('common.close')}
+            onClick={() => (origin ? void morphTransition(origin, () => flushSync(onClose), true) : onClose())}
+            className="absolute top-1 right-2 z-30 bg-bg-card/90"
+          >
+            <X aria-hidden size="1.2em" />
+          </IconButton>
           {/* One scroller for the head and the panel: the banner and the title
             scroll away and leave the room to the content, the tabs stay at the
             top. The banner lags behind the scroll, so it reads as further back
@@ -431,7 +477,7 @@ function SeriesDialog({
                   <ArrowLeft aria-hidden size="1.2em" />
                 </IconButton>
               )}
-              <div className="flex gap-4 px-5 pt-4 pb-3">
+              <div className={`flex gap-4 px-5 pt-4 pb-3 ${media?.bannerImage ? '' : 'pr-12'}`}>
                 {media?.coverImage?.large && (
                   <div className="shrink-0">
                     <Cover
@@ -604,14 +650,39 @@ function SeriesDialog({
             ))}
           </div>
 
-          <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
-            <Button
-              size="sm"
-              onClick={() => (origin ? void morphTransition(origin, () => flushSync(onClose), true) : onClose())}
-            >
-              {t('common.close')}
-            </Button>
-          </footer>
+          {/* What can be done with the title from here. No close button:
+              the grabber, Escape, the back gesture and the header's X all
+              close the card already, and the room is worth more to the
+              thing the user came to do. */}
+          {actions.length > 0 && (
+            <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
+              {act.error && (
+                <p className="mr-auto min-w-0 flex-1 text-[11px] text-err" role="status">
+                  {act.error}
+                </p>
+              )}
+              {actions
+                .filter((a) => !a.more)
+                .sort((a, b) => Number(!!a.primary) - Number(!!b.primary))
+                .map((a) => (
+                  <Button
+                    key={a.key}
+                    size="sm"
+                    variant={a.primary ? 'primary' : a.danger ? 'danger' : 'default'}
+                    data-action={a.key}
+                    onClick={a.onClick}
+                  >
+                    {a.icon}
+                    {a.label}
+                  </Button>
+                ))}
+              <ActionMenu
+                label={t('series.moreActions', { name })}
+                title={name}
+                actions={actions.filter((a) => a.more)}
+              />
+            </footer>
+          )}
         </div>
       )}
     </Dialog>

@@ -23,7 +23,7 @@ import {
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSeriesModal } from '../components/SeriesModal'
+import { useSeriesModal, type SeriesAction } from '../components/SeriesModal'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import ActionSheet from '../components/ActionSheet'
@@ -732,11 +732,64 @@ export function CatalogGrid({
   // the title card is the app's one; the catalog adds its folder versions
   // under the record, each selectable, syncable, watchable, re-matchable
   const series = useSeriesModal()
+  const ico = 'mr-1 inline align-[-0.125em]'
+  // the action bar acts on a card's one folder; a card bundling several
+  // leaves it to the version rows, where each row is exactly one folder
+  const barActions = (it: CatalogItem): SeriesAction[] => [
+    ...(onSync
+      ? [
+          {
+            key: 'sync',
+            label: t('series.action.syncNow'),
+            icon: <Download aria-hidden size="1em" className={ico} />,
+            primary: true,
+            onClick: () => {
+              series.close()
+              onSync(it.entry)
+            },
+          },
+        ]
+      : []),
+    ...(onWatch
+      ? [
+          {
+            key: 'watch',
+            label: t('series.action.autoSync'),
+            icon: <Eye aria-hidden size="1em" className={ico} />,
+            onClick: () => {
+              series.close()
+              onWatch(it.entry)
+            },
+          },
+        ]
+      : []),
+    {
+      key: 'rematch',
+      label: t('series.action.rematch'),
+      icon: <Replace aria-hidden size="1em" />,
+      more: true,
+      onClick: () => {
+        series.close()
+        setRematch(it)
+      },
+    },
+    {
+      key: 'files',
+      label: t('series.action.files'),
+      icon: <FilesIcon aria-hidden size="1em" />,
+      more: true,
+      onClick: () => {
+        series.close()
+        onOpenFiles(it.entry.path)
+      },
+    },
+  ]
   const showDetail = (g: CatalogGroup) =>
     series.open({
       source: g.items[0].source,
       id: g.media!.id,
       media: g.media,
+      actions: g.items.length === 1 ? barActions(g.items[0]) : [],
       extra: (
         <CatalogVersions
           group={g}
