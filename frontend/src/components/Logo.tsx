@@ -28,9 +28,9 @@ const OPEN = slant(1400)
 
 export const INTROS = ['trace', 'cut', 'set', 'stream', 'roll'] as const
 export type Intro = (typeof INTROS)[number]
-const DURATION: Record<Intro, number> = { trace: 1950, cut: 1300, set: 900, stream: 1250, roll: 800 }
+export const DURATION: Record<Intro, number> = { trace: 1950, cut: 1300, set: 900, stream: 1250, roll: 800 }
 
-const still = () =>
+export const still = () =>
   document.documentElement.dataset.motion === 'off' ||
   (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
@@ -39,6 +39,7 @@ export default function Logo({
   active = false,
   replayKey,
   intro,
+  play = true,
 }: {
   className?: string
   active?: boolean
@@ -46,6 +47,8 @@ export default function Logo({
   replayKey?: string
   /** a fixed intro instead of a random one (tests, previews) */
   intro?: Intro
+  /** false: the plain mark, no intro at all */
+  play?: boolean
 }) {
   const id = useId()
   const svg = useRef<SVGSVGElement>(null)
@@ -54,8 +57,8 @@ export default function Logo({
   // the finished mark never flashes ahead of its intro
   useLayoutEffect(() => {
     const root = svg.current
-    if (!root || still()) return
-    const play = intro ?? INTROS[Math.floor(Math.random() * INTROS.length)]
+    if (!root || !play || still()) return
+    const chosen = intro ?? INTROS[Math.floor(Math.random() * INTROS.length)]
     const q = (sel: string) => [...root.querySelectorAll<SVGElement>(sel)]
     const set = (els: SVGElement[], k: string, v: string | number) => els.forEach((e) => e.setAttribute(k, String(v)))
     const el = {
@@ -152,8 +155,8 @@ export default function Logo({
     let raf = 0
     const frame = (now: number) => {
       const t = now - t0
-      at[play](t, (a, b, e) => e(Math.min(1, Math.max(0, (t - a) / (b - a)))))
-      if (t < DURATION[play]) raf = requestAnimationFrame(frame)
+      at[chosen](t, (a, b, e) => e(Math.min(1, Math.max(0, (t - a) / (b - a)))))
+      if (t < DURATION[chosen]) raf = requestAnimationFrame(frame)
       else rest()
     }
     frame(t0)
@@ -163,7 +166,7 @@ export default function Logo({
       cancelAnimationFrame(raf)
       rest()
     }
-  }, [replayKey, intro])
+  }, [replayKey, intro, play])
 
   const stripeRows = (x0: number) =>
     Array.from({ length: ROWS }, (_, i) => (
