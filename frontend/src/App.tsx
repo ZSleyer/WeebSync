@@ -43,6 +43,7 @@ import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Files from './pages/Files'
+import Trash from './pages/Trash'
 import Watches from './pages/Watches'
 import SuggestionsLayout, {
   BucketSection,
@@ -184,6 +185,7 @@ export const router = createBrowserRouter(
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
       <Route path="/servers" element={<Navigate to="/settings/servers" replace />} />
       <Route path="/rename" element={<Rename />} handle={h('nav.rename', '/files', 'nav.files')} />
+      <Route path="/files/trash" element={<Trash />} handle={h('trash.title', '/files', 'nav.files')} />
       <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
         <Route index element={<SettingsHub />} />
         <Route path="general" element={<General />} handle={inSettings('settings.nav.general')} />
