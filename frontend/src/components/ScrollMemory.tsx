@@ -1,17 +1,22 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router'
 
 // Below lg the shell's <main> is the scroller and it is remounted on every
-// route, so the browser restores nothing: back from a folder or a settings
+// top-level page, so the browser restores nothing: back from a folder or a settings
 // section landed at the top. The position is recorded per history entry while
 // the user scrolls and put back on a POP navigation, once the new page has had
 // a frame to lay out its rows (a second frame for a list that arrives late).
 const KEY = 'weebsync.scroll.'
 
 export default function ScrollMemory() {
-  const { key, hash } = useLocation()
+  const { key, hash, pathname } = useLocation()
   const navType = useNavigationType()
+  // <main> stays mounted across the sections of one page, so a new section
+  // has to be put to the top by hand; a changed query (a filter) keeps its place
+  const lastPath = useRef(pathname)
   useEffect(() => {
+    const newPath = lastPath.current !== pathname
+    lastPath.current = pathname
     const main = document.querySelector<HTMLElement>('.app-shell > main')
     const read = () => Math.max(main?.scrollTop ?? 0, window.scrollY)
     const write = (y: number) => {
@@ -39,6 +44,8 @@ export default function ScrollMemory() {
         else if (tries > 0) pending = setTimeout(() => target(tries - 1), 100)
       }
       target(20)
+    } else if (newPath) {
+      write(0)
     }
     return () => {
       clearTimeout(pending)
@@ -50,6 +57,6 @@ export default function ScrollMemory() {
         /* storage blocked: the position is a convenience */
       }
     }
-  }, [key, hash, navType])
+  }, [key, hash, navType, pathname])
   return null
 }
