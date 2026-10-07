@@ -7,7 +7,6 @@ import './locales'
 import { router } from './App'
 import { ToastProvider } from './components/toast'
 import { ConfirmProvider } from './components/confirm'
-import { PromptProvider } from './components/prompt'
 import { registerServiceWorker } from './push'
 import { applyTheme, readThemePref } from './theme'
 
@@ -45,11 +44,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ConfirmProvider>
-        <PromptProvider>
-          <ToastProvider>
-            <RouterProvider router={router} />
-          </ToastProvider>
-        </PromptProvider>
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
       </ConfirmProvider>
     </QueryClientProvider>
   </StrictMode>,
