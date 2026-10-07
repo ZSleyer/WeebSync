@@ -44,6 +44,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "watches": "Auto-Sync",
+    "calendar": "Kalender",
     "servers": "Server",
     "rename": "Umbenennen",
     "settings": "Einstellungen",
@@ -597,11 +598,9 @@
     "dubLag": "Synchro-Verzögerung (Tage)",
     "dubLagHint": "Der Kalender zeigt für die Dub-Sprache eigene Termine: erschienene Synchro-Folgen, sobald sie beobachtet wurden, und für die weiteren Folgen den Original-Termin plus diese Verzögerung. Beobachtete Releases (Crunchyroll) überstimmen den Wert. 0 = nur beobachten, nichts schätzen.",
     "view": "Ansicht",
-    "viewWatches": "Serien",
     "layout": "Darstellung",
     "viewGrid": "Raster",
     "viewList": "Liste",
-    "viewCalendar": "Kalender",
     "group": {
       "attention": "Braucht Aufmerksamkeit",
       "syncing": "Wird geladen",

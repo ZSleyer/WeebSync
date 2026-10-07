@@ -1,5 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, FolderOpen, LayoutDashboard, LogOut, RefreshCw, Settings, Sparkles } from 'lucide-react'
+import {
+  ArrowLeft,
+  CalendarDays,
+  FolderOpen,
+  LayoutDashboard,
+  LogOut,
+  RefreshCw,
+  Settings,
+  Sparkles,
+} from 'lucide-react'
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -59,6 +68,7 @@ import Data from './pages/settings/Data'
 // is a tool on a folder, reached from Files.
 const TABS = [
   { to: '/', key: 'nav.dashboard', icon: LayoutDashboard },
+  { to: '/calendar', key: 'nav.calendar', icon: CalendarDays },
   { to: '/watches', key: 'nav.watches', icon: RefreshCw },
   { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
   { to: '/files', key: 'nav.files', icon: FolderOpen },
@@ -131,6 +141,7 @@ export const router = createBrowserRouter(
       <Route path="/remote" element={<RedirectWithQuery to="/files" />} />
       <Route path="/local" element={<RedirectWithQuery to="/files" rewrite={(p) => (p.set('source', 'local'), p)} />} />
       <Route path="/browser" element={<RedirectWithQuery to="/files" />} />
+      <Route path="/calendar" element={<Watches calendar />} handle={h('nav.calendar')} />
       <Route path="/watches" element={<Watches />} handle={h('nav.watches')} />
       <Route path="/suggestions" element={<SuggestionsLayout />} handle={h('nav.suggestions')}>
         <Route index element={<SuggestionsHub />} />

@@ -44,6 +44,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "watches": "Auto-sync",
+    "calendar": "Calendar",
     "servers": "Servers",
     "rename": "Rename",
     "settings": "Settings",
@@ -597,11 +598,9 @@
     "dubLag": "Dub delay (days)",
     "dubLagHint": "The calendar shows separate dates for the dub language: dub episodes once their release has been observed, and for the rest the original date plus this delay. Observed releases (Crunchyroll) override the value. 0 = observe only, estimate nothing.",
     "view": "View",
-    "viewWatches": "Series",
     "layout": "Layout",
     "viewGrid": "Grid",
     "viewList": "List",
-    "viewCalendar": "Calendar",
     "group": {
       "attention": "Needs attention",
       "syncing": "Downloading",
