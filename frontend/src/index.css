@@ -1316,7 +1316,6 @@ details[open]::details-content { height: auto; }
   from { transform: translateY(6px); opacity: 0; }
   to   { transform: none; opacity: 1; }
 }
-.anim-t-reveal { animation: t-reveal var(--dur-2) var(--ease-out) both; }
 
 /* Slot roll: a value that changes rolls the old one out and the new one in,
    the way a split-flap or an odometer reads. The direction says whether the
@@ -1483,27 +1482,31 @@ li.t-swiperow { border-radius: 0; }
    back up from the left, a sibling section only fades */
 @keyframes t-slide-from-right { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes t-slide-from-left  { from { transform: translateX(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
-.anim-slide-from-right { animation: t-slide-from-right var(--dur-2) var(--ease-out) both; }
-.anim-slide-from-left  { animation: t-slide-from-left var(--dur-2) var(--ease-out) both; }
-.anim-fade-in { animation: t-fade-in var(--dur-2) var(--ease-out) both; }
+/* Route entries (components/RouteTransition), after Material's navigation
+   patterns. The old screen is gone at once, so only the new one moves, and it
+   decelerates hard (emphasized decelerate): most of the change lands in the
+   first third, which reads as an arrival rather than a fade-up from nothing.
+   - another top-level page: fade through, a short fade with a 4px rise, no
+     sideways travel since the tabs have no order to mean;
+   - deeper / back up: shared axis, 16px from the side it comes from;
+   - a sibling section: the content fades, nothing travels.
+   Compositor-only properties, promoted only while they run. */
+@keyframes t-route-page { from { opacity: 0; transform: translateY(4px); } }
+.anim-route-page { animation: t-route-page 210ms cubic-bezier(0.05, 0.7, 0.1, 1) both; will-change: opacity, transform; }
+.anim-route-push { animation: t-slide-from-right 260ms cubic-bezier(0.05, 0.7, 0.1, 1) both; will-change: opacity, transform; }
+.anim-route-pop  { animation: t-slide-from-left 260ms cubic-bezier(0.05, 0.7, 0.1, 1) both; will-change: opacity, transform; }
+.anim-route-swap { animation: t-fade-in 150ms cubic-bezier(0.05, 0.7, 0.1, 1) both; will-change: opacity; }
 
-/* ── View transitions between routes: the nav links navigate inside one, the
-   shell names <main>, and the old page fades while the new one rises in its
-   place: the top-level pages have no order a slide could mean. The root pair does not
-   animate, so sidebar and bars stand still. Browsers without the API keep
-   the wrapper animation above. ── */
-.app-shell > main { view-transition-name: main; }
+/* ── View transitions are for parts of a page only (a reorder, the poster
+   morph, the accent wave); routes move with the wrapper animation above.
+   The root pair does not animate, so whatever is not named stands still. ── */
 ::view-transition-old(root),
 ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
-::view-transition-old(main) { animation: t-fade-out var(--dur-1) var(--ease-in) both; }
-::view-transition-new(main) { animation: t-reveal var(--dur-2) var(--ease-out) both; }
 @keyframes t-fade-out { to { opacity: 0; } }
 @keyframes t-spin { to { rotate: 360deg; } }
 
-/* A local view transition (localTransition in the design system): <main>
-   loses its name for the duration, so the page stays where it is, and the
+/* A local view transition (localTransition in the design system): the
    children of the scope move as themselves, each named from its own --vt. */
-:root[data-vt-local] .app-shell > main { view-transition-name: none; }
 [data-vt] > * { view-transition-name: var(--vt, none); }
 /* The poster morph (morphTransition): the open dialog and the poster share a
    name, so the dialog's box grows out of the poster's and shrinks back into

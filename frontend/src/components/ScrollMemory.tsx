@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router'
 
 // Below lg the shell's <main> is the scroller and it is remounted on every
@@ -14,7 +14,9 @@ export default function ScrollMemory() {
   // <main> stays mounted across the sections of one page, so a new section
   // has to be put to the top by hand; a changed query (a filter) keeps its place
   const lastPath = useRef(pathname)
-  useEffect(() => {
+  // before paint: a new screen must not show at the old position for a frame
+  // and then jump while it animates in
+  useLayoutEffect(() => {
     const newPath = lastPath.current !== pathname
     lastPath.current = pathname
     const main = document.querySelector<HTMLElement>('.app-shell > main')
