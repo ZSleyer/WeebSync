@@ -172,7 +172,26 @@ export default function Assistant() {
     chatIdRef.current = chatId
   }, [chatId])
   const [attachments, setAttachments] = useState<string[]>([])
-  const [histOpen, setHistOpen] = useState(false)
+  // the saved chats: a sheet on a phone, a panel beside the chat on a
+  // desktop that may stay open while chatting - remembered per device
+  const [histPanel, setHistPanel] = useState(() => {
+    try {
+      return localStorage.getItem(HIST_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const [histSheet, setHistSheet] = useState(false)
+  const histOpen = wide ? histPanel : histSheet
+  const setHistOpen = (open: boolean) => {
+    if (!wide) return setHistSheet(open)
+    setHistPanel(open)
+    try {
+      localStorage.setItem(HIST_KEY, open ? '1' : '0')
+    } catch {
+      /* storage off: the panel just forgets */
+    }
+  }
   const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   // one line that grows with the text, up to a few lines, then scrolls
@@ -312,7 +331,8 @@ export default function Assistant() {
     setTurns(c.turns)
     savedRef.current = JSON.stringify(c.turns)
     setChatId(c.id)
-    setHistOpen(false)
+    // the sheet covers the chat it opened; the panel sits beside it
+    setHistSheet(false)
   }
   // gone from the list at once, with an undo line; the open chat makes way
   // for a new one only once the removal has gone through
@@ -591,7 +611,8 @@ export default function Assistant() {
           size="sm"
           aria-label={t('assistant.history')}
           title={t('assistant.history')}
-          onClick={() => setHistOpen(true)}
+          aria-pressed={wide ? histOpen : undefined}
+          onClick={() => setHistOpen(!histOpen)}
         >
           <History aria-hidden size="1.2em" />
         </Button>
@@ -892,258 +913,269 @@ export default function Assistant() {
     </>
   )
   return (
-    <div className="page-fill flex min-h-0 w-full flex-1 flex-col">
-      {actions}
-      {empty ? (
-        // on a phone the greeting and its chips sit in the middle of the
-        // screen and the composer stays at the bottom, where the thumb and the
-        // keyboard are; from lg on the three are one centered group, greeting
-        // over composer over chips
-        <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col lg:justify-center lg:pb-10">
-          <h2 className="mt-auto mb-5 text-center font-display text-2xl font-semibold tracking-wider lg:mt-0">
-            <Sparkles aria-hidden size="0.9em" className="mr-2 inline align-[-0.1em] text-accent" />
-            {t('assistant.greeting')}
-          </h2>
-          <ul className="mb-auto flex flex-wrap justify-center gap-2 lg:order-last lg:mt-5 lg:mb-0">
-            {EXAMPLES.map((k) => {
-              const Icon = EXAMPLE_ICON[k]
-              return (
-                <li key={k}>
-                  <Button
-                    size="sm"
-                    onClick={() => void send(t(`assistant.examples.${k}`))}
-                    title={t(`assistant.examples.${k}`)}
-                  >
-                    <Icon aria-hidden size="1em" className="mr-1.5 text-accent" />
-                    {t(`assistant.exampleChips.${k}`)}
-                  </Button>
-                </li>
-              )
-            })}
-          </ul>
-          {composer}
-        </div>
-      ) : (
-        <>
-          <div
-            ref={logRef}
-            role="log"
-            aria-live="polite"
-            aria-label={t('assistant.title')}
-            className="min-h-0 flex-1 overflow-y-auto"
-          >
-            <ol className="space-y-5">
-              {turns.map((tr, ti) => (
-                <li key={ti} className={tr.role === 'user' ? 'ai-turn flex justify-end' : 'ai-turn'}>
-                  {tr.role === 'user' ? (
-                    <div className="max-w-[85%] rounded-lg bg-bg-hover px-3 py-2 text-base">
-                      <span className="sr-only">{t('assistant.you')}: </span>
-                      {tr.images?.length ? (
-                        <ul className="mb-2 flex flex-wrap gap-2">
-                          {tr.images.map((src, i) => (
-                            <li key={i}>
-                              <img
-                                src={src}
-                                alt=""
-                                className="max-h-40 max-w-full rounded-xs border border-border-subtle"
-                              />
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {tr.content && <p className="whitespace-pre-wrap wrap-break-word">{tr.content}</p>}
-                    </div>
-                  ) : (
-                    <div className="min-w-0 text-base leading-relaxed">
-                      {/* the words in a bubble like the user's, so they read
+    <div className="page-fill flex min-h-0 w-full flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {actions}
+        {empty ? (
+          // on a phone the greeting and its chips sit in the middle of the
+          // screen and the composer stays at the bottom, where the thumb and the
+          // keyboard are; from lg on the three are one centered group, greeting
+          // over composer over chips
+          <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col lg:justify-center lg:pb-10">
+            <h2 className="mt-auto mb-5 text-center font-display text-2xl font-semibold tracking-wider lg:mt-0">
+              <Sparkles aria-hidden size="0.9em" className="mr-2 inline align-[-0.1em] text-accent" />
+              {t('assistant.greeting')}
+            </h2>
+            <ul className="mb-auto flex flex-wrap justify-center gap-2 lg:order-last lg:mt-5 lg:mb-0">
+              {EXAMPLES.map((k) => {
+                const Icon = EXAMPLE_ICON[k]
+                return (
+                  <li key={k}>
+                    <Button
+                      size="sm"
+                      onClick={() => void send(t(`assistant.examples.${k}`))}
+                      title={t(`assistant.examples.${k}`)}
+                    >
+                      <Icon aria-hidden size="1em" className="mr-1.5 text-accent" />
+                      {t(`assistant.exampleChips.${k}`)}
+                    </Button>
+                  </li>
+                )
+              })}
+            </ul>
+            {composer}
+          </div>
+        ) : (
+          <>
+            <div
+              ref={logRef}
+              role="log"
+              aria-live="polite"
+              aria-label={t('assistant.title')}
+              className="min-h-0 flex-1 overflow-y-auto"
+            >
+              <ol className="space-y-5">
+                {turns.map((tr, ti) => (
+                  <li key={ti} className={tr.role === 'user' ? 'ai-turn flex justify-end' : 'ai-turn'}>
+                    {tr.role === 'user' ? (
+                      <div className="max-w-[85%] rounded-lg bg-bg-hover px-3 py-2 text-base">
+                        <span className="sr-only">{t('assistant.you')}: </span>
+                        {tr.images?.length ? (
+                          <ul className="mb-2 flex flex-wrap gap-2">
+                            {tr.images.map((src, i) => (
+                              <li key={i}>
+                                <img
+                                  src={src}
+                                  alt=""
+                                  className="max-h-40 max-w-full rounded-xs border border-border-subtle"
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        {tr.content && <p className="whitespace-pre-wrap wrap-break-word">{tr.content}</p>}
+                      </div>
+                    ) : (
+                      <div className="min-w-0 text-base leading-relaxed">
+                        {/* the words in a bubble like the user's, so they read
                           against a plain ground and not the shell's hatching;
                           the cards stay outside, they are tiles of their own */}
-                      <div className="max-w-[85%] rounded-lg bg-bg-hover px-3 py-2">
-                        <span className="sr-only">{t('assistant.title')}: </span>
-                        {tr.steps?.length ? (
-                          <details
-                            className="group mb-2"
-                            open={tr.stepsOpen ?? false}
-                            onToggle={(e) => {
-                              const isOpen = (e.target as HTMLDetailsElement).open
-                              setTurns((prev) =>
-                                prev.map((x, i) =>
-                                  i === ti && isOpen !== (x.stepsOpen ?? false)
-                                    ? { ...x, stepsOpen: isOpen, stepsTouched: true }
-                                    : x,
-                                ),
-                              )
-                            }}
-                          >
-                            <summary className="inline-flex min-h-6 cursor-pointer items-center gap-1 text-xs text-t-muted">
-                              <ChevronRight
-                                aria-hidden
-                                size="1em"
-                                className="transition-transform group-open:rotate-90"
-                              />
-                              {t('assistant.steps', { count: tr.steps.length })}
-                            </summary>
-                            <ol className="mt-2 space-y-2 border-l border-border-subtle pl-3 text-sm">
-                              {tr.steps.map((st, si) =>
-                                st.kind === 'reasoning' ? (
-                                  <li key={si} className="whitespace-pre-wrap wrap-break-word text-t-muted italic">
-                                    {st.text}
-                                  </li>
-                                ) : (
-                                  <li key={si} className="text-t-secondary">
-                                    {toolSentence(t, st.name, 'start', st.params)}
-                                    {st.stats !== undefined && (
-                                      <span className="text-t-muted">
-                                        {' '}
-                                        {toolSentence(t, st.name, 'done', st.stats)}
-                                      </span>
-                                    )}
-                                  </li>
-                                ),
+                        <div className="max-w-[85%] rounded-lg bg-bg-hover px-3 py-2">
+                          <span className="sr-only">{t('assistant.title')}: </span>
+                          {tr.steps?.length ? (
+                            <details
+                              className="group mb-2"
+                              open={tr.stepsOpen ?? false}
+                              onToggle={(e) => {
+                                const isOpen = (e.target as HTMLDetailsElement).open
+                                setTurns((prev) =>
+                                  prev.map((x, i) =>
+                                    i === ti && isOpen !== (x.stepsOpen ?? false)
+                                      ? { ...x, stepsOpen: isOpen, stepsTouched: true }
+                                      : x,
+                                  ),
+                                )
+                              }}
+                            >
+                              <summary className="inline-flex min-h-6 cursor-pointer items-center gap-1 text-xs text-t-muted">
+                                <ChevronRight
+                                  aria-hidden
+                                  size="1em"
+                                  className="transition-transform group-open:rotate-90"
+                                />
+                                {t('assistant.steps', { count: tr.steps.length })}
+                              </summary>
+                              <ol className="mt-2 space-y-2 border-l border-border-subtle pl-3 text-sm">
+                                {tr.steps.map((st, si) =>
+                                  st.kind === 'reasoning' ? (
+                                    <li key={si} className="whitespace-pre-wrap wrap-break-word text-t-muted italic">
+                                      {st.text}
+                                    </li>
+                                  ) : (
+                                    <li key={si} className="text-t-secondary">
+                                      {toolSentence(t, st.name, 'start', st.params)}
+                                      {st.stats !== undefined && (
+                                        <span className="text-t-muted">
+                                          {' '}
+                                          {toolSentence(t, st.name, 'done', st.stats)}
+                                        </span>
+                                      )}
+                                    </li>
+                                  ),
+                                )}
+                              </ol>
+                            </details>
+                          ) : null}
+                          {tr.content && (
+                            <Markdown
+                              text={stripWrittenCall(tr.content)}
+                              titles={(tr.links ?? []).flatMap((c) =>
+                                [c.media.title.preferred, c.media.title.english, c.media.title.romaji]
+                                  .filter((x): x is string => !!x)
+                                  .map((title) => ({ title, onClick: () => setCard(c) })),
                               )}
-                            </ol>
-                          </details>
-                        ) : null}
-                        {tr.content && (
-                          <Markdown
-                            text={stripWrittenCall(tr.content)}
-                            titles={(tr.links ?? []).flatMap((c) =>
-                              [c.media.title.preferred, c.media.title.english, c.media.title.romaji]
-                                .filter((x): x is string => !!x)
-                                .map((title) => ({ title, onClick: () => setCard(c) })),
-                            )}
-                          >
-                            {streaming && ti === last && !tr.tool && <span className="ai-cursor" aria-hidden />}
-                          </Markdown>
-                        )}
-                        {tr.tool && (
-                          <p className="mt-2 flex items-center gap-2 text-sm text-accent">
-                            <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
-                            {t('assistant.toolRunning', {
-                              name: t(`assistant.tools.${tr.tool}`, { defaultValue: tr.tool }),
-                            })}
-                          </p>
-                        )}
-                        {!tr.content && !tr.tool && !tr.error && streaming && ti === last && (
-                          <p className="flex items-center gap-2 text-sm text-t-muted">
-                            <span className="ai-dots" aria-hidden>
-                              <i />
-                              <i />
-                              <i />
-                            </span>
-                            {t('assistant.thinking')}
-                          </p>
-                        )}
-                        {tr.error && (
-                          <p className="mt-2 text-sm text-err" role="alert">
-                            {t('assistant.error')}: {tr.error}
-                          </p>
-                        )}
-                      </div>
-                      {/* min-w-0 on the items: a grid item's automatic minimum is
+                            >
+                              {streaming && ti === last && !tr.tool && <span className="ai-cursor" aria-hidden />}
+                            </Markdown>
+                          )}
+                          {tr.tool && (
+                            <p className="mt-2 flex items-center gap-2 text-sm text-accent">
+                              <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
+                              {t('assistant.toolRunning', {
+                                name: t(`assistant.tools.${tr.tool}`, { defaultValue: tr.tool }),
+                              })}
+                            </p>
+                          )}
+                          {!tr.content && !tr.tool && !tr.error && streaming && ti === last && (
+                            <p className="flex items-center gap-2 text-sm text-t-muted">
+                              <span className="ai-dots" aria-hidden>
+                                <i />
+                                <i />
+                                <i />
+                              </span>
+                              {t('assistant.thinking')}
+                            </p>
+                          )}
+                          {tr.error && (
+                            <p className="mt-2 text-sm text-err" role="alert">
+                              {t('assistant.error')}: {tr.error}
+                            </p>
+                          )}
+                        </div>
+                        {/* min-w-0 on the items: a grid item's automatic minimum is
                           its content's min-content width, and a truncated title
                           reports its full text there - the card grew past a phone's
                           viewport and the log scrolled sideways */}
-                      {tr.cards?.length ? (
-                        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-                          {tr.cards.map((c) => (
-                            <li key={`${c.source}:${c.media.id}`} className="min-w-0">
-                              <MediaCard
-                                className="h-full"
-                                title={mediaTitle(c.media)}
-                                cover={c.media.coverImage?.large}
-                                coverTint={c.media.coverImage?.color ?? undefined}
-                                onCover={() => setCard(c)}
-                                coverLabel={t('remote.detailsFor', { name: mediaTitle(c.media) })}
-                                meta={c.why}
-                                badges={
-                                  <>
-                                    {c.media.seasonYear > 0 && <Badge size="sm">{c.media.seasonYear}</Badge>}
-                                    {c.media.format && <Badge size="sm">{c.media.format}</Badge>}
-                                    {c.media.averageScore > 0 && (
-                                      <Badge size="sm" tone="accent">
-                                        {c.media.averageScore}
-                                      </Badge>
-                                    )}
-                                  </>
-                                }
-                                actions={
-                                  <Button
-                                    size="sm"
-                                    onClick={() => setCard(c)}
-                                    aria-label={t('remote.detailsFor', { name: mediaTitle(c.media) })}
-                                  >
-                                    {t('remote.details')}
-                                  </Button>
-                                }
-                              />
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {tr.upgrades?.map((u) => (
-                        <div key={u.key} className="mt-3">
-                          <UpgradeCard
-                            u={u}
-                            dims={dims}
-                            chosen={choice[u.key] ?? u.to}
-                            onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
-                            onSync={(r) =>
-                              setUpSync({
-                                ...r,
-                                initial: applyDefaults(r.initial, suggestionKind(u.category), defaults),
-                              })
-                            }
-                            onDetails={setDetail}
-                          />
-                        </div>
-                      ))}
-                      {tr.proposals?.map((p, pi) => (
-                        <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
-                      ))}
-                      {(tr.proposals?.filter((p) => !p.done && !p.unverified).length ?? 0) >= 2 && (
-                        <Button variant="primary" className="mt-3" onClick={() => void createAll(ti)}>
-                          {t('assistant.createAll', {
-                            count: tr.proposals!.filter((p) => !p.done && !p.unverified).length,
-                          })}
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ol>
-            {queue.length > 0 && (
-              <ol className="mt-5 space-y-3" aria-label={t('assistant.queued')}>
-                {queue.map((q, i) => (
-                  <li key={`${i}-${q}`} className="ai-turn flex items-start justify-end gap-2">
-                    <p className="max-w-[85%] whitespace-pre-wrap wrap-break-word rounded-lg border border-dashed border-border-subtle px-3 py-2 text-base text-t-secondary">
-                      <span className="sr-only">{t('assistant.you')}: </span>
-                      {q}
-                      <span className="mt-1 block text-xs text-t-muted">{t('assistant.queued')}</span>
-                    </p>
-                    <Button
-                      size="sm"
-                      aria-label={t('assistant.dequeue')}
-                      title={t('assistant.dequeue')}
-                      onClick={() => setQueue((qs) => qs.filter((_, j) => j !== i))}
-                    >
-                      <X aria-hidden size="1em" />
-                    </Button>
+                        {tr.cards?.length ? (
+                          <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+                            {tr.cards.map((c) => (
+                              <li key={`${c.source}:${c.media.id}`} className="min-w-0">
+                                <MediaCard
+                                  className="h-full"
+                                  title={mediaTitle(c.media)}
+                                  cover={c.media.coverImage?.large}
+                                  coverTint={c.media.coverImage?.color ?? undefined}
+                                  onCover={() => setCard(c)}
+                                  coverLabel={t('remote.detailsFor', { name: mediaTitle(c.media) })}
+                                  meta={c.why}
+                                  badges={
+                                    <>
+                                      {c.media.seasonYear > 0 && <Badge size="sm">{c.media.seasonYear}</Badge>}
+                                      {c.media.format && <Badge size="sm">{c.media.format}</Badge>}
+                                      {c.media.averageScore > 0 && (
+                                        <Badge size="sm" tone="accent">
+                                          {c.media.averageScore}
+                                        </Badge>
+                                      )}
+                                    </>
+                                  }
+                                  actions={
+                                    <Button
+                                      size="sm"
+                                      onClick={() => setCard(c)}
+                                      aria-label={t('remote.detailsFor', { name: mediaTitle(c.media) })}
+                                    >
+                                      {t('remote.details')}
+                                    </Button>
+                                  }
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        {tr.upgrades?.map((u) => (
+                          <div key={u.key} className="mt-3">
+                            <UpgradeCard
+                              u={u}
+                              dims={dims}
+                              chosen={choice[u.key] ?? u.to}
+                              onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
+                              onSync={(r) =>
+                                setUpSync({
+                                  ...r,
+                                  initial: applyDefaults(r.initial, suggestionKind(u.category), defaults),
+                                })
+                              }
+                              onDetails={setDetail}
+                            />
+                          </div>
+                        ))}
+                        {tr.proposals?.map((p, pi) => (
+                          <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
+                        ))}
+                        {(tr.proposals?.filter((p) => !p.done && !p.unverified).length ?? 0) >= 2 && (
+                          <Button variant="primary" className="mt-3" onClick={() => void createAll(ti)}>
+                            {t('assistant.createAll', {
+                              count: tr.proposals!.filter((p) => !p.done && !p.unverified).length,
+                            })}
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ol>
-            )}
-          </div>
-          {composer}
-        </>
-      )}
-
-      {histOpen && (
-        <Dialog aria-label={t('assistant.history')} onClose={() => setHistOpen(false)}>
-          <ChatHistory current={chatId} onOpen={(id) => void openChat(id)} onDelete={(id) => void deleteChat(id)} />
-        </Dialog>
-      )}
+              {queue.length > 0 && (
+                <ol className="mt-5 space-y-3" aria-label={t('assistant.queued')}>
+                  {queue.map((q, i) => (
+                    <li key={`${i}-${q}`} className="ai-turn flex items-start justify-end gap-2">
+                      <p className="max-w-[85%] whitespace-pre-wrap wrap-break-word rounded-lg border border-dashed border-border-subtle px-3 py-2 text-base text-t-secondary">
+                        <span className="sr-only">{t('assistant.you')}: </span>
+                        {q}
+                        <span className="mt-1 block text-xs text-t-muted">{t('assistant.queued')}</span>
+                      </p>
+                      <Button
+                        size="sm"
+                        aria-label={t('assistant.dequeue')}
+                        title={t('assistant.dequeue')}
+                        onClick={() => setQueue((qs) => qs.filter((_, j) => j !== i))}
+                      >
+                        <X aria-hidden size="1em" />
+                      </Button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+            {composer}
+          </>
+        )}
+      </div>
+      {histOpen &&
+        (wide ? (
+          // not modal: the chat stays usable beside it
+          <aside
+            aria-label={t('assistant.history')}
+            className="ml-4 hidden w-72 shrink-0 flex-col overflow-hidden rounded-(--r-panel) border border-border-subtle bg-bg-card lg:flex"
+            onKeyDown={(e) => e.key === 'Escape' && setHistOpen(false)}
+          >
+            <ChatHistory current={chatId} onOpen={(id) => void openChat(id)} onDelete={(id) => void deleteChat(id)} />
+          </aside>
+        ) : (
+          <Dialog aria-label={t('assistant.history')} onClose={() => setHistSheet(false)}>
+            <ChatHistory current={chatId} onOpen={(id) => void openChat(id)} onDelete={(id) => void deleteChat(id)} />
+          </Dialog>
+        ))}
       {upSync && (
         <WatchDialog
           title={upSync.name}
@@ -1277,6 +1309,8 @@ function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean; error?:
     </Panel>
   )
 }
+
+const HIST_KEY = 'weebsync.ai.history'
 
 // ChatHistory lists the saved chats, newest change first: open one, or
 // delete it. The one on screen is marked.
