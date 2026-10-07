@@ -206,4 +206,35 @@ describe('SeriesModalProvider', () => {
     expect(screen.getByRole('tab', { name: 'series.tab.cast' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByText('Fern')).toBeInTheDocument()
   })
+
+  it('swaps the card for the watch editor in place and comes back to it', async () => {
+    serve({ watches: [{ ...watch(1), serverId: 1, template: '', pattern: '' } as Watch] })
+    target = { id: 7, media, tab: 'sync' }
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    const openEditor = async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'watch.moreActions' }))
+      fireEvent.click(screen.getByRole('option', { name: /servers.edit/ }))
+    }
+    await openEditor()
+
+    // one dialog, now holding the editor instead of the card
+    expect(document.querySelectorAll('dialog')).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.getByRole('button', { name: 'watch.backToCard' })).toHaveFocus()
+
+    // nothing changed: the back arrow goes straight to the card, focus on the
+    // menu the edit came from
+    fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
+    expect(await screen.findByRole('tab', { name: /series.tab.sync/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'watch.moreActions' })).toHaveFocus()
+
+    // unsaved changes: the guard asks, and a declined confirm keeps the editor
+    await openEditor()
+    fireEvent.change(screen.getByLabelText('watch.mediaId'), { target: { value: '42' } })
+    fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.getByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()
+  })
 })
