@@ -1570,6 +1570,11 @@ export interface AppShellProps {
   mainKey?: string
   /** anything that has to live inside the shell but outside <main> */
   before?: ReactNode
+  /**
+   * Beside <main> on a desktop, at the right edge: a docked panel
+   * (`SidePanel`). <main> narrows for it instead of being covered.
+   */
+  aside?: ReactNode
   children: ReactNode
   className?: string
 }
@@ -1585,7 +1590,18 @@ export interface AppShellProps {
  * Below `lg` the stylesheet gives `.app-shell` one dynamic viewport of height
  * and makes <main> the scroller, so the rows sit where the box ends.
  */
-export function AppShell({ sidebar, bar, tabs, notice, footer, mainKey, before, children, className }: AppShellProps) {
+export function AppShell({
+  sidebar,
+  bar,
+  tabs,
+  notice,
+  footer,
+  mainKey,
+  before,
+  aside,
+  children,
+  className,
+}: AppShellProps) {
   return (
     <div className={cx('app-shell flex min-h-dvh flex-col lg:flex-row', className)}>
       {before}
@@ -1598,6 +1614,7 @@ export function AppShell({ sidebar, bar, tabs, notice, footer, mainKey, before, 
       <main key={mainKey} className="flex min-w-0 flex-1 flex-col overflow-x-clip p-4 lg:p-6">
         {children}
       </main>
+      {aside}
       {/* the row collapses while its content renders nothing (a toast that is
           not up), so it leaves no empty band above the tab bar */}
       {notice != null && notice !== false && <div className="shrink-0 px-3 pt-3 empty:hidden lg:contents">{notice}</div>}
