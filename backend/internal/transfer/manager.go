@@ -88,6 +88,8 @@ type Manager struct {
 	maxConc  int
 	stopping bool
 	wg       sync.WaitGroup
+
+	speeds speedHistory
 }
 
 // ResolveLocal maps a target path to an absolute path under one of the allowed
@@ -118,6 +120,7 @@ func NewManager(db *sql.DB, dial Dialer, downloadRoot string) *Manager {
 	// crashed mid-transfer? back to the queue
 	db.Exec(`UPDATE downloads SET status = 'queued' WHERE status = 'running'`)
 	go m.loop()
+	go m.speedLoop()
 	return m
 }
 

@@ -1382,6 +1382,23 @@
                 },
                 "type": "object"
             },
+            "api.SpeedHistoryResponse": {
+                "properties": {
+                    "end": {
+                        "description": "unix second of the newest sample",
+                        "type": "integer"
+                    },
+                    "samples": {
+                        "description": "bytes per second, one sample per second, oldest first",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "api.StatusResponse": {
                 "properties": {
                     "attention": {
@@ -9250,6 +9267,42 @@
                     }
                 ],
                 "summary": "Reorder queue",
+                "tags": [
+                    "Downloads"
+                ]
+            }
+        },
+        "/api/downloads/speed": {
+            "get": {
+                "description": "The authenticated user's total download rate over the last ten minutes, one sample per second, so a chart opened later starts full.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.SpeedHistoryResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Download speed history",
                 "tags": [
                     "Downloads"
                 ]

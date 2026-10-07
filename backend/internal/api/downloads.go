@@ -50,6 +50,28 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
+// SpeedHistoryResponse is returned by handleSpeedHistory.
+type SpeedHistoryResponse struct {
+	// bytes per second, one sample per second, oldest first
+	Samples []int64 `json:"samples"`
+	// unix second of the newest sample
+	End int64 `json:"end"`
+}
+
+// @Summary  Download speed history
+// @Description The authenticated user's total download rate over the last ten minutes, one sample per second, so a chart opened later starts full.
+// @Tags     Downloads
+// @Produce  json
+// @Success  200 {object} SpeedHistoryResponse
+// @Failure  401 {object} ErrorResponse
+// @Security CookieAuth
+// @Router   /api/downloads/speed [get]
+func (s *Server) handleSpeedHistory(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	samples, end := s.Transfers.SpeedHistory(u.ID)
+	writeJSON(w, http.StatusOK, SpeedHistoryResponse{Samples: samples, End: end})
+}
+
 // DownloadCreateRequest is the body of handleDownloadCreate.
 type DownloadCreateRequest struct {
 	ServerID   int64  `json:"serverId"`
