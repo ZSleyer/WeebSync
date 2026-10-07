@@ -26,11 +26,22 @@ export type Intro = (typeof INTROS)[number]
 const DURATION: Record<Intro, number> = { trace: 1950, cut: 1300, set: 900, stream: 1250, roll: 800 }
 
 const still = () =>
-  document.documentElement.dataset.motion === 'off' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+  document.documentElement.dataset.motion === 'off' ||
+  (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
-export default function LogoIntro({ className = '', intro, active = false }: { className?: string; intro?: Intro; active?: boolean }) {
+export default function LogoIntro({
+  className = '',
+  intro,
+  active = false,
+}: {
+  className?: string
+  intro?: Intro
+  active?: boolean
+}) {
   const id = useId()
-  const [play] = useState<Intro | null>(() => (still() ? null : (intro ?? INTROS[Math.floor(Math.random() * INTROS.length)])))
+  const [play] = useState<Intro | null>(() =>
+    still() ? null : (intro ?? INTROS[Math.floor(Math.random() * INTROS.length)]),
+  )
   const [done, setDone] = useState(false)
   const svg = useRef<SVGSVGElement>(null)
 
@@ -59,7 +70,9 @@ export default function LogoIntro({ className = '', intro, active = false }: { c
     const level = (v: number) => set(el.lvl, 'y', (H * (1 - v)).toFixed(1))
     const sheen = (p: number) => set(el.sheen, 'transform', `translate(${(-700 + 2200 * p).toFixed(1)} 0)`)
     const stripes = (els: SVGElement[], width: number, t: number, from: number) =>
-      els.forEach((r, i) => r.setAttribute('width', (width * outExpo(Math.min(1, Math.max(0, (t - from - i * 34) / 520)))).toFixed(1)))
+      els.forEach((r, i) =>
+        r.setAttribute('width', (width * outExpo(Math.min(1, Math.max(0, (t - from - i * 34) / 520)))).toFixed(1)),
+      )
 
     const at: Record<Intro, (t: number, seg: (a: number, b: number, e: (x: number) => number) => number) => void> = {
       // the outlines trace with a running head, the fills follow, one sheen closes
@@ -86,7 +99,11 @@ export default function LogoIntro({ className = '', intro, active = false }: { c
       cut: (_t, seg) => {
         const x = -300 + 1720 * seg(80, 900, outExpo)
         set(el.wipe, 'points', slant(x))
-        set(el.edge, 'points', `${x.toFixed(1)},0 ${(x + 18).toFixed(1)},0 ${(x - 198).toFixed(1)},${H} ${(x - 216).toFixed(1)},${H}`)
+        set(
+          el.edge,
+          'points',
+          `${x.toFixed(1)},0 ${(x + 18).toFixed(1)},0 ${(x - 198).toFixed(1)},${H} ${(x - 216).toFixed(1)},${H}`,
+        )
         set(el.edge, 'opacity', 1 - seg(650, 900, lin))
         sheen(seg(800, 1300, inOut))
       },
@@ -127,8 +144,16 @@ export default function LogoIntro({ className = '', intro, active = false }: { c
   if (!play || done) return <Logo className={className} active={active} />
 
   const stripeRows = (x0: number) =>
-    Array.from({ length: ROWS }, (_, i) => <rect key={i} x={x0} y={((i * H) / ROWS).toFixed(1)} width={0} height={(H / ROWS + 1).toFixed(1)} />)
-  const line = { fill: 'none', pathLength: 1, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' } as const
+    Array.from({ length: ROWS }, (_, i) => (
+      <rect key={i} x={x0} y={((i * H) / ROWS).toFixed(1)} width={0} height={(H / ROWS + 1).toFixed(1)} />
+    ))
+  const line = {
+    fill: 'none',
+    pathLength: 1,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    vectorEffect: 'non-scaling-stroke',
+  } as const
   return (
     <svg ref={svg} aria-hidden viewBox={`0 0 ${LOGO_W} ${LOGO_H}`} className={`overflow-visible ${className}`}>
       <defs>
@@ -136,7 +161,10 @@ export default function LogoIntro({ className = '', intro, active = false }: { c
           <rect x={-30} y={-30} width={LOGO_W + 60} height={H + 60} />
         </clipPath>
         <clipPath id={`${id}w`}>
-          <polygon data-k="wipe" points={slant(play === 'trace' || play === 'cut' || play === 'stream' ? -300 : 1400)} />
+          <polygon
+            data-k="wipe"
+            points={slant(play === 'trace' || play === 'cut' || play === 'stream' ? -300 : 1400)}
+          />
         </clipPath>
         <clipPath id={`${id}l`}>
           <rect data-k="lvl" x={540} y={play === 'trace' ? H : 0} width={500} height={H} />
@@ -177,10 +205,42 @@ export default function LogoIntro({ className = '', intro, active = false }: { c
         {play === 'cut' && <polygon data-k="edge" points="-400,0 -384,0 -600,594 -616,594" fill="var(--accent-blue)" />}
         {play === 'trace' && (
           <>
-            <path data-k="ln-w" d={LOGO_PATH_W} {...line} stroke="currentColor" strokeWidth="1.5" strokeDasharray="1 1" strokeDashoffset="1" />
-            <path data-k="ln-s" d={LOGO_PATH_S} {...line} stroke="var(--accent-blue)" strokeWidth="1.5" strokeDasharray="1 1" strokeDashoffset="1" />
-            <path data-k="hd-w" d={LOGO_PATH_W} {...line} stroke="var(--accent-blue)" strokeWidth="3" strokeDasharray={`${HEAD} 1`} strokeOpacity="0" />
-            <path data-k="hd-s" d={LOGO_PATH_S} {...line} stroke="currentColor" strokeWidth="3" strokeDasharray={`${HEAD} 1`} strokeOpacity="0" />
+            <path
+              data-k="ln-w"
+              d={LOGO_PATH_W}
+              {...line}
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeDasharray="1 1"
+              strokeDashoffset="1"
+            />
+            <path
+              data-k="ln-s"
+              d={LOGO_PATH_S}
+              {...line}
+              stroke="var(--accent-blue)"
+              strokeWidth="1.5"
+              strokeDasharray="1 1"
+              strokeDashoffset="1"
+            />
+            <path
+              data-k="hd-w"
+              d={LOGO_PATH_W}
+              {...line}
+              stroke="var(--accent-blue)"
+              strokeWidth="3"
+              strokeDasharray={`${HEAD} 1`}
+              strokeOpacity="0"
+            />
+            <path
+              data-k="hd-s"
+              d={LOGO_PATH_S}
+              {...line}
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeDasharray={`${HEAD} 1`}
+              strokeOpacity="0"
+            />
           </>
         )}
         {(play === 'trace' || play === 'cut') && (

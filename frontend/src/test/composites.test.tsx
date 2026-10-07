@@ -991,7 +991,17 @@ describe('TrendChart window', () => {
     endLabel: 'now',
   }
   const box = (el: Element) =>
-    (el.getBoundingClientRect = () => ({ left: 0, width: 100, top: 0, height: 72, right: 100, bottom: 72, x: 0, y: 0, toJSON: () => ({}) }))
+    (el.getBoundingClientRect = () => ({
+      left: 0,
+      width: 100,
+      top: 0,
+      height: 72,
+      right: 100,
+      bottom: 72,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }))
 
   it('shows only the newest span of a longer history, scaled to that window', () => {
     render(<TrendChart values={[9, 1, 2, 3]} span={3} {...props} />)
@@ -1004,7 +1014,9 @@ describe('TrendChart window', () => {
 
   it('zooms the span with two fingers', () => {
     const onSpanChange = vi.fn()
-    render(<TrendChart values={[1, 2, 3, 4]} span={100} minSpan={60} maxSpan={600} onSpanChange={onSpanChange} {...props} />)
+    render(
+      <TrendChart values={[1, 2, 3, 4]} span={100} minSpan={60} maxSpan={600} onSpanChange={onSpanChange} {...props} />,
+    )
     const svg = screen.getByRole('img')
     box(svg)
     fireEvent.pointerDown(svg, { pointerId: 1, clientX: 40 })

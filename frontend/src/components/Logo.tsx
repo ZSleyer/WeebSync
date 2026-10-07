@@ -8,7 +8,12 @@ import { LOGO_H, LOGO_PATH_S, LOGO_PATH_W, LOGO_W } from '../logo'
 export default function Logo({ className = '', active = false }: { className?: string; active?: boolean }) {
   const id = useId()
   return (
-    <svg aria-hidden viewBox={`0 0 ${LOGO_W} ${LOGO_H}`} className={`t-logo ${className}`} data-active={active || undefined}>
+    <svg
+      aria-hidden
+      viewBox={`0 0 ${LOGO_W} ${LOGO_H}`}
+      className={`t-logo ${className}`}
+      data-active={active || undefined}
+    >
       <path d={LOGO_PATH_W} fill="currentColor" />
       <path d={LOGO_PATH_S} fill="var(--accent-blue)" />
       {active && (
