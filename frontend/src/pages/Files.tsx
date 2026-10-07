@@ -1032,8 +1032,12 @@ export function CatalogGrid({
             </Button>
           </div>
         )}
+        {/* minmax(0, …) tracks and min-w-0 tiles: a folder name like
+            "Title [GerJapDub,GerEngSub,…]" is a truncated nowrap line, and
+            with auto minimums its full length set the tile's width - the
+            cards ran off the panel and the posters overlapped */}
         {layout === 'list' ? (
-          <ul className="grid gap-3">
+          <ul className="grid grid-cols-[minmax(0,1fr)] gap-3">
             {groups.map((g) => {
               const it = g.items[0]
               const multi = g.items.length > 1
@@ -1105,10 +1109,10 @@ export function CatalogGrid({
               const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
               const isSelected = g.items.some((v) => v.entry.path === selected)
               return (
-                <Press key={g.key} onLongPress={() => setSheet(g)} className="flex">
+                <Press key={g.key} onLongPress={() => setSheet(g)} className="flex min-w-0">
                   <Panel
                     as="article"
-                    className={`group relative flex flex-1 flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
+                    className={`group relative flex min-w-0 flex-1 flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
                   >
                     {/* rematch tucked away as a pencil over the cover (hover/focus);
                   unmatched folders keep the explicit button below instead */}
