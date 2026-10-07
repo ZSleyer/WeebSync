@@ -1,5 +1,7 @@
 {
   "common": {
+    "undo": "Undo",
+    "undoFailed": "That did not work, the entry is back.",
     "confirm": "Confirm",
     "cancel": "Cancel",
     "close": "Close",

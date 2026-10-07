@@ -1616,6 +1616,32 @@ li.t-swiperow { border-radius: 0; }
   20%, 100% { transform: translateX(1500px); }
 }
 
+/* The app's one feedback line (components/toast): bottom centre, above the
+   phone's tab bar. A popover in the top layer, open even while empty so its
+   live region exists before the text does; empty it takes no room and lets
+   every click through. The bar under the text runs out with the undo time. */
+.t-toast-region {
+  position: fixed; inset: auto 0 calc(var(--nav-h) + var(--safe-b) + 0.75rem); margin: 0 auto;
+  width: min(28rem, calc(100% - 2rem)); padding: 0; border: 0; background: none; overflow: visible;
+  pointer-events: none;
+}
+@media (width >= 64rem) { .t-toast-region { bottom: 1.5rem; } }
+.t-toast {
+  pointer-events: auto; position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border-radius: var(--r-menu); background: var(--text-primary); color: var(--bg-card);
+  font-size: 0.875rem; box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.5);
+  animation: fadeIn var(--dur-2) var(--ease-out) both;
+}
+.t-toast__undo {
+  min-height: 2rem; padding: 0 0.625rem; border-radius: var(--r-ctl);
+  font: 600 0.8125rem/1 var(--font-display); letter-spacing: 0.04em; color: inherit;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.t-toast__undo:hover { background: color-mix(in srgb, var(--bg-card) 12%, transparent); }
+.t-toast__time { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--accent-blue); transform-origin: left; animation: t-toast-time linear both; }
+@keyframes t-toast-time { to { transform: scaleX(0); } }
+
 /* ── Reduced-motion gating (in-app toggle + OS preference).
    0.01ms instead of none so animationend handlers still fire. ── */
 [data-motion="off"] *,
