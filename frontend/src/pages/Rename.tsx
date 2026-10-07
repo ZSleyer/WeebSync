@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FolderOpen, TriangleAlert } from 'lucide-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router'
 import { ActionBar, Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api, type RenamePair } from '../api'
 import { LocalPicker } from '../components/FileBrowser'
@@ -26,7 +27,9 @@ const EMPTY_RULE: RenameRule = {
 
 export default function Rename() {
   const { t } = useTranslation()
-  const [path, setPath] = useState('')
+  // Files opens this with the folder it was on (?path=)
+  const [params] = useSearchParams()
+  const [path, setPath] = useState(() => params.get('path') ?? '')
   const [rule, setRule] = useState<RenameRule>(EMPTY_RULE)
   const [preview, setPreview] = useState<RenamePair[] | null>(null)
   const [applied, setApplied] = useState<RenamePair[] | null>(null)
