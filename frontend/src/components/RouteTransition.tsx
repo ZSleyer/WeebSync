@@ -8,10 +8,10 @@ import { Outlet, useLocation } from 'react-router'
 //   new screen comes in from the right, and going back up from the left;
 // - a sibling inside a page (a suggestions tab, a desktop settings section):
 //   only the content fades, the heading, menu and tabs stand still.
-const PAGE = 'anim-t-reveal'
-const PUSH = 'anim-slide-from-right'
-const POP = 'anim-slide-from-left'
-const SWAP = 'anim-fade-in'
+const PAGE = 'anim-route-page'
+const PUSH = 'anim-route-push'
+const POP = 'anim-route-pop'
+const SWAP = 'anim-route-swap'
 
 interface Screen {
   path: string
@@ -61,9 +61,36 @@ export function routeMotion(
   return samePage ? { page: '', section: step } : { page: step, section: '' }
 }
 
+// A back or forward swipe on iOS and Android already animates the page in
+// the browser's own way; playing ours after it shows the screen twice. The
+// flag is set by the event that starts the navigation, before the router
+// renders it, and only read for POP navigations.
+let uaAnimated = false
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'popstate',
+    (e) => (uaAnimated = !!(e as PopStateEvent & { hasUAVisualTransition?: boolean }).hasUAVisualTransition),
+    {
+      capture: true,
+    },
+  )
+  const nav = (window as { navigation?: EventTarget }).navigation
+  nav?.addEventListener(
+    'navigate',
+    (e) => (uaAnimated = !!(e as Event & { hasUAVisualTransition?: boolean }).hasUAVisualTransition),
+  )
+}
+/** Whether the browser animated the last navigation itself. */
+export const browserAnimated = () => uaAnimated
+
 /** The class a page's outlet animates with on this navigation. */
 export const SectionMotion = createContext('')
 
+// The one mechanism for moving between routes: the new screen animates in,
+// the old one is gone at once. No view transition: a snapshot pair cross-fades
+// through a dip where both are half transparent, and fights the browser's
+// own back swipe. Decided once per navigation, never replayed by a render.
+//
 // RouteTransition drops the animation class once it finished: a filled
 // transform animation keeps the wrapper a containing block, which would pin
 // position:fixed descendants (e.g. the browser's selection bar) to the page

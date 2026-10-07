@@ -15,7 +15,6 @@ import {
   createRoutesFromElements,
   Link,
   NavLink,
-  useViewTransitionState,
   Navigate,
   Outlet,
   Route,
@@ -35,7 +34,7 @@ import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
 import PageScroll from './components/PageScroll'
 import CommandPalette from './components/CommandPalette'
-import { RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
+import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
 import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions, ShellFooter, WIDE_MQ } from './components/PageActions'
 import { SeriesModalProvider } from './components/SeriesModal'
@@ -299,17 +298,15 @@ function Shell({ email }: { email: string }) {
   // must not replay it). <main> is keyed on the top-level page, so it only
   // remounts - and animates - when the page changes; a move inside a page
   // (a settings section, a suggestions tab) animates the section's own
-  // outlet and leaves its heading, menu and tabs standing. The nav links
-  // navigate inside a view transition (<main> is named in CSS); then the
-  // browser animates the swap and the wrapper class stays off.
-  const inViewTransition = useViewTransitionState(location.pathname)
+  // outlet and leaves its heading, menu and tabs standing. A back swipe the
+  // browser already animated plays nothing on top.
   const wide = useMediaQuery(WIDE_MQ)
   const navType = useNavigationType()
   const prev = useRef({ path: location.pathname, back })
   const motion = useMemo(() => {
     const m = routeMotion(prev.current, { path: location.pathname, back }, wide, navType === 'REPLACE')
     prev.current = { path: location.pathname, back }
-    return m
+    return navType === 'POP' && browserAnimated() ? { page: '', section: '' } : m
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
 
@@ -376,7 +373,6 @@ function Shell({ email }: { email: string }) {
             key={n.to}
             to={n.to}
             end={n.to === '/'}
-            viewTransition
             className={({ isActive }) => navItemClass('sidebar', isActive)}
           >
             {icon(n)}
@@ -387,7 +383,7 @@ function Shell({ email }: { email: string }) {
       {/* settings at the foot, apart from the pages: visited rarely, but
           always in the same place */}
       <div className="py-2">
-        <NavLink to={SETTINGS.to} viewTransition className={({ isActive }) => navItemClass('sidebar', isActive)}>
+        <NavLink to={SETTINGS.to} className={({ isActive }) => navItemClass('sidebar', isActive)}>
           {dotted(icon(SETTINGS), !!update)}
           {t(SETTINGS.key)}
         </NavLink>
@@ -438,7 +434,6 @@ function Shell({ email }: { email: string }) {
           {!back && !onPath(SETTINGS, location.pathname) && (
             <Link
               to={SETTINGS.to}
-              viewTransition
               aria-label={t(SETTINGS.key)}
               className="t-iconbtn text-t-secondary hover:text-t-primary"
             >
@@ -459,7 +454,6 @@ function Shell({ email }: { email: string }) {
             key={n.to}
             to={n.to}
             end={n.to === '/'}
-            viewTransition
             className={({ isActive }) => navItemClass('bottomTab', isActive)}
           >
             {icon(n)}
@@ -490,7 +484,7 @@ function Shell({ email }: { email: string }) {
                 </>
               }
             >
-              <RouteTransition cls={motion.page && !inViewTransition ? motion.page : ''}>
+              <RouteTransition cls={motion.page}>
                 <Outlet />
               </RouteTransition>
               <PageScroll stacked={!!back} />
