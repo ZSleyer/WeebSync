@@ -74,11 +74,11 @@ import {
   mediaTitle,
   fmtBytes,
 } from '../api'
-import { useSeriesModal } from '../components/SeriesModal'
+import { SeriesCardView, useSeriesModal } from '../components/SeriesModal'
 import { ProviderBadges } from '../components/ProviderBadges'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../components/upgradeQuality'
-import WatchDialog, { type WatchFields } from '../components/WatchDialog'
+import WatchDialog, { WatchForm, type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
 import { useAiStatus, usePersistedQuery, useAuth } from '../hooks'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
@@ -246,7 +246,15 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
   const { data, isLoading } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
     refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
   })
-  const [watch, setWatch] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
+  // `inCard`: set up from the title card, which shows the form in its place
+  const [watch, setWatch] = useState<{
+    serverId: number
+    name: string
+    initial: WatchFields
+    inCard?: boolean
+  } | null>(null)
+  const toast = useToast()
+  const qc = useQueryClient()
   const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
   const [notice, setNotice] = useState('')
 
@@ -349,18 +357,37 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
                 </Disclosure>
               )
             })}
-      {watch && (
-        <WatchDialog
-          title={watch.name}
-          serverId={watch.serverId}
-          initial={watch.initial}
-          onSave={async (f) => {
-            await api.post('/api/watches', { serverId: watch.serverId, ...f })
-            setNotice(t('watch.saved'))
-          }}
-          onClose={() => setWatch(null)}
-        />
-      )}
+      {watch &&
+        (watch.inCard ? (
+          <SeriesCardView onClose={() => setWatch(null)}>
+            {(v) => (
+              <WatchForm
+                {...v}
+                title={watch.name}
+                serverId={watch.serverId}
+                initial={watch.initial}
+                onSave={async (f) => {
+                  await api.post('/api/watches', { serverId: watch.serverId, ...f })
+                  // back on the card, its auto-sync section shows the new watch
+                  await qc.invalidateQueries({ queryKey: ['watches'] })
+                  toast({ message: t('watch.saved') })
+                }}
+                onClose={() => setWatch(null)}
+              />
+            )}
+          </SeriesCardView>
+        ) : (
+          <WatchDialog
+            title={watch.name}
+            serverId={watch.serverId}
+            initial={watch.initial}
+            onSave={async (f) => {
+              await api.post('/api/watches', { serverId: watch.serverId, ...f })
+              setNotice(t('watch.saved'))
+            }}
+            onClose={() => setWatch(null)}
+          />
+        ))}
       {sync && (
         <WatchDialog
           title={sync.name}
@@ -392,7 +419,7 @@ function SugCard({
   onNotice,
 }: {
   it: SuggestionItem
-  onWatch: (w: { serverId: number; name: string; initial: WatchFields }) => void
+  onWatch: (w: { serverId: number; name: string; initial: WatchFields; inCard?: boolean }) => void
   onSync: (w: { serverId: number; name: string; initial: WatchFields }) => void
   onNotice: (s: string) => void
 }) {
@@ -515,6 +542,7 @@ function SugCard({
                               serverId: it.candidates[0].serverId,
                               name: it.title,
                               initial: prefill(it.candidates[0].path),
+                              inCard: true,
                             }),
                         },
                       ]

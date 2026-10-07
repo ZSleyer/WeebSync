@@ -389,6 +389,7 @@
       "setupWatch": "Auto-Sync einrichten"
     },
     "moreActions": "Weitere Aktionen für {{name}}",
+    "rematched": "Zuordnung geändert",
     "progressLabel": "Fortschritt {{name}}",
     "role": {
       "SUPPORTING": "Nebenrolle",
