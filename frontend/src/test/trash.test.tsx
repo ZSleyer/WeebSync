@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { TrashButton } from '../components/TrashDialog'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import TrashPage, { TrashButton } from '../pages/Trash'
 import { api, type TrashEntry } from '../api'
 
 vi.mock(import('react-i18next'), async (importOriginal) => ({
@@ -42,7 +43,12 @@ function app() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <TrashButton />
+      <MemoryRouter>
+        <Routes>
+          <Route path="/" element={<TrashButton />} />
+          <Route path="/files/trash" element={<TrashPage />} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -50,11 +56,11 @@ function app() {
 afterEach(() => vi.restoreAllMocks())
 
 describe('TrashButton', () => {
-  it('counts what waits and opens the list', async () => {
+  it('counts what waits and opens its page', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(entries)
     app()
     expect(await screen.findByText('2')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'trash.open' }))
+    fireEvent.click(screen.getByRole('link', { name: 'trash.open' }))
     expect(await screen.findByText('ep1.mkv')).toBeInTheDocument()
     expect(screen.getByText('/m/Show/S1')).toBeInTheDocument()
     expect(screen.getByText('old')).toBeInTheDocument()
@@ -65,7 +71,7 @@ describe('TrashButton', () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({ status: 'ok' })
     const del = vi.spyOn(api, 'del').mockResolvedValue({ status: 'ok' })
     app()
-    fireEvent.click(await screen.findByRole('button', { name: 'trash.open' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'trash.open' }))
     fireEvent.click((await screen.findAllByRole('button', { name: 'trash.restore' }))[0])
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/trash/restore', { path: entries[0].path }))
     fireEvent.click(screen.getByRole('button', { name: 'trash.deleteItem:old' }))
@@ -78,7 +84,7 @@ describe('TrashButton', () => {
     admin = false
     vi.spyOn(api, 'get').mockResolvedValue(entries)
     app()
-    fireEvent.click(await screen.findByRole('button', { name: 'trash.open' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'trash.open' }))
     await screen.findByText('ep1.mkv')
     expect(screen.queryByRole('button', { name: 'trash.restore' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'trash.empty' })).toBeNull()
