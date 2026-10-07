@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   Activity,
   ArrowDownUp,
@@ -9,18 +9,18 @@ import {
   LogOut,
   Plug,
   RefreshCw,
-  Search,
   Server,
   Settings2,
   Shield,
   UserRound,
 } from 'lucide-react'
-import { Navigate, NavLink, Outlet, useLocation } from 'react-router'
+import { Navigate, NavLink } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Button, Input, navItemClass, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useAuth, useUpdateHint } from '../../hooks'
 import { WIDE_MQ } from '../../components/PageActions'
+import { SectionOutlet } from '../../components/RouteTransition'
 import { SectionHub, SectionNav, type SectionGroup } from '../../components/SectionNav'
 
 const PERSONAL = [
@@ -83,22 +83,15 @@ function SettingsSearch({ groups, children }: { groups: SectionGroup[]; children
     : null
   return (
     <div className="flex flex-col gap-4">
-      <div className="relative">
-        <Search
-          aria-hidden
-          size="1em"
-          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-t-muted"
-        />
-        <Input
-          type="search"
-          size="sm"
-          className="w-full pl-8"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          aria-label={t('settings.search.label')}
-          placeholder={t('settings.search.label')}
-        />
-      </div>
+      <Input
+        type="search"
+        size="sm"
+        className="w-full"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        aria-label={t('settings.search.label')}
+        placeholder={t('settings.search.label')}
+      />
       {!hits ? (
         children
       ) : hits.length === 0 ? (
@@ -125,24 +118,6 @@ function SettingsSearch({ groups, children }: { groups: SectionGroup[]; children
       )}
     </div>
   )
-}
-
-// Client-side navigation does not scroll to a #panel by itself, and the
-// panel may only render once its settings are in: look for it a few frames.
-function useScrollToHash() {
-  const { hash, pathname } = useLocation()
-  useEffect(() => {
-    if (!hash) return
-    let tries = 0
-    let frame = 0
-    const go = () => {
-      const el = document.getElementById(decodeURIComponent(hash.slice(1)))
-      if (el) el.scrollIntoView({ block: 'start' })
-      else if (tries++ < 60) frame = requestAnimationFrame(go)
-    }
-    frame = requestAnimationFrame(go)
-    return () => cancelAnimationFrame(frame)
-  }, [hash, pathname])
 }
 
 export function AdminRoute({ children }: { children: ReactNode }) {
@@ -210,7 +185,6 @@ export function SettingsHub() {
 export default function SettingsLayout() {
   const { t } = useTranslation()
   const groups = useSettingsGroups()
-  useScrollToHash()
   // no swipe between the sections: like the page swipe it fought the
   // gestures inside the page, and the menu is one tap away
   return (
@@ -229,7 +203,7 @@ export default function SettingsLayout() {
         </div>
 
         <div className="min-w-0 max-w-4xl flex-1">
-          <Outlet />
+          <SectionOutlet />
         </div>
       </div>
     </div>
