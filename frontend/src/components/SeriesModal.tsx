@@ -66,7 +66,7 @@ import { dubOverdueLabel, dubWaitingLabel } from '../attention'
 import { useNow } from '../hooks'
 import MediaDetail, { GenreChips } from './MediaDetail'
 import WatchEpisodesList from './WatchEpisodes'
-import WatchDialog from './WatchDialog'
+import { WatchForm } from './WatchDialog'
 import { useWatchActions, watchFields } from './watchActions'
 
 /** What a caller hands the title card: which title, and what it already knows. */
@@ -246,6 +246,26 @@ function SeriesDialog({
   const MediaStatusIcon = media?.status ? MEDIA_STATUS_ICON[media.status] : undefined
   const now = useNow()
 
+  // Editing a watch swaps the card's content for the editor, in the same
+  // dialog, rather than stacking a second modal on it: in from the right, and
+  // the card back in from the left (shared axis, the route motion's classes,
+  // which the reduced-motion gate already stills). The card unmounts while
+  // it is away, so where it was scrolled to and which block asked are kept
+  // for the way back.
+  const act = useWatchActions()
+  const [editing, setEditing] = useState<Watch | null>(null)
+  const [returned, setReturned] = useState(false)
+  const guard = useRef<() => Promise<boolean>>(async () => true)
+  const away = useRef<{ top: number; id: number } | null>(null)
+  const edit = (w: Watch) => {
+    away.current = { top: scroller.current?.scrollTop ?? 0, id: w.id }
+    setEditing(w)
+  }
+  const leave = () => {
+    setEditing(null)
+    setReturned(true)
+  }
+
   // the secondary tabs load on first sight, never with the list
   const wantExtras = tab !== 'sync'
   const { data: extras, isError: extrasFailed } = useQuery<MediaExtras>({
@@ -300,197 +320,232 @@ function SeriesDialog({
     lag()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, cur.id])
+  // back from the editor: the scroll it left, and focus on the menu the
+  // edit came from, since the menu item that had it is gone
+  useLayoutEffect(() => {
+    const was = away.current
+    if (editing || !was) return
+    away.current = null
+    if (scroller.current) scroller.current.scrollTop = was.top
+    lag()
+    scroller.current?.querySelector<HTMLElement>(`[data-watch="${was.id}"] [aria-haspopup]`)?.focus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing])
 
   return (
     <Dialog
       width="max-w-3xl"
       aria-label={t('remote.detailsFor', { name })}
       onClose={onClose}
+      // Escape, the backdrop, the grabber and the back gesture still close the
+      // whole card from the editor, but not past its unsaved changes
+      onRequestClose={() => (editing ? guard.current() : true)}
       closeTransition={origin ? (close) => void morphTransition(origin, close, true) : undefined}
     >
-      <div className="dialog-body relative">
-        <div ref={dock} aria-hidden className="t-dock">
-          <span className="truncate">{name}</span>
-        </div>
-        {/* One scroller for the head and the panel: the banner and the title
+      {editing ? (
+        <WatchForm
+          className="anim-route-push"
+          title={t('watch.editTitle')}
+          serverId={editing.serverId}
+          watchId={editing.id}
+          initial={watchFields(editing)}
+          onSave={(f) => act.save(editing.id, f)}
+          onClose={leave}
+          onGuard={(check) => (guard.current = check)}
+          onBack={async () => {
+            if (await guard.current()) leave()
+          }}
+        />
+      ) : (
+        <div className={`dialog-body relative ${returned ? 'anim-route-pop' : ''}`}>
+          <div ref={dock} aria-hidden className="t-dock">
+            <span className="truncate">{name}</span>
+          </div>
+          {/* One scroller for the head and the panel: the banner and the title
             scroll away and leave the room to the content, the tabs stay at the
             top. The banner lags behind the scroll, so it reads as further back
             than the page sliding over it. */}
-        <div ref={scroller} onScroll={lag} className="min-h-0 flex-1 overflow-y-auto">
-          <header ref={head} className="relative">
-            {media?.bannerImage && (
-              <div className="h-36 overflow-hidden bg-bg-hover">
-                <img
-                  ref={banner}
-                  src={media.bannerImage}
-                  alt=""
-                  className="h-full w-full object-cover will-change-transform"
-                />
-              </div>
-            )}
-            {stack.length > 1 && (
-              <IconButton
-                aria-label={t('series.back')}
-                title={t('series.back')}
-                onClick={back}
-                className="absolute top-2 left-2 bg-bg-card/90"
-              >
-                <ArrowLeft aria-hidden size="1.2em" />
-              </IconButton>
-            )}
-            <div className="flex gap-4 px-5 pt-4 pb-3">
-              {media?.coverImage?.large && (
-                <div className="shrink-0">
-                  <Cover
-                    src={media.coverImage.extraLarge || media.coverImage.large}
-                    tint={media.coverImage.color ?? undefined}
-                    size="md"
+          <div ref={scroller} onScroll={lag} className="min-h-0 flex-1 overflow-y-auto">
+            <header ref={head} className="relative">
+              {media?.bannerImage && (
+                <div className="h-36 overflow-hidden bg-bg-hover">
+                  <img
+                    ref={banner}
+                    src={media.bannerImage}
+                    alt=""
+                    className="h-full w-full object-cover will-change-transform"
                   />
                 </div>
               )}
-              <div className="min-w-0 flex-1">
-                <h3 className="font-display font-semibold tracking-wider">{name}</h3>
-                {media?.title.english && media.title.english !== name && !/[぀-ヿ㐀-鿿]/.test(media.title.english) && (
-                  <p className="text-sm text-t-muted">{media.title.english}</p>
-                )}
-                {media && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {media.seasonYear > 0 && <Badge>{media.seasonYear}</Badge>}
-                    {media.format && <Badge>{media.format}</Badge>}
-                    {media.episodes > 0 && <Badge>{media.episodes} EP</Badge>}
-                    {media.status && (
-                      <Badge>
-                        {MediaStatusIcon && <MediaStatusIcon aria-hidden size="1em" />}
-                        {t(`remote.status.${media.status}`, media.status)}
-                      </Badge>
-                    )}
-                    {media.averageScore > 0 && (
-                      <Badge tone="accent">
-                        <Star
-                          aria-hidden
-                          size="1em"
-                          className="mr-0.5 inline align-[-0.125em]"
-                          fill="currentColor"
-                          strokeWidth={0}
-                        />
-                        {media.averageScore}
-                      </Badge>
-                    )}
+              {stack.length > 1 && (
+                <IconButton
+                  aria-label={t('series.back')}
+                  title={t('series.back')}
+                  onClick={back}
+                  className="absolute top-2 left-2 bg-bg-card/90"
+                >
+                  <ArrowLeft aria-hidden size="1.2em" />
+                </IconButton>
+              )}
+              <div className="flex gap-4 px-5 pt-4 pb-3">
+                {media?.coverImage?.large && (
+                  <div className="shrink-0">
+                    <Cover
+                      src={media.coverImage.extraLarge || media.coverImage.large}
+                      tint={media.coverImage.color ?? undefined}
+                      size="md"
+                    />
                   </div>
                 )}
-                <GenreChips genres={media?.genres} />
-              </div>
-            </div>
-          </header>
-          <div className="sticky top-11 z-10 border-b border-border-subtle bg-bg-card">
-            <Tabs scroll aria-label={t('series.tabsLabel')} className="t-tabs--line px-3">
-              {tabs.map((k) => (
-                <Tab
-                  key={k}
-                  id={`${ids}-tab-${k}`}
-                  aria-controls={`${ids}-panel-${k}`}
-                  selected={tab === k}
-                  onClick={() => setTab(k)}
-                >
-                  {t(`series.tab.${k}`)}
-                  {k === 'sync' && mine.length > 1 && <span className="t-count ml-1.5">{mine.length}</span>}
-                </Tab>
-              ))}
-            </Tabs>
-          </div>
-
-          <div {...tabSwipe} id={`${ids}-panel-${tab}`} role="tabpanel" aria-labelledby={`${ids}-tab-${tab}`}>
-            {tab === 'overview' && media && (
-              <MediaDetail media={media} source={source} airings={mine[0]?.airings} links={extras?.links} now={now}>
-                {cur.extra}
-              </MediaDetail>
-            )}
-            {tab === 'sync' && (
-              <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5">
-                {mine.map((w) => (
-                  <WatchBlock key={w.id} watch={w} onGone={mine.length === 1 ? onClose : undefined} />
-                ))}
-              </div>
-            )}
-            {tab === 'cast' && (
-              <div className="p-5">
-                <Unavailable when={extrasFailed} source={source} />
-                {extras && extras.characters.length === 0 && (
-                  <p className="text-sm text-t-muted">{t('series.noCast')}</p>
-                )}
-                <ul className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
-                  {extras?.characters.map((c) => (
-                    <li key={`${c.name}-${c.voiceActor}`} className="flex items-center gap-2">
-                      {c.image ? (
-                        <img
-                          src={c.image}
-                          alt=""
-                          loading="lazy"
-                          className="h-12 w-12 shrink-0 rounded-full object-cover"
-                        />
-                      ) : (
-                        <span aria-hidden className="t-hatch h-12 w-12 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-display font-semibold tracking-wider">{name}</h3>
+                  {media?.title.english && media.title.english !== name && !/[぀-ヿ㐀-鿿]/.test(media.title.english) && (
+                    <p className="text-sm text-t-muted">{media.title.english}</p>
+                  )}
+                  {media && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {media.seasonYear > 0 && <Badge>{media.seasonYear}</Badge>}
+                      {media.format && <Badge>{media.format}</Badge>}
+                      {media.episodes > 0 && <Badge>{media.episodes} EP</Badge>}
+                      {media.status && (
+                        <Badge>
+                          {MediaStatusIcon && <MediaStatusIcon aria-hidden size="1em" />}
+                          {t(`remote.status.${media.status}`, media.status)}
+                        </Badge>
                       )}
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm text-t-primary">{c.name}</span>
-                        {c.voiceActor && (
-                          <span className="block truncate text-[11px] text-t-muted">{c.voiceActor}</span>
-                        )}
-                        {c.role && c.role !== 'MAIN' && (
-                          <span className="block text-[10px] uppercase text-t-faint">
-                            {t(`series.role.${c.role}`, c.role)}
-                          </span>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                      {media.averageScore > 0 && (
+                        <Badge tone="accent">
+                          <Star
+                            aria-hidden
+                            size="1em"
+                            className="mr-0.5 inline align-[-0.125em]"
+                            fill="currentColor"
+                            strokeWidth={0}
+                          />
+                          {media.averageScore}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                  <GenreChips genres={media?.genres} />
+                </div>
               </div>
-            )}
-            {tab === 'community' && (
-              <Community source={source} id={cur.id} threads={extras?.threads} failed={extrasFailed} />
-            )}
-            {tab === 'similar' && (
-              <div className="p-5">
-                <Unavailable when={extrasFailed} source={source} />
-                {extras && extras.relations.length === 0 && extras.recommendations.length === 0 && (
-                  <p className="text-sm text-t-muted">{t('series.noSimilar')}</p>
-                )}
-                {!!extras?.relations.length && (
-                  <section>
-                    <h4 className="t-label mb-2">{t('series.relations')}</h4>
-                    <PosterRow
-                      items={extras.relations.map((r) => ({
-                        media: r.node,
-                        caption: t(`series.relation.${r.relationType}`, r.relationType),
-                      }))}
-                      onPick={(m) => push({ id: m.id, media: m })}
-                    />
-                  </section>
-                )}
-                {!!extras?.recommendations.length && (
-                  <section className="mt-4">
-                    <h4 className="t-label mb-2">{t('series.recommendations')}</h4>
-                    <PosterRow
-                      items={extras.recommendations.map((m) => ({ media: m }))}
-                      onPick={(m) => push({ source, id: m.id, media: m })}
-                    />
-                  </section>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+            </header>
+            <div className="sticky top-11 z-10 border-b border-border-subtle bg-bg-card">
+              <Tabs scroll aria-label={t('series.tabsLabel')} className="t-tabs--line px-3">
+                {tabs.map((k) => (
+                  <Tab
+                    key={k}
+                    id={`${ids}-tab-${k}`}
+                    aria-controls={`${ids}-panel-${k}`}
+                    selected={tab === k}
+                    onClick={() => setTab(k)}
+                  >
+                    {t(`series.tab.${k}`)}
+                    {k === 'sync' && mine.length > 1 && <span className="t-count ml-1.5">{mine.length}</span>}
+                  </Tab>
+                ))}
+              </Tabs>
+            </div>
 
-        <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          <Button
-            size="sm"
-            onClick={() => (origin ? void morphTransition(origin, () => flushSync(onClose), true) : onClose())}
-          >
-            {t('common.close')}
-          </Button>
-        </footer>
-      </div>
+            <div {...tabSwipe} id={`${ids}-panel-${tab}`} role="tabpanel" aria-labelledby={`${ids}-tab-${tab}`}>
+              {tab === 'overview' && media && (
+                <MediaDetail media={media} source={source} airings={mine[0]?.airings} links={extras?.links} now={now}>
+                  {cur.extra}
+                </MediaDetail>
+              )}
+              {tab === 'sync' && (
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5">
+                  {mine.map((w) => (
+                    <WatchBlock
+                      key={w.id}
+                      watch={w}
+                      onEdit={() => edit(w)}
+                      onGone={mine.length === 1 ? onClose : undefined}
+                    />
+                  ))}
+                </div>
+              )}
+              {tab === 'cast' && (
+                <div className="p-5">
+                  <Unavailable when={extrasFailed} source={source} />
+                  {extras && extras.characters.length === 0 && (
+                    <p className="text-sm text-t-muted">{t('series.noCast')}</p>
+                  )}
+                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
+                    {extras?.characters.map((c) => (
+                      <li key={`${c.name}-${c.voiceActor}`} className="flex items-center gap-2">
+                        {c.image ? (
+                          <img
+                            src={c.image}
+                            alt=""
+                            loading="lazy"
+                            className="h-12 w-12 shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span aria-hidden className="t-hatch h-12 w-12 shrink-0 rounded-full" />
+                        )}
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm text-t-primary">{c.name}</span>
+                          {c.voiceActor && (
+                            <span className="block truncate text-[11px] text-t-muted">{c.voiceActor}</span>
+                          )}
+                          {c.role && c.role !== 'MAIN' && (
+                            <span className="block text-[10px] uppercase text-t-faint">
+                              {t(`series.role.${c.role}`, c.role)}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {tab === 'community' && (
+                <Community source={source} id={cur.id} threads={extras?.threads} failed={extrasFailed} />
+              )}
+              {tab === 'similar' && (
+                <div className="p-5">
+                  <Unavailable when={extrasFailed} source={source} />
+                  {extras && extras.relations.length === 0 && extras.recommendations.length === 0 && (
+                    <p className="text-sm text-t-muted">{t('series.noSimilar')}</p>
+                  )}
+                  {!!extras?.relations.length && (
+                    <section>
+                      <h4 className="t-label mb-2">{t('series.relations')}</h4>
+                      <PosterRow
+                        items={extras.relations.map((r) => ({
+                          media: r.node,
+                          caption: t(`series.relation.${r.relationType}`, r.relationType),
+                        }))}
+                        onPick={(m) => push({ id: m.id, media: m })}
+                      />
+                    </section>
+                  )}
+                  {!!extras?.recommendations.length && (
+                    <section className="mt-4">
+                      <h4 className="t-label mb-2">{t('series.recommendations')}</h4>
+                      <PosterRow
+                        items={extras.recommendations.map((m) => ({ media: m }))}
+                        onPick={(m) => push({ source, id: m.id, media: m })}
+                      />
+                    </section>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
+            <Button
+              size="sm"
+              onClick={() => (origin ? void morphTransition(origin, () => flushSync(onClose), true) : onClose())}
+            >
+              {t('common.close')}
+            </Button>
+          </footer>
+        </div>
+      )}
     </Dialog>
   )
 }
@@ -643,10 +698,9 @@ function Community({
  * and everything that can be done to it - check now up front, the rest
  * behind the overflow menu. The episode list sits under it.
  */
-function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void }) {
+function WatchBlock({ watch: w, onEdit, onGone }: { watch: Watch; onEdit: () => void; onGone?: () => void }) {
   const { t } = useTranslation()
   const act = useWatchActions()
-  const [edit, setEdit] = useState(false)
   const {
     open: menuOpen,
     setOpen: setMenuOpen,
@@ -660,7 +714,11 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
   return (
     // min-w-0: a grid item's automatic minimum is its content's min-content
     // width, and the mono path would otherwise widen the sheet past a phone
-    <section className="min-w-0 rounded-lg border border-border-subtle p-3" aria-label={watchTitle(w)}>
+    <section
+      className="min-w-0 rounded-lg border border-border-subtle p-3"
+      aria-label={watchTitle(w)}
+      data-watch={w.id}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <p className="min-w-0 flex-1 truncate font-mono text-[11px] text-t-muted" title={w.remotePath}>
           {w.serverName}:{w.remotePath} → {w.localPath}
@@ -687,7 +745,7 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
               <MenuItem
                 onClick={() => {
                   setMenuOpen(false)
-                  setEdit(true)
+                  onEdit()
                 }}
               >
                 <Pencil aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
@@ -820,16 +878,6 @@ function WatchBlock({ watch: w, onGone }: { watch: Watch; onGone?: () => void })
       <div className="mt-3 border-t border-border-subtle pt-3">
         <WatchEpisodesList watch={w} />
       </div>
-      {edit && (
-        <WatchDialog
-          title={t('watch.editTitle')}
-          serverId={w.serverId}
-          watchId={w.id}
-          initial={watchFields(w)}
-          onSave={(f) => act.save(w.id, f)}
-          onClose={() => setEdit(false)}
-        />
-      )}
     </section>
   )
 }
