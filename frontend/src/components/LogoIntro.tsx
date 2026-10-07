@@ -2,14 +2,14 @@ import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { LOGO_H, LOGO_PATH_S, LOGO_PATH_W, LOGO_W } from '../logo'
 import Logo from './Logo'
 
-// The mark drawing itself in, once per session where it stands large (the
-// login). Five intros, one drawn at random per visit. Each is a timeline of
+// The mark drawing itself in: on the login and wherever the shell shows it,
+// again on every page change (the caller keys it by route). Five intros, one
+// drawn at random per mount. Each is a timeline of
 // overlapping beats driven by rAF and plain SVG attributes - WebKit ignores
 // CSS transforms inside a clipPath - that enters with ease-out curves, stays
-// under two seconds and lands on the static mark. Motion off, or seen once
-// this session: the static mark straight away.
+// under two seconds and lands on the static mark, sheen and all. Motion off:
+// the static mark straight away.
 
-const SEEN = 'weebsync.logo-intro'
 const H = LOGO_H
 const ROWS = 12
 const HEAD = 0.06 // the running head of a traced outline, as a share of its length
@@ -28,17 +28,10 @@ const DURATION: Record<Intro, number> = { trace: 1950, cut: 1300, set: 900, stre
 const still = () =>
   document.documentElement.dataset.motion === 'off' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
-function seenThisSession() {
-  try {
-    return sessionStorage.getItem(SEEN) === '1'
-  } catch {
-    return false
-  }
-}
-
-export default function LogoIntro({ className = '', intro }: { className?: string; intro?: Intro }) {
+export default function LogoIntro({ className = '', intro, active = false }: { className?: string; intro?: Intro; active?: boolean }) {
   const id = useId()
-  const [play] = useState<Intro | null>(() => (still() || seenThisSession() ? null : (intro ?? INTROS[Math.floor(Math.random() * INTROS.length)])))
+  const [play] = useState<Intro | null>(() => (still() ? null : (intro ?? INTROS[Math.floor(Math.random() * INTROS.length)])))
+  const [done, setDone] = useState(false)
   const svg = useRef<SVGSVGElement>(null)
 
   // layout effect: the first frame is set before the browser paints, so no
@@ -46,11 +39,6 @@ export default function LogoIntro({ className = '', intro }: { className?: strin
   useLayoutEffect(() => {
     const root = svg.current
     if (!play || !root) return
-    try {
-      sessionStorage.setItem(SEEN, '1')
-    } catch {
-      // private mode: it may play again, nothing worse
-    }
     const q = (sel: string) => [...root.querySelectorAll<SVGElement>(sel)]
     const set = (els: SVGElement[], k: string, v: string | number) => els.forEach((e) => e.setAttribute(k, String(v)))
     const el = {
@@ -127,14 +115,16 @@ export default function LogoIntro({ className = '', intro }: { className?: strin
     const frame = (now: number) => {
       const t = now - t0
       at[play](t, (a, b, e) => e(Math.min(1, Math.max(0, (t - a) / (b - a)))))
+      // landed: hand over to the plain mark, which carries the sheen
       if (t < DURATION[play]) raf = requestAnimationFrame(frame)
+      else setDone(true)
     }
     frame(t0)
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
   }, [play])
 
-  if (!play) return <Logo className={className} />
+  if (!play || done) return <Logo className={className} active={active} />
 
   const stripeRows = (x0: number) =>
     Array.from({ length: ROWS }, (_, i) => <rect key={i} x={x0} y={((i * H) / ROWS).toFixed(1)} width={0} height={(H / ROWS + 1).toFixed(1)} />)

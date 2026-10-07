@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import Logo from '../components/Logo'
 import LogoIntro from '../components/LogoIntro'
 
@@ -14,22 +14,28 @@ describe('Logo', () => {
 })
 
 describe('LogoIntro', () => {
-  beforeEach(() => sessionStorage.clear())
+  afterEach(() => {
+    delete document.documentElement.dataset.motion
+  })
 
-  it('plays once per session, then stands as the plain mark', () => {
+  it('plays on every mount, so a page change keyed by route redraws it', () => {
     const first = render(<LogoIntro intro="cut" />)
     expect(first.container.querySelector('[data-k="edge"]')).not.toBeNull()
-    expect(sessionStorage.getItem('weebsync.logo-intro')).toBe('1')
     first.unmount()
-
     const again = render(<LogoIntro intro="cut" />)
-    expect(again.container.querySelector('[data-k]')).toBeNull()
-    expect(again.container.querySelectorAll('path')).toHaveLength(2)
+    expect(again.container.querySelector('[data-k="edge"]')).not.toBeNull()
   })
 
   it('starts hidden, so the finished mark never flashes first', () => {
     const { container } = render(<LogoIntro intro="roll" />)
     // the first frame ran before paint: both letters sit below their places
     expect(container.querySelector('[data-k="gw"]')!.getAttribute('transform')).toBe('translate(0 640.0)')
+  })
+
+  it('is the plain mark, sheen included, with motion off', () => {
+    document.documentElement.dataset.motion = 'off'
+    const { container } = render(<LogoIntro active />)
+    expect(container.querySelector('[data-k]')).toBeNull()
+    expect(container.querySelector('.t-logo-sheen')).not.toBeNull()
   })
 })
