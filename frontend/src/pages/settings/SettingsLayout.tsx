@@ -4,6 +4,7 @@ import {
   ArrowDownUp,
   Bell,
   Database,
+  Info,
   Link2,
   LogOut,
   Plug,
@@ -33,6 +34,7 @@ const ADMIN = [
   { to: 'security', key: 'settings.nav.security', icon: Shield, hint: 'settings.hub.security' },
   { to: 'integrations', key: 'settings.nav.integrations', icon: Plug, hint: 'settings.hub.integrations' },
 ]
+const ABOUT = [{ to: 'about', key: 'settings.nav.about', icon: Info, hint: 'settings.hub.about' }]
 const MAINTENANCE = [
   { to: 'jobs', key: 'settings.nav.jobs', icon: Activity, hint: 'settings.hub.jobs' },
   { to: 'matching', key: 'settings.nav.matching', icon: Link2, hint: 'settings.hub.matching' },
@@ -47,13 +49,10 @@ export function AdminRoute({ children }: { children: ReactNode }) {
 
 function useGroups(): SectionGroup[] {
   const { data: user } = useAuth()
-  // the About panel lives on General: a newer build out marks that entry
+  // a newer build out marks the About entry, where the details are
   const update = useUpdateHint()
   return [
-    {
-      label: 'settings.groupPersonal',
-      items: PERSONAL.map((i) => (i.to === 'general' ? { ...i, alert: !!update } : i)),
-    },
+    { label: 'settings.groupPersonal', items: PERSONAL },
     { label: 'settings.groupSources', items: SOURCES },
     ...(user?.isAdmin
       ? [
@@ -61,6 +60,7 @@ function useGroups(): SectionGroup[] {
           { label: 'settings.groupMaintenance', items: MAINTENANCE },
         ]
       : []),
+    { label: 'settings.groupAbout', items: ABOUT.map((i) => ({ ...i, alert: !!update })) },
   ]
 }
 
