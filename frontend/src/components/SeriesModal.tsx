@@ -46,7 +46,9 @@ import {
   MenuItem,
   morphTransition,
   Progress,
+  SidePanel,
   useBackEntry,
+  useMediaQuery,
   useMenu,
 } from '@weebsync/design-system'
 import {
@@ -63,6 +65,7 @@ import {
 import { dubOverdueLabel, dubWaitingLabel } from '../attention'
 import { useNow } from '../hooks'
 import ActionMenu from './ActionMenu'
+import { WIDE_MQ } from './PageActions'
 import type { SheetAction } from './ActionSheet'
 import MediaDetail, { GenreChips } from './MediaDetail'
 import WatchEpisodesList from './WatchEpisodes'
@@ -233,13 +236,15 @@ const remember = (t: SeriesTarget) => {
 }
 
 /**
- * Holds the title card the whole app shares. One dialog instead of one per
+ * Holds the title card the whole app shares. One card instead of one per
  * page: a cover opens the same thing everywhere, and the card can grow
- * sections without every caller learning about them. A route change closes
+ * sections without every caller learning about them. A dialog (a bottom
+ * sheet on a phone), or on a desktop a panel docked in the shell's `panel`
+ * slot beside the page. A route change closes
  * it - the card belongs to its history entry, and a page's own navigation
  * leaves that entry behind.
  */
-export function SeriesModalProvider({ children }: { children: ReactNode }) {
+export function SeriesModalProvider({ children, panel }: { children: ReactNode; panel?: HTMLElement | null }) {
   const loc = useLocation()
   const nav = useNavigate()
   const entry = entryOf(loc)
@@ -269,6 +274,7 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('click', note, true)
   }, [])
   const [origin, setOrigin] = useState<HTMLElement | null>(null)
+  const opener = useRef<HTMLElement | null>(null)
 
   // a step in history that keeps the page and changes only the card
   const go = useCallback(
@@ -303,7 +309,15 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
         bg: was ? was.bg : history.state?.idx,
         direct: was?.direct,
       }
-      const el = !was && from && from.el.isConnected && performance.now() - from.at < 500 ? from.el : null
+      const fresh = from && from.el.isConnected && performance.now() - from.at < 500 ? from.el : null
+      // the control that asked, unless that was inside the card itself
+      const active = document.activeElement as HTMLElement | null
+      opener.current =
+        fresh?.closest<HTMLElement>('button, a, [tabindex]') ??
+        (active?.closest('.t-sidepanel, dialog') ? opener.current : active)
+      // the morph pairs the poster with a <dialog>; the desktop panel has none
+      const wide = typeof matchMedia === 'function' && matchMedia(WIDE_MQ).matches
+      const el = !was && !wide ? fresh : null
       setOrigin(el)
       if (el) void morphTransition(el, () => go(e, false))
       else go(e, !!was)
@@ -370,6 +384,8 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
           <SeriesDialog
             entry={shown}
             target={target}
+            panel={panel}
+            opener={opener}
             origin={origin}
             onClose={close}
             onRelated={related}
@@ -424,10 +440,48 @@ interface CardProps {
 
 // The card's frame: it stays while the title in it changes, and each title
 // gets a fresh body - its own scroll, sections and forms.
-function SeriesDialog(props: CardProps) {
+function SeriesDialog({
+  panel,
+  opener,
+  ...props
+}: CardProps & {
+  /** where the desktop panel docks (the shell's aside); inline without */
+  panel?: HTMLElement | null
+  /** the poster that opened the card last, for the panel's focus return */
+  opener: { current: HTMLElement | null }
+}) {
   const { t } = useTranslation()
   const { entry, origin, onClose, viewOn, viewGuard } = props
   const [name, setName] = useState('')
+  // another title in the frame fades in; the first one arrives with it
+  const [first] = useState(entry.k)
+  const body = (
+    <SeriesCard
+      key={`${entry.k}:${entry.source}:${entry.id}`}
+      {...props}
+      swapped={entry.k !== first}
+      onName={setName}
+    />
+  )
+  // On a desktop the card docks beside the page instead of covering it: the
+  // list stays usable, and the next poster swaps the card's content rather
+  // than closing one card and opening another.
+  const wide = useMediaQuery(WIDE_MQ)
+  if (wide) {
+    const side = (
+      <SidePanel
+        aria-label={t('remote.detailsFor', { name })}
+        returnFocus={opener}
+        onRequestClose={async () => {
+          if (!viewOn || (await viewGuard())) onClose()
+        }}
+        className="anim-route-push w-[clamp(26rem,32vw,32rem)] shrink-0"
+      >
+        {body}
+      </SidePanel>
+    )
+    return panel ? createPortal(side, panel) : side
+  }
   return (
     <Dialog
       width="max-w-3xl"
@@ -440,7 +494,7 @@ function SeriesDialog(props: CardProps) {
       onRequestClose={() => (viewOn ? viewGuard() : true)}
       closeTransition={origin ? (close) => void morphTransition(origin, close, true) : undefined}
     >
-      <SeriesCard key={`${entry.k}:${entry.source}:${entry.id}`} {...props} onName={setName} />
+      {body}
     </Dialog>
   )
 }
@@ -456,7 +510,8 @@ function SeriesCard({
   viewHost,
   away: noteAway,
   onName,
-}: CardProps & { onName: (name: string) => void }) {
+  swapped,
+}: CardProps & { onName: (name: string) => void; swapped: boolean }) {
   const { t } = useTranslation()
   const target = cur
   const source = cur.source || 'anilist'
@@ -680,7 +735,7 @@ function SeriesCard({
         // layout-neutral: the form's own box is the dialog's content
         <div ref={viewHost} className="contents" />
       ) : (
-        <div className={`dialog-body relative ${returned ? 'anim-route-pop' : ''}`}>
+        <div className={`dialog-body relative ${returned ? 'anim-route-pop' : swapped ? 'anim-route-swap' : ''}`}>
           <div ref={dock} aria-hidden className="t-dock pr-12">
             <span className="truncate">{name}</span>
           </div>

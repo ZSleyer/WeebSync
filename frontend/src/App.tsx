@@ -322,6 +322,8 @@ function Shell({ email }: { email: string }) {
   const [actions, setActions] = useState<HTMLElement | null>(null)
   // the shell's footer row, same deal: a page's action bar portals in
   const [footer, setFooter] = useState<HTMLElement | null>(null)
+  // beside <main> on a desktop: where the title card docks
+  const [aside, setAside] = useState<HTMLElement | null>(null)
   const [palette, setPalette] = useState(false)
   // a newer build out: a dot on the Settings entry (the gear on a phone) and
   // a line in the rail's foot, so an admin sees it without opening Settings;
@@ -513,7 +515,7 @@ function Shell({ email }: { email: string }) {
     <SectionMotion.Provider value={motion.section}>
       <AppBarActions.Provider value={actions}>
         <ShellFooter.Provider value={footer}>
-          <SeriesModalProvider>
+          <SeriesModalProvider panel={aside}>
             <AppShell
               sidebar={sidebar}
               bar={bar}
@@ -521,6 +523,7 @@ function Shell({ email }: { email: string }) {
               mainKey={topPage(location.pathname)}
               notice={<UpdateToast />}
               footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
+              aside={<div ref={setAside} className="contents" />}
               before={
                 <>
                   <RouteTitle />

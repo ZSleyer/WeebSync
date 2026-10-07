@@ -413,6 +413,41 @@ describe('SeriesModalProvider', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('Frieren')
   })
 
+  it('docks beside the page on a desktop, non-modal, and swaps its content for the next title', async () => {
+    serve()
+    vi.stubGlobal(
+      'matchMedia',
+      (q: string) =>
+        ({
+          matches: q === '(width >= 64rem)',
+          addEventListener() {},
+          removeEventListener() {},
+        }) as unknown as MediaQueryList,
+    )
+    app()
+    const opener = screen.getByText('öffnen')
+    opener.focus()
+    fireEvent.click(opener)
+    const panel = screen.getByRole('dialog', { name: 'remote.detailsFor:Frieren' })
+    // no modal: no <dialog>, no scrim, the page stays usable
+    expect(document.querySelector('dialog')).toBeNull()
+    expect(panel).toHaveAttribute('aria-modal', 'false')
+    expect(panel).toHaveFocus()
+
+    // the next poster swaps what the panel holds, the panel stays
+    target = { id: 8, media: { ...sequel, description: 'Teil zwei.' } }
+    opener.focus()
+    fireEvent.click(opener)
+    await waitFor(() => expect(panel).toHaveTextContent('Teil zwei.'))
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('dialog')).toBe(panel)
+
+    // Escape from inside closes it, and focus goes back to the opener
+    fireEvent.keyDown(within(panel).getByRole('button', { name: 'common.close' }), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(opener).toHaveFocus()
+  })
+
   it('swaps the card for the watch editor in place and comes back to it', async () => {
     serve({ watches: [{ ...watch(1), serverId: 1, template: '', pattern: '' } as Watch] })
     target = { id: 7, media, tab: 'sync' }
