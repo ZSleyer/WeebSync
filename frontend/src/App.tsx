@@ -129,7 +129,10 @@ export interface RouteHandle {
 }
 const h = (title: string, back?: string, section?: string): RouteHandle => ({ title, back, section })
 const inSettings = (title: string) => h(title, '/settings', 'nav.settings')
+// the lists are tabs of one page; the assistant and the ignored list are
+// screens stacked on it, with a way back
 const inSuggestions = (title: string) => h(title, '/suggestions', 'nav.suggestions')
+const suggestionTab = (title: string) => h(title, undefined, 'nav.suggestions')
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -148,25 +151,25 @@ export const router = createBrowserRouter(
         <Route
           path="watchlist"
           element={<BucketSection bucket="watchlist" />}
-          handle={inSuggestions('suggestions.tabWatchlist')}
+          handle={suggestionTab('suggestions.tabWatchlist')}
         />
         <Route
           path="recommended"
           element={<BucketSection bucket="recommended" />}
-          handle={inSuggestions('suggestions.tabRecommended')}
+          handle={suggestionTab('suggestions.tabRecommended')}
         />
         <Route
           path="trending"
           element={<BucketSection bucket="trending" />}
-          handle={inSuggestions('suggestions.tabTrending')}
+          handle={suggestionTab('suggestions.tabTrending')}
         />
-        <Route path="upgrades" element={<UpgradesSection />} handle={inSuggestions('suggestions.tabUpgrades')} />
+        <Route path="upgrades" element={<UpgradesSection />} handle={suggestionTab('suggestions.tabUpgrades')} />
         <Route
           path="incomplete"
           element={<BucketSection bucket="incomplete" />}
-          handle={inSuggestions('suggestions.tabIncomplete')}
+          handle={suggestionTab('suggestions.tabIncomplete')}
         />
-        <Route path="duplicates" element={<DuplicatesSection />} handle={inSuggestions('suggestions.tabDuplicates')} />
+        <Route path="duplicates" element={<DuplicatesSection />} handle={suggestionTab('suggestions.tabDuplicates')} />
         <Route path="ignored" element={<IgnoredSection />} handle={inSuggestions('suggestions.ignored')} />
         <Route path="assistant" element={<Assistant />} handle={inSuggestions('nav.assistant')} />
       </Route>
