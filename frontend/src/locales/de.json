@@ -1,5 +1,7 @@
 {
   "common": {
+    "undo": "Rückgängig",
+    "undoFailed": "Das hat nicht geklappt, der Eintrag ist wieder da.",
     "confirm": "Bestätigen",
     "cancel": "Abbrechen",
     "close": "Schließen",
