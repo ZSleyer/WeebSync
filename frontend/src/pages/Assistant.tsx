@@ -57,7 +57,7 @@ import PageActions, { WIDE_MQ } from '../components/PageActions'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
 import { subfolderMode, subfolderTargetDir } from '../components/useTargetFolder'
-import { useConfirm } from '../components/confirm'
+import { useUndoableRemove } from '../components/toast'
 
 // stripWrittenCall drops a tool call a small model wrote out instead of
 // calling it, recommend(titles=[...]): the server turned that into cards
@@ -165,6 +165,12 @@ export default function Assistant() {
       return null
     }
   })
+  // read by a removal that lands seconds later, after the user may have
+  // opened another chat
+  const chatIdRef = useRef(chatId)
+  useEffect(() => {
+    chatIdRef.current = chatId
+  }, [chatId])
   const [attachments, setAttachments] = useState<string[]>([])
   const [histOpen, setHistOpen] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -220,7 +226,7 @@ export default function Assistant() {
     openSeries({ source: suggestionSource(u), id: u.media!.id, media: u.media, title: u.title })
   const [upSync, setUpSync] = useState<SyncRequest | null>(null)
   const { data: defaults } = useWatchDefaults()
-  const confirm = useConfirm()
+  const removeLater = useUndoableRemove()
   const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   const abortRef = useRef<AbortController | null>(null)
@@ -308,12 +314,18 @@ export default function Assistant() {
     setChatId(c.id)
     setHistOpen(false)
   }
-  const deleteChat = async (id: number) => {
-    if (!(await confirm({ message: t('assistant.deleteChatConfirm'), destructive: true }))) return
-    await api.del(`/api/ai/chats/${id}`)
-    qc.invalidateQueries({ queryKey: ['ai-chats'] })
-    if (id === chatId) newChat()
-  }
+  // gone from the list at once, with an undo line; the open chat makes way
+  // for a new one only once the removal has gone through
+  const deleteChat = (id: number) =>
+    removeLater<AiChatSummary>({
+      key: ['ai-chats'],
+      match: (c) => c.id === id,
+      message: t('assistant.chatDeleted'),
+      remove: () =>
+        api.del(`/api/ai/chats/${id}`).then(() => {
+          if (id === chatIdRef.current) newChat()
+        }),
+    })
 
   const patchLast = (fn: (turn: Turn) => Turn) =>
     setTurns((prev) => prev.map((tr, i) => (i === prev.length - 1 ? fn(tr) : tr)))
@@ -487,20 +499,14 @@ export default function Assistant() {
     }
   }
 
-  // every open proposal of one answer in one go, after one confirm that
-  // lists the targets. Each goes through the same endpoint the dialog
-  // uses, one after the other; a failure lands on its card, the rest go on.
+  // every open proposal of one answer in one go. No confirm: the button
+  // names the count, each card shows its target, and every created watch
+  // can be removed again like any other. Each goes through the same
+  // endpoint the dialog uses, one after the other; a failure lands on its
+  // card, the rest go on.
   const createAll = async (ti: number) => {
     const open = (turns[ti]?.proposals ?? []).map((p, idx) => ({ p, idx })).filter(({ p }) => !p.done && !p.unverified)
     if (open.length < 2) return
-    const lines = open.map(({ p }) => `${p.title} → ${targetOf(p)}`).join('\n')
-    if (
-      !(await confirm({
-        title: t('assistant.createAll', { count: open.length }),
-        message: t('assistant.createAllConfirm', { count: open.length }) + '\n' + lines,
-      }))
-    )
-      return
     let ok = 0
     let failed = 0
     for (const { p, idx } of open) {

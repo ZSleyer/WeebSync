@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api, type Watch } from '../api'
-import { useConfirm } from './confirm'
+import { api, mediaTitle, type Watch } from '../api'
+import { useUndoableRemove } from './toast'
 import type { WatchFields } from './WatchDialog'
 
 // the edit dialog's initial fields, from a watch as the list has it
@@ -39,7 +39,7 @@ export const watchFields = (w: Watch): WatchFields => ({
 export function useWatchActions() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const confirm = useConfirm()
+  const removeLater = useUndoableRemove()
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['watches'] })
@@ -64,17 +64,20 @@ export function useWatchActions() {
       fail(err)
     }
   }
-  /** asks first; resolves true once the watch is gone */
+  /**
+   * Leaves the list at once, with an undo line; the server hears of it when
+   * the line runs out. Resolves true right away, the watch is gone for the UI.
+   */
   const del = async (w: Watch) => {
-    if (!(await confirm({ message: t('watch.confirmDelete', { name: w.remotePath }), destructive: true }))) return false
     setError('')
-    try {
-      await api.del(`/api/watches/${w.id}`)
-    } catch (err) {
-      fail(err)
-      return false
-    }
-    refresh()
+    removeLater<Watch>({
+      key: ['watches'],
+      match: (x) => x.id === w.id,
+      message: t('watch.deleted', {
+        name: w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || ''),
+      }),
+      remove: () => api.del(`/api/watches/${w.id}`),
+    })
     return true
   }
   const save = async (id: number, f: WatchFields) => {

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Button, Checkbox, Count, Disclosure, Divider, Input, Panel } from '@weebsync/design-system'
 import { api, fmtBytes } from '../../api'
 import { useConfirm } from '../../components/confirm'
+import { useToast } from '../../components/toast'
 import LegacyImport from '../../components/LegacyImport'
 import {
   CELL_LEFT,
@@ -276,6 +277,16 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
     qc.invalidateQueries({ queryKey: ['adminData'] })
     qc.invalidateQueries({ queryKey: ['adminJobs'] })
   }
+  // a row leaves at once with an undo line; the request goes when the line
+  // runs out, and the row stays hidden until the refreshed list drops it
+  const toast = useToast()
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
+  const unhide = (k: string) =>
+    setHidden((h) => {
+      const n = new Set(h)
+      n.delete(k)
+      return n
+    })
   const del = useMutation({
     mutationFn: (key: string) => api.del(`/api/admin/cache/${scope}/entries?key=${encodeURIComponent(key)}`),
     onSuccess: () => {
@@ -371,41 +382,43 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
             <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
           ) : (
             <ul className="mt-2">
-              {(data?.entries ?? []).map((e) => (
-                <li key={e.key} className={`${ROW_GRID} py-1.5`}>
-                  <span className={CELL_LEFT}>
-                    <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={e.key}>
-                      {truncMiddle(e.key)}
+              {(data?.entries ?? [])
+                .filter((e) => !hidden.has(e.key))
+                .map((e) => (
+                  <li key={e.key} className={`${ROW_GRID} py-1.5`}>
+                    <span className={CELL_LEFT}>
+                      <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={e.key}>
+                        {truncMiddle(e.key)}
+                      </span>
+                      {e.stale && (
+                        <Badge tone="warn" className="shrink-0">
+                          {t('settings.jobs.staleBadge')}
+                        </Badge>
+                      )}
                     </span>
-                    {e.stale && (
-                      <Badge tone="warn" className="shrink-0">
-                        {t('settings.jobs.staleBadge')}
-                      </Badge>
-                    )}
-                  </span>
-                  <span className={CELL_RIGHT}>
-                    <span className={`whitespace-nowrap ${NUM}`}>{fmtTs(e.fetchedAt)}</span>
-                    <span className={`w-16 ${NUM}`}>{fmtBytes(e.bytes)}</span>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      disabled={del.isPending}
-                      onClick={async () => {
-                        if (
-                          await confirm({
-                            message: t('settings.jobs.confirmDeleteEntry', { key: truncMiddle(e.key, 80) }),
-                            destructive: true,
+                    <span className={CELL_RIGHT}>
+                      <span className={`whitespace-nowrap ${NUM}`}>{fmtTs(e.fetchedAt)}</span>
+                      <span className={`w-16 ${NUM}`}>{fmtBytes(e.bytes)}</span>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={del.isPending}
+                        onClick={() => {
+                          const k = e.key
+                          setHidden((h) => new Set(h).add(k))
+                          toast({
+                            message: t('settings.jobs.entryDeleted', { key: truncMiddle(e.key, 60) }),
+                            undo: () => unhide(k),
+                            commit: () => del.mutateAsync(k).catch(() => unhide(k)),
                           })
-                        )
-                          del.mutate(e.key)
-                      }}
-                    >
-                      <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('servers.delete')}
-                    </Button>
-                  </span>
-                </li>
-              ))}
+                        }}
+                      >
+                        <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('servers.delete')}
+                      </Button>
+                    </span>
+                  </li>
+                ))}
             </ul>
           )}
           <Pager offset={offset} total={data?.total ?? 0} onOffset={setOffset} />
