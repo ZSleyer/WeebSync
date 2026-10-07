@@ -7,6 +7,7 @@ import { api, type User } from '../api'
 import { loginPasskey, assertSecurityKey, supportsPasskeyAutofill, conditionalPasskeyLogin } from '../webauthn'
 import Loading from '../components/Loading'
 import Setup from './Setup'
+import LogoIntro from '../components/LogoIntro'
 
 interface AuthConfig {
   oidc: boolean
@@ -184,6 +185,7 @@ export default function Login() {
     <main className="grid min-h-dvh content-start justify-items-center p-4 pt-[max(2rem,var(--safe-t))] pb-[calc(1rem+var(--safe-b))] sm:content-center sm:pt-4 sm:pb-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
+          <LogoIntro className="mx-auto mb-4 h-14 w-auto" />
           <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
             WEEB<span className="text-accent">SYNC</span>
           </h1>
