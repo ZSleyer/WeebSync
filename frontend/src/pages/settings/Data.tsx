@@ -3,7 +3,19 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router'
-import { Badge, Button, Checkbox, Count, Disclosure, Divider, Input, PageHeader, Panel } from '@weebsync/design-system'
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Count,
+  Dialog,
+  Disclosure,
+  Divider,
+  Input,
+  Modal,
+  PageHeader,
+  Panel,
+} from '@weebsync/design-system'
 import { api, fmtBytes } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { useToast } from '../../components/toast'
@@ -17,7 +29,6 @@ import {
   fmtTtl,
   groupStores,
   KIND_TONE,
-  Modal,
   NUM,
   NUMEDIT_GRID,
   NumEdit,
@@ -451,7 +462,8 @@ function StoreView({ store, onGone }: { store: DataStore; onGone: () => void }) 
 // The "rebuild everything" dialog. It never asks a bare "are you sure": it
 // names what goes, what stays and what runs afterwards, because the operator's
 // complaint was that the existing buttons never said which of those they meant.
-// Built on the page's Modal (a native <dialog>: focus trap, Escape, backdrop).
+// The shared Modal anatomy inside a Dialog (a native <dialog>: focus trap,
+// Escape, backdrop).
 function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -490,70 +502,79 @@ function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => v
   )
 
   return (
-    <Modal
-      title={t('settings.jobs.data.reset.title')}
-      onClose={onClose}
-      footer={
-        result ? null : (
-          <Button variant="danger" disabled={reset.isPending} onClick={() => reset.mutate()}>
-            <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('settings.jobs.data.reset.confirm')}
-          </Button>
-        )
-      }
-    >
-      {result ? (
-        <div className="text-sm text-t-secondary">
-          <p>
-            {t('settings.jobs.data.reset.done', {
-              n: fmtNum(Object.values(result.deleted).reduce((a, b) => a + b, 0)),
-            })}
-          </p>
-          <p className="mt-2">{t('settings.jobs.data.reset.doneQueued', { n: fmtNum(result.queued) })}</p>
-          <p className="mt-2 text-xs text-t-muted">
-            {t('settings.jobs.data.reset.doneKept', {
-              stores: result.kept.map((n) => storeLabel(t, n)).join(', '),
-            })}
-          </p>
-        </div>
-      ) : (
-        <div className="text-sm text-t-secondary">
-          <p>{t('settings.jobs.data.reset.intro')}</p>
-
-          <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
-            {t('settings.jobs.data.reset.willDelete', { count: doomedRows })}
-          </h4>
-          {list(doomed)}
-
-          <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
-            {t('settings.jobs.data.reset.willKeep')}
-          </h4>
-          {list(kept)}
-          <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.keepIndexWhy')}</p>
-
-          <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
-            {t('settings.jobs.data.reset.willRun')}
-          </h4>
-          <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.willRunWhat')}</p>
-
-          <div className="mt-4 rounded-lg border border-border-subtle bg-bg-secondary/40 p-3">
-            <Checkbox
-              checked={includeDecisions}
-              onChange={(e) => setIncludeDecisions(e.target.checked)}
-              label={t('settings.jobs.data.reset.includeDecisions')}
-              labelClassName="text-t-primary"
-            />
-            <p className="mt-1 text-xs text-warn">{t('settings.jobs.data.reset.includeDecisionsCost')}</p>
+    <Dialog width="max-w-2xl" aria-label={t('settings.jobs.data.reset.title')} onClose={onClose}>
+      <Modal
+        className="max-w-none"
+        title={t('settings.jobs.data.reset.title')}
+        onClose={onClose}
+        closeLabel={t('common.close')}
+        footer={
+          result ? (
+            <Button onClick={onClose}>{t('common.close')}</Button>
+          ) : (
+            <>
+              <Button onClick={onClose}>{t('common.cancel')}</Button>
+              <Button variant="danger" disabled={reset.isPending} onClick={() => reset.mutate()}>
+                <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('settings.jobs.data.reset.confirm')}
+              </Button>
+            </>
+          )
+        }
+      >
+        {result ? (
+          <div className="text-sm text-t-secondary">
+            <p>
+              {t('settings.jobs.data.reset.done', {
+                n: fmtNum(Object.values(result.deleted).reduce((a, b) => a + b, 0)),
+              })}
+            </p>
+            <p className="mt-2">{t('settings.jobs.data.reset.doneQueued', { n: fmtNum(result.queued) })}</p>
+            <p className="mt-2 text-xs text-t-muted">
+              {t('settings.jobs.data.reset.doneKept', {
+                stores: result.kept.map((n) => storeLabel(t, n)).join(', '),
+              })}
+            </p>
           </div>
+        ) : (
+          <div className="text-sm text-t-secondary">
+            <p>{t('settings.jobs.data.reset.intro')}</p>
 
-          <p className="mt-4 text-xs text-t-muted">{t('settings.jobs.data.reset.noBackup')}</p>
-        </div>
-      )}
-      {error && (
-        <p className="mt-2 text-xs text-err" role="alert">
-          {error}
-        </p>
-      )}
-    </Modal>
+            <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
+              {t('settings.jobs.data.reset.willDelete', { count: doomedRows })}
+            </h4>
+            {list(doomed)}
+
+            <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
+              {t('settings.jobs.data.reset.willKeep')}
+            </h4>
+            {list(kept)}
+            <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.keepIndexWhy')}</p>
+
+            <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
+              {t('settings.jobs.data.reset.willRun')}
+            </h4>
+            <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.willRunWhat')}</p>
+
+            <div className="mt-4 rounded-lg border border-border-subtle bg-bg-secondary/40 p-3">
+              <Checkbox
+                checked={includeDecisions}
+                onChange={(e) => setIncludeDecisions(e.target.checked)}
+                label={t('settings.jobs.data.reset.includeDecisions')}
+                labelClassName="text-t-primary"
+              />
+              <p className="mt-1 text-xs text-warn">{t('settings.jobs.data.reset.includeDecisionsCost')}</p>
+            </div>
+
+            <p className="mt-4 text-xs text-t-muted">{t('settings.jobs.data.reset.noBackup')}</p>
+          </div>
+        )}
+        {error && (
+          <p className="mt-2 text-xs text-err" role="alert">
+            {error}
+          </p>
+        )}
+      </Modal>
+    </Dialog>
   )
 }

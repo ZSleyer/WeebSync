@@ -672,6 +672,28 @@ describe('Modal and EmptyState', () => {
     expect(container.querySelector('footer')).toBeNull()
   })
 
+  it('closes from the header and keeps side actions apart from the answer', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <Modal
+        title="Reset"
+        onClose={onClose}
+        closeLabel="Schließen"
+        secondary={<button type="button">Details</button>}
+        footer={<button type="button">Zurücksetzen</button>}
+      >
+        Text
+      </Modal>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
+    expect(onClose).toHaveBeenCalledOnce()
+    const [side, answer] = container.querySelectorAll('footer button')
+    expect(side).toHaveTextContent('Details')
+    // the answer sits in the right-hand group, after the side actions
+    expect(answer.parentElement).toHaveClass('ml-auto')
+    expect(answer).toHaveTextContent('Zurücksetzen')
+  })
+
   it('renders the empty state on a panel with an optional chip', () => {
     const { container } = render(<EmptyState label="leer">Noch nichts hier</EmptyState>)
     expect(container.firstElementChild).toHaveClass('t-panel', 'text-center')

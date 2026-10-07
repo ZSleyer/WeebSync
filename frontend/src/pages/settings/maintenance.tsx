@@ -1,8 +1,8 @@
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, Dialog, Input } from '@weebsync/design-system'
+import { Button, Input } from '@weebsync/design-system'
 import { api } from '../../api'
 import i18n from '../../locales'
 
@@ -304,41 +304,6 @@ export function useAdminData() {
     queryFn: () => api.get('/api/admin/data'),
     refetchInterval: 5000,
   })
-}
-
-// Modal shell of this page: the design system's Dialog (native <dialog>, so
-// focus trap, Escape and the backdrop guard come for free) with the fixed
-// header / scrollable body / footer anatomy. Mount-to-open - the parent renders
-// it conditionally and unmounts it on close.
-export function Modal({
-  title,
-  onClose,
-  footer,
-  children,
-}: {
-  title: string
-  onClose: () => void
-  footer?: ReactNode
-  children: ReactNode
-}) {
-  const { t } = useTranslation()
-  return (
-    <Dialog onClose={onClose} width="max-w-2xl" aria-label={title}>
-      <div className="dialog-body">
-        <header className="border-b border-border-subtle px-5 py-4">
-          <h3 className="font-display font-semibold tracking-wider">{title}</h3>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        <footer className="flex items-center justify-between gap-2 border-t border-border-subtle px-5 py-3">
-          <span>{footer}</span>
-          <Button onClick={onClose}>
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('remote.close')}
-          </Button>
-        </footer>
-      </div>
-    </Dialog>
-  )
 }
 
 export function Pager({ offset, total, onOffset }: { offset: number; total: number; onOffset: (n: number) => void }) {
