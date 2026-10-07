@@ -8,7 +8,7 @@ import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
 import { FsErrorNote, isFsErrorCode } from './FsErrorNote'
 import PathInput from './PathInput'
-import PlexShowDialog, { usePlexShow } from './PlexShowDialog'
+import PlexShowField, { usePlexShow } from './PlexShowField'
 import RenameOptions, { Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
 import RenamePreview from './RenamePreview'
 import { useRenamePreview } from './useRenamePreview'
@@ -91,9 +91,8 @@ export default function WatchDialog({
     retry: false,
     staleTime: 60_000,
   })
-  // which Plex show the track selection acts on, and the picker that overrides it
+  // which Plex show the track selection acts on; the field below overrides it
   const { data: plexShow, refetch: refetchPlexShow } = usePlexShow(watchId)
-  const [pickShow, setPickShow] = useState(false)
   const [renameOn, setRenameOn] = useState(!!(initial.template || initial.pattern))
   const initialSub = subfolderMode(initial)
   const [subMode, setSubMode] = useState<SubfolderMode>(initialSub)
@@ -421,16 +420,7 @@ export default function WatchDialog({
                 watch: the binding hangs on its series, which a watch that is
                 not saved yet does not have. */}
             {watchId && plexShow && (
-              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-t-secondary">
-                <span>
-                  {t('watch.plexShow')}:{' '}
-                  <span className="text-t-primary">{plexShow.show?.title || t('watch.plexShowUnresolved')}</span>
-                </span>
-                <span className="text-xs text-t-muted">{t(`watch.plexShowSource.${plexShow.source}`)}</span>
-                <Button size="sm" onClick={() => setPickShow(true)}>
-                  {t('watch.plexShowChange')}
-                </Button>
-              </p>
+              <PlexShowField watchId={watchId} state={plexShow} onDone={() => void refetchPlexShow()} />
             )}
             <div className={ROW_GRID}>
               {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
@@ -523,14 +513,6 @@ export default function WatchDialog({
           </Button>
         </footer>
       </form>
-      {pickShow && watchId && plexShow && (
-        <PlexShowDialog
-          watchId={watchId}
-          state={plexShow}
-          onDone={refetchPlexShow}
-          onClose={() => setPickShow(false)}
-        />
-      )}
     </Dialog>
   )
 }
