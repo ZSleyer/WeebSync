@@ -46,10 +46,7 @@ import {
   MenuItem,
   morphTransition,
   Progress,
-  Tab,
-  Tabs,
   useMenu,
-  useSwipe,
 } from '@weebsync/design-system'
 import {
   api,
@@ -80,7 +77,7 @@ export interface SeriesTarget {
   watchId?: number
   /** the heading, where the caller knows a better one than the record's */
   title?: string
-  /** which tab to land on */
+  /** the section to scroll to on open */
   tab?: SeriesTab
   /** caller-specific rows under the record, e.g. the catalog's folder versions */
   extra?: ReactNode
@@ -166,10 +163,17 @@ const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
   HIATUS: Pause,
 }
 
-const TABS: SeriesTab[] = ['overview', 'sync', 'cast', 'community', 'similar']
+// the order the sections stand in on the one scrolling page
+const SECTIONS: SeriesTab[] = ['overview', 'sync', 'cast', 'similar', 'community']
 // the docked title bar's height (h-11), and the scroll over which it fades in
 const DOCK_PX = 44
 const DOCK_FADE = 40
+// the docked title plus the jump row: where a section's top lands after a jump
+const STICKY_PX = 88
+
+const reducedMotion = () =>
+  document.documentElement.dataset.motion === 'off' ||
+  (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
 function SeriesDialog({
   target,
@@ -185,7 +189,6 @@ function SeriesDialog({
   // the trail of related titles opened from inside the card; the first entry
   // is what the page opened, the last is what is shown
   const [stack, setStack] = useState<SeriesTarget[]>([target])
-  const [wanted, setTab] = useState<SeriesTab>(target.tab ?? 'overview')
   const cur = stack[stack.length - 1]
   const source = cur.source || 'anilist'
   // another title in the same card starts at its top, head and back button
@@ -194,12 +197,10 @@ function SeriesDialog({
   const push = (next: SeriesTarget) => {
     fresh.current = true
     setStack((s) => [...s, { ...next, source: next.source || 'anilist' }])
-    setTab('overview')
   }
   const back = () => {
     fresh.current = true
     setStack((s) => (s.length > 1 ? s.slice(0, -1) : s))
-    setTab('overview')
   }
 
   // a related title arrives as its trimmed node: fetch the record behind it
@@ -218,7 +219,7 @@ function SeriesDialog({
 
   // the watches behind the title: several are normal (a split season, two
   // servers); the one the caller came from leads
-  const { data: watches = [] } = useQuery<Watch[]>({
+  const { data: watches = [], isSuccess: watchesIn } = useQuery<Watch[]>({
     queryKey: ['watches'],
     queryFn: () => api.get('/api/watches'),
     staleTime: 10_000,
@@ -227,20 +228,10 @@ function SeriesDialog({
     .filter((w) => w.media?.id === cur.id && (w.mediaSource || 'anilist') === source)
     .sort((a, b) => (a.id === cur.watchId ? -1 : b.id === cur.watchId ? 1 : a.id - b.id))
 
-  const tabs = TABS.filter((k) => k !== 'sync' || mine.length > 0)
-  // the auto-sync tab asked for before the watch list arrived, or for a title
-  // that turns out to have none, lands on the overview
-  const tab: SeriesTab = wanted === 'sync' && mine.length === 0 ? 'overview' : wanted
-  // a swipe across the panel walks the bar. Over `tabs`, not TABS - the
-  // auto-sync tab is missing for a title with no watch. The bar itself stays
-  // the way in with a keyboard or a tap, and it scrolls the new tab into view
-  // on its own. Touch and pen only: the panel is a reading surface, a mouse
-  // drag has to select text there.
-  const at = tabs.indexOf(tab)
-  const tabSwipe = useSwipe({
-    onPrev: at > 0 ? () => setTab(tabs[at - 1]) : undefined,
-    onNext: at < tabs.length - 1 ? () => setTab(tabs[at + 1]) : undefined,
-  })
+  // One page instead of tabs: every section stands under the last, the
+  // auto-sync one only for a title that has a watch. The tabs hid four of
+  // five parts behind a tap, and their swipe fought the sheet's own.
+  const sections = SECTIONS.filter((k) => k !== 'sync' || mine.length > 0)
   const ids = useId()
   const name = cur.title || (media ? mediaTitle(media) : '')
   const MediaStatusIcon = media?.status ? MEDIA_STATUS_ICON[media.status] : undefined
@@ -266,12 +257,15 @@ function SeriesDialog({
     setReturned(true)
   }
 
-  // the secondary tabs load on first sight, never with the list
-  const wantExtras = tab !== 'sync'
+  // Cast, similar titles and the community load once their sections come
+  // near the viewport, as the tabs loaded on first sight: a card opened for
+  // its auto-sync block never asks the provider for them. Without an
+  // observer (an old engine, the tests) they load at once.
+  const [near, setNear] = useState(() => typeof IntersectionObserver === 'undefined' || !!target.tab)
   const { data: extras, isError: extrasFailed } = useQuery<MediaExtras>({
     queryKey: ['media-extras', source, cur.id],
     queryFn: () => api.get(`/api/media/extras?source=${source}&id=${cur.id}`),
-    enabled: wantExtras,
+    enabled: near,
     staleTime: 5 * 60_000,
     retry: false,
   })
@@ -292,9 +286,7 @@ function SeriesDialog({
     // before the dialog has laid out there is no head to measure
     if (!head.current?.offsetHeight) return
     const top = scroller.current?.scrollTop ?? 0
-    const still =
-      document.documentElement.dataset.motion === 'off' ||
-      (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+    const still = reducedMotion()
     const s = stick()
     pinned.current = top >= s - 1
     // information, not decoration: without motion it is there or not
@@ -309,17 +301,69 @@ function SeriesDialog({
     b.style.opacity = still || y <= 0 ? '' : String(1 - Math.min(1, y / 144) * 0.6)
   }
 
-  // A new tab under stuck tabs starts right below them, not wherever the old
-  // one was scrolled to; above that point the scroll stays as it is. Then the
-  // dock is redone, as the content height has jumped.
+  // another title starts at its top; then the dock is redone, as the content
+  // height has jumped
   useLayoutEffect(() => {
     const sc = scroller.current
     if (sc && fresh.current) sc.scrollTop = 0
-    else if (sc && pinned.current) sc.scrollTop = stick()
     fresh.current = false
     lag()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, cur.id])
+  }, [cur.id])
+
+  // The jump row marks the section being read (aria-current): the first one
+  // inside a band from under the sticky rows to the middle of the scroller.
+  // A second observer watches the first lazy section come within a screen.
+  const sec = useRef<Partial<Record<SeriesTab, HTMLElement | null>>>({})
+  const [current, setCurrent] = useState<SeriesTab>('overview')
+  useEffect(() => {
+    const root = scroller.current
+    if (!root || editing || typeof IntersectionObserver === 'undefined') return
+    const seen = new Map<Element, boolean>()
+    const spy = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => seen.set(e.target, e.isIntersecting))
+        // scrolled to the end, the last section is the one being read even
+        // though a short one never reaches the top of the band
+        const end = root.scrollTop > 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2
+        const first = end ? sections[sections.length - 1] : sections.find((k) => seen.get(sec.current[k]!))
+        if (first) setCurrent(first)
+      },
+      { root, rootMargin: `-${STICKY_PX}px 0px -50% 0px` },
+    )
+    const ahead = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setNear(true), {
+      root,
+      rootMargin: '0px 0px 100% 0px',
+    })
+    sections.forEach((k) => sec.current[k] && spy.observe(sec.current[k]))
+    if (sec.current.cast) ahead.observe(sec.current.cast)
+    return () => {
+      spy.disconnect()
+      ahead.disconnect()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections.join(), editing, cur.id])
+
+  const jump = (k: SeriesTab, smooth = true) => {
+    const el = sec.current[k]
+    const sc = scroller.current
+    if (!el || !sc) return
+    setCurrent(k)
+    sc.scrollTo?.({ top: el.offsetTop - STICKY_PX, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
+    // a keyboard user lands in the section, not back at the top of the row
+    el.focus({ preventScroll: true })
+  }
+  // The caller's section (the dashboard opens on auto-sync): jumped to once
+  // it exists - the auto-sync one appears with the watch list - and dropped
+  // if the list arrives without it.
+  const pending = useRef<SeriesTab | null>(target.tab && target.tab !== 'overview' ? target.tab : null)
+  useLayoutEffect(() => {
+    const k = pending.current
+    if (!k || (!sec.current[k] && !watchesIn)) return
+    pending.current = null
+    if (sec.current[k]) jump(k, false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mine.length, watchesIn])
   // back from the editor: the scroll it left, and focus on the menu the
   // edit came from, since the menu item that had it is gone
   useLayoutEffect(() => {
@@ -431,109 +475,132 @@ function SeriesDialog({
                 </div>
               </div>
             </header>
-            <div className="sticky top-11 z-10 border-b border-border-subtle bg-bg-card">
-              <Tabs scroll aria-label={t('series.tabsLabel')} className="t-tabs--line px-3">
-                {tabs.map((k) => (
-                  <Tab
+            <nav
+              aria-label={t('series.sectionsLabel')}
+              className="sticky top-11 z-10 border-b border-border-subtle bg-bg-card"
+            >
+              <div className="t-tabs t-tabs--line t-tabs--scroll px-3">
+                {sections.map((k) => (
+                  <a
                     key={k}
-                    id={`${ids}-tab-${k}`}
-                    aria-controls={`${ids}-panel-${k}`}
-                    selected={tab === k}
-                    onClick={() => setTab(k)}
+                    href={`#${ids}-${k}`}
+                    className="t-tab"
+                    aria-current={current === k ? 'true' : undefined}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      jump(k)
+                    }}
                   >
                     {t(`series.tab.${k}`)}
                     {k === 'sync' && mine.length > 1 && <span className="t-count ml-1.5">{mine.length}</span>}
-                  </Tab>
+                  </a>
                 ))}
-              </Tabs>
-            </div>
+              </div>
+            </nav>
 
-            <div {...tabSwipe} id={`${ids}-panel-${tab}`} role="tabpanel" aria-labelledby={`${ids}-tab-${tab}`}>
-              {tab === 'overview' && media && (
-                <MediaDetail media={media} source={source} airings={mine[0]?.airings} links={extras?.links} now={now}>
-                  {cur.extra}
-                </MediaDetail>
-              )}
-              {tab === 'sync' && (
-                <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5">
-                  {mine.map((w) => (
-                    <WatchBlock
-                      key={w.id}
-                      watch={w}
-                      onEdit={() => edit(w)}
-                      onGone={mine.length === 1 ? onClose : undefined}
-                    />
-                  ))}
-                </div>
-              )}
-              {tab === 'cast' && (
-                <div className="p-5">
-                  <Unavailable when={extrasFailed} source={source} />
-                  {extras && extras.characters.length === 0 && (
-                    <p className="text-sm text-t-muted">{t('series.noCast')}</p>
-                  )}
-                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
-                    {extras?.characters.map((c) => (
-                      <li key={`${c.name}-${c.voiceActor}`} className="flex items-center gap-2">
-                        {c.image ? (
-                          <img
-                            src={c.image}
-                            alt=""
-                            loading="lazy"
-                            className="h-12 w-12 shrink-0 rounded-full object-cover"
-                          />
-                        ) : (
-                          <span aria-hidden className="t-hatch h-12 w-12 shrink-0 rounded-full" />
-                        )}
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm text-t-primary">{c.name}</span>
-                          {c.voiceActor && (
-                            <span className="block truncate text-[11px] text-t-muted">{c.voiceActor}</span>
-                          )}
-                          {c.role && c.role !== 'MAIN' && (
-                            <span className="block text-[10px] uppercase text-t-faint">
-                              {t(`series.role.${c.role}`, c.role)}
-                            </span>
-                          )}
-                        </span>
-                      </li>
+            {sections.map((k) => (
+              <section
+                key={k}
+                id={`${ids}-${k}`}
+                ref={(el) => {
+                  sec.current[k] = el
+                }}
+                tabIndex={-1}
+                aria-labelledby={`${ids}-${k}-h`}
+                className="outline-none"
+              >
+                {/* the overview needs no visible heading right under the title */}
+                <h4 id={`${ids}-${k}-h`} className={k === 'overview' ? 'sr-only' : 't-label px-5 pt-5'}>
+                  {t(`series.tab.${k}`)}
+                </h4>
+                {k === 'overview' && media && (
+                  <MediaDetail media={media} source={source} airings={mine[0]?.airings} links={extras?.links} now={now}>
+                    {cur.extra}
+                  </MediaDetail>
+                )}
+                {k === 'sync' && (
+                  <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5 pt-3">
+                    {mine.map((w) => (
+                      <WatchBlock
+                        key={w.id}
+                        watch={w}
+                        onEdit={() => edit(w)}
+                        onGone={mine.length === 1 ? onClose : undefined}
+                      />
                     ))}
-                  </ul>
-                </div>
-              )}
-              {tab === 'community' && (
-                <Community source={source} id={cur.id} threads={extras?.threads} failed={extrasFailed} />
-              )}
-              {tab === 'similar' && (
-                <div className="p-5">
-                  <Unavailable when={extrasFailed} source={source} />
-                  {extras && extras.relations.length === 0 && extras.recommendations.length === 0 && (
-                    <p className="text-sm text-t-muted">{t('series.noSimilar')}</p>
-                  )}
-                  {!!extras?.relations.length && (
-                    <section>
-                      <h4 className="t-label mb-2">{t('series.relations')}</h4>
-                      <PosterRow
-                        items={extras.relations.map((r) => ({
-                          media: r.node,
-                          caption: t(`series.relation.${r.relationType}`, r.relationType),
-                        }))}
-                        onPick={(m) => push({ id: m.id, media: m })}
-                      />
-                    </section>
-                  )}
-                  {!!extras?.recommendations.length && (
-                    <section className="mt-4">
-                      <h4 className="t-label mb-2">{t('series.recommendations')}</h4>
-                      <PosterRow
-                        items={extras.recommendations.map((m) => ({ media: m }))}
-                        onPick={(m) => push({ source, id: m.id, media: m })}
-                      />
-                    </section>
-                  )}
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+                {k === 'cast' && (
+                  <div className="p-5 pt-3">
+                    <Unavailable when={extrasFailed} source={source} />
+                    {extras && extras.characters.length === 0 && (
+                      <p className="text-sm text-t-muted">{t('series.noCast')}</p>
+                    )}
+                    <ul className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
+                      {extras?.characters.map((c) => (
+                        <li key={`${c.name}-${c.voiceActor}`} className="flex items-center gap-2">
+                          {c.image ? (
+                            <img
+                              src={c.image}
+                              alt=""
+                              loading="lazy"
+                              className="h-12 w-12 shrink-0 rounded-full object-cover"
+                            />
+                          ) : (
+                            <span aria-hidden className="t-hatch h-12 w-12 shrink-0 rounded-full" />
+                          )}
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm text-t-primary">{c.name}</span>
+                            {c.voiceActor && (
+                              <span className="block truncate text-[11px] text-t-muted">{c.voiceActor}</span>
+                            )}
+                            {c.role && c.role !== 'MAIN' && (
+                              <span className="block text-[10px] uppercase text-t-faint">
+                                {t(`series.role.${c.role}`, c.role)}
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {k === 'similar' && (
+                  <div className="p-5 pt-3">
+                    <Unavailable when={extrasFailed} source={source} />
+                    {extras && extras.relations.length === 0 && extras.recommendations.length === 0 && (
+                      <p className="text-sm text-t-muted">{t('series.noSimilar')}</p>
+                    )}
+                    {!!extras?.relations.length && (
+                      <section>
+                        <h5 className="t-label mb-2">{t('series.relations')}</h5>
+                        <PosterRow
+                          items={extras.relations.map((r) => ({
+                            media: r.node,
+                            caption: t(`series.relation.${r.relationType}`, r.relationType),
+                          }))}
+                          onPick={(m) => push({ id: m.id, media: m })}
+                        />
+                      </section>
+                    )}
+                    {!!extras?.recommendations.length && (
+                      <section className="mt-4">
+                        <h5 className="t-label mb-2">{t('series.recommendations')}</h5>
+                        <PosterRow
+                          items={extras.recommendations.map((m) => ({ media: m }))}
+                          onPick={(m) => push({ source, id: m.id, media: m })}
+                        />
+                      </section>
+                    )}
+                  </div>
+                )}
+                {/* the reviews are a request of their own: not before the
+                    section is near */}
+                {k === 'community' && near && (
+                  <Community source={source} id={cur.id} threads={extras?.threads} failed={extrasFailed} />
+                )}
+              </section>
+            ))}
           </div>
 
           <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
@@ -611,11 +678,11 @@ function Community({
   })
   const when = (ts?: number) => (ts ? new Date(ts * 1000).toLocaleDateString() : '')
   return (
-    <div className="p-5">
+    <div className="p-5 pt-3">
       <Unavailable when={failed || reviewsFailed} source={source} />
       {!source.startsWith('tmdb') && (
         <section className="mb-4">
-          <h4 className="t-label mb-2">{t('series.threads')}</h4>
+          <h5 className="t-label mb-2">{t('series.threads')}</h5>
           {threads && threads.length === 0 && <p className="text-sm text-t-muted">{t('series.noThreads')}</p>}
           <ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
             {threads?.map((th) => (
@@ -642,10 +709,10 @@ function Community({
         </section>
       )}
       <section>
-        <h4 className="t-label mb-2">
+        <h5 className="t-label mb-2">
           {t('remote.reviews')}
           {rev ? ` (${rev.reviews.length})` : ''}
-        </h4>
+        </h5>
         {rev && rev.reviews.length === 0 && <p className="text-sm text-t-muted">{t('remote.noReviews')}</p>}
         {/* chat-bubble layout: avatar beside a bordered bubble per review */}
         <ul className="grid grid-cols-[minmax(0,1fr)] gap-3">
