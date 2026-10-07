@@ -29,10 +29,13 @@ const PERSONAL = [
   { to: 'notifications', key: 'settings.nav.notifications', icon: Bell, hint: 'settings.hub.notifications' },
 ]
 const SOURCES = [{ to: 'servers', key: 'nav.servers', icon: Server, hint: 'settings.hub.servers' }]
-const ADMIN = [
+// where the data comes from besides the servers: admin only
+const INTEGRATIONS = [
+  { to: 'integrations', key: 'settings.nav.integrations', icon: Plug, hint: 'settings.hub.integrations' },
+]
+const OPERATIONS = [
   { to: 'transfers', key: 'settings.nav.transfers', icon: ArrowDownUp, hint: 'settings.hub.transfers' },
   { to: 'security', key: 'settings.nav.security', icon: Shield, hint: 'settings.hub.security' },
-  { to: 'integrations', key: 'settings.nav.integrations', icon: Plug, hint: 'settings.hub.integrations' },
 ]
 const ABOUT = [{ to: 'about', key: 'settings.nav.about', icon: Info, hint: 'settings.hub.about' }]
 const MAINTENANCE = [
@@ -49,14 +52,15 @@ export function AdminRoute({ children }: { children: ReactNode }) {
 
 function useGroups(): SectionGroup[] {
   const { data: user } = useAuth()
+  const admin = !!user?.isAdmin
   // a newer build out marks the About entry, where the details are
   const update = useUpdateHint()
   return [
     { label: 'settings.groupPersonal', items: PERSONAL },
-    { label: 'settings.groupSources', items: SOURCES },
-    ...(user?.isAdmin
+    { label: 'settings.groupSources', items: admin ? [...SOURCES, ...INTEGRATIONS] : SOURCES },
+    ...(admin
       ? [
-          { label: 'settings.groupAdmin', items: ADMIN },
+          { label: 'settings.groupOperations', items: OPERATIONS },
           { label: 'settings.groupMaintenance', items: MAINTENANCE },
         ]
       : []),
