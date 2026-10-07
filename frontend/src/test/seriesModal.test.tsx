@@ -1,12 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter, Route, Routes, Link } from 'react-router'
+import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes, Link, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
   BackToCard,
   SeriesCardView,
   SeriesModalProvider,
+  TITLE_PATH,
   useSeriesModal,
   type SeriesTarget,
 } from '../components/SeriesModal'
@@ -59,6 +60,7 @@ let formClosed = 0
 function Opener() {
   const { open } = useSeriesModal()
   const [form, setForm] = useState(false)
+  const back = useNavigate()
   return (
     <>
       <button onClick={() => open(target)}>öffnen</button>
@@ -73,6 +75,7 @@ function Opener() {
         mit Formular
       </button>
       <Link to="/elsewhere">weg</Link>
+      <button onClick={() => back(-1)}>zurück</button>
       {form && (
         <SeriesCardView
           onClose={() => {
@@ -92,14 +95,15 @@ function Opener() {
   )
 }
 
-function app() {
+function app(at = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/']}>
+      <MemoryRouter initialEntries={[at]}>
         <SeriesModalProvider>
           <Routes>
             <Route path="/" element={<Opener />} />
+            <Route path={TITLE_PATH} element={<Opener />} />
             <Route path="/elsewhere" element={<p>anderswo</p>} />
           </Routes>
         </SeriesModalProvider>
@@ -119,6 +123,7 @@ function serve({ watches = [] as Watch[], extras = undefined as unknown, reviews
     }
     if (url.startsWith('/api/media/reviews')) return reviews
     if (url === '/api/anilist/media/8') return { ...sequel, description: 'Teil zwei.' }
+    if (url === '/api/anilist/media/7') return media
     if (url.startsWith('/api/watches/') && url.endsWith('/episodes')) return { episodes: [] }
     throw new Error('unexpected ' + url)
   })
@@ -349,6 +354,63 @@ describe('SeriesModalProvider', () => {
     fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(formClosed).toBe(2)
+  })
+
+  it('opens on a history entry of its own: back closes it, a related title is one more step', async () => {
+    serve({
+      extras: {
+        relations: [{ relationType: 'SEQUEL', node: sequel }],
+        recommendations: [],
+        characters: [],
+        links: [],
+        threads: [],
+      },
+    })
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    fireEvent.click(await screen.findByRole('button', { name: 'remote.detailsFor:Frieren 2' }))
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Teil zwei.'))
+    // the browser's back: first the title before, then the page
+    fireEvent.click(screen.getByText('zurück'))
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Eine Elfe.'))
+    fireEvent.click(screen.getByText('zurück'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('opens from its own URL over the page and leaves to the dashboard', async () => {
+    serve()
+    app('/title/anilist/7')
+    // nothing handed over: the record comes from the provider
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Eine Elfe.'))
+    fireEvent.click(screen.getByRole('button', { name: 'common.close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('shows its own URL in the address bar while the page stays the location', async () => {
+    serve()
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: (
+            <SeriesModalProvider>
+              <Opener />
+            </SeriesModalProvider>
+          ),
+        },
+      ],
+      { initialEntries: ['/'] },
+    )
+    render(
+      <QueryClientProvider client={qc}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    )
+    fireEvent.click(screen.getByText('öffnen'))
+    await waitFor(() => expect(router.state.location.mask?.pathname).toBe('/title/anilist/7'))
+    expect(router.state.location.pathname).toBe('/')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Frieren')
   })
 
   it('swaps the card for the watch editor in place and comes back to it', async () => {

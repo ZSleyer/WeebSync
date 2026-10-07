@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal, flushSync } from 'react-dom'
-import { useLocation } from 'react-router'
+import { matchPath, useLocation, useNavigate, type Location } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -190,22 +190,70 @@ export function useSeriesModal(): SeriesModalApi {
 }
 
 /**
+ * Where an open card lives in history: the card has a URL of its own
+ * (/title/anilist/154587), shown in the address bar as a mask over the page
+ * it was opened on, which stays the router's location underneath - so the
+ * page keeps running behind the card, and back closes it. The entry itself
+ * carries only this; whatever the caller handed over that history cannot
+ * store (the record, the extra rows, the actions) waits in `targets` under
+ * `k`, and a reload, which loses that, makes the card fetch the record.
+ */
+interface TitleEntry {
+  source: string
+  id: number
+  /** related titles opened on top of the first one: back is one of them */
+  n: number
+  k?: number
+  /** the section to scroll to */
+  tab?: SeriesTab
+  /** history index of the page under the card, for closing in one step */
+  bg?: number
+  /** opened from a link: no page of its own underneath */
+  direct?: boolean
+}
+export const TITLE_PATH = '/title/:source/:id'
+const titleUrl = (e: TitleEntry) => `/title/${e.source}/${e.id}`
+
+function entryOf(loc: Location): TitleEntry | null {
+  const e = (loc.state as { wsTitle?: TitleEntry } | null)?.wsTitle
+  if (e) return e
+  // a link straight to a card, or a reload of one: the dashboard stands behind
+  const m = matchPath(TITLE_PATH, loc.pathname)
+  const id = Number(m?.params.id)
+  return m && id > 0 ? { source: m.params.source || 'anilist', id, n: 0, direct: true } : null
+}
+
+// what open() was handed, by entry; a few dozen at most per session
+// ponytail: never pruned, a Map of small objects until the tab closes
+const targets = new Map<number, SeriesTarget>()
+let seq = 0
+const remember = (t: SeriesTarget) => {
+  targets.set(++seq, { ...t, source: t.source || 'anilist' })
+  return seq
+}
+
+/**
  * Holds the title card the whole app shares. One dialog instead of one per
- * page: a cover opens the same thing everywhere, and the card can grow tabs
- * without every caller learning about them. A route change closes it - the
- * catalog's rows navigate, and a card left open over another page would be a
- * door into the wrong room.
+ * page: a cover opens the same thing everywhere, and the card can grow
+ * sections without every caller learning about them. A route change closes
+ * it - the card belongs to its history entry, and a page's own navigation
+ * leaves that entry behind.
  */
 export function SeriesModalProvider({ children }: { children: ReactNode }) {
-  const [target, setTarget] = useState<SeriesTarget | null>(null)
-  // a route change closes the card: derived in render, not in an effect, so
-  // the closed state is what the new page's first frame sees
-  const { pathname } = useLocation()
-  const [at, setAt] = useState(pathname)
-  if (at !== pathname) {
-    setAt(pathname)
-    setTarget(null)
-  }
+  const loc = useLocation()
+  const nav = useNavigate()
+  const entry = entryOf(loc)
+  // closed by the user while the history step back is still under way:
+  // gone at once, not one frame later
+  const [closing, setClosing] = useState<string | null>(null)
+  const shown = entry && closing !== loc.key ? entry : null
+  // the handlers below run long after the render that made them (a caller
+  // keeps open() in a closure), so they read the location from here
+  const at = useRef(loc)
+  useLayoutEffect(() => {
+    at.current = loc
+  })
+
   // The dialog grows out of the poster that was clicked and shrinks back into
   // it on close (morphTransition) - on a desktop; on a phone the sheet rises
   // from the bottom edge. The poster is the one under the click that opened
@@ -221,23 +269,76 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('click', note, true)
   }, [])
   const [origin, setOrigin] = useState<HTMLElement | null>(null)
-  const open = useCallback((t: SeriesTarget) => {
-    const from = lastCover.current
-    lastCover.current = null
-    const el = from && from.el.isConnected && performance.now() - from.at < 500 ? from.el : null
-    const next = () => {
-      setTarget({ ...t, source: t.source || 'anilist' })
+
+  // a step in history that keeps the page and changes only the card
+  const go = useCallback(
+    (e: TitleEntry, replace: boolean) => {
+      const l = at.current
+      return nav(
+        { pathname: l.pathname, search: l.search, hash: l.hash },
+        { state: { ...(l.state as object), wsTitle: e }, mask: titleUrl(e), replace, flushSync: true },
+      )
+    },
+    [nav],
+  )
+  const view = useRef<View | null>(null)
+  const open = useCallback(
+    async (t: SeriesTarget) => {
+      const from = lastCover.current
+      lastCover.current = null
+      const was = entryOf(at.current)
+      // another title while the card is open swaps it in place, past the
+      // guard of a form it may hold; back still closes the card
+      if (was && view.current) {
+        if (!(await view.current.guard())) return
+        view.current.close()
+      }
+      const k = remember(t)
+      const e: TitleEntry = {
+        source: t.source || 'anilist',
+        id: t.id,
+        n: 0,
+        k,
+        tab: t.tab,
+        bg: was ? was.bg : history.state?.idx,
+        direct: was?.direct,
+      }
+      const el = !was && from && from.el.isConnected && performance.now() - from.at < 500 ? from.el : null
       setOrigin(el)
-    }
-    if (el) void morphTransition(el, () => flushSync(next))
-    else next()
-  }, [])
-  const close = useCallback(() => setTarget(null), [])
-  const api = useMemo(() => ({ open, close }), [open, close])
+      if (el) void morphTransition(el, () => go(e, false))
+      else go(e, !!was)
+    },
+    [go],
+  )
+  // a related title is a step of its own: back returns to the one before
+  const related = (t: SeriesTarget) => {
+    const cur = entryOf(at.current)
+    if (!cur) return
+    go({ source: t.source || 'anilist', id: t.id, n: cur.n + 1, k: remember(t), bg: cur.bg, direct: cur.direct }, false)
+  }
+  const close = useCallback(() => {
+    const l = at.current
+    const e = entryOf(l)
+    if (!e) return
+    flushSync(() => {
+      setClosing(l.key)
+      view.current?.close()
+    })
+    // a link's card has nothing under it to go back to: the dashboard takes
+    // its place. Otherwise back to the page, past every related title and
+    // the entry of a form that was open - after that form took its own back
+    // (useBackEntry), which is queued the same way.
+    if (e.direct) return nav('/', { replace: true })
+    setTimeout(() => {
+      const idx = history.state?.idx
+      const delta = typeof idx === 'number' && typeof e.bg === 'number' ? e.bg - idx : 0
+      nav(delta < 0 ? delta : -(e.n + 1))
+    })
+  }, [nav])
+  const api = useMemo(() => ({ open: (t: SeriesTarget) => void open(t), close }), [open, close])
 
   // The form shown in the card, if any. One at a time: a second replaces the
   // first. The card asks its guard before it closes, and closes it with it.
-  const view = useRef<View | null>(null)
   const [viewOn, setViewOn] = useState(false)
   const [host, setHost] = useState<HTMLElement | null>(null)
   // the card notes its scroll and focus here before its content steps aside
@@ -253,22 +354,26 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
     }
   }, [])
   const views = useMemo(() => ({ host, attach }), [host, attach])
+  // the card went (back gesture, a route change): its form goes with it
   useEffect(() => {
-    if (!target) view.current?.close()
-  }, [target])
+    if (!shown) view.current?.close()
+  }, [shown])
 
+  const target: SeriesTarget | null = shown
+    ? { ...((shown.k && targets.get(shown.k)) || { id: shown.id, tab: shown.tab }), source: shown.source, id: shown.id }
+    : null
   return (
     <Ctx.Provider value={api}>
       <ViewCtx.Provider value={views}>
         {children}
-        {/* keyed on the title: a second open() from a page is a new card, while
-            a related title picked inside the card stacks within the same one */}
-        {target && (
+        {shown && target && (
           <SeriesDialog
-            key={`${target.source}:${target.id}`}
+            entry={shown}
             target={target}
             origin={origin}
             onClose={close}
+            onRelated={related}
+            onBack={() => nav(-1)}
             viewOn={viewOn}
             viewHost={setHost}
             viewGuard={() => view.current?.guard() ?? Promise.resolve(true)}
@@ -301,42 +406,60 @@ const reducedMotion = () =>
   document.documentElement.dataset.motion === 'off' ||
   (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
-function SeriesDialog({
-  target,
-  origin,
-  onClose,
-  viewOn,
-  viewHost,
-  viewGuard,
-  away: noteAway,
-}: {
+interface CardProps {
+  entry: TitleEntry
   target: SeriesTarget
   /** the poster the dialog grew out of, to shrink back into */
   origin: HTMLElement | null
   onClose: () => void
+  onRelated: (t: SeriesTarget) => void
+  /** to the related title before this one */
+  onBack: () => void
   /** a form is shown in place of the content (SeriesCardView) */
   viewOn: boolean
   viewHost: (el: HTMLElement | null) => void
   viewGuard: () => Promise<boolean>
   away: { current: () => void }
-}) {
+}
+
+// The card's frame: it stays while the title in it changes, and each title
+// gets a fresh body - its own scroll, sections and forms.
+function SeriesDialog(props: CardProps) {
   const { t } = useTranslation()
-  // the trail of related titles opened from inside the card; the first entry
-  // is what the page opened, the last is what is shown
-  const [stack, setStack] = useState<SeriesTarget[]>([target])
-  const cur = stack[stack.length - 1]
+  const { entry, origin, onClose, viewOn, viewGuard } = props
+  const [name, setName] = useState('')
+  return (
+    <Dialog
+      width="max-w-3xl"
+      // the card's history entry is its route (see TitleEntry)
+      history={false}
+      aria-label={t('remote.detailsFor', { name })}
+      onClose={onClose}
+      // Escape, the backdrop, the grabber and the back gesture still close the
+      // whole card from a form, but not past its unsaved changes
+      onRequestClose={() => (viewOn ? viewGuard() : true)}
+      closeTransition={origin ? (close) => void morphTransition(origin, close, true) : undefined}
+    >
+      <SeriesCard key={`${entry.k}:${entry.source}:${entry.id}`} {...props} onName={setName} />
+    </Dialog>
+  )
+}
+
+function SeriesCard({
+  entry,
+  target: cur,
+  origin,
+  onClose,
+  onRelated,
+  onBack,
+  viewOn,
+  viewHost,
+  away: noteAway,
+  onName,
+}: CardProps & { onName: (name: string) => void }) {
+  const { t } = useTranslation()
+  const target = cur
   const source = cur.source || 'anilist'
-  // another title in the same card starts at its top, head and back button
-  // in view, whatever the last one was scrolled to
-  const fresh = useRef(false)
-  const push = (next: SeriesTarget) => {
-    fresh.current = true
-    setStack((s) => [...s, { ...next, source: next.source || 'anilist' }])
-  }
-  const back = () => {
-    fresh.current = true
-    setStack((s) => (s.length > 1 ? s.slice(0, -1) : s))
-  }
 
   // a related title arrives as its trimmed node: fetch the record behind it
   const thin = !cur.media || cur.media.description === undefined
@@ -466,15 +589,11 @@ function SeriesDialog({
     b.style.opacity = still || y <= 0 ? '' : String(1 - Math.min(1, y / 144) * 0.6)
   }
 
-  // another title starts at its top; then the dock is redone, as the content
-  // height has jumped
   useLayoutEffect(() => {
-    const sc = scroller.current
-    if (sc && fresh.current) sc.scrollTop = 0
-    fresh.current = false
     lag()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cur.id])
+  }, [])
+  useEffect(() => onName(name), [name, onName])
 
   // The jump row marks the section being read (aria-current): the first one
   // inside a band from under the sticky rows to the middle of the scroller.
@@ -541,15 +660,7 @@ function SeriesDialog({
   }, [viewOn])
 
   return (
-    <Dialog
-      width="max-w-3xl"
-      aria-label={t('remote.detailsFor', { name })}
-      onClose={onClose}
-      // Escape, the backdrop, the grabber and the back gesture still close the
-      // whole card from the editor, but not past its unsaved changes
-      onRequestClose={() => (viewOn ? viewGuard() : true)}
-      closeTransition={origin ? (close) => void morphTransition(origin, close, true) : undefined}
-    >
+    <>
       {editing && (
         <SeriesCardView onClose={() => setEditing(null)}>
           {(v) => (
@@ -577,7 +688,7 @@ function SeriesDialog({
           <IconButton
             aria-label={t('common.close')}
             title={t('common.close')}
-            onClick={() => (origin ? void morphTransition(origin, () => flushSync(onClose), true) : onClose())}
+            onClick={() => (origin ? void morphTransition(origin, onClose, true) : onClose())}
             className="absolute top-1 right-2 z-30 bg-bg-card/90"
           >
             <X aria-hidden size="1.2em" />
@@ -598,11 +709,11 @@ function SeriesDialog({
                   />
                 </div>
               )}
-              {stack.length > 1 && (
+              {entry.n > 0 && (
                 <IconButton
                   aria-label={t('series.back')}
                   title={t('series.back')}
-                  onClick={back}
+                  onClick={onBack}
                   className="absolute top-2 left-2 bg-bg-card/90"
                 >
                   <ArrowLeft aria-hidden size="1.2em" />
@@ -757,7 +868,7 @@ function SeriesDialog({
                             media: r.node,
                             caption: t(`series.relation.${r.relationType}`, r.relationType),
                           }))}
-                          onPick={(m) => push({ id: m.id, media: m })}
+                          onPick={(m) => onRelated({ id: m.id, media: m })}
                         />
                       </section>
                     )}
@@ -766,7 +877,7 @@ function SeriesDialog({
                         <h5 className="t-label mb-2">{t('series.recommendations')}</h5>
                         <PosterRow
                           items={extras.recommendations.map((m) => ({ media: m }))}
-                          onPick={(m) => push({ source, id: m.id, media: m })}
+                          onPick={(m) => onRelated({ source, id: m.id, media: m })}
                         />
                       </section>
                     )}
@@ -816,7 +927,7 @@ function SeriesDialog({
           )}
         </div>
       )}
-    </Dialog>
+    </>
   )
 }
 

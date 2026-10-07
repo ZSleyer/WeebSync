@@ -38,7 +38,7 @@ import CommandPalette from './components/CommandPalette'
 import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
 import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions, ShellFooter, WIDE_MQ } from './components/PageActions'
-import { SeriesModalProvider } from './components/SeriesModal'
+import { SeriesModalProvider, TITLE_PATH } from './components/SeriesModal'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -150,6 +150,9 @@ export const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<RootLayout />}>
       <Route path="/" element={<Dashboard />} handle={h('nav.dashboard')} />
+      {/* a title card's own URL, opened from a link or a reload: the card
+          stands over the dashboard (SeriesModalProvider reads the path) */}
+      <Route path={TITLE_PATH} element={<Dashboard />} handle={h('nav.dashboard')} />
       <Route path="/files" element={<FilesJump />} handle={h('nav.files')} />
       {/* the remote and local browsers merged into /files; their links keep
           the folder they pointed at */}
