@@ -49,7 +49,6 @@
     "settings": "Einstellungen",
     "main": "Hauptnavigation",
     "suggestions": "Vorschläge",
-    "more": "Mehr",
     "assistant": "Assistent",
     "back": "Zurück",
     "files": "Dateien"
@@ -326,6 +325,7 @@
     "rename": "Umbenennen",
     "renameTitle": "{{name}} umbenennen",
     "renameItem": "{{name}} umbenennen",
+    "renameEpisodes": "Folgen umbenennen",
     "delete": "Löschen",
     "deleteItem": "{{name}} löschen",
     "deleteConfirm": "{{name}} endgültig löschen?",

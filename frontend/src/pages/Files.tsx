@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   List,
   MoreHorizontal,
+  PenLine,
   Pencil,
   RefreshCw,
   Replace,
@@ -24,7 +25,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSeriesModal } from '../components/SeriesModal'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import ActionSheet from '../components/ActionSheet'
 import Press from '../components/Press'
 import {
@@ -111,6 +112,7 @@ export default function Files() {
   const { data: user } = useAuth()
   const qc = useQueryClient()
   const confirm = useConfirm()
+  const goTo = useNavigate()
   const prompt = usePrompt()
   const { data: servers = [] } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
@@ -517,6 +519,17 @@ export default function Files() {
                 <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('local.rename')}
               </Button>
+              {selection.isDir && (
+                // the batch renamer works on a folder's episodes; it opens
+                // with this folder already chosen
+                <Button
+                  size="sm"
+                  onClick={() => goTo(`/rename?path=${encodeURIComponent(selection.path.replace(/^\//, ''))}`)}
+                >
+                  <PenLine aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('local.renameEpisodes')}
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="danger"

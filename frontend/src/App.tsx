@@ -1,16 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import {
-  ArrowLeft,
-  ChevronRight,
-  Ellipsis,
-  FolderOpen,
-  LayoutDashboard,
-  LogOut,
-  PenLine,
-  RefreshCw,
-  Settings,
-  Sparkles,
-} from 'lucide-react'
+import { ArrowLeft, FolderOpen, LayoutDashboard, LogOut, RefreshCw, Settings, Sparkles } from 'lucide-react'
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -25,7 +14,7 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppBar, AppShell, Badge, Button, Dialog, NavItem, navItemClass, TabBar } from '@weebsync/design-system'
+import { AppBar, AppShell, Badge, Button, navItemClass, TabBar } from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
 import Logo from './components/Logo'
@@ -64,19 +53,18 @@ import Jobs from './pages/settings/Jobs'
 import Matching from './pages/settings/Matching'
 import Data from './pages/settings/Data'
 
-// The phone's tab bar holds the daily targets; everything else lives in the
-// "more" sheet. The desktop rail lists both, in this order.
+// The phone's tab bar holds every top-level page - no "more" sheet: a menu
+// behind a button is found half as often as one in sight. Settings is the
+// gear in the app bar (phone) and the foot of the sidebar (desktop); Rename
+// is a tool on a folder, reached from Files.
 const TABS = [
   { to: '/', key: 'nav.dashboard', icon: LayoutDashboard },
   { to: '/watches', key: 'nav.watches', icon: RefreshCw },
   { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
   { to: '/files', key: 'nav.files', icon: FolderOpen },
 ]
-const OVERFLOW = [
-  { to: '/rename', key: 'nav.rename', icon: PenLine },
-  { to: '/settings', key: 'nav.settings', icon: Settings },
-]
-const NAV = [...TABS, ...OVERFLOW]
+const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings }
+const NAV = [...TABS, SETTINGS]
 type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
 
@@ -174,7 +162,7 @@ export const router = createBrowserRouter(
       <Route path="/assistant" element={<Navigate to="/suggestions/assistant" replace />} />
       <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
       <Route path="/servers" element={<Navigate to="/settings/servers" replace />} />
-      <Route path="/rename" element={<Rename />} handle={h('nav.rename')} />
+      <Route path="/rename" element={<Rename />} handle={h('nav.rename', '/files', 'nav.files')} />
       <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
         <Route index element={<SettingsHub />} />
         <Route path="general" element={<General />} handle={inSettings('settings.nav.general')} />
@@ -293,28 +281,22 @@ function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
   const location = useLocation()
   const { title, back } = useScreen()
-  const [moreOpen, setMoreOpen] = useState(false)
   // the app bar's actions slot, handed to pages through context; held in
   // state (not a ref) so a page mounting before the bar still portals in
   const [actions, setActions] = useState<HTMLElement | null>(null)
   // the shell's footer row, same deal: a page's action bar portals in
   const [footer, setFooter] = useState<HTMLElement | null>(null)
-  const overflow = OVERFLOW
-  const moreActive = overflow.some((n) => onPath(n, location.pathname))
-  // a newer build out: a dot on the Settings entry (and on the More tab that
-  // hides it) and a line in the rail's foot, so an admin sees it without
-  // opening Settings; the About panel has the details
+  // a newer build out: a dot on the Settings entry (the gear on a phone) and
+  // a line in the rail's foot, so an admin sees it without opening Settings;
+  // the About panel has the details
   const update = useUpdateHint()
   const updateText =
     update && (update.channel === 'stable' ? t('about.updateStable', { version: update.latest }) : t('about.updateDev'))
-  // navigating (via sheet or otherwise) closes the sheet
-  useEffect(() => setMoreOpen(false), [location.pathname])
 
   // route transition follows nav order: a lower-numbered tab enters from the
   // right (moving right→left), a higher one from the left (left→right).
   // Keyed on pathname so it's computed once per navigation - a plain re-render
-  // (e.g. opening the mobile "more" sheet) must not re-flip the class and
-  // replay the animation.
+  // must not re-flip the class and replay the animation.
   // The nav links navigate inside a view transition (<main> is named in CSS);
   // then the browser animates the swap and the wrapper class stays off, or
   // both would move. Everything else (navigate(), back button, cards) still
@@ -377,7 +359,7 @@ function Shell({ email }: { email: string }) {
         <Badge className="mt-2">{t('app.tagline')}</Badge>
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto py-3" aria-label={t('nav.main')}>
-        {[...TABS, ...overflow].map((n) => (
+        {TABS.map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -385,11 +367,19 @@ function Shell({ email }: { email: string }) {
             viewTransition
             className={({ isActive }) => navItemClass('sidebar', isActive)}
           >
-            {dotted(icon(n), !!update && n.to === '/settings')}
+            {icon(n)}
             {t(n.key)}
           </NavLink>
         ))}
       </nav>
+      {/* settings at the foot, apart from the pages: visited rarely, but
+          always in the same place */}
+      <div className="py-2">
+        <NavLink to={SETTINGS.to} viewTransition className={({ isActive }) => navItemClass('sidebar', isActive)}>
+          {dotted(icon(SETTINGS), !!update)}
+          {t(SETTINGS.key)}
+        </NavLink>
+      </div>
       <div className="border-t border-border-subtle p-4">
         {update && (
           <Link to="/settings/general#about" className="mb-3 flex items-center gap-2 text-xs text-warn hover:underline">
@@ -428,11 +418,27 @@ function Shell({ email }: { email: string }) {
         )
       }
       title={title ? t(title) : 'WeebSync'}
-      actions={<div ref={setActions} className="flex items-center gap-1" />}
+      actions={
+        <>
+          <div ref={setActions} className="flex items-center gap-1" />
+          {/* the gear on every top-level page; a stacked screen has its back
+              link instead, and Settings itself needs no way into itself */}
+          {!back && !onPath(SETTINGS, location.pathname) && (
+            <Link
+              to={SETTINGS.to}
+              viewTransition
+              aria-label={t(SETTINGS.key)}
+              className="t-iconbtn text-t-secondary hover:text-t-primary"
+            >
+              {dotted(icon(SETTINGS), !!update)}
+            </Link>
+          )}
+        </>
+      }
     />
   )
 
-  // the phone's tab bar: primary tabs + the "more" button
+  // the phone's tab bar: every top-level page
   const tabs = (
     <TabBar aria-label={t('nav.main')}>
       <div className="flex">
@@ -448,48 +454,8 @@ function Shell({ email }: { email: string }) {
             <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
           </NavLink>
         ))}
-        <NavItem
-          as="button"
-          variant="bottomTab"
-          active={moreOpen || moreActive}
-          aria-haspopup="dialog"
-          aria-expanded={moreOpen}
-          onClick={() => setMoreOpen(true)}
-        >
-          {dotted(<Ellipsis aria-hidden size="1.25em" className="shrink-0" />, !!update)}
-          <span className="max-w-full truncate whitespace-nowrap">{t('nav.more')}</span>
-        </NavItem>
       </div>
     </TabBar>
-  )
-
-  // the "more" sheet is a real dialog: top layer, focus, Escape, backdrop and
-  // the scroll lock all come from the platform, and focus returns to the
-  // button that opened it
-  const more = moreOpen && (
-    <Dialog width="max-w-sm" onClose={() => setMoreOpen(false)} aria-labelledby="more-title">
-      <h2 id="more-title" className="sr-only">
-        {t('nav.more')}
-      </h2>
-      <nav aria-label={t('nav.more')} className="py-1">
-        {overflow.map((n) => (
-          <NavLink key={n.to} to={n.to} viewTransition className={({ isActive }) => navItemClass('sheet', isActive)}>
-            {dotted(icon(n), !!update && n.to === '/settings')}
-            {t(n.key)}
-            <ChevronRight aria-hidden size="1em" className="ml-auto shrink-0 text-t-faint" />
-          </NavLink>
-        ))}
-      </nav>
-      <div className="flex items-center justify-between gap-3 border-t border-border-subtle px-5 py-3">
-        <span className="min-w-0 truncate font-mono text-xs text-t-muted" title={email}>
-          {email}
-        </span>
-        <Button size="sm" onClick={logout}>
-          <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('app.logout')}
-        </Button>
-      </div>
-    </Dialog>
   )
 
   return (
@@ -507,7 +473,6 @@ function Shell({ email }: { email: string }) {
               <>
                 <RouteTitle />
                 <ScrollMemory />
-                {more}
               </>
             }
           >

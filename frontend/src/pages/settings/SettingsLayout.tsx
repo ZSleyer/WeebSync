@@ -65,8 +65,8 @@ function useGroups(): SectionGroup[] {
 }
 
 // The hub at /settings: one row per section with a hint, and the account row
-// with Logout. On a phone it is the screen behind the More sheet's Settings
-// entry. Desktop has the side menu with the same sections, so there the
+// with Logout. On a phone it is the screen behind the app bar's gear.
+// Desktop has the side menu with the same sections, so there the
 // index opens the first section instead of listing the menu a second time.
 export function SettingsHub() {
   const { t } = useTranslation()
