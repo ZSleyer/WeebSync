@@ -489,7 +489,9 @@ a.t-label:hover {
   transition: color 150ms, background-color 150ms, border-color 150ms;
 }
 .t-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
-.t-tab[aria-selected="true"] {
+.t-tab[aria-selected="true"],
+/* a row of jump links marks the section in view the same way */
+.t-tab[aria-current="true"] {
   color: var(--accent-blue);
   background: var(--bg-card);
   border-bottom-color: var(--accent-blue);
@@ -536,7 +538,8 @@ a.t-label:hover {
 .t-tabs--line { border: 0; border-radius: 0; background: none; }
 .t-tabs--line .t-tab { min-height: 44px; padding: 10px 12px; }
 .t-tabs--line .t-tab:hover { background: none; }
-.t-tabs--line .t-tab[aria-selected="true"] { background: none; }
+.t-tabs--line .t-tab[aria-selected="true"],
+.t-tabs--line .t-tab[aria-current="true"] { background: none; }
 .t-tabs--line .t-tabs-ink { background: none; }
 
 /* A dialog's docked title: a slim bar over the top of its scroller that is

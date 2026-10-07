@@ -352,7 +352,7 @@
     "deleteDirConfirm": "Ordner {{name}} mit dem gesamten Inhalt endgültig löschen?"
   },
   "series": {
-    "tabsLabel": "Bereiche der Serie",
+    "sectionsLabel": "Abschnitte der Serie",
     "tab": {
       "overview": "Übersicht",
       "sync": "Auto-Sync",

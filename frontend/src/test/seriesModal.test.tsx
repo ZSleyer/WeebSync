@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, Link } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -90,8 +90,42 @@ function serve({ watches = [] as Watch[], extras = undefined as unknown, reviews
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   target = { id: 7, media }
 })
+
+// An IntersectionObserver the test drives: jsdom has none, and the card then
+// loads everything at once - which is what the other tests rely on.
+class FakeIO {
+  static all: FakeIO[] = []
+  els = new Set<Element>()
+  cb: IntersectionObserverCallback
+  opts: IntersectionObserverInit
+  constructor(cb: IntersectionObserverCallback, opts: IntersectionObserverInit = {}) {
+    this.cb = cb
+    this.opts = opts
+    FakeIO.all.push(this)
+  }
+  observe(el: Element) {
+    this.els.add(el)
+  }
+  unobserve(el: Element) {
+    this.els.delete(el)
+  }
+  disconnect() {
+    this.els.clear()
+  }
+  fire(el: Element, isIntersecting: boolean) {
+    act(() => this.cb([{ target: el, isIntersecting } as IntersectionObserverEntry], this as never))
+  }
+}
+const observers = () => {
+  const live = FakeIO.all.filter((o) => o.els.size > 0)
+  return {
+    spy: live.find((o) => !o.opts.rootMargin?.endsWith('100% 0px'))!,
+    ahead: live.find((o) => o.opts.rootMargin?.endsWith('100% 0px'))!,
+  }
+}
 
 describe('SeriesModalProvider', () => {
   it('opens the one title card with the record and the caller rows', () => {
@@ -116,27 +150,65 @@ describe('SeriesModalProvider', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('shows the auto-sync tab only for a title that has watches, one block each', async () => {
+  it('shows the auto-sync section only for a title that has watches, one block each', async () => {
     serve({ watches: [watch(1), watch(2), { ...watch(3), media: { ...media, id: 99 } }] })
     target = { id: 7, media, watchId: 2, tab: 'sync' }
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    const tab = await screen.findByRole('tab', { name: /series.tab.sync/ })
-    expect(tab).toHaveAttribute('aria-selected', 'true')
-    expect(tab).toHaveTextContent('2')
-    const blocks = await screen.findAllByRole('region')
+    const link = await screen.findByRole('link', { name: /series.tab.sync/ })
+    // opened on the auto-sync section: the jump row says so
+    await waitFor(() => expect(link).toHaveAttribute('aria-current', 'true'))
+    expect(link).toHaveTextContent('2')
+    const section = screen.getByRole('region', { name: 'series.tab.sync' })
+    const blocks = within(section).getAllByRole('region')
     expect(blocks).toHaveLength(2)
     // the watch the caller came from leads
     expect(blocks[0]).toHaveTextContent('/x/Frieren2')
   })
 
-  it('has no auto-sync tab without a watch and says so when the source is down', async () => {
+  it('has no auto-sync section without a watch and says so when the source is down', async () => {
     serve({ watches: [] })
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    expect(screen.queryByRole('tab', { name: /series.tab.sync/ })).toBeNull()
-    fireEvent.click(screen.getByRole('tab', { name: 'series.tab.cast' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('series.unavailable')
+    expect(screen.queryByRole('link', { name: /series.tab.sync/ })).toBeNull()
+    // one page: cast, similar and community stand under the overview
+    expect(screen.getByRole('region', { name: 'series.tab.cast' })).toBeInTheDocument()
+    expect((await screen.findAllByRole('status'))[0]).toHaveTextContent('series.unavailable')
+  })
+
+  it('marks the section in view and jumps to a section from the row', async () => {
+    vi.stubGlobal('IntersectionObserver', FakeIO)
+    const get = serve({
+      extras: {
+        relations: [],
+        recommendations: [],
+        characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose' }],
+        links: [],
+        threads: [],
+      },
+    })
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    const link = (name: string) => screen.getByRole('link', { name })
+    expect(link('series.tab.overview')).toHaveAttribute('aria-current', 'true')
+    // the lazy sections wait until they come near
+    const extrasAsked = () => get.mock.calls.some(([u]) => u.startsWith('/api/media/extras'))
+    expect(extrasAsked()).toBe(false)
+    const { spy, ahead } = observers()
+    ahead.fire(screen.getByRole('region', { name: 'series.tab.cast' }), true)
+    expect(await screen.findByText('Fern')).toBeInTheDocument()
+    expect(extrasAsked()).toBe(true)
+
+    // scrolled: the observer reports the cast section as the first in the band
+    spy.fire(screen.getByRole('region', { name: 'series.tab.overview' }), false)
+    spy.fire(screen.getByRole('region', { name: 'series.tab.cast' }), true)
+    expect(link('series.tab.cast')).toHaveAttribute('aria-current', 'true')
+    expect(link('series.tab.overview')).not.toHaveAttribute('aria-current')
+
+    // a jump marks its target and takes the focus there
+    fireEvent.click(link('series.tab.community'))
+    expect(link('series.tab.community')).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('region', { name: 'series.tab.community' })).toHaveFocus()
   })
 
   it('opens a related title inside the card and finds its way back', async () => {
@@ -151,7 +223,6 @@ describe('SeriesModalProvider', () => {
     })
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    fireEvent.click(screen.getByRole('tab', { name: 'series.tab.similar' }))
     fireEvent.click(await screen.findByRole('button', { name: 'remote.detailsFor:Frieren 2' }))
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveTextContent('Frieren 2')
@@ -159,52 +230,6 @@ describe('SeriesModalProvider', () => {
     await waitFor(() => expect(dialog).toHaveTextContent('Teil zwei.'))
     fireEvent.click(screen.getByRole('button', { name: 'series.back' }))
     expect(screen.getByRole('dialog')).toHaveTextContent('Eine Elfe.')
-  })
-
-  it('moves between tabs with the arrow keys', async () => {
-    serve({
-      extras: {
-        relations: [],
-        recommendations: [],
-        characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose' }],
-        links: [],
-        threads: [],
-      },
-    })
-    app()
-    fireEvent.click(screen.getByText('öffnen'))
-    const overview = screen.getByRole('tab', { name: 'series.tab.overview' })
-    overview.focus()
-    fireEvent.keyDown(overview, { key: 'ArrowRight' })
-    expect(screen.getByRole('tab', { name: 'series.tab.cast' })).toHaveAttribute('aria-selected', 'true')
-    expect(await screen.findByText('Fern')).toBeInTheDocument()
-  })
-
-  it('swipes the panel from one tab to the next and stops at the ends', async () => {
-    serve({
-      extras: {
-        relations: [],
-        recommendations: [],
-        characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose' }],
-        links: [],
-        threads: [],
-      },
-    })
-    app()
-    fireEvent.click(screen.getByText('öffnen'))
-    const panel = screen.getByRole('tabpanel')
-    const swipe = (dx: number) => {
-      fireEvent.pointerDown(panel, { clientX: 200, clientY: 100, pointerId: 1, button: 0, pointerType: 'touch' })
-      fireEvent.pointerMove(panel, { clientX: 200 + dx / 4, clientY: 100, pointerId: 1 })
-      fireEvent.pointerMove(panel, { clientX: 200 + dx, clientY: 100, pointerId: 1 })
-      fireEvent.pointerUp(panel, { clientX: 200 + dx, clientY: 100, pointerId: 1 })
-    }
-    // the first tab has nothing to its left
-    swipe(100)
-    expect(screen.getByRole('tab', { name: 'series.tab.overview' })).toHaveAttribute('aria-selected', 'true')
-    swipe(-100)
-    expect(screen.getByRole('tab', { name: 'series.tab.cast' })).toHaveAttribute('aria-selected', 'true')
-    expect(await screen.findByText('Fern')).toBeInTheDocument()
   })
 
   it('swaps the card for the watch editor in place and comes back to it', async () => {
@@ -221,13 +246,13 @@ describe('SeriesModalProvider', () => {
     // one dialog, now holding the editor instead of the card
     expect(document.querySelectorAll('dialog')).toHaveLength(1)
     expect(screen.getByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()
-    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'series.sectionsLabel' })).toBeNull()
     expect(screen.getByRole('button', { name: 'watch.backToCard' })).toHaveFocus()
 
     // nothing changed: the back arrow goes straight to the card, focus on the
     // menu the edit came from
     fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
-    expect(await screen.findByRole('tab', { name: /series.tab.sync/ })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('navigation', { name: 'series.sectionsLabel' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'watch.moreActions' })).toHaveFocus()
 
     // unsaved changes: the guard asks, and a declined confirm keeps the editor

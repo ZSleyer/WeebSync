@@ -352,7 +352,7 @@
     "deleteDirConfirm": "Delete the folder {{name}} and everything in it permanently?"
   },
   "series": {
-    "tabsLabel": "Sections of the title",
+    "sectionsLabel": "Sections of the title",
     "tab": {
       "overview": "Overview",
       "sync": "Auto-sync",
