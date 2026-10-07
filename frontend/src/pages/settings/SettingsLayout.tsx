@@ -83,9 +83,10 @@ function SettingsSearch({ groups, children }: { groups: SectionGroup[]; children
     : null
   return (
     <div className="flex flex-col gap-4">
+      {/* full size: a small field's 13px text on a touch screen makes iOS
+          zoom into it on focus */}
       <Input
         type="search"
-        size="sm"
         className="w-full"
         value={q}
         onChange={(e) => setQ(e.target.value)}
