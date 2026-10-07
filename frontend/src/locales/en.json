@@ -381,6 +381,14 @@
       "missing": "first gap: episode {{ep}}",
       "next": "next: episode {{n}}, {{when}}"
     },
+    "action": {
+      "syncNow": "Sync now",
+      "autoSync": "Auto-sync",
+      "rematch": "Change match",
+      "files": "Show files",
+      "setupWatch": "Set up auto-sync"
+    },
+    "moreActions": "More actions for {{name}}",
     "progressLabel": "Progress {{name}}",
     "role": {
       "SUPPORTING": "Supporting",

@@ -488,13 +488,38 @@ function SugCard({
   }
 
   const { open: openSeries } = useSeriesModal()
+  const watchIcon = <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
   return (
     <li>
       <SuggestionCard
         cover={it.cover}
         onCover={
           it.media
-            ? () => openSeries({ source: suggestionSource(it), id: it.media.id, media: it.media, title: it.title })
+            ? () =>
+                openSeries({
+                  source: suggestionSource(it),
+                  id: it.media.id,
+                  media: it.media,
+                  title: it.title,
+                  // the first server folder found for it, as the card's own way
+                  // to start syncing it; the rest stay on the suggestion
+                  actions: it.candidates[0]
+                    ? [
+                        {
+                          key: 'watch',
+                          label: t('series.action.setupWatch'),
+                          icon: watchIcon,
+                          primary: true,
+                          onClick: () =>
+                            onWatch({
+                              serverId: it.candidates[0].serverId,
+                              name: it.title,
+                              initial: prefill(it.candidates[0].path),
+                            }),
+                        },
+                      ]
+                    : [],
+                })
             : undefined
         }
         coverLabel={it.media ? t('remote.detailsFor', { name: it.title }) : undefined}

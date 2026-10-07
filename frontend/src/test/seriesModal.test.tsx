@@ -242,6 +242,49 @@ describe('SeriesModalProvider', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('Eine Elfe.')
   })
 
+  it('puts the caller actions in the bar, the rare ones behind the menu, and no close button', () => {
+    serve()
+    const sync = vi.fn()
+    const files = vi.fn()
+    target = {
+      id: 7,
+      media,
+      actions: [
+        { key: 'files', label: 'Dateien zeigen', more: true, onClick: files },
+        { key: 'sync', label: 'Jetzt syncen', primary: true, onClick: sync },
+        { key: 'watch', label: 'Auto-Sync', onClick: () => {} },
+      ],
+    }
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    const bar = screen.getByRole('dialog').querySelector('footer')!
+    const buttons = within(bar).getAllByRole('button')
+    // secondary first, the primary at the end, then the overflow
+    expect(buttons.map((b) => b.textContent)).toEqual(['Auto-Sync', 'Jetzt syncen', ''])
+    expect(within(bar).queryByRole('button', { name: 'common.close' })).toBeNull()
+    fireEvent.click(within(bar).getByRole('button', { name: 'Jetzt syncen' }))
+    expect(sync).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(bar).getByRole('button', { name: 'series.moreActions:Frieren' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Dateien zeigen' }))
+    expect(files).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers checking and editing a watch the card was opened from', async () => {
+    serve({ watches: [{ ...watch(1), serverId: 1 } as Watch] })
+    const post = vi.spyOn(api, 'post').mockResolvedValue({})
+    target = { id: 7, media, watchId: 1 }
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    await screen.findByRole('region', { name: 'series.tab.sync' })
+    const bar = screen.getByRole('dialog').querySelector('footer')!
+    expect(within(bar).getByRole('button', { name: /servers.edit/ })).toBeInTheDocument()
+    fireEvent.click(within(bar).getByRole('button', { name: /watch.checkNow/ }))
+    expect(post).toHaveBeenCalledWith('/api/watches/1/check')
+    // the header's X closes the card
+    fireEvent.click(screen.getByRole('button', { name: 'common.close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('swaps the card for the watch editor in place and comes back to it', async () => {
     serve({ watches: [{ ...watch(1), serverId: 1, template: '', pattern: '' } as Watch] })
     target = { id: 7, media, tab: 'sync' }
