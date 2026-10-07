@@ -374,6 +374,13 @@
     "recommendations": "Recommendations",
     "unavailable": "{{source}} is not answering right now. This section stays empty until the service is back.",
     "back": "Back to the previous title",
+    "state": {
+      "local": "{{have}} of {{total}} episodes local",
+      "files_one": "{{count}} file local",
+      "files_other": "{{count}} files local",
+      "missing": "first gap: episode {{ep}}",
+      "next": "next: episode {{n}}, {{when}}"
+    },
     "progressLabel": "Progress {{name}}",
     "role": {
       "SUPPORTING": "Supporting",

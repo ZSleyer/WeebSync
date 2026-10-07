@@ -374,6 +374,13 @@
     "recommendations": "Empfehlungen",
     "unavailable": "{{source}} antwortet gerade nicht. Dieser Bereich bleibt leer, bis der Dienst wieder da ist.",
     "back": "Zurück zum vorigen Titel",
+    "state": {
+      "local": "{{have}} von {{total}} Folgen lokal",
+      "files_one": "{{count}} Datei lokal",
+      "files_other": "{{count}} Dateien lokal",
+      "missing": "erste Lücke: Folge {{ep}}",
+      "next": "nächste: Folge {{n}}, {{when}}"
+    },
     "progressLabel": "Fortschritt {{name}}",
     "role": {
       "SUPPORTING": "Nebenrolle",
