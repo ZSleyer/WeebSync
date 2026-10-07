@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Panel } from '@weebsync/design-system'
 import { api } from '../../api'
-import { usePrompt } from '../../components/prompt'
+import { useConfirm } from '../../components/confirm'
 import { registerCredential } from '../../webauthn'
 
 interface AuthConfig {
@@ -38,22 +38,24 @@ interface Passkey {
 function PasskeySection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const prompt = usePrompt()
+  const confirm = useConfirm()
   const { data: creds } = useQuery<Passkey[]>({
     queryKey: ['webauthn'],
     queryFn: () => api.get('/api/auth/webauthn/credentials'),
   })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // the device's name is typed beside the buttons, not asked in a dialog
+  // after the click; empty, it falls back to the kind
+  const [name, setName] = useState('')
 
   const add = (kind: 'passkey' | 'key') => async () => {
     const fallback = kind === 'passkey' ? 'Passkey' : 'Security Key'
-    const name = await prompt({ title: t('account.passkeyName'), defaultValue: fallback })
-    if (name === null) return
     setBusy(true)
     setError('')
     try {
-      await registerCredential(kind, name || fallback)
+      await registerCredential(kind, name.trim() || fallback)
+      setName('')
       qc.invalidateQueries({ queryKey: ['webauthn'] })
     } catch (e) {
       setError(e instanceof Error ? e.message : t('app.error'))
@@ -61,10 +63,20 @@ function PasskeySection() {
       setBusy(false)
     }
   }
-  const remove = (id: number) => async () => {
+  // a passkey is a way in: removing one asks first, and says so when it is
+  // the last one
+  const remove = (c: Passkey) => async () => {
+    const last = (creds ?? []).filter((x) => x.passwordless).length === 1 && c.passwordless
+    const ok = await confirm({
+      title: t('account.removeTitle', { name: c.name }),
+      message: last ? t('account.removeLast') : t('account.removeHint'),
+      confirmLabel: t('account.remove'),
+      destructive: true,
+    })
+    if (!ok) return
     setBusy(true)
     try {
-      await api.del(`/api/auth/webauthn/credentials/${id}`)
+      await api.del(`/api/auth/webauthn/credentials/${c.id}`)
       qc.invalidateQueries({ queryKey: ['webauthn'] })
     } finally {
       setBusy(false)
@@ -81,14 +93,18 @@ function PasskeySection() {
             <li key={c.id} className="flex items-center gap-2 py-2 text-sm">
               <span className="min-w-0 flex-1 truncate text-t-secondary">{c.name}</span>
               <Badge>{c.passwordless ? t('account.passkeyKindPasskey') : t('account.passkeyKindKey')}</Badge>
-              <Button size="sm" variant="danger" disabled={busy} onClick={remove(c.id)}>
-                {t('servers.delete')}
+              <Button size="sm" variant="danger" disabled={busy} onClick={remove(c)}>
+                {t('account.remove')}
               </Button>
             </li>
           ))}
         </ul>
       )}
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="grid min-w-0 flex-1 basis-48 gap-1">
+          <span className="t-label">{t('account.passkeyName')}</span>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('account.passkeyNameHint')} />
+        </label>
         <Button size="sm" variant="primary" disabled={busy} onClick={add('passkey')}>
           {t('account.passkeyAdd')}
         </Button>
