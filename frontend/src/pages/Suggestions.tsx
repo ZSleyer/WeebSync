@@ -41,7 +41,7 @@ const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
 }
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useConfirm } from '../components/confirm'
+import { useToast } from '../components/toast'
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import {
   Badge,
@@ -62,6 +62,7 @@ import {
   api,
   type SuggestionItem,
   type SuggestionsResponse,
+  type TrashEntry,
   type UpgradeSuggestion,
   type UpgradeVariant,
   type UpgradeDims,
@@ -843,7 +844,7 @@ export function UpgradesSection() {
 export function DuplicatesSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const confirm = useConfirm()
+  const toast = useToast()
   const { data: user } = useAuth()
   const [notice, setNotice] = useState('')
   const { data, isLoading } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
@@ -855,19 +856,29 @@ export function DuplicatesSection() {
     qc.invalidateQueries({ queryKey: ['dismissed'] })
   }
   // one copy (a folder, or one file of a doubled episode) goes to the trash
-  // folder beside it; the server rebuilds the suggestions afterwards
+  // folder beside it; the server rebuilds the suggestions afterwards. The
+  // trash keeps it, so no question first: the line's undo takes it back out
+  // of the trash, found by the folder it came from and its name.
   const trash = async (path: string) => {
     const name = path.split('/').findLast(Boolean) ?? path
-    const ok = await confirm({
-      message: t('suggestions.dupTrashConfirm', { name }),
-      confirmLabel: t('suggestions.dupTrash'),
-      destructive: true,
-    })
-    if (!ok) return
+    const dir = path.slice(0, path.lastIndexOf('/'))
+    const refresh = () => {
+      qc.invalidateQueries({ queryKey: ['suggestions'] })
+      qc.invalidateQueries({ queryKey: ['trash'] })
+    }
     try {
       await api.post('/api/suggestions/duplicates/trash', { path })
-      setNotice(t('suggestions.dupTrashed', { name }))
-      qc.invalidateQueries({ queryKey: ['suggestions'] })
+      refresh()
+      toast({
+        message: t('suggestions.dupTrashed', { name }),
+        undo: async () => {
+          const found = (await api.get<TrashEntry[]>('/api/trash'))
+            .filter((e) => e.name === name && e.dir.replace(/\/$/, '') === dir)
+            .sort((a, b) => b.trashedAt - a.trashedAt)[0]
+          if (found) await api.post('/api/trash/restore', { path: found.path })
+          refresh()
+        },
+      })
     } catch (e) {
       setNotice(e instanceof Error ? e.message : String(e))
     }

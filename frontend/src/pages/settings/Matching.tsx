@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Menu, MenuItem, Panel, useMenu } from '@weebsync/design-system'
 import { api, type Media } from '../../api'
 import { useConfirm } from '../../components/confirm'
+import { useToast } from '../../components/toast'
 import {
   basename,
   CELL_LEFT,
@@ -291,7 +292,6 @@ const MATCH_FILTERS: MatchFilter[] = ['all', 'matched', 'unmatched', 'manual']
 
 function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void }) {
   const { t } = useTranslation()
-  const confirm = useConfirm()
   const qc = useQueryClient()
   const [filter, setFilter] = useState<MatchFilter>('all')
   const [q, setQ] = useState('')
@@ -316,6 +316,16 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
     qc.invalidateQueries({ queryKey: ['adminMatches', stat.serverId] })
     qc.invalidateQueries({ queryKey: ['adminJobs'] })
   }
+  // a row leaves at once with an undo line; the request goes when the line
+  // runs out, and the row stays hidden until the refreshed list drops it
+  const toast = useToast()
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
+  const unhide = (k: string) =>
+    setHidden((h) => {
+      const n = new Set(h)
+      n.delete(k)
+      return n
+    })
   const del = useMutation({
     mutationFn: (folder: string) =>
       api.del(`/api/admin/matches?serverId=${stat.serverId}&folder=${encodeURIComponent(folder)}`),
@@ -403,103 +413,105 @@ function MatchesModal({ stat, onClose }: { stat: MatchStat; onClose: () => void 
         <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
       ) : (
         <ul className="mt-2">
-          {(data?.entries ?? []).map((m) => (
-            <li key={m.folder} className="border-b border-border-subtle py-1.5 text-sm">
-              <div className={`${ROW_GRID} border-b-0`}>
-                <span className={CELL_LEFT}>
-                  <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={m.folder}>
-                    {basename(m.folder)}
-                  </span>
-                  {!!m.manual && <Badge className="shrink-0">{t('settings.jobs.manualBadge')}</Badge>}
-                </span>
-                <span className={CELL_RIGHT}>
-                  {m.mediaId ? (
-                    <span className="min-w-0 max-w-56 truncate text-xs text-t-muted" title={m.title}>
-                      {m.title}
+          {(data?.entries ?? [])
+            .filter((m) => !hidden.has(m.folder))
+            .map((m) => (
+              <li key={m.folder} className="border-b border-border-subtle py-1.5 text-sm">
+                <div className={`${ROW_GRID} border-b-0`}>
+                  <span className={CELL_LEFT}>
+                    <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={m.folder}>
+                      {basename(m.folder)}
                     </span>
-                  ) : (
-                    <Badge tone="warn" className="shrink-0">
-                      -
-                    </Badge>
-                  )}
-                  <Button
-                    size="sm"
-                    variant={correcting?.folder === m.folder ? 'primary' : 'default'}
-                    aria-expanded={correcting?.folder === m.folder}
-                    onClick={() => (correcting?.folder === m.folder ? setCorrecting(null) : startCorrect(m))}
-                  >
-                    <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('settings.jobs.correct')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    disabled={del.isPending}
-                    onClick={async () => {
-                      if (
-                        await confirm({
-                          message: t('settings.jobs.confirmDeleteMatch', { name: basename(m.folder) }),
-                          destructive: true,
+                    {!!m.manual && <Badge className="shrink-0">{t('settings.jobs.manualBadge')}</Badge>}
+                  </span>
+                  <span className={CELL_RIGHT}>
+                    {m.mediaId ? (
+                      <span className="min-w-0 max-w-56 truncate text-xs text-t-muted" title={m.title}>
+                        {m.title}
+                      </span>
+                    ) : (
+                      <Badge tone="warn" className="shrink-0">
+                        -
+                      </Badge>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={correcting?.folder === m.folder ? 'primary' : 'default'}
+                      aria-expanded={correcting?.folder === m.folder}
+                      onClick={() => (correcting?.folder === m.folder ? setCorrecting(null) : startCorrect(m))}
+                    >
+                      <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                      {t('settings.jobs.correct')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={del.isPending}
+                      onClick={() => {
+                        const k = m.folder
+                        setHidden((h) => new Set(h).add(k))
+                        toast({
+                          message: t('settings.jobs.matchDeleted', { name: basename(m.folder) }),
+                          undo: () => unhide(k),
+                          commit: () => del.mutateAsync(k).catch(() => unhide(k)),
                         })
-                      )
-                        del.mutate(m.folder)
-                    }}
-                  >
-                    <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('servers.delete')}
-                  </Button>
-                </span>
-              </div>
-              {correcting?.folder === m.folder && (
-                <div className="mt-2 rounded-lg border border-border-subtle bg-bg-secondary/40 p-2">
-                  <div className="flex gap-2">
-                    <label className="sr-only" htmlFor="correct-q">
-                      {t('remote.search')}
-                    </label>
-                    <Input
-                      id="correct-q"
-                      value={searchQ}
-                      placeholder={t('remote.search')}
-                      onChange={(e) => setSearchQ(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && search(m)}
-                    />
-                    <Button size="sm" className="shrink-0" onClick={() => search(m)}>
-                      <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('remote.search')}
-                    </Button>
-                  </div>
-                  {results.length > 0 && (
-                    <ul className="mt-1 max-h-48 overflow-y-auto">
-                      {results.map((r) => (
-                        <li key={r.id}>
-                          <button
-                            className="flex w-full items-baseline gap-2 border-b border-border-subtle/50 px-2 py-1.5 text-left hover:bg-bg-hover"
-                            disabled={picking}
-                            onClick={() => pick(m, r.id)}
-                          >
-                            <span className="min-w-0 truncate text-sm">{r.title.romaji}</span>
-                            <span className="shrink-0 font-mono text-xs tabular-nums text-t-muted">
-                              {r.seasonYear} · {r.format}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="mt-2 flex justify-between">
-                    <Button size="sm" variant="danger" disabled={picking} onClick={() => pick(m, 0)}>
+                      }}
+                    >
                       <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('settings.jobs.noMatch')}
+                      {t('servers.delete')}
                     </Button>
-                    <Button size="sm" onClick={() => setCorrecting(null)}>
-                      <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('servers.cancel')}
-                    </Button>
-                  </div>
+                  </span>
                 </div>
-              )}
-            </li>
-          ))}
+                {correcting?.folder === m.folder && (
+                  <div className="mt-2 rounded-lg border border-border-subtle bg-bg-secondary/40 p-2">
+                    <div className="flex gap-2">
+                      <label className="sr-only" htmlFor="correct-q">
+                        {t('remote.search')}
+                      </label>
+                      <Input
+                        id="correct-q"
+                        value={searchQ}
+                        placeholder={t('remote.search')}
+                        onChange={(e) => setSearchQ(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && search(m)}
+                      />
+                      <Button size="sm" className="shrink-0" onClick={() => search(m)}>
+                        <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('remote.search')}
+                      </Button>
+                    </div>
+                    {results.length > 0 && (
+                      <ul className="mt-1 max-h-48 overflow-y-auto">
+                        {results.map((r) => (
+                          <li key={r.id}>
+                            <button
+                              className="flex w-full items-baseline gap-2 border-b border-border-subtle/50 px-2 py-1.5 text-left hover:bg-bg-hover"
+                              disabled={picking}
+                              onClick={() => pick(m, r.id)}
+                            >
+                              <span className="min-w-0 truncate text-sm">{r.title.romaji}</span>
+                              <span className="shrink-0 font-mono text-xs tabular-nums text-t-muted">
+                                {r.seasonYear} · {r.format}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="mt-2 flex justify-between">
+                      <Button size="sm" variant="danger" disabled={picking} onClick={() => pick(m, 0)}>
+                        <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('settings.jobs.noMatch')}
+                      </Button>
+                      <Button size="sm" onClick={() => setCorrecting(null)}>
+                        <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('servers.cancel')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
         </ul>
       )}
       <Pager offset={offset} total={data?.total ?? 0} onOffset={setOffset} />
