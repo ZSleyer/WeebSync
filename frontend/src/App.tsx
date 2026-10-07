@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowLeft,
   CalendarDays,
@@ -21,10 +21,11 @@ import {
   Route,
   useLocation,
   useMatches,
+  useNavigationType,
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppBar, AppShell, Badge, Button, navItemClass, TabBar } from '@weebsync/design-system'
+import { AppBar, AppShell, Badge, Button, navItemClass, TabBar, useMediaQuery } from '@weebsync/design-system'
 import { api } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
 import Logo from './components/Logo'
@@ -34,8 +35,9 @@ import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
 import PageScroll from './components/PageScroll'
 import CommandPalette from './components/CommandPalette'
+import { RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
 import RedirectWithQuery from './components/RedirectWithQuery'
-import { AppBarActions, ShellFooter } from './components/PageActions'
+import { AppBarActions, ShellFooter, WIDE_MQ } from './components/PageActions'
 import { SeriesModalProvider } from './components/SeriesModal'
 import Setup from './pages/Setup'
 import Login from './pages/Login'
@@ -80,12 +82,6 @@ const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings }
 const NAV = [...TABS, SETTINGS]
 type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
-
-// position of a path in the nav order, for direction-aware route transitions
-const navIndex = (path: string) => {
-  const i = NAV.findIndex((n) => onPath(n, path))
-  return i < 0 ? 0 : i
-}
 
 // Root layout element of the data router. A data router (createBrowserRouter)
 // is required so form pages can useBlocker() to guard unsaved changes.
@@ -275,25 +271,6 @@ function RouteTitle() {
   return null
 }
 
-// RouteTransition drops the animation class once the rise finished: a filled
-// transform animation keeps the wrapper a containing block, which would pin
-// position:fixed descendants (e.g. the browser's selection bar) to the page
-// instead of the viewport. Lives inside the keyed <main>, so a navigation
-// remounts it and the next animation plays from scratch.
-function RouteTransition({ cls, children }: { cls: string; children: ReactNode }) {
-  const [done, setDone] = useState(false)
-  return (
-    // the layout classes have to survive the animation class being dropped:
-    // they are what lets a page claim the remaining height of <main>
-    <div
-      className={`flex min-h-0 flex-1 flex-col${cls && !done ? ' ' + cls : ''}`}
-      onAnimationEnd={(e) => e.target === e.currentTarget && setDone(true)}
-    >
-      {children}
-    </div>
-  )
-}
-
 function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
   const location = useLocation()
@@ -311,29 +288,23 @@ function Shell({ email }: { email: string }) {
   const updateText =
     update && (update.channel === 'stable' ? t('about.updateStable', { version: update.latest }) : t('about.updateDev'))
 
-  // route transition follows nav order: a lower-numbered tab enters from the
-  // right (moving right→left), a higher one from the left (left→right).
-  // Keyed on pathname so it's computed once per navigation - a plain re-render
-  // must not re-flip the class and replay the animation.
-  // The nav links navigate inside a view transition (<main> is named in CSS);
-  // then the browser animates the swap and the wrapper class stays off, or
-  // both would move. Everything else (navigate(), back button, cards) still
-  // gets the class animation.
+  // How the screen changes, decided once per navigation (a plain re-render
+  // must not replay it). <main> is keyed on the top-level page, so it only
+  // remounts - and animates - when the page changes; a move inside a page
+  // (a settings section, a suggestions tab) animates the section's own
+  // outlet and leaves its heading, menu and tabs standing. The nav links
+  // navigate inside a view transition (<main> is named in CSS); then the
+  // browser animates the swap and the wrapper class stays off.
   const inViewTransition = useViewTransitionState(location.pathname)
-  const curNav = navIndex(location.pathname)
-  const prevNav = useRef(curNav)
-  const { transitionClass, navDir } = useMemo(() => {
-    const dir = curNav < prevNav.current ? 'back' : curNav > prevNav.current ? 'fwd' : 'same'
-    prevNav.current = curNav
-    const cls = dir === 'back' ? 'anim-slide-from-right' : dir === 'fwd' ? 'anim-slide-from-left' : 'anim-t-reveal'
-    return { transitionClass: inViewTransition ? '' : cls, navDir: dir }
+  const wide = useMediaQuery(WIDE_MQ)
+  const navType = useNavigationType()
+  const prev = useRef({ path: location.pathname, back })
+  const motion = useMemo(() => {
+    const m = routeMotion(prev.current, { path: location.pathname, back }, wide, navType === 'REPLACE')
+    prev.current = { path: location.pathname, back }
+    return m
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
-  // the direction for the view transition's CSS; a layout effect, so it is on
-  // <html> before the browser captures the new state
-  useLayoutEffect(() => {
-    document.documentElement.dataset.nav = navDir
-  }, [navDir, location.pathname])
 
   // No sideways swipe between the pages: it fought every horizontal gesture
   // inside them (row swipes, the calendar, the tab decks) and was the least
@@ -489,31 +460,33 @@ function Shell({ email }: { email: string }) {
   )
 
   return (
-    <AppBarActions.Provider value={actions}>
-      <ShellFooter.Provider value={footer}>
-        <SeriesModalProvider>
-          <AppShell
-            sidebar={sidebar}
-            bar={bar}
-            tabs={tabs}
-            mainKey={location.pathname}
-            notice={<UpdateToast />}
-            footer={<div ref={setFooter} className="shrink-0 empty:hidden lg:hidden" />}
-            before={
-              <>
-                <RouteTitle />
-                <ScrollMemory />
-                <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />
-              </>
-            }
-          >
-            <RouteTransition cls={transitionClass}>
-              <Outlet />
-            </RouteTransition>
-            <PageScroll stacked={!!back} />
-          </AppShell>
-        </SeriesModalProvider>
-      </ShellFooter.Provider>
-    </AppBarActions.Provider>
+    <SectionMotion.Provider value={motion.section}>
+      <AppBarActions.Provider value={actions}>
+        <ShellFooter.Provider value={footer}>
+          <SeriesModalProvider>
+            <AppShell
+              sidebar={sidebar}
+              bar={bar}
+              tabs={tabs}
+              mainKey={topPage(location.pathname)}
+              notice={<UpdateToast />}
+              footer={<div ref={setFooter} className="shrink-0 empty:hidden lg:hidden" />}
+              before={
+                <>
+                  <RouteTitle />
+                  <ScrollMemory />
+                  <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />
+                </>
+              }
+            >
+              <RouteTransition cls={motion.page && !inViewTransition ? motion.page : ''}>
+                <Outlet />
+              </RouteTransition>
+              <PageScroll stacked={!!back} />
+            </AppShell>
+          </SeriesModalProvider>
+        </ShellFooter.Provider>
+      </AppBarActions.Provider>
+    </SectionMotion.Provider>
   )
 }

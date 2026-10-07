@@ -42,7 +42,7 @@ const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useConfirm } from '../components/confirm'
-import { Link, Navigate, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import {
   Badge,
   Button,
@@ -81,6 +81,7 @@ import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
 import { useAiStatus, usePersistedQuery, useAuth } from '../hooks'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
+import { SectionOutlet } from '../components/RouteTransition'
 import { SectionNav, type SectionGroup } from '../components/SectionNav'
 import { SkeletonCards } from '../components/Loading'
 
@@ -207,7 +208,7 @@ export default function SuggestionsLayout() {
               {t('suggestions.building')}
             </Badge>
           )}
-          <Outlet />
+          <SectionOutlet />
         </div>
       </div>
     </div>
