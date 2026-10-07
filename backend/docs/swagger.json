@@ -1337,6 +1337,39 @@
                 },
                 "type": "object"
             },
+            "api.SearchHit": {
+                "properties": {
+                    "isDir": {
+                        "type": "boolean"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string"
+                    },
+                    "serverId": {
+                        "description": "ServerID is the server whose index holds it, 0 for the local library",
+                        "type": "integer"
+                    },
+                    "serverName": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.SearchResponse": {
+                "properties": {
+                    "results": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.SearchHit"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "api.ServerLanguagesResponse": {
                 "properties": {
                     "dub": {
@@ -10900,6 +10933,53 @@
                 "summary": "Preview renames for a directory",
                 "tags": [
                     "Rename"
+                ]
+            }
+        },
+        "/api/search": {
+            "get": {
+                "description": "Searches the remote index of every server the user owns and the folders of the local library the catalog knows. Space-separated words AND-match the name. Fewer than two characters return nothing.",
+                "parameters": [
+                    {
+                        "description": "Search words",
+                        "in": "query",
+                        "name": "q",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.SearchResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Search everywhere",
+                "tags": [
+                    "Browse"
                 ]
             }
         },
