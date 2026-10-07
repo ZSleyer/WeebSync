@@ -107,4 +107,13 @@ describe('CommandPalette', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Frieren.*palette\.local/ }))
     expect(await screen.findByText('files ?source=local&path=media%2FFrieren')).toBeInTheDocument()
   })
+
+  it('offers what there is to discover on an empty field', async () => {
+    app()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    await screen.findByRole('combobox')
+    expect(screen.getByText('palette.discover')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: /suggestions\.tabWatchlist/ }))
+    expect(screen.queryByRole('combobox')).toBeNull()
+  })
 })

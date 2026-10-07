@@ -48,6 +48,7 @@
     "placeholder": "Page, series, folder or file",
     "page": "Page",
     "recent": "Recently opened",
+    "discover": "Discover",
     "none": "Nothing found.",
     "hint": "Type a name: calendar, Plex, a series …",
     "local": "Local library",

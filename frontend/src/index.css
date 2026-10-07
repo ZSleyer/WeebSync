@@ -1616,6 +1616,17 @@ li.t-swiperow { border-radius: 0; }
   20%, 100% { transform: translateX(1500px); }
 }
 
+/* The search's own button at the end of the phone's tab bar: round and set
+   apart from the four tabs, the way the search sits in a platform tab bar,
+   big enough for a thumb. */
+.t-tabsearch {
+  flex: none; display: grid; place-items: center;
+  width: 3rem; height: 3rem; margin-inline: 0.5rem 0.75rem; border-radius: 999px;
+  border: 1px solid var(--border-subtle); background: var(--bg-card); color: var(--text-primary);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+.t-tabsearch:hover, .t-tabsearch:active { background: var(--bg-hover); }
+
 /* The app's one feedback line (components/toast): bottom centre, above the
    phone's tab bar. A popover in the top layer, open even while empty so its
    live region exists before the text does; empty it takes no room and lets
