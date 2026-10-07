@@ -1479,26 +1479,44 @@ export interface ModalProps {
   /** context lines under the title */
   info?: ReactNode
   children: ReactNode
-  /** buttons in the sticky footer */
+  /** the footer's right end: cancel, then the main action named by its verb */
   footer?: ReactNode
+  /** the footer's left end: side actions that are not the answer */
+  secondary?: ReactNode
+  /** with it the header carries a close button */
+  onClose?: () => void
+  closeLabel?: string
   className?: string
 }
 
 /**
- * The dialog body WeebSync renders inside a native `<dialog>`: fixed header,
- * scrollable content, sticky footer. Shown here as a static panel so the layout
- * is visible without opening a real dialog.
+ * The one anatomy every WeebSync modal shares, inside a `Dialog`: the header
+ * (title, a line of context, close at the right), the body that scrolls on
+ * its own so header and footer stay put, and the footer with side actions at
+ * the left and cancel plus the main action at the right.
  */
-export function Modal({ title, info, children, footer, className }: ModalProps) {
+export function Modal({ title, info, children, footer, secondary, onClose, closeLabel = 'Close', className }: ModalProps) {
   return (
     <div className={cx('dialog-body w-full max-w-lg bg-bg-card', className)}>
-      <header className="border-b border-border-subtle px-5 py-4">
-        <h3 className="font-display font-semibold tracking-wider">{title}</h3>
-        {info && <p className="mt-1 text-[11px] text-t-secondary">{info}</p>}
+      <header className="flex items-start gap-3 border-b border-border-subtle px-5 py-4">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display font-semibold tracking-wider">{title}</h3>
+          {info && <p className="mt-1 text-[11px] text-t-secondary">{info}</p>}
+        </div>
+        {onClose && (
+          <button type="button" aria-label={closeLabel} title={closeLabel} onClick={onClose} className="t-iconbtn -my-1 -mr-2 shrink-0 text-t-secondary hover:text-t-primary">
+            <svg aria-hidden viewBox="0 0 24 24" width="1.1em" height="1.1em" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </header>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">{children}</div>
-      {footer && (
-        <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">{footer}</footer>
+      {(footer || secondary) && (
+        <footer className="flex flex-wrap items-center gap-2 border-t border-border-subtle px-5 py-3">
+          {secondary}
+          <span className="ml-auto flex flex-wrap justify-end gap-2">{footer}</span>
+        </footer>
       )}
     </div>
   )
