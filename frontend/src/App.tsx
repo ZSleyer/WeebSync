@@ -26,7 +26,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppBar, AppShell, Badge, Button, navItemClass, TabBar, useMediaQuery } from '@weebsync/design-system'
-import { api } from './api'
+import { api, type Download } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
 import Logo from './components/Logo'
 import { useSpeedSampler } from './speedHistory'
@@ -275,6 +275,13 @@ function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
   const location = useLocation()
   const { title, back } = useScreen()
+  // the header mark lights up while something transfers; same query the
+  // sampler keeps alive, so this costs no extra request
+  const { data: transferring = false } = useQuery({
+    queryKey: ['downloads'],
+    queryFn: () => api.get<Download[]>('/api/downloads'),
+    select: (ds) => ds.some((d) => d.status === 'running'),
+  })
   // the app bar's actions slot, handed to pages through context; held in
   // state (not a ref) so a page mounting before the bar still portals in
   const [actions, setActions] = useState<HTMLElement | null>(null)
@@ -414,7 +421,7 @@ function Shell({ email }: { email: string }) {
             aria-label={t('nav.dashboard')}
             className="inline-flex min-h-(--ctl-h-sm) min-w-(--ctl-h-sm) items-center justify-center rounded-xs px-1 text-t-primary"
           >
-            <Logo className="h-5 w-auto" />
+            <Logo className="h-5 w-auto" active={transferring} />
           </Link>
         )
       }

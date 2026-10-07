@@ -1602,6 +1602,17 @@ li.t-swiperow { border-radius: 0; }
   animation: t-stripes 700ms linear infinite;
 }
 
+/* The mark's sheen while something downloads: one pass across the S, then
+   four seconds of rest, so it reads as a status light and not as a loop.
+   The motion gate below cuts it to a single instant pass that ends off the
+   letter, which leaves the mark still. */
+.t-logo-sheen { transform: translateX(-700px); }
+.t-logo[data-active] .t-logo-sheen { animation: t-logo-sheen 5200ms var(--ease-out) infinite; }
+@keyframes t-logo-sheen {
+  0% { transform: translateX(-700px); }
+  20%, 100% { transform: translateX(1500px); }
+}
+
 /* ── Reduced-motion gating (in-app toggle + OS preference).
    0.01ms instead of none so animationend handlers still fire. ── */
 [data-motion="off"] *,
