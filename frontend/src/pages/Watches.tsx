@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react'
 import {
-  ArrowUpDown,
   CalendarDays,
   CalendarRange,
   GalleryHorizontal,
@@ -12,10 +11,10 @@ import {
   FolderClock,
   Languages,
   LayoutGrid,
-  Tv,
   List,
   Pencil,
   RefreshCw,
+  SlidersHorizontal,
   Trash2,
   TriangleAlert,
   Upload,
@@ -32,7 +31,7 @@ const GROUP_ICON: Record<string, LucideIcon> = {
 }
 import { useQuery } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
+import { Link, Navigate, useSearchParams } from 'react-router'
 import {
   Badge,
   Button,
@@ -78,9 +77,12 @@ const CAL_CATEGORIES: readonly CalCategory[] = ['anime-series', 'anime-movie', '
 const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
 
 // Watches: persistent auto-sync overview. Each watch re-checks its remote
-// folder on an interval; the list polls so check results appear live.
-export default function Watches() {
+// folder on an interval; the list polls so check results appear live. The
+// same data drives the calendar, its own page at /calendar: what airs when
+// is a question of its own, not a way of looking at the list.
+export default function Watches({ calendar = false }: { calendar?: boolean }) {
   const { t } = useTranslation()
+  const [params] = useSearchParams()
   const { data: watches = [], isLoading } = useQuery<Watch[]>({
     queryKey: ['watches'],
     queryFn: () => api.get('/api/watches'),
@@ -112,10 +114,8 @@ export default function Watches() {
   // the backend owns the schedule (interval, smart sync, 12h stale re-check),
   // so this only formats what it sends
   const untilCheck = (ts: number) => (ts * 1000 <= now ? t('watch.checkDue') : countdown(t, ts, false, now))
-  // the dashboard links straight into the calendar; the rest of the time the
-  // page opens the way it was left
-  const [view, setView] = usePersistedView('weebsync.watches.view', ['list', 'calendar'] as const, 'list')
-  // list or grid, an inline switch like the calendar's week or list
+  const view = calendar ? 'calendar' : 'list'
+  // list or grid, picked in the view menu with the sort order
   const [layout, setLayout] = usePersistedView('weebsync.watches.layout', ['list', 'grid'] as const, 'list', 'layout')
   // the dashboard's "+N more" lands here with ?filter=attention; the chip
   // below toggles it by hand
@@ -277,13 +277,14 @@ export default function Watches() {
   }
 
   const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
-  // outside-click + Escape come from the design system's menu hook
+  // one menu for how the list looks: its order and list or grid. Outside
+  // click + Escape come from the design system's menu hook
   const {
-    open: sortOpen,
-    setOpen: setSortOpen,
-    ref: sortRef,
-    anchor: sortAnchor,
-    anchorStyle: sortAnchorStyle,
+    open: viewOpen,
+    setOpen: setViewOpen,
+    ref: viewRef,
+    anchor: viewAnchor,
+    anchorStyle: viewAnchorStyle,
   } = useMenu()
   const SORT_OPTS = [
     { v: 'next', k: 'watch.sortNext' },
@@ -331,46 +332,42 @@ export default function Watches() {
     (x) => x.items.length > 0,
   )
 
+  // the calendar used to be a view of this page; old links still land there
+  if (!calendar && params.get('view') === 'calendar') return <Navigate to="/calendar" replace />
+
   return (
     <div>
-      {/* title + view toggle form a stable top bar: the toggle lives here in
-          every view, so switching list/calendar never moves it. The
-          view-specific controls (calendar filter / list sort) sit on their own
-          row below and only they change - critical on a narrow phone viewport. */}
       <PageHeader
         className="mb-4"
-        title={t('watch.title')}
+        title={calendar ? t('nav.calendar') : t('watch.title')}
         sub={
-          watches.length > 0
-            ? [
-                t('watch.sumSeries', { count: watches.length }),
-                todayCount > 0 ? t('watch.sumToday', { count: todayCount }) : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')
-            : t('watch.sub')
+          watches.length === 0
+            ? t('watch.sub')
+            : calendar
+              ? t('watch.sumToday', { count: todayCount })
+              : t('watch.sumSeries', { count: watches.length })
         }
       />
-      {/* the view toggle and the sort menu are the page's secondary controls:
-          in the app bar on a phone, in a row under the header on desktop.
-          The row is right-aligned and the sort menu is the list's alone, so
-          it leads: the toggle keeps its place when the menu goes away. */}
-      <PageActions>
-        <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
-          {view !== 'calendar' && watches.length > 1 && (
-            <div className="relative" ref={sortRef} style={sortAnchorStyle}>
+      {/* the view menu is the list's secondary control: in the app bar on a
+          phone, in a row under the header on desktop */}
+      {view === 'list' && watches.length > 0 && (
+        <PageActions>
+          <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
+            <div className="relative" ref={viewRef} style={viewAnchorStyle}>
               <Button
                 size="sm"
                 aria-haspopup="listbox"
-                aria-expanded={sortOpen}
-                aria-label={t('watch.sortBy')}
-                title={t('watch.sortBy')}
-                onClick={() => setSortOpen((o) => !o)}
+                aria-expanded={viewOpen}
+                aria-label={t('watch.view')}
+                title={t('watch.view')}
+                onClick={() => setViewOpen((o) => !o)}
               >
-                <ArrowUpDown aria-hidden size="1.2em" />
+                <SlidersHorizontal aria-hidden size="1.2em" />
+                <span className="ml-1 hidden lg:inline">{t('watch.view')}</span>
               </Button>
-              {sortOpen && (
-                <Menu anchor={sortAnchor} placement="bottom-end" aria-label={t('watch.sortBy')}>
+              {viewOpen && (
+                <Menu anchor={viewAnchor} placement="bottom-end" aria-label={t('watch.view')}>
+                  <MenuHeading>{t('watch.sortBy')}</MenuHeading>
                   {SORT_OPTS.map((o) => (
                     <MenuItem
                       key={o.v}
@@ -378,89 +375,54 @@ export default function Watches() {
                       trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
                       onClick={() => {
                         setSort(o.v)
-                        setSortOpen(false)
+                        setViewOpen(false)
                       }}
                     >
                       {t(o.k)}
                     </MenuItem>
                   ))}
+                  <MenuHeading>{t('watch.layout')}</MenuHeading>
+                  {(
+                    [
+                      ['list', List, 'watch.viewList'],
+                      ['grid', LayoutGrid, 'watch.viewGrid'],
+                    ] as const
+                  ).map(([v, Icon, k]) => (
+                    <MenuItem
+                      key={v}
+                      selected={layout === v}
+                      trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
+                      onClick={() => {
+                        setLayout(v)
+                        setViewOpen(false)
+                      }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Icon aria-hidden size="1em" />
+                        {t(k)}
+                      </span>
+                    </MenuItem>
+                  ))}
                 </Menu>
               )}
             </div>
-          )}
-          <Segmented
-            aria-label={t('watch.view')}
-            value={view}
-            onChange={setView}
-            options={[
-              {
-                value: 'list',
-                'aria-label': t('watch.viewWatches'),
-                label: (
-                  <>
-                    <Tv aria-hidden size="1em" />
-                    <span className="ml-1 hidden lg:inline">{t('watch.viewWatches')}</span>
-                  </>
-                ),
-              },
-              {
-                value: 'calendar',
-                'aria-label': t('watch.viewCalendar'),
-                label: (
-                  <>
-                    <CalendarDays aria-hidden size="1em" />
-                    <span className="ml-1 hidden lg:inline">{t('watch.viewCalendar')}</span>
-                  </>
-                ),
-              },
-            ]}
-          />
-        </div>
-      </PageActions>
+          </div>
+        </PageActions>
+      )}
 
-      {/* the same row as the calendar's week or list switch, so the two
-          views read alike: what is shown up top, how it is laid out here */}
-      {view === 'list' && watches.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-          {(attentionCount > 0 || filter === 'attention') && (
-            <Button
-              size="sm"
-              aria-pressed={filter === 'attention'}
-              onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')}
-              className={filter === 'attention' ? 'border-warn text-warn' : ''}
-            >
-              <TriangleAlert aria-hidden size="1em" />
-              <span className="ml-1">{t('watch.group.attention')}</span>
-              <Count className="ml-1">{attentionCount}</Count>
-            </Button>
-          )}
-          <Segmented
-            aria-label={t('watch.layout')}
-            value={layout}
-            onChange={setLayout}
-            options={[
-              {
-                value: 'list',
-                'aria-label': t('watch.viewList'),
-                label: (
-                  <>
-                    <List aria-hidden size="1em" />
-                    <span className="ml-1 hidden sm:inline">{t('watch.viewList')}</span>
-                  </>
-                ),
-              },
-              {
-                value: 'grid',
-                'aria-label': t('watch.viewGrid'),
-                label: (
-                  <>
-                    <LayoutGrid aria-hidden size="1em" />
-                    <span className="ml-1 hidden sm:inline">{t('watch.viewGrid')}</span>
-                  </>
-                ),
-              },
-            ]}
-          />
+      {/* the attention filter: only while something needs a hand, or it is on */}
+      {view === 'list' && (attentionCount > 0 || filter === 'attention') && (
+        <div className="mb-4 flex justify-end">
+          <Button
+            size="sm"
+            aria-pressed={filter === 'attention'}
+            onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')}
+            className={filter === 'attention' ? 'border-warn text-warn' : ''}
+          >
+            <TriangleAlert aria-hidden size="1em" />
+            <span className="ml-1">{t('watch.group.attention')}</span>
+            <Count className="ml-1">{attentionCount}</Count>
+          </Button>
         </div>
       )}
       {view === 'calendar' && calShown.length > 0 ? (
@@ -1242,5 +1204,15 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
       {/* outside the button that opens the card - a button cannot hold buttons */}
       {actions && <div className="flex items-center gap-1 border-t border-border-subtle p-1.5">{actions}</div>}
     </Panel>
+  )
+}
+
+// A caption between the groups of one menu; not an option, so a screen reader
+// skips it in the list
+function MenuHeading({ children }: { children: ReactNode }) {
+  return (
+    <li role="presentation" className="px-3 pt-2 pb-1 font-mono text-[11px] tracking-wider text-t-muted uppercase">
+      {children}
+    </li>
   )
 }
