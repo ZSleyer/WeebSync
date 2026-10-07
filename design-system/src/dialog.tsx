@@ -1,7 +1,7 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 import { useSheetDrag } from './useSheetDrag'
-import { quietRoute } from './viewTransition'
+import { useBackEntry } from './useBackEntry'
 
 // The native <dialog> mechanics WeebSync repeats in every modal: open it as a
 // modal on mount, close on a backdrop click but not on a drag that merely ended
@@ -53,6 +53,12 @@ export interface DialogProps {
    * it instead of closing at once.
    */
   closeTransition?: (close: () => void) => void
+  /**
+   * Whether the dialog holds a history entry of its own for the back gesture
+   * (default true). Off for a dialog whose owner puts it on a route entry of
+   * its own - two entries would take two backs to close it.
+   */
+  history?: boolean
 }
 
 /**
@@ -71,6 +77,7 @@ export function Dialog({
   className,
   bodyClassName,
   closeTransition,
+  history = true,
   ...aria
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -143,52 +150,8 @@ export function Dialog({
     onClose: () => ref.current?.close(),
   })
 
-  // The back gesture closes the dialog instead of leaving the page: every
-  // dialog pushes one history entry while it is open, and popping it - the
-  // browser's back button, the swipe from the edge on Android - closes the
-  // dialog. React Router keeps `usr`, `key` and `idx` in the state, so the
-  // entry copies them and bumps `idx` rather than replacing the object.
-  // Nested dialogs each hold an entry; back pops the innermost, the outer
-  // one still finds its own mark and stays.
-  const id = useId()
-  const onRequestCloseRef = useRef(onRequestClose)
-  onRequestCloseRef.current = onRequestClose
-  const shutRef = useRef(shut)
-  shutRef.current = shut
-  useEffect(() => {
-    if (typeof history === 'undefined') return
-    // StrictMode mounts, unmounts and mounts again: the entry from the first
-    // pass is still on top, so it is reused rather than pushed twice, and the
-    // back() the first cleanup queued is cancelled below before it runs.
-    // Chrome resolves history.back() against the entry current at the call,
-    // so a back followed by a push would still pop the page's own entry and
-    // close the dialog the moment it opened.
-    clearTimeout(pendingBack.current)
-    const mark = history.state?.wsDialog === id ? history.state : { ...history.state, idx: (history.state?.idx ?? 0) + 1, wsDialog: id }
-    if (history.state !== mark) history.pushState(mark, '')
-    const onPop = async () => {
-      if (history.state?.wsDialog === id) return // an inner dialog's entry went, not ours
-      // the guard declined (unsaved changes): put the entry back
-      if (onRequestCloseRef.current && !(await onRequestCloseRef.current())) return history.pushState(mark, '')
-      shutRef.current()
-    }
-    window.addEventListener('popstate', onPop)
-    return () => {
-      window.removeEventListener('popstate', onPop)
-      // closed, saved or unmounted by its owner while its entry is still on
-      // top: take it with us, or the next back is a no-op. After a route
-      // change the top entry is the new page's and stays.
-      // ponytail: a navigate({replace:true}) while a dialog is open wipes the
-      // mark and leaves one dead entry behind - one wasted back, never a leave
-      pendingBack.current = setTimeout(() => {
-        if (history.state?.wsDialog !== id) return
-        // the same page, not a navigation: no route transition for it
-        quietRoute()
-        history.back()
-      })
-    }
-  }, [id])
-  const pendingBack = useRef<ReturnType<typeof setTimeout>>(undefined)
+  // the back gesture closes the dialog instead of leaving the page
+  useBackEntry(shut, onRequestClose, history)
 
   return (
     <dialog

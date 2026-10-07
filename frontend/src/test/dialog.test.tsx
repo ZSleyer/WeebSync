@@ -207,6 +207,17 @@ describe('Dialog', () => {
     expect(dialogOf(container).open).toBe(false)
   })
 
+  it('leaves history alone when its owner keeps the entry', () => {
+    const push = vi.spyOn(history, 'pushState')
+    render(
+      <Dialog onClose={() => {}} history={false}>
+        Inhalt
+      </Dialog>,
+    )
+    expect(push).not.toHaveBeenCalled()
+    push.mockRestore()
+  })
+
   it('puts the entry back when the guard declines the back gesture', async () => {
     const onClose = vi.fn()
     const onRequestClose = vi.fn(() => false)
