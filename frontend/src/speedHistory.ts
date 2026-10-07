@@ -4,8 +4,10 @@ import { api, type Download } from './api'
 
 // The last ten minutes of total download speed, one sample per second, kept
 // at module level so the dashboard's chart is full the moment the page is
-// opened rather than starting over on every visit. Fed by the root layout,
-// read by the one panel that draws it.
+// opened rather than starting over on every visit. The server keeps the same
+// window, and the sampler starts from it, so a reload or another device does
+// not start from an empty line either. Fed by the root layout, read by the
+// one panel that draws it.
 
 export const SPEED_SPAN = 600
 
@@ -29,6 +31,18 @@ export function pushSpeedSample(bps: number, now = Date.now()) {
   const gap = lastAt ? Math.min(sec - lastAt - 1, SPEED_SPAN) : 0
   samples = [...samples, ...Array.from({ length: gap }, () => 0), bps].slice(-SPEED_SPAN)
   lastAt = sec
+  listeners.forEach((l) => l())
+}
+
+/**
+ * Take the server's history as the base: it was sampled while this page
+ * was closed or in the background. Samples recorded here after the
+ * server's last second stay on top, so a slow response loses nothing.
+ */
+export function seedSpeedHistory(server: number[], end: number) {
+  const newer = lastAt > end ? samples.slice(-(lastAt - end)) : []
+  samples = [...server, ...newer].slice(-SPEED_SPAN)
+  lastAt = Math.max(lastAt, end)
   listeners.forEach((l) => l())
 }
 
@@ -70,6 +84,17 @@ export function useSpeedSampler(enabled: boolean) {
     refetchInterval: 5000,
     enabled,
   })
+  // the server's window as the base, again whenever the page comes back
+  // into focus: a background tab samples about once a minute
+  const { data: history } = useQuery<{ samples: number[]; end: number }>({
+    queryKey: ['speed-history'],
+    queryFn: () => api.get('/api/downloads/speed'),
+    enabled,
+    staleTime: 30_000,
+  })
+  useEffect(() => {
+    if (history) seedSpeedHistory(history.samples, history.end)
+  }, [history])
   const total = (data ?? []).reduce((s, d) => s + (d.status === 'running' ? (d.bytesPerSec ?? 0) : 0), 0)
   // the interval reads the newest total through a ref, so it is not torn
   // down and set up again on every progress tick
