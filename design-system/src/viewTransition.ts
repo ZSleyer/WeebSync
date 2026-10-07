@@ -101,14 +101,13 @@ export function revealTransition(x: number, y: number, update: () => void): Prom
  * not paired - it rises from the edge, and a poster growing into a sheet would
  * fly against the way it moves.
  */
-export function morphTransition(from: HTMLElement, update: () => void, back = false): Promise<void> {
+export function morphTransition(from: HTMLElement, update: () => void | Promise<void>, back = false): Promise<void> {
   const root = document.documentElement
   const still =
     root.dataset.motion === 'off' ||
     (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
   if (!document.startViewTransition || still || !from.isConnected) {
-    update()
-    return Promise.resolve()
+    return Promise.resolve(update())
   }
   const pair = typeof matchMedia !== 'function' || !matchMedia(SHEET_MQ).matches
   holdLocal()
@@ -121,7 +120,9 @@ export function morphTransition(from: HTMLElement, update: () => void, back = fa
   name(!back)
   const t = document.startViewTransition(() => {
     name(back)
-    update()
+    // a promise holds the new snapshot until it settles: a router navigation
+    // renders its new state only once it has finished
+    return update()
   })
   t.ready.catch(() => {})
   const done = () => {
