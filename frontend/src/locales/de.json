@@ -342,7 +342,7 @@
     "videoCount_other": "{{count}} Videos",
     "lastChange": "Zuletzt geändert",
     "rename": "Umbenennen",
-    "renameTitle": "{{name}} umbenennen",
+    "renameField": "Neuer Name für „{{name}}“",
     "renameItem": "{{name}} umbenennen",
     "renameEpisodes": "Folgen umbenennen",
     "delete": "Löschen",

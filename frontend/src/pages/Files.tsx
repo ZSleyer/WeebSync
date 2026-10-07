@@ -76,9 +76,9 @@ import UpcomingSeason from '../components/UpcomingSeason'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, useFolderKind, useWatchDefaults } from '../components/watchDefaults'
 import { useConfirm } from '../components/confirm'
-import { usePrompt } from '../components/prompt'
 import { useAuth } from '../hooks'
 import Loading from '../components/Loading'
+import { InlineRename, type Renaming } from '../components/InlineRename'
 
 // Where the browser is looking: the local library or one of the servers. An
 // explicit union, never a bare 0 - the catalog API addresses the local library
@@ -113,7 +113,6 @@ export default function Files() {
   const qc = useQueryClient()
   const confirm = useConfirm()
   const goTo = useNavigate()
-  const prompt = usePrompt()
   const { data: servers = [] } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
     queryFn: () => api.get('/api/servers'),
@@ -268,13 +267,13 @@ export default function Files() {
     qc.invalidateQueries({ queryKey: ['catalog', 0] })
     setSelection(null)
   }
-  const renameLocal = async (e: Entry) => {
-    const name = await prompt({
-      title: t('local.renameTitle', { name: e.name }),
-      defaultValue: e.name,
-      confirmLabel: t('local.rename'),
-    })
-    if (!name || name === e.name) return
+  // the name turns into a field where it stands (list row or catalog tile);
+  // its outcome comes back here
+  const [renaming, setRenaming] = useState<Entry | null>(null)
+  const renameLocal = (e: Entry) => setRenaming(e)
+  const renamed = async (e: Entry, name: string | null) => {
+    setRenaming(null)
+    if (!name) return
     setError('')
     try {
       await api.post('/api/browse/local/rename', { path: e.path, name })
@@ -283,6 +282,9 @@ export default function Files() {
       setError(err instanceof Error ? err.message : t('app.error'))
     }
   }
+  const inPlace = renaming
+    ? { path: renaming.path, onDone: (name: string | null) => void renamed(renaming, name) }
+    : undefined
   const removeLocal = async (e: Entry) => {
     const ok = await confirm({
       message: e.isDir ? t('local.deleteDirConfirm', { name: e.name }) : t('local.deleteConfirm', { name: e.name }),
@@ -459,6 +461,7 @@ export default function Files() {
               selected={selection?.path}
               emptyHint={isLocal ? t('remote.emptyLocal') : undefined}
               serverId={isLocal ? undefined : active}
+              renaming={inPlace}
             />
           ) : (
             <CatalogGrid
@@ -470,6 +473,7 @@ export default function Files() {
               onSync={isLocal ? undefined : setSyncEntry}
               onWatch={isLocal ? undefined : setWatchEntry}
               cardActions={isLocal ? cardActions : undefined}
+              renaming={inPlace}
               onOpenFiles={(p) => {
                 // opening a title's files navigates into a subfolder; the view
                 // re-derives from that folder's own scope (marks don't inherit,
@@ -684,6 +688,7 @@ export function CatalogGrid({
   onWatch,
   onOpenFiles,
   cardActions,
+  renaming,
 }: {
   serverId: number
   path: string
@@ -699,6 +704,8 @@ export function CatalogGrid({
   // local page: extra card buttons (rename/delete). Kept as a render prop so
   // the admin logic lives with the page that owns the mutations.
   cardActions?: (e: Entry) => TileAction[]
+  /** the folder whose name is being edited in place */
+  renaming?: Renaming
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
@@ -1053,7 +1060,15 @@ export function CatalogGrid({
                     coverLabel={g.media ? t('remote.detailsFor', { name }) : undefined}
                     title={name}
                     pathTitle={g.items.map((v) => v.entry.path).join('\n')}
-                    path={multi ? t('remote.versions', { count: g.items.length }) : it.entry.name}
+                    path={
+                      multi ? (
+                        t('remote.versions', { count: g.items.length })
+                      ) : renaming?.path === it.entry.path ? (
+                        <InlineRename name={it.entry.name} onDone={renaming.onDone} className="mt-1 font-mono" />
+                      ) : (
+                        it.entry.name
+                      )
+                    }
                     meta={g.pending ? t('remote.matching') : !g.media && it.source ? t('remote.noMatch') : undefined}
                     badges={
                       <>
@@ -1162,9 +1177,13 @@ export function CatalogGrid({
                             {t('remote.versions', { count: g.items.length })}
                           </p>
                         ) : (
-                          <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
-                            {it.entry.name}
-                          </p>
+                          // while renamed, the name moves out of the tile's
+                          // button into a field below it: no input in a button
+                          renaming?.path !== it.entry.path && (
+                            <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
+                              {it.entry.name}
+                            </p>
+                          )
                         )}
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {kind && (
@@ -1214,6 +1233,11 @@ export function CatalogGrid({
                         )}
                       </div>
                     </button>
+                    {!multi && renaming?.path === it.entry.path && (
+                      <div className="px-2 pb-2">
+                        <InlineRename name={it.entry.name} onDone={renaming.onDone} className="w-full font-mono" />
+                      </div>
+                    )}
                     <TileActions actions={actionsFor(g)} />
                   </Panel>
                 </Press>

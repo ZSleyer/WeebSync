@@ -8,6 +8,7 @@ import FileIcon from './FileIcon'
 import HostKeyPrompt from './HostKeyPrompt'
 import Loading from './Loading'
 import PathInput from './PathInput'
+import { InlineRename, type Renaming } from './InlineRename'
 
 // Path breadcrumb: root button plus one button per segment. Shared by the
 // classic file list and the catalog grid, so both navigate the same way. Given
@@ -119,6 +120,7 @@ export function FileBrowser({
   emptyHint,
   actions,
   serverId,
+  renaming,
 }: {
   queryKey: unknown[]
   fetchPath: (path: string) => string
@@ -132,6 +134,8 @@ export function FileBrowser({
   actions?: (e: Entry) => ReactNode
   /** the remote server listed here; a host key it asks to review is offered in place */
   serverId?: number
+  /** the row whose name is being edited in place */
+  renaming?: Renaming
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -209,6 +213,13 @@ export function FileBrowser({
             .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name))
             .map((e) => {
               const selectable = onSelect && (!selectDirsOnly || e.isDir)
+              if (renaming?.path === e.path)
+                return (
+                  <li key={e.path} className="flex items-center gap-2 border-b border-border-subtle/50 px-3 py-1">
+                    <FileIcon isDir={e.isDir} name={e.name} />
+                    <InlineRename name={e.name} onDone={renaming.onDone} />
+                  </li>
+                )
               return (
                 <li key={e.path} className="flex items-stretch border-b border-border-subtle/50">
                   <button
