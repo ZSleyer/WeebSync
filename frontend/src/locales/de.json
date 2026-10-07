@@ -43,11 +43,13 @@
   },
   "palette": {
     "title": "Suchen",
-    "placeholder": "Seite, Serie oder Einstellung",
+    "placeholder": "Seite, Serie, Ordner oder Datei",
     "page": "Seite",
     "recent": "Zuletzt geöffnet",
     "none": "Nichts gefunden.",
-    "hint": "Einen Namen tippen: Kalender, Plex, eine Serie …"
+    "hint": "Einen Namen tippen: Kalender, Plex, eine Serie …",
+    "local": "Lokale Bibliothek",
+    "searching": "Durchsucht die Server-Indexe …"
   },
   "nav": {
     "dashboard": "Dashboard",

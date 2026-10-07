@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Search, Sparkles, Settings, Tv, type LucideIcon } from 'lucide-react'
+import { File, Folder, Search, Sparkles, Settings, Tv, type LucideIcon } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -33,11 +33,24 @@ const readRecent = (): string[] => {
   }
 }
 
+interface SearchHit {
+  serverId: number
+  serverName?: string
+  path: string
+  name: string
+  isDir: boolean
+}
+
+/** Files at a folder; a jump remounts the page, so it starts from the link. */
+export const filesLink = (serverId: number, path: string) =>
+  `/files?${serverId ? `server=${serverId}` : 'source=local'}&path=${encodeURIComponent(path.replace(/^\//, ''))}`
+
 /**
- * Ctrl+K (Cmd+K) from anywhere: one field over the pages, the sections of
- * Settings and Suggestions, the panels inside Settings and the series under
- * auto-sync. An empty field lists what was opened last. A shortcut for the
- * desktop on top of the sidebar, not a replacement for it.
+ * Ctrl+K (Cmd+K) from anywhere, or the search button in the phone's bar: one
+ * field over the pages, the sections of Settings and Suggestions, the panels
+ * inside Settings, the series under auto-sync and - from two characters on -
+ * the files and folders in every server's index and the local library's
+ * known folders. An empty field lists what was opened last.
  */
 export default function CommandPalette({
   pages,
@@ -72,6 +85,18 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   const [q, setQ] = useState('')
   const [at, setAt] = useState(0)
   const listId = useId()
+  // the indexes are asked a beat after typing stops, not per keystroke
+  const [asked, setAsked] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setAsked(q.trim()), 200)
+    return () => clearTimeout(id)
+  }, [q])
+  const { data: found, isFetching } = useQuery<{ results: SearchHit[] }>({
+    queryKey: ['search', asked],
+    queryFn: () => api.get(`/api/search?q=${encodeURIComponent(asked)}`),
+    enabled: asked.length >= 2,
+    staleTime: 30_000,
+  })
 
   const go = (to: string) => () => {
     navigate(to)
@@ -138,14 +163,34 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   ]
 
   const needle = q.trim().toLocaleLowerCase()
+  // a file opens the folder it lies in
+  const files: Entry[] =
+    needle && asked.toLocaleLowerCase() === needle
+      ? (found?.results ?? []).map((h) => {
+          const dir = h.isDir ? h.path : h.path.slice(0, h.path.lastIndexOf('/'))
+          return {
+            id: `file:${h.serverId}:${h.path}`,
+            label: h.name,
+            sub: `${h.serverName || t('palette.local')} · ${dir.slice(0, dir.lastIndexOf('/')) || '/'}`,
+            icon: h.isDir ? Folder : File,
+            run: () => {
+              navigate(filesLink(h.serverId, dir), { state: { jump: Date.now() } })
+              onClose()
+            },
+          }
+        })
+      : []
   const shown: Entry[] = needle
-    ? entries
-        .map((e) => ({ e, pos: `${e.label} ${e.sub}`.toLocaleLowerCase().indexOf(needle) }))
-        .filter((x) => x.pos >= 0)
-        // a match at the start of the name before one further in
-        .sort((a, b) => Number(a.pos !== 0) - Number(b.pos !== 0))
-        .slice(0, 30)
-        .map((x) => x.e)
+    ? [
+        ...entries
+          .map((e) => ({ e, pos: `${e.label} ${e.sub}`.toLocaleLowerCase().indexOf(needle) }))
+          .filter((x) => x.pos >= 0)
+          // a match at the start of the name before one further in
+          .sort((a, b) => Number(a.pos !== 0) - Number(b.pos !== 0))
+          .slice(0, 30)
+          .map((x) => x.e),
+        ...files,
+      ]
     : readRecent().flatMap((id) => entries.filter((e) => e.id === id))
   const sel = Math.min(at, shown.length - 1)
 
@@ -171,7 +216,14 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
 
   const optionId = (i: number) => `${listId}-${i}`
   return (
-    <Dialog width="max-w-lg" sheet={false} onClose={onClose} aria-label={t('palette.title')}>
+    // on a phone it hangs from the top: the keyboard takes the bottom half
+    <Dialog
+      width="max-w-lg"
+      sheet={false}
+      onClose={onClose}
+      aria-label={t('palette.title')}
+      className="max-sm:mt-[max(1rem,var(--safe-t))] max-sm:mb-auto"
+    >
       <div className="flex items-center gap-2 border-b border-border-subtle px-4">
         <Search aria-hidden size="1.1em" className="shrink-0 text-t-muted" />
         <input
@@ -217,7 +269,12 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
             </li>
           ))}
         </ul>
-        {needle && shown.length === 0 && (
+        {needle.length >= 2 && (isFetching || asked.toLocaleLowerCase() !== needle) && (
+          <p className="px-2 py-2 text-xs text-t-muted" role="status">
+            {t('palette.searching')}
+          </p>
+        )}
+        {needle && shown.length === 0 && !isFetching && asked.toLocaleLowerCase() === needle && (
           <p className="px-2 py-3 text-sm text-t-muted" role="status">
             {t('palette.none')}
           </p>

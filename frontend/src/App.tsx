@@ -83,6 +83,14 @@ const NAV = [...TABS, SETTINGS]
 type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
 
+// Files keeps its folder in state and writes it to the URL itself, so a link
+// into it from the search would be written over. A jump (navigation state
+// from the search) mounts it afresh, and it starts from the link.
+function FilesJump() {
+  const { state } = useLocation()
+  return <Files key={(state as { jump?: number } | null)?.jump ?? 0} />
+}
+
 // Root layout element of the data router. A data router (createBrowserRouter)
 // is required so form pages can useBlocker() to guard unsaved changes.
 function RootLayout() {
@@ -137,7 +145,7 @@ export const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<RootLayout />}>
       <Route path="/" element={<Dashboard />} handle={h('nav.dashboard')} />
-      <Route path="/files" element={<Files />} handle={h('nav.files')} />
+      <Route path="/files" element={<FilesJump />} handle={h('nav.files')} />
       {/* the remote and local browsers merged into /files; their links keep
           the folder they pointed at */}
       <Route path="/remote" element={<RedirectWithQuery to="/files" />} />
@@ -426,6 +434,17 @@ function Shell({ email }: { email: string }) {
       actions={
         <>
           <div ref={setActions} className="flex items-center gap-1" />
+          {/* the search, as Ctrl+K is on the desktop */}
+          {!back && (
+            <button
+              type="button"
+              onClick={() => setPalette(true)}
+              aria-label={t('palette.title')}
+              className="t-iconbtn text-t-secondary hover:text-t-primary"
+            >
+              <Search aria-hidden size="1.25em" />
+            </button>
+          )}
           {/* the gear on every top-level page; a stacked screen has its back
               link instead, and Settings itself needs no way into itself */}
           {!back && !onPath(SETTINGS, location.pathname) && (
