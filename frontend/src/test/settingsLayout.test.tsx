@@ -48,4 +48,25 @@ describe('SettingsLayout', () => {
     await new Promise((r) => setTimeout(r, 20))
     expect(screen.getByRole('link', { name: /settings.nav.general/ })).toHaveAttribute('aria-current', 'page')
   })
+
+  // the search stands in for the menu while it holds text, and finds the
+  // panels inside a section, but only those of sections the user can open
+  it('finds panels inside the sections it may show', async () => {
+    app('/settings/general', true)
+    const field = screen.getByRole('searchbox', { name: 'settings.search.label' })
+    fireEvent.change(field, { target: { value: 'plex' } })
+    expect(await screen.findByRole('link', { name: /settings\.plex/ })).toHaveAttribute(
+      'href',
+      '/settings/integrations#plex',
+    )
+    fireEvent.change(field, { target: { value: 'zzz' } })
+    expect(screen.getByText('settings.search.none')).toBeInTheDocument()
+  })
+
+  it('keeps admin panels out of a user search', async () => {
+    app('/settings/general')
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'plex' } })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByRole('link', { name: /settings\.plex/ })).toBeNull()
+  })
 })
