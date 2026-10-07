@@ -65,8 +65,8 @@ import Transfers from './pages/settings/Transfers'
 import Security from './pages/settings/Security'
 import Integrations from './pages/settings/Integrations'
 import Jobs from './pages/settings/Jobs'
-import Matching from './pages/settings/Matching'
-import Data from './pages/settings/Data'
+import Matching, { MatchesPage } from './pages/settings/Matching'
+import Data, { StorePage } from './pages/settings/Data'
 
 // The phone's tab bar holds every top-level page - no "more" sheet: a menu
 // behind a button is found half as often as one in sight. Settings is the
@@ -241,6 +241,15 @@ export const router = createBrowserRouter(
           handle={inSettings('settings.nav.matching')}
         />
         <Route
+          path="matching/:server/:source"
+          element={
+            <AdminRoute>
+              <MatchesPage />
+            </AdminRoute>
+          }
+          handle={h('settings.nav.matching', '/settings/matching', 'nav.settings')}
+        />
+        <Route
           path="data"
           element={
             <AdminRoute>
@@ -248,6 +257,15 @@ export const router = createBrowserRouter(
             </AdminRoute>
           }
           handle={inSettings('settings.nav.data')}
+        />
+        <Route
+          path="data/:store"
+          element={
+            <AdminRoute>
+              <StorePage />
+            </AdminRoute>
+          }
+          handle={h('settings.nav.data', '/settings/data', 'nav.settings')}
         />
         {/* merged sections: the old paths land on their panel */}
         <Route path="email" element={<Navigate to="/settings/integrations#email" replace />} />

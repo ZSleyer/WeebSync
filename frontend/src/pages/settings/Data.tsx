@@ -2,11 +2,13 @@ import { ChevronRight, RefreshCw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Checkbox, Count, Disclosure, Divider, Input, Panel } from '@weebsync/design-system'
+import { Navigate, useNavigate, useParams } from 'react-router'
+import { Badge, Button, Checkbox, Count, Disclosure, Divider, Input, PageHeader, Panel } from '@weebsync/design-system'
 import { api, fmtBytes } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { useToast } from '../../components/toast'
 import LegacyImport from '../../components/LegacyImport'
+import Loading from '../../components/Loading'
 import {
   CELL_LEFT,
   CELL_RIGHT,
@@ -47,7 +49,7 @@ export default function Data() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [error, setError] = useState('')
-  const [storeModal, setStoreModal] = useState<DataStore | null>(null)
+  const navigate = useNavigate()
   const [resetOpen, setResetOpen] = useState(false)
   const { data } = useAdminJobs()
   const { data: inventory } = useAdminData()
@@ -157,7 +159,7 @@ export default function Data() {
     <li key={s.name}>
       <button
         type="button"
-        onClick={() => setStoreModal(s)}
+        onClick={() => navigate(encodeURIComponent(s.name))}
         className="flex min-h-12 w-full cursor-pointer items-center gap-3 border-b border-border-subtle px-1 text-left text-sm transition-colors hover:bg-bg-hover"
       >
         <span className="min-w-0 flex-1 break-words font-semibold text-t-primary">{storeLabel(t, s.name)}</span>
@@ -239,7 +241,6 @@ export default function Data() {
         </Button>
       </Panel>
 
-      {storeModal && <StoreModal store={storeModal} onClose={() => setStoreModal(null)} />}
       {resetOpen && <ResetModal stores={stores} onClose={() => setResetOpen(false)} />}
       <section id="import" className="space-y-4" aria-label={t('legacy.title')}>
         <Divider label={t('legacy.title')} />
@@ -254,7 +255,23 @@ export default function Data() {
 // cache the key-level view (addressed by the short scope name the entry
 // endpoints use, the slug without its "cache:" prefix). Flushing the store
 // is the dialog's one destructive action and closes it.
-function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void }) {
+/**
+ * One store on a page of its own, stacked on Data: what it holds, its
+ * entries to page through and delete, and the flush. A list to work through
+ * reads better as a screen with an address than as a dialog over the
+ * inventory it came from.
+ */
+export function StorePage() {
+  const { store: name = '' } = useParams()
+  const navigate = useNavigate()
+  const { data: inventory } = useAdminData()
+  const store = inventory?.stores.find((s) => s.name === name)
+  if (!inventory) return <Loading />
+  if (!store) return <Navigate to="/settings/data" replace />
+  return <StoreView store={store} onGone={() => navigate('/settings/data')} />
+}
+
+function StoreView({ store, onGone }: { store: DataStore; onGone: () => void }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
   const qc = useQueryClient()
@@ -299,7 +316,7 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
     mutationFn: () => api.del(`/api/admin/data/${encodeURIComponent(store.name)}`),
     onSuccess: () => {
       invalidate()
-      onClose()
+      onGone()
     },
     onError: (e: Error) => setError(e.message),
   })
@@ -325,11 +342,10 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
   ]
 
   return (
-    <Modal
-      title={label}
-      onClose={onClose}
-      footer={
+    <div>
+      <PageHeader title={label} sub={storeDesc(t, store.name)}>
         <Button
+          size="sm"
           variant="danger"
           disabled={flush.isPending}
           onClick={async () => {
@@ -340,96 +356,96 @@ function StoreModal({ store, onClose }: { store: DataStore; onClose: () => void 
           <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('settings.jobs.flush')}
         </Button>
-      }
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={KIND_TONE[store.kind]}>{t(`settings.jobs.data.kind.${store.kind}`)}</Badge>
-        {store.stale > 0 && (
-          <Badge tone="warn" className="tabular-nums">
-            {t('settings.jobs.stale', { count: store.stale })}
-          </Badge>
-        )}
-        {store.prunable > 0 && (
-          <Badge tone="neutral" className="tabular-nums">
-            {t('settings.jobs.prunable', { count: store.prunable })}
-          </Badge>
-        )}
-      </div>
-      <p className="mt-2 text-sm text-t-secondary">{storeDesc(t, store.name)}</p>
-      <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">
-        {facts.map(([k, v]) => (
-          <div key={k} className="contents">
-            <dt className="text-t-muted">{k}</dt>
-            <dd className="font-mono tabular-nums text-t-secondary">{v}</dd>
-          </div>
-        ))}
-      </dl>
-
-      {cache && (
-        <>
-          <Divider label={t('settings.jobs.data.entriesTitle')} count={data?.total} className="mt-4" />
-          <label className="sr-only" htmlFor="cache-entries-q">
-            {t('remote.search')}
-          </label>
-          <Input
-            id="cache-entries-q"
-            className="mt-2"
-            placeholder={t('remote.search')}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-          {data && data.entries.length === 0 ? (
-            <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
-          ) : (
-            <ul className="mt-2">
-              {(data?.entries ?? [])
-                .filter((e) => !hidden.has(e.key))
-                .map((e) => (
-                  <li key={e.key} className={`${ROW_GRID} py-1.5`}>
-                    <span className={CELL_LEFT}>
-                      <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={e.key}>
-                        {truncMiddle(e.key)}
-                      </span>
-                      {e.stale && (
-                        <Badge tone="warn" className="shrink-0">
-                          {t('settings.jobs.staleBadge')}
-                        </Badge>
-                      )}
-                    </span>
-                    <span className={CELL_RIGHT}>
-                      <span className={`whitespace-nowrap ${NUM}`}>{fmtTs(e.fetchedAt)}</span>
-                      <span className={`w-16 ${NUM}`}>{fmtBytes(e.bytes)}</span>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={del.isPending}
-                        onClick={() => {
-                          const k = e.key
-                          setHidden((h) => new Set(h).add(k))
-                          toast({
-                            message: t('settings.jobs.entryDeleted', { key: truncMiddle(e.key, 60) }),
-                            undo: () => unhide(k),
-                            commit: () => del.mutateAsync(k).catch(() => unhide(k)),
-                          })
-                        }}
-                      >
-                        <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                        {t('servers.delete')}
-                      </Button>
-                    </span>
-                  </li>
-                ))}
-            </ul>
+      </PageHeader>
+      <Panel className="mt-4 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={KIND_TONE[store.kind]}>{t(`settings.jobs.data.kind.${store.kind}`)}</Badge>
+          {store.stale > 0 && (
+            <Badge tone="warn" className="tabular-nums">
+              {t('settings.jobs.stale', { count: store.stale })}
+            </Badge>
           )}
-          <Pager offset={offset} total={data?.total ?? 0} onOffset={setOffset} />
-        </>
-      )}
-      {error && (
-        <p className="mt-2 text-xs text-err" role="alert">
-          {error}
-        </p>
-      )}
-    </Modal>
+          {store.prunable > 0 && (
+            <Badge tone="neutral" className="tabular-nums">
+              {t('settings.jobs.prunable', { count: store.prunable })}
+            </Badge>
+          )}
+        </div>
+        <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">
+          {facts.map(([k, v]) => (
+            <div key={k} className="contents">
+              <dt className="text-t-muted">{k}</dt>
+              <dd className="font-mono tabular-nums text-t-secondary">{v}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {cache && (
+          <>
+            <Divider label={t('settings.jobs.data.entriesTitle')} count={data?.total} className="mt-4" />
+            <label className="sr-only" htmlFor="cache-entries-q">
+              {t('remote.search')}
+            </label>
+            <Input
+              id="cache-entries-q"
+              className="mt-2"
+              placeholder={t('remote.search')}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            {data && data.entries.length === 0 ? (
+              <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
+            ) : (
+              <ul className="mt-2">
+                {(data?.entries ?? [])
+                  .filter((e) => !hidden.has(e.key))
+                  .map((e) => (
+                    <li key={e.key} className={`${ROW_GRID} py-1.5`}>
+                      <span className={CELL_LEFT}>
+                        <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={e.key}>
+                          {truncMiddle(e.key)}
+                        </span>
+                        {e.stale && (
+                          <Badge tone="warn" className="shrink-0">
+                            {t('settings.jobs.staleBadge')}
+                          </Badge>
+                        )}
+                      </span>
+                      <span className={CELL_RIGHT}>
+                        <span className={`whitespace-nowrap ${NUM}`}>{fmtTs(e.fetchedAt)}</span>
+                        <span className={`w-16 ${NUM}`}>{fmtBytes(e.bytes)}</span>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          disabled={del.isPending}
+                          onClick={() => {
+                            const k = e.key
+                            setHidden((h) => new Set(h).add(k))
+                            toast({
+                              message: t('settings.jobs.entryDeleted', { key: truncMiddle(e.key, 60) }),
+                              undo: () => unhide(k),
+                              commit: () => del.mutateAsync(k).catch(() => unhide(k)),
+                            })
+                          }}
+                        >
+                          <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                          {t('servers.delete')}
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+            <Pager offset={offset} total={data?.total ?? 0} onOffset={setOffset} />
+          </>
+        )}
+        {error && (
+          <p className="mt-2 text-xs text-err" role="alert">
+            {error}
+          </p>
+        )}
+      </Panel>
+    </div>
   )
 }
 // The "rebuild everything" dialog. It never asks a bare "are you sure": it
