@@ -446,6 +446,7 @@ function SeriesDialog({
                   {media?.title.english && media.title.english !== name && !/[぀-ヿ㐀-鿿]/.test(media.title.english) && (
                     <p className="text-sm text-t-muted">{media.title.english}</p>
                   )}
+                  {mine[0] && <StateLine watch={mine[0]} />}
                   {media && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {media.seasonYear > 0 && <Badge>{media.seasonYear}</Badge>}
@@ -615,6 +616,36 @@ function SeriesDialog({
       )}
     </Dialog>
   )
+}
+
+/**
+ * What the user has of the title, in one line under its name: the first
+ * question on opening the card, answered without scrolling to the auto-sync
+ * block. From the lead watch: episodes on disk, the first hole, the next
+ * airing.
+ */
+function StateLine({ watch: w }: { watch: Watch }) {
+  const { t } = useTranslation()
+  const total = w.media?.episodes ?? 0
+  const parts = [
+    total > 0
+      ? t('series.state.local', { have: w.localFiles, total })
+      : t('series.state.files', { count: w.localFiles }),
+    w.missing?.length ? t('series.state.missing', { ep: fmtMissing(w.missing.slice(0, 1), w.offset) }) : '',
+    w.nextAiringAt
+      ? t('series.state.next', {
+          n: w.nextEpisode,
+          when: new Date(w.nextAiringAt * 1000).toLocaleString([], {
+            weekday: 'short',
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        })
+      : '',
+  ]
+  return <p className="mt-1 text-xs text-t-secondary">{parts.filter(Boolean).join(' · ')}</p>
 }
 
 // one line, where the source is down: the tab is not broken, the provider is

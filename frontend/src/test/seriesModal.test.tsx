@@ -166,6 +166,16 @@ describe('SeriesModalProvider', () => {
     expect(blocks[0]).toHaveTextContent('/x/Frieren2')
   })
 
+  it('says what the user has of the title in one line under its name', async () => {
+    serve({ watches: [{ ...watch(1), missing: [4, 5], nextAiringAt: 1_900_000_000, nextEpisode: 12 } as Watch] })
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    const heading = screen.getByRole('heading', { name: 'Frieren', level: 3 })
+    const line = await within(heading.parentElement!).findByText(/series.state.local/)
+    expect(line).toHaveTextContent('series.state.missing')
+    expect(line).toHaveTextContent('series.state.next')
+  })
+
   it('has no auto-sync section without a watch and says so when the source is down', async () => {
     serve({ watches: [] })
     app()
