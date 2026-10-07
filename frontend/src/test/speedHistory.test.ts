@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { avgSpeed, pushSpeedSample, resetSpeedHistory, seedSpeedHistory, SPEED_SPAN, speedSamples } from '../speedHistory'
+import {
+  avgSpeed,
+  pushSpeedSample,
+  resetSpeedHistory,
+  seedSpeedHistory,
+  SPEED_SPAN,
+  speedSamples,
+} from '../speedHistory'
 
 describe('speedHistory', () => {
   beforeEach(() => resetSpeedHistory())
