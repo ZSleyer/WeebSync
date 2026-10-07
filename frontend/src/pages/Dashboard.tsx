@@ -1531,7 +1531,9 @@ function DownloadRow({
       variant={variant}
       selected={selected}
       leading={
-        <>
+        // the grip sits under the checkbox in the same narrow column, so a
+        // queued row keeps its poster and title where a running row has them
+        <div className="flex shrink-0 flex-col items-center gap-2">
           <SelectBox checked={selected} name={name} onSelect={onSelect} />
           {reorder && (
             <button
@@ -1539,12 +1541,12 @@ function DownloadRow({
               {...reorder.handle}
               aria-label={t('dash.reorder', { name })}
               aria-keyshortcuts="ArrowUp ArrowDown Home End"
-              className="t-iconbtn -mx-1 shrink-0 self-center text-t-muted hover:text-t-primary"
+              className="-mx-2 flex min-h-11 items-center justify-center self-stretch rounded-md px-2 text-t-muted hover:text-t-primary"
             >
               <GripVertical aria-hidden size="1.1em" />
             </button>
           )}
-        </>
+        </div>
       }
       cover={group?.cover}
       onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
