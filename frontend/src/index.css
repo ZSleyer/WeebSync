@@ -1063,6 +1063,29 @@ main:has(.page-fill) {
   .t-pull { display: none; }
 }
 
+/* ── Docked side panel (SidePanel): beside <main> on a desktop, the full
+   height of the screen and sticky like the sidebar, so it stays put while
+   the page scrolls. A dialog's content box (`dialog-body`) fills it instead
+   of keeping the modal's 85dvh cap. ── */
+.t-sidepanel {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border-subtle);
+}
+.t-sidepanel .dialog-body {
+  --dialog-max-h: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.t-sidepanel .overflow-y-auto {
+  overflow-x: hidden;
+}
+
 /* ── Native dialog: Tempest panel + CRT reveal ── */
 
 /* An open <dialog> makes the rest of the document inert, but inert does not

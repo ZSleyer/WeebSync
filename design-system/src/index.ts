@@ -118,6 +118,8 @@ export type {
 export { Dialog } from './dialog'
 export type { DialogProps } from './dialog'
 export { useBackEntry } from './useBackEntry'
+export { SidePanel } from './sidePanel'
+export type { SidePanelProps } from './sidePanel'
 
 export { useMenu } from './useMenu'
 export { SHEET_MQ, useMediaQuery } from './useMediaQuery'
