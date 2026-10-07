@@ -517,7 +517,7 @@ function Shell({ email }: { email: string }) {
               tabs={tabs}
               mainKey={topPage(location.pathname)}
               notice={<UpdateToast />}
-              footer={<div ref={setFooter} className="shrink-0 empty:hidden lg:hidden" />}
+              footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
               before={
                 <>
                   <RouteTitle />

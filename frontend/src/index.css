@@ -989,6 +989,9 @@ main:has(.page-fill) {
   /* back to the top: a round button riding the bottom edge of <main>, with
      a ring that shows how far down the page is. Sticky at the end of the
      scroller, so it needs no fixed positioning (see the shell notes above). */
+  /* a page's action bar in the footer row (a selection) owns the bottom
+     edge: "back to top" stands down meanwhile instead of covering rows */
+  .app-shell:has(.t-shell-footer:not(:empty)) .t-totop-wrap { display: none; }
   .app-shell > main > .t-totop-wrap {
     flex: none;
     position: sticky;

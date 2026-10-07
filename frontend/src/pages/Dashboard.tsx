@@ -912,62 +912,82 @@ export default function Dashboard() {
         {selected.size > 0 && (
           <div className="order-4 lg:col-start-1">
             <PageFooter>
-              <ActionBar aria-label={t('dash.selectionActions')} floating>
-                <Badge tone="accent">{t('dash.selectedCount', { count: selected.size })}</Badge>
+              {/* one row on a phone, as a selection bar there: leave first,
+                  then the count, the actions at the right end with their
+                  icons alone (named for screen readers); words from sm on */}
+              <ActionBar aria-label={t('dash.selectionActions')} floating className="max-sm:flex-nowrap">
+                <Button
+                  size="sm"
+                  aria-label={t('dash.clearSelection')}
+                  title={t('dash.clearSelection')}
+                  onClick={() => setSelected(new Set())}
+                >
+                  <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                  <span className="max-sm:sr-only">{t('dash.clearSelection')}</span>
+                </Button>
+                <Badge tone="accent" className="max-sm:mr-auto">
+                  {t('dash.selectedCount', { count: selected.size })}
+                </Badge>
                 {activeSelected.length > 0 && (
                   <>
                     <Button
+                      aria-label={t('dash.pause')}
+                      title={t('dash.pause')}
                       size="sm"
                       disabled={bulk.isPending}
                       onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}
                     >
-                      <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('dash.pause')}
+                      <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                      <span className="max-sm:sr-only">{t('dash.pause')}</span>
                     </Button>
                     <Button
+                      aria-label={t('dash.resume')}
+                      title={t('dash.resume')}
                       size="sm"
                       disabled={bulk.isPending}
                       onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}
                     >
-                      <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('dash.resume')}
+                      <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                      <span className="max-sm:sr-only">{t('dash.resume')}</span>
                     </Button>
                     <Button
+                      aria-label={t('dash.cancel')}
+                      title={t('dash.cancel')}
                       size="sm"
                       variant="danger"
                       disabled={bulk.isPending}
                       onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}
                     >
-                      <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('dash.cancel')}
+                      <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                      <span className="max-sm:sr-only">{t('dash.cancel')}</span>
                     </Button>
                   </>
                 )}
                 {historySelected.length > 0 && (
                   <>
                     <Button
+                      aria-label={t('dash.retry')}
+                      title={t('dash.retry')}
                       size="sm"
                       disabled={bulk.isPending}
                       onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}
                     >
-                      <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('dash.retry')}
+                      <RotateCcw aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                      <span className="max-sm:sr-only">{t('dash.retry')}</span>
                     </Button>
                     <Button
+                      aria-label={t('dash.removeSelected')}
+                      title={t('dash.removeSelected')}
                       size="sm"
                       variant="danger"
                       disabled={bulk.isPending}
                       onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}
                     >
-                      <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('dash.removeSelected')}
+                      <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                      <span className="max-sm:sr-only">{t('dash.removeSelected')}</span>
                     </Button>
                   </>
                 )}
-                <Button size="sm" className="ml-auto lg:ml-2" onClick={() => setSelected(new Set())}>
-                  <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('dash.clearSelection')}
-                </Button>
               </ActionBar>
             </PageFooter>
           </div>
