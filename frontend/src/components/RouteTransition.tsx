@@ -19,8 +19,12 @@ interface Screen {
   back?: string
 }
 
-/** The top-level page a path belongs to: what keys <main>. */
-export const topPage = (path: string) => '/' + (path.split('/')[1] ?? '')
+/** The top-level page a path belongs to: what keys <main>. A title card's own
+ *  URL shows the dashboard, which must not remount when the card closes. */
+export const topPage = (path: string) => {
+  const top = path.split('/')[1] ?? ''
+  return top === 'title' ? '/' : '/' + top
+}
 
 const depth = (path: string) => path.split('/').filter(Boolean).length
 
