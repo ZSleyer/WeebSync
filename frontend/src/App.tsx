@@ -27,7 +27,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppBar, AppShell, Badge, Button, navItemClass, TabBar, useMediaQuery } from '@weebsync/design-system'
 import { api, type Download } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
-import LogoIntro from './components/LogoIntro'
+import Logo from './components/Logo'
 import { useSpeedSampler } from './speedHistory'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
@@ -347,7 +347,7 @@ function Shell({ email }: { email: string }) {
           {/* the mark is the way home from anywhere, as on every site */}
           <Link to="/" className="inline-flex items-center gap-2 rounded-xs">
             {/* the mark redraws on every page change, as in the phone's bar */}
-            <LogoIntro key={location.pathname} className="h-4 w-auto" active={transferring} />
+            <Logo replayKey={location.pathname} className="h-4 w-auto" active={transferring} />
             <span>
               WEEB<span className="text-accent">SYNC</span>
             </span>
@@ -421,7 +421,7 @@ function Shell({ email }: { email: string }) {
             aria-label={t('nav.dashboard')}
             className="inline-flex min-h-(--ctl-h-sm) min-w-(--ctl-h-sm) items-center justify-center rounded-xs px-1 text-t-primary"
           >
-            <LogoIntro key={location.pathname} className="h-5 w-auto" active={transferring} />
+            <Logo replayKey={location.pathname} className="h-5 w-auto" active={transferring} />
           </Link>
         )
       }
