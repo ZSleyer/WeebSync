@@ -47,7 +47,7 @@ const MAINTENANCE = [
 
 // Panels inside a section that a search lands on directly. Each shows only
 // while its section is in the menu, so a user never finds an admin panel.
-const PANELS = [
+export const PANELS = [
   { to: 'security#users', key: 'settings.search.users' },
   { to: 'integrations#anilist', label: 'AniList' },
   { to: 'integrations#tmdb', label: 'TMDB' },
@@ -151,7 +151,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
-function useGroups(): SectionGroup[] {
+export function useSettingsGroups(): SectionGroup[] {
   const { data: user } = useAuth()
   const admin = !!user?.isAdmin
   // a newer build out marks the About entry, where the details are
@@ -176,7 +176,7 @@ function useGroups(): SectionGroup[] {
 export function SettingsHub() {
   const { t } = useTranslation()
   const { data: user } = useAuth()
-  const groups = useGroups()
+  const groups = useSettingsGroups()
   const wide = useMediaQuery(WIDE_MQ)
   if (wide) return <Navigate to="/settings/general" replace />
   const logout = async () => {
@@ -209,7 +209,7 @@ export function SettingsHub() {
 
 export default function SettingsLayout() {
   const { t } = useTranslation()
-  const groups = useGroups()
+  const groups = useSettingsGroups()
   useScrollToHash()
   // no swipe between the sections: like the page swipe it fought the
   // gestures inside the page, and the menu is one tap away

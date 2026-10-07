@@ -93,7 +93,7 @@ type Bucket = (typeof BUCKETS)[number]
 
 // The sections in their groups, with the count each shows in the menu. The
 // blob is the same query every section reads, so the menu costs no request.
-function useGroups(): SectionGroup[] {
+export function useSuggestionGroups(): SectionGroup[] {
   const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
   const { data: dismissed } = usePersistedQuery<DismissedItem[]>('dismissed', () =>
     api.get('/api/suggestions/dismissed'),
@@ -144,7 +144,7 @@ const TAB_GROUPS = ['suggestions.groupDiscover', 'suggestions.groupLibrary']
 // the ignored items sit in the app bar.
 export default function SuggestionsLayout() {
   const { t } = useTranslation()
-  const groups = useGroups()
+  const groups = useSuggestionGroups()
   const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
   const { pathname } = useLocation()
   const navigate = useNavigate()
