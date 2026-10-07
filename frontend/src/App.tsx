@@ -24,9 +24,10 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppBar, AppShell, Badge, Button, navItemClass, TabBar, useMediaQuery } from '@weebsync/design-system'
+import { AppBar, AppShell, Button, navItemClass, TabBar, useMediaQuery } from '@weebsync/design-system'
 import { api, type Download } from './api'
 import { useAuth, useEvents, useUpdateHint } from './hooks'
+import Brand from './components/Brand'
 import Logo from './components/Logo'
 import { useSpeedSampler } from './speedHistory'
 import Loading from './components/Loading'
@@ -345,15 +346,11 @@ function Shell({ email }: { email: string }) {
       <div className="border-b border-border-subtle px-4 py-5">
         <h1 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
           {/* the mark is the way home from anywhere, as on every site */}
-          <Link to="/" className="inline-flex items-center gap-2 rounded-xs">
-            {/* the mark redraws on every page change, as in the phone's bar */}
-            <Logo replayKey={location.pathname} className="h-4 w-auto" active={transferring} />
-            <span>
-              WEEB<span className="text-accent">SYNC</span>
-            </span>
+          <Link to="/" className="rounded-xs">
+            {/* folds into the mark and back out on every page change */}
+            <Brand variant="rail" slogan={t('app.tagline')} replayKey={location.pathname} className="mt-3 mb-2" />
           </Link>
         </h1>
-        <Badge className="mt-2">{t('app.tagline')}</Badge>
       </div>
       {/* the way into the palette, and where its shortcut is learnt */}
       <div className="px-3 pt-3">

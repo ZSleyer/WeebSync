@@ -5,6 +5,7 @@ import { Badge, Button, ButtonLink, Input, Panel } from '@weebsync/design-system
 import { api } from '../api'
 import SetupSteps from '../components/SetupSteps'
 import { EnvBadge } from './settings/useSettingsForm'
+import Brand from '../components/Brand'
 
 // First-run wizard, shown while the instance has no users yet
 // (authConfig.setupNeeded). One list of steps, one indicator - the only fork is
@@ -189,7 +190,7 @@ export default function Setup({
       <div className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
         <div className="mb-6 text-center">
           <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
-            WEEB<span className="text-accent">SYNC</span>
+            <Brand variant="hero" />
           </h1>
           <Badge className="mt-3">{t('setup.title')}</Badge>
         </div>
