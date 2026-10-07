@@ -909,7 +909,7 @@
     "emailCat_admin_new_user": "Neue Registrierung (Admin)",
     "navLabel": "Einstellungsbereiche",
     "groupPersonal": "Persönlich",
-    "groupAdmin": "Administration",
+    "groupOperations": "Betrieb",
     "groupSources": "Quellen",
     "groupAbout": "WeebSync",
     "groupMaintenance": "Wartung",
