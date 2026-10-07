@@ -908,6 +908,12 @@
     "emailCat_download_failed": "Download fehlgeschlagen",
     "emailCat_admin_new_user": "Neue Registrierung (Admin)",
     "navLabel": "Einstellungsbereiche",
+    "search": {
+      "label": "Einstellungen durchsuchen",
+      "none": "Nichts gefunden. Versuch es mit Plex, Benutzer oder Import.",
+      "results": "Suchergebnisse",
+      "users": "Benutzer"
+    },
     "groupPersonal": "Persönlich",
     "groupOperations": "Betrieb",
     "groupSources": "Quellen",
@@ -927,7 +933,7 @@
       "notifications": "Push und E-Mail",
       "servers": "Remote-Quellen",
       "transfers": "Limits und Intervall",
-      "security": "Anmeldung, OIDC, API-Token",
+      "security": "Anmeldung, OIDC, Benutzer, API-Token",
       "integrations": "AniList, TMDB, TVDB, Plex, Assistent",
       "jobs": "Laufende Jobs, Live-Log", "matching": "Datei-Index und Zuordnung je Server", "data": "Caches, Datenbestände, Neuaufbau, Import",
       "about": "Version, Updates, Lizenz"
