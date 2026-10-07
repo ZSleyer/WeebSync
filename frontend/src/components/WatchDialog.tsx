@@ -1,8 +1,8 @@
-import { Folder, Save, X } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { ArrowLeft, Folder, Save, X } from 'lucide-react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Dialog, Field, Input, Select } from '@weebsync/design-system'
+import { Badge, Button, Dialog, Field, IconButton, Input, Select } from '@weebsync/design-system'
 import { api, ApiError, plexStreamLabel, plexStreamOptions, type SubfolderMode } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
@@ -41,12 +41,43 @@ export interface WatchFields extends RenameRule {
   replaceOld?: boolean
 }
 
+export interface WatchFormProps {
+  title: string
+  serverId: number
+  /** id of the watch being edited; absent while creating one, which is when
+   *  the Plex show binding has no series to hang on yet */
+  watchId?: number
+  initial: WatchFields
+  /** returning a string keeps the form open and shows it: a sync that
+   *  queued nothing has something to explain, and closing would hide it */
+  onSave: (f: WatchFields) => Promise<void | string>
+  /** leaves the form: after a save, or a cancel the guard let through */
+  onClose: () => void
+  saveLabel?: string // footer button text; defaults to the watch "save" label
+  info?: string[] // context lines under the header (e.g. chosen upgrade source vs local quality)
+}
+
 // WatchDialog collects the paths and rename rule of a watch (create from
 // Browser, edit from the Watches page). Anatomy: fixed header, scrollable
 // body in five sections (source&target / display metadata / download filter /
 // Plex playback / rename+preview), sticky footer. The dry-run preview loads
 // automatically.
-export default function WatchDialog({
+export default function WatchDialog(props: WatchFormProps) {
+  const guard = useRef<() => Promise<boolean>>(async () => true)
+  return (
+    <Dialog onClose={props.onClose} onRequestClose={() => guard.current()} width="max-w-2xl" aria-label={props.title}>
+      <WatchForm {...props} onGuard={(check) => (guard.current = check)} />
+    </Dialog>
+  )
+}
+
+/**
+ * The watch editor without a dialog of its own: the title card swaps it in
+ * where its content was, so editing from there is not a second modal. The
+ * container asks the check it gets from `onGuard` before it lets the form go
+ * any other way than its own buttons (Escape, the backdrop, a back arrow).
+ */
+export function WatchForm({
   title,
   serverId,
   watchId,
@@ -55,19 +86,15 @@ export default function WatchDialog({
   onClose,
   saveLabel,
   info,
-}: {
-  title: string
-  serverId: number
-  /** id of the watch being edited; absent while creating one, which is when
-   *  the Plex show binding has no series to hang on yet */
-  watchId?: number
-  initial: WatchFields
-  /** returning a string keeps the dialog open and shows it: a sync that
-   *  queued nothing has something to explain, and closing would hide it */
-  onSave: (f: WatchFields) => Promise<void | string>
-  onClose: () => void
-  saveLabel?: string // footer button text; defaults to the watch "save" label
-  info?: string[] // context lines under the header (e.g. chosen upgrade source vs local quality)
+  onGuard,
+  onBack,
+  className,
+}: WatchFormProps & {
+  /** receives the unsaved-changes check, for the container to ask */
+  onGuard: (check: () => Promise<boolean>) => void
+  /** a back arrow before the title, for a form that replaced other content */
+  onBack?: () => void
+  className?: string
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
@@ -170,6 +197,7 @@ export default function WatchDialog({
   const cancel = async () => {
     if (await mayClose()) onClose()
   }
+  useEffect(() => onGuard(mayClose))
   useEffect(() => {
     if (!dirty) return
     const h = (e: BeforeUnloadEvent) => e.preventDefault()
@@ -281,238 +309,240 @@ export default function WatchDialog({
   }
 
   return (
-    <Dialog onClose={onClose} onRequestClose={mayClose} width="max-w-2xl" aria-label={title}>
-      <form className="dialog-body" onSubmit={submit}>
-        <header className="border-b border-border-subtle px-5 py-4">
+    <form className={`dialog-body ${className ?? ''}`} onSubmit={submit}>
+      <header className="flex items-start gap-2 border-b border-border-subtle px-5 py-4">
+        {onBack && (
+          <IconButton aria-label={t('watch.backToCard')} title={t('watch.backToCard')} onClick={onBack} autoFocus>
+            <ArrowLeft aria-hidden size="1.2em" />
+          </IconButton>
+        )}
+        <div className="min-w-0 self-center">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
           {info?.map((line, i) => (
             <p key={i} className="mt-1 text-[11px] text-t-secondary">
               {line}
             </p>
           ))}
-        </header>
+        </div>
+      </header>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
-          <section className="space-y-3" aria-label={t('watch.sectionPaths')}>
-            <Badge tone="accent">{t('watch.sectionPaths')}</Badge>
-            {pathRow('remote')}
-            {pathRow('local')}
-            <SubfolderChoice
-              value={subMode}
-              onChange={setSubMode}
-              separator={subSep}
-              onSeparator={setSubSep}
-              title={shownTitle}
-              seasonFolder={seasonFolder}
-            />
-            {f.replaceOld !== undefined && (
-              <label className="flex items-center gap-2 text-sm text-t-secondary">
-                <input
-                  type="checkbox"
-                  checked={f.replaceOld}
-                  onChange={(e) => setF({ ...f, replaceOld: e.target.checked })}
-                />
-                {t('watch.replaceOld')}
-                <Hint text={t('watch.replaceOldHint')} />
-              </label>
-            )}
-            {/* no folder name: several levels can be missing at once, and
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
+        <section className="space-y-3" aria-label={t('watch.sectionPaths')}>
+          <Badge tone="accent">{t('watch.sectionPaths')}</Badge>
+          {pathRow('remote')}
+          {pathRow('local')}
+          <SubfolderChoice
+            value={subMode}
+            onChange={setSubMode}
+            separator={subSep}
+            onSeparator={setSubSep}
+            title={shownTitle}
+            seasonFolder={seasonFolder}
+          />
+          {f.replaceOld !== undefined && (
+            <label className="flex items-center gap-2 text-sm text-t-secondary">
+              <input
+                type="checkbox"
+                checked={f.replaceOld}
+                onChange={(e) => setF({ ...f, replaceOld: e.target.checked })}
+              />
+              {t('watch.replaceOld')}
+              <Hint text={t('watch.replaceOldHint')} />
+            </label>
+          )}
+          {/* no folder name: several levels can be missing at once, and
                 naming only the innermost reads as if the rest were there */}
-            {targetMissing && <p className="text-[11px] text-t-muted">{t('watch.targetMissing')}</p>}
-          </section>
+          {targetMissing && <p className="text-[11px] text-t-muted">{t('watch.targetMissing')}</p>}
+        </section>
 
-          <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionMeta')}>
-            <Badge tone="accent">{t('watch.sectionMeta')}</Badge>
-            {/* same 50/50 split as every other two-column row in this dialog,
+        <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionMeta')}>
+          <Badge tone="accent">{t('watch.sectionMeta')}</Badge>
+          {/* same 50/50 split as every other two-column row in this dialog,
                 so the column edge never shifts between sections */}
-            <div className={ROW_GRID}>
-              <Field
-                label={
-                  <>
-                    {t('watch.mediaSource')}
-                    <Hint text={t('watch.metaHint')} />
-                  </>
+          <div className={ROW_GRID}>
+            <Field
+              label={
+                <>
+                  {t('watch.mediaSource')}
+                  <Hint text={t('watch.metaHint')} />
+                </>
+              }
+            >
+              <Select value={f.mediaSource || 'anilist'} onChange={(e) => setF({ ...f, mediaSource: e.target.value })}>
+                <option value="anilist">AniList (Anime)</option>
+                <option value="tmdb:tv">TMDB Serie</option>
+                <option value="tmdb:movie">TMDB Film</option>
+                {(caps?.tvdbApiKeySet || f.mediaSource === 'tvdb') && <option value="tvdb">TVDB Serie</option>}
+              </Select>
+            </Field>
+            <Field label={t('watch.mediaId')} htmlFor="watch-mediaid">
+              <Input
+                id="watch-mediaid"
+                type="number"
+                className="font-mono"
+                value={f.mediaId || ''}
+                placeholder={
+                  f.mediaSource === 'tvdb'
+                    ? 'z.B. 72454 (Detektiv Conan)'
+                    : f.mediaSource?.startsWith('tmdb')
+                      ? 'z.B. 1399 (Game of Thrones)'
+                      : 'z.B. 21 (One Piece)'
                 }
-              >
-                <Select
-                  value={f.mediaSource || 'anilist'}
-                  onChange={(e) => setF({ ...f, mediaSource: e.target.value })}
-                >
-                  <option value="anilist">AniList (Anime)</option>
-                  <option value="tmdb:tv">TMDB Serie</option>
-                  <option value="tmdb:movie">TMDB Film</option>
-                  {(caps?.tvdbApiKeySet || f.mediaSource === 'tvdb') && <option value="tvdb">TVDB Serie</option>}
-                </Select>
-              </Field>
-              <Field label={t('watch.mediaId')} htmlFor="watch-mediaid">
-                <Input
-                  id="watch-mediaid"
-                  type="number"
-                  className="font-mono"
-                  value={f.mediaId || ''}
-                  placeholder={
-                    f.mediaSource === 'tvdb'
-                      ? 'z.B. 72454 (Detektiv Conan)'
-                      : f.mediaSource?.startsWith('tmdb')
-                        ? 'z.B. 1399 (Game of Thrones)'
-                        : 'z.B. 21 (One Piece)'
-                  }
-                  onChange={(e) => setF({ ...f, mediaId: Number(e.target.value) || 0 })}
-                />
-              </Field>
-            </div>
-          </section>
+                onChange={(e) => setF({ ...f, mediaId: Number(e.target.value) || 0 })}
+              />
+            </Field>
+          </div>
+        </section>
 
-          <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionFilter')}>
-            <Badge tone="accent">{t('watch.sectionFilter')}</Badge>
-            <div className={ROW_GRID}>
-              {(['wantDub', 'wantSub'] as const).map((key) => {
-                const opts = key === 'wantDub' ? langs.dub : langs.sub
-                // include the saved value even if the index no longer lists it
-                const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
-                return (
-                  <Field
-                    key={key}
-                    label={
-                      <>
-                        {t(key === 'wantDub' ? 'watch.wantDub' : 'watch.wantSub')}
-                        {key === 'wantDub' && <Hint text={t('watch.langHint')} />}
-                      </>
-                    }
-                  >
-                    <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
-                      <option value="">{t('watch.langAny')}</option>
-                      {all.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                )
-              })}
-              {f.wantDub && (
+        <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionFilter')}>
+          <Badge tone="accent">{t('watch.sectionFilter')}</Badge>
+          <div className={ROW_GRID}>
+            {(['wantDub', 'wantSub'] as const).map((key) => {
+              const opts = key === 'wantDub' ? langs.dub : langs.sub
+              // include the saved value even if the index no longer lists it
+              const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
+              return (
                 <Field
+                  key={key}
                   label={
                     <>
-                      {t('watch.dubLag')}
-                      <Hint text={t('watch.dubLagHint')} />
+                      {t(key === 'wantDub' ? 'watch.wantDub' : 'watch.wantSub')}
+                      {key === 'wantDub' && <Hint text={t('watch.langHint')} />}
                     </>
                   }
                 >
-                  <Input
-                    type="number"
-                    min={0}
-                    max={365}
-                    inputMode="numeric"
-                    value={f.dubLagDays || ''}
-                    placeholder="0"
-                    onChange={(e) => setF({ ...f, dubLagDays: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                  />
+                  <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
+                    <option value="">{t('watch.langAny')}</option>
+                    {all.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </Select>
                 </Field>
-              )}
-            </div>
-          </section>
+              )
+            })}
+            {f.wantDub && (
+              <Field
+                label={
+                  <>
+                    {t('watch.dubLag')}
+                    <Hint text={t('watch.dubLagHint')} />
+                  </>
+                }
+              >
+                <Input
+                  type="number"
+                  min={0}
+                  max={365}
+                  inputMode="numeric"
+                  value={f.dubLagDays || ''}
+                  placeholder="0"
+                  onChange={(e) => setF({ ...f, dubLagDays: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                />
+              </Field>
+            )}
+          </div>
+        </section>
 
-          <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionPlex')}>
-            <Badge tone="accent">{t('watch.sectionPlex')}</Badge>
-            {/* which show the track selection acts on. Only on an existing
+        <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionPlex')}>
+          <Badge tone="accent">{t('watch.sectionPlex')}</Badge>
+          {/* which show the track selection acts on. Only on an existing
                 watch: the binding hangs on its series, which a watch that is
                 not saved yet does not have. */}
-            {watchId && plexShow && (
-              <PlexShowField watchId={watchId} state={plexShow} onDone={() => void refetchPlexShow()} />
-            )}
-            <div className={ROW_GRID}>
-              {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
-                // Subtitles carry a second dimension the language cannot express:
-                // the forced track holds signs and foreign dialogue only. Both
-                // variants are offered per language and neither is derived from
-                // the audio - watching a dub with full subtitles and watching the
-                // original with signs only are both things people do on purpose.
-                const opts = plexStreamOptions(key === 'plexAudioLang' ? langs.dub : langs.sub, key === 'plexSubLang')
-                const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
-                return (
-                  <Field
-                    key={key}
-                    label={
-                      <>
-                        {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
-                        {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
-                      </>
-                    }
-                  >
-                    <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
-                      <option value="">{t('watch.plexNoChange')}</option>
-                      {key === 'plexSubLang' && <option value="off">{t('watch.plexSubOff')}</option>}
-                      {all.map((c) => (
-                        <option key={c} value={c}>
-                          {plexStreamLabel(c, t)}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                )
-              })}
-            </div>
-          </section>
-
-          <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
-            <div className="flex items-center justify-between">
-              <Badge tone="accent">{t('watch.sectionRename')}</Badge>
-              <label className="flex items-center gap-2 text-sm text-t-secondary">
-                <input type="checkbox" checked={renameOn} onChange={(e) => setRenameOn(e.target.checked)} />
-                {t('watch.renameToggle')}
-              </label>
-            </div>
-
-            {renameOn && (
-              <>
-                <RenameOptions
-                  rule={f}
-                  onChange={(patch) => setF({ ...f, ...patch })}
-                  caps={caps}
-                  detected={detected}
-                  idPrefix="watch"
-                  seriesQuery={f.remotePath.split('/').filter(Boolean).slice(-1)[0] || ''}
-                  seasonFolder={{
-                    name: f.localPath.split('/').findLast(Boolean) || '',
-                    onUseParent: () =>
-                      setF({ ...f, localPath: f.localPath.split('/').filter(Boolean).slice(0, -1).join('/') }),
-                  }}
-                />
-              </>
-            )}
-          </section>
-
-          {pairs && <RenamePreview pairs={pairs} sizes={sizes} target={targetEntries} busy={previewBusy} />}
-
-          {fsError && <FsErrorNote code={fsError.code} dir={fsError.dir} />}
-          {error && (
-            <p className="rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-              {error}
-            </p>
+          {watchId && plexShow && (
+            <PlexShowField watchId={watchId} state={plexShow} onDone={() => void refetchPlexShow()} />
           )}
-        </div>
+          <div className={ROW_GRID}>
+            {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
+              // Subtitles carry a second dimension the language cannot express:
+              // the forced track holds signs and foreign dialogue only. Both
+              // variants are offered per language and neither is derived from
+              // the audio - watching a dub with full subtitles and watching the
+              // original with signs only are both things people do on purpose.
+              const opts = plexStreamOptions(key === 'plexAudioLang' ? langs.dub : langs.sub, key === 'plexSubLang')
+              const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
+              return (
+                <Field
+                  key={key}
+                  label={
+                    <>
+                      {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
+                      {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
+                    </>
+                  }
+                >
+                  <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
+                    <option value="">{t('watch.plexNoChange')}</option>
+                    {key === 'plexSubLang' && <option value="off">{t('watch.plexSubOff')}</option>}
+                    {all.map((c) => (
+                      <option key={c} value={c}>
+                        {plexStreamLabel(c, t)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )
+            })}
+          </div>
+        </section>
 
-        {/* the outcome belongs next to the button that caused it: in the
+        <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
+          <div className="flex items-center justify-between">
+            <Badge tone="accent">{t('watch.sectionRename')}</Badge>
+            <label className="flex items-center gap-2 text-sm text-t-secondary">
+              <input type="checkbox" checked={renameOn} onChange={(e) => setRenameOn(e.target.checked)} />
+              {t('watch.renameToggle')}
+            </label>
+          </div>
+
+          {renameOn && (
+            <>
+              <RenameOptions
+                rule={f}
+                onChange={(patch) => setF({ ...f, ...patch })}
+                caps={caps}
+                detected={detected}
+                idPrefix="watch"
+                seriesQuery={f.remotePath.split('/').filter(Boolean).slice(-1)[0] || ''}
+                seasonFolder={{
+                  name: f.localPath.split('/').findLast(Boolean) || '',
+                  onUseParent: () =>
+                    setF({ ...f, localPath: f.localPath.split('/').filter(Boolean).slice(0, -1).join('/') }),
+                }}
+              />
+            </>
+          )}
+        </section>
+
+        {pairs && <RenamePreview pairs={pairs} sizes={sizes} target={targetEntries} busy={previewBusy} />}
+
+        {fsError && <FsErrorNote code={fsError.code} dir={fsError.dir} />}
+        {error && (
+          <p className="rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+
+      {/* the outcome belongs next to the button that caused it: in the
             scrollable body it would sit below the fold, which is exactly how
             the old notice above the page managed to stay unread */}
-        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          {notice && (
-            <p className="mr-auto min-w-0 flex-1 text-[11px] text-warn" role="status">
-              {notice}
-            </p>
-          )}
-          <Button onClick={cancel}>
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('servers.cancel')}
-          </Button>
-          <Button type="submit" variant="primary" disabled={busy}>
-            <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {saveLabel ?? t('settings.save')}
-          </Button>
-        </footer>
-      </form>
-    </Dialog>
+      <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
+        {notice && (
+          <p className="mr-auto min-w-0 flex-1 text-[11px] text-warn" role="status">
+            {notice}
+          </p>
+        )}
+        <Button onClick={cancel}>
+          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('servers.cancel')}
+        </Button>
+        <Button type="submit" variant="primary" disabled={busy}>
+          <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {saveLabel ?? t('settings.save')}
+        </Button>
+      </footer>
+    </form>
   )
 }

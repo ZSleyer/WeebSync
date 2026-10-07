@@ -578,6 +578,7 @@
     "add": "Watch",
     "addTitle": "Watch: {{name}}",
     "editTitle": "Edit auto-sync",
+    "backToCard": "Back to the title",
     "created": "Auto-sync created, first check running.",
     "remotePath": "Remote folder (anime/version)",
     "localPath": "Local target",

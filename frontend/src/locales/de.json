@@ -578,6 +578,7 @@
     "add": "Beobachten",
     "addTitle": "Beobachten: {{name}}",
     "editTitle": "Auto-Sync bearbeiten",
+    "backToCard": "Zurück zum Titel",
     "created": "Auto-Sync angelegt, erster Abgleich läuft.",
     "remotePath": "Remote-Ordner (Anime/Version)",
     "localPath": "Lokales Ziel",
