@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Checkbox, Panel } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useAuth, useVersion } from '../../hooks'
+import Brand from '../../components/Brand'
 
 // read once per page load; the year does not change during a session
 const year = new Date().getFullYear()
@@ -28,7 +29,7 @@ export default function About() {
       <Panel className="space-y-5 p-5">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
-            WEEB<span className="text-accent">SYNC</span>
+            <Brand variant="about" slogan={t('app.tagline')} />
           </h2>
           {data && (
             <Badge tone={data.channel === 'stable' ? 'ok' : data.channel === 'nightly' ? 'accent' : 'warn'}>
@@ -40,8 +41,6 @@ export default function About() {
             {data?.commit ? ` · ${data.commit.slice(0, 7)}` : ''}
           </span>
         </div>
-
-        <p className="text-xs text-t-muted">{t('app.tagline')}</p>
 
         {data?.updateAvailable && (
           <div className="rounded-md border border-warn/40 bg-warn/5 px-4 py-3 text-sm">
