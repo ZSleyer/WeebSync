@@ -23,7 +23,14 @@ import {
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSeriesModal, type SeriesAction } from '../components/SeriesModal'
+import {
+  SeriesCardView,
+  BackToCard,
+  useSeriesModal,
+  type CardViewProps,
+  type SeriesAction,
+} from '../components/SeriesModal'
+import { useToast } from '../components/toast'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import ActionSheet from '../components/ActionSheet'
@@ -73,7 +80,7 @@ import { subfolderMode, subfolderTargetDir, syncRequestPath, useTargetFolder } f
 import HostKeyPrompt from '../components/HostKeyPrompt'
 import SubfolderChoice from '../components/SubfolderChoice'
 import UpcomingSeason from '../components/UpcomingSeason'
-import WatchDialog, { type WatchFields } from '../components/WatchDialog'
+import WatchDialog, { WatchForm, type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, useFolderKind, useWatchDefaults } from '../components/watchDefaults'
 import { useConfirm } from '../components/confirm'
 import { useAuth } from '../hooks'
@@ -136,6 +143,9 @@ export default function Files() {
   // second copy of the same two buttons
   const [watchEntry, setWatchEntry] = useState<Entry | null>(null)
   const [syncEntry, setSyncEntry] = useState<Entry | null>(null)
+  // asked from the title card: the form shows inside it, the outcome as a toast
+  const [inCard, setInCard] = useState(false)
+  const toast = useToast()
   // the user's defaults fill a new watch: its kind comes from the folder's
   // catalog match, a target picked on this page wins over the default one
   const { data: defaults } = useWatchDefaults()
@@ -241,6 +251,7 @@ export default function Files() {
           }),
     onSuccess: (r) => {
       setNotice(t('remote.queued', { count: r.queued }))
+      if (inCard) toast({ message: t('remote.queued', { count: r.queued }) })
       setLastIds(r.ids ?? [])
     },
     onError: (e) => {
@@ -258,6 +269,41 @@ export default function Files() {
       setNotice(err instanceof Error ? err.message : t('app.error'))
     }
   }
+
+  const syncProps = (entry: Entry, seed: WatchFields) => ({
+    entry,
+    serverId: active,
+    localPath: syncLocal,
+    onLocalPath: setLocalPath,
+    target: syncTarget,
+    mode: syncMode,
+    onMode: setSubMode,
+    separator: subSep,
+    onSeparator: setSubSep,
+    title: syncTitle,
+    seed,
+    pending: enqueue.isPending,
+    onConfirm: (rename: RenameRule | null) => {
+      enqueue.mutate({ entry, rename })
+      setSyncEntry(null)
+    },
+    onClose: () => setSyncEntry(null),
+  })
+  const watchProps = (entry: Entry) => ({
+    title: t('watch.addTitle', { name: entry.name }),
+    serverId: active,
+    initial: applyDefaults(blankWatch(entry.path, localPath), watchKind?.kind, defaults, watchKind),
+    onSave: async (f: WatchFields) => {
+      await api.post('/api/watches', { serverId: active, ...f })
+      setNotice(t('watch.created'))
+      if (inCard) {
+        // the card's auto-sync section shows the new watch on the way back
+        await qc.invalidateQueries({ queryKey: ['watches'] })
+        toast({ message: t('watch.created') })
+      }
+    },
+    onClose: () => setWatchEntry(null),
+  })
 
   // the local library is edited through the selection: rename and delete
   // cannot be undone, so both go through a blocking modal. Admins only.
@@ -470,8 +516,22 @@ export default function Files() {
               onNavigate={navigate}
               onSelect={selectable ? setSelection : () => {}}
               selected={selection?.path}
-              onSync={isLocal ? undefined : setSyncEntry}
-              onWatch={isLocal ? undefined : setWatchEntry}
+              onSync={
+                isLocal
+                  ? undefined
+                  : (e, card) => {
+                      setSyncEntry(e)
+                      setInCard(!!card)
+                    }
+              }
+              onWatch={
+                isLocal
+                  ? undefined
+                  : (e, card) => {
+                      setWatchEntry(e)
+                      setInCard(!!card)
+                    }
+              }
               cardActions={isLocal ? cardActions : undefined}
               renaming={inPlace}
               onOpenFiles={(p) => {
@@ -547,11 +607,25 @@ export default function Files() {
           )}
           {selection && !isLocal && (
             <>
-              <Button size="sm" disabled={!selection.isDir} onClick={() => setWatchEntry(selection)}>
+              <Button
+                size="sm"
+                disabled={!selection.isDir}
+                onClick={() => {
+                  setWatchEntry(selection)
+                  setInCard(false)
+                }}
+              >
                 <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('watch.add')}
               </Button>
-              <Button size="sm" variant="primary" onClick={() => setSyncEntry(selection)}>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  setSyncEntry(selection)
+                  setInCard(false)
+                }}
+              >
                 <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('remote.syncOpen')}
               </Button>
@@ -560,39 +634,24 @@ export default function Files() {
         </Panel>
       )}
 
-      {syncEntry && syncSeed && (
-        <SyncDialog
-          entry={syncEntry}
-          serverId={active}
-          localPath={syncLocal}
-          onLocalPath={setLocalPath}
-          target={syncTarget}
-          mode={syncMode}
-          onMode={setSubMode}
-          separator={subSep}
-          onSeparator={setSubSep}
-          title={syncTitle}
-          seed={syncSeed}
-          pending={enqueue.isPending}
-          onConfirm={(rename) => {
-            enqueue.mutate({ entry: syncEntry, rename })
-            setSyncEntry(null)
-          }}
-          onClose={() => setSyncEntry(null)}
-        />
-      )}
-      {watchEntry && !kindPending && (
-        <WatchDialog
-          title={t('watch.addTitle', { name: watchEntry.name })}
-          serverId={active}
-          initial={applyDefaults(blankWatch(watchEntry.path, localPath), watchKind?.kind, defaults, watchKind)}
-          onSave={async (f) => {
-            await api.post('/api/watches', { serverId: active, ...f })
-            setNotice(t('watch.created'))
-          }}
-          onClose={() => setWatchEntry(null)}
-        />
-      )}
+      {syncEntry &&
+        syncSeed &&
+        (inCard ? (
+          <SeriesCardView onClose={() => setSyncEntry(null)}>
+            {(v) => <SyncForm {...v} {...syncProps(syncEntry, syncSeed)} />}
+          </SeriesCardView>
+        ) : (
+          <SyncDialog {...syncProps(syncEntry, syncSeed)} />
+        ))}
+      {watchEntry &&
+        !kindPending &&
+        (inCard ? (
+          <SeriesCardView onClose={() => setWatchEntry(null)}>
+            {(v) => <WatchForm {...v} {...watchProps(watchEntry)} />}
+          </SeriesCardView>
+        ) : (
+          <WatchDialog {...watchProps(watchEntry)} />
+        ))}
     </div>
   )
 }
@@ -696,8 +755,9 @@ export function CatalogGrid({
   onSelect: (e: Entry) => void
   selected?: string
   // omitted on the local page: there is nothing to download or watch there
-  onSync?: (e: Entry) => void
-  onWatch?: (e: Entry) => void
+  // `inCard`: asked from the title card, which shows the form in its place
+  onSync?: (e: Entry, inCard?: boolean) => void
+  onWatch?: (e: Entry, inCard?: boolean) => void
   // hands a folder to the page, which opens it in the classic browser: that
   // one already lists files and navigates, so the catalog needs no second one
   onOpenFiles: (path: string) => void
@@ -729,9 +789,16 @@ export function CatalogGrid({
   const listing = `${serverId}:${path}`
   const [keyRejectedFor, setKeyRejectedFor] = useState<string | null>(null)
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
+  const [rematchInCard, setRematchInCard] = useState(false)
+  const toast = useToast()
   // the title card is the app's one; the catalog adds its folder versions
-  // under the record, each selectable, syncable, watchable, re-matchable
+  // under the record, each selectable, syncable, watchable, re-matchable.
+  // Syncing, watching and matching from the card happen inside it.
   const series = useSeriesModal()
+  const rematchInside = (it: CatalogItem) => {
+    setRematch(it)
+    setRematchInCard(true)
+  }
   const ico = 'mr-1 inline align-[-0.125em]'
   // the action bar acts on a card's one folder; a card bundling several
   // leaves it to the version rows, where each row is exactly one folder
@@ -743,10 +810,7 @@ export function CatalogGrid({
             label: t('series.action.syncNow'),
             icon: <Download aria-hidden size="1em" className={ico} />,
             primary: true,
-            onClick: () => {
-              series.close()
-              onSync(it.entry)
-            },
+            onClick: () => onSync(it.entry, true),
           },
         ]
       : []),
@@ -756,10 +820,7 @@ export function CatalogGrid({
             key: 'watch',
             label: t('series.action.autoSync'),
             icon: <Eye aria-hidden size="1em" className={ico} />,
-            onClick: () => {
-              series.close()
-              onWatch(it.entry)
-            },
+            onClick: () => onWatch(it.entry, true),
           },
         ]
       : []),
@@ -768,10 +829,7 @@ export function CatalogGrid({
       label: t('series.action.rematch'),
       icon: <Replace aria-hidden size="1em" />,
       more: true,
-      onClick: () => {
-        series.close()
-        setRematch(it)
-      },
+      onClick: () => rematchInside(it),
     },
     {
       key: 'files',
@@ -784,11 +842,12 @@ export function CatalogGrid({
       },
     },
   ]
-  const showDetail = (g: CatalogGroup) =>
+  // `id` and `media` differ from the group's after a new match was picked
+  const showDetail = (g: CatalogGroup, id = g.media!.id, media = g.media) =>
     series.open({
       source: g.items[0].source,
-      id: g.media!.id,
-      media: g.media,
+      id,
+      media,
       actions: g.items.length === 1 ? barActions(g.items[0]) : [],
       extra: (
         <CatalogVersions
@@ -798,28 +857,13 @@ export function CatalogGrid({
             series.close()
             onSelect(e)
           }}
-          onRematch={(it) => {
-            series.close()
-            setRematch(it)
-          }}
+          onRematch={rematchInside}
           onFiles={(e) => {
             series.close()
             onOpenFiles(e.path)
           }}
-          onSync={
-            onSync &&
-            ((e) => {
-              series.close()
-              onSync(e)
-            })
-          }
-          onWatch={
-            onWatch &&
-            ((e) => {
-              series.close()
-              onWatch(e)
-            })
-          }
+          onSync={onSync && ((e) => onSync(e, true))}
+          onWatch={onWatch && ((e) => onWatch(e, true))}
         />
       ),
     })
@@ -893,7 +937,10 @@ export function CatalogGrid({
                   icon: <Replace aria-hidden size="1.2em" />,
                   label: t('remote.changeMatch'),
                   aria: `${t('remote.changeMatch')}: ${it.entry.name}`,
-                  onClick: () => setRematch(it),
+                  onClick: () => {
+                    setRematch(it)
+                    setRematchInCard(false)
+                  },
                 },
               ]
             : []),
@@ -1190,7 +1237,10 @@ export function CatalogGrid({
                         className="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                         aria-label={t('remote.changeMatch')}
                         title={t('remote.changeMatch')}
-                        onClick={() => setRematch(it)}
+                        onClick={() => {
+                          setRematch(it)
+                          setRematchInCard(false)
+                        }}
                       >
                         <Pencil aria-hidden size="1.2em" />
                       </Button>
@@ -1311,7 +1361,28 @@ export function CatalogGrid({
           elsewhere={data?.elsewhere ?? {}}
           onOpenFolder={onOpenFiles}
         />
-        {rematch && <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />}
+        {rematch &&
+          (rematchInCard ? (
+            <SeriesCardView onClose={() => setRematch(null)}>
+              {(v) => (
+                <RematchForm
+                  {...v}
+                  serverId={serverId}
+                  item={rematch}
+                  onClose={() => setRematch(null)}
+                  // the card moves on to the new record, or goes with the match
+                  onPicked={(id) => {
+                    setRematch(null)
+                    toast({ message: t('series.rematched') })
+                    if (id) showDetail({ key: rematch.entry.path, items: [rematch] }, id, undefined)
+                    else series.close()
+                  }}
+                />
+              )}
+            </SeriesCardView>
+          ) : (
+            <RematchDialog serverId={serverId} item={rematch} onClose={() => setRematch(null)} />
+          ))}
       </div>
     </div>
   )
@@ -1533,22 +1604,7 @@ const blankWatch = (remotePath: string, localPath: string): WatchFields => ({
   plexSubLang: '',
 })
 
-function SyncDialog({
-  entry,
-  serverId,
-  localPath,
-  onLocalPath,
-  target,
-  mode,
-  onMode,
-  separator,
-  onSeparator,
-  title,
-  pending,
-  onConfirm,
-  onClose,
-  seed,
-}: {
+interface SyncFormProps {
   entry: Entry
   serverId: number
   localPath: string
@@ -1566,7 +1622,39 @@ function SyncDialog({
   onClose: () => void
   /** the user's defaults for this folder's kind, applied on open */
   seed?: WatchFields
-}) {
+}
+
+function SyncDialog(props: SyncFormProps) {
+  const { t } = useTranslation()
+  // mount-to-open: Escape and the backdrop end in onClose, the footer buttons
+  // decide explicitly - the parent unmounts either way
+  return (
+    <Dialog width="max-w-lg" aria-label={t('remote.syncTitle', { name: props.entry.name })} onClose={props.onClose}>
+      <SyncForm {...props} />
+    </Dialog>
+  )
+}
+
+// The sync picker without a dialog of its own, for the title card to show in
+// place of its content; the back arrow returns there.
+function SyncForm({
+  entry,
+  serverId,
+  localPath,
+  onLocalPath,
+  target,
+  mode,
+  onMode,
+  separator,
+  onSeparator,
+  title,
+  pending,
+  onConfirm,
+  onClose,
+  seed,
+  onBack,
+  className = '',
+}: SyncFormProps & Partial<CardViewProps>) {
   const { t } = useTranslation()
   const [browse, setBrowse] = useState(false)
   // the user's defaults seed the rename rule once, on open
@@ -1603,108 +1691,107 @@ function SyncDialog({
     fileSize: entry.isDir ? undefined : entry.size,
   })
   const { entries: targetEntries, missing: targetMissing } = useTargetFolder(target)
-  // mount-to-open: Escape and the backdrop end in onClose, the footer buttons
-  // decide explicitly - the parent unmounts either way
   return (
-    <Dialog width="max-w-lg" aria-label={t('remote.syncTitle', { name: entry.name })} onClose={onClose}>
-      <div className="dialog-body">
-        <header className="border-b border-border-subtle px-5 py-4">
+    <div className={`dialog-body ${className}`}>
+      <header className="flex items-start gap-2 border-b border-border-subtle px-5 py-4">
+        {onBack && <BackToCard onClick={onBack} />}
+        <div className="min-w-0 self-center">
           <h3 className="font-display font-semibold tracking-wider">{t('remote.syncTitle', { name: entry.name })}</h3>
           <span className="mt-1 block truncate font-mono text-xs text-t-muted" title={entry.path}>
             {entry.path}
           </span>
-        </header>
+        </div>
+      </header>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          <div>
-            <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="sync-target">
-              {t('remote.localTarget')}
-            </label>
-            <div className="flex items-stretch gap-2">
-              <PathInput
-                id="sync-target"
-                value={localPath}
-                onChange={onLocalPath}
-                onCommit={onLocalPath}
-                fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p.replace(/^\/+/, ''))}`}
-                queryKey={['local']}
-                ariaLabel={t('remote.localTarget')}
-              />
-              <Button
-                size="sm"
-                variant={browse ? 'primary' : 'default'}
-                className="shrink-0"
-                aria-expanded={browse}
-                onClick={() => setBrowse((b) => !b)}
-              >
-                <Folder aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('watch.browse')}
-              </Button>
-            </div>
-            {browse && (
-              <div className="mt-2 flex max-h-56 flex-col overflow-hidden rounded-lg border border-border-subtle bg-bg-secondary/40">
-                <LocalPicker path={localPath} onNavigate={onLocalPath} />
-              </div>
-            )}
-          </div>
-
-          {entry.isDir && (
-            <SubfolderChoice
-              value={mode}
-              onChange={onMode}
-              separator={separator}
-              onSeparator={onSeparator}
-              title={title}
-              seasonFolder={seed?.seasonFolder}
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <div>
+          <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="sync-target">
+            {t('remote.localTarget')}
+          </label>
+          <div className="flex items-stretch gap-2">
+            <PathInput
+              id="sync-target"
+              value={localPath}
+              onChange={onLocalPath}
+              onCommit={onLocalPath}
+              fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p.replace(/^\/+/, ''))}`}
+              queryKey={['local']}
+              ariaLabel={t('remote.localTarget')}
             />
-          )}
-
-          <div className="space-y-1">
-            <p className="text-xs text-t-muted">
-              {t('remote.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
-            </p>
-            {/* no folder name: the full path is right above, and several
-                levels can be missing at once */}
-            {targetMissing && <p className="text-[11px] text-t-muted">{t('watch.targetMissing')}</p>}
+            <Button
+              size="sm"
+              variant={browse ? 'primary' : 'default'}
+              className="shrink-0"
+              aria-expanded={browse}
+              onClick={() => setBrowse((b) => !b)}
+            >
+              <Folder aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('watch.browse')}
+            </Button>
           </div>
-
-          <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
-            <div className="flex items-center justify-between">
-              <Badge tone="accent">{t('watch.sectionRename')}</Badge>
-              <label className="flex items-center gap-2 text-sm text-t-secondary">
-                <input type="checkbox" checked={renameOn} onChange={(e) => setRenameOn(e.target.checked)} />
-                {t('watch.renameToggle')}
-              </label>
+          {browse && (
+            <div className="mt-2 flex max-h-56 flex-col overflow-hidden rounded-lg border border-border-subtle bg-bg-secondary/40">
+              <LocalPicker path={localPath} onNavigate={onLocalPath} />
             </div>
-            {renameOn && (
-              <RenameOptions
-                rule={rule}
-                onChange={(patch) => setRule({ ...rule, ...patch })}
-                caps={caps}
-                detected={detected}
-                idPrefix="sync"
-                seriesQuery={
-                  entry.isDir ? entry.name : entry.path.split('/').filter(Boolean).slice(-2, -1)[0] || entry.name
-                }
-              />
-            )}
-          </section>
-
-          {pairs && <RenamePreview pairs={pairs} sizes={sizes} target={targetEntries} busy={previewBusy} />}
+          )}
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          <Button onClick={onClose}>
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={pending} onClick={() => onConfirm(renameOn && hasRule ? rule : null)}>
-            <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {entry.isDir ? t('remote.syncFolder') : t('remote.downloadFile')}
-          </Button>
-        </footer>
+        {entry.isDir && (
+          <SubfolderChoice
+            value={mode}
+            onChange={onMode}
+            separator={separator}
+            onSeparator={onSeparator}
+            title={title}
+            seasonFolder={seed?.seasonFolder}
+          />
+        )}
+
+        <div className="space-y-1">
+          <p className="text-xs text-t-muted">
+            {t('remote.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
+          </p>
+          {/* no folder name: the full path is right above, and several
+                levels can be missing at once */}
+          {targetMissing && <p className="text-[11px] text-t-muted">{t('watch.targetMissing')}</p>}
+        </div>
+
+        <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
+          <div className="flex items-center justify-between">
+            <Badge tone="accent">{t('watch.sectionRename')}</Badge>
+            <label className="flex items-center gap-2 text-sm text-t-secondary">
+              <input type="checkbox" checked={renameOn} onChange={(e) => setRenameOn(e.target.checked)} />
+              {t('watch.renameToggle')}
+            </label>
+          </div>
+          {renameOn && (
+            <RenameOptions
+              rule={rule}
+              onChange={(patch) => setRule({ ...rule, ...patch })}
+              caps={caps}
+              detected={detected}
+              idPrefix="sync"
+              seriesQuery={
+                entry.isDir ? entry.name : entry.path.split('/').filter(Boolean).slice(-2, -1)[0] || entry.name
+              }
+            />
+          )}
+        </section>
+
+        {pairs && <RenamePreview pairs={pairs} sizes={sizes} target={targetEntries} busy={previewBusy} />}
       </div>
-    </Dialog>
+
+      <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
+        <Button onClick={onClose}>
+          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('common.cancel')}
+        </Button>
+        <Button variant="primary" disabled={pending} onClick={() => onConfirm(renameOn && hasRule ? rule : null)}>
+          <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {entry.isDir ? t('remote.syncFolder') : t('remote.downloadFile')}
+        </Button>
+      </footer>
+    </div>
   )
 }
 
@@ -1784,7 +1871,41 @@ function CatalogVersions({
   )
 }
 
-function RematchDialog({ serverId, item, onClose }: { serverId: number; item: CatalogItem; onClose: () => void }) {
+interface RematchProps {
+  serverId: number
+  item: CatalogItem
+  onClose: () => void
+  /** after a pick went through, with the new record's id (0: match removed) */
+  onPicked?: (mediaId: number) => void
+}
+
+function RematchDialog(props: RematchProps) {
+  const { t } = useTranslation()
+  return (
+    // a search field over a list that caps itself at max-h-72: this one is
+    // compact by construction, so it stays a centred box instead of stretching
+    // to a full screen it cannot fill
+    <Dialog
+      width="max-w-lg"
+      sheet={false}
+      aria-label={t('remote.matchFor', { name: props.item.entry.name })}
+      onClose={props.onClose}
+    >
+      <RematchForm {...props} />
+    </Dialog>
+  )
+}
+
+// The match search without a dialog, for the title card to show in place of
+// its content.
+function RematchForm({
+  serverId,
+  item,
+  onClose,
+  onPicked,
+  onBack,
+  className = '',
+}: RematchProps & Partial<CardViewProps>) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [q, setQ] = useState(item.entry.name)
@@ -1846,76 +1967,70 @@ function RematchDialog({ serverId, item, onClose }: { serverId: number; item: Ca
       return
     }
     qc.invalidateQueries({ queryKey: ['catalog', serverId] })
-    onClose()
+    if (onPicked) onPicked(mediaId)
+    else onClose()
   }
 
   return (
-    // a search field over a list that caps itself at max-h-72: this one is
-    // compact by construction, so it stays a centred box instead of stretching
-    // to a full screen it cannot fill
-    <Dialog
-      width="max-w-lg"
-      sheet={false}
-      aria-label={t('remote.matchFor', { name: item.entry.name })}
-      onClose={onClose}
-    >
-      <div className="p-5">
-        <h3 className="mb-1 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
-        {item.media && (
-          <p className="mb-2 text-xs text-t-muted">
-            {t('remote.currentMatch', { title: mediaTitle(item.media), id: item.media.id })}
-          </p>
-        )}
-        <div className="mb-1 flex gap-2">
-          <label className="sr-only" htmlFor="rematch-q">
-            {t('remote.search')}
-          </label>
-          <Input
-            id="rematch-q"
-            value={q}
-            placeholder={t('remote.searchHint')}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && search()}
-          />
-          <Button className="shrink-0" onClick={search}>
-            <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('remote.search')}
-          </Button>
-        </div>
-        <ul className="max-h-72 overflow-y-auto">
-          {results.map((m) => (
-            <li key={m.id}>
-              <button
-                className="flex w-full items-center gap-3 border-b border-border-subtle px-2 py-2 text-left hover:bg-bg-hover"
-                onClick={() => pick(m.id)}
-              >
-                <Cover src={m.coverImage.large} size="sm" />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm">{mediaTitle(m)}</span>
-                  <span className="text-xs text-t-muted">
-                    {m.seasonYear} · {m.format} · {m.episodes} EP
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        {pickError && (
-          <p className="mt-2 text-xs text-err" role="alert">
-            {pickError}
-          </p>
-        )}
-        <div className="mt-4 flex justify-between">
-          <Button variant="danger" size="sm" onClick={() => pick(0)}>
-            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('remote.removeMatch')}
-          </Button>
-          <Button onClick={onClose}>
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('remote.close')}
-          </Button>
-        </div>
+    <div className={`overflow-y-auto p-5 ${className}`}>
+      <div className="mb-1 flex items-center gap-2">
+        {onBack && <BackToCard onClick={onBack} />}
+        <h3 className="min-w-0 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
       </div>
-    </Dialog>
+      {item.media && (
+        <p className="mb-2 text-xs text-t-muted">
+          {t('remote.currentMatch', { title: mediaTitle(item.media), id: item.media.id })}
+        </p>
+      )}
+      <div className="mb-1 flex gap-2">
+        <label className="sr-only" htmlFor="rematch-q">
+          {t('remote.search')}
+        </label>
+        <Input
+          id="rematch-q"
+          value={q}
+          placeholder={t('remote.searchHint')}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && search()}
+        />
+        <Button className="shrink-0" onClick={search}>
+          <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('remote.search')}
+        </Button>
+      </div>
+      <ul className="max-h-72 overflow-y-auto">
+        {results.map((m) => (
+          <li key={m.id}>
+            <button
+              className="flex w-full items-center gap-3 border-b border-border-subtle px-2 py-2 text-left hover:bg-bg-hover"
+              onClick={() => pick(m.id)}
+            >
+              <Cover src={m.coverImage.large} size="sm" />
+              <span className="min-w-0">
+                <span className="block truncate text-sm">{mediaTitle(m)}</span>
+                <span className="text-xs text-t-muted">
+                  {m.seasonYear} · {m.format} · {m.episodes} EP
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {pickError && (
+        <p className="mt-2 text-xs text-err" role="alert">
+          {pickError}
+        </p>
+      )}
+      <div className="mt-4 flex justify-between">
+        <Button variant="danger" size="sm" onClick={() => pick(0)}>
+          <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('remote.removeMatch')}
+        </Button>
+        <Button onClick={onClose}>
+          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('remote.close')}
+        </Button>
+      </div>
+    </div>
   )
 }

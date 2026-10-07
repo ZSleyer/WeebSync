@@ -389,6 +389,7 @@
       "setupWatch": "Set up auto-sync"
     },
     "moreActions": "More actions for {{name}}",
+    "rematched": "Match changed",
     "progressLabel": "Progress {{name}}",
     "role": {
       "SUPPORTING": "Supporting",

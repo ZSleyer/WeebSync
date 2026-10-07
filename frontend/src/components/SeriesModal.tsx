@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { flushSync } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { useLocation } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -46,6 +46,7 @@ import {
   MenuItem,
   morphTransition,
   Progress,
+  useBackEntry,
   useMenu,
 } from '@weebsync/design-system'
 import {
@@ -108,6 +109,79 @@ interface SeriesModalApi {
 
 const Ctx = createContext<SeriesModalApi | null>(null)
 
+/** A form swapped into the card, as the provider knows it. */
+interface View {
+  close: () => void
+  guard: () => Promise<boolean>
+}
+interface ViewApi {
+  /** where a view renders: inside the card, in place of its content */
+  host: HTMLElement | null
+  attach: (v: View) => () => void
+}
+const ViewCtx = createContext<ViewApi | null>(null)
+
+/** What a form shown in the card gets from it, to spread onto the form. */
+export interface CardViewProps {
+  /** the back arrow: asks the form's guard, then goes back to the card */
+  onBack: () => void
+  /** hands over the form's unsaved-changes check */
+  onGuard: (check: () => Promise<boolean>) => void
+  /** the slide in, on the routes' shared axis */
+  className: string
+}
+
+/**
+ * Shows a form inside the open title card instead of stacking a dialog on
+ * it: the card's content steps aside for it and comes back when this
+ * unmounts. The caller owns the form and its state, as with a dialog - it
+ * renders this where it would have rendered the dialog, and drops it in
+ * `onClose`, which the card also calls when it closes underneath. The back
+ * gesture leaves the form first, past its guard.
+ */
+export function SeriesCardView({
+  onClose,
+  children,
+}: {
+  onClose: () => void
+  children: (v: CardViewProps) => ReactNode
+}) {
+  const ctx = useContext(ViewCtx)
+  if (!ctx) throw new Error('SeriesCardView outside SeriesModalProvider')
+  const guard = useRef<() => Promise<boolean>>(async () => true)
+  const closeRef = useRef(onClose)
+  useLayoutEffect(() => {
+    closeRef.current = onClose
+  })
+  const { attach } = ctx
+  useLayoutEffect(() => attach({ close: () => closeRef.current(), guard: () => guard.current() }), [attach])
+  const close = useCallback(() => closeRef.current(), [])
+  const ask = useCallback(() => guard.current(), [])
+  useBackEntry(close, ask)
+  const onBack = useCallback(async () => {
+    if (await guard.current()) closeRef.current()
+  }, [])
+  const onGuard = useCallback((check: () => Promise<boolean>) => {
+    guard.current = check
+  }, [])
+  if (!ctx.host) return null
+  return createPortal(<ViewBody render={children} onBack={onBack} onGuard={onGuard} />, ctx.host)
+}
+
+function ViewBody({ render, ...v }: Omit<CardViewProps, 'className'> & { render: (v: CardViewProps) => ReactNode }) {
+  return render({ ...v, className: 'anim-route-push' })
+}
+
+/** The back arrow at the head of a form shown in the card; focus starts there. */
+export function BackToCard({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <IconButton aria-label={t('watch.backToCard')} title={t('watch.backToCard')} onClick={onClick} autoFocus>
+      <ArrowLeft aria-hidden size="1.2em" />
+    </IconButton>
+  )
+}
+
 /** The one way to open the title card, from any cover in the app. */
 export function useSeriesModal(): SeriesModalApi {
   const api = useContext(Ctx)
@@ -160,12 +234,48 @@ export function SeriesModalProvider({ children }: { children: ReactNode }) {
   }, [])
   const close = useCallback(() => setTarget(null), [])
   const api = useMemo(() => ({ open, close }), [open, close])
+
+  // The form shown in the card, if any. One at a time: a second replaces the
+  // first. The card asks its guard before it closes, and closes it with it.
+  const view = useRef<View | null>(null)
+  const [viewOn, setViewOn] = useState(false)
+  const [host, setHost] = useState<HTMLElement | null>(null)
+  // the card notes its scroll and focus here before its content steps aside
+  const away = useRef<() => void>(() => {})
+  const attach = useCallback((v: View) => {
+    away.current()
+    view.current = v
+    setViewOn(true)
+    return () => {
+      if (view.current !== v) return
+      view.current = null
+      setViewOn(false)
+    }
+  }, [])
+  const views = useMemo(() => ({ host, attach }), [host, attach])
+  useEffect(() => {
+    if (!target) view.current?.close()
+  }, [target])
+
   return (
     <Ctx.Provider value={api}>
-      {children}
-      {/* keyed on the title: a second open() from a page is a new card, while
-          a related title picked inside the card stacks within the same one */}
-      {target && <SeriesDialog key={`${target.source}:${target.id}`} target={target} origin={origin} onClose={close} />}
+      <ViewCtx.Provider value={views}>
+        {children}
+        {/* keyed on the title: a second open() from a page is a new card, while
+            a related title picked inside the card stacks within the same one */}
+        {target && (
+          <SeriesDialog
+            key={`${target.source}:${target.id}`}
+            target={target}
+            origin={origin}
+            onClose={close}
+            viewOn={viewOn}
+            viewHost={setHost}
+            viewGuard={() => view.current?.guard() ?? Promise.resolve(true)}
+            away={away}
+          />
+        )}
+      </ViewCtx.Provider>
     </Ctx.Provider>
   )
 }
@@ -195,11 +305,20 @@ function SeriesDialog({
   target,
   origin,
   onClose,
+  viewOn,
+  viewHost,
+  viewGuard,
+  away: noteAway,
 }: {
   target: SeriesTarget
   /** the poster the dialog grew out of, to shrink back into */
   origin: HTMLElement | null
   onClose: () => void
+  /** a form is shown in place of the content (SeriesCardView) */
+  viewOn: boolean
+  viewHost: (el: HTMLElement | null) => void
+  viewGuard: () => Promise<boolean>
+  away: { current: () => void }
 }) {
   const { t } = useTranslation()
   // the trail of related titles opened from inside the card; the first entry
@@ -253,26 +372,34 @@ function SeriesDialog({
   const MediaStatusIcon = media?.status ? MEDIA_STATUS_ICON[media.status] : undefined
   const now = useNow()
 
-  // Editing a watch swaps the card's content for the editor, in the same
-  // dialog, rather than stacking a second modal on it: in from the right, and
-  // the card back in from the left (shared axis, the route motion's classes,
-  // which the reduced-motion gate already stills). The card unmounts while
-  // it is away, so where it was scrolled to and which block asked are kept
-  // for the way back.
+  // A form - editing a watch here, syncing or matching from the caller -
+  // swaps the card's content for itself, in the same dialog, rather than
+  // stacking a second modal on it: in from the right, and the card back in
+  // from the left (shared axis, the route motion's classes, which the
+  // reduced-motion gate already stills). The card unmounts while it is away,
+  // so where it was scrolled to and which control asked are kept for the way
+  // back.
   const act = useWatchActions()
   const [editing, setEditing] = useState<Watch | null>(null)
   const [returned, setReturned] = useState(false)
-  const guard = useRef<() => Promise<boolean>>(async () => true)
   const away = useRef<{ top: number; focus: string } | null>(null)
-  // `focus` is where focus goes on the way back: by default the menu of the
-  // watch's block, since the menu item that had it is gone
+  // `focus` is where focus goes on the way back: an action bar button, or the
+  // menu of a watch's block, since the menu item that had it is gone
+  const note = (focus: string) => {
+    away.current ??= { top: scroller.current?.scrollTop ?? 0, focus }
+  }
+  noteAway.current = () => {
+    const key = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('[data-action]')?.dataset.action
+    note(key ? `[data-action="${key}"]` : '')
+  }
   const edit = (w: Watch, focus = `[data-watch="${w.id}"] [aria-haspopup]`) => {
-    away.current = { top: scroller.current?.scrollTop ?? 0, focus }
+    note(focus)
     setEditing(w)
   }
-  const leave = () => {
-    setEditing(null)
-    setReturned(true)
+  const [wasOn, setWasOn] = useState(viewOn)
+  if (wasOn !== viewOn) {
+    setWasOn(viewOn)
+    if (!viewOn) setReturned(true)
   }
   const from = mine.find((w) => w.id === cur.watchId)
   const actions: SeriesAction[] =
@@ -356,7 +483,7 @@ function SeriesDialog({
   const [current, setCurrent] = useState<SeriesTab>('overview')
   useEffect(() => {
     const root = scroller.current
-    if (!root || editing || typeof IntersectionObserver === 'undefined') return
+    if (!root || viewOn || typeof IntersectionObserver === 'undefined') return
     const seen = new Map<Element, boolean>()
     const spy = new IntersectionObserver(
       (entries) => {
@@ -380,7 +507,7 @@ function SeriesDialog({
       ahead.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections.join(), editing, cur.id])
+  }, [sections.join(), viewOn, cur.id])
 
   const jump = (k: SeriesTab, smooth = true) => {
     const el = sec.current[k]
@@ -405,13 +532,13 @@ function SeriesDialog({
   // back from the editor: the scroll it left, and focus where the edit came from
   useLayoutEffect(() => {
     const was = away.current
-    if (editing || !was) return
+    if (viewOn || !was) return
     away.current = null
     if (scroller.current) scroller.current.scrollTop = was.top
     lag()
-    scroller.current?.parentElement?.querySelector<HTMLElement>(was.focus)?.focus()
+    if (was.focus) scroller.current?.parentElement?.querySelector<HTMLElement>(was.focus)?.focus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing])
+  }, [viewOn])
 
   return (
     <Dialog
@@ -420,23 +547,27 @@ function SeriesDialog({
       onClose={onClose}
       // Escape, the backdrop, the grabber and the back gesture still close the
       // whole card from the editor, but not past its unsaved changes
-      onRequestClose={() => (editing ? guard.current() : true)}
+      onRequestClose={() => (viewOn ? viewGuard() : true)}
       closeTransition={origin ? (close) => void morphTransition(origin, close, true) : undefined}
     >
-      {editing ? (
-        <WatchForm
-          className="anim-route-push"
-          title={t('watch.editTitle')}
-          serverId={editing.serverId}
-          watchId={editing.id}
-          initial={watchFields(editing)}
-          onSave={(f) => act.save(editing.id, f)}
-          onClose={leave}
-          onGuard={(check) => (guard.current = check)}
-          onBack={async () => {
-            if (await guard.current()) leave()
-          }}
-        />
+      {editing && (
+        <SeriesCardView onClose={() => setEditing(null)}>
+          {(v) => (
+            <WatchForm
+              {...v}
+              title={t('watch.editTitle')}
+              serverId={editing.serverId}
+              watchId={editing.id}
+              initial={watchFields(editing)}
+              onSave={(f) => act.save(editing.id, f)}
+              onClose={() => setEditing(null)}
+            />
+          )}
+        </SeriesCardView>
+      )}
+      {viewOn ? (
+        // layout-neutral: the form's own box is the dialog's content
+        <div ref={viewHost} className="contents" />
       ) : (
         <div className={`dialog-body relative ${returned ? 'anim-route-pop' : ''}`}>
           <div ref={dock} aria-hidden className="t-dock pr-12">

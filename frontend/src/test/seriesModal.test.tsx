@@ -2,7 +2,14 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, Link } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { SeriesModalProvider, useSeriesModal, type SeriesTarget } from '../components/SeriesModal'
+import { useState } from 'react'
+import {
+  BackToCard,
+  SeriesCardView,
+  SeriesModalProvider,
+  useSeriesModal,
+  type SeriesTarget,
+} from '../components/SeriesModal'
 import { api, type Media, type Watch } from '../api'
 
 // keys instead of strings, with the name interpolated where a label carries one
@@ -46,12 +53,41 @@ const watch = (id: number): Watch =>
   }) as unknown as Watch
 
 let target: SeriesTarget = { id: 7, media }
+// a page as the catalog is one: it owns a form and shows it inside the card
+// when the card's action asks for it
+let formClosed = 0
 function Opener() {
   const { open } = useSeriesModal()
+  const [form, setForm] = useState(false)
   return (
     <>
       <button onClick={() => open(target)}>öffnen</button>
+      <button
+        onClick={() =>
+          open({
+            ...target,
+            actions: [{ key: 'sync', label: 'Jetzt syncen', primary: true, onClick: () => setForm(true) }],
+          })
+        }
+      >
+        mit Formular
+      </button>
       <Link to="/elsewhere">weg</Link>
+      {form && (
+        <SeriesCardView
+          onClose={() => {
+            formClosed++
+            setForm(false)
+          }}
+        >
+          {(v) => (
+            <div className={`dialog-body ${v.className}`}>
+              <BackToCard onClick={v.onBack} />
+              <h3>Sync-Formular</h3>
+            </div>
+          )}
+        </SeriesCardView>
+      )}
     </>
   )
 }
@@ -283,6 +319,36 @@ describe('SeriesModalProvider', () => {
     // the header's X closes the card
     fireEvent.click(screen.getByRole('button', { name: 'common.close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('slides a page form in inside the card and comes back to the card', async () => {
+    serve()
+    formClosed = 0
+    app()
+    fireEvent.click(screen.getByText('mit Formular'))
+    // a click focuses the button in a browser; fireEvent does not
+    screen.getByRole('button', { name: 'Jetzt syncen' }).focus()
+    fireEvent.click(screen.getByRole('button', { name: 'Jetzt syncen' }))
+    // one dialog, now holding the form instead of the card
+    expect(document.querySelectorAll('dialog')).toHaveLength(1)
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Sync-Formular' })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('navigation', { name: 'series.sectionsLabel' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'watch.backToCard' })).toHaveFocus()
+
+    // back: the card again, focus on the action that asked
+    fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Sync-Formular' })).toBeNull())
+    expect(screen.getByRole('navigation', { name: 'series.sectionsLabel' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Jetzt syncen' })).toHaveFocus()
+    expect(formClosed).toBe(1)
+
+    // the card closing under the form takes the form with it
+    fireEvent.click(screen.getByRole('button', { name: 'Jetzt syncen' }))
+    // Escape on the native dialog surfaces as its cancel event
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(formClosed).toBe(2)
   })
 
   it('swaps the card for the watch editor in place and comes back to it', async () => {
