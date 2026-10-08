@@ -406,13 +406,10 @@ export default function Files() {
 
       {!isLocal && servers.length === 0 ? (
         <EmptyState>
-          <Trans i18nKey="remote.noServers">
-            Erst unter{' '}
-            <Link to="/settings/servers" className="text-accent underline">
-              Server
-            </Link>{' '}
-            eine Quelle anlegen.
-          </Trans>
+          <Trans
+            i18nKey="remote.noServers"
+            components={{ go: <Link to="/settings/servers" className="text-accent underline" /> }}
+          />
         </EmptyState>
       ) : (
         <Panel as="section" className="flex min-h-64 min-w-0 flex-1 flex-col lg:min-h-0" aria-label={t('files.title')}>

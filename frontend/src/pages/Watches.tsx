@@ -507,13 +507,7 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
         <SkeletonCards />
       ) : watches.length === 0 ? (
         <EmptyState>
-          <Trans i18nKey="watch.empty">
-            In der{' '}
-            <Link to="/files" className="text-accent underline">
-              Remote
-            </Link>
-            -Ansicht einen Ordner auswählen und „Beobachten" klicken.
-          </Trans>
+          <Trans i18nKey="watch.empty" components={{ go: <Link to="/files" className="text-accent underline" /> }} />
         </EmptyState>
       ) : view === 'calendar' ? (
         <div className="flex flex-col gap-4">
