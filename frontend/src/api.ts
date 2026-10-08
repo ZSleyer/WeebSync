@@ -24,6 +24,8 @@ export interface ServerInfo {
   maxConnections: number
   /** picture for the source switch, one of SERVER_ICONS or empty */
   icon: string
+  /** tint where sources meet, one of SOURCE_COLORS or empty for automatic */
+  color: string
 }
 
 // Which folder a sync creates below the target: none, one named after the
