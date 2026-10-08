@@ -21,6 +21,8 @@ interface Entry {
   label: string
   /** where it lives, under the label */
   sub: string
+  /** a folder path after the sub; cut from its start, the end names the place */
+  path?: string
   icon: LucideIcon
   run: () => void
   /** a number at the end, e.g. how many suggestions wait in a list */
@@ -207,7 +209,8 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
           return {
             id: `file:${h.serverId}:${h.path}`,
             label: h.name,
-            sub: `${h.serverName || t('palette.local')} · ${dir.slice(0, dir.lastIndexOf('/')) || '/'}`,
+            sub: h.serverName || t('palette.local'),
+            path: dir.slice(0, dir.lastIndexOf('/')) || '/',
             icon: h.isDir ? Folder : File,
             tint: h.serverId ? serverColor(h.serverId, colors.get(h.serverId)) : localColor(),
             run: () => {
@@ -334,12 +337,25 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
                     className={`shrink-0 ${e.tint ? 't-src' : ''}`}
                     style={e.tint ? tint(e.tint) : undefined}
                   />
-                  <span className="min-w-0 flex-1 truncate">{e.label}</span>
-                  {e.count ? <Count className="shrink-0">{e.count}</Count> : null}
-                  <span className="flex min-w-0 shrink items-center gap-1.5 truncate text-xs text-t-muted">
-                    {e.tint && <span aria-hidden className="t-src-dot" style={tint(e.tint)} />}
-                    <span className="truncate">{e.sub}</span>
+                  {/* name above, where it lives below: the name never has to
+                      share its line with a long path */}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate">{e.label}</span>
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-t-muted">
+                      {e.tint && <span aria-hidden className="t-src-dot shrink-0" style={tint(e.tint)} />}
+                      <span className={e.path ? 'max-w-[45%] shrink-0 truncate' : 'truncate'}>{e.sub}</span>
+                      {e.path && (
+                        <>
+                          <span aria-hidden>·</span>
+                          {/* rtl puts the ellipsis at the start, bdi keeps the path itself in order */}
+                          <span dir="rtl" className="min-w-0 truncate text-left" title={e.path}>
+                            <bdi>{e.path}</bdi>
+                          </span>
+                        </>
+                      )}
+                    </span>
                   </span>
+                  {e.count ? <Count className="shrink-0">{e.count}</Count> : null}
                   {!needle && i < recent.length && (
                     // forgets the entry; the row itself still opens it. Out of
                     // the tab order: Delete does the same from the field
