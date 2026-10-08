@@ -79,9 +79,9 @@ const TABS = [
   { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
   { to: '/files', key: 'nav.files', icon: FolderOpen },
 ]
-// The phone's tab bar holds four of them; the search stands apart at its
-// right end, under the thumb, and the suggestions open from the search's
-// empty field instead of a tab of their own.
+// The phone's tab bar holds four of them and the search as the last entry,
+// under the thumb; the suggestions open from the search's empty field
+// instead of a tab of their own.
 const PHONE_TABS = TABS.filter((n) => n.to !== '/suggestions')
 const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings }
 const NAV = [...TABS, SETTINGS]
@@ -482,30 +482,28 @@ function Shell({ email }: { email: string }) {
   // the phone's tab bar: every top-level page
   const tabs = (
     <TabBar aria-label={t('nav.main')}>
-      <div className="flex items-center">
-        <div className="flex min-w-0 flex-1">
-          {PHONE_TABS.map((n) => (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              end={n.to === '/'}
-              className={({ isActive }) => navItemClass('bottomTab', isActive)}
-            >
-              {icon(n)}
-              <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
-            </NavLink>
-          ))}
-        </div>
-        {/* the search as Ctrl+K is on the desktop: its own round button at
-            the bar's end, where the thumb rests */}
+      <div className="flex">
+        {PHONE_TABS.map((n) => (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.to === '/'}
+            className={({ isActive }) => navItemClass('bottomTab', isActive)}
+          >
+            {icon(n)}
+            <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
+          </NavLink>
+        ))}
+        {/* the search as Ctrl+K is on the desktop: the last entry, where the
+            thumb rests, drawn like the tabs but opening the search */}
         <button
           type="button"
           onClick={() => setPalette(true)}
-          aria-label={t('palette.title')}
           aria-haspopup="dialog"
-          className="t-tabsearch"
+          className={navItemClass('bottomTab', false)}
         >
-          <Search aria-hidden size="1.35em" />
+          <Search aria-hidden size="1.25em" className="shrink-0" />
+          <span className="max-w-full truncate whitespace-nowrap">{t('palette.title')}</span>
         </button>
       </div>
     </TabBar>
