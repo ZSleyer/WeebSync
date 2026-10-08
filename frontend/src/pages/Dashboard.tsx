@@ -572,13 +572,10 @@ export default function Dashboard() {
             </div>
           ) : watches.length === 0 ? (
             <EmptyState>
-              <Trans i18nKey="dash.noWatches">
-                Noch keine Serie überwacht. In{' '}
-                <Link to="/files" className="text-accent underline">
-                  Dateien
-                </Link>{' '}
-                einen Ordner beobachten.
-              </Trans>
+              <Trans
+                i18nKey="dash.noWatches"
+                components={{ go: <Link to="/files" className="text-accent underline" /> }}
+              />
             </EmptyState>
           ) : (
             <>
@@ -686,17 +683,14 @@ export default function Dashboard() {
                 (filtering ? (
                   <EmptyState>{t('dash.noMatches')}</EmptyState>
                 ) : (
-                  // idle is the normal state, and it must not cost a screen: one
-                  // line with the way to the next download, not a tall blank
-                  <Panel className="p-3 text-sm text-t-muted">
-                    <Trans i18nKey="dash.idle">
-                      Nichts wird übertragen.{' '}
-                      <Link to="/files" className="text-accent underline">
-                        Dateien
-                      </Link>{' '}
-                      öffnen, um etwas zu laden.
-                    </Trans>
-                  </Panel>
+                  // idle is the normal state, not a thing to look at: no card,
+                  // one quiet centred line and the way to the next download
+                  <p className="py-6 text-center text-sm text-t-muted">
+                    <Trans
+                      i18nKey="dash.idle"
+                      components={{ go: <Link to="/files" className="text-accent underline" /> }}
+                    />
+                  </p>
                 ))}
               <div ref={queueList} className="flex flex-col gap-3">
                 {shown.map((d) => (
