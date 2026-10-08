@@ -1,4 +1,12 @@
-import { Fragment, useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import {
+  Fragment,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
 import { File, Folder, Search, Sparkles, Settings, Tv, X, type LucideIcon } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -276,6 +284,16 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
     }
   }, [])
 
+  // a new query, or a fresh opening, starts the list at its top; moving the
+  // highlight by key keeps it in view
+  const scroller = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = 0
+  }, [needle])
+  useEffect(() => {
+    document.getElementById(`${listId}-${sel}`)?.scrollIntoView?.({ block: 'nearest' })
+  }, [listId, sel])
+
   const optionId = (i: number) => `${listId}-${i}`
   const heading = (text: string) => (
     <li role="presentation" className="px-2 pt-2 pb-1.5 font-mono text-[11px] tracking-wider text-t-muted uppercase">
@@ -315,7 +333,7 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
             Esc
           </kbd>
         </div>
-        <div className="max-h-[min(60dvh,26rem)] overflow-y-auto p-2 max-sm:max-h-[min(50dvh,26rem)]">
+        <div ref={scroller} className="max-h-[min(60dvh,26rem)] overflow-y-auto p-2 max-sm:max-h-[min(50dvh,26rem)]">
           <ul id={listId} role="listbox" aria-label={t('palette.title')}>
             {shown.map((e, i) => (
               <Fragment key={e.id}>
