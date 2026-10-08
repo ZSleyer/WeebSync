@@ -37,6 +37,7 @@ const app = (isAdmin = false) => {
   vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
     if (url === '/api/auth/me') return { email: 'a@b.c', isAdmin }
     if (url === '/api/watches') return []
+    if (url === '/api/servers') return [{ id: 3, name: 'seedbox', color: 'violet' }]
     if (url.startsWith('/api/search?q=frieren'))
       return {
         results: [
@@ -115,5 +116,18 @@ describe('CommandPalette', () => {
     expect(screen.getByText('palette.discover')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('option', { name: /suggestions\.tabWatchlist/ }))
     expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
+  it('forgets a recent entry, by its button or by Delete', async () => {
+    app()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'calendar' } })
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' })
+    await screen.findByText('calendar page')
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    await screen.findByRole('combobox')
+    fireEvent.click(screen.getByRole('button', { name: 'palette.forget' }))
+    expect(screen.queryByText('palette.recent')).toBeNull()
+    expect(JSON.parse(localStorage.getItem('weebsync.palette.recent') ?? '[]')).toEqual([])
   })
 })

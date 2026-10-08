@@ -49,6 +49,7 @@
     "page": "Page",
     "recent": "Recently opened",
     "discover": "Discover",
+    "forget": "Remove \"{{name}}\" from recently opened",
     "none": "Nothing found.",
     "hint": "Type a name: calendar, Plex, a series …",
     "local": "Local library",
@@ -1337,7 +1338,6 @@
     "rootPath": "Root path",
     "icon": "Icon",
     "iconNone": "No icon (name)",
-    "maxConnections": "Max connections",
     "color": "Colour",
     "colorAuto": "Automatic",
     "colors": {
@@ -1352,6 +1352,7 @@
       "pink": "Pink",
       "red": "Red"
     },
+    "maxConnections": "Max connections",
     "maxConnectionsHint": "Ceiling on concurrent connections to the server. SFTP multiplexes several channels over one connection; the index waits when downloads need the capacity.",
     "cancel": "Cancel",
     "save": "Save",
