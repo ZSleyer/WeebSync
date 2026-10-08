@@ -22,7 +22,8 @@ type serverInfo struct {
 	Username       string `json:"username"`
 	RootPath       string `json:"rootPath"`
 	MaxConnections int    `json:"maxConnections"`
-	Icon           string `json:"icon"` // one of serverIcons, empty = the name stands alone
+	Icon           string `json:"icon"`  // one of serverIcons, empty = the name stands alone
+	Color          string `json:"color"` // one of serverColors, empty = picked from the id
 }
 
 // serverIcons is the picture a server may show in the files page's source
@@ -30,6 +31,13 @@ type serverInfo struct {
 var serverIcons = map[string]bool{
 	"": true, "server": true, "cloud": true, "hard-drive": true, "database": true, "globe": true,
 	"satellite-dish": true, "box": true, "rocket": true, "tv": true, "film": true,
+}
+
+// serverColors is the tint a server's entries carry where several sources
+// meet; the frontend maps the names to its palette and keeps the same list.
+var serverColors = map[string]bool{
+	"": true, "orange": true, "amber": true, "lime": true, "green": true, "teal": true,
+	"cyan": true, "blue": true, "violet": true, "pink": true, "red": true,
 }
 
 type serverInput struct {
@@ -42,10 +50,11 @@ type serverInput struct {
 	RootPath       string `json:"rootPath"`
 	MaxConnections int    `json:"maxConnections"`
 	Icon           string `json:"icon"`
+	Color          string `json:"color"`
 }
 
 func (in *serverInput) valid() bool {
-	if !serverIcons[in.Icon] {
+	if !serverIcons[in.Icon] || !serverColors[in.Color] {
 		return false
 	}
 	switch in.Protocol {
@@ -83,7 +92,7 @@ func (in *serverInput) valid() bool {
 // @Router   /api/servers [get]
 func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path, max_connections, icon
+	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path, max_connections, icon, color
 		FROM servers WHERE user_id = ? ORDER BY name`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -93,7 +102,7 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	list := []serverInfo{}
 	for rows.Next() {
 		var si serverInfo
-		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath, &si.MaxConnections, &si.Icon); err != nil {
+		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath, &si.MaxConnections, &si.Icon, &si.Color); err != nil {
 			dbErr(w)
 			return
 		}
@@ -130,7 +139,8 @@ func (s *Server) handleServerCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, serverInfo{ID: id, Name: in.Name, Protocol: in.Protocol,
-		Host: in.Host, Port: in.Port, Username: in.Username, RootPath: in.RootPath, MaxConnections: in.MaxConnections})
+		Host: in.Host, Port: in.Port, Username: in.Username, RootPath: in.RootPath, MaxConnections: in.MaxConnections,
+		Icon: in.Icon, Color: in.Color})
 }
 
 // insertServer stores a validated server for a user; shared by the create
@@ -140,9 +150,9 @@ func (s *Server) insertServer(userID int64, in serverInput) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	res, err := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path, max_connections, icon)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		userID, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, in.Icon)
+	res, err := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path, max_connections, icon, color)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		userID, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, in.Icon, in.Color)
 	if err != nil {
 		return 0, err
 	}
@@ -182,16 +192,16 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// credentials changed: reset the learned host key too
-		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, max_connections=?, icon=?, host_key=''
-			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, in.Icon, id, u.ID)
+		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, max_connections=?, icon=?, color=?, host_key=''
+			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, in.Icon, in.Color, id, u.ID)
 		if err != nil {
 			dbErr(w)
 			return
 		}
 	} else {
 		var err error
-		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?, max_connections=?, icon=?
-			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, in.MaxConnections, in.Icon, id, u.ID)
+		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?, max_connections=?, icon=?, color=?
+			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, in.MaxConnections, in.Icon, in.Color, id, u.ID)
 		if err != nil {
 			dbErr(w)
 			return

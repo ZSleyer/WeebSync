@@ -3671,6 +3671,10 @@
             },
             "api.serverInfo": {
                 "properties": {
+                    "color": {
+                        "description": "one of serverColors, empty = picked from the id",
+                        "type": "string"
+                    },
                     "host": {
                         "type": "string"
                     },
@@ -3705,6 +3709,9 @@
             "api.serverInput": {
                 "description": "server to create (protocol/port/password confirmed by the user)",
                 "properties": {
+                    "color": {
+                        "type": "string"
+                    },
                     "host": {
                         "type": "string"
                     },
