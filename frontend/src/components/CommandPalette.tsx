@@ -1,12 +1,4 @@
-import {
-  Fragment,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-} from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { File, Folder, Search, Sparkles, Settings, Tv, X, type LucideIcon } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -255,7 +247,10 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       if (!shown.length) return
-      setAt((sel + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length)
+      const next = (sel + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length
+      setAt(next)
+      // only a key moves the view: the pointer already points at what it lit
+      document.getElementById(`${listId}-${next}`)?.scrollIntoView?.({ block: 'nearest' })
     } else if (e.key === 'Enter' && shown[sel]) {
       e.preventDefault()
       run(shown[sel])
@@ -285,14 +280,16 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   }, [])
 
   // a new query, or a fresh opening, starts the list at its top; moving the
-  // highlight by key keeps it in view
+  // highlight by key keeps it in view. Firefox hands a reopened list the
+  // closed one's scroll position (same place in the page) as the dialog
+  // first lays it out, after the effects ran - so once more a frame later
   const scroller = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    if (scroller.current) scroller.current.scrollTop = 0
-  }, [needle])
   useEffect(() => {
-    document.getElementById(`${listId}-${sel}`)?.scrollIntoView?.({ block: 'nearest' })
-  }, [listId, sel])
+    const top = () => scroller.current && (scroller.current.scrollTop = 0)
+    top()
+    const frame = requestAnimationFrame(top)
+    return () => cancelAnimationFrame(frame)
+  }, [needle])
 
   const optionId = (i: number) => `${listId}-${i}`
   const heading = (text: string) => (
