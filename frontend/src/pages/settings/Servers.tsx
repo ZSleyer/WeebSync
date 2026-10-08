@@ -19,6 +19,15 @@ import { useConfirm } from '../../components/confirm'
 import HostKeyPrompt from '../../components/HostKeyPrompt'
 import { PageFooter } from '../../components/PageActions'
 import { SERVER_ICONS, ServerIcon } from '../../components/serverIcon'
+import {
+  LOCAL_DEFAULT,
+  localColor,
+  serverColor,
+  setLocalColor,
+  SOURCE_COLORS,
+  tint,
+  type SourceColorName,
+} from '../../components/sourceColor'
 
 export default function Servers() {
   const { t } = useTranslation()
@@ -85,6 +94,7 @@ export default function Servers() {
       </header>
 
       {servers.length === 0 && <EmptyState>{t('servers.none')}</EmptyState>}
+      <LocalColor />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {servers.map((s) => (
           <Panel key={s.id} className="p-4">
@@ -93,6 +103,7 @@ export default function Servers() {
                 {s.protocol === 'ftp' ? <LockOpen aria-hidden size="1em" /> : <Lock aria-hidden size="1em" />}
                 {s.protocol}
               </Badge>
+              <span aria-hidden className="t-src-dot" style={tint(serverColor(s.id, s.color))} />
               <h3 className="min-w-0 flex-1 truncate font-display font-semibold">{s.name}</h3>
             </div>
             <p className="truncate font-mono text-xs text-t-muted" title={`${s.username}@${s.host}:${s.port}`}>
@@ -159,6 +170,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   const [error, setError] = useState('')
   const [protocol, setProtocol] = useState(editing?.protocol ?? 'sftp')
   const [icon, setIcon] = useState(editing?.icon ?? '')
+  const [color, setColor] = useState(editing?.color ?? '')
   // uncontrolled form: any input change marks it dirty for the close guard
   const [dirty, setDirty] = useState(false)
   // Dialog asks this before Escape or a backdrop click closes it
@@ -200,6 +212,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
       rootPath: fd.get('rootPath'),
       maxConnections: Number(fd.get('maxConnections')) || 3,
       icon,
+      color,
     }
     setError('')
     try {
@@ -243,6 +256,10 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
                 })),
               ]}
             />
+          </Field>
+          {/* the tint of this server's entries where sources meet, e.g. in the search */}
+          <Field label={t('servers.color')} className="sm:col-span-2">
+            <ColorChoice value={color} onChange={setColor} auto={editing ? serverColor(editing.id) : undefined} />
           </Field>
           <Field label={t('servers.protocol')}>
             <Select
@@ -320,5 +337,63 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
         </div>
       </form>
     </Dialog>
+  )
+}
+
+/** The tints to pick from, as dots; "auto" keeps the one taken from the id. */
+function ColorChoice({
+  value,
+  onChange,
+  auto,
+}: {
+  value: string
+  onChange: (v: string) => void
+  auto?: SourceColorName
+}) {
+  const { t } = useTranslation()
+  return (
+    <Segmented
+      aria-label={t('servers.color')}
+      value={value}
+      onChange={onChange}
+      className="flex-wrap"
+      options={[
+        {
+          value: '',
+          label: (
+            <span className="inline-flex items-center gap-1.5">
+              {auto && <span aria-hidden className="t-src-dot" style={tint(auto)} />}
+              {t('servers.colorAuto')}
+            </span>
+          ),
+        },
+        ...(Object.keys(SOURCE_COLORS) as SourceColorName[]).map((k) => ({
+          value: k,
+          'aria-label': t(`servers.colors.${k}`),
+          label: <span aria-hidden className="t-src-dot" style={tint(k)} />,
+        })),
+      ]}
+    />
+  )
+}
+
+// the local library has no server row; its tint is a look of this device
+function LocalColor() {
+  const { t } = useTranslation()
+  const [value, setValue] = useState<string>(localColor)
+  return (
+    <Panel className="mb-3 flex flex-wrap items-center gap-3 p-4">
+      <span aria-hidden className="t-src-dot" style={tint(localColor())} />
+      <span className="min-w-0 flex-1 font-display font-semibold">{t('palette.local')}</span>
+      <ColorChoice
+        value={value === LOCAL_DEFAULT ? '' : value}
+        auto={LOCAL_DEFAULT}
+        onChange={(v) => {
+          const next = (v || LOCAL_DEFAULT) as SourceColorName
+          setLocalColor(next)
+          setValue(next)
+        }}
+      />
+    </Panel>
   )
 }
