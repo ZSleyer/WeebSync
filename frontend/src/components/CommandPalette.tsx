@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { File, Folder, Search, Sparkles, Settings, Tv, type LucideIcon } from 'lucide-react'
+import { File, Folder, Search, Sparkles, Settings, Tv, X, type LucideIcon } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Count, Dialog } from '@weebsync/design-system'
-import { api, mediaTitle, type Watch } from '../api'
+import { api, mediaTitle, type ServerInfo, type Watch } from '../api'
+import { localColor, serverColor, tint, type SourceColorName } from './sourceColor'
 import { useSeriesModal } from './SeriesModal'
 import { PANELS, useSettingsGroups } from '../pages/settings/SettingsLayout'
 import { useSuggestionGroups } from '../pages/Suggestions'
@@ -24,6 +25,8 @@ interface Entry {
   run: () => void
   /** a number at the end, e.g. how many suggestions wait in a list */
   count?: number
+  /** a source's tint (server or local library) for the icon and a dot */
+  tint?: SourceColorName
 }
 
 const RECENT_KEY = 'weebsync.palette.recent'
@@ -84,6 +87,12 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   const settings = useSettingsGroups()
   const suggestions = useSuggestionGroups()
   const { data: watches = [] } = useQuery<Watch[]>({ queryKey: ['watches'], queryFn: () => api.get('/api/watches') })
+  // each server's chosen tint, for its hits
+  const { data: servers = [] } = useQuery<ServerInfo[]>({
+    queryKey: ['servers'],
+    queryFn: () => api.get('/api/servers'),
+  })
+  const colors = new Map(servers.map((x) => [x.id, x.color]))
   const [q, setQ] = useState('')
   const [at, setAt] = useState(0)
   const listId = useId()
@@ -168,7 +177,18 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   // the empty field: what was opened last, then what there is to discover -
   // the suggestion lists with how much waits in each and the assistant. On a
   // phone the search took the suggestions' place in the tab bar.
-  const recent = readRecent().flatMap((id) => entries.filter((e) => e.id === id))
+  // held in state, so forgetting one redraws the list
+  const [recentIds, setRecentIds] = useState(readRecent)
+  const forget = (id: string) => {
+    const next = recentIds.filter((r) => r !== id)
+    setRecentIds(next)
+    try {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+    } catch {
+      // storage off: forgotten for this opening only
+    }
+  }
+  const recent = recentIds.flatMap((id) => entries.filter((e) => e.id === id))
   const discover: Entry[] = suggestions.flatMap((g) =>
     g.items.map((i) => ({
       id: `/suggestions/${i.to}`,
@@ -189,6 +209,7 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
             label: h.name,
             sub: `${h.serverName || t('palette.local')} · ${dir.slice(0, dir.lastIndexOf('/')) || '/'}`,
             icon: h.isDir ? Folder : File,
+            tint: h.serverId ? serverColor(h.serverId, colors.get(h.serverId)) : localColor(),
             run: () => {
               navigate(filesLink(h.serverId, dir), { state: { jump: Date.now() } })
               onClose()
@@ -227,10 +248,14 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
     } else if (e.key === 'Enter' && shown[sel]) {
       e.preventDefault()
       run(shown[sel])
+    } else if (e.key === 'Delete' && !needle && sel < recent.length && shown[sel]) {
+      // the keyboard's way to forget the highlighted recent entry
+      e.preventDefault()
+      forget(shown[sel].id)
     }
   }
 
-  // On a phone the field sits at the bottom, under the thumb, right above the
+  // On a phone the box stands at the bottom, under the thumb, right above the
   // keyboard: iOS does not shrink the layout for the keyboard, so the dialog
   // is lifted by what the visual viewport lost at the bottom.
   useEffect(() => {
@@ -264,8 +289,8 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
       aria-label={t('palette.title')}
       className="max-sm:mt-auto max-sm:mb-[calc(var(--kb,0px)+var(--safe-b)+0.5rem)]"
     >
-      <div className="flex flex-col max-sm:flex-col-reverse">
-        <div className="flex items-center gap-2 border-b border-border-subtle px-4 max-sm:border-t max-sm:border-b-0">
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 border-b border-border-subtle px-4">
           <Search aria-hidden size="1.1em" className="shrink-0 text-t-muted" />
           <input
             autoFocus
@@ -303,10 +328,35 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
                     i === sel ? 'bg-bg-hover text-t-primary' : 'text-t-secondary'
                   }`}
                 >
-                  <e.icon aria-hidden size="1.1em" className="shrink-0" />
+                  <e.icon
+                    aria-hidden
+                    size="1.1em"
+                    className={`shrink-0 ${e.tint ? 't-src' : ''}`}
+                    style={e.tint ? tint(e.tint) : undefined}
+                  />
                   <span className="min-w-0 flex-1 truncate">{e.label}</span>
                   {e.count ? <Count className="shrink-0">{e.count}</Count> : null}
-                  <span className="shrink-0 truncate text-xs text-t-muted">{e.sub}</span>
+                  <span className="flex min-w-0 shrink items-center gap-1.5 truncate text-xs text-t-muted">
+                    {e.tint && <span aria-hidden className="t-src-dot" style={tint(e.tint)} />}
+                    <span className="truncate">{e.sub}</span>
+                  </span>
+                  {!needle && i < recent.length && (
+                    // forgets the entry; the row itself still opens it. Out of
+                    // the tab order: Delete does the same from the field
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      aria-label={t('palette.forget', { name: e.label })}
+                      title={t('palette.forget', { name: e.label })}
+                      onClick={(ev) => {
+                        ev.stopPropagation()
+                        forget(e.id)
+                      }}
+                      className="t-iconbtn -my-1 -mr-1 shrink-0 text-t-muted hover:text-t-primary"
+                    >
+                      <X aria-hidden size="1em" />
+                    </button>
+                  )}
                 </li>
               </Fragment>
             ))}

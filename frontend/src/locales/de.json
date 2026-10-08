@@ -49,6 +49,7 @@
     "page": "Seite",
     "recent": "Zuletzt geöffnet",
     "discover": "Entdecken",
+    "forget": "„{{name}}“ aus „Zuletzt geöffnet“ entfernen",
     "none": "Nichts gefunden.",
     "hint": "Einen Namen tippen: Kalender, Plex, eine Serie …",
     "local": "Lokale Bibliothek",
@@ -1337,7 +1338,6 @@
     "rootPath": "Root-Pfad",
     "icon": "Symbol",
     "iconNone": "Kein Symbol (Name)",
-    "maxConnections": "Max. Verbindungen",
     "color": "Farbe",
     "colorAuto": "Automatisch",
     "colors": {
@@ -1352,6 +1352,7 @@
       "pink": "Pink",
       "red": "Rot"
     },
+    "maxConnections": "Max. Verbindungen",
     "maxConnectionsHint": "Obergrenze gleichzeitiger Verbindungen zum Server. SFTP bündelt mehrere Kanäle über eine Verbindung; der Index wartet, wenn Downloads sie brauchen.",
     "cancel": "Abbrechen",
     "save": "Speichern",
