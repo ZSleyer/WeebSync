@@ -106,11 +106,15 @@ export function PosterBand({ items, index, onIndex, onOpen, label, className }: 
     centre(index, false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length])
-  // a change from outside (a key, a tap on a side poster) brings it over
+  // a change from outside (a key, a tap on a side poster) brings it over:
+  // gliding for a near poster, at once for a far one - a long glide passes
+  // every poster between, reports each as the middle and can settle on one
+  // of them before it arrives
   useEffect(() => {
     if (index !== at.current) {
+      const near = Math.abs(index - at.current) <= 3
       at.current = index
-      centre(index, true)
+      centre(index, near)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index])
