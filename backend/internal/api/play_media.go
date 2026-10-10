@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/mkvsubs"
+	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
@@ -197,11 +200,29 @@ func (s *Server) startSubs(j *mediaJob) {
 	j.subsOnce.Do(func() { go s.extractSubs(j) })
 }
 
-// extractSubs writes every text track in one pass through the file. It yields
-// the remote connections to the picture, and it only counts when the whole
-// file went through.
+// extractSubs writes every text track. A Matroska file that indexes its
+// subtitle blocks gives them up in a few hundred small reads (mkvsubs); any
+// other file is read once from end to end by ffmpeg. That pass yields the
+// remote connections to the picture, and it only counts when the whole file
+// went through.
 func (s *Server) extractSubs(j *mediaJob) {
 	defer close(j.subsDone)
+	began := time.Now()
+	if strings.EqualFold(filepath.Ext(j.src.path), ".mkv") {
+		n, err := s.sparseSubs(j)
+		if err == nil {
+			slog.Info("player subtitles", "path", logSafe(j.src.path), "way", "cues", "tracks", n, "took", time.Since(began).Round(time.Millisecond))
+			return
+		}
+		if j.ctx.Err() != nil {
+			j.subsErr = errors.New("the subtitle pass was stopped")
+			return
+		}
+		slog.Info("player subtitles", "path", logSafe(j.src.path), "way", "cues", "skipped", err)
+	}
+	defer func() {
+		slog.Info("player subtitles", "path", logSafe(j.src.path), "way", "full read", "took", time.Since(began).Round(time.Millisecond), "failed", j.subsErr != nil)
+	}()
 	var after []string
 	for _, t := range j.info.Subs {
 		if t.Index >= 0 && !t.Image {
@@ -235,6 +256,91 @@ func (s *Server) extractSubs(j *mediaJob) {
 		slog.Warn("player subtitles", "path", logSafe(j.src.path), "err", err, "ffmpeg", logSafe(stderr.String()))
 		j.subsErr = errors.New("the subtitle tracks could not be read")
 	}
+}
+
+// sparseSubs reads the text tracks through the file's Cues and writes them
+// into the job; n is how many it wrote.
+func (s *Server) sparseSubs(j *mediaJob) (n int, err error) {
+	bg := j.src
+	bg.low = true
+	ra, size, done, err := s.readerAt(j.ctx, bg)
+	if err != nil {
+		return 0, err
+	}
+	defer done()
+	subs, err := mkvsubs.Read(ra, size, 8)
+	if err != nil {
+		return 0, err
+	}
+	for _, t := range j.info.Subs {
+		if t.Index < 0 || t.Image || t.Index >= len(subs.Tracks) || !subs.Tracks[t.Index].Text {
+			continue
+		}
+		// ffprobe numbers a Matroska file's streams in the order of its tracks
+		if err := os.WriteFile(filepath.Join(j.dir, strconv.Itoa(t.Index)+".ass"), []byte(subs.ASS(subs.Tracks[t.Index])), 0o600); err != nil {
+			return 0, err
+		}
+		n++
+	}
+	return n, nil
+}
+
+// readerAt opens the source for reads at any offset. A local file is one; an
+// SFTP file is one too, and serves the reads in parallel on a single
+// handle. Anything else (FTP) reads each range on its own transfer.
+func (s *Server) readerAt(ctx context.Context, src playSource) (io.ReaderAt, int64, func(), error) {
+	if src.serverID == 0 {
+		local, err := s.openLocal(src.path)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		f, err := local.Root.Open(local.Name)
+		if err != nil {
+			local.Close()
+			return nil, 0, nil, err
+		}
+		fi, err := f.Stat()
+		if err != nil {
+			f.Close()
+			local.Close()
+			return nil, 0, nil, err
+		}
+		return f, fi.Size(), func() { f.Close(); local.Close() }, nil
+	}
+	pf, err := s.openPlay(ctx, src)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	rf := pf.ReadSeeker.(*remoteFile)
+	rc, err := rf.c.Open(rf.path, 0)
+	if err != nil {
+		pf.close()
+		return nil, 0, nil, err
+	}
+	if ra, ok := rc.(io.ReaderAt); ok {
+		return ra, pf.size, func() { rc.Close(); pf.close() }, nil
+	}
+	rc.Close()
+	return &rangeReader{c: rf.c, path: rf.path}, pf.size, pf.close, nil
+}
+
+// rangeReader reads a range at a time through Open(path, offset), one at a
+// time: a client without random access cannot serve two at once.
+type rangeReader struct {
+	mu   sync.Mutex
+	c    remote.Client
+	path string
+}
+
+func (r *rangeReader) ReadAt(p []byte, off int64) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rc, err := r.c.Open(r.path, off)
+	if err != nil {
+		return 0, err
+	}
+	defer rc.Close()
+	return io.ReadFull(rc, p)
 }
 
 // SubPending is the answer while the subtitle pass is still reading the file.
