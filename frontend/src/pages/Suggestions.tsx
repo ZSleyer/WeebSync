@@ -517,7 +517,9 @@ function SugCard({
   const { open: openSeries } = useSeriesModal()
   const watchIcon = <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
   return (
-    <li>
+    // a reveal tied to the scroll where the engine has view timelines; elsewhere
+    // the card is simply there (no observer for a list built by a helper)
+    <li className="t-reveal">
       <SuggestionCard
         cover={it.cover}
         onCover={

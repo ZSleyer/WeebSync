@@ -88,6 +88,12 @@
   --scrollbar-track: #000000;
   --scrollbar-thumb: #2a2a30;
   --scrollbar-thumb-hover: #4a4a54;
+  /* glass for floating layers: tinted black, never grey, so on an OLED panel
+     it reads as depth rather than a milky veil. 78% keeps grey text at 4.5:1
+     even with a white poster behind it (66% fell to ~4.3:1). */
+  --glass-bg: rgb(0 0 0 / 0.78);
+  --glass-line: rgb(255 255 255 / 0.1);
+  --glass-hi: rgb(255 255 255 / 0.12);
   color-scheme: dark;
 }
 
@@ -110,7 +116,32 @@
   --scrollbar-track: #eef1f4;
   --scrollbar-thumb: #c3ccd6;
   --scrollbar-thumb-hover: #8fa3b5;
+  --glass-bg: rgb(255 255 255 / 0.8);
+  --glass-line: rgb(10 22 40 / 0.12);
+  --glass-hi: rgb(255 255 255 / 0.7);
   color-scheme: light;
+}
+
+/* ── Glass: only for layers that float over content (menus, the player's
+   bars). The page itself stays opaque - glass over plain black is just dark,
+   and every blurred layer costs a phone GPU time. Never nest it. The top
+   highlight is the "liquid" edge; no SVG refraction (Chromium only, costly).
+   Without backdrop-filter, or when the user asks for less transparency, the
+   layer turns solid. */
+.t-glass {
+  background: var(--glass-bg);
+  border-color: var(--glass-line);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 12px 32px -12px rgb(0 0 0 / 0.5);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .t-glass { background: var(--bg-secondary); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .t-glass { background: var(--bg-secondary); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  /* :root for weight - the player's own block comes later in the file */
+  :root .t-player { --pl-surface: rgb(0 0 0 / 0.9); --pl-blur: none; }
 }
 
 /* ── Accent presets (each ≥4.5:1 on its mode's surfaces) ── */
@@ -446,7 +477,7 @@ dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--accent-r
 button.t-label,
 a.t-label {
   cursor: pointer;
-  transition: background-color 120ms, border-color 120ms;
+  transition: background-color var(--dur-1), border-color var(--dur-1);
 }
 /* Hover only where a pointer hovers: on a touch screen :hover sticks to the
    last tapped element until the next tap elsewhere. Tailwind's hover: variant
@@ -503,7 +534,7 @@ a.t-label {
   color: var(--text-primary);
   padding: 7px 14px;
   cursor: pointer;
-  transition: border-color 150ms, background-color 150ms, transform 80ms var(--ease-out);
+  transition: border-color var(--dur-1), background-color var(--dur-1), transform 80ms var(--ease-out);
 }
 /* press feedback on the weighted buttons; no transform on hover */
 .t-btn--primary:active:not(:disabled),
@@ -585,7 +616,7 @@ a.t-label {
   background: none;
   cursor: pointer;
   min-height: 40px; /* WCAG 2.5.8 + comfortable touch target */
-  transition: color 150ms, background-color 150ms, border-color 150ms;
+  transition: color var(--dur-1), background-color var(--dur-1), border-color var(--dur-1);
 }
 @media (hover: hover) {
   .t-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
@@ -692,7 +723,7 @@ summary::-webkit-details-marker { display: none; }
   border-radius: var(--r-ctl);
   padding: 7px 10px;
   width: 100%;
-  transition: border-color 150ms;
+  transition: border-color var(--dur-1);
 }
 .t-input { text-overflow: ellipsis; } /* also applies to a clipped placeholder */
 /* Compact field for dense rows - same family as .t-btn--sm, so a small field
@@ -745,7 +776,7 @@ summary::-webkit-details-marker { display: none; }
   border-radius: var(--r-ctl);
   padding: 7px 30px 7px 10px;
   width: 100%;
-  transition: border-color 150ms;
+  transition: border-color var(--dur-1);
 }
 .t-select:focus {
   outline: none;
@@ -1067,6 +1098,36 @@ main:has(.page-fill) {
     :root:not([data-motion="off"]) .t-ep[data-in="1"] { transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
   }
 }
+
+/* The same entrance for any list or grid below the first screen (poster rows,
+   calendar days, file lists): rise 8px and fade in as it scrolls into view.
+   useReveal marks the items where view timelines are missing. --i staggers
+   items that arrive together, capped at 8 so a long grid never trails. */
+@keyframes t-rise-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    :root:not([data-motion="off"]) .t-reveal {
+      animation: t-rise-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
+  }
+  @supports not (animation-timeline: view()) {
+    :root:not([data-motion="off"]) .t-reveal[data-in="0"] { opacity: 0; transform: translateY(8px); }
+    :root:not([data-motion="off"]) .t-reveal[data-in="1"] {
+      transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out);
+      transition-delay: calc(min(var(--i, 0), 8) * 40ms);
+    }
+  }
+}
+/* siblings stagger by their place in a run of eight, so a caller sets nothing */
+.t-reveal:nth-child(8n + 2) { --i: 1; }
+.t-reveal:nth-child(8n + 3) { --i: 2; }
+.t-reveal:nth-child(8n + 4) { --i: 3; }
+.t-reveal:nth-child(8n + 5) { --i: 4; }
+.t-reveal:nth-child(8n + 6) { --i: 5; }
+.t-reveal:nth-child(8n + 7) { --i: 6; }
+.t-reveal:nth-child(8n + 8) { --i: 7; }
 
 /* ── The page's large title and the app bar (PageHeader, PageScroll) ──
    On a desktop the page header is the heading over the content. On a phone a
@@ -1972,7 +2033,11 @@ li.t-swiperow { border-radius: 0; }
    surface, so the controls clear 3:1 on any frame. */
 .t-player {
   --pl-fg: #e6ebf0;
-  --pl-surface: rgb(11 11 13 / 0.72);
+  /* black-tinted glass (OLED: depth, not a grey veil), one blur and one top
+     highlight for every floating piece of the player */
+  --pl-surface: rgb(0 0 0 / 0.72);
+  --pl-blur: blur(16px) saturate(1.4);
+  --pl-hi: inset 0 1px 0 rgb(255 255 255 / 0.1);
   --pl-line: rgb(255 255 255 / 0.12);
   --pl-hit: 2.5rem;
   --pl-dock-h: 5.25rem; /* dock + its margin, measured by the player; this is the first paint */
@@ -2069,7 +2134,8 @@ li.t-swiperow { border-radius: 0; }
   background: var(--pl-surface);
   border: 1px solid var(--pl-line);
   border-radius: var(--r-menu);
-  backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: var(--pl-blur);
+  box-shadow: var(--pl-hi);
   pointer-events: auto;
 }
 .t-player-top { align-self: stretch; line-height: 1.4; } /* the host sets 0 */
@@ -2118,7 +2184,8 @@ li.t-swiperow { border-radius: 0; }
   background: var(--pl-surface);
   border: 1px solid var(--pl-line);
   border-radius: var(--r-menu);
-  backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: var(--pl-blur);
+  box-shadow: var(--pl-hi);
   transform-origin: bottom right;
   line-height: 1.4;
   font-family: var(--font-sans);
@@ -2158,7 +2225,8 @@ li.t-swiperow { border-radius: 0; }
   background: var(--pl-surface);
   border: 1px solid var(--pl-line);
   border-radius: var(--r-menu);
-  backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: var(--pl-blur);
+  box-shadow: var(--pl-hi);
 }
 /* fullscreen draws under the notch, the rounded corners and the gesture bar:
    the title row and the dock keep clear of all four. The page's --safe-b is
@@ -2271,7 +2339,8 @@ li.t-swiperow { border-radius: 0; }
   border-radius: 50%;
   background: var(--pl-surface);
   border: 1px solid var(--pl-line);
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--pl-blur);
+  box-shadow: var(--pl-hi);
   --media-button-icon-width: 32px;
   --media-button-icon-height: 32px;
   pointer-events: auto;

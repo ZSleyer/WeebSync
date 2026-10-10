@@ -122,6 +122,7 @@ export { SidePanel } from './sidePanel'
 export type { SidePanelProps } from './sidePanel'
 
 export { useMenu } from './useMenu'
+export { useReveal } from './useReveal'
 export { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 
 export { haptic } from './haptics'

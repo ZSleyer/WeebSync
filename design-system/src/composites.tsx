@@ -1375,7 +1375,7 @@ export function Menu({ children, className, anchor, placement = 'bottom-start', 
       {...(anchored ? { popover: 'manual', 'data-placement': placement } : {})}
       style={anchored ? { positionAnchor: anchor } : undefined}
       className={cx(
-        't-pop max-h-[min(60dvh,20rem)] min-w-44 overflow-x-clip overflow-y-auto rounded-lg border border-border-subtle bg-bg-card py-1 shadow-lg',
+        't-pop t-glass max-h-[min(60dvh,20rem)] min-w-44 overflow-x-clip overflow-y-auto rounded-lg border py-1',
         up && 't-pop--up',
         anchored ? 't-menu' : anchor ? cx(MENU_FALLBACK[placement], 'w-max max-w-[70vw]') : undefined,
         className,
