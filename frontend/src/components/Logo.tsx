@@ -5,7 +5,7 @@ import { LOGO_H, LOGO_PATH_S, LOGO_PATH_W, LOGO_W } from '../logo'
 // colour. Decorative: whatever wraps it names the destination.
 //
 // It draws itself in on mount and again whenever `replayKey` changes (the
-// shell passes the route), one of five intros at random each time. The SVG
+// shell passes the route), one of four intros at random each time. The SVG
 // stays mounted throughout and the intro runs on rAF, writing SVG attributes
 // only - no React state, so the page around it never re-renders for it, and
 // WebKit ignores CSS transforms inside a clipPath anyway. Every intro enters
@@ -26,9 +26,9 @@ const lin = (t: number) => t
 const slant = (x: number) => `-300,0 ${x.toFixed(1)},0 ${(x - 216).toFixed(1)},${H} -300,${H}`
 const OPEN = slant(1400)
 
-export const INTROS = ['trace', 'cut', 'set', 'stream', 'roll'] as const
+export const INTROS = ['trace', 'set', 'stream', 'roll'] as const
 export type Intro = (typeof INTROS)[number]
-export const DURATION: Record<Intro, number> = { trace: 1950, cut: 1300, set: 900, stream: 1250, roll: 800 }
+export const DURATION: Record<Intro, number> = { trace: 1950, set: 900, stream: 1250, roll: 800 }
 
 export const still = () =>
   document.documentElement.dataset.motion === 'off' ||
@@ -71,7 +71,6 @@ export default function Logo({
       lnS: q('[data-k="ln-s"]'),
       hdW: q('[data-k="hd-w"]'),
       hdS: q('[data-k="hd-s"]'),
-      edge: q('[data-k="edge"]'),
       stW: q('[data-k="st-w"] rect'),
       stS: q('[data-k="st-s"] rect'),
       flash: q('[data-k="flash"]'),
@@ -85,7 +84,6 @@ export default function Logo({
       set(el.wipe, 'points', OPEN)
       set(el.lvl, 'y', 0)
       set([...el.lnW, ...el.lnS, ...el.hdW, ...el.hdS], 'stroke-opacity', 0)
-      set(el.edge, 'opacity', 0)
       set([...el.stW, ...el.stS], 'width', 0)
       set(el.flash, 'transform', 'translate(-700 0)')
     }
@@ -117,18 +115,6 @@ export default function Logo({
         set(el.lnW, 'stroke-opacity', fade)
         set(el.lnS, 'stroke-opacity', fade)
         sheen(seg(1350, 1950, inOut))
-      },
-      // one cut on the mark's own slant uncovers both letters, an accent blade leads
-      cut: (_t, seg) => {
-        const x = -300 + 1720 * seg(80, 900, outExpo)
-        set(el.wipe, 'points', slant(x))
-        set(
-          el.edge,
-          'points',
-          `${x.toFixed(1)},0 ${(x + 18).toFixed(1)},0 ${(x - 198).toFixed(1)},${H} ${(x - 216).toFixed(1)},${H}`,
-        )
-        set(el.edge, 'opacity', 1 - seg(650, 900, lin))
-        sheen(seg(800, 1300, inOut))
       },
       // the letters set down in turn and settle with a small overshoot
       set: (_t, seg) => {
@@ -228,7 +214,6 @@ export default function Logo({
         <g data-k="st-s" clipPath={`url(#${id}ss)`} fill="var(--accent-blue)">
           {stripeRows(540)}
         </g>
-        <polygon data-k="edge" points="-400,0 -384,0 -600,594 -616,594" fill="var(--accent-blue)" opacity={0} />
         <path data-k="ln-w" d={LOGO_PATH_W} {...line} stroke="currentColor" strokeWidth="1.5" strokeDasharray="1 1" />
         <path
           data-k="ln-s"
