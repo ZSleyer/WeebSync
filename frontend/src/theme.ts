@@ -8,8 +8,9 @@ export type Theme = 'dark' | 'light'
 export const THEME_KEY = 'weebsync.theme'
 const PREFS: ThemePref[] = ['system', 'dark', 'light']
 const DARK_MQ = '(prefers-color-scheme: dark)'
-// the browser's own chrome (address bar, task switcher) takes the app's
-// secondary surface, the colour the app bar and sidebar sit on
+// the browser's own chrome (address bar, status bar, task switcher) takes the
+// app's secondary surface, the colour the app bar and sidebar sit on; these are
+// the fallbacks for when the stylesheet is not there to ask (tests, first paint)
 const BAR_COLOR: Record<Theme, string> = { dark: '#0b0b0d', light: '#f8fafb' }
 
 export function resolveTheme(pref: ThemePref, systemDark: boolean): Theme {
@@ -27,9 +28,18 @@ export function readThemePref(): ThemePref {
 
 let unwatch: (() => void) | undefined
 
+/** Tint the browser's bars with the surface they border, read live off the stylesheet. */
+export function syncThemeColor() {
+  const root = document.documentElement
+  const theme: Theme = root.dataset.theme === 'light' ? 'light' : 'dark'
+  const color = getComputedStyle(root).getPropertyValue('--bg-secondary').trim() || BAR_COLOR[theme]
+  // index.html carries one per OS scheme; a fixed choice overrides both
+  for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', color)
+}
+
 function paint(theme: Theme) {
   document.documentElement.dataset.theme = theme
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', BAR_COLOR[theme])
+  syncThemeColor()
   // the accent has a shade per mode, and the tab icon carries the accent
   setFavicon()
 }

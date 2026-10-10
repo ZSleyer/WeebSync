@@ -211,6 +211,32 @@
      - which is what iOS needs for its home indicator. */
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
+  /* landscape notches and cutouts */
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+
+/* Installed app: no pull-to-refresh and no rubber band at the ends. Chrome
+   decides pull-to-refresh by the root's overscroll-behavior; on a phone <main>
+   is the scroller and needs it too. */
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+  @media (width < 64rem) {
+    .app-shell > main { overscroll-behavior-y: none; }
+  }
+}
+
+/* Phone shell rows clear the side cutouts in landscape. The insets are 0
+   everywhere else, so no display-mode gate. Unlayered, so these beat the px-3 /
+   p-4 utilities; below lg only, the desktop keeps its lg:p-6. */
+@media (width < 64rem) {
+  .app-shell > header { padding-inline: calc(0.75rem + var(--safe-l)) calc(0.75rem + var(--safe-r)); }
+  .app-shell > main { padding-inline: calc(1rem + var(--safe-l)) calc(1rem + var(--safe-r)); }
+  .app-shell > nav,
+  .app-shell > .t-shell-footer { padding-inline: var(--safe-l) var(--safe-r); }
 }
 
 /* ...except that Firefox then still gets the phantom band through the fallback.
@@ -2067,11 +2093,21 @@ li.t-swiperow { border-radius: 0; }
   --media-font-family: var(--font-sans);
   --media-menu-item-description-max-width: 10rem;
 }
-.t-player:fullscreen .t-player-menu { right: 1.5rem; }
+.t-player:fullscreen .t-player-menu { right: max(1.5rem, env(safe-area-inset-right, 0px)); }
+/* never taller than the room between the top edge and the dock: a phone held
+   sideways has little of it, and the menu scrolls inside instead of running
+   off the picture. media-chrome's own cap reaches up to the very top edge. */
+.t-player-menu { max-height: calc(100% - var(--pl-dock-h) - 1rem); }
+.t-player:fullscreen .t-player-menu {
+  max-height: calc(100% - var(--pl-dock-h) - max(1rem, env(safe-area-inset-top, 0px)));
+}
 .t-player-menu :is(media-settings-menu-item, media-chrome-menu-item) {
   padding: 0.5rem 0.625rem;
   border-radius: var(--r-xs);
   gap: 0.75rem;
+}
+@media (pointer: coarse) {
+  .t-player-menu :is(media-settings-menu-item, media-chrome-menu-item) { box-sizing: border-box; min-height: 2.75rem; }
 }
 .t-player-menu [slot='title'] { font-family: var(--font-display); font-weight: 600; }
 
@@ -2084,8 +2120,32 @@ li.t-swiperow { border-radius: 0; }
   border-radius: var(--r-menu);
   backdrop-filter: blur(12px) saturate(1.2);
 }
-.t-player:fullscreen .t-player-dock { margin: 0 1.5rem 1.5rem; }
+/* fullscreen draws under the notch, the rounded corners and the gesture bar:
+   the title row and the dock keep clear of all four. The page's --safe-b is
+   tuned for a tab's bottom bar; fullscreen has none, so env() direct. */
+.t-player:fullscreen .t-player-top {
+  margin-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  margin-inline: max(1.5rem, env(safe-area-inset-left, 0px)) max(1.5rem, env(safe-area-inset-right, 0px));
+  max-width: none;
+}
+.t-player:fullscreen .t-player-dock {
+  margin: 0 max(1.5rem, env(safe-area-inset-right, 0px)) max(1.5rem, env(safe-area-inset-bottom, 0px))
+    max(1.5rem, env(safe-area-inset-left, 0px));
+}
 .t-player-dock { align-self: stretch; }
+/* the controls grow with the player, not the window: small on a phone,
+   roomier on a desktop or a TV in fullscreen. Set on the dock, not on
+   .t-player - container units on the container itself would measure its
+   parent. */
+.t-player-dock {
+  --pl-hit: clamp(2.25rem, 1.5cqi + 1.75rem, 3rem);
+  --media-font-size: clamp(12px, 0.25cqi + 11px, 14px);
+  --media-control-height: clamp(18px, 0.6cqi + 16px, 24px);
+  --media-control-padding: clamp(6px, 0.5cqi + 5px, 12px);
+  --media-button-icon-width: clamp(20px, 0.8cqi + 16px, 28px);
+  --media-button-icon-height: clamp(20px, 0.8cqi + 16px, 28px);
+}
+.t-player-btn svg { width: var(--media-button-icon-width); height: var(--media-button-icon-height); }
 .t-player-scrub,
 .t-player-bar { display: flex; width: 100%; align-items: center; }
 .t-player-scrub media-time-range {
