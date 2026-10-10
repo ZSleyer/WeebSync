@@ -472,6 +472,14 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           fonts: data.fonts.map((i) => new URL(`/api/play/font?${src}&index=${i}`, location.href).href),
         })
         renderer = r
+        // Firefox hands requestVideoFrameCallback a mediaTime up to half a
+        // second ahead of the picture on screen, falling back to it now and
+        // then: libass drew the next line, this one, the next again, and every
+        // line flickered in and out. Its currentTime is right. Chrome's
+        // mediaTime is frame-exact and stays.
+        const draw = r.manualRender.bind(r)
+        r.manualRender = (d, repaint) =>
+          draw(Math.abs(d.mediaTime - v.currentTime) > 0.1 ? { ...d, mediaTime: v.currentTime } : d, repaint)
         // libass draws on each new video frame; a paused video sends none, so
         // a track picked while paused stayed blank until play. Drawing the
         // frame that is on screen fixes that.
