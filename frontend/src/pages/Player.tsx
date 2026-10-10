@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 import HlsPlayer from 'hls.js'
 import JASSUB from 'jassub'
+import { Captions } from 'lucide-react'
 import {
   MediaControlBar,
   MediaController,
@@ -12,16 +13,26 @@ import {
   MediaMuteButton,
   MediaPipButton,
   MediaPlayButton,
+  MediaPreviewTimeDisplay,
   MediaSeekBackwardButton,
   MediaSeekForwardButton,
   MediaTimeDisplay,
   MediaTimeRange,
   MediaVolumeRange,
 } from 'media-chrome/react'
+import {
+  MediaChromeMenu,
+  MediaChromeMenuItem,
+  MediaPlaybackRateMenu,
+  MediaSettingsMenu,
+  MediaSettingsMenuButton,
+  MediaSettingsMenuItem,
+} from 'media-chrome/react/menu'
+import type { MediaChromeMenu as ChromeMenuElement } from 'media-chrome/menu'
+import type { MediaController as MediaControllerElement } from 'media-chrome'
 import { addTranslation, setLanguage } from 'media-chrome/dist/utils/i18n.js'
 import { De } from 'media-chrome/dist/lang/de.js'
 import { api, keyConflictOf } from '../api'
-import PillSelect from '../components/PillSelect'
 import HostKeyPrompt from '../components/HostKeyPrompt'
 import Loading from '../components/Loading'
 
@@ -205,12 +216,41 @@ export default function Player() {
     }
   }, [hls, data])
 
+  // the dock's real height (it differs per viewport and pointer): the
+  // subtitles move up by it and the settings menu opens above it
+  const playerRef = useRef<MediaControllerElement>(null)
+  useEffect(() => {
+    const player = playerRef.current
+    const dock = player?.querySelector<HTMLElement>('.t-player-dock')
+    if (!player || !dock) return
+    const ro = new ResizeObserver(() => {
+      const gap = parseFloat(getComputedStyle(dock).marginBottom) || 0
+      player.style.setProperty('--pl-dock-h', `${dock.offsetHeight + gap}px`)
+    })
+    ro.observe(dock)
+    return () => ro.disconnect()
+  }, [data])
+
+  // a phone in fullscreen turns to landscape, where a 16:9 picture fills the
+  // screen; browsers without orientation lock (iOS) simply stay as they are
+  useEffect(() => {
+    const turn = () => {
+      const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
+      if (!matchMedia('(pointer: coarse)').matches || !o?.lock) return
+      if (document.fullscreenElement) o.lock('landscape').catch(() => {})
+      else o.unlock?.()
+    }
+    document.addEventListener('fullscreenchange', turn)
+    return () => document.removeEventListener('fullscreenchange', turn)
+  }, [])
+
   // text subtitles: ASS from the server, rendered by libass with the file's fonts
   const [subError, setSubError] = useState('')
   useEffect(() => {
     const v = videoRef.current
     if (!v || !data || !subTrack || subTrack.image) return
     let renderer: JASSUB | null = null
+    let canvas: HTMLCanvasElement | null = null
     let dead = false
     setSubError('')
     const url = subTrack.file
@@ -220,8 +260,15 @@ export default function Player() {
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.statusText))))
       .then((content) => {
         if (dead) return
+        // our own canvas: media-chrome fades every overlay out with the
+        // controls unless it is marked noautohide, and the subtitles must stay
+        canvas = document.createElement('canvas')
+        canvas.className = 't-player-subs'
+        canvas.setAttribute('noautohide', '')
+        v.after(canvas)
         renderer = new JASSUB({
           video: v,
+          canvas,
           subContent: content,
           fonts: data.fonts.map((i) => new URL(`/api/play/font?${src}&index=${i}`, location.href).href),
         })
@@ -230,8 +277,32 @@ export default function Player() {
     return () => {
       dead = true
       renderer?.destroy()
+      canvas?.remove()
     }
   }, [data, subTrack, server, src, t])
+
+  // touch: a double tap on the left or right third of the picture seeks 10 s,
+  // and taps that keep coming add up (the flash shows the running total). A
+  // single tap is left to media-chrome, which shows or hides the controls.
+  const lastTap = useRef({ at: 0, side: '' })
+  const [flash, setFlash] = useState<{ side: 'back' | 'fwd'; secs: number } | null>(null)
+  const flashTimer = useRef(0)
+  const tapSeek = (e: PointerEvent<HTMLElement>) => {
+    const vid = videoRef.current
+    if (e.pointerType !== 'touch' || !vid) return
+    if ((e.target as HTMLElement).closest('.t-player-dock, .t-player-menu, .t-player-top')) return
+    const box = e.currentTarget.getBoundingClientRect()
+    const x = (e.clientX - box.left) / box.width
+    const side = x < 1 / 3 ? 'back' : x > 2 / 3 ? 'fwd' : ''
+    const now = performance.now()
+    const prev = lastTap.current
+    lastTap.current = { at: now, side }
+    if (!side || prev.side !== side || now - prev.at > 300) return
+    vid.currentTime = Math.min(Math.max(vid.currentTime + (side === 'fwd' ? 10 : -10), 0), vid.duration || Infinity)
+    setFlash((f) => ({ side, secs: (f?.side === side ? f.secs : 0) + 10 }))
+    clearTimeout(flashTimer.current)
+    flashTimer.current = window.setTimeout(() => setFlash(null), 700)
+  }
 
   if (!path) return <p className="p-6 text-sm text-t-muted">{t('player.noFile')}</p>
   if (info.isPending) return <Loading />
@@ -253,66 +324,173 @@ export default function Player() {
       </p>
     )
 
+  const subLabel = subTrack ? trackLabel(subTrack, 0) : t('player.subOff')
+  const v = data.video
+  const facts = [
+    v && `${CODEC_NAMES[v.codec] ?? v.codec.toUpperCase()}${v.pixFmt?.includes('10') ? ' 10-bit' : ''}`,
+    v && v.height > 0 && `${v.height}p`,
+  ].filter(Boolean)
+
   return (
-    <div className="flex flex-col gap-3">
-      <MediaController
-        lang={i18n.language}
-        className="aspect-video w-full overflow-hidden rounded-[var(--r-md)] bg-black [&:fullscreen]:aspect-auto"
-      >
-        {/* captions are libass on a canvas over the picture: a <track> cannot
-            carry ASS styling, positioning or the file's fonts */}
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-        <video ref={videoRef} slot="media" playsInline />
-        <MediaLoadingIndicator slot="centered-chrome" noAutohide />
-        <MediaControlBar>
-          <MediaPlayButton />
-          <MediaSeekBackwardButton seekOffset={10} />
-          <MediaSeekForwardButton seekOffset={10} />
-          <MediaTimeRange />
-          <MediaTimeDisplay showDuration />
-          <MediaMuteButton />
-          <MediaVolumeRange />
-          <MediaPipButton />
-          <MediaFullscreenButton />
-        </MediaControlBar>
-      </MediaController>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-sm text-t-secondary" title={path}>
+    <MediaController
+      ref={playerRef}
+      lang={i18n.language}
+      className="t-player"
+      // media-chrome's hotkeys (space, k, f, m, arrows) act only while focus is
+      // inside the player, never page-wide (WCAG 2.1.4)
+      onPointerUp={tapSeek}
+    >
+      {/* captions are libass on a canvas over the picture: a <track> cannot
+          carry ASS styling, positioning or the file's fonts */}
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+      <video ref={videoRef} slot="media" playsInline />
+
+      <div slot="top-chrome" className="t-player-top">
+        <span className="t-player-title" title={path}>
           {name}
         </span>
-        {data.audio.length > 1 && (
-          <PillSelect
-            label={t('player.audio')}
-            value={String(audioIdx)}
-            options={data.audio.map((a, i) => ({ value: String(a.index), label: trackLabel(a, i) }))}
-            onChange={(v) => {
-              resumeAt.current = videoRef.current?.currentTime ?? 0
-              setAudio(Number(v))
-            }}
-          />
+        {facts.map((f) => (
+          <span key={f as string} className="t-player-chip">
+            {f}
+          </span>
+        ))}
+        {hls && (
+          <span className="t-player-chip t-player-chip--accent" title={t('player.transcoding')}>
+            {t('player.transcode')}
+          </span>
         )}
-        {data.subs.length > 0 && (
-          <PillSelect
-            label={t('player.subtitles')}
+        {subError && (
+          <span className="t-player-chip t-player-chip--err" role="alert">
+            {subError}
+          </span>
+        )}
+      </div>
+
+      {/* noautohide: a double-tap flash must show while the controls are away;
+          the big play button has its own paused-only rule */}
+      <div slot="centered-chrome" className="t-player-center" {...{ noautohide: '' }}>
+        <span className="t-player-flash" data-side="back" data-on={flash?.side === 'back' || undefined} aria-hidden>
+          {flash?.side === 'back' && `- ${flash.secs} s`}
+        </span>
+        <MediaLoadingIndicator noAutohide className="t-player-spinner" />
+        <MediaPlayButton className="t-player-bigplay" />
+        <span className="t-player-flash" data-side="fwd" data-on={flash?.side === 'fwd' || undefined} aria-hidden>
+          {flash?.side === 'fwd' && `+ ${flash.secs} s`}
+        </span>
+      </div>
+
+      <MediaSettingsMenu hidden anchor="auto" className="t-player-menu">
+        <MediaSettingsMenuItem>
+          {t('player.subtitles')}
+          <TrackMenu
+            title={t('player.subtitles')}
             value={subKey}
             options={[
               { value: 'none', label: t('player.subOff') },
               ...data.subs.map((s, i) => ({ value: subValue(s), label: trackLabel(s, i) })),
             ]}
-            onChange={(v) => {
+            onChange={(val) => {
               resumeAt.current = videoRef.current?.currentTime ?? 0
-              setSub(v)
+              setSub(val)
             }}
           />
+        </MediaSettingsMenuItem>
+        {data.audio.length > 1 && (
+          <MediaSettingsMenuItem>
+            {t('player.audio')}
+            <TrackMenu
+              title={t('player.audio')}
+              value={String(audioIdx)}
+              options={data.audio.map((a, i) => ({ value: String(a.index), label: trackLabel(a, i) }))}
+              onChange={(val) => {
+                resumeAt.current = videoRef.current?.currentTime ?? 0
+                setAudio(Number(val))
+              }}
+            />
+          </MediaSettingsMenuItem>
         )}
+        <MediaSettingsMenuItem>
+          {t('player.speed')}
+          <MediaPlaybackRateMenu slot="submenu" hidden rates={[0.5, 0.75, 1, 1.25, 1.5, 2]}>
+            <div slot="title">{t('player.speed')}</div>
+          </MediaPlaybackRateMenu>
+        </MediaSettingsMenuItem>
+      </MediaSettingsMenu>
+
+      <div className="t-player-dock">
+        <MediaControlBar className="t-player-scrub">
+          <MediaTimeRange>
+            <MediaPreviewTimeDisplay slot="preview" />
+          </MediaTimeRange>
+        </MediaControlBar>
+        <MediaControlBar className="t-player-bar">
+          <MediaPlayButton />
+          <MediaSeekBackwardButton seekOffset={10} />
+          <MediaSeekForwardButton seekOffset={10} />
+          <span className="t-player-volume">
+            <MediaMuteButton />
+            <MediaVolumeRange />
+          </span>
+          <MediaTimeDisplay showDuration className="t-player-time" />
+          <span className="flex-1" />
+          <button
+            type="button"
+            className="t-player-cc"
+            aria-pressed={subKey !== 'none'}
+            aria-label={`${t('player.subtitles')}: ${subLabel}`}
+            title={`${t('player.subtitles')}: ${subLabel}`}
+            disabled={data.subs.length === 0}
+            onClick={() => {
+              const first = data.subs.find((s) => !s.forced) ?? data.subs[0]
+              setSub(subKey === 'none' && first ? subValue(first) : 'none')
+            }}
+          >
+            <Captions aria-hidden size={20} />
+          </button>
+          <MediaSettingsMenuButton />
+          <MediaPipButton />
+          <MediaFullscreenButton />
+        </MediaControlBar>
       </div>
-      {hls && <p className="text-xs text-t-muted">{t('player.transcoding')}</p>}
-      {subError && (
-        <p className="text-xs text-err" role="alert">
-          {subError}
-        </p>
-      )}
-    </div>
+    </MediaController>
+  )
+}
+
+// TrackMenu is a submenu of the settings menu that picks one of a list: the
+// audio or subtitle track. media-chrome draws, positions and keyboard-drives
+// it; the choice comes back as the menu's change event.
+function TrackMenu({
+  title,
+  value,
+  options,
+  onChange,
+}: {
+  title: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (v: string) => void
+}) {
+  const ref = useRef<ChromeMenuElement>(null)
+  const pick = useEffectEvent(() => ref.current && onChange(ref.current.value))
+  useEffect(() => {
+    const el = ref.current
+    el?.addEventListener('change', pick)
+    return () => el?.removeEventListener('change', pick)
+  }, [])
+  return (
+    <MediaChromeMenu ref={ref} slot="submenu" hidden>
+      <div slot="title">{title}</div>
+      {options.map((o) => (
+        <MediaChromeMenuItem
+          key={o.value}
+          type="radio"
+          value={o.value}
+          aria-checked={o.value === value ? 'true' : 'false'}
+        >
+          {o.label}
+        </MediaChromeMenuItem>
+      ))}
+    </MediaChromeMenu>
   )
 }
 

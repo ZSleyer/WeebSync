@@ -436,6 +436,8 @@
     "total_other": "{{count}} entries · {{size}}"
   },
   "player": {
+    "transcode": "Transcoding",
+    "speed": "Speed",
     "title": "Player",
     "play": "Play",
     "noFile": "No file selected.",
