@@ -436,6 +436,13 @@
     "total_other": "{{count}} Einträge · {{size}}"
   },
   "player": {
+    "playItem": "{{name}} abspielen",
+    "noVideo": "In diesem Ordner liegt kein Video.",
+    "episodes": "Folgen",
+    "prevEpisode": "Vorherige Folge",
+    "nextEpisode": "Nächste Folge",
+    "nextIn": "Nächste Folge in {{secs}} s",
+    "nextCancel": "Nächste Folge nicht starten",
     "unmute": "Ton an",
     "subLoading": "Untertitel werden geladen",
     "transcode": "Umwandlung",

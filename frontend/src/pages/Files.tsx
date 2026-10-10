@@ -68,7 +68,8 @@ import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
 import { useCatalogView } from '../components/useCatalogView'
-import { FileBrowser, LocalPicker, PathCrumbs } from '../components/FileBrowser'
+import { FileBrowser, LocalPicker, PathCrumbs, PlayIcon } from '../components/FileBrowser'
+import { firstVideo, isVideo, playHref } from '../components/playLinks'
 import PathInput from '../components/PathInput'
 import PillSelect from '../components/PillSelect'
 import FileIcon from '../components/FileIcon'
@@ -491,6 +492,7 @@ export default function Files() {
                 setQuery('')
               }}
               onSelect={setSelection}
+              onPlay={(e) => goTo(playHref(active, e.path))}
               selected={selection?.path}
             />
           ) : view === 'classic' ? (
@@ -504,6 +506,7 @@ export default function Files() {
               emptyHint={isLocal ? t('remote.emptyLocal') : undefined}
               serverId={isLocal ? undefined : active}
               renaming={inPlace}
+              onPlay={(e) => goTo(playHref(active, e.path))}
             />
           ) : (
             <CatalogGrid
@@ -570,7 +573,7 @@ export default function Files() {
             </span>
           )}
           {selection && isVideo(selection.name) && (
-            <Button size="sm" onClick={() => goTo(`/play?server=${active}&path=${encodeURIComponent(selection.path)}`)}>
+            <Button size="sm" onClick={() => goTo(playHref(active, selection.path))}>
               <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {t('player.play')}
             </Button>
@@ -666,6 +669,7 @@ function SearchResults({
   query,
   onOpenDir,
   onSelect,
+  onPlay,
   selected,
 }: {
   serverId: number
@@ -673,6 +677,7 @@ function SearchResults({
   query: string
   onOpenDir: (path: string) => void
   onSelect: (e: Entry) => void
+  onPlay: (e: Entry) => void
   selected?: string
 }) {
   const { t } = useTranslation()
@@ -701,36 +706,41 @@ function SearchResults({
         </p>
       )}
       <ul>
-        {data?.results.map((e) => (
-          <li key={e.path} className="flex items-stretch border-b border-border-subtle/50">
-            <button
-              type="button"
-              className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${
-                selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'
-              }`}
-              onClick={() => (e.isDir ? onOpenDir(e.path) : onSelect(e))}
-            >
-              <FileIcon isDir={e.isDir} name={e.name} />
-              <span className="min-w-0 flex-1 truncate">
-                {e.name}
-                <span className="mt-0.5 block truncate font-mono text-[10px] text-t-faint">{e.path}</span>
-              </span>
-              {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>}
-            </button>
-            {/* a found folder can be picked where it stands, same as in the
-                folder list - the row itself still opens it */}
-            {e.isDir && (
-              <Button
-                size="sm"
-                className="my-1 mr-2 shrink-0 self-center"
-                aria-label={t('remote.selectItem', { name: e.name })}
-                onClick={() => onSelect(e)}
+        {data?.results.map((e) => {
+          const playable = !e.isDir && isVideo(e.name)
+          return (
+            <li key={e.path} className="flex items-stretch border-b border-border-subtle/50">
+              {playable && <PlayIcon name={e.name} onPlay={() => onPlay(e)} />}
+              <button
+                type="button"
+                className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-3 text-left text-sm transition-colors hover:bg-bg-hover ${
+                  playable ? 'pl-1' : 'pl-3'
+                } ${selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'}`}
+                onClick={() => (e.isDir ? onOpenDir(e.path) : onSelect(e))}
+                onDoubleClick={() => playable && onPlay(e)}
               >
-                {t('remote.select')}
-              </Button>
-            )}
-          </li>
-        ))}
+                {!playable && <FileIcon isDir={e.isDir} name={e.name} />}
+                <span className="min-w-0 flex-1 truncate">
+                  {e.name}
+                  <span className="mt-0.5 block truncate font-mono text-[10px] text-t-faint">{e.path}</span>
+                </span>
+                {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>}
+              </button>
+              {/* a found folder can be picked where it stands, same as in the
+                folder list - the row itself still opens it */}
+              {e.isDir && (
+                <Button
+                  size="sm"
+                  className="my-1 mr-2 shrink-0 self-center"
+                  aria-label={t('remote.selectItem', { name: e.name })}
+                  onClick={() => onSelect(e)}
+                >
+                  {t('remote.select')}
+                </Button>
+              )}
+            </li>
+          )
+        })}
       </ul>
       {data && <p className="px-3 py-2 text-[10px] text-t-faint">{t('remote.indexCount', { count: data.indexed })}</p>}
     </div>
@@ -771,6 +781,9 @@ export function CatalogGrid({
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
+  const goTo = useNavigate()
+  // the title being looked into for its first episode, so its button can show it
+  const [starting, setStarting] = useState<string | null>(null)
   const { data, isLoading, error } = useQuery<CatalogResponse>({
     queryKey: ['catalog', serverId, path],
     queryFn: () => api.get(`/api/servers/${serverId}/catalog${path ? `?path=${encodeURIComponent('/' + path)}` : ''}`),
@@ -793,6 +806,29 @@ export function CatalogGrid({
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   const [rematchInCard, setRematchInCard] = useState(false)
   const toast = useToast()
+  // a title plays from its first episode; the player walks on from there
+  const play = async (e: Entry) => {
+    if (starting) return
+    setStarting(e.path)
+    try {
+      const first = await firstVideo(serverId, e.path)
+      if (first) {
+        series.close()
+        goTo(playHref(serverId, first))
+      } else toast({ message: t('player.noVideo') })
+    } catch (err) {
+      toast({ message: err instanceof Error ? err.message : t('app.error') })
+    } finally {
+      setStarting(null)
+    }
+  }
+  const playAction = (e: Entry, size = '1.2em'): TileAction => ({
+    key: 'play',
+    icon: <Play aria-hidden size={size} fill="currentColor" strokeWidth={0} />,
+    label: t('player.play'),
+    aria: t('player.playItem', { name: e.name }),
+    onClick: () => play(e),
+  })
   // the title card is the app's one; the catalog adds its folder versions
   // under the record, each selectable, syncable, watchable, re-matchable.
   // Syncing, watching and matching from the card happen inside it.
@@ -805,6 +841,13 @@ export function CatalogGrid({
   // the action bar acts on a card's one folder; a card bundling several
   // leaves it to the version rows, where each row is exactly one folder
   const barActions = (it: CatalogItem): SeriesAction[] => [
+    {
+      key: 'play',
+      label: t('player.play'),
+      icon: <Play aria-hidden size="1em" className={ico} fill="currentColor" strokeWidth={0} />,
+      primary: !onSync,
+      onClick: () => play(it.entry),
+    },
     ...(onSync
       ? [
           {
@@ -879,6 +922,7 @@ export function CatalogGrid({
     const multi = g.items.length > 1
     return g.media
       ? [
+          playAction(it.entry),
           {
             key: 'details',
             icon: <Info aria-hidden size="1.2em" />,
@@ -922,6 +966,7 @@ export function CatalogGrid({
               ]),
         ]
       : [
+          playAction(it.entry),
           {
             key: 'files',
             icon: <FilesIcon aria-hidden size="1.2em" />,
@@ -1231,6 +1276,20 @@ export function CatalogGrid({
                     as="article"
                     className={`group relative flex min-w-0 flex-1 flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
                   >
+                    {/* the poster plays the title: a round button over it, in on hover
+                        or focus, always there on touch */}
+                    <div className="t-poster-zone">
+                      <button
+                        type="button"
+                        className="t-poster-play"
+                        aria-label={t('player.playItem', { name: mediaTitle(g.media, it.entry.name) })}
+                        title={t('player.play')}
+                        aria-busy={starting === it.entry.path}
+                        onClick={() => play(it.entry)}
+                      >
+                        <Play aria-hidden size="1.4em" fill="currentColor" strokeWidth={0} className="translate-x-px" />
+                      </button>
+                    </div>
                     {/* rematch tucked away as a pencil over the cover (hover/focus);
                   unmatched folders keep the explicit button below instead */}
                     {g.media && !multi && !!it.source && (
@@ -1343,7 +1402,8 @@ export function CatalogGrid({
                         <InlineRename name={it.entry.name} onDone={renaming.onDone} className="w-full font-mono" />
                       </div>
                     )}
-                    <TileActions actions={actionsFor(g)} />
+                    {/* the poster's button plays: the narrow footer keeps its room */}
+                    <TileActions actions={actionsFor(g).filter((a) => a.key !== 'play')} />
                   </Panel>
                 </Press>
               )
@@ -2036,6 +2096,3 @@ function RematchForm({
     </div>
   )
 }
-
-// the containers the player accepts (transfer.VideoExt on the server)
-const isVideo = (name: string) => /\.(mkv|mp4|avi|ts|m2ts|webm|mov)$/i.test(name)

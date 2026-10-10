@@ -436,6 +436,13 @@
     "total_other": "{{count}} entries · {{size}}"
   },
   "player": {
+    "playItem": "Play {{name}}",
+    "noVideo": "There is no video in this folder.",
+    "episodes": "Episodes",
+    "prevEpisode": "Previous episode",
+    "nextEpisode": "Next episode",
+    "nextIn": "Next episode in {{secs}} s",
+    "nextCancel": "Don't start the next episode",
     "unmute": "Sound on",
     "subLoading": "Loading subtitles",
     "transcode": "Transcoding",
