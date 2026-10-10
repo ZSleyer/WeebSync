@@ -97,3 +97,24 @@ func TestPlayInfoRefusesPlaylistsInDisguise(t *testing.T) {
 		t.Fatalf("the concat playlist opened: %+v", info)
 	}
 }
+
+// A run that jumped to the index at the end of the file has not read it: only
+// an unbroken stretch from the start counts, and a dropped connection leaves
+// the file unread.
+func TestLoopTokenCountsOnlyUnbrokenReads(t *testing.T) {
+	tok := &loopToken{}
+	tok.size.Store(100)
+	tok.cover(90, 100) // the demuxer's jump to the cues
+	if tok.whole() {
+		t.Fatal("a jump to the end counted as the whole file")
+	}
+	tok.cover(0, 40)
+	tok.cover(40, 70) // the reconnect picks up where the first read stopped
+	if tok.whole() {
+		t.Fatal("70 of 100 bytes counted as the whole file")
+	}
+	tok.cover(70, 100)
+	if !tok.whole() {
+		t.Fatal("an unbroken read of every byte did not count")
+	}
+}

@@ -68,6 +68,7 @@ type Server struct {
 	// the player: loopback for remote sources, transcode sessions (play.go)
 	playLoop playLoop
 	hls      hlsSessions
+	media    mediaJobs
 
 	// follow-ups the user typed while an assistant answer streams, taken up
 	// by the running loop between its rounds (see aiSteer in ai.go)
