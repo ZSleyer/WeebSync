@@ -388,14 +388,19 @@ func (sess *hlsSession) written(start int) int {
 }
 
 // hlsArgs is the output side of a run starting at segment n: H.264 at most
-// 1080 lines high in 8 bit (what every browser decodes), stereo AAC, keyframes
+// 720 lines high in 8 bit (what every browser decodes), stereo AAC, keyframes
 // on the segment grid, timestamps offset to the run's start.
+//
+// 720, not 1080: this path is what is left when the picture cannot be copied
+// (Hi10P, HEVC on a device without a decoder, a burned-in picture subtitle),
+// and a host without a hardware encoder - a Raspberry Pi 5 has none - keeps
+// up with 720p in software where 1080p falls behind playback.
 //
 // ponytail: software x264 only; a picture the browser can show is copied
 // instead (play_copy.go). Hardware encoders are the upgrade path where a host
 // has one.
 func hlsArgs(k hlsKey, n int, dir string) []string {
-	scale := "scale=-2:'min(1080,ih)',format=yuv420p"
+	scale := "scale=-2:'min(720,ih)',format=yuv420p"
 	var args []string
 	if k.burn >= 0 {
 		args = append(args, "-filter_complex",
