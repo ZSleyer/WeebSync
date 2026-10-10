@@ -1878,7 +1878,8 @@ li.t-swiperow { border-radius: 0; }
 .t-toast {
   pointer-events: auto; position: relative; overflow: hidden;
   display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.5rem 0.5rem 1rem;
-  border-radius: var(--r-menu); background: var(--text-primary); color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-menu); background: var(--bg-card); color: var(--text-primary);
   font-size: 0.875rem; box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.5);
   animation: fadeIn var(--dur-2) var(--ease-out) both;
 }
@@ -1888,7 +1889,7 @@ li.t-swiperow { border-radius: 0; }
   text-decoration: underline; text-underline-offset: 3px;
 }
 @media (hover: hover) {
-  .t-toast__undo:hover { background: color-mix(in srgb, var(--bg-card) 12%, transparent); }
+  .t-toast__undo:hover { background: color-mix(in srgb, var(--text-primary) 10%, transparent); }
 }
 .t-toast__time { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--accent-blue); transform-origin: left; animation: t-toast-time linear both; }
 @keyframes t-toast-time { to { transform: scaleX(0); } }
