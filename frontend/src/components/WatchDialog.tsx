@@ -197,7 +197,11 @@ export function WatchForm({
   const cancel = async () => {
     if (await mayClose()) onClose()
   }
-  useEffect(() => onGuard(mayClose))
+  // braces: an arrow that returned onGuard's result would hand React the
+  // check as cleanup, and a re-render or the unmount after a save would ask it
+  useEffect(() => {
+    onGuard(mayClose)
+  })
   useEffect(() => {
     if (!dirty) return
     const h = (e: BeforeUnloadEvent) => e.preventDefault()
