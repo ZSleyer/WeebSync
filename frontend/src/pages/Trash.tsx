@@ -122,10 +122,10 @@ export default function TrashPage() {
                   <p className="truncate text-sm font-medium text-t-primary" title={e.name}>
                     {e.name}
                   </p>
-                  <p className="truncate font-mono text-[11px] text-t-muted" title={e.dir}>
+                  <p className="truncate font-mono text-ctl-sm text-t-muted" title={e.dir}>
                     {e.dir}
                   </p>
-                  <p className="text-[11px] text-t-muted">
+                  <p className="text-ctl-sm text-t-muted">
                     {fmtBytes(e.size)}
                     {e.files > 1 && ` · ${t('trash.files', { count: e.files })}`}
                     {' · '}

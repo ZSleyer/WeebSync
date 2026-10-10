@@ -57,15 +57,15 @@ export default function SubfolderChoice({
               <option value="-">{t('rename.sepDash')}</option>
             </Select>
           </Field>
-          <p className="text-[11px] text-t-muted">
+          <p className="text-ctl-sm text-t-muted">
             {t('watch.subfolderPreview')}{' '}
             <span className="font-mono text-t-secondary">
               {titleFolder(sample, separator)}
               {seasonFolder ? `/${titleFolder(seasonFolder, separator)}` : ''}
             </span>
           </p>
-          {title === '' && <p className="text-[11px] text-t-muted">{t('watch.subfolderTitleUnknown')}</p>}
-          <p className="text-[11px] text-t-muted">{t('watch.subfolderTitleHint')}</p>
+          {title === '' && <p className="text-ctl-sm text-t-muted">{t('watch.subfolderTitleUnknown')}</p>}
+          <p className="text-ctl-sm text-t-muted">{t('watch.subfolderTitleHint')}</p>
         </div>
       )}
     </div>

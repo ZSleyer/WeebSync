@@ -185,7 +185,7 @@ export default function UpgradeCard({
             )}
           </div>
         </div>
-        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-ctl-sm">
           {seasonLabel && <Badge tone="accent">{seasonLabel}</Badge>}
           <ProviderBadges providers={u.providers ?? []} links={u.links ?? {}} />
           {u.format && (

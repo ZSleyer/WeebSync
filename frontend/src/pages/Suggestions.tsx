@@ -640,16 +640,16 @@ function SugCard({
         {/* two differently styled detail lines plus the candidate list - more
             than the card's single `detail` slot, so they ride along as children */}
         {!!it.because?.length && (
-          <p className="mt-1 text-[11px] text-t-muted">{t('suggestions.because', { titles: it.because.join(', ') })}</p>
+          <p className="mt-1 text-ctl-sm text-t-muted">{t('suggestions.because', { titles: it.because.join(', ') })}</p>
         )}
-        {it.why && <p className="mt-1 text-[11px] text-t-secondary">{it.why}</p>}
+        {it.why && <p className="mt-1 text-ctl-sm text-t-secondary">{it.why}</p>}
         {it.sequel && (
-          <p className="mt-1 truncate text-[11px] text-t-muted">
+          <p className="mt-1 truncate text-ctl-sm text-t-muted">
             {t('suggestions.missing')}: {mediaTitle(it.sequel)}
           </p>
         )}
         {it.plexFolder && (
-          <p className="mt-1 break-all font-mono text-[11px] text-t-muted" title={it.plexFolder}>
+          <p className="mt-1 break-all font-mono text-ctl-sm text-t-muted" title={it.plexFolder}>
             {t('suggestions.localPath')}: {it.plexFolder}
           </p>
         )}
@@ -659,7 +659,7 @@ function SugCard({
           <ul className="mt-2 space-y-1">
             {it.candidates.map((c) => (
               <li key={`${c.serverId}-${c.path}`} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-                <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-t-secondary" title={c.path}>
+                <span className="min-w-0 flex-1 break-all font-mono text-ctl-sm text-t-secondary" title={c.path}>
                   <Badge className="mr-1">
                     <Server aria-hidden size="1em" />
                     {c.serverName}
@@ -957,8 +957,8 @@ export function DuplicatesSection() {
         <Cover src={d.cover} />
         <div className="min-w-0 flex-1">
           <h4 className="min-w-0 wrap-break-word font-display text-sm font-semibold tracking-wider">{d.title}</h4>
-          {d.why && <p className="mt-1 text-[11px] text-t-secondary">{d.why}</p>}
-          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+          {d.why && <p className="mt-1 text-ctl-sm text-t-secondary">{d.why}</p>}
+          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-ctl-sm">
             {seasonLabel && <Badge tone="accent">{seasonLabel}</Badge>}
             {d.library && <Badge aria-label={t('suggestions.library', { name: d.library })}>{d.library}</Badge>}
             {d.episodes?.length ? (

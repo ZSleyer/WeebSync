@@ -759,7 +759,7 @@ function SearchResults({
                 {!playable && <FileIcon isDir={e.isDir} name={e.name} />}
                 <span className="min-w-0 flex-1 truncate">
                   {e.name}
-                  <span className="mt-0.5 block truncate font-mono text-[10px] text-t-faint">{e.path}</span>
+                  <span className="mt-0.5 block truncate font-mono text-ctl-xs text-t-faint">{e.path}</span>
                 </span>
                 {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>}
               </button>
@@ -779,7 +779,7 @@ function SearchResults({
           )
         })}
       </ul>
-      {data && <p className="px-3 py-2 text-[10px] text-t-faint">{t('remote.indexCount', { count: data.indexed })}</p>}
+      {data && <p className="px-3 py-2 text-ctl-xs text-t-faint">{t('remote.indexCount', { count: data.indexed })}</p>}
     </div>
   )
 }
@@ -1377,14 +1377,14 @@ export function CatalogGrid({
                           {mediaTitle(g.media, it.entry.name)}
                         </h3>
                         {multi ? (
-                          <p className="font-mono text-[10px] text-accent">
+                          <p className="font-mono text-ctl-xs text-accent">
                             {t('remote.versions', { count: g.items.length })}
                           </p>
                         ) : (
                           // while renamed, the name moves out of the tile's
                           // button into a field below it: no input in a button
                           renaming?.path !== it.entry.path && (
-                            <p className="truncate font-mono text-[10px] text-t-muted" title={it.entry.name}>
+                            <p className="truncate font-mono text-ctl-xs text-t-muted" title={it.entry.name}>
                               {it.entry.name}
                             </p>
                           )
@@ -1429,7 +1429,7 @@ export function CatalogGrid({
                             </Badge>
                             <Badge>{fmtBytes(it.local.bytes)}</Badge>
                             {it.local.modTime && (
-                              <span className="font-mono text-[10px] text-t-faint" title={t('local.lastChange')}>
+                              <span className="font-mono text-ctl-xs text-t-faint" title={t('local.lastChange')}>
                                 {new Date(it.local.modTime).toLocaleDateString()}
                               </span>
                             )}
@@ -1855,7 +1855,7 @@ function SyncForm({
           </p>
           {/* no folder name: the full path is right above, and several
                 levels can be missing at once */}
-          {targetMissing && <p className="text-[11px] text-t-muted">{t('watch.targetMissing')}</p>}
+          {targetMissing && <p className="text-ctl-sm text-t-muted">{t('watch.targetMissing')}</p>}
         </div>
 
         <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>

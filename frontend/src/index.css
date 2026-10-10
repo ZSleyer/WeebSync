@@ -30,6 +30,10 @@
   --radius-2xl: var(--r-dialog);
   --radius-3xl: var(--r-dialog);
   --radius-4xl: var(--r-dialog);
+  /* the small type steps of the controls, so dense meta text (sizes, dates,
+     counts) grows with the touch scale instead of staying at a fixed 10px */
+  --text-ctl-sm: var(--ctl-fs-sm);
+  --text-ctl-xs: var(--ctl-fs-xs);
 }
 
 @theme {
@@ -171,7 +175,7 @@
   --ctl-h-sm: 26px; /* small + icon buttons */
   --ctl-fs: 14px;
   --ctl-fs-sm: 11px;
-  --ctl-fs-xs: 10px; /* one step below sm - dense chips (.t-label--sm) */
+  --ctl-fs-xs: 11px; /* dense chips (.t-label--sm); 11px is the legibility floor */
   --ctl-lh: 20px;
   --ctl-lh-sm: 16px;
   /* Radius per host height, roughly a sixth of the box: 24px chips 4, 26px
@@ -265,6 +269,35 @@ body {
   line-height: 1.5;
 }
 
+/* Tailwind v4's preflight leaves buttons on the default arrow. Everything that
+   acts on a click gets the hand, in the base layer so any component rule (a
+   drag handle's grab, a busy state) still wins. */
+@layer base {
+  :is(button, [role='button'], [role='menuitem'], [role='menuitemradio'], [role='option'], [role='tab'], summary, label[for], select):not(:disabled, [aria-disabled='true']) {
+    cursor: pointer;
+  }
+  :is(button, input, select, textarea, [role='button'], [role='menuitem'], [role='option'], [role='tab']):is(:disabled, [aria-disabled='true']) {
+    cursor: not-allowed;
+  }
+  /* headings break into even lines, prose avoids a lone last word */
+  :is(h1, h2, h3, h4) { text-wrap: balance; }
+  p { text-wrap: pretty; }
+}
+
+/* Touch: the small controls keep their look but take a 44px hit area. The
+   pseudo-element grows only on the axis that is short (100% is the control's
+   own box), so a wide chip does not reach into its neighbours sideways. A
+   parent with overflow: hidden clips it - give that parent padding instead.
+   In the base layer, so an `absolute` utility on the control still wins. */
+@layer base { @media (pointer: coarse) {
+  :is(.t-iconbtn, .t-btn--sm, button.t-label, a.t-label) { position: relative; }
+  :is(.t-iconbtn, .t-btn--sm, button.t-label, a.t-label)::before {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2));
+  }
+} }
+
 /* ── Tempest surface utilities ── */
 
 /* Panel: flat card, hairline border. position: relative stays - the update
@@ -356,10 +389,15 @@ a.t-label {
   cursor: pointer;
   transition: background-color 120ms, border-color 120ms;
 }
-button.t-label:hover,
-a.t-label:hover {
-  border-color: currentColor;
-  background: color-mix(in srgb, currentColor 14%, transparent);
+/* Hover only where a pointer hovers: on a touch screen :hover sticks to the
+   last tapped element until the next tap elsewhere. Tailwind's hover: variant
+   already carries this gate, the hand-written rules here do it themselves. */
+@media (hover: hover) {
+  button.t-label:hover,
+  a.t-label:hover {
+    border-color: currentColor;
+    background: color-mix(in srgb, currentColor 14%, transparent);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   button.t-label,
@@ -411,16 +449,18 @@ a.t-label:hover {
 /* press feedback on the weighted buttons; no transform on hover */
 .t-btn--primary:active:not(:disabled),
 .t-btn--danger:active:not(:disabled) { transform: scale(0.98); }
-.t-btn:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); background: var(--bg-hover); }
 .t-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .t-btn--primary {
   background: var(--accent-blue);
   border-color: var(--accent-blue);
   color: var(--bg-primary);
 }
-.t-btn--primary:hover { background: color-mix(in srgb, var(--accent-blue) 85%, var(--bg-primary)); }
 .t-btn--danger { color: var(--accent-red); border-color: color-mix(in srgb, var(--accent-red) 45%, transparent); }
-.t-btn--danger:hover { border-color: var(--accent-red); background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
+@media (hover: hover) {
+  .t-btn:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); background: var(--bg-hover); }
+  .t-btn--primary:hover { background: color-mix(in srgb, var(--accent-blue) 85%, var(--bg-primary)); }
+  .t-btn--danger:hover { border-color: var(--accent-red); background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
+}
 /* WCAG 2.5.8 target size; the shared variable keeps it level with every other
    small control in the same row */
 .t-btn--sm {
@@ -488,7 +528,9 @@ a.t-label:hover {
   min-height: 40px; /* WCAG 2.5.8 + comfortable touch target */
   transition: color 150ms, background-color 150ms, border-color 150ms;
 }
-.t-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+@media (hover: hover) {
+  .t-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+}
 .t-tab[aria-selected="true"],
 /* a row of jump links marks the section in view the same way */
 .t-tab[aria-current="true"] {
@@ -537,7 +579,9 @@ a.t-label:hover {
    moving - the box of the default bar sat as a second frame inside a dialog. */
 .t-tabs--line { border: 0; border-radius: 0; background: none; }
 .t-tabs--line .t-tab { min-height: 44px; padding: 10px 12px; }
-.t-tabs--line .t-tab:hover { background: none; }
+@media (hover: hover) {
+  .t-tabs--line .t-tab:hover { background: none; }
+}
 .t-tabs--line .t-tab[aria-selected="true"],
 .t-tabs--line .t-tab[aria-current="true"] { background: none; }
 .t-tabs--line .t-tabs-ink { background: none; }
@@ -766,7 +810,9 @@ input[type='checkbox'] {
   background: var(--bg-card);
   cursor: pointer;
 }
-input[type='checkbox']:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+@media (hover: hover) {
+  input[type='checkbox']:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+}
 input[type='checkbox']:checked,
 input[type='checkbox']:indeterminate {
   background: var(--accent-blue);
@@ -825,7 +871,9 @@ input[type='radio'] {
   background: var(--bg-card);
   cursor: pointer;
 }
-input[type='radio']:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+@media (hover: hover) {
+  input[type='radio']:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+}
 input[type='radio']:checked { border-color: var(--accent-blue); }
 input[type='radio']:checked::after {
   content: '';
@@ -1675,7 +1723,9 @@ li.t-swiperow { border-radius: 0; }
   font: 600 0.8125rem/1 var(--font-display); letter-spacing: 0.04em; color: inherit;
   text-decoration: underline; text-underline-offset: 3px;
 }
-.t-toast__undo:hover { background: color-mix(in srgb, var(--bg-card) 12%, transparent); }
+@media (hover: hover) {
+  .t-toast__undo:hover { background: color-mix(in srgb, var(--bg-card) 12%, transparent); }
+}
 .t-toast__time { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--accent-blue); transform-origin: left; animation: t-toast-time linear both; }
 @keyframes t-toast-time { to { transform: scaleX(0); } }
 
@@ -1989,7 +2039,9 @@ li.t-swiperow { border-radius: 0; }
 .t-player-chip--accent { color: var(--color-accent); border-color: currentColor; }
 .t-player-chip--err { color: var(--accent-red); border-color: currentColor; }
 .t-player-chip--button { cursor: pointer; background: transparent; }
-.t-player-chip--button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+@media (hover: hover) {
+  .t-player-chip--button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+}
 .t-player-chip--button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 /* settings menu: the same floating surface as the dock it opens from -
@@ -2065,14 +2117,19 @@ li.t-swiperow { border-radius: 0; }
   overflow: hidden;
   transition: width var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
 }
-.t-player-volume:is(:hover, :focus-within) media-volume-range { width: 5.5rem; padding-inline: 8px; opacity: 1; }
+.t-player-volume:focus-within media-volume-range { width: 5.5rem; padding-inline: 8px; opacity: 1; }
+@media (hover: hover) {
+  .t-player-volume:hover media-volume-range { width: 5.5rem; padding-inline: 8px; opacity: 1; }
+}
 .t-player-btn {
   display: inline-grid;
   place-items: center;
   color: var(--pl-fg);
   border-radius: var(--r-ctl);
 }
-.t-player-btn:hover:not(:disabled) { background: rgb(255 255 255 / 0.08); }
+@media (hover: hover) {
+  .t-player-btn:hover:not(:disabled) { background: rgb(255 255 255 / 0.08); }
+}
 .t-player-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
 .t-player-btn:disabled { opacity: 0.35; }
 .t-player-next { display: inline-flex; gap: 0.25rem; flex-shrink: 0; }
@@ -2246,12 +2303,14 @@ li.t-swiperow { border-radius: 0; }
   transition: opacity var(--dur-1) var(--ease-out), scale var(--dur-1) var(--ease-out);
 }
 .t-play-icon__play { opacity: 0; scale: 0.5; color: var(--color-accent); }
-:where(li, .t-play-host):hover > .t-play-icon .t-play-icon__play,
 .t-play-icon:focus-visible .t-play-icon__play { opacity: 1; scale: 1; }
-:where(li, .t-play-host):hover > .t-play-icon .t-play-icon__file,
 .t-play-icon:focus-visible .t-play-icon__file { opacity: 0; scale: 0.5; }
-/* the row lights up as one: the icon cell and the name button share the hover */
-li:hover:has(> .t-play-icon) { background: var(--bg-hover); }
+@media (hover: hover) {
+  :where(li, .t-play-host):hover > .t-play-icon .t-play-icon__play { opacity: 1; scale: 1; }
+  :where(li, .t-play-host):hover > .t-play-icon .t-play-icon__file { opacity: 0; scale: 0.5; }
+  /* the row lights up as one: the icon cell and the name button share the hover */
+  li:hover:has(> .t-play-icon) { background: var(--bg-hover); }
+}
 .t-play-icon:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 @media (pointer: coarse) {
   .t-play-icon { width: 2.75rem; }
@@ -2287,9 +2346,11 @@ li:hover:has(> .t-play-icon) { background: var(--bg-hover); }
   scale: 0.8;
   transition: opacity var(--dur-2) var(--ease-out), scale var(--dur-2) var(--ease-out), background var(--dur-1);
 }
-.group:hover .t-poster-play,
 .t-poster-play:focus-visible { opacity: 1; scale: 1; }
-.t-poster-play:hover { background: var(--color-accent); color: #000; }
+@media (hover: hover) {
+  .group:hover .t-poster-play { opacity: 1; scale: 1; }
+  .t-poster-play:hover { background: var(--color-accent); color: #000; }
+}
 .t-poster-play:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .t-poster-play[aria-busy='true'] { opacity: 1; scale: 1; }
 .t-poster-play[aria-busy='true'] svg { animation: t-pulse 0.9s ease-in-out infinite alternate; }
@@ -2320,7 +2381,9 @@ li:hover:has(> .t-play-icon) { background: var(--bg-hover); }
   color: var(--text-secondary);
   transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
-.t-ep-file__play:hover { background: var(--bg-hover); color: var(--text-primary); }
+@media (hover: hover) {
+  .t-ep-file__play:hover { background: var(--bg-hover); color: var(--text-primary); }
+}
 .t-ep-file__play:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .t-ep-file__icon {
   display: grid;
@@ -2333,7 +2396,8 @@ li:hover:has(> .t-play-icon) { background: var(--bg-hover); }
   color: var(--text-muted);
   transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1);
 }
-.t-ep-file__play:is(:hover, :focus-visible) .t-ep-file__icon {
+.t-ep-file__play:focus-visible .t-ep-file__icon,
+.t-ep-file__play:active .t-ep-file__icon {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: var(--bg-primary);

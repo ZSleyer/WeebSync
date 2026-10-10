@@ -133,12 +133,12 @@ export function MediaCard({
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium text-t-primary">{title}</h3>
         {path && (
-          <p className="truncate font-mono text-[11px] text-t-muted" title={pathTitle}>
+          <p className="truncate font-mono text-ctl-sm text-t-muted" title={pathTitle}>
             {path}
           </p>
         )}
-        {meta && <p className="mt-1 text-[11px] text-t-muted">{meta}</p>}
-        {badges && <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]">{badges}</div>}
+        {meta && <p className="mt-1 text-ctl-sm text-t-muted">{meta}</p>}
+        {badges && <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-ctl-sm">{badges}</div>}
       </div>
       {/* on a phone the counters take a row of their own: as a third column they
           left the chip row barely 170px, which is what made the status chips
@@ -210,8 +210,8 @@ export function SuggestionCard({
           {title}
           {year ? <span className="text-t-muted"> ({year})</span> : null}
         </h4>
-        {badges && <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">{badges}</p>}
-        {detail && <p className="mt-1 text-[11px] text-t-muted">{detail}</p>}
+        {badges && <p className="mt-1 flex flex-wrap items-center gap-1.5 text-ctl-sm">{badges}</p>}
+        {detail && <p className="mt-1 text-ctl-sm text-t-muted">{detail}</p>}
         {children}
         {actions && actionsPlacement === 'inline' && (
           <div className="mt-2 flex flex-wrap gap-1.5">{actions}</div>
@@ -418,7 +418,7 @@ export function TrendChart({
 
   return (
     <div className={cx('min-w-0', className)}>
-      <p className="mb-1 flex justify-between font-mono text-[11px] text-t-muted tabular-nums" aria-live="polite">
+      <p className="mb-1 flex justify-between font-mono text-ctl-sm text-t-muted tabular-nums" aria-live="polite">
         <span>{at !== null ? format(g.shown[g.last - at]) : format(target)}</span>
         {at !== null && <span>{formatAge(at)}</span>}
       </p>
@@ -470,7 +470,7 @@ export function TrendChart({
           />
         )}
       </div>
-      <p className="mt-1 flex justify-between text-[11px] text-t-muted">
+      <p className="mt-1 flex justify-between text-ctl-sm text-t-muted">
         <span>{startLabel}</span>
         <span>{endLabel}</span>
       </p>
@@ -501,7 +501,7 @@ export function StatTile({ label, value, detail, trend, wide, className }: StatT
         <p className="min-w-0 flex-1 truncate font-mono text-lg text-t-primary tabular-nums">{value}</p>
         {trend}
       </div>
-      {detail && <p className="mt-0.5 text-[11px] text-t-muted">{detail}</p>}
+      {detail && <p className="mt-0.5 text-ctl-sm text-t-muted">{detail}</p>}
     </Panel>
   )
 }
@@ -588,12 +588,12 @@ export function TransferCard({
                   title is the point, and a phone column cuts it after a
                   couple of words otherwise */}
               <h3 className={cx('text-t-primary', hero ? 'line-clamp-2 text-base font-medium' : 'truncate text-sm')}>{title}</h3>
-              {subtitle && <p className="truncate font-mono text-[11px] text-t-muted">{subtitle}</p>}
+              {subtitle && <p className="truncate font-mono text-ctl-sm text-t-muted">{subtitle}</p>}
             </div>
             {trailing}
           </div>
           {badges && <div className="mt-1.5 flex flex-wrap items-center gap-1.5">{badges}</div>}
-          {meta && <p className="mt-1 truncate text-[11px] text-t-muted">{meta}</p>}
+          {meta && <p className="mt-1 truncate text-ctl-sm text-t-muted">{meta}</p>}
           {stats && <p className={cx('mt-1 font-mono text-xs text-t-secondary', hero && 'sm:text-sm')}>{stats}</p>}
         </div>
       </div>
@@ -634,9 +634,9 @@ export function CalendarEntry({ title, episode, cover, time, countdown, onClick,
       <Cover src={cover} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="line-clamp-2 text-sm font-medium text-t-primary">{title}</p>
-        {episode && <p className="text-[11px] text-t-muted">{episode}</p>}
+        {episode && <p className="text-ctl-sm text-t-muted">{episode}</p>}
         <p className="mt-1 font-mono text-xs text-t-secondary">{time}</p>
-        {countdown && <p className="text-[11px] text-accent">{countdown}</p>}
+        {countdown && <p className="text-ctl-sm text-accent">{countdown}</p>}
       </div>
     </>
   ) : (
@@ -644,11 +644,11 @@ export function CalendarEntry({ title, episode, cover, time, countdown, onClick,
       <Cover src={cover} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-t-primary">{title}</p>
-        {episode && <p className="text-[11px] text-t-muted">{episode}</p>}
+        {episode && <p className="text-ctl-sm text-t-muted">{episode}</p>}
       </div>
       <div className="shrink-0 text-right">
         <p className="font-mono text-sm text-t-secondary">{time}</p>
-        {countdown && <p className="text-[11px] text-accent">{countdown}</p>}
+        {countdown && <p className="text-ctl-sm text-accent">{countdown}</p>}
       </div>
     </>
   )
@@ -1122,7 +1122,7 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
                     : 'border-border-subtle bg-bg-secondary text-t-secondary hover:bg-bg-hover',
               )}
             >
-              <span className={cx('text-[10px] uppercase tracking-wider', pressed ? 'text-t-secondary' : 'text-t-muted')}>{d.weekday}</span>
+              <span className={cx('text-ctl-xs uppercase tracking-wider', pressed ? 'text-t-secondary' : 'text-t-muted')}>{d.weekday}</span>
               <span className={cx('flex size-6 items-center justify-center text-base leading-none', d.today && 'rounded-full bg-accent font-semibold')}>{d.day}</span>
               {/* the count is a real chip, and every day carries one: a day
                   without releases shows a quiet zero rather than nothing, so
@@ -1501,7 +1501,7 @@ export function Modal({ title, info, children, footer, secondary, onClose, close
       <header className="flex items-start gap-3 border-b border-border-subtle px-5 py-4">
         <div className="min-w-0 flex-1">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
-          {info && <p className="mt-1 text-[11px] text-t-secondary">{info}</p>}
+          {info && <p className="mt-1 text-ctl-sm text-t-secondary">{info}</p>}
         </div>
         {onClose && (
           <button type="button" aria-label={closeLabel} title={closeLabel} onClick={onClose} className="t-iconbtn -my-1 -mr-2 shrink-0 text-t-secondary hover:text-t-primary">

@@ -323,7 +323,7 @@ export function WatchForm({
         <div className="min-w-0 self-center">
           <h3 className="font-display font-semibold tracking-wider">{title}</h3>
           {info?.map((line, i) => (
-            <p key={i} className="mt-1 text-[11px] text-t-secondary">
+            <p key={i} className="mt-1 text-ctl-sm text-t-secondary">
               {line}
             </p>
           ))}
@@ -356,7 +356,7 @@ export function WatchForm({
           )}
           {/* no folder name: several levels can be missing at once, and
                 naming only the innermost reads as if the rest were there */}
-          {targetMissing && <p className="text-[11px] text-t-muted">{t('watch.targetMissing')}</p>}
+          {targetMissing && <p className="text-ctl-sm text-t-muted">{t('watch.targetMissing')}</p>}
         </section>
 
         <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionMeta')}>
@@ -534,7 +534,7 @@ export function WatchForm({
             the old notice above the page managed to stay unread */}
       <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
         {notice && (
-          <p className="mr-auto min-w-0 flex-1 text-[11px] text-warn" role="status">
+          <p className="mr-auto min-w-0 flex-1 text-ctl-sm text-warn" role="status">
             {notice}
           </p>
         )}

@@ -293,7 +293,7 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
 
   const optionId = (i: number) => `${listId}-${i}`
   const heading = (text: string) => (
-    <li role="presentation" className="px-2 pt-2 pb-1.5 font-mono text-[11px] tracking-wider text-t-muted uppercase">
+    <li role="presentation" className="px-2 pt-2 pb-1.5 font-mono text-ctl-sm tracking-wider text-t-muted uppercase">
       {text}
     </li>
   )
@@ -326,7 +326,7 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
             onKeyDown={onKeyDown}
             className="min-w-0 flex-1 bg-transparent py-3.5 text-base text-t-primary outline-none placeholder:text-t-muted sm:text-sm"
           />
-          <kbd className="rounded-xs border border-border-subtle px-1.5 font-mono text-[11px] text-t-muted max-sm:hidden">
+          <kbd className="rounded-xs border border-border-subtle px-1.5 font-mono text-ctl-sm text-t-muted max-sm:hidden">
             Esc
           </kbd>
         </div>
