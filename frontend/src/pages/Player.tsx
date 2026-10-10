@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 import HlsPlayer from 'hls.js'
 import JASSUB from 'jassub'
+// Vite turns the query into a URL string; the linter only sees the .ts file
+// eslint-disable-next-line import/default
+import jassubWorkerUrl from './jassubWorker?worker&url'
 import { Captions, PictureInPicture2, SkipBack, SkipForward, X } from 'lucide-react'
 import {
   MediaControlBar,
@@ -468,6 +471,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         const r = new JASSUB({
           video: v,
           canvas,
+          workerUrl: jassubWorkerUrl,
           subContent: content,
           fonts: data.fonts.map((i) => new URL(`/api/play/font?${src}&index=${i}`, location.href).href),
         })
