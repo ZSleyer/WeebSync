@@ -66,22 +66,51 @@ addTranslation('de', De)
 const DIRECT_CONTAINERS = new Set(['mkv', 'mp4', 'm4v', 'webm', 'mov'])
 const DIRECT_AUDIO = new Set(['aac', 'mp3', 'opus', 'vorbis', 'flac'])
 
-function canDecodeVideo(v: PlayInfo['video']): boolean {
-  if (!v) return true // audio-only
-  const tenBit = v.pixFmt?.includes('10') || v.pixFmt?.includes('12')
-  const probe = document.createElement('video')
+// The codec string for a picture: profile and bit depth matter, a phone that
+// decodes HEVC Main may not decode Main 10.
+function codecString(v: NonNullable<PlayInfo['video']>): string {
+  const ten = !!(v.pixFmt?.includes('10') || v.pixFmt?.includes('12'))
   switch (v.codec) {
     case 'h264':
-      return !tenBit // Hi10P: no browser decodes it
-    case 'vp8':
-    case 'vp9':
-    case 'av1':
-      return true
+      return `video/mp4; codecs="${ten ? 'avc1.6E0028' : 'avc1.640028'}"`
     case 'hevc':
-      return probe.canPlayType(`video/mp4; codecs="hvc1.${tenBit ? '2.4' : '1.6'}.L120.B0"`) !== ''
+      return `video/mp4; codecs="${ten ? 'hvc1.2.4.L120.B0' : 'hvc1.1.6.L120.B0'}"`
+    case 'vp9':
+      return `video/webm; codecs="${ten ? 'vp09.02.40.10' : 'vp09.00.40.08'}"`
+    case 'av1':
+      return `video/mp4; codecs="${ten ? 'av01.0.08M.10' : 'av01.0.08M.08'}"`
+    case 'vp8':
+      return 'video/webm; codecs="vp8"'
     default:
-      return false
+      return ''
   }
+}
+
+// Whether this device decodes the picture. MediaCapabilities knows the
+// hardware decoders too (HEVC on a phone); canPlayType is the fallback, and
+// the watchdog below the last word for either.
+async function canDecodeVideo(v: PlayInfo['video']): Promise<boolean> {
+  if (!v) return true // audio-only
+  const type = codecString(v)
+  if (!type) return false
+  if (navigator.mediaCapabilities?.decodingInfo) {
+    try {
+      const r = await navigator.mediaCapabilities.decodingInfo({
+        type: 'file',
+        video: {
+          contentType: type,
+          width: v.width || 1920,
+          height: v.height || 1080,
+          bitrate: 8_000_000,
+          framerate: 24,
+        },
+      })
+      return r.supported
+    } catch {
+      // an engine that rejects the question answers through canPlayType
+    }
+  }
+  return document.createElement('video').canPlayType(type) !== ''
 }
 
 // ffmpeg's codec names, as people know the formats
@@ -148,6 +177,14 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const subTrack = data?.subs.find((s) => subValue(s) === subKey)
   const burn = subTrack?.image ? subTrack.index : -1
 
+  // the device's answer for this picture; nothing plays before it is in
+  const decode = useQuery({
+    queryKey: ['decodable', data?.video?.codec, data?.video?.pixFmt, data?.video?.width, data?.video?.height],
+    queryFn: () => canDecodeVideo(data?.video),
+    enabled: !!data,
+    staleTime: Infinity,
+  })
+  const videoOk = decode.data
   const hls = useMemo(() => {
     if (!data) return false
     const ext = path.split('.').pop()?.toLowerCase() ?? ''
@@ -155,13 +192,13 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     return (
       forceHls ||
       !DIRECT_CONTAINERS.has(ext) ||
-      !canDecodeVideo(data.video) ||
+      !videoOk ||
       (a && !DIRECT_AUDIO.has(a.codec)) ||
       // a browser plays the first audio track of a file and offers no other
       (a && a.index !== data.audio[0].index) ||
       burn >= 0
     )
-  }, [data, path, audioIdx, burn, forceHls])
+  }, [data, path, audioIdx, burn, forceHls, videoOk])
   // Most of what needs the server does not need a new picture: Bluray sound,
   // the second audio track. The picture is then copied and only repackaged
   // (copy), the sound too where the browser plays it (acopy). The server
@@ -192,7 +229,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   // source: the raw file, or the transcoded playlist through hls.js
   useEffect(() => {
     const v = videoRef.current
-    if (!v || !data) return
+    if (!v || !data || videoOk === undefined) return
     const start = resumeAt.current
     const onMeta = () => {
       if (start > 0) v.currentTime = start
@@ -232,7 +269,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       v.removeEventListener('loadedmetadata', onMeta)
       h.destroy()
     }
-  }, [data, hls, src, audioIdx, burn, copy, acopy])
+  }, [data, hls, src, audioIdx, burn, copy, acopy, videoOk])
 
   // watchdog: playing, but no picture - the browser cannot decode this codec
   // after all, so the server transcodes it
