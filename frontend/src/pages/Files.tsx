@@ -12,6 +12,7 @@ import {
   MoreHorizontal,
   PenLine,
   Pencil,
+  Play,
   RefreshCw,
   Replace,
   Search,
@@ -381,8 +382,6 @@ export default function Files() {
     isLocal
       ? `/api/browse/local?path=${encodeURIComponent(p)}`
       : `/api/servers/${active}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`
-  // rows are selectable wherever the selection bar has something to offer
-  const selectable = !isLocal || canEdit
 
   return (
     <div className="page-fill flex min-h-0 flex-1 flex-col">
@@ -500,7 +499,7 @@ export default function Files() {
               fetchPath={browseUrl}
               path={path}
               onNavigate={navigate}
-              onSelect={selectable ? setSelection : undefined}
+              onSelect={setSelection}
               selected={selection?.path}
               emptyHint={isLocal ? t('remote.emptyLocal') : undefined}
               serverId={isLocal ? undefined : active}
@@ -511,7 +510,7 @@ export default function Files() {
               serverId={active}
               path={path}
               onNavigate={navigate}
-              onSelect={selectable ? setSelection : () => {}}
+              onSelect={setSelection}
               selected={selection?.path}
               onSync={
                 isLocal
@@ -569,6 +568,12 @@ export default function Files() {
                 </Button>
               )}
             </span>
+          )}
+          {selection && isVideo(selection.name) && (
+            <Button size="sm" onClick={() => goTo(`/play?server=${active}&path=${encodeURIComponent(selection.path)}`)}>
+              <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('player.play')}
+            </Button>
           )}
           {selection && canEdit && (
             <>
@@ -2031,3 +2036,6 @@ function RematchForm({
     </div>
   )
 }
+
+// the containers the player accepts (transfer.VideoExt on the server)
+const isVideo = (name: string) => /\.(mkv|mp4|avi|ts|m2ts|webm|mov)$/i.test(name)

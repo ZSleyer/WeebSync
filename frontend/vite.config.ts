@@ -17,6 +17,9 @@ export default defineConfig({
     // so inlined fonts get blocked (visible as errors in Firefox devtools)
     assetsInlineLimit: 0,
   },
+  // jassub finds its worker and wasm next to itself (new URL(..., import.meta.url));
+  // the dev prebundler moves the module away from them
+  optimizeDeps: { exclude: ['jassub'] },
   server: {
     proxy: {
       // a second instance for testing runs elsewhere: WEEBSYNC_API=http://localhost:8090 yarn dev

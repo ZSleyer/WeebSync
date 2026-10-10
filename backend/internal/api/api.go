@@ -65,6 +65,10 @@ type Server struct {
 	matchCh   chan matchJob
 	matchOnce sync.Once
 
+	// the player: loopback for remote sources, transcode sessions (play.go)
+	playLoop playLoop
+	hls      hlsSessions
+
 	// follow-ups the user typed while an assistant answer streams, taken up
 	// by the running loop between its rounds (see aiSteer in ai.go)
 	aiSteerMu sync.Mutex
@@ -172,6 +176,13 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/browse/local/rename", authed(adminOnly(http.HandlerFunc(s.handleRenameLocal))))
 	mux.Handle("DELETE /api/browse/local", authed(adminOnly(http.HandlerFunc(s.handleDeleteLocal))))
 	mux.Handle("GET /api/servers/{id}/browse", authed(http.HandlerFunc(s.handleBrowseRemote)))
+	// player: reading a file is as open as listing it
+	mux.Handle("GET /api/play/stream", authed(http.HandlerFunc(s.handlePlayStream)))
+	mux.Handle("GET /api/play/info", authed(http.HandlerFunc(s.handlePlayInfo)))
+	mux.Handle("GET /api/play/sub", authed(http.HandlerFunc(s.handlePlaySub)))
+	mux.Handle("GET /api/play/font", authed(http.HandlerFunc(s.handlePlayFont)))
+	mux.Handle("GET /api/play/hls/index.m3u8", authed(http.HandlerFunc(s.handlePlayHLSIndex)))
+	mux.Handle("GET /api/play/hls/seg.ts", authed(http.HandlerFunc(s.handlePlayHLSSegment)))
 	mux.Handle("GET /api/search", authed(http.HandlerFunc(s.handleSearch)))
 	mux.Handle("GET /api/servers/{id}/search", authed(http.HandlerFunc(s.handleServerSearch)))
 	mux.Handle("GET /api/servers/{id}/languages", authed(http.HandlerFunc(s.handleServerLanguages)))

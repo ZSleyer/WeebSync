@@ -193,6 +193,13 @@ export const router = createBrowserRouter(
       <Route path="/servers" element={<Navigate to="/settings/servers" replace />} />
       <Route path="/rename" element={<Rename />} handle={h('nav.rename', '/files', 'nav.files')} />
       <Route path="/files/trash" element={<Trash />} handle={h('trash.title', '/files', 'nav.files')} />
+      {/* lazy: libass, hls.js and the player controls are megabytes nobody
+          else needs */}
+      <Route
+        path="/play"
+        lazy={() => import('./pages/Player').then((m) => ({ Component: m.default }))}
+        handle={h('player.title', '/files', 'nav.files')}
+      />
       <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
         <Route index element={<SettingsHub />} />
         <Route path="general" element={<General />} handle={inSettings('settings.nav.general')} />
