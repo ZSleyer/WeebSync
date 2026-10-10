@@ -1110,11 +1110,7 @@ function PosterRow({ items, onPick }: { items: { media: Media; caption?: string 
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-3">
       {items.map(({ media: m, caption }) => (
         <li key={`${m.id}-${caption ?? ''}`} className="min-w-0">
-          <button
-            type="button"
-            onClick={() => onPick(m)}
-            className="w-full cursor-pointer text-left"
-          >
+          <button type="button" onClick={() => onPick(m)} className="w-full cursor-pointer text-left">
             <Cover
               src={m.coverImage?.large}
               tint={m.coverImage?.color ?? undefined}
@@ -1159,23 +1155,24 @@ function Community({
         <section className="mb-4">
           <h5 className="t-label mb-2">{t('series.threads')}</h5>
           {threads && threads.length === 0 && <p className="text-sm text-t-muted">{t('series.noThreads')}</p>}
-          <ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
+          <ul className="grid grid-cols-[minmax(0,1fr)] divide-y divide-border-subtle">
             {threads?.map((th) => (
               <li key={th.id}>
                 <a
                   href={th.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-3 rounded-md border border-border-subtle px-3 py-2 text-sm hover:bg-bg-hover"
+                  className="flex items-center gap-3 rounded-sm px-1 py-2.5 text-sm hover:bg-bg-hover"
                 >
                   <MessageSquare aria-hidden size="1em" className="shrink-0 text-t-muted" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-t-primary">{th.title}</span>
-                    <span className="block truncate text-ctl-sm text-t-muted">
-                      {[th.user, th.category, when(th.repliedAt)].filter(Boolean).join(' · ')}
+                    <span className="line-clamp-2 text-t-primary">{th.title}</span>
+                    <span className="line-clamp-2 text-ctl-sm text-t-muted">
+                      {[t('series.replies', { count: th.replies }), th.user, th.category, when(th.repliedAt)]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </span>
                   </span>
-                  <Badge size="sm">{t('series.replies', { count: th.replies })}</Badge>
                   <ExternalLink aria-hidden size="1em" className="shrink-0 text-t-muted" />
                 </a>
               </li>
