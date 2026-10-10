@@ -1192,6 +1192,93 @@
                 },
                 "type": "object"
             },
+            "api.PlayInfo": {
+                "properties": {
+                    "audio": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.PlayTrack"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "duration": {
+                        "type": "number"
+                    },
+                    "fonts": {
+                        "description": "Fonts are the stream indices of the font attachments, for /api/play/font",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "subs": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.PlayTrack"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "video": {
+                        "$ref": "#/components/schemas/api.PlayVideo"
+                    }
+                },
+                "type": "object"
+            },
+            "api.PlayTrack": {
+                "properties": {
+                    "channels": {
+                        "type": "integer"
+                    },
+                    "codec": {
+                        "type": "string"
+                    },
+                    "default": {
+                        "type": "boolean"
+                    },
+                    "file": {
+                        "description": "File is a sidecar subtitle beside the video; Index is -1 then",
+                        "type": "string"
+                    },
+                    "forced": {
+                        "type": "boolean"
+                    },
+                    "image": {
+                        "description": "Image marks a picture subtitle (PGS, VobSub, DVB): it cannot be rendered\nas text and is burned into the transcoded picture instead",
+                        "type": "boolean"
+                    },
+                    "index": {
+                        "type": "integer"
+                    },
+                    "lang": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.PlayVideo": {
+                "properties": {
+                    "codec": {
+                        "type": "string"
+                    },
+                    "height": {
+                        "type": "integer"
+                    },
+                    "pixFmt": {
+                        "type": "string"
+                    },
+                    "profile": {
+                        "type": "string"
+                    },
+                    "width": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "api.PlexShowRef": {
                 "properties": {
                     "library": {
@@ -10272,6 +10359,544 @@
                 "summary": "Media reviews",
                 "tags": [
                     "Suggestions"
+                ]
+            }
+        },
+        "/api/play/font": {
+            "get": {
+                "description": "Returns one font attachment of the video, for rendering its ASS subtitles.",
+                "parameters": [
+                    {
+                        "description": "Server ID, 0 or omitted for a local file",
+                        "in": "query",
+                        "name": "server",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Video path",
+                        "in": "query",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Stream index of the attachment",
+                        "in": "query",
+                        "name": "index",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "file"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "502": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Font attachment",
+                "tags": [
+                    "Player"
+                ]
+            }
+        },
+        "/api/play/hls/index.m3u8": {
+            "get": {
+                "description": "Playlist of the whole video in fixed segments; the segments are transcoded to H.264/AAC on demand. audio picks the audio stream, burn a picture subtitle stream to burn into the image.",
+                "parameters": [
+                    {
+                        "description": "Server ID, 0 or omitted for a local file",
+                        "in": "query",
+                        "name": "server",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Video path",
+                        "in": "query",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Audio stream index",
+                        "in": "query",
+                        "name": "audio",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Picture subtitle stream index to burn in",
+                        "in": "query",
+                        "name": "burn",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "502": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "HLS playlist for transcoded playback",
+                "tags": [
+                    "Player"
+                ]
+            }
+        },
+        "/api/play/hls/seg.ts": {
+            "get": {
+                "description": "One transcoded MPEG-TS segment of the playlist from /api/play/hls/index.m3u8.",
+                "parameters": [
+                    {
+                        "description": "Server ID, 0 or omitted for a local file",
+                        "in": "query",
+                        "name": "server",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Video path",
+                        "in": "query",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Audio stream index",
+                        "in": "query",
+                        "name": "audio",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Picture subtitle stream index to burn in",
+                        "in": "query",
+                        "name": "burn",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Segment number",
+                        "in": "query",
+                        "name": "n",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "file"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "502": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    },
+                    "504": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Gateway Timeout"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "HLS segment",
+                "tags": [
+                    "Player"
+                ]
+            }
+        },
+        "/api/play/info": {
+            "get": {
+                "description": "Lists the duration, video, audio and subtitle tracks (including sidecar subtitle files) and font attachments of a local or remote video.",
+                "parameters": [
+                    {
+                        "description": "Server ID, 0 or omitted for a local file",
+                        "in": "query",
+                        "name": "server",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Video path",
+                        "in": "query",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.PlayInfo"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Inspect a video for playback",
+                "tags": [
+                    "Player"
+                ]
+            }
+        },
+        "/api/play/stream": {
+            "get": {
+                "description": "Serves the raw bytes of a local (server omitted or 0) or remote video with HTTP Range support, for direct playback in the browser.",
+                "parameters": [
+                    {
+                        "description": "Server ID, 0 or omitted for a local file",
+                        "in": "query",
+                        "name": "server",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "File path",
+                        "in": "query",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "file"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "206": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "file"
+                                }
+                            }
+                        },
+                        "description": "Partial Content"
+                    },
+                    "400": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "502": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Stream a video file",
+                "tags": [
+                    "Player"
+                ]
+            }
+        },
+        "/api/play/sub": {
+            "get": {
+                "description": "Converts one text subtitle track of the video (or a sidecar subtitle file passed as path) to ASS for the browser's libass renderer. Reading an embedded track reads the whole file.",
+                "parameters": [
+                    {
+                        "description": "Server ID, 0 or omitted for a local file",
+                        "in": "query",
+                        "name": "server",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Video or sidecar subtitle path",
+                        "in": "query",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Stream index of an embedded subtitle; omitted for a sidecar file",
+                        "in": "query",
+                        "name": "track",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "502": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Subtitle track as ASS",
+                "tags": [
+                    "Player"
                 ]
             }
         },
