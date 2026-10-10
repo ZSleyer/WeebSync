@@ -137,7 +137,7 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
   // a tap on a calendar entry opens the title's card
   // the cover and a calendar entry open the app's one title card
   const { open: openSeries } = useSeriesModal()
-  const showSeries = (w: Watch, tab?: 'sync') =>
+  const showSeries = (w: Watch, tab?: 'episodes') =>
     w.media &&
     openSeries({
       source: w.mediaSource,
@@ -147,8 +147,8 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
       title: w.titleOverride || undefined,
       tab,
     })
-  // the gap list is the card's auto-sync tab; a watch without a record has no card
-  const showGaps = (w: Watch) => showSeries(w, 'sync')
+  // the gap list is the card's episodes section; a watch without a record has no card
+  const showGaps = (w: Watch) => showSeries(w, 'episodes')
   // everything but "check now", for the desktop menu and the phone sheet alike
   const rowActions = (w: Watch): RowAction[] => [
     { key: 'edit', icon: <Pencil aria-hidden size="1em" />, label: t('servers.edit'), onClick: () => setEdit(w) },
@@ -1085,7 +1085,7 @@ function RowMenu({ label, items }: { label: string; items: RowAction[] }) {
     <div className="relative" ref={ref} style={anchorStyle}>
       <IconButton
         aria-label={label}
-        aria-haspopup="listbox"
+        aria-haspopup="menu"
         aria-expanded={open}
         className="border border-border-subtle"
         onClick={() => setOpen(!open)}
@@ -1093,7 +1093,7 @@ function RowMenu({ label, items }: { label: string; items: RowAction[] }) {
         <Ellipsis aria-hidden size="1.2em" />
       </IconButton>
       {open && (
-        <Menu anchor={anchor} placement="bottom-end" aria-label={label}>
+        <Menu kind="menu" anchor={anchor} placement="bottom-end" aria-label={label}>
           {items.map((a) => (
             <MenuItem
               key={a.key}
@@ -1177,7 +1177,7 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
           {/* the count and the bar sit at the foot of the tile, so they line up
               across a row however long the titles above them ran */}
           <div className="mt-auto pt-1">
-            <p className={`text-[11px] ${w.complete ? 'text-ok' : 'text-t-muted'}`}>
+            <p className={`text-ctl-sm ${w.complete ? 'text-ok' : 'text-t-muted'}`}>
               {total > 0
                 ? t('watch.episodes', { have: w.localFiles, total })
                 : t('watch.files', { count: w.localFiles })}
@@ -1205,7 +1205,7 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
 // skips it in the list
 function MenuHeading({ children }: { children: ReactNode }) {
   return (
-    <li role="presentation" className="px-3 pt-2 pb-1 font-mono text-[11px] tracking-wider text-t-muted uppercase">
+    <li role="presentation" className="px-3 pt-2 pb-1 font-mono text-ctl-sm tracking-wider text-t-muted uppercase">
       {children}
     </li>
   )

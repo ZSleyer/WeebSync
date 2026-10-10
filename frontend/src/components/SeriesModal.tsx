@@ -20,7 +20,6 @@ import {
   ChevronDown,
   Clock,
   Download,
-  Ellipsis,
   ExternalLink,
   FolderClock,
   Languages,
@@ -42,14 +41,11 @@ import {
   Cover,
   Dialog,
   IconButton,
-  Menu,
-  MenuItem,
   morphTransition,
   Progress,
   SidePanel,
   useBackEntry,
   useMediaQuery,
-  useMenu,
 } from '@weebsync/design-system'
 import {
   api,
@@ -68,8 +64,7 @@ import ActionMenu from './ActionMenu'
 import { WIDE_MQ } from './PageActions'
 import type { SheetAction } from './ActionSheet'
 import MediaDetail, { GenreChips } from './MediaDetail'
-import WatchEpisodesList from './WatchEpisodes'
-import EpisodeFiles, { type EpisodeFolder } from './EpisodeFiles'
+import EpisodeList, { type EpisodeFolder } from './EpisodeList'
 import { playHref } from './playLinks'
 import { WatchForm } from './WatchDialog'
 import { useWatchActions, watchFields } from './watchActions'
@@ -113,7 +108,7 @@ export interface SeriesAction extends SheetAction {
   more?: boolean
 }
 
-export type SeriesTab = 'overview' | 'episodes' | 'sync' | 'cast' | 'community' | 'similar'
+export type SeriesTab = 'overview' | 'episodes' | 'cast' | 'community' | 'similar'
 
 interface SeriesModalApi {
   open: (target: SeriesTarget) => void
@@ -383,8 +378,16 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     if (!shown) view.current?.close()
   }, [shown])
 
+  // an entry from before the auto-sync section went into the episodes still says 'sync'
   const target: SeriesTarget | null = shown
-    ? { ...((shown.k && targets.get(shown.k)) || { id: shown.id, tab: shown.tab }), source: shown.source, id: shown.id }
+    ? {
+        ...((shown.k && targets.get(shown.k)) || {
+          id: shown.id,
+          tab: (shown.tab as string) === 'sync' ? 'episodes' : shown.tab,
+        }),
+        source: shown.source,
+        id: shown.id,
+      }
     : null
   return (
     <Ctx.Provider value={api}>
@@ -421,7 +424,7 @@ const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
 }
 
 // the order the sections stand in on the one scrolling page
-const SECTIONS: SeriesTab[] = ['overview', 'episodes', 'sync', 'cast', 'similar', 'community']
+const SECTIONS: SeriesTab[] = ['overview', 'episodes', 'cast', 'similar', 'community']
 // the docked title bar's height (h-11), and the scroll over which it fades in
 const DOCK_PX = 44
 const DOCK_FADE = 40
@@ -571,10 +574,10 @@ function SeriesCard({
   const play = (server: number, path: string) => goTo(playHref(server, path))
 
   // One page instead of tabs: every section stands under the last, the
-  // auto-sync one only for a title that has a watch, the episodes only where
-  // there are files. The tabs hid four of five parts behind a tap, and their
-  // swipe fought the sheet's own.
-  const sections = SECTIONS.filter((k) => (k !== 'sync' || mine.length > 0) && (k !== 'episodes' || folders.length > 0))
+  // episodes (with each watch's sync state) only where a watch or a folder
+  // is. The tabs hid four of five parts behind a tap, and their swipe fought
+  // the sheet's own.
+  const sections = SECTIONS.filter((k) => k !== 'episodes' || mine.length > 0 || folders.length > 0)
   const ids = useId()
   const name = cur.title || (media ? mediaTitle(media) : '')
   const MediaStatusIcon = media?.status ? MEDIA_STATUS_ICON[media.status] : undefined
@@ -722,9 +725,9 @@ function SeriesCard({
     // a keyboard user lands in the section, not back at the top of the row
     el.focus({ preventScroll: true })
   }
-  // The caller's section (the dashboard opens on auto-sync): jumped to once
-  // it exists - the auto-sync one appears with the watch list - and dropped
-  // if the list arrives without it.
+  // The caller's section (the watch list opens on the episodes): jumped to
+  // once it exists - a watch's episodes appear with the watch list - and
+  // dropped if the list arrives without it.
   const pending = useRef<SeriesTab | null>(target.tab && target.tab !== 'overview' ? target.tab : null)
   useLayoutEffect(() => {
     const k = pending.current
@@ -866,7 +869,6 @@ function SeriesCard({
                     }}
                   >
                     {t(`series.tab.${k}`)}
-                    {k === 'sync' && mine.length > 1 && <span className="t-count ml-1.5">{mine.length}</span>}
                   </a>
                 ))}
               </div>
@@ -904,22 +906,23 @@ function SeriesCard({
                   </MediaDetail>
                 )}
                 {k === 'episodes' && (
-                  <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5 pt-3">
-                    {folders.map((f) => (
-                      <EpisodeFiles key={`${f.server}:${f.path}`} folder={f} highlight={cur.playPath} onPlay={play} />
-                    ))}
-                  </div>
-                )}
-                {k === 'sync' && (
-                  <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5 pt-3">
-                    {mine.map((w) => (
-                      <WatchBlock
-                        key={w.id}
-                        watch={w}
-                        onEdit={() => edit(w)}
-                        onGone={mine.length === 1 ? onClose : undefined}
-                      />
-                    ))}
+                  <div className="p-5 pt-3">
+                    <EpisodeList
+                      folders={folders}
+                      watches={mine}
+                      highlight={cur.playPath}
+                      onPlay={play}
+                      renderWatch={(w, list) => (
+                        <WatchBlock
+                          key={w.id}
+                          watch={w}
+                          onEdit={() => edit(w)}
+                          onGone={mine.length === 1 ? onClose : undefined}
+                        >
+                          {list}
+                        </WatchBlock>
+                      )}
+                    />
                   </div>
                 )}
                 {k === 'cast' && (
@@ -944,10 +947,10 @@ function SeriesCard({
                           <span className="min-w-0">
                             <span className="block truncate text-sm text-t-primary">{c.name}</span>
                             {c.voiceActor && (
-                              <span className="block truncate text-[11px] text-t-muted">{c.voiceActor}</span>
+                              <span className="block truncate text-ctl-sm text-t-muted">{c.voiceActor}</span>
                             )}
                             {c.role && c.role !== 'MAIN' && (
-                              <span className="block text-[10px] uppercase text-t-faint">
+                              <span className="block text-ctl-xs uppercase text-t-faint">
                                 {t(`series.role.${c.role}`, c.role)}
                               </span>
                             )}
@@ -1002,7 +1005,7 @@ function SeriesCard({
           {actions.length > 0 && (
             <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
               {act.error && (
-                <p className="mr-auto min-w-0 flex-1 text-[11px] text-err" role="status">
+                <p className="mr-auto min-w-0 flex-1 text-ctl-sm text-err" role="status">
                   {act.error}
                 </p>
               )}
@@ -1094,9 +1097,9 @@ function PosterRow({ items, onPick }: { items: { media: Media; caption?: string 
               loading="lazy"
               className="rounded-xs"
             />
-            {caption && <span className="mt-1 block text-[10px] uppercase tracking-wider text-accent">{caption}</span>}
+            {caption && <span className="mt-1 block text-ctl-xs uppercase tracking-wider text-accent">{caption}</span>}
             <span className="line-clamp-2 text-xs text-t-primary">{mediaTitle(m)}</span>
-            {m.seasonYear > 0 && <span className="block text-[11px] text-t-muted">{m.seasonYear}</span>}
+            {m.seasonYear > 0 && <span className="block text-ctl-sm text-t-muted">{m.seasonYear}</span>}
           </button>
         </li>
       ))}
@@ -1143,7 +1146,7 @@ function Community({
                   <MessageSquare aria-hidden size="1em" className="shrink-0 text-t-muted" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-t-primary">{th.title}</span>
-                    <span className="block truncate text-[11px] text-t-muted">
+                    <span className="block truncate text-ctl-sm text-t-muted">
                       {[th.user, th.category, when(th.repliedAt)].filter(Boolean).join(' · ')}
                     </span>
                   </span>
@@ -1210,93 +1213,65 @@ function Community({
 /**
  * One watch of the title: where it syncs, what needs a hand, how far it is,
  * and everything that can be done to it - check now up front, the rest
- * behind the overflow menu. The episode list sits under it.
+ * behind the overflow menu. Its episodes (`children`) follow under it.
  */
-function WatchBlock({ watch: w, onEdit, onGone }: { watch: Watch; onEdit: () => void; onGone?: () => void }) {
+function WatchBlock({
+  watch: w,
+  onEdit,
+  onGone,
+  children,
+}: {
+  watch: Watch
+  onEdit: () => void
+  onGone?: () => void
+  children: ReactNode
+}) {
   const { t } = useTranslation()
   const act = useWatchActions()
-  const {
-    open: menuOpen,
-    setOpen: setMenuOpen,
-    ref: menuRef,
-    anchor: menuAnchor,
-    anchorStyle: menuAnchorStyle,
-  } = useMenu()
   const total = w.media?.episodes ?? 0
   const pct = total > 0 ? (w.localFiles / total) * 100 : w.complete ? 100 : 0
   const canPlex = !!(w.plexAudioLang || w.plexSubLang)
+  const menu: SheetAction[] = [
+    { key: 'edit', label: t('servers.edit'), icon: <Pencil aria-hidden size="1em" />, onClick: onEdit },
+    ...(canPlex
+      ? [
+          {
+            key: 'plex',
+            label: t('watch.plexApplyAll'),
+            icon: <Languages aria-hidden size="1em" />,
+            onClick: () => void act.applyPlexStreams(w.id),
+          },
+        ]
+      : []),
+    {
+      key: 'delete',
+      label: t('servers.delete'),
+      icon: <Trash2 aria-hidden size="1em" />,
+      danger: true,
+      onClick: () => void act.del(w).then((gone) => gone && onGone?.()),
+    },
+  ]
   return (
     // min-w-0: a grid item's automatic minimum is its content's min-content
     // width, and the mono path would otherwise widen the sheet past a phone
-    <section
-      className="min-w-0 rounded-lg border border-border-subtle p-3"
-      aria-label={watchTitle(w)}
-      data-watch={w.id}
-    >
+    <section className="min-w-0" aria-label={watchTitle(w)} data-watch={w.id}>
       <div className="flex flex-wrap items-center gap-2">
-        <p className="min-w-0 flex-1 truncate font-mono text-[11px] text-t-muted" title={w.remotePath}>
+        <p className="min-w-0 flex-1 truncate font-mono text-ctl-sm text-t-muted" title={w.remotePath}>
           {w.serverName}:{w.remotePath} → {w.localPath}
         </p>
         <Button size="sm" onClick={() => act.check(w.id)}>
           <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('watch.checkNow')}
         </Button>
-        <div className="relative" ref={menuRef} style={menuAnchorStyle}>
-          <IconButton
-            aria-label={t('watch.moreActions', { title: watchTitle(w) })}
-            aria-haspopup="listbox"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <Ellipsis aria-hidden size="1.2em" />
-          </IconButton>
-          {menuOpen && (
-            <Menu
-              anchor={menuAnchor}
-              placement="bottom-end"
-              aria-label={t('watch.moreActions', { title: watchTitle(w) })}
-            >
-              <MenuItem
-                onClick={() => {
-                  setMenuOpen(false)
-                  onEdit()
-                }}
-              >
-                <Pencil aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
-                {t('servers.edit')}
-              </MenuItem>
-              {canPlex && (
-                <MenuItem
-                  onClick={() => {
-                    setMenuOpen(false)
-                    void act.applyPlexStreams(w.id)
-                  }}
-                >
-                  <Languages aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
-                  {t('watch.plexApplyAll')}
-                </MenuItem>
-              )}
-              <MenuItem
-                className="text-err"
-                onClick={async () => {
-                  setMenuOpen(false)
-                  if (await act.del(w)) onGone?.()
-                }}
-              >
-                <Trash2 aria-hidden size="1em" className="mr-2 inline align-[-0.125em]" />
-                {t('servers.delete')}
-              </MenuItem>
-            </Menu>
-          )}
-        </div>
+        <ActionMenu label={t('watch.moreActions', { title: watchTitle(w) })} title={watchTitle(w)} actions={menu} />
       </div>
-      {(act.error || w.lastResult) && <p className="mt-2 text-[11px] text-err">{act.error || w.lastResult}</p>}
+      {(act.error || w.lastResult) && <p className="mt-2 text-ctl-sm text-err">{act.error || w.lastResult}</p>}
       {act.notice && (
-        <p className="mt-2 text-[11px] text-accent" role="status">
+        <p className="mt-2 text-ctl-sm text-accent" role="status">
           {act.notice}
         </p>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]">
+      <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-ctl-sm">
         {!!w.nextAiringAt && (
           <Badge tone={w.behind ? 'warn' : 'ok'} size="sm">
             {t('watch.chipEp', { n: w.nextEpisode })}
@@ -1389,9 +1364,7 @@ function WatchBlock({ watch: w, onEdit, onGone }: { watch: Watch; onEdit: () => 
           </span>
         )}
       </div>
-      <div className="mt-3 border-t border-border-subtle pt-3">
-        <WatchEpisodesList watch={w} />
-      </div>
+      <div className="mt-4">{children}</div>
     </section>
   )
 }
