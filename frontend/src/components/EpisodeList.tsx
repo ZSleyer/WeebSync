@@ -237,6 +237,9 @@ export default function EpisodeList({
         const q = known[i]
         const eps = q.data?.episodes ?? []
         const seasons = [...new Set(eps.map((e) => e.season))]
+        // counted here, not taken from the server: a file matched by its
+        // absolute number is not missing
+        const missing = eps.filter((e) => !e.have && !e.upcoming && !hits[i].has(e)).length
         const provider = q.data?.provider ? PROVIDER_LABEL[q.data.provider] : ''
         return renderWatch(
           w,
@@ -245,10 +248,10 @@ export default function EpisodeList({
               {provider && <Badge>{provider}</Badge>}
               {seasons.length === 1 && <Badge>{t('watch.gaps.season', { n: seasons[0] })}</Badge>}
               {!!eps.length && <span>{t('watch.gaps.count', { count: eps.length })}</span>}
-              {!!q.data?.missing && (
+              {!!missing && (
                 <Badge tone="err">
                   {t('watch.gaps.missingCount', {
-                    count: q.data.missing,
+                    count: missing,
                     total: eps.length,
                   })}
                 </Badge>
@@ -280,8 +283,12 @@ export default function EpisodeList({
                 <ul className="overflow-x-clip">
                   {eps
                     .filter((e) => e.season === se)
-                    .map((e) => {
-                      const f = hits[i].get(e)
+                    .map((raw) => {
+                      const f = hits[i].get(raw)
+                      // the server marks an episode present only by SxxEyy in
+                      // a name; a file this list matched by its absolute
+                      // number is just as much there
+                      const e = f && !raw.have ? { ...raw, have: true } : raw
                       const body = <EpisodeCells ep={e} play={!!f} />
                       return f ? (
                         fileRow(f, <StateIcon ep={e} />, body, e)
