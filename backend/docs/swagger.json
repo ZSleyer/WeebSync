@@ -1607,6 +1607,15 @@
                 },
                 "type": "object"
             },
+            "api.SubPending": {
+                "properties": {
+                    "status": {
+                        "example": "pending",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.SugItem": {
                 "properties": {
                     "because": {
@@ -10364,7 +10373,7 @@
         },
         "/api/play/font": {
             "get": {
-                "description": "Returns one font attachment of the video, for rendering its ASS subtitles.",
+                "description": "Returns one font attachment of the video, for rendering its ASS subtitles. All attachments come out of one header read in the background job the info request starts.",
                 "parameters": [
                     {
                         "description": "Server ID, 0 or omitted for a local file",
@@ -10424,6 +10433,16 @@
                         },
                         "description": "Unauthorized"
                     },
+                    "404": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
                     "502": {
                         "content": {
                             "application/octet-stream": {
@@ -10433,6 +10452,16 @@
                             }
                         },
                         "description": "Bad Gateway"
+                    },
+                    "504": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Gateway Timeout"
                     }
                 },
                 "security": [
@@ -10819,7 +10848,7 @@
         },
         "/api/play/sub": {
             "get": {
-                "description": "Converts one text subtitle track of the video (or a sidecar subtitle file passed as path) to ASS for the browser's libass renderer. Reading an embedded track reads the whole file.",
+                "description": "Returns one text subtitle track of the video as ASS for the browser's libass renderer, or a sidecar subtitle file (passed as path) converted to ASS. Embedded tracks come from a background pass over the whole file that the info request starts; until it is done the answer is 202 and the client asks again.",
                 "parameters": [
                     {
                         "description": "Server ID, 0 or omitted for a local file",
@@ -10858,6 +10887,16 @@
                         },
                         "description": "OK"
                     },
+                    "202": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.SubPending"
+                                }
+                            }
+                        },
+                        "description": "Accepted"
+                    },
                     "400": {
                         "content": {
                             "text/plain": {
@@ -10877,6 +10916,16 @@
                             }
                         },
                         "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
                     },
                     "502": {
                         "content": {

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -18,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -46,6 +46,9 @@ type playSource struct {
 	userID   int64
 	serverID int64
 	path     string
+	// low leases the remote connection at the crawler's priority: background
+	// reads (the subtitle pass) must not starve the picture of connections
+	low bool
 }
 
 func playSourceFrom(r *http.Request) (playSource, error) {
@@ -95,7 +98,11 @@ func (s *Server) openPlay(ctx context.Context, src playSource) (*playFile, error
 		}
 		return &playFile{ReadSeeker: f, size: fi.Size(), modTime: fi.ModTime(), close: func() { f.Close(); local.Close() }}, nil
 	}
-	client, _, err := s.dialServer(ctx, src.userID, src.serverID, pool.PriHigh)
+	prio := pool.PriHigh
+	if src.low {
+		prio = pool.PriLow
+	}
+	client, _, err := s.dialServer(ctx, src.userID, src.serverID, prio)
 	if err != nil {
 		return nil, err
 	}
@@ -213,17 +220,52 @@ func writePlayErr(w http.ResponseWriter, src playSource, err error) {
 }
 
 func (s *Server) servePlayFile(w http.ResponseWriter, r *http.Request, src playSource) {
+	s.servePlayFileTracked(w, r, src, nil)
+}
+
+// servePlayFileTracked serves the file and, with a token, records how far into
+// it the bytes actually got - the loopback's way of telling a run that read
+// the whole file from one whose connection dropped half-way.
+func (s *Server) servePlayFileTracked(w http.ResponseWriter, r *http.Request, src playSource, tok *loopToken) {
 	f, err := s.openPlay(r.Context(), src)
 	if err != nil {
 		writePlayErr(w, src, err)
 		return
 	}
 	defer f.close()
+	var body io.ReadSeeker = f.ReadSeeker
+	if tok != nil {
+		tok.size.Store(f.size)
+		body = &trackedReader{ReadSeeker: f.ReadSeeker, tok: tok}
+	}
 	w.Header().Set("Content-Type", playMime(src.path))
 	// a video is watched for longer than any write deadline the server might
 	// one day get; streaming must not be cut off by it
 	http.NewResponseController(w).SetWriteDeadline(time.Time{})
-	http.ServeContent(w, r, "", f.modTime, f.ReadSeeker)
+	http.ServeContent(w, r, "", f.modTime, body)
+}
+
+// trackedReader extends its token's coverage as bytes are read.
+type trackedReader struct {
+	io.ReadSeeker
+	tok   *loopToken
+	start int64 // where this stretch of reading began
+	pos   int64
+}
+
+func (t *trackedReader) Read(p []byte) (int, error) {
+	n, err := t.ReadSeeker.Read(p)
+	t.pos += int64(n)
+	t.tok.cover(t.start, t.pos)
+	return n, err
+}
+
+func (t *trackedReader) Seek(offset int64, whence int) (int64, error) {
+	pos, err := t.ReadSeeker.Seek(offset, whence)
+	if err == nil {
+		t.start, t.pos = pos, pos
+	}
+	return pos, err
 }
 
 // ── ffmpeg input ─────────────────────────────────────────────────────────────
@@ -234,9 +276,21 @@ func (s *Server) servePlayFile(w http.ResponseWriter, r *http.Request, src playS
 type ffInput struct {
 	url       string
 	whitelist string
-	files     []*os.File
-	done      func()
+	// opts go ahead of -i: how a remote input survives a dropped connection
+	opts  []string
+	files []*os.File
+	done  func()
+	// complete reports whether a run read the source to its end; nil for a
+	// local file, which cannot stop short
+	complete func() bool
 }
+
+// remoteInputOpts let ffmpeg pick a remote read up where it broke off. The
+// loopback answers with the file's length, so a stream that ends early is a
+// disconnect to ffmpeg, not the end of the file - and it asks again from the
+// byte it got to. A remote that is gone for good fails after a few tries.
+var remoteInputOpts = []string{"-reconnect", "1", "-reconnect_on_network_error", "1",
+	"-reconnect_on_http_error", "5xx", "-reconnect_max_retries", "8", "-reconnect_delay_max", "10"}
 
 func (s *Server) ffInputFor(ctx context.Context, src playSource) (*ffInput, error) {
 	if src.serverID == 0 {
@@ -259,11 +313,12 @@ func (s *Server) ffInputFor(ctx context.Context, src playSource) (*ffInput, erro
 		return nil, err
 	}
 	f.close()
-	url, release, err := s.loopbackURL(src)
+	url, tok, release, err := s.loopbackURL(src)
 	if err != nil {
 		return nil, err
 	}
-	return &ffInput{url: url, whitelist: "http,tcp", done: release}, nil
+	return &ffInput{url: url, whitelist: "http,tcp", opts: remoteInputOpts, done: release,
+		complete: tok.whole}, nil
 }
 
 // playDemuxers are the containers and subtitle formats the player opens.
@@ -279,7 +334,8 @@ const playDemuxers = "matroska,webm,mov,mp4,avi,mpegts,ass,srt,webvtt,sup,vobsub
 // probe options), after behind it.
 func ffCommand(ctx context.Context, bin string, in *ffInput, before, after []string) *exec.Cmd {
 	args := append([]string{"-hide_banner", "-v", "error",
-		"-protocol_whitelist", in.whitelist, "-format_whitelist", playDemuxers}, before...)
+		"-protocol_whitelist", in.whitelist, "-format_whitelist", playDemuxers}, in.opts...)
+	args = append(args, before...)
 	args = append(args, "-i", in.url)
 	args = append(args, after...)
 	cmd := exec.CommandContext(ctx, bin, args...)
@@ -297,10 +353,40 @@ type playLoop struct {
 	addr   string
 	err    error
 	mu     sync.Mutex
-	tokens map[string]playSource
+	tokens map[string]*loopToken
 }
 
-func (s *Server) loopbackURL(src playSource) (string, func(), error) {
+// loopToken is one run's access to one source, and how much of it that run
+// has read.
+//
+// Coverage counts only bytes read in one unbroken stretch from the start: the
+// Matroska demuxer jumps to the index at the end of the file before it reads
+// anything else, and a high-water mark would call that whole.
+type loopToken struct {
+	src     playSource
+	size    atomic.Int64
+	mu      sync.Mutex
+	covered int64
+}
+
+// cover records that [from, to) was read; it counts when it joins on to what
+// is already covered.
+func (t *loopToken) cover(from, to int64) {
+	t.mu.Lock()
+	if from <= t.covered && to > t.covered {
+		t.covered = to
+	}
+	t.mu.Unlock()
+}
+
+func (t *loopToken) whole() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	n := t.size.Load()
+	return n > 0 && t.covered >= n
+}
+
+func (s *Server) loopbackURL(src playSource) (string, *loopToken, func(), error) {
 	l := &s.playLoop
 	l.once.Do(func() {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -309,33 +395,34 @@ func (s *Server) loopbackURL(src playSource) (string, func(), error) {
 			return
 		}
 		l.addr = ln.Addr().String()
-		l.tokens = map[string]playSource{}
+		l.tokens = map[string]*loopToken{}
 		go http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			l.mu.Lock()
-			src, ok := l.tokens[path.Base(r.URL.Path)]
+			tok, ok := l.tokens[path.Base(r.URL.Path)]
 			l.mu.Unlock()
 			if !ok {
 				http.NotFound(w, r)
 				return
 			}
-			s.servePlayFile(w, r, src)
+			s.servePlayFileTracked(w, r, tok.src, tok)
 		}))
 	})
 	if l.err != nil {
-		return "", nil, l.err
+		return "", nil, nil, l.err
 	}
 	b := make([]byte, 16)
 	rand.Read(b)
-	tok := hex.EncodeToString(b)
+	key := hex.EncodeToString(b)
+	tok := &loopToken{src: src}
 	l.mu.Lock()
-	l.tokens[tok] = src
+	l.tokens[key] = tok
 	l.mu.Unlock()
 	release := func() {
 		l.mu.Lock()
-		delete(l.tokens, tok)
+		delete(l.tokens, key)
 		l.mu.Unlock()
 	}
-	return "http://" + l.addr + "/t/" + tok, release, nil
+	return "http://" + l.addr + "/t/" + key, tok, release, nil
 }
 
 // ── info ─────────────────────────────────────────────────────────────────────
@@ -399,6 +486,11 @@ func (s *Server) handlePlayInfo(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writePlayErr(w, src, err)
 		return
+	}
+	// the fonts and the subtitle tracks start coming out of the file now, while
+	// the picture loads: on a remote file the tracks take minutes
+	if len(info.Fonts) > 0 || len(info.Subs) > 0 {
+		s.startMediaJob(src, info)
 	}
 	info.Subs = append(info.Subs, s.sidecarTracks(src)...)
 	writeJSON(w, http.StatusOK, info)
@@ -524,109 +616,4 @@ func (s *Server) sidecarTracks(src playSource) []PlayTrack {
 			Lang: code, Forced: forced, Title: n, File: path.Join(dir, n)})
 	}
 	return out
-}
-
-// ── subtitles and fonts ──────────────────────────────────────────────────────
-
-// @Summary  Subtitle track as ASS
-// @Description Converts one text subtitle track of the video (or a sidecar subtitle file passed as path) to ASS for the browser's libass renderer. Reading an embedded track reads the whole file.
-// @Tags     Player
-// @Produce  plain
-// @Param    server query int    false "Server ID, 0 or omitted for a local file"
-// @Param    path   query string true  "Video or sidecar subtitle path"
-// @Param    track  query int    false "Stream index of an embedded subtitle; omitted for a sidecar file"
-// @Success  200 {string} string
-// @Failure  400 {object} ErrorResponse
-// @Failure  401 {object} ErrorResponse
-// @Failure  502 {object} ErrorResponse
-// @Security CookieAuth
-// @Router   /api/play/sub [get]
-func (s *Server) handlePlaySub(w http.ResponseWriter, r *http.Request) {
-	src, err := playSourceFrom(r)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	mapArg := "0:s:0"
-	if v := r.URL.Query().Get("track"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 {
-			writeErr(w, http.StatusBadRequest, "invalid track")
-			return
-		}
-		mapArg = "0:" + strconv.Itoa(n)
-	}
-	// an embedded track is interleaved through the whole file, so this reads
-	// all of it; a remote one is a full download and gets the time for it
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
-	defer cancel()
-	in, err := s.ffInputFor(ctx, src)
-	if err != nil {
-		writePlayErr(w, src, err)
-		return
-	}
-	defer in.done()
-	// ponytail: no cache - a remote track is pulled again on every open; cache
-	// by (server, path, size) once that turns out to hurt
-	out, err := ffCommand(ctx, "ffmpeg", in, nil,
-		[]string{"-map", mapArg, "-c:s", "ass", "-f", "ass", "pipe:1"}).Output()
-	if err != nil {
-		slog.Warn("player subtitle", "path", logSafe(src.path), "err", err)
-		writeErr(w, http.StatusBadGateway, "the subtitle track could not be read")
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write(out)
-}
-
-// @Summary  Font attachment
-// @Description Returns one font attachment of the video, for rendering its ASS subtitles.
-// @Tags     Player
-// @Produce  octet-stream
-// @Param    server query int    false "Server ID, 0 or omitted for a local file"
-// @Param    path   query string true  "Video path"
-// @Param    index  query int    true  "Stream index of the attachment"
-// @Success  200 {file} binary
-// @Failure  400 {object} ErrorResponse
-// @Failure  401 {object} ErrorResponse
-// @Failure  502 {object} ErrorResponse
-// @Security CookieAuth
-// @Router   /api/play/font [get]
-func (s *Server) handlePlayFont(w http.ResponseWriter, r *http.Request) {
-	src, err := playSourceFrom(r)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	n, err := strconv.Atoi(r.URL.Query().Get("index"))
-	if err != nil || n < 0 {
-		writeErr(w, http.StatusBadRequest, "invalid index")
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
-	defer cancel()
-	in, err := s.ffInputFor(ctx, src)
-	if err != nil {
-		writePlayErr(w, src, err)
-		return
-	}
-	defer in.done()
-	tmp, err := os.CreateTemp("", "wsfont*")
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "no temp space")
-		return
-	}
-	tmp.Close()
-	defer os.Remove(tmp.Name())
-	// attachments sit in the header: no output, ffmpeg stops right after
-	// opening the input
-	err = ffCommand(ctx, "ffmpeg", in, []string{"-y", "-dump_attachment:" + strconv.Itoa(n), tmp.Name()},
-		[]string{"-t", "0", "-f", "null", "-"}).Run()
-	b, rerr := os.ReadFile(tmp.Name())
-	if err != nil || rerr != nil || len(b) == 0 {
-		writeErr(w, http.StatusBadGateway, "the font could not be read")
-		return
-	}
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(b)
 }
