@@ -445,7 +445,7 @@
     "subtitles": "Subtitles",
     "subOff": "Off",
     "subError": "The subtitles could not be loaded.",
-    "transcoding": "The browser cannot play this file directly. The server converts it while it plays; seeking restarts the conversion at the new position."
+    "transcoding": "The browser cannot play this file directly. The server converts it while it plays, and seeking restarts the conversion at the new position."
   },
   "remote": {
     "title": "REMOTE",

@@ -266,10 +266,20 @@ func (s *Server) ffInputFor(ctx context.Context, src playSource) (*ffInput, erro
 	return &ffInput{url: url, whitelist: "http,tcp", done: release}, nil
 }
 
+// playDemuxers are the containers and subtitle formats the player opens.
+//
+// ffmpeg picks the demuxer from a file's CONTENT, not its name: a ".mkv" that
+// is really an HLS or concat playlist would have it open other paths (past the
+// os.Root the file came through) or other hosts (through the loopback's http
+// whitelist), and the transcode would hand what it read back to the user.
+// Naming the demuxers closes that: a playlist format simply does not open.
+const playDemuxers = "matroska,webm,mov,mp4,avi,mpegts,ass,srt,webvtt,sup,vobsub,microdvd,subviewer,subviewer1"
+
 // ffCommand builds an ffmpeg/ffprobe run over in. before go ahead of -i (seek,
 // probe options), after behind it.
 func ffCommand(ctx context.Context, bin string, in *ffInput, before, after []string) *exec.Cmd {
-	args := append([]string{"-hide_banner", "-v", "error", "-protocol_whitelist", in.whitelist}, before...)
+	args := append([]string{"-hide_banner", "-v", "error",
+		"-protocol_whitelist", in.whitelist, "-format_whitelist", playDemuxers}, before...)
 	args = append(args, "-i", in.url)
 	args = append(args, after...)
 	cmd := exec.CommandContext(ctx, bin, args...)
