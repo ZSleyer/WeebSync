@@ -134,6 +134,43 @@ export default function Files() {
   const isLocal = source === 'local'
   // the catalog API addresses the local library as server 0
   const active = isLocal ? 0 : source
+  const series = useSeriesModal()
+  // A file plays from its title's card when the folder it lies in - or, for a
+  // season folder, the one above - is matched to a title: the card opens on
+  // its episodes, the file marked. The match is what the catalog of the level
+  // above says (the same query, so a catalog seen before answers from cache).
+  // A file of no known title plays directly.
+  const playFile = async (e: Entry) => {
+    const up = (p: string) => p.slice(0, p.lastIndexOf('/'))
+    const folder = up(e.path)
+    try {
+      for (const dir of [folder, up(folder)]) {
+        if (!dir || dir === '/') break
+        const list = up(dir).replace(/^\//, '')
+        const cat = await qc.fetchQuery<CatalogResponse>({
+          queryKey: ['catalog', active, list],
+          queryFn: () =>
+            api.get(`/api/servers/${active}/catalog${list ? `?path=${encodeURIComponent('/' + list)}` : ''}`),
+          staleTime: 5 * 60_000,
+        })
+        const it = cat.items.find((i) => i.entry.path === dir)
+        if (it?.media) {
+          series.open({
+            source: it.source,
+            id: it.media.id,
+            media: it.media,
+            folders: [{ server: active, path: dir }],
+            playPath: e.path,
+            tab: 'episodes',
+          })
+          return
+        }
+      }
+    } catch {
+      // no catalog to ask: the file still plays
+    }
+    goTo(playHref(active, e.path))
+  }
   // deep links (the dashboard queue, suggestions) open the browser at a folder
   const [path, setPath] = useState((params.get('path') ?? '').replace(/^\//, ''))
   const [localPath, setLocalPath] = useState('')
@@ -492,7 +529,7 @@ export default function Files() {
                 setQuery('')
               }}
               onSelect={setSelection}
-              onPlay={(e) => goTo(playHref(active, e.path))}
+              onPlay={playFile}
               selected={selection?.path}
             />
           ) : view === 'classic' ? (
@@ -506,7 +543,7 @@ export default function Files() {
               emptyHint={isLocal ? t('remote.emptyLocal') : undefined}
               serverId={isLocal ? undefined : active}
               renaming={inPlace}
-              onPlay={(e) => goTo(playHref(active, e.path))}
+              onPlay={playFile}
             />
           ) : (
             <CatalogGrid
@@ -573,7 +610,7 @@ export default function Files() {
             </span>
           )}
           {selection && isVideo(selection.name) && (
-            <Button size="sm" onClick={() => goTo(playHref(active, selection.path))}>
+            <Button size="sm" onClick={() => playFile(selection)}>
               <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {t('player.play')}
             </Button>
@@ -841,13 +878,6 @@ export function CatalogGrid({
   // the action bar acts on a card's one folder; a card bundling several
   // leaves it to the version rows, where each row is exactly one folder
   const barActions = (it: CatalogItem): SeriesAction[] => [
-    {
-      key: 'play',
-      label: t('player.play'),
-      icon: <Play aria-hidden size="1em" className={ico} fill="currentColor" strokeWidth={0} />,
-      primary: !onSync,
-      onClick: () => play(it.entry),
-    },
     ...(onSync
       ? [
           {
@@ -894,6 +924,7 @@ export function CatalogGrid({
       id,
       media,
       actions: g.items.length === 1 ? barActions(g.items[0]) : [],
+      folders: g.items.map((v) => ({ server: serverId, path: v.entry.path })),
       extra: (
         <CatalogVersions
           group={g}
@@ -922,7 +953,6 @@ export function CatalogGrid({
     const multi = g.items.length > 1
     return g.media
       ? [
-          playAction(it.entry),
           {
             key: 'details',
             icon: <Info aria-hidden size="1.2em" />,
@@ -1276,20 +1306,30 @@ export function CatalogGrid({
                     as="article"
                     className={`group relative flex min-w-0 flex-1 flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
                   >
-                    {/* the poster plays the title: a round button over it, in on hover
-                        or focus, always there on touch */}
-                    <div className="t-poster-zone">
-                      <button
-                        type="button"
-                        className="t-poster-play"
-                        aria-label={t('player.playItem', { name: mediaTitle(g.media, it.entry.name) })}
-                        title={t('player.play')}
-                        aria-busy={starting === it.entry.path}
-                        onClick={() => play(it.entry)}
-                      >
-                        <Play aria-hidden size="1.4em" fill="currentColor" strokeWidth={0} className="translate-x-px" />
-                      </button>
-                    </div>
+                    {/* a matched title plays from its card (episodes section); an
+                        unmatched folder has no card, so its poster plays directly:
+                        a round button over it, in on hover or focus, always there
+                        on touch */}
+                    {!g.media && (
+                      <div className="t-poster-zone">
+                        <button
+                          type="button"
+                          className="t-poster-play"
+                          aria-label={t('player.playItem', { name: mediaTitle(g.media, it.entry.name) })}
+                          title={t('player.play')}
+                          aria-busy={starting === it.entry.path}
+                          onClick={() => play(it.entry)}
+                        >
+                          <Play
+                            aria-hidden
+                            size="1.4em"
+                            fill="currentColor"
+                            strokeWidth={0}
+                            className="translate-x-px"
+                          />
+                        </button>
+                      </div>
+                    )}
                     {/* rematch tucked away as a pencil over the cover (hover/focus);
                   unmatched folders keep the explicit button below instead */}
                     {g.media && !multi && !!it.source && (

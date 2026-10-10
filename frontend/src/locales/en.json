@@ -355,6 +355,7 @@
   "series": {
     "sectionsLabel": "Sections of the title",
     "tab": {
+      "episodes": "Episodes",
       "overview": "Overview",
       "sync": "Auto-sync",
       "cast": "Cast",
@@ -370,6 +371,9 @@
     "replies_one": "{{count}} reply",
     "replies_other": "{{count}} replies",
     "noCast": "No cast on record.",
+    "noEpisodes": "No video files in this folder.",
+    "episodesError": "The episodes could not be read.",
+    "thisFolder": "This folder",
     "noSimilar": "No related titles known.",
     "relations": "Related titles",
     "recommendations": "Recommendations",

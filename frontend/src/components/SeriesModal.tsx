@@ -69,6 +69,8 @@ import { WIDE_MQ } from './PageActions'
 import type { SheetAction } from './ActionSheet'
 import MediaDetail, { GenreChips } from './MediaDetail'
 import WatchEpisodesList from './WatchEpisodes'
+import EpisodeFiles, { type EpisodeFolder } from './EpisodeFiles'
+import { playHref } from './playLinks'
 import { WatchForm } from './WatchDialog'
 import { useWatchActions, watchFields } from './watchActions'
 
@@ -88,6 +90,14 @@ export interface SeriesTarget {
   /** caller-specific rows under the record, e.g. the catalog's folder versions */
   extra?: ReactNode
   /**
+   * Folders the title's episodes lie in, for the episodes section: the
+   * catalog's folder, a file's title folder. The title's own auto-sync
+   * folders are added by the card.
+   */
+  folders?: EpisodeFolder[]
+  /** a file to mark in the episodes section; the card opens there */
+  playPath?: string
+  /**
    * What can be done with the title where the card was opened, for its action
    * bar. Without any, a card opened from a watch offers checking and editing
    * that watch.
@@ -103,7 +113,7 @@ export interface SeriesAction extends SheetAction {
   more?: boolean
 }
 
-export type SeriesTab = 'overview' | 'sync' | 'cast' | 'community' | 'similar'
+export type SeriesTab = 'overview' | 'episodes' | 'sync' | 'cast' | 'community' | 'similar'
 
 interface SeriesModalApi {
   open: (target: SeriesTarget) => void
@@ -411,7 +421,7 @@ const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
 }
 
 // the order the sections stand in on the one scrolling page
-const SECTIONS: SeriesTab[] = ['overview', 'sync', 'cast', 'similar', 'community']
+const SECTIONS: SeriesTab[] = ['overview', 'episodes', 'sync', 'cast', 'similar', 'community']
 // the docked title bar's height (h-11), and the scroll over which it fades in
 const DOCK_PX = 44
 const DOCK_FADE = 40
@@ -541,10 +551,30 @@ function SeriesCard({
     .filter((w) => w.media?.id === cur.id && (w.mediaSource || 'anilist') === source)
     .sort((a, b) => (a.id === cur.watchId ? -1 : b.id === cur.watchId ? 1 : a.id - b.id))
 
+  // where the title's episodes lie: what the caller knows (the catalog's
+  // folder) and the local folder of every watch, once each
+  const folders: EpisodeFolder[] = []
+  for (const f of [
+    ...(cur.folders ?? []),
+    ...mine.map((w) => ({
+      server: 0,
+      path: w.subfolder
+        ? `${w.localPath.replace(/\/$/, '')}/${w.remotePath.replace(/\/+$/, '').split('/').pop()}`
+        : w.localPath,
+    })),
+  ]) {
+    if (f.path && !folders.some((g) => g.server === f.server && g.path === f.path)) folders.push(f)
+  }
+  // a play button opens the player; the card stays in history behind it, so
+  // back from the player returns here
+  const goTo = useNavigate()
+  const play = (server: number, path: string) => goTo(playHref(server, path))
+
   // One page instead of tabs: every section stands under the last, the
-  // auto-sync one only for a title that has a watch. The tabs hid four of
-  // five parts behind a tap, and their swipe fought the sheet's own.
-  const sections = SECTIONS.filter((k) => k !== 'sync' || mine.length > 0)
+  // auto-sync one only for a title that has a watch, the episodes only where
+  // there are files. The tabs hid four of five parts behind a tap, and their
+  // swipe fought the sheet's own.
+  const sections = SECTIONS.filter((k) => (k !== 'sync' || mine.length > 0) && (k !== 'episodes' || folders.length > 0))
   const ids = useId()
   const name = cur.title || (media ? mediaTitle(media) : '')
   const MediaStatusIcon = media?.status ? MEDIA_STATUS_ICON[media.status] : undefined
@@ -861,6 +891,13 @@ function SeriesCard({
                   <MediaDetail media={media} source={source} airings={mine[0]?.airings} links={extras?.links} now={now}>
                     {cur.extra}
                   </MediaDetail>
+                )}
+                {k === 'episodes' && (
+                  <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5 pt-3">
+                    {folders.map((f) => (
+                      <EpisodeFiles key={`${f.server}:${f.path}`} folder={f} highlight={cur.playPath} onPlay={play} />
+                    ))}
+                  </div>
                 )}
                 {k === 'sync' && (
                   <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-5 pt-3">
