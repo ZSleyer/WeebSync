@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { FolderOpen, FolderPlus, Pencil } from 'lucide-react'
+import { FolderOpen, FolderPlus, Pencil, Play } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button, Input } from '@weebsync/design-system'
@@ -9,6 +9,7 @@ import HostKeyPrompt from './HostKeyPrompt'
 import Loading from './Loading'
 import PathInput from './PathInput'
 import { InlineRename, type Renaming } from './InlineRename'
+import { isVideo } from './playLinks'
 
 // Path breadcrumb: root button plus one button per segment. Shared by the
 // classic file list and the catalog grid, so both navigate the same way. Given
@@ -121,6 +122,7 @@ export function FileBrowser({
   actions,
   serverId,
   renaming,
+  onPlay,
 }: {
   queryKey: unknown[]
   fetchPath: (path: string) => string
@@ -136,6 +138,8 @@ export function FileBrowser({
   serverId?: number
   /** the row whose name is being edited in place */
   renaming?: Renaming
+  /** opens a video in the player: its row's icon becomes the play button */
+  onPlay?: (e: Entry) => void
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -220,20 +224,23 @@ export function FileBrowser({
                     <InlineRename name={e.name} onDone={renaming.onDone} />
                   </li>
                 )
+              const playable = !!onPlay && !e.isDir && isVideo(e.name)
               return (
-                <li key={e.path} className="flex items-stretch border-b border-border-subtle/50">
+                <li key={e.path} className="group/row flex items-stretch border-b border-border-subtle/50">
+                  {playable && <PlayIcon name={e.name} onPlay={() => onPlay(e)} />}
                   <button
                     type="button"
-                    className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-hover ${
-                      selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'
-                    }`}
+                    className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-3 text-left text-sm transition-colors hover:bg-bg-hover ${
+                      playable ? 'pl-1' : 'pl-3'
+                    } ${selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'}`}
                     onClick={() => {
                       if (e.isDir) onNavigate(e.path.replace(/^\//, ''))
                       else if (selectable) onSelect(e)
                     }}
-                    onDoubleClick={() => selectable && onSelect(e)}
+                    // a video plays on a double click; anything else is picked
+                    onDoubleClick={() => (playable ? onPlay(e) : selectable && onSelect(e))}
                   >
-                    <FileIcon isDir={e.isDir} name={e.name} />
+                    {!playable && <FileIcon isDir={e.isDir} name={e.name} />}
                     <span className="min-w-0 flex-1 truncate" title={e.name}>
                       {e.name}
                     </span>
@@ -256,6 +263,25 @@ export function FileBrowser({
         </ul>
       </div>
     </div>
+  )
+}
+
+// PlayIcon is a video row's file icon that is also its play button: the film
+// glyph turns into the play glyph under the pointer or focus, so a file plays
+// from where it is listed instead of from an action bar.
+export function PlayIcon({ name, onPlay }: { name: string; onPlay: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      className="t-play-icon"
+      aria-label={t('player.playItem', { name })}
+      title={t('player.play')}
+      onClick={onPlay}
+    >
+      <FileIcon isDir={false} name={name} className="t-play-icon__file" />
+      <Play aria-hidden size="1em" className="t-play-icon__play" fill="currentColor" strokeWidth={0} />
+    </button>
   )
 }
 

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 import HlsPlayer from 'hls.js'
 import JASSUB from 'jassub'
-import { Captions } from 'lucide-react'
+import { Captions, SkipBack, SkipForward, X } from 'lucide-react'
 import {
   MediaControlBar,
   MediaController,
@@ -34,6 +34,7 @@ import { addTranslation, setLanguage } from 'media-chrome/dist/utils/i18n.js'
 import { De } from 'media-chrome/dist/lang/de.js'
 import { api, keyConflictOf } from '../api'
 import HostKeyPrompt from '../components/HostKeyPrompt'
+import { listFolder, playHref, videosIn } from '../components/playLinks'
 import Loading from '../components/Loading'
 
 interface PlayTrack {
@@ -102,13 +103,19 @@ function trackLabel(tr: PlayTrack, i: number): string {
   return bits.filter(Boolean).join(' · ') || `#${i + 1}`
 }
 
+// the route: every file gets a fresh player, so the tracks, the transcode
+// fallback and the subtitles of one episode never leak into the next
 export default function Player() {
-  const { t, i18n } = useTranslation()
-  setLanguage(i18n.language)
   const [params] = useSearchParams()
-  const navigate = useNavigate()
   const server = Number(params.get('server') || 0)
   const path = params.get('path') || ''
+  return <PlayerView key={`${server}:${path}`} server={server} path={path} />
+}
+
+function PlayerView({ server, path }: { server: number; path: string }) {
+  const { t, i18n } = useTranslation()
+  setLanguage(i18n.language)
+  const navigate = useNavigate()
   const name = path.split('/').pop() || path
   const src = `server=${server}&path=${encodeURIComponent(path)}`
 
@@ -235,6 +242,41 @@ export default function Player() {
 
   // the dock's real height (it differs per viewport and pointer): the
   // settings menu opens above it
+  // the episodes beside this one: the folder's videos in order, for the
+  // previous/next buttons, the episodes menu and going on at the end
+  const parent = path.slice(0, path.lastIndexOf('/')) || '/'
+  const folder = useQuery({
+    queryKey: ['play-folder', server, parent],
+    queryFn: async () => videosIn(await listFolder(server, parent)),
+    enabled: !!path,
+    staleTime: 60_000,
+  })
+  const episodes = folder.data ?? []
+  const at = episodes.findIndex((e) => e.path === path || e.name === name)
+  const prev = at > 0 ? episodes[at - 1] : undefined
+  const next = at >= 0 && at < episodes.length - 1 ? episodes[at + 1] : undefined
+  const goTo = (e: { path: string }) => navigate(playHref(server, e.path), { replace: true })
+  // at the end of an episode the next one starts after a short count, which
+  // the title row shows and lets the user skip or call off
+  const [nextIn, setNextIn] = useState<number | null>(null)
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !next) return
+    const ended = () => setNextIn(8)
+    v.addEventListener('ended', ended)
+    return () => v.removeEventListener('ended', ended)
+  }, [next, data])
+  const goNext = useEffectEvent(() => next && goTo(next))
+  useEffect(() => {
+    if (nextIn === null) return
+    if (nextIn <= 0) {
+      goNext()
+      return
+    }
+    const id = window.setTimeout(() => setNextIn(nextIn - 1), 1000)
+    return () => clearTimeout(id)
+  }, [nextIn])
+
   const playerRef = useRef<MediaControllerElement>(null)
   useEffect(() => {
     const player = playerRef.current
@@ -429,6 +471,25 @@ export default function Player() {
             {t('player.transcode')}
           </span>
         )}
+        {nextIn !== null && next && (
+          <span className="t-player-next" role="status">
+            <button
+              type="button"
+              className="t-player-chip t-player-chip--accent t-player-chip--button"
+              onClick={() => goTo(next)}
+            >
+              {t('player.nextIn', { secs: nextIn })}
+            </button>
+            <button
+              type="button"
+              className="t-player-chip t-player-chip--button"
+              aria-label={t('player.nextCancel')}
+              onClick={() => setNextIn(null)}
+            >
+              <X aria-hidden size="1em" />
+            </button>
+          </span>
+        )}
         {mutedStart && (
           <button
             type="button"
@@ -482,6 +543,17 @@ export default function Player() {
             }}
           />
         </MediaSettingsMenuItem>
+        {episodes.length > 1 && (
+          <MediaSettingsMenuItem>
+            {t('player.episodes')}
+            <TrackMenu
+              title={t('player.episodes')}
+              value={at >= 0 ? episodes[at].path : ''}
+              options={episodes.map((e) => ({ value: e.path, label: e.name.replace(/\.[^.]+$/, '') }))}
+              onChange={(p) => goTo({ path: p })}
+            />
+          </MediaSettingsMenuItem>
+        )}
         {data.audio.length > 1 && (
           <MediaSettingsMenuItem>
             {t('player.audio')}
@@ -520,9 +592,33 @@ export default function Player() {
           </span>
           <MediaTimeDisplay showDuration className="t-player-time" />
           <span className="flex-1" />
+          {episodes.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="t-player-btn"
+                aria-label={t('player.prevEpisode')}
+                title={prev ? `${t('player.prevEpisode')}: ${prev.name}` : t('player.prevEpisode')}
+                disabled={!prev}
+                onClick={() => prev && goTo(prev)}
+              >
+                <SkipBack aria-hidden size={20} />
+              </button>
+              <button
+                type="button"
+                className="t-player-btn"
+                aria-label={t('player.nextEpisode')}
+                title={next ? `${t('player.nextEpisode')}: ${next.name}` : t('player.nextEpisode')}
+                disabled={!next}
+                onClick={() => next && goTo(next)}
+              >
+                <SkipForward aria-hidden size={20} />
+              </button>
+            </>
+          )}
           <button
             type="button"
-            className="t-player-cc"
+            className="t-player-btn t-player-cc"
             aria-pressed={subKey !== 'none'}
             aria-label={`${t('player.subtitles')}: ${subLabel}`}
             title={`${t('player.subtitles')}: ${subLabel}`}
