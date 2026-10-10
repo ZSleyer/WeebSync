@@ -128,7 +128,7 @@ export default function SetupSteps({
             <Select name="protocol" defaultValue="sftp" disabled={!!serverId}>
               <option value="sftp">SFTP (SSH)</option>
               <option value="ftps">FTPS (TLS)</option>
-              <option value="ftp">FTP</option>
+              <option value="ftp">{t('servers.ftpOption')}</option>
             </Select>
           </Field>
           <Field label={t('servers.port')}>

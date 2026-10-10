@@ -99,7 +99,7 @@ export default function Servers() {
         {servers.map((s) => (
           <Panel key={s.id} className="p-4">
             <div className="mb-2 flex items-center gap-2">
-              <Badge tone="accent">
+              <Badge tone={s.protocol === 'ftp' ? 'warn' : 'accent'}>
                 {s.protocol === 'ftp' ? <LockOpen aria-hidden size="1em" /> : <Lock aria-hidden size="1em" />}
                 {s.protocol}
               </Badge>
@@ -110,6 +110,13 @@ export default function Servers() {
               {s.username}@{s.host}:{s.port}
             </p>
             <p className="mb-3 font-mono text-xs text-t-muted">root: {s.rootPath}</p>
+            {/* plain FTP still works, it is only on its way out: the card says so,
+                since a server set up long ago never opens the form again */}
+            {s.protocol === 'ftp' && (
+              <p className="mb-3 text-xs text-warn" role="note">
+                {t('servers.ftpDeprecated')}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={() => test(s.id)}>
                 <PlugZap aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -269,7 +276,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             >
               <option value="sftp">SFTP (SSH)</option>
               <option value="ftps">FTPS (TLS)</option>
-              <option value="ftp">FTP</option>
+              <option value="ftp">{t('servers.ftpOption')}</option>
             </Select>
           </Field>
           <Field label={t('servers.port')}>
