@@ -1050,7 +1050,7 @@ main:has(.page-fill) {
   }
 }
 
-/* ── A season's episodes on a rail (WatchEpisodes): the marks are joined by
+/* ── A season's episodes on a rail (EpisodeList): the marks are joined by
    a line coloured by what each episode is, so the holes in a season show as
    red stretches before a single title is read. Rows slide in as they enter
    the scroller where the browser can tie an animation to that (view
@@ -1092,7 +1092,7 @@ main:has(.page-fill) {
     }
   }
   /* where rows cannot be tied to the scroll (Firefox), they slide in once as
-     they come into view: WatchEpisodes marks them with data-in */
+     they come into view: useReveal marks them with data-in */
   @supports not (animation-timeline: view()) {
     :root:not([data-motion="off"]) .t-ep[data-in="0"] { opacity: 0.3; transform: translateX(8px); }
     :root:not([data-motion="off"]) .t-ep[data-in="1"] { transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }

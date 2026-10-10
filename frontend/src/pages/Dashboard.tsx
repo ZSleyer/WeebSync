@@ -1158,7 +1158,7 @@ function Attention({ watches }: { watches: Watch[] }) {
                     <button
                       type="button"
                       aria-label={t('remote.detailsFor', { name: watchTitle(w) })}
-                      onClick={() => openSeries({ ...seriesTarget(w), tab: 'sync' })}
+                      onClick={() => openSeries({ ...seriesTarget(w), tab: 'episodes' })}
                       className="shrink-0 cursor-pointer rounded-xs"
                     >
                       <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />

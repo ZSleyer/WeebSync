@@ -125,6 +125,7 @@ function serve({ watches = [] as Watch[], extras = undefined as unknown, reviews
     if (url === '/api/anilist/media/8') return { ...sequel, description: 'Teil zwei.' }
     if (url === '/api/anilist/media/7') return media
     if (url.startsWith('/api/watches/') && url.endsWith('/episodes')) return { episodes: [] }
+    if (url.startsWith('/api/browse/local')) return []
     throw new Error('unexpected ' + url)
   })
 }
@@ -191,16 +192,15 @@ describe('SeriesModalProvider', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('shows the auto-sync section only for a title that has watches, one block each', async () => {
+  it('shows the episodes section only for a title that has watches, one block each', async () => {
     serve({ watches: [watch(1), watch(2), { ...watch(3), media: { ...media, id: 99 } }] })
-    target = { id: 7, media, watchId: 2, tab: 'sync' }
+    target = { id: 7, media, watchId: 2, tab: 'episodes' }
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    const link = await screen.findByRole('link', { name: /series.tab.sync/ })
-    // opened on the auto-sync section: the jump row says so
+    const link = await screen.findByRole('link', { name: /series.tab.episodes/ })
+    // opened on the episodes section: the jump row says so
     await waitFor(() => expect(link).toHaveAttribute('aria-current', 'true'))
-    expect(link).toHaveTextContent('2')
-    const section = screen.getByRole('region', { name: 'series.tab.sync' })
+    const section = screen.getByRole('region', { name: 'series.tab.episodes' })
     const blocks = within(section).getAllByRole('region')
     expect(blocks).toHaveLength(2)
     // the watch the caller came from leads
@@ -217,11 +217,11 @@ describe('SeriesModalProvider', () => {
     expect(line).toHaveTextContent('series.state.next')
   })
 
-  it('has no auto-sync section without a watch and says so when the source is down', async () => {
+  it('has no episodes section without a watch or files and says so when the source is down', async () => {
     serve({ watches: [] })
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    expect(screen.queryByRole('link', { name: /series.tab.sync/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /series.tab.episodes/ })).toBeNull()
     // one page: cast, similar and community stand under the overview
     expect(screen.getByRole('region', { name: 'series.tab.cast' })).toBeInTheDocument()
     expect((await screen.findAllByRole('status'))[0]).toHaveTextContent('series.unavailable')
@@ -306,7 +306,7 @@ describe('SeriesModalProvider', () => {
     fireEvent.click(within(bar).getByRole('button', { name: 'Jetzt syncen' }))
     expect(sync).toHaveBeenCalledTimes(1)
     fireEvent.click(within(bar).getByRole('button', { name: 'series.moreActions:Frieren' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Dateien zeigen' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Dateien zeigen' }))
     expect(files).toHaveBeenCalledTimes(1)
   })
 
@@ -316,7 +316,7 @@ describe('SeriesModalProvider', () => {
     target = { id: 7, media, watchId: 1 }
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    await screen.findByRole('region', { name: 'series.tab.sync' })
+    await screen.findByRole('region', { name: 'series.tab.episodes' })
     const bar = screen.getByRole('dialog').querySelector('footer')!
     expect(within(bar).getByRole('button', { name: /servers.edit/ })).toBeInTheDocument()
     fireEvent.click(within(bar).getByRole('button', { name: /watch.checkNow/ }))
@@ -450,12 +450,12 @@ describe('SeriesModalProvider', () => {
 
   it('swaps the card for the watch editor in place and comes back to it', async () => {
     serve({ watches: [{ ...watch(1), serverId: 1, template: '', pattern: '' } as Watch] })
-    target = { id: 7, media, tab: 'sync' }
+    target = { id: 7, media, tab: 'episodes' }
     app()
     fireEvent.click(screen.getByText('öffnen'))
     const openEditor = async () => {
       fireEvent.click(await screen.findByRole('button', { name: 'watch.moreActions' }))
-      fireEvent.click(screen.getByRole('option', { name: /servers.edit/ }))
+      fireEvent.click(screen.getByRole('menuitem', { name: /servers.edit/ }))
     }
     await openEditor()
 

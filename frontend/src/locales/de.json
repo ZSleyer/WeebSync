@@ -357,7 +357,6 @@
     "tab": {
       "episodes": "Folgen",
       "overview": "Übersicht",
-      "sync": "Auto-Sync",
       "cast": "Besetzung",
       "community": "Community",
       "similar": "Ähnliches"
@@ -374,6 +373,7 @@
     "noEpisodes": "Keine Videodateien in diesem Ordner.",
     "episodesError": "Die Folgen konnten nicht gelesen werden.",
     "thisFolder": "Dieser Ordner",
+    "otherFiles": "Weitere Dateien",
     "noSimilar": "Keine verwandten Titel bekannt.",
     "relations": "Verwandte Titel",
     "recommendations": "Empfehlungen",
