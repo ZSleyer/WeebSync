@@ -72,6 +72,7 @@ addTranslation('de', De)
 // no frame, so the watchdog below has the last word.
 const DIRECT_CONTAINERS = new Set(['mkv', 'mp4', 'm4v', 'webm', 'mov'])
 const DIRECT_AUDIO = new Set(['aac', 'mp3', 'opus', 'vorbis', 'flac'])
+const FIREFOX_ANDROID = /Android.*Firefox\//.test(navigator.userAgent)
 
 // The codec string for a picture: profile and bit depth matter, a phone that
 // decodes HEVC Main may not decode Main 10.
@@ -204,6 +205,9 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       (a && !DIRECT_AUDIO.has(a.codec)) ||
       // a browser plays the first audio track of a file and offers no other
       (a && a.index !== data.audio[0].index) ||
+      // Firefox on Android reads a whole Matroska file before it reports a
+      // duration: an episode spun for minutes. The segments start at once.
+      (ext === 'mkv' && FIREFOX_ANDROID) ||
       burn >= 0
     )
   }, [data, path, audioIdx, burn, forceHls, videoOk])
