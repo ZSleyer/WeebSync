@@ -390,14 +390,32 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     return () => ro.disconnect()
   }, [data])
 
-  // a phone in fullscreen turns to landscape, where a 16:9 picture fills the
-  // screen; browsers without orientation lock (iOS) simply stay as they are
+  // a phone in fullscreen turns to landscape, where a wide picture fills the
+  // screen; a portrait video stays upright, and browsers without orientation
+  // lock (iOS) simply stay as they are
   useEffect(() => {
+    let locked = false
     const turn = () => {
       const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
-      if (!matchMedia('(pointer: coarse)').matches || !o?.lock) return
-      if (document.fullscreenElement) o.lock('landscape').catch(() => {})
-      else o.unlock?.()
+      if (!o?.lock) return
+      if (!document.fullscreenElement) {
+        if (locked) {
+          locked = false
+          try {
+            o.unlock?.()
+          } catch {
+            // nothing was locked after all
+          }
+        }
+        return
+      }
+      const v = videoRef.current
+      const wide = !v?.videoWidth || v.videoWidth >= v.videoHeight
+      if (!matchMedia('(pointer: coarse)').matches || !wide) return
+      o.lock('landscape').then(
+        () => (locked = true),
+        () => {},
+      )
     }
     document.addEventListener('fullscreenchange', turn)
     return () => document.removeEventListener('fullscreenchange', turn)
@@ -764,7 +782,9 @@ function PlayerView({ server, path }: { server: number; path: string }) {
             <MediaMuteButton />
             <MediaVolumeRange />
           </span>
-          <MediaTimeDisplay showDuration className="t-player-time" />
+          {/* a narrow player shows the current time only (CSS picks one) */}
+          <MediaTimeDisplay showDuration className="t-player-time t-player-time--full" />
+          <MediaTimeDisplay className="t-player-time t-player-time--short" />
           <span className="flex-1" />
           {episodes.length > 1 && (
             <>
@@ -780,7 +800,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               </button>
               <button
                 type="button"
-                className="t-player-btn"
+                className="t-player-btn t-player-nextep"
                 aria-label={t('player.nextEpisode')}
                 title={next ? `${t('player.nextEpisode')}: ${next.name}` : t('player.nextEpisode')}
                 disabled={!next}
