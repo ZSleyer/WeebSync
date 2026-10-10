@@ -687,13 +687,57 @@ a.t-label {
   display: flex;
   align-items: center;
   height: 2.75rem;
-  padding: 0 1.25rem;
+  /* the close button sits over the end: the title stops short of it */
+  padding: 0 3.5rem 0 1.25rem;
   pointer-events: none;
   background: color-mix(in srgb, var(--bg-card) calc(var(--q, 0) * 100%), transparent);
   font: 600 0.9375rem/1.2 var(--font-display);
   letter-spacing: 0.04em;
 }
 .t-dock > span { min-width: 0; opacity: var(--q, 0); }
+/* the bar's hairline arrives with its fill */
+.t-dock { border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) calc(var(--q, 0) * 100%), transparent); }
+
+/* The card's hero: the banner runs full bleed under the docked bar and fades
+   into the card at its foot, the big title and its line sit on the picture.
+   Scrolling, the picture lags (0.45) and the title sinks (0.25) and fades;
+   the bar fills in and takes the title over. SeriesCard writes the
+   transforms per frame, so only transform and opacity move. */
+.t-hero {
+  position: relative;
+  height: 11rem;
+  overflow: hidden;
+  background: var(--bg-hover);
+}
+.t-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(transparent 35%, var(--bg-card));
+}
+.t-hero__art {
+  position: absolute;
+  inset: -20px 0 0;
+  width: 100%;
+  height: calc(100% + 20px);
+  object-fit: cover;
+  will-change: transform;
+}
+.t-hero__title {
+  position: absolute;
+  inset: auto 1.25rem 0.75rem;
+  z-index: 1;
+  will-change: transform, opacity;
+  /* a soft halo in the card's colour: a busy picture never swallows the line */
+  text-shadow: 0 1px 12px color-mix(in srgb, var(--bg-card) 85%, transparent);
+}
+/* over the picture the round buttons are dark discs with a white mark; as the
+   bar fills in they turn into its plain icon buttons */
+.t-hero-btn {
+  background: color-mix(in srgb, #000 calc((1 - var(--q, 0)) * 45%), transparent) !important;
+  color: color-mix(in srgb, #fff calc((1 - var(--q, 0)) * 100%), var(--text-primary));
+}
 
 /* Disclosure on the native details element: the marker is drawn as a chevron
    by the component, so the platform's own triangle goes. */
