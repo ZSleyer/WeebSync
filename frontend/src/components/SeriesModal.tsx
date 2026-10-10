@@ -699,7 +699,13 @@ function SeriesCard({
         // scrolled to the end, the last section is the one being read even
         // though a short one never reaches the top of the band
         const end = root.scrollTop > 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2
-        const first = end ? sections[sections.length - 1] : sections.find((k) => seen.get(sec.current[k]!))
+        // and back at the top only the header is in the band, no section at
+        // all: the first one is, or a jump up from the end kept the last
+        const first = end
+          ? sections[sections.length - 1]
+          : root.scrollTop < 2
+            ? sections[0]
+            : sections.find((k) => seen.get(sec.current[k]!))
         if (first) setCurrent(first)
       },
       { root, rootMargin: `-${STICKY_PX}px 0px -50% 0px` },
