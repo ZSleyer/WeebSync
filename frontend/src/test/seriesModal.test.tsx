@@ -250,7 +250,11 @@ describe('SeriesModalProvider', () => {
     expect(await screen.findByText('Fern')).toBeInTheDocument()
     expect(extrasAsked()).toBe(true)
 
-    // scrolled: the observer reports the cast section as the first in the band
+    // scrolled: the observer reports the cast section as the first in the band.
+    // jsdom never scrolls, and at the very top the first section wins, so the
+    // scroller is put somewhere in the middle
+    vi.spyOn(Element.prototype, 'scrollTop', 'get').mockReturnValue(400)
+    vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(5000)
     spy.fire(screen.getByRole('region', { name: 'series.tab.overview' }), false)
     spy.fire(screen.getByRole('region', { name: 'series.tab.cast' }), true)
     expect(link('series.tab.cast')).toHaveAttribute('aria-current', 'true')
