@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react'
-import { LOGO_H, LOGO_PATH_S, LOGO_PATH_W, LOGO_W } from '../logo'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { LOGO_H, LOGO_W } from '../logo'
 import Logo, { DURATION, INTROS, still, type Intro } from './Logo'
 
 // The brand as one lockup that is either the mark or the wordmark, never both
@@ -12,25 +12,50 @@ import Logo, { DURATION, INTROS, still, type Intro } from './Logo'
 //   it into the mark, holds a beat and unfolds it again.
 // - `hero` (login, setup): the large mark plays one of its intros, then
 //   unfolds into the wordmark, once.
-// - `about`: mark over wordmark, still - the one place both stand.
+// - `about`: the wordmark, still.
 //
-// Each run picks one of three moves at random: unfold (the letters glide out
-// of W and S), roll (they roll up one by one, like the app's numbers) or cut
-// (the intro's slanted blade sweeps the wordmark in over the mark). The
+// Each run picks one of two moves at random: unfold (the letters glide out
+// of W and S) or roll (they roll up one by one, like the app's numbers). The
 // slogan sits under SYNC like a subtitle or over it like furigana, drawn per
-// mount, and never covers the mark. Motion runs on WAAPI with transform,
-// opacity and clip-path only; motion off shows each place's rest at once.
+// mount, and never covers the mark. Motion runs on WAAPI with transform and
+// opacity only; motion off shows each place's rest at once.
 
-type Move = 'unfold' | 'roll' | 'cut'
-const MOVES: Move[] = ['unfold', 'roll', 'cut']
+type Move = 'unfold' | 'roll'
+const MOVES: Move[] = ['unfold', 'roll']
 type Slogan = 'sub' | 'ruby'
 const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)'
 const EASE_IN = 'cubic-bezier(0.4, 0, 1, 1)'
-// where each half's glyph centre sits across the mark's box
-const GLYPH_W = 314 / LOGO_W
-const GLYPH_S = 788 / LOGO_W
-// Chakra Petch caps stand about this high in the em
-const CAP = 0.72
+// The mark is the wordmark's own W and S: the same Chakra Petch 700 glyphs,
+// the S set 9° oblique and shifted left over the W, whose upper right arm the
+// S cuts away. Measured against the traced mark by overlaying both (the only
+// difference left is a sliver at the S's lower left end), so the move between
+// mark and wordmark is the two letters taking that pose and leaving it - no
+// swap between artwork and type anywhere in it.
+// Glyph metrics in em: cap height, ascent and descent of the font's line box,
+// and where the ink of W and S starts after the glyph origin.
+const CAP = 0.705
+const ASC = 0.9917
+const DESC = 0.3078
+const INK_W = 0.025
+const INK_S = 0.05
+// the S's origin in the mark's units (LOGO_W x LOGO_H), and its slant
+const S_AT = 492.6
+const S_SKEW = -9
+// the part of the W the mark keeps, in the mark's units: everything but the
+// upper right arm, cut along the S's left edge. Opening, the cut keeps its
+// shape and slides off to the right: one clean edge uncovers the arm
+const W_CUT = [
+  [-50, -50],
+  [384, -50],
+  [512, 419],
+  [517, 417],
+  [541, 275],
+  [628, 366],
+  [760, 366],
+  [760, 650],
+  [-50, 650],
+]
+const W_OPEN = W_CUT.map(([x, y]) => [x < 0 ? x : x + 420, y])
 const pick = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)]
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -50,11 +75,20 @@ export default function Brand({
   const root = useRef<HTMLDivElement>(null)
   const [kind] = useState<Slogan>(() => pick(['sub', 'ruby'] as const))
   const [intro] = useState<Intro>(() => pick(INTROS))
-  // the hero's intro plays on the full Logo; the halves take over to unfold
+  // the hero's intro plays on the full Logo; W and S take over to unfold
   const [heroMark, setHeroMark] = useState(variant === 'hero')
   // the key the last run was for: the same key again is a remount (or React's
   // strict double run), not a page change
   const lastKey = useRef<string | undefined | null>(null)
+  // a fold-and-unfold under way, and whether the lockup is still mounted
+  const running = useRef(false)
+  const gone = useRef(false)
+  useEffect(
+    () => () => {
+      gone.current = true
+    },
+    [],
+  )
 
   useLayoutEffect(() => {
     const el = root.current
@@ -62,91 +96,89 @@ export default function Brand({
     const q = <T extends Element>(s: string) => [...el.querySelectorAll<T>(s)]
     const letters = q<HTMLElement>('[data-ch]')
     const word = el.querySelector<HTMLElement>('[data-word]')!
-    const halves = q<SVGSVGElement>('[data-half]')
+    // the mark's place and size; never seen, only measured
+    const anchor = el.querySelector<SVGSVGElement>('[data-anchor]')!
     const tag = el.querySelector<HTMLElement>('[data-slogan]')
-    const all = [word, ...letters, ...halves, ...(tag ? [tag] : [])]
-    let alive = true
+    const all = [word, ...letters, ...(tag ? [tag] : [])]
+    const [lw, ls] = [letters[0], letters[4]]
+    // the lockup left the page; a page change alone never cuts a run short
+    const alive = () => !gone.current
     const stop = () => all.forEach((n) => n.getAnimations?.().forEach((a) => a.cancel()))
-    const rest = (which: 'mark' | 'word') => {
-      stop()
-      letters.forEach((n) => (n.style.opacity = which === 'word' ? '1' : '0'))
-      halves.forEach((n) => (n.style.opacity = which === 'mark' ? '1' : '0'))
-      if (tag) tag.style.opacity = which === 'word' ? '1' : '0'
-    }
     const run = (n: Element, k: Keyframe[], o: KeyframeAnimationOptions & { duration: number }) =>
       n.animate(k, { fill: 'both', ...o }).finished.catch(() => {})
-    // a half's glyph onto the cap box of its letter
-    const flip = (m: SVGSVGElement, letter: HTMLElement, glyph: number) => {
-      m.style.transformOrigin = `${glyph * 100}% 50%`
-      const mb = m.getBoundingClientRect()
+
+    // The pose of W or S in the mark, as a transform from the letter at rest
+    // plus (for the W) the cut. Measured with the letter's own pose cleared.
+    const pose = (letter: HTMLElement, s: boolean) => {
+      letter.style.transform = ''
+      letter.style.clipPath = ''
+      const mb = anchor.getBoundingClientRect()
       const lb = letter.getBoundingClientRect()
       const cs = getComputedStyle(letter)
-      const k = (parseFloat(cs.fontSize) * CAP) / mb.height
-      const lx = lb.left + (lb.width - (parseFloat(cs.letterSpacing) || 0)) / 2
-      const gx = mb.left + mb.width * glyph
-      return `translate(${(lx - gx).toFixed(1)}px, ${(lb.top + lb.height / 2 - (mb.top + mb.height / 2)).toFixed(1)}px) scale(${k.toFixed(3)})`
+      const fs = parseFloat(cs.fontSize)
+      const lh = cs.lineHeight === 'normal' ? (ASC + DESC) * fs : parseFloat(cs.lineHeight)
+      // the cap's top and the baseline inside the letter's box
+      const capTop = (lh - (ASC + DESC) * fs) / 2 + (ASC - CAP) * fs
+      const ox = (s ? INK_S : INK_W) * fs
+      const oy = s ? capTop + CAP * fs : capTop
+      const k = mb.height / (CAP * fs)
+      const unit = mb.height / LOGO_H
+      // W: its ink's top left onto the mark's top left; S: its origin on the
+      // baseline onto its place on the mark's foot, then the slant
+      const tx = (s ? mb.left + S_AT * unit : mb.left) - (lb.left + ox)
+      const ty = (s ? mb.bottom : mb.top) - (lb.top + oy)
+      const u = (CAP * fs) / LOGO_H
+      const poly = (pts: number[][]) =>
+        `polygon(${pts.map(([x, y]) => `${(ox + x * u).toFixed(1)}px ${(capTop + y * u).toFixed(1)}px`).join(', ')})`
+      return {
+        origin: `${ox.toFixed(1)}px ${oy.toFixed(1)}px`,
+        at: `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${k.toFixed(4)}) skewX(${s ? S_SKEW : 0}deg)`,
+        home: 'translate(0px, 0px) scale(1) skewX(0deg)',
+        cut: poly(W_CUT),
+        open: poly(W_OPEN),
+      }
     }
-    const dx = (i: number, src: number) =>
-      `translateX(${(letters[src].getBoundingClientRect().left - letters[i].getBoundingClientRect().left).toFixed(1)}px)`
-    const slant = (x: number, keepLeft: boolean) =>
-      keepLeft
-        ? `polygon(-20% 0, ${x}% 0, ${x - 18}% 100%, -20% 100%)`
-        : `polygon(${x}% 0, 140% 0, 140% 100%, ${x - 18}% 100%)`
-
+    const rest = (which: 'mark' | 'word') => {
+      stop()
+      letters.forEach((n, i) => {
+        n.style.transform = ''
+        n.style.clipPath = ''
+        n.style.opacity = which === 'word' || i === 0 || i === 4 ? '1' : '0'
+      })
+      if (which === 'mark') {
+        const pw = pose(lw, false)
+        const ps = pose(ls, true)
+        lw.style.transformOrigin = pw.origin
+        lw.style.transform = pw.at
+        lw.style.clipPath = pw.cut
+        ls.style.transformOrigin = ps.origin
+        ls.style.transform = ps.at
+      }
+      if (tag) tag.style.opacity = which === 'word' ? '1' : '0'
+    }
+    // from layout, not the screen: W and S may stand in their mark pose
+    const dx = (i: number, src: number) => `translateX(${letters[src].offsetLeft - letters[i].offsetLeft}px)`
+    // W and S between their pose in the mark and their place in the word
+    const travel = (toWord: boolean, delay: number, duration: number, easing: string) => {
+      const pw = pose(lw, false)
+      const ps = pose(ls, true)
+      lw.style.transformOrigin = pw.origin
+      ls.style.transformOrigin = ps.origin
+      const w = [
+        { transform: pw.at, clipPath: pw.cut },
+        { transform: pw.home, clipPath: pw.open },
+      ]
+      const sk = [{ transform: ps.at }, { transform: ps.home }]
+      return [
+        run(lw, toWord ? w : w.toReversed(), { duration, delay, easing }),
+        run(ls, toWord ? sk : sk.toReversed(), { duration, delay: delay + 30, easing }),
+      ]
+    }
     const unfold = async (move: Move) => {
       stop()
-      const [mw, ms] = halves
       const jobs: Promise<unknown>[] = []
-      if (move === 'cut') {
-        letters.forEach((n) => (n.style.opacity = '1'))
-        jobs.push(
-          run(word, [{ clipPath: slant(-10, true) }, { clipPath: slant(130, true) }], {
-            duration: 620,
-            easing: EASE_OUT,
-          }),
-        )
-        halves.forEach((h) =>
-          jobs.push(
-            run(
-              h,
-              [
-                { clipPath: slant(-10, false), opacity: 1 },
-                { clipPath: slant(130, false), opacity: 1 },
-              ],
-              { duration: 620, easing: EASE_OUT },
-            ),
-          ),
-        )
-      } else {
-        const tw = flip(mw, letters[0], GLYPH_W)
-        const ts = flip(ms, letters[4], GLYPH_S)
-        jobs.push(
-          run(
-            mw,
-            [
-              { transform: 'none', opacity: 1 },
-              { transform: tw, opacity: 1, offset: 0.75 },
-              { transform: tw, opacity: 0 },
-            ],
-            { duration: 360, easing: EASE_OUT },
-          ),
-        )
-        jobs.push(
-          run(
-            ms,
-            [
-              { transform: 'none', opacity: 1 },
-              { transform: ts, opacity: 1, offset: 0.75 },
-              { transform: ts, opacity: 0 },
-            ],
-            { duration: 380, delay: 30, easing: EASE_OUT },
-          ),
-        )
-        ;[0, 4].forEach((i, k) =>
-          jobs.push(
-            run(letters[i], [{ opacity: 0 }, { opacity: 1 }], { duration: 120, delay: 260 + k * 30, easing: 'linear' }),
-          ),
-        )
+      {
+        jobs.push(...travel(true, 0, 420, EASE_OUT))
         const from = (i: number, src: number) => (move === 'unfold' ? dx(i, src) : 'translateY(60%)')
         ;[1, 2, 3].forEach((i, k) =>
           jobs.push(
@@ -156,7 +188,7 @@ export default function Brand({
                 { opacity: 0, transform: from(i, 0) },
                 { opacity: 1, transform: 'none' },
               ],
-              { duration: 420, delay: 300 + k * 30, easing: EASE_OUT },
+              { duration: 420, delay: 140 + k * 30, easing: EASE_OUT },
             ),
           ),
         )
@@ -168,7 +200,7 @@ export default function Brand({
                 { opacity: 0, transform: from(i, 4) },
                 { opacity: 1, transform: 'none' },
               ],
-              { duration: 420, delay: 330 + k * 30, easing: EASE_OUT },
+              { duration: 420, delay: 170 + k * 30, easing: EASE_OUT },
             ),
           ),
         )
@@ -182,41 +214,19 @@ export default function Brand({
               { opacity: 0, transform: lift },
               { opacity: 1, transform: 'none' },
             ],
-            { duration: 240, delay: move === 'cut' ? 560 : 640, easing: EASE_OUT },
+            { duration: 240, delay: 480, easing: EASE_OUT },
           ),
         )
       }
       await Promise.all(jobs)
-      if (alive) rest('word')
+      if (alive()) rest('word')
     }
 
     const fold = async (move: Move) => {
       stop()
-      const [mw, ms] = halves
       const jobs: Promise<unknown>[] = []
       if (tag) jobs.push(run(tag, [{ opacity: 1 }, { opacity: 0 }], { duration: 100, easing: EASE_IN }))
-      if (move === 'cut') {
-        jobs.push(
-          run(word, [{ clipPath: slant(-10, false) }, { clipPath: slant(130, false) }], {
-            duration: 260,
-            easing: EASE_IN,
-          }),
-        )
-        halves.forEach((h) =>
-          jobs.push(
-            run(
-              h,
-              [
-                { clipPath: slant(-10, true), opacity: 1 },
-                { clipPath: slant(130, true), opacity: 1 },
-              ],
-              { duration: 260, easing: EASE_IN },
-            ),
-          ),
-        )
-      } else {
-        const tw = flip(mw, letters[0], GLYPH_W)
-        const ts = flip(ms, letters[4], GLYPH_S)
+      {
         ;[1, 2, 3, 5, 6, 7].forEach((i) =>
           jobs.push(
             run(
@@ -229,34 +239,11 @@ export default function Brand({
             ),
           ),
         )
-        ;[0, 4].forEach((i) =>
-          jobs.push(run(letters[i], [{ opacity: 1 }, { opacity: 0 }], { duration: 90, delay: 160, easing: 'linear' })),
-        )
-        jobs.push(
-          run(
-            mw,
-            [
-              { transform: tw, opacity: 0 },
-              { transform: tw, opacity: 1, offset: 0.3 },
-              { transform: 'none', opacity: 1 },
-            ],
-            { duration: 260, delay: 160, easing: EASE_OUT },
-          ),
-        )
-        jobs.push(
-          run(
-            ms,
-            [
-              { transform: ts, opacity: 0 },
-              { transform: ts, opacity: 1, offset: 0.3 },
-              { transform: 'none', opacity: 1 },
-            ],
-            { duration: 260, delay: 170, easing: EASE_OUT },
-          ),
-        )
+        // the rest folds into W and S while those two take their mark pose
+        jobs.push(...travel(false, 100, 300, EASE_OUT))
       }
       await Promise.all(jobs)
-      if (alive) rest('mark')
+      if (alive()) rest('mark')
     }
 
     const mount = lastKey.current === null || lastKey.current === replayKey
@@ -267,20 +254,24 @@ export default function Brand({
       setHeroMark(false)
       return
     }
+    // Page changes in quick succession ride along with the run already under
+    // way: cutting it short snapped the letters and the slogan back to the
+    // wordmark mid-fold, a flash on every click, and the next run began again
+    if (running.current) return
     const seq = async () => {
       const move = pick(MOVES)
       if (variant === 'hero') {
-        // the large mark draws itself in, then hands over to its halves -
-        // the same pixels - which unfold
+        // the large mark draws itself in, then hands over to W and S in
+        // their mark pose - the same shape - which unfold
         rest('word')
         letters.forEach((n) => (n.style.opacity = '0'))
         if (tag) tag.style.opacity = '0'
         await wait(DURATION[intro] + 120)
-        if (!alive) return
+        if (!alive()) return
         rest('mark')
         setHeroMark(false)
         await wait(60)
-        if (alive) await unfold(move)
+        if (alive()) await unfold(move)
         return
       }
       if (mount) {
@@ -290,14 +281,10 @@ export default function Brand({
         await fold(move)
         await wait(450)
       }
-      if (alive) await unfold(move)
+      if (alive()) await unfold(move)
     }
-    seq()
-    return () => {
-      alive = false
-      // a new page mid-move: the next run starts from the wordmark at rest
-      rest('word')
-    }
+    running.current = true
+    void seq().finally(() => (running.current = false))
     // the hero runs once; the rail on every new key
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replayKey])
@@ -327,17 +314,17 @@ export default function Brand({
       {slogan}
     </span>
   )
-  const half = (d: string, fill: string) => (
+  // where the mark stands and how large: an empty box of the mark's
+  // proportions, measured, never painted - W and S pose into it
+  const anchor = (
     <svg
-      data-half
+      data-anchor
       aria-hidden
       viewBox={`0 0 ${LOGO_W} ${LOGO_H}`}
-      className={`pointer-events-none absolute top-1/2 w-auto -translate-y-1/2 overflow-visible opacity-0 ${
+      className={`pointer-events-none invisible absolute top-1/2 w-auto -translate-y-1/2 ${
         variant === 'hero' ? 'left-1/2 h-14 -translate-x-1/2' : 'left-0 h-[1.15em]'
       }`}
-    >
-      <path d={d} fill={fill} />
-    </svg>
+    />
   )
 
   const wordmark = (
@@ -351,22 +338,15 @@ export default function Brand({
     </span>
   )
 
-  if (variant === 'about') {
-    return (
-      <div className={`flex flex-col items-start gap-3 ${className}`}>
-        <Logo play={false} className="h-10 w-auto" />
-        {wordmark}
-      </div>
-    )
-  }
+  // the about page names the app: the wordmark alone, the mark is for small places
+  if (variant === 'about') return <div className={className}>{wordmark}</div>
   return (
     <div
       ref={root}
       className={`relative ${variant === 'hero' ? 'grid h-20 place-items-center' : 'inline-block'} ${className}`}
     >
       {wordmark}
-      {half(LOGO_PATH_W, 'currentColor')}
-      {half(LOGO_PATH_S, 'var(--accent-blue)')}
+      {anchor}
       {heroMark && (
         <Logo
           intro={intro}

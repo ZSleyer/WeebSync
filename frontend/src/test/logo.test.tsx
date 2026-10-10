@@ -10,9 +10,9 @@ describe('Logo', () => {
   })
 
   it('carries a sheen only while something transfers', () => {
-    const { container, rerender } = render(<Logo intro="cut" />)
+    const { container, rerender } = render(<Logo intro="trace" />)
     expect(container.querySelector('.t-logo-sheen')).toBeNull()
-    rerender(<Logo intro="cut" active />)
+    rerender(<Logo intro="trace" active />)
     expect(container.querySelector('.t-logo-sheen')).not.toBeNull()
     expect(container.querySelector('svg')).toHaveAttribute('data-active')
   })
