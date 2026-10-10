@@ -334,6 +334,39 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-panel);
 }
+/* A region that opened inside a panel (a search under a row, a disclosure's
+   fields): a rule down its start edge instead of a second card in the card.
+   Boxes inside boxes read as clutter; the indent alone says "belongs to the
+   line above". */
+.t-inset {
+  border-inline-start: 2px solid var(--border-subtle);
+  padding-block: 0.25rem;
+  padding-inline-start: 0.75rem;
+}
+
+/* Rounded picker trigger (sort order, source, model): the current value plus a
+   chevron, opening a Menu of kind listbox. One class for the three pickers that
+   each spelled it out. In the components layer, so a caller's text utilities
+   still win. */
+@layer components {
+  .t-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    max-width: 100%;
+    min-height: 2rem;
+    padding-inline: 0.75rem;
+    border: 1px solid var(--border-input);
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    transition: border-color var(--dur-1) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .t-pill:hover { border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent); }
+  }
+}
+
 /* Destructive area: the border itself carries the warning. The danger body
    of a dialog is a direct child without a border of its own, so the dialog
    takes the tint instead. */

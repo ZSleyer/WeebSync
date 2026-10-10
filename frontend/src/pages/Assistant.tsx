@@ -670,7 +670,7 @@ export default function Assistant() {
                   <img src={src} alt="" className="h-14 w-14 rounded-xs border border-border-subtle object-cover" />
                   <button
                     type="button"
-                    className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full border border-border-subtle bg-bg-card text-t-muted hover:text-err"
+                    className="absolute -top-2 -right-2 grid size-6 place-items-center rounded-full border border-border-subtle bg-bg-card text-t-muted hover:text-err"
                     aria-label={t('assistant.removeImage')}
                     onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}
                   >
@@ -736,7 +736,7 @@ export default function Assistant() {
                 <Plus aria-hidden size="1.3em" />
               </IconButton>
               {addOpen && (
-                <Menu anchor={addAnchor} placement="top-start" aria-label={t('assistant.add')}>
+                <Menu kind="menu" anchor={addAnchor} placement="top-start" aria-label={t('assistant.add')}>
                   <MenuItem
                     aria-disabled={vision === false}
                     title={vision === false ? t('assistant.attachNoVision') : undefined}
@@ -805,7 +805,7 @@ export default function Assistant() {
               <div className="min-w-0" ref={modelRef} style={modelAnchorStyle}>
                 <button
                   type="button"
-                  className="flex min-h-8 max-w-full items-center gap-1 rounded-full border border-border-input px-3 text-xs text-t-secondary hover:text-t-primary"
+                  className="t-pill text-xs text-t-secondary hover:text-t-primary"
                   aria-haspopup="listbox"
                   aria-expanded={modelOpen}
                   aria-label={t('assistant.model')}

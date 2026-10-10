@@ -48,7 +48,7 @@ export default function SourcePicker({
     <div className={`relative min-w-0 ${className ?? ''}`} ref={ref} style={anchorStyle}>
       <button
         type="button"
-        className="flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-border-input px-3 text-sm text-t-primary hover:border-accent/60"
+        className="t-pill"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={t('remote.source')}

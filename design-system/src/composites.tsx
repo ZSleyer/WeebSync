@@ -1,10 +1,13 @@
 import {
+  createContext,
   Fragment,
+  useContext,
   useEffect,
   useRef,
   useState,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type CSSProperties,
@@ -1290,7 +1293,32 @@ export interface MenuProps {
   anchor?: string
   /** which corner of the wrapper the list hangs from; default bottom-start */
   placement?: MenuPlacement
+  /**
+   * menu: a list of actions (edit, delete) - role menu, focus moves into it on
+   * open. listbox: a pick of one value (sort order, source) - the trigger keeps
+   * focus. A screen reader announces the two differently, so it matters.
+   */
+  kind?: 'menu' | 'listbox'
   className?: string
+}
+
+const MenuKind = createContext<'menu' | 'listbox'>('listbox')
+
+// arrow keys, Home and End walk the items (APG menu and listbox pattern);
+// disabled ones are skipped, the ends wrap around
+function walkItems(e: ReactKeyboardEvent<HTMLUListElement>) {
+  const items = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
+  if (!items.length) return
+  const at = items.indexOf(document.activeElement as HTMLButtonElement)
+  const to: Record<string, number> = {
+    ArrowDown: (at + 1) % items.length,
+    ArrowUp: (at - 1 + items.length) % items.length,
+    Home: 0,
+    End: items.length - 1,
+  }
+  if (!(e.key in to)) return
+  e.preventDefault()
+  items[to[e.key]].focus()
 }
 
 // the caller-positioned fallback, for an engine without anchor positioning:
@@ -1316,20 +1344,22 @@ const canAnchor = () =>
  * wrapper when that scrolls; the open state stays with useMenu, so the popover
  * is "manual" and never dismisses itself behind React's back.
  */
-export function Menu({ children, className, anchor, placement = 'bottom-start', ...rest }: MenuProps) {
+export function Menu({ children, className, anchor, placement = 'bottom-start', kind = 'listbox', ...rest }: MenuProps) {
   const ref = useRef<HTMLUListElement>(null)
   const anchored = !!anchor && canAnchor()
   useEffect(() => {
-    if (!anchored) return
-    // no hidePopover on cleanup: React runs it after the node has left the
-    // document, where the call throws, and leaving the document already
-    // removes the popover from the top layer
-    try {
-      ref.current?.showPopover?.()
-    } catch {
-      /* already shown, or no popover support */
+    if (anchored) {
+      // no hidePopover on cleanup: React runs it after the node has left the
+      // document, where the call throws, and leaving the document already
+      // removes the popover from the top layer
+      try {
+        ref.current?.showPopover?.()
+      } catch {
+        /* already shown, or no popover support */
+      }
     }
-  }, [anchored])
+    if (kind === 'menu') ref.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+  }, [anchored, kind])
   const up = placement.startsWith('top')
   return (
     // clipped sideways: the py-1 lets the first and last item's hover fill
@@ -1339,7 +1369,8 @@ export function Menu({ children, className, anchor, placement = 'bottom-start', 
     // covered most of a phone's screen, which reads as a page, not a menu.
     <ul
       ref={ref}
-      role="listbox"
+      role={kind}
+      onKeyDown={walkItems}
       {...rest}
       {...(anchored ? { popover: 'manual', 'data-placement': placement } : {})}
       style={anchored ? { positionAnchor: anchor } : undefined}
@@ -1350,27 +1381,27 @@ export function Menu({ children, className, anchor, placement = 'bottom-start', 
         className,
       )}
     >
-      {children}
+      <MenuKind.Provider value={kind}>{children}</MenuKind.Provider>
     </ul>
   )
 }
 
-export interface MenuItemProps extends HTMLAttributes<HTMLButtonElement> {
+export interface MenuItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   selected?: boolean
   /** trailing mark, e.g. a check on the active option */
   trailing?: ReactNode
 }
 
 export function MenuItem({ selected, trailing, children, className, ...rest }: MenuItemProps) {
+  const kind = useContext(MenuKind)
   return (
-    <li>
+    <li role="none">
       <button
         type="button"
-        role="option"
-        aria-selected={selected}
+        {...(kind === 'menu' ? { role: 'menuitem' } : { role: 'option', 'aria-selected': selected })}
         {...rest}
         className={cx(
-          'flex w-full items-center justify-between gap-4 px-3 py-2 text-left text-sm hover:bg-bg-secondary',
+          'flex min-h-(--ctl-h) w-full items-center justify-between gap-4 px-3 py-2 text-left text-sm hover:bg-bg-secondary focus-visible:bg-bg-secondary',
           selected ? 'text-accent' : 'text-t-secondary',
           className,
         )}

@@ -543,7 +543,7 @@ function AnilistOwnApp({
         <span>{t('settings.anilistOwnApp')}</span>
       </button>
       {open && (
-        <div className="mt-2 grid grid-cols-1 gap-3 rounded-lg border border-border-subtle bg-bg-secondary/40 p-2">
+        <div className="t-inset mt-2 grid grid-cols-1 gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs text-t-muted">
               {t('settings.anilistClientId')}

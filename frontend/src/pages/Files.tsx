@@ -1558,7 +1558,7 @@ function CatalogActions({
         <MoreHorizontal aria-hidden size="1.1em" />
       </IconButton>
       {open && (
-        <Menu anchor={anchor} aria-label={t('remote.catalogActions')}>
+        <Menu kind="menu" anchor={anchor} aria-label={t('remote.catalogActions')}>
           {canRematch && noMatchCount > 0 && (
             <MenuItem
               onClick={() => {
@@ -1669,7 +1669,7 @@ function TileActions({
             <MoreHorizontal aria-hidden size="1.2em" />
           </Button>
           {open && (
-            <Menu anchor={anchor} placement="top-end" aria-label={more}>
+            <Menu kind="menu" anchor={anchor} placement="top-end" aria-label={more}>
               {rest.map((a) => (
                 <MenuItem
                   key={a.key}

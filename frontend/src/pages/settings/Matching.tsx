@@ -216,7 +216,7 @@ function ServerCard({
             <MoreHorizontal aria-hidden size="1.2em" />
           </Button>
           {open && (
-            <Menu anchor={anchor} placement="bottom-end" aria-label={more}>
+            <Menu kind="menu" anchor={anchor} placement="bottom-end" aria-label={more}>
               {s && (
                 <MenuItem
                   className="text-err"
@@ -473,7 +473,7 @@ function MatchesView({ stat }: { stat: MatchStat }) {
                     </span>
                   </div>
                   {correcting?.folder === m.folder && (
-                    <div className="mt-2 rounded-lg border border-border-subtle bg-bg-secondary/40 p-2">
+                    <div className="t-inset mt-2">
                       <div className="flex gap-2">
                         <label className="sr-only" htmlFor="correct-q">
                           {t('remote.search')}

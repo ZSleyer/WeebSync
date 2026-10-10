@@ -556,7 +556,7 @@ function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => v
             </h4>
             <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.willRunWhat')}</p>
 
-            <div className="mt-4 rounded-lg border border-border-subtle bg-bg-secondary/40 p-3">
+            <div className="t-inset mt-4">
               <Checkbox
                 checked={includeDecisions}
                 onChange={(e) => setIncludeDecisions(e.target.checked)}

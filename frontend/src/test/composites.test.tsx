@@ -538,6 +538,27 @@ describe('Menu and MenuItem', () => {
     expect(options[1]).toHaveClass('text-t-secondary')
   })
 
+  it('is a menu of menuitems for actions, focused on open and walked by arrow keys', () => {
+    render(
+      <Menu kind="menu" aria-label="Aktionen">
+        <MenuItem>Bearbeiten</MenuItem>
+        <MenuItem disabled>Plex</MenuItem>
+        <MenuItem>Löschen</MenuItem>
+      </Menu>,
+    )
+    const list = screen.getByRole('menu', { name: 'Aktionen' })
+    const [edit, , del] = screen.getAllByRole('menuitem')
+    expect(edit).not.toHaveAttribute('aria-selected')
+    expect(edit).toHaveFocus()
+    // the disabled entry is skipped, and the ends wrap around
+    fireEvent.keyDown(list, { key: 'ArrowDown' })
+    expect(del).toHaveFocus()
+    fireEvent.keyDown(list, { key: 'ArrowDown' })
+    expect(edit).toHaveFocus()
+    fireEvent.keyDown(list, { key: 'End' })
+    expect(del).toHaveFocus()
+  })
+
   it('shows the trailing mark on the selected item only', () => {
     render(
       <Menu aria-label="Sortieren nach">

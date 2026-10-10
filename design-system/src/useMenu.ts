@@ -28,7 +28,13 @@ export function useMenu<T extends HTMLElement = HTMLDivElement>() {
     if (!open) return
     const onDoc = (e: Event) => {
       if (e instanceof KeyboardEvent) {
-        if (e.key === 'Escape') setOpen(false)
+        if (e.key === 'Escape') {
+          setOpen(false)
+          // focus goes back to the trigger (the control carrying
+          // aria-expanded), so a keyboard user is not dropped onto the body
+          if (ref.current?.contains(document.activeElement))
+            ref.current.querySelector<HTMLElement>('[aria-expanded]')?.focus()
+        }
       } else if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false)
       }
