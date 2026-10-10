@@ -393,16 +393,53 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     }
   }, [data, subTrack, server, src, t])
 
-  // touch: a double tap on the left or right third of the picture seeks 10 s,
-  // and taps that keep coming add up (the flash shows the running total). A
-  // single tap is left to media-chrome, which shows or hides the controls.
+  // touch: a tap on the picture shows hidden controls and hides shown ones; a
+  // double tap on the left or right third seeks 10 s, and taps that keep coming
+  // add up (the flash shows the running total).
+  //
+  // media-chrome hides on a tap but never shows: it only wakes the controls on
+  // a pointer that moves for longer than a tap, so once they had faded a finger
+  // could not get them back. Whether they were hidden is read when the finger
+  // lands, before media-chrome's own pointerup handling changes it.
   const lastTap = useRef({ at: 0, side: '' })
+  const wasHidden = useRef(false)
+  // after a touch the browser plays a mouse along (enter, move, click) and then
+  // has it leave; media-chrome reads that leave as the pointer going away and
+  // hides the controls the tap just showed. A leave right after a touch is
+  // not one, so it never reaches media-chrome.
+  useEffect(() => {
+    const player = playerRef.current
+    if (!player) return
+    let touched = 0
+    const touch = (e: globalThis.PointerEvent) => {
+      if (e.pointerType === 'touch') touched = e.timeStamp
+    }
+    const leave = (e: MouseEvent) => {
+      if (e.timeStamp - touched < 1000) e.stopImmediatePropagation()
+    }
+    player.addEventListener('pointerdown', touch, true)
+    player.addEventListener('mouseleave', leave, true)
+    return () => {
+      player.removeEventListener('pointerdown', touch, true)
+      player.removeEventListener('mouseleave', leave, true)
+    }
+  }, [data])
+  const noteHidden = (e: PointerEvent<HTMLElement>) => {
+    if (e.pointerType === 'touch') wasHidden.current = e.currentTarget.hasAttribute('userinactive')
+  }
   const [flash, setFlash] = useState<{ side: 'back' | 'fwd'; secs: number } | null>(null)
   const flashTimer = useRef(0)
   const tapSeek = (e: PointerEvent<HTMLElement>) => {
     const vid = videoRef.current
     if (e.pointerType !== 'touch' || !vid) return
     if ((e.target as HTMLElement).closest('.t-player-dock, .t-player-menu, .t-player-top')) return
+    if (wasHidden.current) {
+      // the way media-chrome itself wakes the controls: activity over the
+      // media, which also schedules their fading again
+      vid.dispatchEvent(
+        new globalThis.PointerEvent('pointermove', { pointerType: 'mouse', bubbles: true, composed: true }),
+      )
+    }
     const box = e.currentTarget.getBoundingClientRect()
     const x = (e.clientX - box.left) / box.width
     const side = x < 1 / 3 ? 'back' : x > 2 / 3 ? 'fwd' : ''
@@ -450,12 +487,20 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       className="t-player"
       // media-chrome's hotkeys (space, k, f, m, arrows) act only while focus is
       // inside the player, never page-wide (WCAG 2.1.4)
+      onPointerDown={noteHidden}
       onPointerUp={tapSeek}
     >
       {/* captions are libass on a canvas over the picture: a <track> cannot
           carry ASS styling, positioning or the file's fonts */}
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video ref={videoRef} slot="media" playsInline />
+      <video
+        ref={videoRef}
+        slot="media"
+        playsInline
+        // Chrome on Android lays a cast button over every video, and keeps it
+        // there: the player has its own controls and no cast target
+        {...{ disableRemotePlayback: true }}
+      />
 
       <div slot="top-chrome" className="t-player-top">
         <span className="t-player-title" title={path}>
@@ -596,7 +641,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
             <>
               <button
                 type="button"
-                className="t-player-btn"
+                className="t-player-btn t-player-prev"
                 aria-label={t('player.prevEpisode')}
                 title={prev ? `${t('player.prevEpisode')}: ${prev.name}` : t('player.prevEpisode')}
                 disabled={!prev}
