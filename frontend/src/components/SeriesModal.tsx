@@ -41,6 +41,7 @@ import {
   Cover,
   Dialog,
   IconButton,
+  markOverflow,
   morphTransition,
   Progress,
   SidePanel,
@@ -716,6 +717,22 @@ function SeriesCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sections.join(), viewOn, cur.id])
 
+  // On a phone the jump row is wider than the sheet: it follows the section
+  // being read, the marked tab slides to the middle so its underline is never
+  // cut off at the edge. Sideways only - scrollIntoView would also move the
+  // page under it. The cut edges fade (data-overflow) as in the DS Tabs.
+  const tabRow = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const row = tabRow.current
+    const a = row?.querySelector<HTMLElement>('[aria-current="true"]')
+    if (!row || !a) return
+    row.scrollTo?.({
+      left: a.offsetLeft - (row.clientWidth - a.offsetWidth) / 2,
+      behavior: reducedMotion() ? 'auto' : 'smooth',
+    })
+    markOverflow(row)
+  }, [current, sections.length])
+
   const jump = (k: SeriesTab, smooth = true) => {
     const el = sec.current[k]
     const sc = scroller.current
@@ -856,7 +873,11 @@ function SeriesCard({
               aria-label={t('series.sectionsLabel')}
               className="sticky top-11 z-10 border-b border-border-subtle bg-bg-card"
             >
-              <div className="t-tabs t-tabs--line t-tabs--scroll px-3">
+              <div
+                ref={tabRow}
+                className="t-tabs t-tabs--line t-tabs--scroll px-3"
+                onScroll={(e) => markOverflow(e.currentTarget)}
+              >
                 {sections.map((k) => (
                   <a
                     key={k}
