@@ -305,15 +305,15 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
                     <FileJson aria-hidden size="1em" className="shrink-0 text-t-muted" />
                     {w.id || t('legacy.unnamed')}
                   </span>
-                  <span className="mt-1 block truncate font-mono text-[11px] text-t-muted">
+                  <span className="mt-1 block truncate font-mono text-ctl-sm text-t-muted">
                     {w.remotePath} → {w.localPath || '?'}
                   </span>
-                  <span className="mt-1 block font-mono text-[11px] text-t-secondary">
+                  <span className="mt-1 block font-mono text-ctl-sm text-t-secondary">
                     {w.mode === 'regex' ? `${w.pattern} → ${w.replacement}` : w.template || t('legacy.noRename')}
                   </span>
-                  {w.error && <span className="mt-1 block text-[11px] text-err">{t(`legacy.${w.error}`)}</span>}
+                  {w.error && <span className="mt-1 block text-ctl-sm text-err">{t(`legacy.${w.error}`)}</span>}
                   {w.warnings?.map((g) => (
-                    <span key={g} className="mt-1 block text-[11px] text-warn">
+                    <span key={g} className="mt-1 block text-ctl-sm text-warn">
                       {t(`legacy.${g}`)}
                     </span>
                   ))}
@@ -323,7 +323,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
                   of an endless series); a negative one just shifts a part */}
               {w.offset > 0 && (
                 /* not <Field>: that one bakes in text-xs, this caption is 11px */
-                <label className="t-field mt-2 block pl-6 text-[11px] text-t-muted">
+                <label className="t-field mt-2 block pl-6 text-ctl-sm text-t-muted">
                   {t('legacy.fromEpisode', { offset: w.offset })}
                   <Input
                     type="number"

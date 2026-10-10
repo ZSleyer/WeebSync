@@ -405,7 +405,7 @@ function Shell({ email }: { email: string }) {
         >
           <Search aria-hidden size="1em" className="shrink-0" />
           <span className="flex-1 text-left">{t('palette.title')}</span>
-          <kbd className="font-mono text-[11px]">{/Mac|iP/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+          <kbd className="font-mono text-ctl-sm">{/Mac|iP/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
         </button>
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto py-3" aria-label={t('nav.main')}>

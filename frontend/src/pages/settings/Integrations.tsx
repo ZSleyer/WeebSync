@@ -495,7 +495,7 @@ function PlexSections({
               const roots = libraries?.find((l) => l.title === s.title)?.roots ?? []
               if (!roots.length) return null
               return (
-                <ul className="w-full space-y-0.5 pl-6 font-mono text-[11px] text-t-muted">
+                <ul className="w-full space-y-0.5 pl-6 font-mono text-ctl-sm text-t-muted">
                   {roots.map((p) => (
                     <li key={p} className="break-all">
                       {p}

@@ -94,7 +94,7 @@ export function Hint({ text }: { text: string }) {
       >
         <span
           aria-hidden="true"
-          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border-subtle text-[10px] leading-none text-t-secondary group-hover/hint:border-accent group-hover/hint:text-accent"
+          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border-subtle text-ctl-xs leading-none text-t-secondary group-hover/hint:border-accent group-hover/hint:text-accent"
         >
           ?
         </span>
@@ -104,7 +104,7 @@ export function Hint({ text }: { text: string }) {
           <span
             role="tooltip"
             style={{ position: 'fixed', top: pos.top, left: pos.left, width: 'min(256px, 70vw)' }}
-            className="pointer-events-none z-100 rounded-md border border-border-subtle bg-bg-primary p-2 text-[11px] font-normal normal-case leading-snug tracking-normal text-t-secondary shadow-lg"
+            className="pointer-events-none z-100 rounded-md border border-border-subtle bg-bg-primary p-2 text-ctl-sm font-normal normal-case leading-snug tracking-normal text-t-secondary shadow-lg"
           >
             {text}
           </span>,
@@ -184,7 +184,7 @@ export function SeriesPicker({
                 )}
                 {m.seasonYear > 0 && <span className="text-t-muted"> · {m.seasonYear}</span>}
               </div>
-              {m.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-t-muted">{m.description}</p>}
+              {m.description && <p className="mt-0.5 line-clamp-2 text-ctl-sm text-t-muted">{m.description}</p>}
             </button>
             {m.siteUrl && (
               <a
@@ -448,7 +448,7 @@ export default function RenameOptions({
             {rule.airedMapping && (
               <div className="mt-4 space-y-4">
                 {detected?.detected && (
-                  <p className="text-[11px] text-t-muted">
+                  <p className="text-ctl-sm text-t-muted">
                     {t('watch.plexDetected', {
                       ordering: `${detected.provider || '?'} ${detected.ordering || ''}`.trim(),
                       lang: detected.language || t('watch.langAuto'),
@@ -487,7 +487,7 @@ export default function RenameOptions({
                     // template writes into the season folder, which is where a
                     // season sync is meant to land.
                     <div className="space-y-1">
-                      <p className="text-[11px] text-warn">
+                      <p className="text-ctl-sm text-warn">
                         {t('watch.localIsSeasonFolder', { folder: seasonFolder.name })}
                       </p>
                       <Button size="sm" onClick={seasonFolder.onUseParent}>
@@ -548,7 +548,7 @@ export default function RenameOptions({
                     </Button>
                   )}
                   {detected?.seriesOverview && (
-                    <p className="mt-1 line-clamp-2 text-[11px] text-t-muted">{detected.seriesOverview}</p>
+                    <p className="mt-1 line-clamp-2 text-ctl-sm text-t-muted">{detected.seriesOverview}</p>
                   )}
                 </div>
               </div>
@@ -571,7 +571,7 @@ export default function RenameOptions({
                   loading="lazy"
                   className="h-5 w-auto opacity-80"
                 />
-                <span className="text-[10px] text-t-muted">{t('watch.tvdbAttribution')}</span>
+                <span className="text-ctl-xs text-t-muted">{t('watch.tvdbAttribution')}</span>
               </div>
             </div>
           )}

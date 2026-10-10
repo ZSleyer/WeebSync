@@ -1338,7 +1338,7 @@ function ChatHistory({
               onClick={() => onOpen(c.id)}
             >
               <span className="truncate text-sm">{c.title || t('assistant.untitled')}</span>
-              <span className="font-mono text-[11px] text-t-muted">
+              <span className="font-mono text-ctl-sm text-t-muted">
                 {new Date(c.updatedAt.replace(' ', 'T') + 'Z').toLocaleString()}
               </span>
             </button>
