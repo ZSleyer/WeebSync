@@ -1,6 +1,6 @@
 module github.com/ch4d1/weebsync
 
-go 1.26.8
+go 1.26.9
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
