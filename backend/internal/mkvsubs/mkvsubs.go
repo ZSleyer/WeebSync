@@ -80,41 +80,33 @@ type info struct {
 type tracks struct {
 	TrackEntry []struct {
 		TrackNumber  uint64 `ebml:"TrackNumber"`
+		TrackType    uint64 `ebml:"TrackType"`
 		CodecID      string `ebml:"CodecID"`
 		CodecPrivate []byte `ebml:"CodecPrivate,omitempty"`
 	} `ebml:"TrackEntry"`
 }
 
-type cues struct {
-	CuePoint []struct {
-		CueTime           uint64 `ebml:"CueTime"`
-		CueTrackPositions []struct {
-			CueTrack            uint64 `ebml:"CueTrack"`
-			CueClusterPosition  uint64 `ebml:"CueClusterPosition"`
-			CueRelativePosition uint64 `ebml:"CueRelativePosition,omitempty"`
-			CueDuration         uint64 `ebml:"CueDuration,omitempty"`
-		} `ebml:"CueTrackPositions"`
-	} `ebml:"CuePoint"`
+// index is what the head and the Cues of a file say: where its Segment
+// starts, its time scale, its tracks, and (nil without Cues) the index.
+type index struct {
+	seg    int64
+	scale  time.Duration
+	tracks tracks
+	cues   *cues
 }
 
-type blockGroup struct {
-	BlockDuration uint64     `ebml:"BlockDuration,omitempty"`
-	Block         ebml.Block `ebml:"Block"`
-}
-
-// Read finds the text subtitle tracks of the file behind r and reads their
-// blocks through the Cues, with up to parallel reads at a time.
-func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
+// readIndex walks the top level up to the first cluster (SeekHead, Info,
+// Tracks; attachments and tags are stepped over) and reads the Cues the
+// SeekHead points at.
+func readIndex(r io.ReaderAt, size int64) (*index, error) {
 	seg, err := segmentStart(r)
 	if err != nil {
 		return nil, err
 	}
 	var sh seekHead
 	var inf info
-	var trk tracks
+	ix := &index{seg: seg}
 	cuesAt := int64(-1)
-	// the top level up to the first cluster: SeekHead, Info, Tracks, and
-	// whatever else (attachments, tags) is stepped over
 	for pos := seg; pos < size; {
 		id, n, hl, err := elementHeader(r, pos)
 		if err != nil {
@@ -141,7 +133,7 @@ func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
 				V tracks `ebml:"Tracks"`
 			}
 			err = unmarshalAt(r, pos, hl+n, &v)
-			trk = v.V
+			ix.tracks = v.V
 		case idCues:
 			cuesAt = pos
 		}
@@ -155,26 +147,13 @@ func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
 			cuesAt = seg + int64(s.SeekPosition)
 		}
 	}
-	out := &Subtitles{Events: map[uint64][]Event{}}
-	text := map[uint64]bool{}
-	for _, t := range trk.TrackEntry {
-		isText := textCodecs[t.CodecID]
-		out.Tracks = append(out.Tracks, Track{Number: t.TrackNumber, Codec: t.CodecID, Private: t.CodecPrivate, Text: isText})
-		if isText {
-			text[t.TrackNumber] = true
-		}
-	}
-	if len(text) == 0 {
-		return out, nil
+	ix.scale = time.Duration(inf.TimecodeScale)
+	if ix.scale == 0 {
+		ix.scale = time.Millisecond
 	}
 	if cuesAt < 0 {
-		return nil, ErrNoCues
+		return ix, nil
 	}
-	scale := time.Duration(inf.TimecodeScale)
-	if scale == 0 {
-		scale = time.Millisecond
-	}
-
 	_, n, hl, err := elementHeader(r, cuesAt)
 	if err != nil {
 		return nil, err
@@ -185,7 +164,85 @@ func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
 	if err := unmarshalAt(r, cuesAt, hl+n, &cv); err != nil {
 		return nil, err
 	}
-	cs := cv.V
+	ix.cues = &cv.V
+	return ix, nil
+}
+
+// Keyframes are the times of the first video track's indexed keyframes, in
+// order: where a stream copy can be cut. mkvmerge indexes every keyframe of a
+// video track, so a gap here is a gap in the file's own index.
+func Keyframes(r io.ReaderAt, size int64) ([]time.Duration, error) {
+	ix, err := readIndex(r, size)
+	if err != nil {
+		return nil, err
+	}
+	var video uint64
+	for _, t := range ix.tracks.TrackEntry {
+		if t.TrackType == 1 { // video
+			video = t.TrackNumber
+			break
+		}
+	}
+	if video == 0 || ix.cues == nil {
+		return nil, ErrNoCues
+	}
+	var out []time.Duration
+	for _, p := range ix.cues.CuePoint {
+		for _, tp := range p.CueTrackPositions {
+			if tp.CueTrack == video {
+				out = append(out, time.Duration(p.CueTime)*ix.scale)
+				break
+			}
+		}
+	}
+	if len(out) < 2 {
+		return nil, ErrNoCues
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out, nil
+}
+
+type cues struct {
+	CuePoint []struct {
+		CueTime           uint64 `ebml:"CueTime"`
+		CueTrackPositions []struct {
+			CueTrack            uint64 `ebml:"CueTrack"`
+			CueClusterPosition  uint64 `ebml:"CueClusterPosition"`
+			CueRelativePosition uint64 `ebml:"CueRelativePosition,omitempty"`
+			CueDuration         uint64 `ebml:"CueDuration,omitempty"`
+		} `ebml:"CueTrackPositions"`
+	} `ebml:"CuePoint"`
+}
+
+type blockGroup struct {
+	BlockDuration uint64     `ebml:"BlockDuration,omitempty"`
+	Block         ebml.Block `ebml:"Block"`
+}
+
+// Read finds the text subtitle tracks of the file behind r and reads their
+// blocks through the Cues, with up to parallel reads at a time.
+func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
+	ix, err := readIndex(r, size)
+	if err != nil {
+		return nil, err
+	}
+	seg, scale := ix.seg, ix.scale
+	out := &Subtitles{Events: map[uint64][]Event{}}
+	text := map[uint64]bool{}
+	for _, t := range ix.tracks.TrackEntry {
+		isText := textCodecs[t.CodecID]
+		out.Tracks = append(out.Tracks, Track{Number: t.TrackNumber, Codec: t.CodecID, Private: t.CodecPrivate, Text: isText})
+		if isText {
+			text[t.TrackNumber] = true
+		}
+	}
+	if len(text) == 0 {
+		return out, nil
+	}
+	if ix.cues == nil {
+		return nil, ErrNoCues
+	}
+	cs := *ix.cues
 
 	type spot struct {
 		track        uint64

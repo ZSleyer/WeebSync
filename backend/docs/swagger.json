@@ -10511,6 +10511,22 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "description": "1: copy the picture and only repackage it (cut at the file's keyframes); falls back to transcoding without a keyframe index",
+                        "in": "query",
+                        "name": "copy",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "1: copy the sound too (with copy=1)",
+                        "in": "query",
+                        "name": "acopy",
+                        "schema": {
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {
@@ -10599,6 +10615,22 @@
                         "description": "Picture subtitle stream index to burn in",
                         "in": "query",
                         "name": "burn",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "1: copy the picture and only repackage it (cut at the file's keyframes); falls back to transcoding without a keyframe index",
+                        "in": "query",
+                        "name": "copy",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "1: copy the sound too (with copy=1)",
+                        "in": "query",
+                        "name": "acopy",
                         "schema": {
                             "type": "integer"
                         }
