@@ -1358,7 +1358,10 @@ export function Menu({ children, className, anchor, placement = 'bottom-start', 
         /* already shown, or no popover support */
       }
     }
-    if (kind === 'menu') ref.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+    // no scroll: useMenu closes on any scroll outside the wrapper, and a menu
+    // near the edge would otherwise shut the moment it opened
+    if (kind === 'menu')
+      ref.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true })
   }, [anchored, kind])
   const up = placement.startsWith('top')
   return (
