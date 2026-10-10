@@ -435,6 +435,16 @@
     "total_one": "{{count}} Eintrag · {{size}}",
     "total_other": "{{count}} Einträge · {{size}}"
   },
+  "player": {
+    "title": "Player",
+    "play": "Abspielen",
+    "noFile": "Keine Datei gewählt.",
+    "audio": "Tonspur",
+    "subtitles": "Untertitel",
+    "subOff": "Aus",
+    "subError": "Die Untertitel konnten nicht geladen werden.",
+    "transcoding": "Der Browser kann diese Datei nicht direkt abspielen. Der Server wandelt sie beim Abspielen um, Spulen startet die Umwandlung an der neuen Stelle neu."
+  },
   "remote": {
     "title": "REMOTE",
     "sub": "browse · sync · download",

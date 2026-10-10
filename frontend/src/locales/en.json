@@ -435,6 +435,16 @@
     "total_one": "{{count}} entry · {{size}}",
     "total_other": "{{count}} entries · {{size}}"
   },
+  "player": {
+    "title": "Player",
+    "play": "Play",
+    "noFile": "No file selected.",
+    "audio": "Audio",
+    "subtitles": "Subtitles",
+    "subOff": "Off",
+    "subError": "The subtitles could not be loaded.",
+    "transcoding": "The browser cannot play this file directly. The server converts it while it plays; seeking restarts the conversion at the new position."
+  },
   "remote": {
     "title": "REMOTE",
     "sub": "browse · sync · download",

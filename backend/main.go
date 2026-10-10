@@ -233,9 +233,13 @@ func harden(next http.Handler) http.Handler {
 		// self for scripts/styles; external cover/banner images (AniList, TMDB)
 		// need https+data; SSE/fetch stay same-origin. frame-src names the one
 		// origin the detail dialog embeds (the trailer player) - without it the
-		// iframe falls back to default-src and is blocked.
+		// iframe falls back to default-src and is blocked. The player renders
+		// subtitles with libass compiled to WebAssembly (wasm-unsafe-eval lets
+		// our own scripts compile wasm, not run eval) and hls.js hands the video
+		// element a MediaSource blob: URL.
 		h.Set("Content-Security-Policy",
-			"default-src 'self'; img-src 'self' https: data:; "+
+			"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; media-src 'self' blob:; "+
+				"img-src 'self' https: data:; "+
 				"style-src 'self' 'unsafe-inline'; connect-src 'self'; "+
 				"frame-src https://www.youtube-nocookie.com; "+
 				"frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")

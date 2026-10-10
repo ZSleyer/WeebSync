@@ -24,7 +24,9 @@ func TestHardenAllowsTheTrailerFrame(t *testing.T) {
 		t.Errorf("trailer origin missing from CSP: %q", csp)
 	}
 	// the frame exception must not have widened anything else
-	for _, want := range []string{"default-src 'self'", "connect-src 'self'", "frame-ancestors 'none'"} {
+	for _, want := range []string{"default-src 'self'", "connect-src 'self'", "frame-ancestors 'none'",
+		// the player: libass as wasm, hls.js through a MediaSource blob
+		"script-src 'self' 'wasm-unsafe-eval'", "media-src 'self' blob:"} {
 		if !strings.Contains(csp, want) {
 			t.Errorf("CSP lost %q: %q", want, csp)
 		}
