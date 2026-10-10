@@ -34,7 +34,7 @@ export default function ActionMenu({
         (narrow ? (
           <ActionSheet title={title} actions={actions} onClose={() => setOpen(false)} />
         ) : (
-          <Menu anchor={anchor} placement="bottom-end" aria-label={label}>
+          <Menu kind="menu" anchor={anchor} placement="bottom-end" aria-label={label}>
             {actions.map((a) => (
               <MenuItem
                 key={a.key}

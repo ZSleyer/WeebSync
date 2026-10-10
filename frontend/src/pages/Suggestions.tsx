@@ -995,7 +995,7 @@ export function DuplicatesSection() {
           {d.twice?.length ? (
             <ul className="mt-2 space-y-1">
               {d.twice.map((e) => (
-                <li key={e.episode} className="rounded-lg border border-border-subtle p-2 text-xs">
+                <li key={e.episode} className="t-inset text-xs">
                   <Badge tone="warn">{t('suggestions.dupEpisode', { n: e.episode })}</Badge>
                   <ul className="mt-1 space-y-1">
                     {e.files.map((f) => (

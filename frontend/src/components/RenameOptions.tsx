@@ -150,7 +150,7 @@ export function SeriesPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
   return (
-    <div className="mt-2 rounded-lg border border-border-subtle p-2">
+    <div className="t-inset mt-2">
       <div className="mb-1 flex gap-1">
         <Input
           className="font-mono"
