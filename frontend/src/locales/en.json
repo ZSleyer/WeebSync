@@ -499,7 +499,7 @@
     "matching": "matching…",
     "versions_one": "{{count}} version",
     "versions_other": "{{count}} versions",
-    "detailsFor": "Details for {{name}}",
+    "detailsFor": "{{name}}, details",
     "trailer": "Trailer",
     "description": "Description",
     "status": {

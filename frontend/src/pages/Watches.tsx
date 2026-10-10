@@ -270,7 +270,6 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
           }
           countdown={countdown(t, e.at, isToday(e.at), now)}
           onClick={e.watch.media ? () => showSeries(e.watch) : undefined}
-          aria-label={e.watch.media ? t('remote.detailsFor', { name }) : undefined}
         />
       </Press>
     )

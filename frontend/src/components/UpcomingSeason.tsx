@@ -156,7 +156,6 @@ function Section({
               <button
                 className="text-left"
                 onClick={() => series.open({ source: 'anilist', id: m.id, media: m })}
-                aria-label={t('remote.detailsFor', { name })}
               >
                 <Cover
                   size="fill"

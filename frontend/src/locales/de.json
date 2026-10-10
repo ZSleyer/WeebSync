@@ -499,7 +499,7 @@
     "matching": "wird gematcht…",
     "versions_one": "{{count}} Version",
     "versions_other": "{{count}} Versionen",
-    "detailsFor": "Details zu {{name}}",
+    "detailsFor": "{{name}}, Details",
     "trailer": "Trailer",
     "description": "Beschreibung",
     "status": {
