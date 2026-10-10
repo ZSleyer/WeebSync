@@ -1106,7 +1106,6 @@ function Unavailable({ when, source }: { when: boolean; source: string }) {
 }
 
 function PosterRow({ items, onPick }: { items: { media: Media; caption?: string }[]; onPick: (m: Media) => void }) {
-  const { t } = useTranslation()
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-3">
       {items.map(({ media: m, caption }) => (
@@ -1114,7 +1113,6 @@ function PosterRow({ items, onPick }: { items: { media: Media; caption?: string 
           <button
             type="button"
             onClick={() => onPick(m)}
-            aria-label={t('remote.detailsFor', { name: mediaTitle(m) })}
             className="w-full cursor-pointer text-left"
           >
             <Cover

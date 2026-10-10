@@ -278,7 +278,7 @@ describe('SeriesModalProvider', () => {
     })
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    fireEvent.click(await screen.findByRole('button', { name: 'remote.detailsFor:Frieren 2' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Frieren 2/ }))
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveTextContent('Frieren 2')
     // the trimmed node is completed by a fetch of the record
@@ -372,7 +372,7 @@ describe('SeriesModalProvider', () => {
     })
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    fireEvent.click(await screen.findByRole('button', { name: 'remote.detailsFor:Frieren 2' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Frieren 2/ }))
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Teil zwei.'))
     // the browser's back: first the title before, then the page
     fireEvent.click(screen.getByText('zurück'))

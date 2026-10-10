@@ -1113,7 +1113,6 @@ function UpNext({ watches }: { watches: Watch[] }) {
                 time={when(e.at)}
                 countdown={countdown(t, e.at, false, now)}
                 onClick={e.watch.media ? () => openSeries(seriesTarget(e.watch)) : undefined}
-                aria-label={e.watch.media ? t('remote.detailsFor', { name: watchTitle(e.watch) }) : undefined}
               />
             </li>
           ))}

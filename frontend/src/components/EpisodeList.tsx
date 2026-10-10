@@ -176,13 +176,17 @@ export default function EpisodeList({
         aria-current={here ? 'true' : undefined}
       >
         {lead}
+        {/* named by what it shows (number, title, date or file name) plus
+            "play", so speech control can say what it sees (WCAG 2.5.3); the
+            full file name stays on hover */}
         <button
           type="button"
           className="t-ep-file__play min-w-0 flex-1"
-          aria-label={t('player.playItem', { name: f.name })}
+          title={f.name}
           onClick={() => onPlay(f.server, f.path)}
         >
           {rest}
+          <span className="sr-only">{t('player.play')}</span>
         </button>
       </li>
     )
@@ -215,9 +219,7 @@ export default function EpisodeList({
                     S{pad(m[1])}E{pad(m[2])}
                   </span>
                 )}
-                <span className="min-w-0 flex-1 truncate" title={e.name}>
-                  {e.name.replace(/\.[^.]+$/, '')}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{e.name.replace(/\.[^.]+$/, '')}</span>
                 <span className="hidden shrink-0 font-mono text-ctl-sm text-t-faint sm:inline">{fmtBytes(e.size)}</span>
               </>,
             )
