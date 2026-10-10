@@ -2152,7 +2152,7 @@ li.t-swiperow { border-radius: 0; }
 /* the picture fills the player and never more: another aspect (4:3, 2.39:1)
    gets bars inside the frame instead of spilling past it. The subtitles sit
    on exactly that box and never move - libass places them where the script
-   says, and the controls float over them. */
+   says, and the controls float over them while they show. */
 .t-player video {
   width: 100%;
   height: 100%;
@@ -2161,8 +2161,11 @@ li.t-swiperow { border-radius: 0; }
 .t-player-subs {
   position: absolute;
   pointer-events: none;
-  /* over the dock, under the menu: the controls never push the lines away,
-     and the lines stay readable while the controls show */
+}
+/* title row and dock over the subtitle canvas, the menu (z-index 2) over all */
+.t-player-top,
+.t-player-dock {
+  position: relative;
   z-index: 1;
 }
 
