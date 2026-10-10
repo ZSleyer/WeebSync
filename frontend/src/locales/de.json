@@ -355,6 +355,7 @@
   "series": {
     "sectionsLabel": "Abschnitte der Serie",
     "tab": {
+      "episodes": "Folgen",
       "overview": "Übersicht",
       "sync": "Auto-Sync",
       "cast": "Besetzung",
@@ -370,6 +371,9 @@
     "replies_one": "{{count}} Antwort",
     "replies_other": "{{count}} Antworten",
     "noCast": "Keine Besetzung hinterlegt.",
+    "noEpisodes": "Keine Videodateien in diesem Ordner.",
+    "episodesError": "Die Folgen konnten nicht gelesen werden.",
+    "thisFolder": "Dieser Ordner",
     "noSimilar": "Keine verwandten Titel bekannt.",
     "relations": "Verwandte Titel",
     "recommendations": "Empfehlungen",
