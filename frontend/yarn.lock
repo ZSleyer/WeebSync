@@ -1011,6 +1011,11 @@ lfa-ponyfill@^1.1.0:
   resolved "https://registry.yarnpkg.com/lfa-ponyfill/-/lfa-ponyfill-1.1.1.tgz#d0bb2f334a3e0b7ceac80849cc6cda392e563bdf"
   integrity sha512-Had4tsGEHtIj58MRtf6SlubNDltxinxMSdxIn1GdwrWbye8TD+pZ+D6qKETnJ9+vQOfG9q/Ds4WUPskhyAMp5Q==
 
+libpgs@^0.9.0:
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/libpgs/-/libpgs-0.9.0.tgz#aac4f3452829290948b970d77cd5a622553ba1a9"
+  integrity sha512-kKgKKelcc2dRahni5WysOq9CjglObiGp3zPqlupYb9O0Ewwiu4OMDbyRP/YH043IXub3D6rrR15+9od4Yu7JWA==
+
 lightningcss-android-arm64@1.32.0:
   version "1.32.0"
   resolved "https://registry.yarnpkg.com/lightningcss-android-arm64/-/lightningcss-android-arm64-1.32.0.tgz#f033885116dfefd9c6f54787523e3514b61e1968"

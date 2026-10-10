@@ -14,6 +14,7 @@ package mkvsubs
 
 import (
 	"bytes"
+	"compress/zlib"
 	"errors"
 	"fmt"
 	"io"
@@ -36,6 +37,7 @@ type Track struct {
 	Codec   string // S_TEXT/ASS, S_TEXT/UTF8, ...
 	Private []byte // the ASS script header
 	Text    bool   // a text subtitle this package can read
+	PGS     bool   // a Bluray picture subtitle (S_HDMV/PGS), read as SUP
 }
 
 // Event is one subtitle block.
@@ -78,12 +80,54 @@ type info struct {
 }
 
 type tracks struct {
-	TrackEntry []struct {
-		TrackNumber  uint64 `ebml:"TrackNumber"`
-		TrackType    uint64 `ebml:"TrackType"`
-		CodecID      string `ebml:"CodecID"`
-		CodecPrivate []byte `ebml:"CodecPrivate,omitempty"`
-	} `ebml:"TrackEntry"`
+	TrackEntry []trackEntry `ebml:"TrackEntry"`
+}
+
+type trackEntry struct {
+	TrackNumber      uint64 `ebml:"TrackNumber"`
+	TrackType        uint64 `ebml:"TrackType"`
+	CodecID          string `ebml:"CodecID"`
+	CodecPrivate     []byte `ebml:"CodecPrivate,omitempty"`
+	ContentEncodings []struct {
+		ContentEncoding []struct {
+			ContentEncodingType uint64 `ebml:"ContentEncodingType"`
+			ContentCompression  []struct {
+				ContentCompAlgo     uint64 `ebml:"ContentCompAlgo"`
+				ContentCompSettings []byte `ebml:"ContentCompSettings,omitempty"`
+			} `ebml:"ContentCompression"`
+		} `ebml:"ContentEncoding"`
+	} `ebml:"ContentEncodings"`
+}
+
+// decoder undoes what the muxer did to a track's blocks: mkvmerge stores PGS
+// (and sometimes text) zlib-compressed or with a stripped common header. A nil
+// decoder means the blocks are stored as they are, ok false that they are
+// encrypted or packed in a way this package does not read.
+func decoder(t trackEntry) (dec func([]byte) ([]byte, error), ok bool) {
+	for _, es := range t.ContentEncodings {
+		for _, e := range es.ContentEncoding {
+			if e.ContentEncodingType != 0 || len(e.ContentCompression) != 1 {
+				return nil, false
+			}
+			c := e.ContentCompression[0]
+			switch c.ContentCompAlgo {
+			case 0: // zlib, the default
+				dec = func(b []byte) ([]byte, error) {
+					zr, err := zlib.NewReader(bytes.NewReader(b))
+					if err != nil {
+						return nil, err
+					}
+					return io.ReadAll(io.LimitReader(zr, maxHeaderElem))
+				}
+			case 3: // header stripping
+				head := c.ContentCompSettings
+				dec = func(b []byte) ([]byte, error) { return append(append([]byte{}, head...), b...), nil }
+			default:
+				return nil, false
+			}
+		}
+	}
+	return dec, true
 }
 
 // index is what the head and the Cues of a file say: where its Segment
@@ -229,10 +273,16 @@ func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
 	seg, scale := ix.seg, ix.scale
 	out := &Subtitles{Events: map[uint64][]Event{}}
 	text := map[uint64]bool{}
+	decs := map[uint64]func([]byte) ([]byte, error){}
 	for _, t := range ix.tracks.TrackEntry {
-		isText := textCodecs[t.CodecID]
-		out.Tracks = append(out.Tracks, Track{Number: t.TrackNumber, Codec: t.CodecID, Private: t.CodecPrivate, Text: isText})
-		if isText {
+		isText, isPGS := textCodecs[t.CodecID], t.CodecID == "S_HDMV/PGS"
+		dec, ok := decoder(t)
+		if !ok {
+			isText, isPGS = false, false
+		}
+		decs[t.TrackNumber] = dec
+		out.Tracks = append(out.Tracks, Track{Number: t.TrackNumber, Codec: t.CodecID, Private: t.CodecPrivate, Text: isText, PGS: isPGS})
+		if isText || isPGS {
 			text[t.TrackNumber] = true
 		}
 	}
@@ -289,6 +339,9 @@ func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
 			defer wg.Done()
 			for s := range jobs {
 				ev, err := readEvent(r, s.cluster, s.rel, s.start, s.dur, scale)
+				if err == nil && ev != nil && decs[s.track] != nil {
+					ev.Data, err = decs[s.track](ev.Data)
+				}
 				mu.Lock()
 				if err != nil {
 					if firstErr == nil {
@@ -395,6 +448,26 @@ func (s *Subtitles) ASS(t Track) string {
 		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Default,,0,0,0,,%s\n", assTime(e.Start), assTime(e.End), plainToASS(string(e.Data)))
 	}
 	return b.String()
+}
+
+// SUP writes a PGS track as a .sup file: Matroska stores each display set as
+// its bare segments, a .sup file prefixes every segment with "PG" and its
+// presentation time in 90 kHz ticks.
+func (s *Subtitles) SUP(t Track) []byte {
+	var b []byte
+	for _, e := range s.Events[t.Number] {
+		pts := uint32(e.Start.Seconds() * 90000)
+		for d := e.Data; len(d) >= 3; {
+			n := 3 + (int(d[1])<<8 | int(d[2]))
+			if n > len(d) {
+				break // a cut segment: the rest of the set is unreadable
+			}
+			b = append(b, 'P', 'G', byte(pts>>24), byte(pts>>16), byte(pts>>8), byte(pts), 0, 0, 0, 0)
+			b = append(b, d[:n]...)
+			d = d[n:]
+		}
+	}
+	return b
 }
 
 // plainToASS carries SRT's few tags over and keeps the line breaks.

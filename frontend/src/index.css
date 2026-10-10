@@ -2166,6 +2166,14 @@ li.t-swiperow { border-radius: 0; }
   z-index: 1;
 }
 
+/* libpgs draws at the disc's own size and fits it like the picture
+   (object-fit on the canvas), so the canvas covers the video's whole box */
+.t-player-subs-pgs {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 /* the controls drift down as they fade out, and rise back in */
 .t-player[userinactive]:not([mediapaused]) :is(.t-player-dock) { translate: 0 8px; }
 .t-player[userinactive]:not([mediapaused]) :is(.t-player-top) { translate: 0 -8px; }

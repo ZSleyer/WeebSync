@@ -437,7 +437,8 @@ type PlayTrack struct {
 	Forced   bool   `json:"forced,omitempty"`
 	Channels int    `json:"channels,omitempty"`
 	// Image marks a picture subtitle (PGS, VobSub, DVB): it cannot be rendered
-	// as text and is burned into the transcoded picture instead
+	// as text. PGS goes out as SUP for the browser to draw (format=sup), the
+	// others are burned into the transcoded picture
 	Image bool `json:"image,omitempty"`
 	// File is a sidecar subtitle beside the video; Index is -1 then
 	File string `json:"file,omitempty"`
