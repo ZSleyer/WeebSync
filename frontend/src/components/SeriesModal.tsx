@@ -429,6 +429,8 @@ const SECTIONS: SeriesTab[] = ['overview', 'episodes', 'cast', 'similar', 'commu
 // the docked title bar's height (h-11), and the scroll over which it fades in
 const DOCK_PX = 44
 const DOCK_FADE = 40
+// how far the banner's big title travels before it is gone
+const HERO_GONE = 110
 // the docked title plus the jump row: where a section's top lands after a jump
 const STICKY_PX = 88
 
@@ -581,6 +583,9 @@ function SeriesCard({
   const sections = SECTIONS.filter((k) => k !== 'episodes' || mine.length > 0 || folders.length > 0)
   const ids = useId()
   const name = cur.title || (media ? mediaTitle(media) : '')
+  // the English title as a second line, unless it repeats the name or is in kana
+  const english = media?.title.english
+  const englishTitle = english && english !== name && !/[぀-ヿ㐀-鿿]/.test(english) ? english : ''
   const MediaStatusIcon = media?.status ? MEDIA_STATUS_ICON[media.status] : undefined
   const now = useNow()
 
@@ -659,6 +664,7 @@ function SeriesCard({
   const dock = useRef<HTMLDivElement>(null)
   const pinned = useRef(false)
   const stick = () => (head.current?.offsetHeight ?? 0) - DOCK_PX
+  const heroTitle = useRef<HTMLDivElement>(null)
   const lag = () => {
     // before the dialog has laid out there is no head to measure
     if (!head.current?.offsetHeight) return
@@ -666,22 +672,37 @@ function SeriesCard({
     const still = reducedMotion()
     const s = stick()
     pinned.current = top >= s - 1
-    // information, not decoration: without motion it is there or not
-    const q = still ? (pinned.current ? 1 : 0) : Math.min(1, Math.max(0, (top - s + DOCK_FADE) / DOCK_FADE))
-    dock.current?.style.setProperty('--q', q.toFixed(3))
     const b = banner.current
+    // With a banner the big title on it hands over to the bar: it is gone by
+    // 110px and the bar fills in from 104 to 134. Without one the bar comes
+    // in over the last stretch before the tabs stick. Information, not
+    // decoration: without motion it is there or not.
+    const q = b
+      ? still
+        ? Number(top >= HERO_GONE)
+        : Math.min(1, Math.max(0, (top - HERO_GONE + 6) / 30))
+      : still
+        ? Number(pinned.current)
+        : Math.min(1, Math.max(0, (top - s + DOCK_FADE) / DOCK_FADE))
+    // on the body, so the bar and the round buttons over the picture read it
+    dock.current?.parentElement?.style.setProperty('--q', q.toFixed(3))
     if (!b) return
-    // half the scroll, and darker as it goes: the head slides up over a
-    // picture that falls back and dims
-    const y = Math.min(top, 200)
-    b.style.transform = still || y <= 0 ? '' : `translateY(${y * 0.5}px)`
-    b.style.opacity = still || y <= 0 ? '' : String(1 - Math.min(1, y / 144) * 0.6)
+    // the picture lags at 0.45 of the scroll, the title sinks at 0.25 and fades
+    const y = Math.min(Math.max(top, 0), 220)
+    b.style.transform = still || !y ? '' : `translateY(${y * 0.45}px)`
+    const h = heroTitle.current
+    if (h) {
+      h.style.transform = still || !y ? '' : `translateY(${y * 0.25}px)`
+      h.style.opacity = still ? String(Number(top < HERO_GONE)) : String(Math.max(0, 1 - y / HERO_GONE))
+    }
   }
 
+  // again once the record is in: before it the head is short and bannerless,
+  // and the bar would keep a value worked out for that head
   useLayoutEffect(() => {
     lag()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [media?.bannerImage, !!media])
   useEffect(() => onName(name), [name, onName])
 
   // The jump row marks the section being read (aria-current): the first one
@@ -792,7 +813,7 @@ function SeriesCard({
         <div ref={viewHost} className="contents" />
       ) : (
         <div className={`dialog-body relative ${returned ? 'anim-route-pop' : swapped ? 'anim-route-swap' : ''}`}>
-          <div ref={dock} aria-hidden className="t-dock pr-12">
+          <div ref={dock} aria-hidden className="t-dock">
             <span className="truncate">{name}</span>
           </div>
           {/* outside the scroller, so it stays at hand once the head is gone */}
@@ -800,7 +821,7 @@ function SeriesCard({
             aria-label={t('common.close')}
             title={t('common.close')}
             onClick={() => (origin ? void morphTransition(origin, onClose, true) : onClose())}
-            className="absolute top-1 right-2 z-30 bg-bg-card/90"
+            className={`absolute top-1 right-2 z-30 bg-bg-card/90 ${media?.bannerImage ? 't-hero-btn rounded-full!' : ''}`}
           >
             <X aria-hidden size="1.2em" />
           </IconButton>
@@ -811,13 +832,12 @@ function SeriesCard({
           <div ref={scroller} onScroll={lag} className="min-h-0 flex-1 overflow-y-auto">
             <header ref={head} className="relative">
               {media?.bannerImage && (
-                <div className="h-36 overflow-hidden bg-bg-hover">
-                  <img
-                    ref={banner}
-                    src={media.bannerImage}
-                    alt=""
-                    className="h-full w-full object-cover will-change-transform"
-                  />
+                <div className="t-hero">
+                  <img ref={banner} src={media.bannerImage} alt="" className="t-hero__art" />
+                  <div ref={heroTitle} className="t-hero__title">
+                    <h3 className="line-clamp-2 font-display text-2xl font-semibold tracking-wider">{name}</h3>
+                    {englishTitle && <p className="truncate font-mono text-xs text-t-secondary">{englishTitle}</p>}
+                  </div>
                 </div>
               )}
               {entry.n > 0 && (
@@ -825,7 +845,7 @@ function SeriesCard({
                   aria-label={t('series.back')}
                   title={t('series.back')}
                   onClick={onBack}
-                  className="absolute top-2 left-2 bg-bg-card/90"
+                  className={`absolute top-1 left-2 z-10 bg-bg-card/90 ${media?.bannerImage ? 't-hero-btn rounded-full!' : ''}`}
                 >
                   <ArrowLeft aria-hidden size="1.2em" />
                 </IconButton>
@@ -841,9 +861,12 @@ function SeriesCard({
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-display font-semibold tracking-wider">{name}</h3>
-                  {media?.title.english && media.title.english !== name && !/[぀-ヿ㐀-鿿]/.test(media.title.english) && (
-                    <p className="text-sm text-t-muted">{media.title.english}</p>
+                  {/* with a banner the title stands on the picture above */}
+                  {!media?.bannerImage && (
+                    <>
+                      <h3 className="font-display font-semibold tracking-wider">{name}</h3>
+                      {englishTitle && <p className="text-sm text-t-muted">{englishTitle}</p>}
+                    </>
                   )}
                   {mine[0] && <StateLine watch={mine[0]} />}
                   {media && (
