@@ -22,6 +22,7 @@ export {
   Surface,
   Tab,
   Tabs,
+  markOverflow,
   Textarea,
   Toolbar,
 } from './primitives'
