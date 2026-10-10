@@ -200,9 +200,9 @@ func (s *Server) startSubs(j *mediaJob) {
 	j.subsOnce.Do(func() { go s.extractSubs(j) })
 }
 
-// extractSubs writes every text track. A Matroska file that indexes its
-// subtitle blocks gives them up in a few hundred small reads (mkvsubs); any
-// other file is read once from end to end by ffmpeg. That pass yields the
+// extractSubs writes every text track (as ASS) and every Bluray picture track
+// (as SUP). A Matroska file that indexes its subtitle blocks gives them up in
+// a few hundred small reads (mkvsubs); any other file is read once from end to end by ffmpeg. That pass yields the
 // remote connections to the picture, and it only counts when the whole file
 // went through.
 func (s *Server) extractSubs(j *mediaJob) {
@@ -225,9 +225,13 @@ func (s *Server) extractSubs(j *mediaJob) {
 	}()
 	var after []string
 	for _, t := range j.info.Subs {
-		if t.Index >= 0 && !t.Image {
-			n := strconv.Itoa(t.Index)
+		n := strconv.Itoa(t.Index)
+		switch {
+		case t.Index < 0:
+		case !t.Image:
 			after = append(after, "-map", "0:"+n, "-c:s", "ass", filepath.Join(j.dir, n+".ass"))
+		case t.Codec == "hdmv_pgs_subtitle":
+			after = append(after, "-map", "0:"+n, "-c:s", "copy", filepath.Join(j.dir, n+".sup"))
 		}
 	}
 	if len(after) == 0 {
@@ -258,7 +262,7 @@ func (s *Server) extractSubs(j *mediaJob) {
 	}
 }
 
-// sparseSubs reads the text tracks through the file's Cues and writes them
+// sparseSubs reads the text and PGS tracks through the file's Cues and writes them
 // into the job; n is how many it wrote.
 func (s *Server) sparseSubs(j *mediaJob) (n int, err error) {
 	bg := j.src
@@ -273,11 +277,22 @@ func (s *Server) sparseSubs(j *mediaJob) (n int, err error) {
 		return 0, err
 	}
 	for _, t := range j.info.Subs {
-		if t.Index < 0 || t.Image || t.Index >= len(subs.Tracks) || !subs.Tracks[t.Index].Text {
+		if t.Index < 0 || t.Index >= len(subs.Tracks) {
 			continue
 		}
 		// ffprobe numbers a Matroska file's streams in the order of its tracks
-		if err := os.WriteFile(filepath.Join(j.dir, strconv.Itoa(t.Index)+".ass"), []byte(subs.ASS(subs.Tracks[t.Index])), 0o600); err != nil {
+		tr := subs.Tracks[t.Index]
+		var name string
+		var data []byte
+		switch {
+		case tr.Text:
+			name, data = ".ass", []byte(subs.ASS(tr))
+		case tr.PGS:
+			name, data = ".sup", subs.SUP(tr)
+		default:
+			continue
+		}
+		if err := os.WriteFile(filepath.Join(j.dir, strconv.Itoa(t.Index)+name), data, 0o600); err != nil {
 			return 0, err
 		}
 		n++
@@ -355,6 +370,7 @@ type SubPending struct {
 // @Param    server query int    false "Server ID, 0 or omitted for a local file"
 // @Param    path   query string true  "Video or sidecar subtitle path"
 // @Param    track  query int    false "Stream index of an embedded subtitle; omitted for a sidecar file"
+// @Param    format query string false "sup: a Bluray picture track (PGS) as a .sup file instead of ASS"
 // @Success  200 {string} string
 // @Success  202 {object} SubPending
 // @Failure  400 {object} ErrorResponse
@@ -399,12 +415,17 @@ func (s *Server) handlePlaySub(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadGateway, j.subsErr.Error())
 		return
 	}
-	b, err := os.ReadFile(filepath.Join(j.dir, strconv.Itoa(n)+".ass"))
+	// a Bluray picture track goes out as SUP for the browser's own renderer
+	ext, ctype := ".ass", "text/plain; charset=utf-8"
+	if r.URL.Query().Get("format") == "sup" {
+		ext, ctype = ".sup", "application/octet-stream"
+	}
+	b, err := os.ReadFile(filepath.Join(j.dir, strconv.Itoa(n)+ext))
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "no text subtitle track with that index")
+		writeErr(w, http.StatusNotFound, "no subtitle track of that kind with that index")
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", ctype)
 	w.Write(b)
 }
 

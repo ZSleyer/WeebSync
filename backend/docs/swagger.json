@@ -1244,7 +1244,7 @@
                         "type": "boolean"
                     },
                     "image": {
-                        "description": "Image marks a picture subtitle (PGS, VobSub, DVB): it cannot be rendered\nas text and is burned into the transcoded picture instead",
+                        "description": "Image marks a picture subtitle (PGS, VobSub, DVB): it cannot be rendered\nas text. PGS goes out as SUP for the browser to draw (format=sup), the\nothers are burned into the transcoded picture",
                         "type": "boolean"
                     },
                     "index": {
@@ -10905,6 +10905,14 @@
                         "name": "track",
                         "schema": {
                             "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "sup: a Bluray picture track (PGS) as a .sup file instead of ASS",
+                        "in": "query",
+                        "name": "format",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],

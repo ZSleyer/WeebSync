@@ -87,6 +87,60 @@ func TestReadMatchesFFmpeg(t *testing.T) {
 	}
 }
 
+func TestSUPFraming(t *testing.T) {
+	// two segments in one block: a PCS (0x16) and an END (0x80)
+	s := &Subtitles{Events: map[uint64][]Event{5: {
+		{Start: time.Second, Data: []byte{0x16, 0, 2, 0xAA, 0xBB, 0x80, 0, 0}},
+	}}}
+	got := s.SUP(Track{Number: 5})
+	want := []byte{'P', 'G', 0, 1, 0x5F, 0x90, 0, 0, 0, 0, 0x16, 0, 2, 0xAA, 0xBB,
+		'P', 'G', 0, 1, 0x5F, 0x90, 0, 0, 0, 0, 0x80, 0, 0}
+	if string(got) != string(want) {
+		t.Fatalf("SUP = % x", got)
+	}
+}
+
+// Against a Bluray rip (WS_PGS=/path/to/file.mkv): the PGS track read through
+// the Cues is the .sup ffmpeg copies out of the whole file, decode timestamps
+// aside (ffmpeg writes them, players go by the presentation time).
+func TestSUPMatchesFFmpeg(t *testing.T) {
+	path := os.Getenv("WS_PGS")
+	if path == "" {
+		t.Skip("WS_PGS not set")
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	fi, _ := f.Stat()
+	s, err := Read(f, fi.Size(), 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for i, tr := range s.Tracks {
+		if !tr.PGS {
+			continue
+		}
+		mine := s.SUP(tr)
+		want, err := exec.Command("ffmpeg", "-v", "error", "-i", path, "-map", "0:"+strconv.Itoa(i), "-c:s", "copy", "-f", "sup", "-").Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for p := 0; p+13 <= len(want); p += 13 + (int(want[p+11])<<8 | int(want[p+12])) {
+			copy(want[p+6:p+10], []byte{0, 0, 0, 0})
+		}
+		if string(mine) != string(want) {
+			t.Fatalf("track %d: %d bytes, ffmpeg %d", tr.Number, len(mine), len(want))
+		}
+		n++
+	}
+	if n == 0 {
+		t.Fatal("no PGS track")
+	}
+}
+
 func dialogues(ass string) []string {
 	var out []string
 	for _, l := range strings.Split(ass, "\n") {

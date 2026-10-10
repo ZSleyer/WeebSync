@@ -56,6 +56,10 @@ interface PlayInfo {
   fonts: number[]
 }
 
+// A Bluray picture track inside the file: the browser draws it itself (libpgs),
+// the server only copies it out. DVD and DVB pictures are still burned in.
+const isPgs = (s: PlayTrack) => s.image && !s.file && s.codec === 'hdmv_pgs_subtitle'
+
 // the controls speak the app's language; media-chrome ships the German labels
 // but only registers English itself
 addTranslation('de', De)
@@ -171,11 +175,12 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     (() => {
       // a full track in the default's language, never signs-only on its own
       const pick =
-        data?.subs.find((s) => s.default && !s.forced && !s.image) ?? data?.subs.find((s) => !s.forced && !s.image)
+        data?.subs.find((s) => s.default && !s.forced && (!s.image || isPgs(s))) ??
+        data?.subs.find((s) => !s.forced && (!s.image || isPgs(s)))
       return pick ? subValue(pick) : 'none'
     })()
   const subTrack = data?.subs.find((s) => subValue(s) === subKey)
-  const burn = subTrack?.image ? subTrack.index : -1
+  const burn = subTrack?.image && !isPgs(subTrack) ? subTrack.index : -1
 
   // the device's answer for this picture; nothing plays before it is in
   const decode = useQuery({
@@ -411,14 +416,15 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   }, [data])
   useEffect(() => {
     const v = videoRef.current
-    if (!v || !data || !subTrack || subTrack.image) return
-    let renderer: JASSUB | null = null
+    if (!v || !data || !subTrack || burn >= 0) return
+    const pgs = isPgs(subTrack)
+    let renderer: { destroy(): void } | null = null
     let canvas: HTMLCanvasElement | null = null
     const abort = new AbortController()
     setSubError('')
     const url = subTrack.file
       ? `/api/play/sub?server=${server}&path=${encodeURIComponent(subTrack.file)}`
-      : `/api/play/sub?${src}&track=${subTrack.index}`
+      : `/api/play/sub?${src}&track=${subTrack.index}${pgs ? '&format=sup' : ''}`
     const load = async () => {
       // the first request starts the server's pass over the whole file: let
       // the picture have the connection to itself until it plays
@@ -429,32 +435,46 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         const r = await fetch(url, { signal: abort.signal })
         if (r.status !== 202) {
           if (!r.ok) throw new Error(r.statusText)
-          return r.text()
+          return pgs ? r.arrayBuffer() : r.text()
         }
         setSubPending(true)
         await new Promise((ok) => setTimeout(ok, 2000))
       }
     }
     load()
-      .then((content) => {
+      .then(async (content) => {
         if (abort.signal.aborted) return
         setSubPending(false)
         // our own canvas: media-chrome fades every overlay out with the
         // controls unless it is marked noautohide, and the subtitles must stay
         canvas = document.createElement('canvas')
-        canvas.className = 't-player-subs'
+        canvas.className = pgs ? 't-player-subs t-player-subs-pgs' : 't-player-subs'
         canvas.setAttribute('noautohide', '')
         v.after(canvas)
-        renderer = new JASSUB({
+        if (typeof content !== 'string') {
+          // libpgs comes in only for a Bluray track
+          const [{ PgsRenderer }, { default: workerUrl }] = await Promise.all([
+            import('libpgs'),
+            import('libpgs/dist/libpgs.worker.js?url'),
+          ])
+          if (abort.signal.aborted) return
+          const p = new PgsRenderer({ video: v, canvas, workerUrl, aspectRatio: 'contain' })
+          renderer = { destroy: () => p.dispose() }
+          await p.loadFromBuffer(content)
+          // like libass, it draws on time updates only: show the paused frame's picture
+          if (!abort.signal.aborted) p.renderAtTimestamp(v.currentTime)
+          return
+        }
+        const r = new JASSUB({
           video: v,
           canvas,
           subContent: content,
           fonts: data.fonts.map((i) => new URL(`/api/play/font?${src}&index=${i}`, location.href).href),
         })
+        renderer = r
         // libass draws on each new video frame; a paused video sends none, so
         // a track picked while paused stayed blank until play. Drawing the
         // frame that is on screen fixes that.
-        const r = renderer
         r.ready.then(() => {
           if (abort.signal.aborted || renderer !== r || !v.paused) return
           r.manualRender(
@@ -479,7 +499,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       renderer?.destroy()
       canvas?.remove()
     }
-  }, [data, subTrack, server, src, t])
+  }, [data, subTrack, burn, server, src, t])
 
   // touch: a tap on the picture shows hidden controls and hides shown ones; a
   // double tap on the left or right third seeks 10 s, and taps that keep coming
