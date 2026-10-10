@@ -440,6 +440,11 @@
     "total_other": "{{count}} Einträge · {{size}}"
   },
   "player": {
+    "pip": "Bild im Bild",
+    "local": "Lokal",
+    "remote": "Remote",
+    "fromLocal": "Aus der lokalen Bibliothek",
+    "fromServer": "Von einem Server gestreamt",
     "playItem": "{{name}} abspielen",
     "noVideo": "In diesem Ordner liegt kein Video.",
     "episodes": "Folgen",

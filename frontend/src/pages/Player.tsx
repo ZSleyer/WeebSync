@@ -4,14 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 import HlsPlayer from 'hls.js'
 import JASSUB from 'jassub'
-import { Captions, SkipBack, SkipForward, X } from 'lucide-react'
+import { Captions, PictureInPicture2, SkipBack, SkipForward, X } from 'lucide-react'
 import {
   MediaControlBar,
   MediaController,
   MediaFullscreenButton,
   MediaLoadingIndicator,
   MediaMuteButton,
-  MediaPipButton,
   MediaPlayButton,
   MediaPreviewTimeDisplay,
   MediaSeekBackwardButton,
@@ -32,7 +31,7 @@ import type { MediaChromeMenu as ChromeMenuElement } from 'media-chrome/menu'
 import type { MediaController as MediaControllerElement } from 'media-chrome'
 import { addTranslation, setLanguage } from 'media-chrome/dist/utils/i18n.js'
 import { De } from 'media-chrome/dist/lang/de.js'
-import { api, keyConflictOf } from '../api'
+import { api, keyConflictOf, type ServerInfo } from '../api'
 import HostKeyPrompt from '../components/HostKeyPrompt'
 import { listFolder, playHref, videosIn } from '../components/playLinks'
 import Loading from '../components/Loading'
@@ -119,6 +118,11 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const name = path.split('/').pop() || path
   const src = `server=${server}&path=${encodeURIComponent(path)}`
 
+  const servers = useQuery<ServerInfo[]>({
+    queryKey: ['servers'],
+    queryFn: () => api.get('/api/servers'),
+    enabled: server > 0,
+  })
   const info = useQuery({
     queryKey: ['play-info', server, path],
     queryFn: () => api.get<PlayInfo>(`/api/play/info?${src}`),
@@ -158,6 +162,20 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       burn >= 0
     )
   }, [data, path, audioIdx, burn, forceHls])
+  // Most of what needs the server does not need a new picture: Bluray sound,
+  // the second audio track. The picture is then copied and only repackaged
+  // (copy), the sound too where the browser plays it (acopy). The server
+  // falls back to transcoding a file it cannot cut at keyframes.
+  // ponytail: H.264 in 8 bit only - HEVC in the TS segments is not reliable
+  // across hls.js; widen once it is.
+  const copy =
+    hls &&
+    !forceHls &&
+    burn < 0 &&
+    path.toLowerCase().endsWith('.mkv') &&
+    data?.video?.codec === 'h264' &&
+    !data.video.pixFmt?.includes('10')
+  const acopy = ['aac', 'mp3'].includes(data?.audio.find((x) => x.index === audioIdx)?.codec ?? '')
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const resumeAt = useRef(0)
@@ -198,7 +216,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         v.load()
       }
     }
-    const url = `/api/play/hls/index.m3u8?${src}&audio=${audioIdx}&burn=${burn}`
+    const url = `/api/play/hls/index.m3u8?${src}&audio=${audioIdx}&burn=${burn}${copy ? '&copy=1' : ''}${copy && acopy ? '&acopy=1' : ''}`
     if (!HlsPlayer.isSupported()) {
       v.src = url // Safari plays HLS itself
       return () => {
@@ -214,7 +232,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       v.removeEventListener('loadedmetadata', onMeta)
       h.destroy()
     }
-  }, [data, hls, src, audioIdx, burn])
+  }, [data, hls, src, audioIdx, burn, copy, acopy])
 
   // watchdog: playing, but no picture - the browser cannot decode this codec
   // after all, so the server transcodes it
@@ -239,6 +257,39 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       v.removeEventListener('error', fail)
     }
   }, [hls, data])
+
+  // Picture in picture through our own button. The video keeps
+  // disablePictureInPicture so no browser lays its own button over it (Firefox
+  // does); the attribute also blocks the request, so it is lifted for the
+  // moment of asking and set again once the window closes.
+  const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled
+  const [inPip, setInPip] = useState(false)
+  const togglePip = async () => {
+    const v = videoRef.current
+    if (!v) return
+    if (document.pictureInPictureElement) return void document.exitPictureInPicture().catch(() => {})
+    v.disablePictureInPicture = false
+    try {
+      await v.requestPictureInPicture()
+    } catch {
+      v.disablePictureInPicture = true
+    }
+  }
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    const enter = () => setInPip(true)
+    const leave = () => {
+      setInPip(false)
+      v.disablePictureInPicture = true
+    }
+    v.addEventListener('enterpictureinpicture', enter)
+    v.addEventListener('leavepictureinpicture', leave)
+    return () => {
+      v.removeEventListener('enterpictureinpicture', enter)
+      v.removeEventListener('leavepictureinpicture', leave)
+    }
+  }, [data])
 
   // the dock's real height (it differs per viewport and pointer): the
   // settings menu opens above it
@@ -499,19 +550,24 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         playsInline
         // Chrome on Android lays a cast button over every video, and keeps it
         // there: the player has its own controls and no cast target
-        {...{ disableRemotePlayback: true }}
+        // and Firefox one for picture in picture; ours is in the dock (it
+        // lifts this for the moment it asks, see togglePip)
+        {...{ disableRemotePlayback: true, disablePictureInPicture: true }}
       />
 
       <div slot="top-chrome" className="t-player-top">
         <span className="t-player-title" title={path}>
           {name}
         </span>
+        <span className="t-player-chip" title={server ? t('player.fromServer') : t('player.fromLocal')}>
+          {server ? (servers.data?.find((x) => x.id === server)?.name ?? t('player.remote')) : t('player.local')}
+        </span>
         {facts.map((f) => (
           <span key={f as string} className="t-player-chip">
             {f}
           </span>
         ))}
-        {hls && (
+        {hls && !copy && (
           <span className="t-player-chip t-player-chip--accent" title={t('player.transcoding')}>
             {t('player.transcode')}
           </span>
@@ -676,7 +732,18 @@ function PlayerView({ server, path }: { server: number; path: string }) {
             <Captions aria-hidden size={20} />
           </button>
           <MediaSettingsMenuButton />
-          <MediaPipButton />
+          {pipSupported && (
+            <button
+              type="button"
+              className="t-player-btn t-player-pip"
+              aria-pressed={inPip}
+              aria-label={t('player.pip')}
+              title={t('player.pip')}
+              onClick={togglePip}
+            >
+              <PictureInPicture2 aria-hidden size={20} />
+            </button>
+          )}
           <MediaFullscreenButton />
         </MediaControlBar>
       </div>

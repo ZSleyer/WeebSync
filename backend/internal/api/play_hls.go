@@ -38,6 +38,9 @@ type hlsKey struct {
 	src   playSource
 	audio int // stream index, -1 = none
 	burn  int // stream index of a picture subtitle to burn in, -1 = none
+	// copy: the picture is passed through (see play_copy.go); acopy: the
+	// sound too, else it becomes AAC
+	copy, acopy bool
 }
 
 type hlsSession struct {
@@ -46,6 +49,8 @@ type hlsSession struct {
 	mu   sync.Mutex
 	last time.Time
 	run  *hlsRun // the current ffmpeg run, nil before the first
+	// the copy mode's segment starts, in seconds
+	cuts []float64
 }
 
 // hlsRun is one ffmpeg process. err is written before exited closes and read
@@ -79,6 +84,7 @@ func hlsKeyFrom(r *http.Request) (hlsKey, error) {
 	}
 	k := hlsKey{src: src, audio: -1, burn: -1}
 	q := r.URL.Query()
+	k.copy, k.acopy = q.Get("copy") == "1", q.Get("acopy") == "1"
 	for name, dst := range map[string]*int{"audio": &k.audio, "burn": &k.burn} {
 		if v := q.Get(name); v != "" {
 			n, err := strconv.Atoi(v)
@@ -99,6 +105,8 @@ func hlsKeyFrom(r *http.Request) (hlsKey, error) {
 // @Param    path   query string true  "Video path"
 // @Param    audio  query int    false "Audio stream index"
 // @Param    burn   query int    false "Picture subtitle stream index to burn in"
+// @Param    copy   query int    false "1: copy the picture and only repackage it (cut at the file's keyframes); falls back to transcoding without a keyframe index"
+// @Param    acopy  query int    false "1: copy the sound too (with copy=1)"
 // @Success  200 {string} string
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
@@ -106,7 +114,8 @@ func hlsKeyFrom(r *http.Request) (hlsKey, error) {
 // @Security CookieAuth
 // @Router   /api/play/hls/index.m3u8 [get]
 func (s *Server) handlePlayHLSIndex(w http.ResponseWriter, r *http.Request) {
-	if _, err := hlsKeyFrom(r); err != nil {
+	key, err := hlsKeyFrom(r)
+	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -121,7 +130,18 @@ func (s *Server) handlePlayHLSIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-	w.Write([]byte(hlsPlaylist(info.Duration, r.URL.Query())))
+	q := r.URL.Query()
+	if key.copy {
+		if cuts := s.copyCuts(r.Context(), src); cuts != nil {
+			w.Write([]byte(copyPlaylist(cuts, info.Duration, q)))
+			return
+		}
+		// no keyframe index to cut a copy at: this file is transcoded, and
+		// its segment URLs say so
+		q.Del("copy")
+		q.Del("acopy")
+	}
+	w.Write([]byte(hlsPlaylist(info.Duration, q)))
 }
 
 // hlsPlaylist lists every segment of a file of the given length. The segment
@@ -148,6 +168,8 @@ func hlsPlaylist(duration float64, q url.Values) string {
 // @Param    path   query string true  "Video path"
 // @Param    audio  query int    false "Audio stream index"
 // @Param    burn   query int    false "Picture subtitle stream index to burn in"
+// @Param    copy   query int    false "1: copy the picture and only repackage it (cut at the file's keyframes); falls back to transcoding without a keyframe index"
+// @Param    acopy  query int    false "1: copy the sound too (with copy=1)"
 // @Param    n      query int    true  "Segment number"
 // @Success  200 {file} binary
 // @Failure  400 {object} ErrorResponse
@@ -167,7 +189,14 @@ func (s *Server) handlePlayHLSSegment(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid segment")
 		return
 	}
-	sess, err := s.hlsSession(key)
+	var cuts []float64
+	if key.copy {
+		if cuts = s.copyCuts(r.Context(), key.src); cuts == nil || n >= len(cuts) {
+			writeErr(w, http.StatusBadGateway, "the file has no keyframe index to cut at")
+			return
+		}
+	}
+	sess, err := s.hlsSession(key, cuts)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
@@ -181,7 +210,7 @@ func (s *Server) handlePlayHLSSegment(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, file)
 }
 
-func (s *Server) hlsSession(key hlsKey) (*hlsSession, error) {
+func (s *Server) hlsSession(key hlsKey, cuts []float64) (*hlsSession, error) {
 	h := &s.hls
 	h.reap.Do(func() { go h.reaper() })
 	h.mu.Lock()
@@ -206,7 +235,7 @@ func (s *Server) hlsSession(key hlsKey) (*hlsSession, error) {
 	if err != nil {
 		return nil, errors.New("no temp space")
 	}
-	sess := &hlsSession{key: key, dir: dir, last: time.Now()}
+	sess := &hlsSession{key: key, dir: dir, last: time.Now(), cuts: cuts}
 	h.all[key] = sess
 	return sess, nil
 }
@@ -254,13 +283,22 @@ func exists(p string) bool {
 	return err == nil
 }
 
+// ready reports whether segment n is complete.
+func (sess *hlsSession) ready(n int) bool {
+	if !sess.key.copy {
+		return exists(sess.segPath(n))
+	}
+	list, err := os.ReadFile(filepath.Join(sess.dir, "list.csv"))
+	return err == nil && strings.Contains("\n"+string(list), "\n"+strconv.Itoa(n)+".ts,")
+}
+
 // segment returns the file of segment n once it is written, starting or
 // moving the ffmpeg run when n is not on its way.
 func (sess *hlsSession) segment(ctx context.Context, s *Server, n int) (string, error) {
 	p := sess.segPath(n)
 	sess.mu.Lock()
 	sess.last = time.Now()
-	if !exists(p) {
+	if !sess.ready(n) {
 		run := sess.run
 		if run == nil || !run.running() || n < run.start || n > sess.written(run.start)+hlsAheadSegs {
 			if err := sess.runLocked(s, n); err != nil {
@@ -276,7 +314,7 @@ func (sess *hlsSession) segment(ctx context.Context, s *Server, n int) (string, 
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
 	for {
-		if exists(p) {
+		if sess.ready(n) {
 			return p, nil
 		}
 		sess.mu.Lock()
@@ -289,7 +327,7 @@ func (sess *hlsSession) segment(ctx context.Context, s *Server, n int) (string, 
 			return "", errors.New("the segment took too long to transcode")
 		case <-run.exited:
 			// the run ended: either it wrote the segment just now or never will
-			if exists(p) {
+			if sess.ready(n) {
 				return p, nil
 			}
 			if run.err != nil {
@@ -315,8 +353,11 @@ func (sess *hlsSession) runLocked(s *Server, n int) error {
 		cancel()
 		return err
 	}
-	cmd := ffCommand(ctx, "ffmpeg", in, []string{"-nostdin", "-ss", strconv.Itoa(n * hlsSegSec)},
-		hlsArgs(sess.key, n, sess.dir))
+	start, out := strconv.Itoa(n*hlsSegSec), hlsArgs(sess.key, n, sess.dir)
+	if sess.key.copy {
+		start, out = strconv.FormatFloat(sess.cuts[n], 'f', 3, 64), copyArgs(sess.key, sess.cuts, n, sess.dir)
+	}
+	cmd := ffCommand(ctx, "ffmpeg", in, []string{"-nostdin", "-ss", start}, out)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
@@ -340,7 +381,7 @@ func (sess *hlsSession) runLocked(s *Server, n int) error {
 
 // written is the first segment from start on that is not on disk yet.
 func (sess *hlsSession) written(start int) int {
-	for exists(sess.segPath(start)) {
+	for sess.ready(start) {
 		start++
 	}
 	return start
@@ -350,9 +391,9 @@ func (sess *hlsSession) written(start int) int {
 // 1080 lines high in 8 bit (what every browser decodes), stereo AAC, keyframes
 // on the segment grid, timestamps offset to the run's start.
 //
-// ponytail: software x264 only. Hardware encoders (VAAPI/QSV) and video
-// stream copy for an already-playable picture are the upgrade path when a
-// host turns out too slow.
+// ponytail: software x264 only; a picture the browser can show is copied
+// instead (play_copy.go). Hardware encoders are the upgrade path where a host
+// has one.
 func hlsArgs(k hlsKey, n int, dir string) []string {
 	scale := "scale=-2:'min(1080,ih)',format=yuv420p"
 	var args []string

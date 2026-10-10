@@ -2050,7 +2050,7 @@ li.t-swiperow { border-radius: 0; }
 .t-player-bar > *,
 .t-player-volume > * { border-radius: var(--r-ctl); }
 .t-player-bar :is(media-play-button, media-seek-backward-button, media-seek-forward-button, media-mute-button,
-  media-settings-menu-button, media-pip-button, media-fullscreen-button, .t-player-btn) {
+  media-settings-menu-button, media-fullscreen-button, .t-player-btn) {
   min-width: var(--pl-hit);
   min-height: var(--pl-hit);
   justify-content: center;
@@ -2196,7 +2196,7 @@ li.t-swiperow { border-radius: 0; }
   .t-player-bar :is(media-seek-backward-button, media-seek-forward-button) { display: none; }
 }
 @container player (width < 520px) {
-  .t-player-bar media-pip-button, .t-player-volume media-volume-range { display: none; }
+  .t-player-bar .t-player-pip, .t-player-volume media-volume-range { display: none; }
 }
 @container player (width < 440px) {
   /* a phone has its own volume keys */
