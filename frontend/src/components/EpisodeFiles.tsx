@@ -74,7 +74,7 @@ export default function EpisodeFiles({
       {data.map((g) => (
         <div key={g.label}>
           {(data.length > 1 || g.label) && <Divider label={g.label || t('series.thisFolder')} />}
-          <ul>
+          <ul className="-mx-2">
             {g.files.map((e) => {
               const m = SXE.exec(e.name)
               const here = e.path === highlight

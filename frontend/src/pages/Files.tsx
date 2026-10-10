@@ -1929,13 +1929,14 @@ function CatalogVersions({
   const { t } = useTranslation()
 
   return (
-    <>
-      <h4 className="t-label mt-4 mb-1 border-t border-border-subtle pt-4">
-        {t('remote.versions', { count: group.items.length })}
-      </h4>
+    <section className="mt-4 border-t border-border-subtle pt-4">
+      <h4 className="t-label mb-2">{t('remote.versions', { count: group.items.length })}</h4>
       <ul>
         {group.items.map((it) => (
-          <li key={it.entry.path} className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-2 py-2">
+          <li
+            key={it.entry.path}
+            className="flex flex-wrap items-center gap-2 border-b border-border-subtle py-2 last:border-b-0"
+          >
             <span
               className={`min-w-0 flex-1 basis-full truncate text-sm sm:basis-auto ${selected === it.entry.path ? 'text-accent' : ''}`}
               title={it.entry.path}
@@ -1969,7 +1970,7 @@ function CatalogVersions({
           </li>
         ))}
       </ul>
-    </>
+    </section>
   )
 }
 

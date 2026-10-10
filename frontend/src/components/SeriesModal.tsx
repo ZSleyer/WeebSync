@@ -883,10 +883,21 @@ function SeriesCard({
                 aria-labelledby={`${ids}-${k}-h`}
                 className="outline-none"
               >
-                {/* the overview needs no visible heading right under the title */}
-                <h4 id={`${ids}-${k}-h`} className={k === 'overview' ? 'sr-only' : 't-label px-5 pt-5'}>
-                  {t(`series.tab.${k}`)}
-                </h4>
+                {/* the overview needs no visible heading right under the title.
+                    The inset sits on a box around the chip: on the chip itself
+                    it padded the chip and left it flush with the edge, out of
+                    line with the section's content */}
+                {k === 'overview' ? (
+                  <h4 id={`${ids}-${k}-h`} className="sr-only">
+                    {t(`series.tab.${k}`)}
+                  </h4>
+                ) : (
+                  <div className="px-5 pt-5">
+                    <h4 id={`${ids}-${k}-h`} className="t-label">
+                      {t(`series.tab.${k}`)}
+                    </h4>
+                  </div>
+                )}
                 {k === 'overview' && media && (
                   <MediaDetail media={media} source={source} airings={mine[0]?.airings} links={extras?.links} now={now}>
                     {cur.extra}

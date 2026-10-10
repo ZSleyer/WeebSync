@@ -80,7 +80,10 @@ export default function MediaDetail({
           <p className="text-sm whitespace-pre-line text-t-secondary">
             {/* AniList descriptions still carry some inline HTML; strip via
                 the browser's own parser (rendered as a text node, never HTML) */}
-            {new DOMParser().parseFromString(m.description.replace(/<br\s*\/?>/gi, '\n'), 'text/html').body.textContent}
+            {new DOMParser()
+              .parseFromString(m.description.replace(/<br\s*\/?>/gi, '\n'), 'text/html')
+              .body.textContent?.replace(/\n\s*\n(\s*\n)+/g, '\n\n')
+              .trim()}
           </p>
         </Section>
       )}
