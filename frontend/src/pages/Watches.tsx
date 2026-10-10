@@ -970,17 +970,12 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
     0,
     events.findIndex((e) => e.at * 1000 >= now),
   )
-  // "today" brings back the day's first release, or the next one when today
-  // has none
   const dayStart = startOfDay(new Date(now)).getTime()
-  const todayAt = Math.max(
-    0,
-    events.findIndex((e) => e.at * 1000 >= dayStart),
-  )
   const [at, setAt] = useState(first)
   const i = Math.min(at, events.length - 1)
   const e = events[i]
-  const onToday = e && (startOfDay(new Date(e.at * 1000)).getTime() === dayStart || i === todayAt)
+  // "today" brings back the next release to air, the one the band opens on
+  const onToday = i === first
   const nameOf = (x: Airing) =>
     x.watch.titleOverride || mediaTitle(x.watch.media, x.watch.remotePath.split('/').pop() || '')
   // the poster carries only the time; the date goes in the line under the band
@@ -993,12 +988,13 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
         : d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })
     return `${day} ${time(ts)}`
   }
-  // a finger flicks the band, so the arrows are for a mouse only
+  // a finger can flick the band, but stepping one poster at a time is the
+  // precise way, and the visible one: the arrows stay on touch too
   const arrow = (label: string, to: number, path: string) => (
     <IconButton
       aria-label={label}
       title={label}
-      className="shrink-0 disabled:cursor-default disabled:opacity-40 pointer-coarse:hidden!"
+      className="shrink-0 disabled:cursor-default disabled:opacity-40"
       disabled={to < 0 || to >= events.length}
       onClick={() => setAt(to)}
     >
@@ -1064,7 +1060,7 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
               size="sm"
               className="disabled:cursor-default disabled:opacity-40"
               disabled={onToday}
-              onClick={() => setAt(todayAt)}
+              onClick={() => setAt(first)}
             >
               {t('watch.week.today')}
             </Button>
