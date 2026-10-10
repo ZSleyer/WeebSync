@@ -50,6 +50,7 @@ import {
   Panel,
   Segmented,
   useMenu,
+  useReveal,
 } from '@weebsync/design-system'
 import {
   api,
@@ -1073,6 +1074,7 @@ export function CatalogGrid({
   // The source belongs in the key: AniList, TMDB series, TMDB films and TVDB
   // number their entries independently, so a film and a show can share an id
   // and would otherwise collapse into one card that hides both their buttons.
+  const revealBox = useRef<HTMLDivElement & HTMLUListElement>(null)
   const groups = useMemo(() => {
     const out: CatalogGroup[] = []
     const byMedia = new Map<string, CatalogGroup>()
@@ -1089,6 +1091,7 @@ export function CatalogGrid({
     }
     return sortGroups(out, sort)
   }, [items, sort])
+  useReveal(revealBox, '.t-reveal', `${layout}:${groups.length}`)
 
   // the breadcrumb is outside the loading/error branches on purpose: without
   // it a slow or failing folder would be a dead end with no way back up
@@ -1221,7 +1224,7 @@ export function CatalogGrid({
             with auto minimums its full length set the tile's width - the
             cards ran off the panel and the posters overlapped */}
         {layout === 'list' ? (
-          <ul className="grid grid-cols-[minmax(0,1fr)] gap-3">
+          <ul ref={revealBox} className="grid grid-cols-[minmax(0,1fr)] gap-3">
             {groups.map((g) => {
               const it = g.items[0]
               const multi = g.items.length > 1
@@ -1229,7 +1232,7 @@ export function CatalogGrid({
               const isSelected = g.items.some((v) => v.entry.path === selected)
               const name = mediaTitle(g.media, it.entry.name)
               return (
-                <Press as="li" key={g.key} onLongPress={() => setSheet(g)}>
+                <Press as="li" key={g.key} onLongPress={() => setSheet(g)} className="t-reveal">
                   <MediaCard
                     className={isSelected ? 'outline-2 outline-accent' : undefined}
                     cover={g.media?.coverImage?.large}
@@ -1292,7 +1295,7 @@ export function CatalogGrid({
             })}
           </ul>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
+          <div ref={revealBox} className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
             {groups.map((g) => {
               const it = g.items[0]
               const multi = g.items.length > 1
@@ -1301,7 +1304,7 @@ export function CatalogGrid({
               const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
               const isSelected = g.items.some((v) => v.entry.path === selected)
               return (
-                <Press key={g.key} onLongPress={() => setSheet(g)} className="flex min-w-0">
+                <Press key={g.key} onLongPress={() => setSheet(g)} className="t-reveal flex min-w-0">
                   <Panel
                     as="article"
                     className={`group relative flex min-w-0 flex-1 flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
