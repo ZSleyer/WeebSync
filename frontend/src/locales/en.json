@@ -436,6 +436,8 @@
     "total_other": "{{count}} entries · {{size}}"
   },
   "player": {
+    "unmute": "Sound on",
+    "subLoading": "Loading subtitles",
     "transcode": "Transcoding",
     "speed": "Speed",
     "title": "Player",

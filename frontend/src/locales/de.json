@@ -436,6 +436,8 @@
     "total_other": "{{count}} Einträge · {{size}}"
   },
   "player": {
+    "unmute": "Ton an",
+    "subLoading": "Untertitel werden geladen",
     "transcode": "Umwandlung",
     "speed": "Tempo",
     "title": "Player",

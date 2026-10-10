@@ -1868,9 +1868,12 @@ li.t-swiperow { border-radius: 0; }
   --pl-hit: 2.5rem;
   --pl-dock-h: 5.25rem; /* dock + its margin, measured by the player; this is the first paint */
   display: block;
-  width: 100%;
+  /* always 16:9 and never taller than the screen: when the height runs out
+     the player narrows instead. A max-height alone kept the full width, broke
+     the ratio and let the picture spill past the bottom edge. */
+  width: min(100%, calc((100dvh - 8rem) * 16 / 9));
+  margin-inline: auto;
   aspect-ratio: 16 / 9;
-  max-height: calc(100dvh - 8rem);
   background: #000;
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-panel);
@@ -1982,6 +1985,9 @@ li.t-swiperow { border-radius: 0; }
 }
 .t-player-chip--accent { color: var(--color-accent); border-color: currentColor; }
 .t-player-chip--err { color: var(--accent-red); border-color: currentColor; }
+.t-player-chip--button { cursor: pointer; background: transparent; }
+.t-player-chip--button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.t-player-chip--button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 /* settings menu: the same floating surface as the dock it opens from -
    fill, hairline, radius, blur - sitting 8px above it, flush with its right
@@ -2066,8 +2072,25 @@ li.t-swiperow { border-radius: 0; }
 .t-player-cc:hover { background: rgb(255 255 255 / 0.08); }
 .t-player-cc:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
 .t-player-cc:disabled { opacity: 0.35; }
-/* the state is the underline under the icon, the way a tab reads selected */
-.t-player-cc[aria-pressed='true'] { box-shadow: inset 0 -2px 0 var(--color-accent); }
+/* on: a short straight accent bar under the icon, the way a selected tab
+   reads. Its own element, not an inset shadow - that one followed the
+   button's rounded corners and curved into a smile. */
+.t-player-cc { position: relative; }
+.t-player-cc::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 14px;
+  height: 2px;
+  margin-left: -7px;
+  border-radius: 1px;
+  background: var(--color-accent);
+  opacity: 0;
+  scale: 0.4 1;
+  transition: opacity var(--dur-1) var(--ease-out), scale var(--dur-1) var(--ease-out);
+}
+.t-player-cc[aria-pressed='true']::after { opacity: 1; scale: 1; }
 
 /* middle: the big play button only while paused, the double-tap flashes */
 .t-player-center {
@@ -2120,14 +2143,22 @@ li.t-swiperow { border-radius: 0; }
   transition: opacity var(--dur-1) var(--ease-out), scale var(--dur-1) var(--ease-out);
 }
 
-/* subtitles step aside for the dock while it shows, the way captions do on
-   every large player, and settle back when it fades */
+/* the picture fills the player and never more: another aspect (4:3, 2.39:1)
+   gets bars inside the frame instead of spilling past it. The subtitles sit
+   on exactly that box and never move - libass places them where the script
+   says, and the controls float over them. */
+.t-player video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .t-player-subs {
   position: absolute;
   pointer-events: none;
-  transition: translate var(--dur-3) var(--ease-out);
+  /* over the dock, under the menu: the controls never push the lines away,
+     and the lines stay readable while the controls show */
+  z-index: 1;
 }
-.t-player:is(:not([userinactive]), [mediapaused]) .t-player-subs { translate: 0 calc(-1 * var(--pl-dock-h)); }
 
 /* the controls drift down as they fade out, and rise back in */
 .t-player[userinactive]:not([mediapaused]) :is(.t-player-dock) { translate: 0 8px; }

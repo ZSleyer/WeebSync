@@ -154,6 +154,15 @@ export default function Player() {
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const resumeAt = useRef(0)
+  const [mutedStart, setMutedStart] = useState(false)
+  // the muted start ends with the first unmute, whichever control did it
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !mutedStart) return
+    const heard = () => !v.muted && setMutedStart(false)
+    v.addEventListener('volumechange', heard)
+    return () => v.removeEventListener('volumechange', heard)
+  }, [mutedStart])
 
   // source: the raw file, or the transcoded playlist through hls.js
   useEffect(() => {
@@ -162,7 +171,15 @@ export default function Player() {
     const start = resumeAt.current
     const onMeta = () => {
       if (start > 0) v.currentTime = start
-      v.play().catch(() => {})
+      // a browser refuses sound until the page was clicked (or, in Firefox, a
+      // click a few seconds ago): then the picture starts muted and the title
+      // row offers the sound back
+      v.play().catch((e: DOMException) => {
+        if (e.name !== 'NotAllowedError') return
+        v.muted = true
+        setMutedStart(true)
+        v.play().catch(() => {})
+      })
     }
     v.addEventListener('loadedmetadata', onMeta, { once: true })
     if (!hls) {
@@ -217,7 +234,7 @@ export default function Player() {
   }, [hls, data])
 
   // the dock's real height (it differs per viewport and pointer): the
-  // subtitles move up by it and the settings menu opens above it
+  // settings menu opens above it
   const playerRef = useRef<MediaControllerElement>(null)
   useEffect(() => {
     const player = playerRef.current
@@ -244,22 +261,54 @@ export default function Player() {
     return () => document.removeEventListener('fullscreenchange', turn)
   }, [])
 
-  // text subtitles: ASS from the server, rendered by libass with the file's fonts
+  // text subtitles: ASS from the server, rendered by libass with the file's
+  // fonts. An embedded track comes out of a pass over the whole file that the
+  // server runs on the first request; until it is through the answer is 202
+  // and this asks again. Switching tracks aborts the wait for the old one.
   const [subError, setSubError] = useState('')
+  const [subPending, setSubPending] = useState(false)
+  // whether the picture has played at all: only the very first subtitle
+  // request waits for it, a later switch - paused or not - goes right out
+  const played = useRef(false)
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    const mark = () => {
+      played.current = true
+    }
+    v.addEventListener('playing', mark)
+    return () => v.removeEventListener('playing', mark)
+  }, [data])
   useEffect(() => {
     const v = videoRef.current
     if (!v || !data || !subTrack || subTrack.image) return
     let renderer: JASSUB | null = null
     let canvas: HTMLCanvasElement | null = null
-    let dead = false
+    const abort = new AbortController()
     setSubError('')
     const url = subTrack.file
       ? `/api/play/sub?server=${server}&path=${encodeURIComponent(subTrack.file)}`
       : `/api/play/sub?${src}&track=${subTrack.index}`
-    fetch(url)
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.statusText))))
+    const load = async () => {
+      // the first request starts the server's pass over the whole file: let
+      // the picture have the connection to itself until it plays
+      if (!played.current) {
+        await new Promise<void>((ok) => v.addEventListener('playing', () => ok(), { once: true, signal: abort.signal }))
+      }
+      for (;;) {
+        const r = await fetch(url, { signal: abort.signal })
+        if (r.status !== 202) {
+          if (!r.ok) throw new Error(r.statusText)
+          return r.text()
+        }
+        setSubPending(true)
+        await new Promise((ok) => setTimeout(ok, 2000))
+      }
+    }
+    load()
       .then((content) => {
-        if (dead) return
+        if (abort.signal.aborted) return
+        setSubPending(false)
         // our own canvas: media-chrome fades every overlay out with the
         // controls unless it is marked noautohide, and the subtitles must stay
         canvas = document.createElement('canvas')
@@ -272,10 +321,31 @@ export default function Player() {
           subContent: content,
           fonts: data.fonts.map((i) => new URL(`/api/play/font?${src}&index=${i}`, location.href).href),
         })
+        // libass draws on each new video frame; a paused video sends none, so
+        // a track picked while paused stayed blank until play. Drawing the
+        // frame that is on screen fixes that.
+        const r = renderer
+        r.ready.then(() => {
+          if (abort.signal.aborted || renderer !== r || !v.paused) return
+          r.manualRender(
+            {
+              expectedDisplayTime: performance.now(),
+              mediaTime: v.currentTime,
+              width: v.videoWidth,
+              height: v.videoHeight,
+            },
+            true,
+          )
+        })
       })
-      .catch(() => !dead && setSubError(t('player.subError')))
+      .catch(() => {
+        if (abort.signal.aborted) return
+        setSubPending(false)
+        setSubError(t('player.subError'))
+      })
     return () => {
-      dead = true
+      abort.abort()
+      setSubPending(false)
       renderer?.destroy()
       canvas?.remove()
     }
@@ -357,6 +427,23 @@ export default function Player() {
         {hls && (
           <span className="t-player-chip t-player-chip--accent" title={t('player.transcoding')}>
             {t('player.transcode')}
+          </span>
+        )}
+        {mutedStart && (
+          <button
+            type="button"
+            className="t-player-chip t-player-chip--accent t-player-chip--button"
+            onClick={() => {
+              const v = videoRef.current
+              if (v) v.muted = false
+            }}
+          >
+            {t('player.unmute')}
+          </button>
+        )}
+        {subPending && (
+          <span className="t-player-chip" role="status">
+            {t('player.subLoading')}
           </span>
         )}
         {subError && (
