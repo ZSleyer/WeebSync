@@ -1,4 +1,27 @@
 {
+  "errors": {
+    "invalidCredentials": "Email or password is wrong.",
+    "emailUnverified": "Confirm your email address first: the link is in your inbox.",
+    "invalidCode": "That code is wrong.",
+    "loginExpired": "The sign-in has expired. Start again.",
+    "passkeyFailed": "The key was not accepted.",
+    "emailTaken": "There is already an account with this address.",
+    "invalidEmail": "That is not a valid email address.",
+    "registrationClosed": "Registration is closed. Ask an admin for an account.",
+    "passwordDisabled": "Sign-in with a password is off here. Use the provider.",
+    "weakPassword": "The password needs at least 10 characters.",
+    "wrongPassword": "The password is wrong.",
+    "resetLinkInvalid": "This link is invalid or has expired. Ask for a new one.",
+    "oidcAccount": "This account signs in through the provider.",
+    "lastAdminDelete": "The last admin cannot be deleted.",
+    "lastAdminDemote": "The last admin cannot lose the role.",
+    "deleteSelf": "You cannot delete your own account.",
+    "rolesByOidc": "Roles come from the provider’s groups here.",
+    "noManualUsers": "With sign-in through a provider, accounts come from the provider.",
+    "tooMany": "Too many attempts. Wait a moment.",
+    "tooManyWait_one": "Too many attempts. Try again in {{count}} second.",
+    "tooManyWait_other": "Too many attempts. Try again in {{count}} seconds."
+  },
   "common": {
     "undo": "Undo",
     "undoFailed": "That did not work, the entry is back.",

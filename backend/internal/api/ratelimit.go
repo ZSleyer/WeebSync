@@ -1,8 +1,11 @@
 package api
 
 import (
+	"math"
 	"net/http"
+	"strconv"
 	"sync"
+	"time"
 
 	"golang.org/x/time/rate"
 
@@ -70,6 +73,12 @@ func (l *ipLimiter) status() []ipStatus {
 
 // allow reports whether the ip may proceed, consuming one token.
 func (l *ipLimiter) allow(ip string) bool {
+	ok, _ := l.take(ip)
+	return ok
+}
+
+// take spends one attempt; refused, it says how long until the next one.
+func (l *ipLimiter) take(ip string) (bool, time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	e, ok := l.ips[ip]
@@ -88,7 +97,10 @@ func (l *ipLimiter) allow(ip string) bool {
 		e = &ipEntry{lim: rate.NewLimiter(l.rate, l.burst)}
 		l.ips[ip] = e
 	}
-	return e.lim.Allow()
+	if e.lim.Allow() {
+		return true, 0
+	}
+	return false, time.Duration((1 - e.lim.Tokens()) / float64(l.rate) * float64(time.Second))
 }
 
 // ipTrusted reports whether ipStr falls inside an admin-configured trusted
@@ -159,7 +171,9 @@ func (l *ipLimiter) limit(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		if !l.allow(ip) {
+		if ok, wait := l.take(ip); !ok {
+			// the login page tells how long to wait instead of a bare "slow down"
+			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
 			writeErr(w, http.StatusTooManyRequests, "too many attempts, slow down")
 			return
 		}

@@ -1,5 +1,6 @@
 // Typed fetch helpers for the WeebSync API.
 
+import i18n from 'i18next'
 import type { Schemas } from './api.gen'
 
 export type User = Schemas['api.MeResponse']
@@ -198,11 +199,51 @@ export class ApiError extends Error {
   status: number
   // parsed JSON error body, for endpoints that return more than {error}
   data?: unknown
-  constructor(status: number, message: string, data?: unknown) {
+  /** the server's own words, before translation: for code that tells errors apart */
+  raw: string
+  constructor(status: number, message: string, data?: unknown, raw = message) {
     super(message)
     this.status = status
     this.data = data
+    this.raw = raw
   }
+}
+
+// The API answers in English for every client; the messages a person meets
+// while signing in or managing accounts are shown in the UI language. Keyed by
+// the server's exact words, so an unknown one passes through unchanged.
+const ERROR_KEYS: Record<string, string> = {
+  'invalid credentials': 'errors.invalidCredentials',
+  'email not verified - check your inbox': 'errors.emailUnverified',
+  'invalid code': 'errors.invalidCode',
+  'invalid or expired login': 'errors.loginExpired',
+  'expired login session': 'errors.loginExpired',
+  'passkey login failed': 'errors.passkeyFailed',
+  'security key verification failed': 'errors.passkeyFailed',
+  'email already registered': 'errors.emailTaken',
+  'invalid email': 'errors.invalidEmail',
+  'registration is disabled': 'errors.registrationClosed',
+  'password auth is disabled, use OIDC': 'errors.passwordDisabled',
+  'password must be at least 10 characters': 'errors.weakPassword',
+  'current password is wrong': 'errors.wrongPassword',
+  'invalid password': 'errors.wrongPassword',
+  'this reset link is invalid or has expired': 'errors.resetLinkInvalid',
+  'this account signs in through OIDC': 'errors.oidcAccount',
+  'passkeys need an account with a password': 'errors.oidcAccount',
+  'cannot delete the last admin': 'errors.lastAdminDelete',
+  'cannot demote the last admin': 'errors.lastAdminDemote',
+  'cannot delete yourself': 'errors.deleteSelf',
+  'roles managed by OIDC': 'errors.rolesByOidc',
+  'manual user creation is disabled in OIDC mode; users onboard via the identity provider': 'errors.noManualUsers',
+}
+
+function errorText(res: Response, msg: string): string {
+  if (res.status === 429) {
+    const s = Number(res.headers.get('Retry-After'))
+    return s > 0 ? i18n.t('errors.tooManyWait', { count: s }) : i18n.t('errors.tooMany')
+  }
+  const key = ERROR_KEYS[msg]
+  return key ? i18n.t(key) : msg
 }
 
 async function request<T>(method: string, url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
@@ -224,7 +265,7 @@ async function request<T>(method: string, url: string, body?: unknown, headers?:
     } catch {
       /* not json */
     }
-    throw new ApiError(res.status, msg, data)
+    throw new ApiError(res.status, errorText(res, msg), data, msg)
   }
   // a 204 (or any empty body) is a success with nothing to read; res.json()
   // would throw "Unexpected end of JSON input" on it
