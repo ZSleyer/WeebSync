@@ -8,6 +8,12 @@ let localeSynced = false
 export function useAuth() {
   return useQuery<User | null>({
     queryKey: ['me'],
+    // who is signed in changes on login and logout, which reset this query;
+    // a refetch on focus mid-wizard swapped the wizard for a fresh one at a
+    // later step and lost what was typed. A session that ended elsewhere
+    // shows through the 401 of the next request.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
       try {
         const me = await api.get<User>('/api/auth/me')

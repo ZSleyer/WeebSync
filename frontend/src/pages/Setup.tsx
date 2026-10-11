@@ -18,6 +18,18 @@ import Brand from '../components/Brand'
 export type Step = 'account' | 'oidc' | 'import' | 'server' | 'storage' | 'meta' | 'done'
 const STEPS: Step[] = ['account', 'oidc', 'import', 'server', 'storage', 'meta']
 
+// The step survives the wizard being mounted afresh: a reload, or RootLayout
+// swapping from the login screen's wizard to the signed-in one once ['me']
+// is refetched after step 01. Without it a reload on step 02 jumped to 03 and
+// the OIDC step was never shown again. A resumed run (initialStep) never goes
+// back behind its own start, which is how the OIDC-only path comes back from
+// its provider at step 03.
+const STEP_KEY = 'weebsync.setup.step'
+const storedStep = (initial: Step): Step => {
+  const s = sessionStorage.getItem(STEP_KEY) as Step | null
+  return s && STEPS.indexOf(s) > STEPS.indexOf(initial) ? s : initial
+}
+
 export default function Setup({
   initialStep = 'account',
   onDone,
@@ -29,7 +41,11 @@ export default function Setup({
 }) {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
-  const [step, setStep] = useState<Step>(initialStep)
+  const [step, setStep] = useState<Step>(() => storedStep(initialStep))
+  useEffect(() => {
+    if (step === 'done') sessionStorage.removeItem(STEP_KEY)
+    else sessionStorage.setItem(STEP_KEY, step)
+  }, [step])
   // no local account: step 02 becomes mandatory and the first OIDC login is admin
   const [oidcOnly, setOidcOnly] = useState(false)
   // set once the OIDC config is stored and the provider is reachable
@@ -190,7 +206,9 @@ export default function Setup({
 
   return (
     <main className="grid min-h-dvh content-start justify-items-center p-4 pt-[max(2rem,var(--safe-t))] pb-[calc(1rem+var(--safe-b))] sm:content-center sm:pt-4 sm:pb-4">
-      <div className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
+      {/* min-w-0: a grid item grows to its content's min width, and the step
+          row's is ~480px - wider than a phone, so the whole wizard overflowed */}
+      <div className={`w-full min-w-0 ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
         <div className="mb-6 text-center">
           <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
             <Brand variant="hero" />
@@ -388,7 +406,7 @@ export default function Setup({
         )}
 
         {(step === 'import' || step === 'server' || step === 'storage' || step === 'meta') && (
-          <SetupSteps step={step} onGo={setStep} onFinish={() => setStep('done')} />
+          <SetupSteps step={step} onGo={setStep} onFinish={() => setStep('done')} headingRef={headingRef} />
         )}
 
         {step === 'done' && (

@@ -369,6 +369,12 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 		out.OidcError = err.Error()
 	}
 	out.OidcEnabled = s.OIDC.Enabled()
+	// no local account on this path: the login page shows only the provider,
+	// not a password form nobody can use. A broken provider later falls back
+	// to the password form on its own (passwordAuthBlocked).
+	if out.OidcEnabled {
+		setSetting(s.DB, "auth_mode", "oidc-only")
+	}
 	writeJSON(w, http.StatusOK, out)
 }
 

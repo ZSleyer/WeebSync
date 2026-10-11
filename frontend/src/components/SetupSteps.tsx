@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Field, Input, Panel, Select } from '@weebsync/design-system'
@@ -19,10 +19,13 @@ export default function SetupSteps({
   step,
   onGo,
   onFinish,
+  headingRef,
 }: {
   step: RestStep
   onGo: (s: RestStep) => void
   onFinish: () => void
+  /** the wizard moves focus here on every step change */
+  headingRef: Ref<HTMLHeadingElement>
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -31,6 +34,9 @@ export default function SetupSteps({
   const [serverId, setServerId] = useState(0)
   const [srvErr, setSrvErr] = useState('')
   const [srvStatus, setSrvStatus] = useState('')
+  // the connection test passed: only then is the server settled and the form
+  // locked; a failed test leaves it open to correct and test again
+  const [srvOk, setSrvOk] = useState(false)
   const [keyConflict, setKeyConflict] = useState<KeyConflict | null>(null)
   const [busy, setBusy] = useState(false)
   // an import already created the server, so that step has nothing left to ask
@@ -42,24 +48,35 @@ export default function SetupSteps({
     if (step === 'storage') return onGo('meta')
     finish()
   }
+  // the account exists from step 01 on, so the way back ends at the import
+  const back = () => {
+    if (step === 'server') return onGo('import')
+    if (step === 'storage') return onGo(imported ? 'import' : 'server')
+    if (step === 'meta') return onGo('storage')
+  }
 
   // one save at the end covers whatever the storage and metadata steps changed,
   // and marks the wizard done so it never reopens
   const finish = () => {
     if (!form) return onFinish()
-    save.mutate({ ...form, onboardingDone: true }, { onSuccess: onFinish, onError: onFinish })
+    // a refused save stays on this step with its reason (shown in nav):
+    // before, it reported "setup complete" with nothing stored
+    save.mutate({ ...form, onboardingDone: true }, { onSuccess: onFinish })
   }
 
   const testServer = async (id: number) => {
     setSrvStatus('…')
+    setSrvErr('')
     setKeyConflict(null)
     try {
       await api.post(`/api/servers/${id}/test`)
       setSrvStatus(t('setup.serverOk'))
+      setSrvOk(true)
     } catch (e) {
       const kc = keyConflictOf(e)
       if (kc) setKeyConflict(kc)
-      setSrvStatus(e instanceof Error ? e.message : t('app.error'))
+      setSrvStatus('')
+      if (!kc) setSrvErr(t('setup.serverTestFailed', { msg: e instanceof Error ? e.message : t('app.error') }))
     }
   }
 
@@ -68,20 +85,24 @@ export default function SetupSteps({
     const fd = new FormData(e.currentTarget)
     setBusy(true)
     setSrvErr('')
+    const body = {
+      name: String(fd.get('name') ?? ''),
+      protocol: String(fd.get('protocol') ?? 'sftp'),
+      host: String(fd.get('host') ?? ''),
+      port: Number(fd.get('port')) || 0,
+      username: String(fd.get('username') ?? ''),
+      password: String(fd.get('password') ?? ''),
+      rootPath: String(fd.get('rootPath') ?? '/'),
+      maxConnections: 3,
+    }
     try {
-      const created = await api.post<{ id: number }>('/api/servers', {
-        name: String(fd.get('name') ?? ''),
-        protocol: String(fd.get('protocol') ?? 'sftp'),
-        host: String(fd.get('host') ?? ''),
-        port: Number(fd.get('port')) || 0,
-        username: String(fd.get('username') ?? ''),
-        password: String(fd.get('password') ?? ''),
-        rootPath: String(fd.get('rootPath') ?? '/'),
-        maxConnections: 3,
-      })
-      setServerId(created.id)
+      // a second try corrects the server the first one created
+      let id = serverId
+      if (id) await api.put(`/api/servers/${id}`, body)
+      else id = (await api.post<{ id: number }>('/api/servers', body)).id
+      setServerId(id)
       qc.invalidateQueries({ queryKey: ['servers'] })
-      await testServer(created.id)
+      await testServer(id)
     } catch (err) {
       setSrvErr(err instanceof Error ? err.message : t('app.error'))
     } finally {
@@ -89,17 +110,33 @@ export default function SetupSteps({
     }
   }
 
-  const heading = (text: string) => <h2 className="mb-1 font-display text-sm font-bold">{text}</h2>
+  const heading = (text: string) => (
+    <h2 ref={headingRef} tabIndex={-1} className="mb-1 font-display text-sm font-bold">
+      {text}
+    </h2>
+  )
 
   const nav = (skipLabel = t('setup.skip')) => (
-    <div className="mt-5 flex gap-2">
-      <Button className="flex-1" onClick={next}>
-        {skipLabel}
-      </Button>
-      <Button variant="primary" className="flex-1" disabled={save.isPending} onClick={finish}>
-        {t('setup.finish')}
-      </Button>
-    </div>
+    <>
+      {save.error && (
+        <p className="mt-4 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+          {t('setup.finishFailed', { msg: save.error.message })}
+        </p>
+      )}
+      <div className="mt-5 flex flex-wrap gap-2">
+        {step !== 'import' && (
+          <Button className="flex-1" onClick={back}>
+            {t('setup.back')}
+          </Button>
+        )}
+        <Button className="flex-1" onClick={next}>
+          {skipLabel}
+        </Button>
+        <Button variant="primary" className="flex-1" disabled={save.isPending} onClick={finish}>
+          {t('setup.finish')}
+        </Button>
+      </div>
+    </>
   )
 
   if (step === 'import')
@@ -122,10 +159,10 @@ export default function SetupSteps({
         <p className="mb-4 text-sm text-t-secondary">{t('setup.serverHint')}</p>
         <form onSubmit={createServer} className="grid gap-3 sm:grid-cols-2">
           <Field label={t('servers.name')} className="sm:col-span-2">
-            <Input name="name" required disabled={!!serverId} />
+            <Input name="name" required disabled={srvOk} />
           </Field>
           <Field label={t('servers.protocol')}>
-            <Select name="protocol" defaultValue="sftp" disabled={!!serverId}>
+            <Select name="protocol" defaultValue="sftp" disabled={srvOk}>
               <option value="sftp">SFTP (SSH)</option>
               <option value="ftps">FTPS (TLS)</option>
               <option value="ftp">{t('servers.ftpOption')}</option>
@@ -139,24 +176,25 @@ export default function SetupSteps({
               min={1}
               max={65535}
               placeholder="22 / 21"
-              disabled={!!serverId}
+              disabled={srvOk}
             />
           </Field>
           <Field label={t('servers.host')} className="sm:col-span-2">
-            <Input name="host" className="font-mono" required disabled={!!serverId} />
+            <Input name="host" className="font-mono" required disabled={srvOk} />
           </Field>
           <Field label={t('servers.user')}>
-            <Input name="username" className="font-mono" required disabled={!!serverId} />
+            <Input name="username" className="font-mono" required disabled={srvOk} />
           </Field>
           <Field label={t('servers.password')}>
-            <Input name="password" type="password" required autoComplete="new-password" disabled={!!serverId} />
+            {/* on a retry an empty password keeps the one already stored */}
+            <Input name="password" type="password" required={!serverId} autoComplete="new-password" disabled={srvOk} />
           </Field>
           <Field label={t('servers.rootPath')} className="sm:col-span-2">
-            <Input name="rootPath" className="font-mono" defaultValue="/" disabled={!!serverId} />
+            <Input name="rootPath" className="font-mono" defaultValue="/" disabled={srvOk} />
           </Field>
-          {!serverId && (
+          {!srvOk && (
             <Button type="submit" variant="primary" className="sm:col-span-2" disabled={busy}>
-              {t('setup.serverCreate')}
+              {serverId ? t('setup.serverRetry') : t('setup.serverCreate')}
             </Button>
           )}
         </form>
@@ -179,7 +217,7 @@ export default function SetupSteps({
             onRejected={() => setKeyConflict(null)}
           />
         )}
-        {nav(serverId ? t('setup.continue') : t('setup.skip'))}
+        {nav(srvOk ? t('setup.continue') : t('setup.skip'))}
       </Panel>
     )
 
@@ -206,8 +244,8 @@ export default function SetupSteps({
               min={5}
               max={1440}
               className="font-mono"
-              value={form.watchIntervalMin}
-              onChange={(e) => set('watchIntervalMin', Number(e.target.value) || 30)}
+              value={form.watchIntervalMin || ''}
+              onChange={(e) => set('watchIntervalMin', Number(e.target.value))}
             />
           </Field>
           <Field label={t('settings.maxConcurrent')}>
@@ -216,8 +254,8 @@ export default function SetupSteps({
               min={1}
               max={20}
               className="font-mono"
-              value={form.maxConcurrent}
-              onChange={(e) => set('maxConcurrent', Number(e.target.value) || 3)}
+              value={form.maxConcurrent || ''}
+              onChange={(e) => set('maxConcurrent', Number(e.target.value))}
             />
           </Field>
           <Field label={t('settings.globalLimit')}>
