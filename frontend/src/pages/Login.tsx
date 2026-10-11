@@ -83,10 +83,7 @@ export default function Login() {
         setPassword('')
         return
       }
-      // clear leftovers from a previous session (e.g. expired session of
-      // another user) before the new identity loads
-      qc.clear()
-      await qc.invalidateQueries({ queryKey: ['me'] })
+      await afterAuth()
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
     } finally {
@@ -109,8 +106,7 @@ export default function Login() {
     setError('')
     try {
       await api.post('/api/auth/login/totp', { token: twoFA?.token, code: code.trim() })
-      qc.clear()
-      await qc.invalidateQueries({ queryKey: ['me'] })
+      await afterAuth()
     } catch (err) {
       twoFactorFailed(err instanceof Error ? err.message : t('app.error'))
     } finally {
@@ -118,10 +114,11 @@ export default function Login() {
     }
   }
 
-  const afterAuth = async () => {
-    qc.clear()
-    await qc.invalidateQueries({ queryKey: ['me'] })
-  }
+  // wipe leftovers from a previous session (e.g. expired session of another
+  // user) and refetch the identity. Not qc.clear(): that drops the 'me' query
+  // out from under App's observer, the invalidate then finds nothing and the
+  // login screen stays until a reload.
+  const afterAuth = () => qc.resetQueries()
   // arm passkey autofill (conditional UI) once, when password login is available:
   // the browser surfaces passkeys in the email field, no explicit button needed
   useEffect(() => {
