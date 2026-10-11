@@ -645,6 +645,10 @@ export interface Schemas {
   }
   'api.MeResponse': {
     email: string
+    /**
+     * false for an account that only signs in through OIDC
+     */
+    hasPassword: boolean
     id: number
     isAdmin: boolean
   }

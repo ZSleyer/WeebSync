@@ -187,6 +187,7 @@ type WebAuthnBeginResponse struct {
 // @Param    X-WA-Type header string false "\"key\" for a second-factor security key; otherwise a passwordless passkey"
 // @Success  200 {object} WebAuthnBeginResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/webauthn/register/begin [post]
@@ -203,6 +204,12 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	passwordless := r.Header.Get("X-WA-Type") != "key"
+	// a passkey stands in for the password, so an OIDC-only account has
+	// nothing it could stand in for - see handleWebAuthnLoginFinish
+	if passwordless && !s.hasPassword(u.ID) {
+		writeErr(w, http.StatusForbidden, "passkeys need an account with a password")
+		return
+	}
 	sel := protocol.AuthenticatorSelection{UserVerification: protocol.VerificationPreferred}
 	if passwordless {
 		sel.ResidentKey = protocol.ResidentKeyRequirementRequired
@@ -339,6 +346,13 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	_, cred, err := wa.FinishPasskeyLogin(handler, *session, r)
 	if err != nil || matched == nil {
 		writeErr(w, http.StatusUnauthorized, "passkey login failed")
+		return
+	}
+	// An account without a password exists through OIDC, and the provider
+	// decides on every login whether it may still get in (the allowed groups).
+	// A passkey on it would be a way in that never asks the provider again.
+	if !s.hasPassword(matched.id) {
+		writeErr(w, http.StatusForbidden, "this account signs in through OIDC")
 		return
 	}
 	s.updateCredential(cred)

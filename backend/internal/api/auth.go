@@ -267,11 +267,13 @@ type MeResponse struct {
 	ID      int64  `json:"id"`
 	Email   string `json:"email"`
 	IsAdmin bool   `json:"isAdmin"`
+	// false for an account that only signs in through OIDC
+	HasPassword bool `json:"hasPassword"`
 }
 
 // handleMe returns the current user.
 // @Summary  Current user
-// @Description Returns the authenticated user's id, email and admin flag.
+// @Description Returns the authenticated user's id, email, admin flag and whether the account has a password.
 // @Tags     Auth
 // @Produce  json
 // @Success  200 {object} MeResponse
@@ -279,7 +281,16 @@ type MeResponse struct {
 // @Security CookieAuth
 // @Router   /api/auth/me [get]
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, auth.UserFrom(r.Context()))
+	u := auth.UserFrom(r.Context())
+	writeJSON(w, http.StatusOK, MeResponse{ID: u.ID, Email: u.Email, IsAdmin: u.IsAdmin, HasPassword: s.hasPassword(u.ID)})
+}
+
+// hasPassword reports whether an account can sign in with a password; an
+// account the first OIDC login created has none.
+func (s *Server) hasPassword(userID int64) bool {
+	var hash string
+	s.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash)
+	return hash != ""
 }
 
 // SetupOIDCResponse reports the result of applying a first-run OIDC config.
