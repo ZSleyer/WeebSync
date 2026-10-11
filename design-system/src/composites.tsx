@@ -754,8 +754,15 @@ export function DayTimeline({ entries, now, nowLabel, gapLabel, className }: Day
         return (
           <Fragment key={r.key}>
             {i > 0 && (
-              <li aria-hidden className="t-timeline__gap" data-past={past ?? (nowAt >= 0 && i === nowAt ? '' : undefined)} style={{ height: gap.height }}>
-                {gap.cut && <span>{gapLabel(mins)}</span>}
+              <li
+                aria-hidden
+                className="t-timeline__gap"
+                data-past={past ?? (nowAt >= 0 && i === nowAt ? '' : undefined)}
+                style={{ height: gap.height }}
+              >
+                {/* the label as an attribute: the stylesheet sets it on the
+                    rule like the now marker's time */}
+                {gap.cut && <span data-label={gapLabel(mins)} />}
               </li>
             )}
             {r.node === null ? (

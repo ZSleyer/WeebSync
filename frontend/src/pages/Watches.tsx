@@ -261,11 +261,8 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
           time={
             // the JST hover lives on the text itself - CalendarEntry owns the <p> around it
             <span title={e.watch.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(e.at, 'Asia/Tokyo')} JST`}>
-              {new Date(e.at * 1000).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                ...(isToday(e.at) ? { second: '2-digit' } : {}),
-              })}
+              {/* releases fall on the minute: seconds only ever read ":00" */}
+              {new Date(e.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           }
           countdown={countdown(t, e.at, isToday(e.at), now)}
