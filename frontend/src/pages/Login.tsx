@@ -253,7 +253,6 @@ export default function Login() {
                 <Input
                   id="totp-code"
                   className="mb-4 font-mono tracking-[0.3em]"
-                  inputMode="numeric"
                   autoComplete="one-time-code"
                   autoFocus
                   required
