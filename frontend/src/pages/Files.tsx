@@ -130,7 +130,7 @@ export default function Files() {
   const qc = useQueryClient()
   const confirm = useConfirm()
   const goTo = useNavigate()
-  const { data: servers = [] } = useQuery<ServerInfo[]>({
+  const { data: servers = [], isSuccess: serversIn } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
     queryFn: () => api.get('/api/servers'),
   })
@@ -138,7 +138,10 @@ export default function Files() {
   // the source from the link, else the one used last, else the first server
   // once the list is in, else the local library
   const [chosen, setChosen] = useState<Source | null>(() => sourceFromParams(params) ?? sourceFromStorage())
-  const source: Source = chosen ?? servers[0]?.id ?? 'local'
+  // a server remembered from an earlier visit (or named in an old link) may
+  // have been deleted since: once the list is in, it falls back like no choice
+  const gone = typeof chosen === 'number' && serversIn && !servers.some((s) => s.id === chosen)
+  const source: Source = (gone ? null : chosen) ?? servers[0]?.id ?? 'local'
   const isLocal = source === 'local'
   // the catalog API addresses the local library as server 0
   const active = isLocal ? 0 : source
@@ -174,7 +177,9 @@ export default function Files() {
   }
   // deep links (the dashboard queue, suggestions) open the browser at a folder
   const [path, setPath] = useState((params.get('path') ?? '').replace(/^\//, ''))
-  const [localPath, setLocalPath] = useState('')
+  // null = untouched, so the default target fills in; an emptied field is a
+  // choice too (the download folder itself) and must not refill
+  const [localPath, setLocalPath] = useState<string | null>(null)
   const [selection, setSelection] = useState<Entry | null>(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -196,11 +201,11 @@ export default function Files() {
   const { data: syncKind, isPending: syncKindPending } = useFolderKind(active, syncEntry?.path)
   const syncSeed =
     syncEntry && !syncKindPending
-      ? applyDefaults(blankWatch(syncEntry.path, localPath), syncKind?.kind, defaults, syncKind)
+      ? applyDefaults(blankWatch(syncEntry.path, localPath ?? ''), syncKind?.kind, defaults, syncKind)
       : null
   // a target picked on this page wins, the default one fills in otherwise;
   // the subfolder choice follows the default only while nothing was picked
-  const syncLocal = localPath || syncSeed?.localPath || ''
+  const syncLocal = localPath ?? syncSeed?.localPath ?? ''
   const seedMode: SubfolderMode = syncSeed && syncEntry?.isDir ? subfolderMode(syncSeed) : 'none'
   const syncMode = subMode ?? (localPath ? 'none' : seedMode)
   // the folder a title subfolder is named after, the same title the watch
@@ -268,6 +273,16 @@ export default function Files() {
   const { view, value: viewValue, set: setView } = useCatalogView(active, path)
 
   const [lastIds, setLastIds] = useState<number[]>([])
+  // the sync notice and its Undo speak about the folder they were given in:
+  // another folder or source clears them (adjusted while rendering, the
+  // React way to reset state on a changed value)
+  const place = `${source}:${path}`
+  const [noticePlace, setNoticePlace] = useState(place)
+  if (noticePlace !== place) {
+    setNoticePlace(place)
+    setNotice('')
+    setLastIds([])
+  }
   const enqueue = useMutation({
     // with a rename rule the one-off sync endpoint applies the full watch
     // pipeline (template, aired mapping) without persisting a watch; note the
@@ -332,15 +347,14 @@ export default function Files() {
   const watchProps = (entry: Entry) => ({
     title: t('watch.addTitle', { name: entry.name }),
     serverId: active,
-    initial: applyDefaults(blankWatch(entry.path, localPath), watchKind?.kind, defaults, watchKind),
+    initial: applyDefaults(blankWatch(entry.path, localPath ?? ''), watchKind?.kind, defaults, watchKind),
     onSave: async (f: WatchFields) => {
       await api.post('/api/watches', { serverId: active, ...f })
       setNotice(t('watch.created'))
-      if (inCard) {
-        // the card's auto-sync section shows the new watch on the way back
-        await qc.invalidateQueries({ queryKey: ['watches'] })
-        toast({ message: t('watch.created') })
-      }
+      // the auto-sync page, and the card's auto-sync section on the way back,
+      // show the new watch
+      await qc.invalidateQueries({ queryKey: ['watches'] })
+      if (inCard) toast({ message: t('watch.created') })
     },
     onClose: () => setWatchEntry(null),
   })
