@@ -655,6 +655,12 @@ export interface Schemas {
     hasPassword: boolean
     id: number
     isAdmin: boolean
+    tmdbApiKeySet: boolean
+    /**
+     * which metadata providers the instance has keys for, so every user (not
+     * only an admin, who can read the settings) is offered their options
+     */
+    tvdbApiKeySet: boolean
   }
   'api.MkdirLocalRequest': {
     path: string

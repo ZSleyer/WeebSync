@@ -129,6 +129,7 @@ export function useSettingsForm() {
         'animeschedule-me',
         'ai-status',
         'ai-models',
+        'me',
       ])
         qc.invalidateQueries({ queryKey: [key] })
       // back to the seeded form: a copy of `fresh` would read as dirty as soon

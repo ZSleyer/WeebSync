@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useProviders } from '../../hooks'
 import { useTranslation } from 'react-i18next'
 import { FolderOpen } from 'lucide-react'
 import { ActionBar, Badge, Button, Field, Input, Panel, Segmented, Select } from '@weebsync/design-system'
@@ -47,12 +48,7 @@ export default function SyncDefaults() {
     queryKey: ['watch-defaults'],
     queryFn: () => api.get('/api/auth/watch-defaults'),
   })
-  const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean; tmdbApiKeySet?: boolean }>({
-    queryKey: ['settings'],
-    queryFn: () => api.get('/api/settings'),
-    retry: false,
-    staleTime: 5 * 60_000,
-  })
+  const caps = useProviders()
   // what the form shows until the first edit: the stored defaults, filled up
   const stored = data
     ? { ...EMPTY, ...data, kinds: data.kinds ?? {}, common: { ...EMPTY.common, ...data.common } }

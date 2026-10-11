@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FolderOpen, TriangleAlert } from 'lucide-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useProviders } from '../hooks'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
 import { ActionBar, Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
@@ -44,12 +45,7 @@ export default function Rename() {
   const [browse, setBrowse] = useState(false)
   const [draft, setDraft] = useState('')
 
-  const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean; tmdbApiKeySet?: boolean }>({
-    queryKey: ['settings'],
-    queryFn: () => api.get('/api/settings'),
-    retry: false,
-    staleTime: 5 * 60_000,
-  })
+  const caps = useProviders()
 
   const hasRule = (rule.mode === 'template' && !!rule.template) || (rule.mode === 'regex' && !!rule.pattern)
   const renameable = (p: RenamePair) => !p.error && p.old !== p.new

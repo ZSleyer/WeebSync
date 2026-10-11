@@ -1504,13 +1504,22 @@
                     },
                     "isAdmin": {
                         "type": "boolean"
+                    },
+                    "tmdbApiKeySet": {
+                        "type": "boolean"
+                    },
+                    "tvdbApiKeySet": {
+                        "description": "which metadata providers the instance has keys for, so every user (not\nonly an admin, who can read the settings) is offered their options",
+                        "type": "boolean"
                     }
                 },
                 "required": [
                     "id",
                     "email",
                     "isAdmin",
-                    "hasPassword"
+                    "hasPassword",
+                    "tvdbApiKeySet",
+                    "tmdbApiKeySet"
                 ],
                 "type": "object"
             },
@@ -8731,7 +8740,7 @@
         },
         "/api/auth/me": {
             "get": {
-                "description": "Returns the authenticated user's id, email, admin flag and whether the account has a password.",
+                "description": "Returns the authenticated user's id, email, admin flag, whether the account has a password, and which metadata providers have keys.",
                 "responses": {
                     "200": {
                         "content": {

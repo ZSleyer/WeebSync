@@ -87,7 +87,7 @@ import UpcomingSeason from '../components/UpcomingSeason'
 import WatchDialog, { WatchForm, type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, useFolderKind, useWatchDefaults } from '../components/watchDefaults'
 import { useConfirm } from '../components/confirm'
-import { useAuth } from '../hooks'
+import { useAuth, useProviders } from '../hooks'
 import Loading from '../components/Loading'
 import { InlineRename, type Renaming } from '../components/InlineRename'
 
@@ -831,13 +831,7 @@ export function CatalogGrid({
   })
   const items = useMemo(() => data?.items ?? [], [data])
   // provider availability: the TVDB scope is only offered when a key is set
-  // (settings is admin-only; a 403 just leaves the option hidden)
-  const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean }>({
-    queryKey: ['settings'],
-    queryFn: () => api.get('/api/settings'),
-    retry: false,
-    staleTime: 5 * 60_000,
-  })
+  const caps = useProviders()
   const qc = useQueryClient()
   const listing = `${serverId}:${path}`
   const [keyRejectedFor, setKeyRejectedFor] = useState<string | null>(null)
@@ -1766,12 +1760,7 @@ function SyncForm({
   // the user's defaults seed the rename rule once, on open
   const [renameOn, setRenameOn] = useState(!!seed?.template)
   const [rule, setRule] = useState<RenameRule>(() => (seed ? ruleOf(seed) : EMPTY_RULE))
-  const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean; tmdbApiKeySet?: boolean }>({
-    queryKey: ['settings'],
-    queryFn: () => api.get('/api/settings'),
-    retry: false,
-    staleTime: 5 * 60_000,
-  })
+  const caps = useProviders()
   const { data: detected } = useQuery<RenameProfile>({
     queryKey: ['rename-profile', serverId, entry.path, localPath, rule.renameProvider],
     queryFn: () =>

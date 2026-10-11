@@ -13,6 +13,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 type credentials struct {
@@ -273,11 +274,15 @@ type MeResponse struct {
 	IsAdmin bool   `json:"isAdmin"`
 	// false for an account that only signs in through OIDC
 	HasPassword bool `json:"hasPassword"`
+	// which metadata providers the instance has keys for, so every user (not
+	// only an admin, who can read the settings) is offered their options
+	TvdbApiKeySet bool `json:"tvdbApiKeySet"`
+	TmdbApiKeySet bool `json:"tmdbApiKeySet"`
 }
 
 // handleMe returns the current user.
 // @Summary  Current user
-// @Description Returns the authenticated user's id, email, admin flag and whether the account has a password.
+// @Description Returns the authenticated user's id, email, admin flag, whether the account has a password, and which metadata providers have keys.
 // @Tags     Auth
 // @Produce  json
 // @Success  200 {object} MeResponse
@@ -286,7 +291,11 @@ type MeResponse struct {
 // @Router   /api/auth/me [get]
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	writeJSON(w, http.StatusOK, MeResponse{ID: u.ID, Email: u.Email, IsAdmin: u.IsAdmin, HasPassword: s.hasPassword(u.ID)})
+	writeJSON(w, http.StatusOK, MeResponse{
+		ID: u.ID, Email: u.Email, IsAdmin: u.IsAdmin, HasPassword: s.hasPassword(u.ID),
+		TvdbApiKeySet: secret.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
+		TmdbApiKeySet: secret.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
+	})
 }
 
 // hasPassword reports whether an account can sign in with a password; an
