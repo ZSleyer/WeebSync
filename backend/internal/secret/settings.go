@@ -27,6 +27,10 @@ func encodeSetting(value string) (string, error) {
 	return settingPrefix + base64.StdEncoding.EncodeToString(enc), nil
 }
 
+// EncodeSetting is the stored form of a secret setting, for a caller that
+// writes it itself (inside a transaction with other settings).
+func EncodeSetting(value string) (string, error) { return encodeSetting(value) }
+
 func decodeSetting(value string) (string, error) {
 	if !strings.HasPrefix(value, settingPrefix) {
 		return value, nil
