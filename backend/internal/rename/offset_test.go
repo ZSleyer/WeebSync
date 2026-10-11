@@ -16,3 +16,17 @@ func TestEpisodeOffset(t *testing.T) {
 		}
 	}
 }
+
+// An offset meant for a later season must not name an earlier episode with a
+// negative number: the name fails, so the file keeps its own.
+func TestEpisodeOffsetBelowZero(t *testing.T) {
+	got, err := New("Meitantei Conan E01 [GerJapDub].mkv", Options{Mode: "template", Template: "{title} - S33E{episode-1147:02}", TitleOverride: "Detektiv Conan"})
+	if err == nil {
+		t.Fatalf("New = %q, want an error for a negative episode", got)
+	}
+	// landing exactly on 0 is still a number, not an error
+	got, err = New("Meitantei Conan E1147 [GerJapDub].mkv", Options{Mode: "template", Template: "{title} - S33E{episode-1147:02}", TitleOverride: "Detektiv Conan"})
+	if err != nil || got != "Detektiv Conan - S33E00.mkv" {
+		t.Errorf("New = %q (err %v), want S33E00", got, err)
+	}
+}

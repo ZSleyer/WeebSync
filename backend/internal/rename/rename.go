@@ -258,7 +258,7 @@ func templateName(name string, o Options) (string, error) {
 		vars[k] = sanitizeSegment(v)
 	}
 
-	missing := ""
+	missing, negative := "", ""
 	out := placeholderRe.ReplaceAllStringFunc(o.Template, func(m string) string {
 		g := placeholderRe.FindStringSubmatch(m)
 		val, ok := vars[g[1]]
@@ -275,6 +275,14 @@ func templateName(name string, o Options) (string, error) {
 		if g[2] != "" { // signed offset, e.g. -1155
 			off, _ := strconv.Atoi(g[2])
 			n += off
+			// an offset made for later episodes (e.g. -1147 for a season that
+			// starts at 1148) would name an earlier file "E-1146"; clamping to
+			// 0 would file every such episode under the same E00, so the name
+			// fails and the file keeps its original one instead
+			if n < 0 {
+				negative = g[1]
+				return m
+			}
 		}
 		if g[3] != "" { // zero-pad width
 			width, _ := strconv.Atoi(g[3])
@@ -284,6 +292,9 @@ func templateName(name string, o Options) (string, error) {
 	})
 	if missing != "" {
 		return "", fmt.Errorf("no %q found in %q", missing, name)
+	}
+	if negative != "" {
+		return "", fmt.Errorf("offset takes %q of %q below zero", negative, name)
 	}
 
 	if o.Separator != "" && o.Separator != " " {
