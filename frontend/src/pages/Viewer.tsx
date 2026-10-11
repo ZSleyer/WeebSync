@@ -208,6 +208,10 @@ export function Paged({
     }
   }, [done, page, count])
 
+  // the page takes focus on opening, so the arrow keys turn pages without a
+  // click into it first
+  useEffect(() => box.current?.focus({ preventScroll: true }), [])
+
   // a pinched-in page pans instead of turning
   const [zoomed, setZoomed] = useState(false)
   useEffect(() => {
