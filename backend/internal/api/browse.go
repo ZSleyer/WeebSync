@@ -600,7 +600,13 @@ func (s *Server) handleBrowseRemote(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := client.List(dir)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		// a folder that is not there is the caller's miss, not a server fault:
+		// a 404 lets the page say "not found" instead of "server error"
+		status := http.StatusBadGateway
+		if gone(err) {
+			status = http.StatusNotFound
+		}
+		writeErr(w, status, err.Error())
 		return
 	}
 	go s.indexDir(id, dir, entries) // free index feed, no extra remote requests
