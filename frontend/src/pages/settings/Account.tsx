@@ -5,6 +5,7 @@ import { Badge, Button, Input, Panel } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { registerCredential } from '../../webauthn'
+import { useAuth } from '../../hooks'
 
 interface AuthConfig {
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
@@ -45,6 +46,11 @@ function PasskeySection() {
   })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // an OIDC account has no password a passkey could stand in for (the server
+  // refuses one), and no password login a security key could be the second
+  // factor of: its provider does both
+  const { data: me } = useAuth()
+  const oidcOnly = me?.hasPassword === false
   // the device's name is typed beside the buttons, not asked in a dialog
   // after the click; empty, it falls back to the kind
   const [name, setName] = useState('')
@@ -102,18 +108,21 @@ function PasskeySection() {
           ))}
         </ul>
       )}
-      <div className="mt-3 flex flex-wrap items-end gap-2">
-        <label className="grid min-w-0 flex-1 basis-48 gap-1">
-          <span className="t-label">{t('account.passkeyName')}</span>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('account.passkeyNameHint')} />
-        </label>
-        <Button size="sm" variant="primary" disabled={busy} onClick={add('passkey')}>
-          {t('account.passkeyAdd')}
-        </Button>
-        <Button size="sm" disabled={busy} onClick={add('key')}>
-          {t('account.keyAdd')}
-        </Button>
-      </div>
+      {!oidcOnly && (
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <label className="grid min-w-0 flex-1 basis-48 gap-1">
+            <span className="t-label">{t('account.passkeyName')}</span>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('account.passkeyNameHint')} />
+          </label>
+          <Button size="sm" variant="primary" disabled={busy} onClick={add('passkey')}>
+            {t('account.passkeyAdd')}
+          </Button>
+          <Button size="sm" disabled={busy} onClick={add('key')}>
+            {t('account.keyAdd')}
+          </Button>
+        </div>
+      )}
+      {oidcOnly && <p className="mt-2 text-xs text-t-muted">{t('account.passkeyNeedsPassword')}</p>}
       {error && (
         <p className="mt-3 text-sm text-err" role="alert">
           {error}

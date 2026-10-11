@@ -209,6 +209,7 @@
     "removeLast": "Das ist dein letzter Passkey. Danach meldest du dich nur noch mit Passwort an.",
     "passkeyKindPasskey": "Passkey",
     "passkeyKindKey": "2. Faktor",
+    "passkeyNeedsPassword": "Dieses Konto meldet sich über OIDC an: Passkeys und zweiter Faktor laufen über deinen Anbieter.",
     "passkeyAdd": "Passkey hinzufügen",
     "keyAdd": "Security-Key hinzufügen",
     "totpTitle": "Zwei-Faktor-Authentifizierung (TOTP)",

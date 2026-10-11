@@ -209,6 +209,7 @@
     "removeLast": "This is your last passkey. Afterwards you sign in with your password only.",
     "passkeyKindPasskey": "Passkey",
     "passkeyKindKey": "2nd factor",
+    "passkeyNeedsPassword": "This account signs in through OIDC: passkeys and a second factor are up to your provider.",
     "passkeyAdd": "Add passkey",
     "keyAdd": "Add security key",
     "totpTitle": "Two-factor authentication (TOTP)",

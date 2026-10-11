@@ -1490,6 +1490,10 @@
                     "email": {
                         "type": "string"
                     },
+                    "hasPassword": {
+                        "description": "false for an account that only signs in through OIDC",
+                        "type": "boolean"
+                    },
                     "id": {
                         "type": "integer"
                     },
@@ -1500,7 +1504,8 @@
                 "required": [
                     "id",
                     "email",
-                    "isAdmin"
+                    "isAdmin",
+                    "hasPassword"
                 ],
                 "type": "object"
             },
@@ -8583,7 +8588,7 @@
         },
         "/api/auth/me": {
             "get": {
-                "description": "Returns the authenticated user's id, email and admin flag.",
+                "description": "Returns the authenticated user's id, email, admin flag and whether the account has a password.",
                 "responses": {
                     "200": {
                         "content": {
@@ -9971,6 +9976,16 @@
                             }
                         },
                         "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
                     },
                     "500": {
                         "content": {
