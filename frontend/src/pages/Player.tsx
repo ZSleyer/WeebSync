@@ -456,12 +456,19 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           if (!abort.signal.aborted) p.renderAtTimestamp(v.currentTime)
           return
         }
+        const fontUrl = (i: number) => new URL(`/api/play/font?${src}&index=${i}`, location.href).href
         const r = new JASSUB({
           video: v,
           canvas,
           workerUrl: jassubWorkerUrl,
           subContent: content,
-          fonts: data.fonts.map((i) => new URL(`/api/play/font?${src}&index=${i}`, location.href).href),
+          // a group release carries tens of megabytes of fonts: a named one
+          // is fetched when libass asks for its family, the rest up front
+          fonts: data.fonts.filter((f) => !f.names?.length).map((f) => fontUrl(f.index)),
+          availableFonts: Object.fromEntries(
+            // reversed: of two fonts with one name the first wins
+            data.fonts.flatMap((f) => (f.names ?? []).map((n) => [n, fontUrl(f.index)])).toReversed(),
+          ),
         })
         renderer = r
         // Firefox hands requestVideoFrameCallback a mediaTime up to half a

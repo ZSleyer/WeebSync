@@ -24,7 +24,8 @@ export interface PlayInfo {
   video?: { codec: string; profile?: string; pixFmt?: string; width: number; height: number }
   audio: PlayTrack[]
   subs: PlayTrack[]
-  fonts: number[]
+  // names: what libass may ask for the font by; none for one it cannot name
+  fonts: { index: number; names?: string[] }[]
 }
 
 // ffmpeg's codec names, as people know the formats

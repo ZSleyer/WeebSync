@@ -40,10 +40,10 @@ import (
 const (
 	// how long a subtitle request waits for the pass before answering 202
 	mediaSubWait = 15 * time.Second
-	// the font dump reads only the header. libass fetches the fonts itself and
-	// cannot ask again, so this waits - but under the 60 s a reverse proxy
-	// gives a quiet request
-	mediaFontWait = 25 * time.Second
+	// libass fetches a font itself and does not ask again, so this waits for
+	// one (a CJK family is ~25 MB) - but under the 60 s a reverse proxy gives a
+	// quiet request
+	mediaFontWait = 50 * time.Second
 	mediaJobsMax  = 6
 	mediaJobIdle  = 30 * time.Minute
 )
@@ -61,6 +61,7 @@ type mediaJob struct {
 	subsErr error
 	mu      sync.Mutex
 	last    time.Time
+	fonts   map[int]*fontLoad // under mu
 }
 
 type mediaJobs struct {
@@ -186,10 +187,12 @@ func (h *mediaJobs) reaper() {
 	}
 }
 
-// dumpFonts writes every font attachment in one header read.
+// dumpFonts writes every font attachment in one header read: for a file whose
+// fonts were not found by walking it, where they are read one at a time.
 func (s *Server) dumpFonts(j *mediaJob) {
 	defer close(j.fontsDone)
-	if len(j.info.Fonts) == 0 {
+	// with fontData known the loopback serves the fonts as zeros
+	if len(j.info.Fonts) == 0 || j.info.fontData != nil {
 		return
 	}
 	bg := j.src
@@ -200,8 +203,9 @@ func (s *Server) dumpFonts(j *mediaJob) {
 	}
 	defer in.done()
 	before := []string{"-y"}
-	for _, n := range j.info.Fonts {
-		before = append(before, "-dump_attachment:"+strconv.Itoa(n), filepath.Join(j.dir, strconv.Itoa(n)+".font"))
+	for _, f := range j.info.Fonts {
+		n := strconv.Itoa(f.Index)
+		before = append(before, "-dump_attachment:"+n, filepath.Join(j.dir, n+".font"))
 	}
 	// no output: ffmpeg stops right after opening the input; it exits
 	// non-zero by design, the files are the answer
@@ -494,17 +498,28 @@ func (s *Server) handlePlayFont(w http.ResponseWriter, r *http.Request) {
 		writePlayErr(w, src, err)
 		return
 	}
+	// a walked file gives each font on its own, the others all at once
+	wait := j.fontsDone
+	var load *fontLoad
+	if a, ok := j.info.fontData[n]; ok {
+		load = s.loadFont(j, n, a)
+		wait = load.done
+	}
 	select {
-	case <-j.fontsDone:
+	case <-wait:
 	case <-time.After(mediaFontWait):
 		writeErr(w, http.StatusGatewayTimeout, "the fonts are still being read")
 		return
 	case <-r.Context().Done():
 		return
 	}
+	if load != nil && load.err != nil {
+		writeErr(w, http.StatusBadGateway, "the font could not be read")
+		return
+	}
 	b, err := os.ReadFile(filepath.Join(j.dir, strconv.Itoa(n)+".font"))
 	if err != nil || len(b) == 0 {
-		if slices.Contains(j.info.Fonts, n) {
+		if j.info.fontData == nil && slices.ContainsFunc(j.info.Fonts, func(f PlayFont) bool { return f.Index == n }) {
 			// an attachment the file has did not come out: the header read
 			// broke off, so the next look tries again
 			s.dropMediaJob(j)

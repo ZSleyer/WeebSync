@@ -69,6 +69,7 @@ type Server struct {
 	playLoop playLoop
 	hls      hlsSessions
 	media    mediaJobs
+	fonts    fontIndex
 
 	// follow-ups the user typed while an assistant answer streams, taken up
 	// by the running loop between its rounds (see aiSteer in ai.go)
