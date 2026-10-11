@@ -10,7 +10,9 @@ import (
 	"encoding/hex"
 	"image/png"
 	"net/http"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/pquerna/otp/totp"
 
@@ -148,7 +150,8 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "no TOTP setup in progress")
 		return
 	}
-	if !totp.Validate(in.Code, sec) || !s.totpAccept(u.ID, in.Code) {
+	code := normalizeTotpCode(in.Code)
+	if !totp.Validate(code, sec) || !s.totpAccept(u.ID, code) {
 		writeErr(w, http.StatusBadRequest, "invalid code")
 		return
 	}
@@ -236,7 +239,8 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sec, ok := s.totpSecret(userID)
-	if !ok || (!(totp.Validate(in.Code, sec) && s.totpAccept(userID, in.Code)) && !s.useRecoveryCode(userID, in.Code)) {
+	code := normalizeTotpCode(in.Code)
+	if !ok || (!(totp.Validate(code, sec) && s.totpAccept(userID, code)) && !s.useRecoveryCode(userID, normalizeRecoveryCode(in.Code))) {
 		s.failLoginPending(in.Token)
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
@@ -252,6 +256,28 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	var email string
 	s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: email})
+}
+
+// normalizeTotpCode drops what people type around the six digits: authenticator
+// apps show the code as "146 493", and a pasted one may carry a dash or a
+// trailing newline.
+func normalizeTotpCode(code string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || r == '-' {
+			return -1
+		}
+		return r
+	}, code)
+}
+
+// normalizeRecoveryCode brings a typed recovery code to the stored form
+// "xxxxx-xxxxx": lower case, no spaces, the dash optional on input.
+func normalizeRecoveryCode(code string) string {
+	c := strings.ToLower(normalizeTotpCode(code))
+	if len(c) == 10 {
+		c = c[:5] + "-" + c[5:]
+	}
+	return c
 }
 
 // totpAccept records a valid code as used; false when it is the code the

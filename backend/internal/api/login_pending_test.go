@@ -148,3 +148,45 @@ func TestLoginTotpAcceptsRecoveryCodeOnce(t *testing.T) {
 		t.Fatalf("used recovery code accepted again: %d", rec.Code)
 	}
 }
+
+func TestTotpCodeNormalization(t *testing.T) {
+	for in, want := range map[string]string{
+		"146493":     "146493",
+		"146 493":    "146493",
+		" 146-493\n": "146493",
+	} {
+		if got := normalizeTotpCode(in); got != want {
+			t.Errorf("normalizeTotpCode(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for in, want := range map[string]string{
+		"abcde-fghjk":   "abcde-fghjk",
+		"ABCDE-FGHJK":   "abcde-fghjk",
+		"abcdefghjk":    "abcde-fghjk",
+		" Abcde fghjk ": "abcde-fghjk",
+	} {
+		if got := normalizeRecoveryCode(in); got != want {
+			t.Errorf("normalizeRecoveryCode(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestLoginTotpAcceptsFormattedCodes(t *testing.T) {
+	mux, s, token, sec := totpFixture(t)
+	code, err := totp.GenerateCode(sec, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := postTotp(mux, token, code[:3]+" "+code[3:]); rec.Code != http.StatusOK {
+		t.Fatalf("code with a space: %d %s", rec.Code, rec.Body.String())
+	}
+	codes, err := s.confirmTotp(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, _ = s.newLoginPending(1)
+	typed := strings.ToUpper(strings.ReplaceAll(codes[0], "-", ""))
+	if rec := postTotp(mux, token, typed); rec.Code != http.StatusOK {
+		t.Fatalf("upper-case recovery code without dash: %d %s", rec.Code, rec.Body.String())
+	}
+}
