@@ -10,6 +10,7 @@ require (
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/jlaffaye/ftp v0.2.4
 	github.com/nssteinbrenner/anitogo v1.0.0
+	github.com/nwaples/rardecode/v2 v2.4.3
 	github.com/pkg/sftp v1.13.11
 	github.com/pquerna/otp v1.5.0
 	golang.org/x/crypto v0.57.0

@@ -71,6 +71,9 @@ type Server struct {
 	media    mediaJobs
 	fonts    fontIndex
 
+	// unpacked comics and EPUBs the reader serves pieces of (reader.go)
+	books bookShelf
+
 	// the files of local folders between walks, kept current by inotify (local_files.go)
 	localCache localCache
 
@@ -188,6 +191,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/play/font", authed(http.HandlerFunc(s.handlePlayFont)))
 	mux.Handle("GET /api/play/hls/index.m3u8", authed(http.HandlerFunc(s.handlePlayHLSIndex)))
 	mux.Handle("GET /api/play/hls/seg.ts", authed(http.HandlerFunc(s.handlePlayHLSSegment)))
+	// reader: opening a book is as open as listing it; its pieces are served
+	// under the token the open handed out (see reader.go)
+	mux.Handle("GET /api/read/open", authed(http.HandlerFunc(s.handleReadOpen)))
+	mux.Handle("GET /api/read/b/{token}/{entry...}", http.HandlerFunc(s.handleReadEntry))
 	mux.Handle("GET /api/search", authed(http.HandlerFunc(s.handleSearch)))
 	mux.Handle("GET /api/servers/{id}/search", authed(http.HandlerFunc(s.handleServerSearch)))
 	mux.Handle("GET /api/servers/{id}/languages", authed(http.HandlerFunc(s.handleServerLanguages)))

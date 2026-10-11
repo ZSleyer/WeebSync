@@ -146,6 +146,7 @@ func main() {
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	api.ClearBookCache() // the reader's unpacked books: their tokens died with the last run
 	go srv.WatchLoop(rootCtx)
 	go srv.IndexLoop(rootCtx)
 	go srv.BackfillSeries()
@@ -234,9 +235,12 @@ func harden(next http.Handler) http.Handler {
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
 		// self for scripts/styles; external cover/banner images (AniList, TMDB)
-		// need https+data; SSE/fetch stay same-origin. frame-src names the one
-		// origin the detail dialog embeds (the trailer player) - without it the
-		// iframe falls back to default-src and is blocked. The player renders
+		// need https+data; SSE/fetch stay same-origin. frame-src names what the
+		// app embeds: the trailer player, and the reader's EPUB chapters from
+		// our own origin - without it an iframe falls back to default-src and
+		// is blocked. Those chapters are sandboxed and are the only responses
+		// that allow being framed at all (frame-ancestors 'self', reader.go);
+		// every page of the app keeps frame-ancestors 'none'. The player renders
 		// subtitles with libass compiled to WebAssembly (wasm-unsafe-eval lets
 		// our own scripts compile wasm, not run eval) and hls.js hands the video
 		// element a MediaSource blob: URL.
@@ -244,7 +248,7 @@ func harden(next http.Handler) http.Handler {
 			"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; media-src 'self' blob:; "+
 				"img-src 'self' https: data:; "+
 				"style-src 'self' 'unsafe-inline'; connect-src 'self'; "+
-				"frame-src https://www.youtube-nocookie.com; "+
+				"frame-src 'self' https://www.youtube-nocookie.com; "+
 				"frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")
 		// the assistant's dictation is the browser's own speech recognition,
 		// and that needs the microphone: with microphone=() the recognizer is

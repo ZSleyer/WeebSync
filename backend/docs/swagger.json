@@ -1459,6 +1459,28 @@
                 },
                 "type": "object"
             },
+            "api.ReaderBook": {
+                "properties": {
+                    "base": {
+                        "description": "Base is the URL prefix every entry is served under: Base + entry path.",
+                        "type": "string"
+                    },
+                    "kind": {
+                        "description": "comic | epub | sheet",
+                        "example": "comic",
+                        "type": "string"
+                    },
+                    "pages": {
+                        "description": "comic pages in order, relative to Base",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "api.RecoveryCodesResponse": {
                 "properties": {
                     "recoveryCodes": {
@@ -11574,6 +11596,142 @@
                 "summary": "Send a test push",
                 "tags": [
                     "Push"
+                ]
+            }
+        },
+        "/api/read/b/{token}/{entry}": {
+            "get": {
+                "description": "Serves one file of a book opened with /api/read/open. The token in the path is the permission; the response is sandboxed, so markup inside a book never runs script.",
+                "parameters": [
+                    {
+                        "description": "Book token from /api/read/open",
+                        "in": "path",
+                        "name": "token",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Path inside the book",
+                        "in": "path",
+                        "name": "entry",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "file"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "summary": "Read a piece of an opened book",
+                "tags": [
+                    "Reader"
+                ]
+            }
+        },
+        "/api/read/open": {
+            "get": {
+                "description": "Unpacks a comic archive (cbz/cbr), EPUB or spreadsheet (ods/xlsx) from a local (server omitted or 0) or remote path and returns where its pieces are served. Comic pages come in reading order.",
+                "parameters": [
+                    {
+                        "description": "Server ID, 0 or omitted for a local file",
+                        "in": "query",
+                        "name": "server",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "File path",
+                        "in": "query",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ReaderBook"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Open a book",
+                "tags": [
+                    "Reader"
                 ]
             }
         },
