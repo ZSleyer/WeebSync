@@ -56,17 +56,21 @@ func (s *Server) refreshSeriesTitles(ctx context.Context, budget int) {
 		if ctx.Err() != nil {
 			return
 		}
-		s.fetchSeriesTitles(ctx, id)
+		if !s.fetchSeriesTitles(ctx, id) {
+			continue // providers unread: no stamp, the next sweep tries again
+		}
 		s.DB.Exec(`UPDATE series SET titles_fetched_at = ? WHERE id = ?`,
 			time.Now().UTC().Format(time.RFC3339), id)
 	}
 }
 
-// fetchSeriesTitles pulls every provider's translations for one series.
-func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) {
+// fetchSeriesTitles pulls every provider's translations for one series. It
+// reports false only when the series' providers could not be read whole -
+// a provider that fails to answer is the best-effort case and still true.
+func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
 	rows, err := s.DB.Query(`SELECT source, media_id FROM series_provider WHERE series_id = ?`, seriesID)
 	if err != nil {
-		return
+		return false
 	}
 	var refs []providerRef
 	for rows.Next() {
@@ -76,6 +80,9 @@ func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) {
 		}
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		return false
+	}
 	for _, r := range refs {
 		switch {
 		case r.Source == "anilist":
@@ -106,6 +113,7 @@ func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) {
 			}
 		}
 	}
+	return true
 }
 
 // titleLocaleChain is the display preference: German, English, Romaji.
