@@ -57,7 +57,7 @@ import PageActions, { WIDE_MQ } from '../components/PageActions'
 import WatchDialog, { type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
 import { subfolderMode, subfolderTargetDir } from '../components/useTargetFolder'
-import { useUndoableRemove } from '../components/toast'
+import { useUndoableRemove, useFailToast } from '../components/toast'
 
 // stripWrittenCall drops a tool call a small model wrote out instead of
 // calling it, recommend(titles=[...]): the server turned that into cards
@@ -129,6 +129,7 @@ const EXAMPLE_ICON = { seasonal: Sparkles, watch: RefreshCw, upgrade: CircleArro
 // lives in sessionStorage per user: gone with the tab, never in the DB. The
 // model pick is per user too (localStorage), the admin's setting is the default.
 export default function Assistant() {
+  const fail = useFailToast()
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const { data: user } = useAuth()
@@ -325,7 +326,12 @@ export default function Assistant() {
     setNotice('')
   }
   const openChat = async (id: number) => {
-    const c = await api.get<{ id: number; turns: Turn[] }>(`/api/ai/chats/${id}`)
+    let c: { id: number; turns: Turn[] }
+    try {
+      c = await api.get<{ id: number; turns: Turn[] }>(`/api/ai/chats/${id}`)
+    } catch (e) {
+      return fail(e)
+    }
     abortRef.current?.abort()
     setQueue([])
     setTurns(c.turns)

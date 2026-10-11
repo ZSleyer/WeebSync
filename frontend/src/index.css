@@ -1884,6 +1884,7 @@ li.t-swiperow { border-radius: 0; }
   font-size: 0.875rem; box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.5);
   animation: fadeIn var(--dur-2) var(--ease-out) both;
 }
+.t-toast + .t-toast { margin-top: 0.5rem; }
 .t-toast__undo {
   min-height: 2rem; padding: 0 0.625rem; border-radius: var(--r-ctl);
   font: 600 0.8125rem/1 var(--font-display); letter-spacing: 0.04em; color: inherit;

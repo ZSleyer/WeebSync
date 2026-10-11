@@ -78,6 +78,8 @@ function PasskeySection() {
     try {
       await api.del(`/api/auth/webauthn/credentials/${c.id}`)
       qc.invalidateQueries({ queryKey: ['webauthn'] })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('app.error'))
     } finally {
       setBusy(false)
     }

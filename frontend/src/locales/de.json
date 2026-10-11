@@ -2,6 +2,7 @@
   "common": {
     "undo": "Rückgängig",
     "undoFailed": "Das hat nicht geklappt, der Eintrag ist wieder da.",
+    "actionFailed": "Hat nicht geklappt: {{msg}}",
     "confirm": "Bestätigen",
     "cancel": "Abbrechen",
     "close": "Schließen",

@@ -100,6 +100,7 @@ export function useSettingsForm() {
   const [saved, setSaved] = useState(false)
 
   const save = useMutation({
+    meta: { silent: true },
     mutationFn: (s: SettingsState) => api.put<SettingsState>('/api/settings', s),
     onSuccess: (fresh) => {
       qc.setQueryData(['settings'], fresh)

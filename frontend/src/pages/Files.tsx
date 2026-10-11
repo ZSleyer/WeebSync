@@ -2054,9 +2054,12 @@ function RematchForm({
       }
       if (mySeq !== seq.current) return // a newer request superseded this one
       setResults(next)
-    } catch {
+      setPickError('')
+    } catch (err) {
       if (mySeq !== seq.current) return
       setResults([])
+      // a failed search (provider down, rate limit) is not "no results"
+      setPickError(err instanceof Error ? err.message : t('app.error'))
     }
   }
   // live search: results update as you type (debounced)
