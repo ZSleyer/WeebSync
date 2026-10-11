@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -483,7 +484,7 @@ func (s *Server) handlePlayInfo(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	info, err := s.playInfo(r.Context(), src)
+	info, err := s.infoFor(r.Context(), src)
 	if err != nil {
 		writePlayErr(w, src, err)
 		return
@@ -493,7 +494,8 @@ func (s *Server) handlePlayInfo(w http.ResponseWriter, r *http.Request) {
 	if len(info.Fonts) > 0 || len(info.Subs) > 0 {
 		s.startMediaJob(src, info)
 	}
-	info.Subs = append(info.Subs, s.sidecarTracks(src)...)
+	// clipped: the job's info must not grow the sidecars
+	info.Subs = append(slices.Clip(info.Subs), s.sidecarTracks(src)...)
 	writeJSON(w, http.StatusOK, info)
 }
 

@@ -18,7 +18,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +47,7 @@ type Track struct {
 type Event struct {
 	Start, End time.Duration
 	Data       []byte
+	pos        int64 // in the file: the muxer's order of lines that start together
 }
 
 // Subtitles is what Read found: every track, and the events of each text track.
@@ -294,12 +298,6 @@ func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
 	}
 	cs := *ix.cues
 
-	type spot struct {
-		track        uint64
-		start, dur   time.Duration
-		cluster, rel int64
-		haveRelative bool
-	}
 	var spots []spot
 	for _, p := range cs.CuePoint {
 		for _, tp := range p.CueTrackPositions {
@@ -324,40 +322,70 @@ func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
 		}
 	}
 
-	// two reads per line - the cluster's header, then the block - spread
-	// over a few workers: on a remote file each read is a round trip
+	// on a remote file each read is a round trip. Lines that start together
+	// (a typeset sign is dozens of them) sit back to back in their cluster,
+	// so nearby blocks come in one read; a cluster's header is read once, and
+	// the clusters spread over a few workers
+	var lines []spot
+	for _, s := range spots {
+		if s.haveRelative {
+			lines = append(lines, s)
+		}
+	}
+	sort.Slice(lines, func(i, j int) bool {
+		if lines[i].cluster != lines[j].cluster {
+			return lines[i].cluster < lines[j].cluster
+		}
+		return lines[i].rel < lines[j].rel
+	})
+	var clusters [][][]spot // the runs of each cluster
+	for i, s := range lines {
+		if i > 0 && s.cluster == lines[i-1].cluster {
+			runs := clusters[len(clusters)-1]
+			run := runs[len(runs)-1]
+			if s.rel-lines[i-1].rel <= runGap && s.rel-run[0].rel <= runSpan {
+				runs[len(runs)-1] = append(run, s)
+			} else {
+				clusters[len(clusters)-1] = append(runs, []spot{s})
+			}
+			continue
+		}
+		clusters = append(clusters, [][]spot{{s}})
+	}
 	if parallel < 1 {
 		parallel = 1
 	}
 	var mu sync.Mutex
 	var firstErr error
-	jobs := make(chan spot)
+	jobs := make(chan [][]spot)
 	var wg sync.WaitGroup
 	for range parallel {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for s := range jobs {
-				ev, err := readEvent(r, s.cluster, s.rel, s.start, s.dur, scale)
-				if err == nil && ev != nil && decs[s.track] != nil {
-					ev.Data, err = decs[s.track](ev.Data)
+			for runs := range jobs {
+				got, err := readCluster(r, runs, scale)
+				for i := range got {
+					if err == nil && decs[got[i].track] != nil {
+						got[i].Data, err = decs[got[i].track](got[i].Data)
+					}
 				}
 				mu.Lock()
 				if err != nil {
 					if firstErr == nil {
 						firstErr = err
 					}
-				} else if ev != nil {
-					out.Events[s.track] = append(out.Events[s.track], *ev)
+				} else {
+					for _, l := range got {
+						out.Events[l.track] = append(out.Events[l.track], l.Event)
+					}
 				}
 				mu.Unlock()
 			}
 		}()
 	}
-	for _, s := range spots {
-		if s.haveRelative {
-			jobs <- s
-		}
+	for _, runs := range clusters {
+		jobs <- runs
 	}
 	close(jobs)
 	wg.Wait()
@@ -365,18 +393,85 @@ func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
 		return nil, firstErr
 	}
 	for tn := range out.Events {
-		sort.SliceStable(out.Events[tn], func(i, j int) bool { return out.Events[tn][i].Start < out.Events[tn][j].Start })
+		ev := out.Events[tn]
+		sort.Slice(ev, func(i, j int) bool {
+			if ev[i].Start != ev[j].Start {
+				return ev[i].Start < ev[j].Start
+			}
+			return ev[i].pos < ev[j].pos
+		})
 	}
 	return out, nil
 }
 
-// readEvent reads the block at rel inside the cluster at cluster.
-func readEvent(r io.ReaderAt, cluster, rel int64, start, cueDur, scale time.Duration) (*Event, error) {
-	_, _, hl, err := elementHeader(r, cluster)
+type spot struct {
+	track        uint64
+	start, dur   time.Duration
+	cluster, rel int64
+	haveRelative bool
+}
+
+const (
+	// a run of lines read at once: the next block at most runGap past the
+	// last, the whole run at most runSpan
+	runGap  = 64 << 10
+	runSpan = 1 << 20
+)
+
+// readCluster reads the lines of one cluster, a run of nearby blocks at a
+// time.
+func readCluster(r io.ReaderAt, runs [][]spot, scale time.Duration) ([]line, error) {
+	_, _, hl, err := elementHeader(r, runs[0][0].cluster)
 	if err != nil {
 		return nil, err
 	}
-	at := cluster + hl + rel
+	base := runs[0][0].cluster + hl
+	var out []line
+	for _, run := range runs {
+		from := base + run[0].rel
+		// the last block's header and a line of text past its start
+		buf := make([]byte, run[len(run)-1].rel-run[0].rel+1<<10)
+		k, err := r.ReadAt(buf, from)
+		if k == 0 {
+			return nil, err
+		}
+		w := window{r: r, off: from, buf: buf[:k]}
+		for _, s := range run {
+			ev, err := readEvent(w, base+s.rel, s.start, s.dur, scale)
+			if err != nil {
+				return nil, err
+			}
+			if ev != nil {
+				ev.pos = base + s.rel
+				out = append(out, line{s.track, *ev})
+			}
+		}
+	}
+	return out, nil
+}
+
+type line struct {
+	track uint64
+	Event
+}
+
+// window answers reads inside buf from memory and passes any other on to r:
+// a block larger than the read is fetched on its own.
+type window struct {
+	r   io.ReaderAt
+	off int64
+	buf []byte
+}
+
+func (w window) ReadAt(p []byte, off int64) (int, error) {
+	if off >= w.off && off+int64(len(p)) <= w.off+int64(len(w.buf)) {
+		return copy(p, w.buf[off-w.off:]), nil
+	}
+	return w.r.ReadAt(p, off)
+}
+
+// readEvent reads the block at at.
+func readEvent(r io.ReaderAt, at int64, start, cueDur, scale time.Duration) (*Event, error) {
 	id, n, bhl, err := elementHeader(r, at)
 	if err != nil {
 		return nil, err
@@ -428,6 +523,10 @@ func (s *Subtitles) ASS(t Track) string {
 			b.WriteString("\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text")
 		}
 		b.WriteString("\n")
+		// in the script's own order, as ffmpeg writes it: libass stacks
+		// lines that collide by it
+		events = slices.Clone(events)
+		sort.SliceStable(events, func(i, j int) bool { return readOrder(events[i].Data) < readOrder(events[j].Data) })
 		for _, e := range events {
 			// a Matroska ASS block is "ReadOrder, Layer, Style, Name,
 			// MarginL, MarginR, MarginV, Effect, Text"; the times live in
@@ -448,6 +547,16 @@ func (s *Subtitles) ASS(t Track) string {
 		fmt.Fprintf(&b, "Dialogue: 0,%s,%s,Default,,0,0,0,,%s\n", assTime(e.Start), assTime(e.End), plainToASS(string(e.Data)))
 	}
 	return b.String()
+}
+
+// readOrder is the line number a Matroska ASS block carries first.
+func readOrder(b []byte) int {
+	s, _, _ := strings.Cut(string(b), ",")
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return math.MaxInt
+	}
+	return n
 }
 
 // SUP writes a PGS track as a .sup file: Matroska stores each display set as
@@ -548,7 +657,13 @@ func unmarshalAt(r io.ReaderAt, pos, n int64, v any) error {
 	if n > maxHeaderElem {
 		return fmt.Errorf("element of %d bytes", n)
 	}
-	return ebml.Unmarshal(io.NewSectionReader(r, pos, n), v, ebml.WithIgnoreUnknown(true))
+	// read whole: the decoder asks for a few bytes at a time, and on a remote
+	// file each of those would be a round trip
+	buf := make([]byte, n)
+	if k, err := r.ReadAt(buf, pos); k < len(buf) {
+		return err
+	}
+	return ebml.Unmarshal(bytes.NewReader(buf), v, ebml.WithIgnoreUnknown(true))
 }
 
 func beUint(b []byte) uint64 {

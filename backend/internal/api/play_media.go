@@ -160,6 +160,19 @@ func (s *Server) mediaJobFor(ctx context.Context, src playSource) (*mediaJob, er
 	return s.startMediaJob(src, info)
 }
 
+// infoFor answers from the file's job when it has one: on a remote file the
+// probe takes up to a minute, and the player asks again for its playlist.
+func (s *Server) infoFor(ctx context.Context, src playSource) (PlayInfo, error) {
+	s.media.mu.Lock()
+	j, ok := s.media.all[src]
+	s.media.mu.Unlock()
+	if ok {
+		j.touch()
+		return j.info, nil
+	}
+	return s.playInfo(ctx, src)
+}
+
 func (h *mediaJobs) reaper() {
 	for range time.Tick(time.Minute) {
 		h.mu.Lock()
@@ -272,7 +285,7 @@ func (s *Server) sparseSubs(j *mediaJob) (n int, err error) {
 		return 0, err
 	}
 	defer done()
-	subs, err := mkvsubs.Read(ra, size, 8)
+	subs, err := mkvsubs.Read(ra, size, 16)
 	if err != nil {
 		return 0, err
 	}
