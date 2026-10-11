@@ -54,12 +54,19 @@ const sqliteTime = "2006-01-02 15:04:05"
 // that was listed weekly was never listed itself - its recheck clock was
 // reset from above every time - and a file replaced in place under the same
 // name there was never seen.
+//
+// All or nothing: a listing that fails to land halfway is rolled back with
+// the directory's stamp, so the crawler lists it again instead of taking a
+// half-written index for current.
 func (s *Server) indexDir(serverID int64, dir string, entries []remote.Entry) {
-	tx, err := s.DB.Begin()
-	if err != nil {
-		return
+	if err := db.Tx(s.DB, func(tx *sql.Tx) error {
+		return writeListing(tx, serverID, dir, entries)
+	}); err != nil {
+		slog.Warn("index listing not stored", "server", serverID, "dir", logSafe(dir), "err", err)
 	}
-	defer tx.Rollback()
+}
+
+func writeListing(tx *sql.Tx, serverID int64, dir string, entries []remote.Entry) error {
 	now := time.Now().UTC().Format(sqliteTime)
 
 	seen := make([]any, 0, len(entries)+2)
@@ -68,7 +75,7 @@ func (s *Server) indexDir(serverID int64, dir string, entries []remote.Entry) {
 		mod := e.ModTime.UTC().Format(sqliteTime)
 		// child dirs with unchanged mtime keep their own listed_at; changed
 		// or new ones reset to '' so the crawler picks them up soon
-		tx.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir, size, mod_time, listed_at)
+		if _, err := tx.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir, size, mod_time, listed_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, '')
 			ON CONFLICT(server_id, path) DO UPDATE SET
 				parent = excluded.parent, name = excluded.name, is_dir = excluded.is_dir,
@@ -78,7 +85,9 @@ func (s *Server) indexDir(serverID int64, dir string, entries []remote.Entry) {
 					WHEN mod_time = excluded.mod_time THEN listed_at
 					ELSE '' END,
 				mod_time = excluded.mod_time`,
-			serverID, e.Path, dir, e.Name, e.IsDir, e.Size, mod)
+			serverID, e.Path, dir, e.Name, e.IsDir, e.Size, mod); err != nil {
+			return err
+		}
 		seen = append(seen, e.Path)
 	}
 	// what the listing no longer shows is gone, and so is everything that
@@ -89,25 +98,32 @@ func (s *Server) indexDir(serverID int64, dir string, entries []remote.Entry) {
 	if len(entries) > 0 {
 		q += ` AND path NOT IN (?` + strings.Repeat(",?", len(entries)-1) + `)`
 	}
+	rows, err := tx.Query(q, seen...)
+	if err != nil {
+		return err
+	}
 	var gone []string
-	if rows, err := tx.Query(q, seen...); err == nil {
-		for rows.Next() {
-			var p string
-			if rows.Scan(&p) == nil {
-				gone = append(gone, p)
-			}
+	for rows.Next() {
+		var p string
+		if rows.Scan(&p) == nil {
+			gone = append(gone, p)
 		}
-		rows.Close()
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
 	}
 	for _, p := range gone {
-		deleteSubtree(tx, serverID, p)
+		if err := deleteSubtree(tx, serverID, p); err != nil {
+			return err
+		}
 	}
 	// the directory itself was just listed
-	tx.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir, listed_at)
+	_, err = tx.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir, listed_at)
 		VALUES (?, ?, '', ?, 1, ?)
 		ON CONFLICT(server_id, path) DO UPDATE SET listed_at = excluded.listed_at`,
 		serverID, dir, pathBase(dir), now)
-	tx.Commit()
+	return err
 }
 
 // deleteSubtree drops a path and every row below it. A range, not LIKE: paths
@@ -116,10 +132,11 @@ func (s *Server) indexDir(serverID int64, dir string, entries []remote.Entry) {
 // inside the listing's transaction. Range form as in remoteShowRoot.
 func deleteSubtree(ex interface {
 	Exec(string, ...any) (sql.Result, error)
-}, serverID int64, p string) {
-	ex.Exec(`DELETE FROM remote_index WHERE server_id = ?1
+}, serverID int64, p string) error {
+	_, err := ex.Exec(`DELETE FROM remote_index WHERE server_id = ?1
 		AND path >= ?2 AND path < ?2 || '0' AND (path = ?3 OR path >= ?2 || '/')`,
 		serverID, strings.TrimRight(p, "/"), p)
+	return err
 }
 
 // gone reports whether a listing failed because the directory is not there

@@ -253,22 +253,26 @@ func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, wa
 		slog.Info("airmap built", "folder", folder, "provider", logProvider,
 			"ordering", logOrdering, "tokens", len(m))
 	}
-	tx, err := r.DB.Begin()
-	if err != nil {
-		return
-	}
-	defer tx.Rollback()
-	tx.Exec(`DELETE FROM season_maps WHERE server_id=? AND folder=?`, s.ServerID, s.Folder)
-	for token, se := range m {
-		if _, err := tx.Exec(`INSERT INTO season_maps (server_id, folder, token, season, episode) VALUES (?,?,?,?,?)`,
-			s.ServerID, s.Folder, token, se[0], se[1]); err != nil {
-			return
+	// map and stamp together or not at all: a failed delete merged the new map
+	// into the stale one, a failed stamp committed a map without its source
+	err = db.Tx(r.DB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM season_maps WHERE server_id=? AND folder=?`, s.ServerID, s.Folder); err != nil {
+			return err
 		}
+		for token, se := range m {
+			if _, err := tx.Exec(`INSERT INTO season_maps (server_id, folder, token, season, episode) VALUES (?,?,?,?,?)`,
+				s.ServerID, s.Folder, token, se[0], se[1]); err != nil {
+				return err
+			}
+		}
+		_, err := tx.Exec(`INSERT INTO season_maps_meta (server_id, folder, source, updated_at) VALUES (?,?,?,datetime('now'))
+			ON CONFLICT(server_id, folder) DO UPDATE SET source=excluded.source, updated_at=excluded.updated_at`,
+			s.ServerID, s.Folder, source)
+		return err
+	})
+	if err != nil {
+		slog.Warn("airmap not stored", "folder", folder, "err", err)
 	}
-	tx.Exec(`INSERT INTO season_maps_meta (server_id, folder, source, updated_at) VALUES (?,?,?,datetime('now'))
-		ON CONFLICT(server_id, folder) DO UPDATE SET source=excluded.source, updated_at=excluded.updated_at`,
-		s.ServerID, s.Folder, source)
-	tx.Commit()
 }
 
 // buildMap resolves the mapping from the chosen provider in the chosen order,
