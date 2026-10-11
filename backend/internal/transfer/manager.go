@@ -463,9 +463,20 @@ type EnqueueResult struct {
 	// can say which episodes wait for their language
 	FilteredTargets []string
 	Skipped         int // already present at the target, same size
+	// Owned: files whose episode the library already holds under another
+	// name, so they were not fetched (see EnqueueSkipping)
+	Owned int
 }
 
 func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat, replaceOld bool) (res EnqueueResult, err error) {
+	return m.EnqueueSkipping(userID, serverID, remotePath, localRel, nameFn, langFilter, nil, sizeGuard, flat, replaceOld)
+}
+
+// EnqueueSkipping is Enqueue plus owned: given a file's local target, it
+// reports whether that episode is already held elsewhere (a media server, a
+// library manager), in which case the file is counted in Owned and not
+// fetched. nil skips nothing.
+func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter, owned func(string) bool, sizeGuard, flat, replaceOld bool) (res EnqueueResult, err error) {
 	if nameFn == nil {
 		nameFn = func(s string) string { return s }
 	}
@@ -585,12 +596,19 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 		}
 		// sync: skip files that already exist with the right size. Counted, so
 		// the caller can say "already there" instead of a bare "0 queued"
-		if fi, err := rooted.Root.Stat(rooted.Name); err == nil && fi.Size() == j.size {
+		fi, serr := rooted.Root.Stat(rooted.Name)
+		rooted.Close()
+		if serr == nil && fi.Size() == j.size {
 			res.Skipped++
-			rooted.Close()
 			continue
 		}
-		rooted.Close()
+		// held elsewhere under another name. Only for a target that is not
+		// there at all: one that is, is ours, and a re-release of it of
+		// another size still replaces it as before
+		if serr != nil && owned != nil && owned(local) {
+			res.Owned++
+			continue
+		}
 		// probably still being uploaded: wait for a later check
 		if sizeGuard && VideoExt[strings.ToLower(path.Ext(j.remote))] && looksUploading(j.size, dirSizes[j.dir]) {
 			res.Uploading++
