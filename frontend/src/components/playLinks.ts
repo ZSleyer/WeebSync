@@ -39,7 +39,7 @@ const isDone = (server: number, path: string) => {
   }
 }
 
-const isBook = (name: string) => ['comic', 'epub', 'pdf'].includes(viewKind(name) ?? '')
+export const isBook = (name: string) => ['comic', 'epub', 'pdf'].includes(viewKind(name) ?? '')
 
 /**
  * The volume to read next on a manga watch: the first one in order not yet
@@ -143,6 +143,10 @@ const byName = (a: Entry, b: Entry) => a.name.localeCompare(b.name, undefined, {
 
 /** The videos of a folder in episode order. */
 export const videosIn = (entries: Entry[]) => entries.filter((e) => !e.isDir && isVideo(e.name)).sort(byName)
+
+/** What a title folder holds to watch or to read: its episodes, or a manga's volumes. */
+export const titleFilesIn = (entries: Entry[]) =>
+  entries.filter((e) => !e.isDir && (isVideo(e.name) || isBook(e.name))).sort(byName)
 
 /**
  * The first episode of a title folder: its first video, or - for a title split

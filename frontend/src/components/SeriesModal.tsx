@@ -66,7 +66,7 @@ import { WIDE_MQ } from './PageActions'
 import type { SheetAction } from './ActionSheet'
 import MediaDetail, { GenreChips } from './MediaDetail'
 import EpisodeList, { type EpisodeFolder } from './EpisodeList'
-import { playHref, watchFolder } from './playLinks'
+import { isVideo, playHref, viewHref, watchFolder } from './playLinks'
 import { WatchForm } from './WatchDialog'
 import { useWatchActions, watchFields } from './watchActions'
 
@@ -566,7 +566,8 @@ function SeriesCard({
   // a play button opens the player; the card stays in history behind it, so
   // back from the player returns here
   const goTo = useNavigate()
-  const play = (server: number, path: string) => goTo(playHref(server, path))
+  // a manga's volumes open in the reader
+  const play = (server: number, path: string) => goTo(isVideo(path) ? playHref(server, path) : viewHref(server, path))
 
   // One page instead of tabs: every section stands under the last, the
   // episodes (with each watch's sync state) only where a watch or a folder
