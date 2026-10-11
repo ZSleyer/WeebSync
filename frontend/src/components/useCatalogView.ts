@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api } from '../api'
+import { useFailToast } from './toast'
 
 // The three folder view modes, shared by the Remote and Local browsers:
 // - classic: plain file list (the default for unmarked folders)
@@ -8,6 +9,15 @@ import { api } from '../api'
 // - catalogPersist: catalog view now AND saved, so the folder reopens in the
 //   catalog next time (server-side catalog_scopes mark, shared across users)
 export type CatalogViewValue = 'classic' | 'catalogOnce' | 'catalogPersist'
+
+// A folder's scope lives in two caches: the cheap probe below and the catalog
+// listing itself. A mark changes both, and its subfolders inherit it, so a
+// change clears every folder of the server in both. With only one of them
+// cleared, pinning read a stale "unmarked" and overwrote a tv mark with anime.
+export const scopeChanged = (qc: QueryClient, serverId: number) => {
+  qc.invalidateQueries({ queryKey: ['catalog', serverId] })
+  qc.invalidateQueries({ queryKey: ['catalog-scope', serverId] })
+}
 
 // useCatalogView derives a folder's effective view from its saved catalog scope
 // (a marked folder defaults to catalog, everything else to classic) plus a
@@ -46,9 +56,14 @@ export function useCatalogView(serverId: number, path: string) {
           ? 'catalogPersist'
           : 'classic'
 
+  const fail = useFailToast()
   const putScope = async (kind: string) => {
-    await api.put(`/api/servers/${serverId}/catalog/scope`, { path: path ? '/' + path : '', kind })
-    qc.invalidateQueries({ queryKey: ['catalog-scope', serverId, path] })
+    try {
+      await api.put(`/api/servers/${serverId}/catalog/scope`, { path: path ? '/' + path : '', kind })
+      scopeChanged(qc, serverId)
+    } catch (e) {
+      fail(e)
+    }
   }
 
   const set = async (next: CatalogViewValue) => {
