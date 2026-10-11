@@ -24,3 +24,20 @@ func TestOpenRestrictsDatabaseMode(t *testing.T) {
 		t.Fatalf("database mode = %o, want 600", info.Mode().Perm())
 	}
 }
+
+// Every pooled connection commits without an fsync of its own (WAL +
+// synchronous NORMAL): 1, not SQLite's default 2.
+func TestOpenSyncsOnCheckpointOnly(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.SetMaxOpenConns(3)
+	for range 3 {
+		var mode int
+		if err := d.QueryRow(`PRAGMA synchronous`).Scan(&mode); err != nil || mode != 1 {
+			t.Fatalf("synchronous = %d, %v", mode, err)
+		}
+	}
+}
