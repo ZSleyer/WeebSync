@@ -3,7 +3,7 @@ services:
     image: ghcr.io/zsleyer/weebsync:latest # or :nightly / :dev for unreleased changes, :2026.10.1 to pin
     # build: . # build from this checkout instead
     # run as the owner of your media instead of the image's nonroot (65532);
-    # `./data` must belong to that user too (README, "File ownership")
+    # `./data` must belong to that user too (docs/configuration.md, "File ownership")
     # user: "1000:1000"
     # group_add: ["990"]
     ports:
