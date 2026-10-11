@@ -13,6 +13,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
+import { CloseLabelContext } from './dialog'
 import { VELOCITY_MS } from './gesture'
 import { haptic } from './haptics'
 import { Badge, buttonClass, COVER_BOX, markOverflow, Panel, Progress, Slot } from './primitives'
@@ -1543,7 +1544,9 @@ export interface ModalProps {
  * its own so header and footer stay put, and the footer with side actions at
  * the left and cancel plus the main action at the right.
  */
-export function Modal({ title, info, children, footer, secondary, onClose, closeLabel = 'Close', className }: ModalProps) {
+export function Modal({ title, info, children, footer, secondary, onClose, closeLabel, className }: ModalProps) {
+  const appCloseLabel = useContext(CloseLabelContext)
+  closeLabel ??= appCloseLabel
   return (
     <div className={cx('dialog-body w-full max-w-lg bg-bg-card', className)}>
       <header className="flex items-start gap-3 border-b border-border-subtle px-5 py-4">

@@ -116,7 +116,7 @@ export type {
   DayTimelineProps,
 } from './composites'
 
-export { Dialog } from './dialog'
+export { CloseLabelContext, Dialog } from './dialog'
 export type { DialogProps } from './dialog'
 export { useBackEntry } from './useBackEntry'
 export { SidePanel } from './sidePanel'

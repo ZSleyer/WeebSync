@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { Dialog } from '@weebsync/design-system'
+import { CloseLabelContext, Dialog } from '@weebsync/design-system'
 
 // HTMLDialogElement is shimmed in src/test/setup.ts because jsdom 29 ships no
 // dialog behaviour. What the shim covers is exactly what these tests assert on:
@@ -55,6 +55,28 @@ describe('Dialog', () => {
     clickBackdrop(dialogOf(container))
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
     expect(dialogOf(container).open).toBe(false)
+  })
+
+  // Save, Cancel and Confirm close a dialog by unmounting it, and a removed
+  // dialog hands focus nowhere: it fell to <body> (WCAG 2.4.3).
+  it('gives focus back to its opener when its owner unmounts it', () => {
+    const Host = ({ open }: { open: boolean }) => (
+      <>
+        <button type="button">Öffnen</button>
+        {open && (
+          <Dialog onClose={() => {}}>
+            <button type="button">Speichern</button>
+          </Dialog>
+        )}
+      </>
+    )
+    const { rerender } = render(<Host open={false} />)
+    const opener = screen.getByRole('button', { name: 'Öffnen' })
+    opener.focus()
+    rerender(<Host open />)
+    screen.getByRole('button', { name: 'Speichern' }).focus()
+    rerender(<Host open={false} />)
+    expect(document.activeElement).toBe(opener)
   })
 
   it('closes on a backdrop click only when the press started on the backdrop', async () => {
@@ -434,6 +456,22 @@ describe('Dialog', () => {
       sheet({ onClose: second, closeLabel: 'Schließen' })
       fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
       await waitFor(() => expect(second).toHaveBeenCalledTimes(1))
+    } finally {
+      restore()
+    }
+  })
+
+  it('takes its close label from the app when none is passed', () => {
+    const restore = withNarrowViewport(true)
+    try {
+      render(
+        <CloseLabelContext.Provider value="Zumachen">
+          <Dialog onClose={() => {}} sheet>
+            Inhalt
+          </Dialog>
+        </CloseLabelContext.Provider>,
+      )
+      expect(screen.getByRole('button', { name: 'Zumachen' })).toBeInTheDocument()
     } finally {
       restore()
     }

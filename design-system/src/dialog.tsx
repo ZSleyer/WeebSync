@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 import { useSheetDrag } from './useSheetDrag'
 import { useBackEntry } from './useBackEntry'
@@ -7,6 +7,9 @@ import { useBackEntry } from './useBackEntry'
 // modal on mount, close on a backdrop click but not on a drag that merely ended
 // there, and report the outcome once through the dialog's own close event so
 // every exit path behaves the same.
+
+/** The app's word for "close", for close buttons that only carry an icon. */
+export const CloseLabelContext = createContext('Close')
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(' ')
 
@@ -73,7 +76,7 @@ export function Dialog({
   danger,
   onRequestClose,
   sheet,
-  closeLabel = 'Schließen',
+  closeLabel,
   className,
   bodyClassName,
   closeTransition,
@@ -81,6 +84,8 @@ export function Dialog({
   ...aria
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null)
+  const appCloseLabel = useContext(CloseLabelContext)
+  closeLabel ??= appCloseLabel
   const shut = () => {
     const close = () => ref.current?.close()
     if (closeTransition) closeTransition(close)
@@ -96,9 +101,22 @@ export function Dialog({
   const narrow = useMediaQuery(SHEET_MQ)
   const isSheet = asSheet && narrow
 
+  // The platform hands focus back to the opener when the dialog closes itself,
+  // but most dialogs close by their parent unmounting them from a button's
+  // click (Save, Cancel, Confirm), and a removed dialog returns nothing: focus
+  // fell to <body>. So the opener is remembered and given focus back on unmount
+  // when nothing else took it (WCAG 2.4.3).
+  // read during the first render, before showModal moves focus inside (and
+  // before StrictMode's second effect run would see the dialog's own field)
+  const [opener] = useState(() => document.activeElement)
   useEffect(() => {
     ref.current?.showModal()
-  }, [])
+    return () => {
+      const now = document.activeElement
+      if (now && now !== document.body) return
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+    }
+  }, [opener])
 
   const guarded = async () => {
     if (onRequestClose && !(await onRequestClose())) return
