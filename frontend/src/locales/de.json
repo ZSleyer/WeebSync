@@ -1504,6 +1504,7 @@
     "plexWatchlistUnlink": "Trennen",
     "plexWatchlistLinked": "Merkliste verknüpft als {{user}}",
     "plexWatchlistPending": "Im plex.tv-Tab bestätigen (Code {{code}})…",
+    "plexWatchlistExpired": "Der plex.tv-Code ist abgelaufen. Verknüpfe erneut für einen neuen.",
     "emailCat_suggestion": "Vorschläge",
     "emailCat_upgrade": "Upgrades",
     "pushCategories": "Push-Kategorien",
