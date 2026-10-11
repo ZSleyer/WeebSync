@@ -232,10 +232,14 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   const sel = Math.min(at, shown.length - 1)
 
   const run = (e: Entry) => {
-    try {
-      localStorage.setItem(RECENT_KEY, JSON.stringify([e.id, ...readRecent().filter((r) => r !== e.id)].slice(0, 5)))
-    } catch {
-      // storage can be off; the palette works without recents
+    // a file hit is not kept: recents are drawn from the fixed entries, so it
+    // would never show and only push a real recent out of the five
+    if (!e.id.startsWith('file:')) {
+      try {
+        localStorage.setItem(RECENT_KEY, JSON.stringify([e.id, ...readRecent().filter((r) => r !== e.id)].slice(0, 5)))
+      } catch {
+        // storage can be off; the palette works without recents
+      }
     }
     e.run()
   }
