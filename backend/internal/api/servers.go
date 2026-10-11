@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -55,6 +56,9 @@ type serverInput struct {
 }
 
 func (in *serverInput) valid() bool {
+	// A name of only spaces shows up as a blank entry everywhere, so it
+	// counts as missing; surrounding spaces are not part of the name.
+	in.Name = strings.TrimSpace(in.Name)
 	if !serverIcons[in.Icon] || !serverColors[in.Color] {
 		return false
 	}

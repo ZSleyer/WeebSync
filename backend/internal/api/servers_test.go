@@ -39,3 +39,29 @@ func TestServerColor(t *testing.T) {
 		t.Fatalf("after update = %q", list[0].Color)
 	}
 }
+
+func TestServerNameTrimmed(t *testing.T) {
+	if err := secret.Init(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	mux, s, _, userC, _, _ := setupUsersTest(t)
+	s.Conns = pool.New()
+	blank := `{"name":"   ","protocol":"sftp","host":"example.com","username":"u","password":"p"}`
+	if rec := doReq(mux, "POST", "/api/servers", blank, userC); rec.Code != http.StatusBadRequest {
+		t.Fatalf("blank name on create: got %d, want 400", rec.Code)
+	}
+	body := `{"name":"  seedbox  ","protocol":"sftp","host":"example.com","username":"u","password":"p"}`
+	if rec := doReq(mux, "POST", "/api/servers", body, userC); rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body)
+	}
+	rec := doReq(mux, "GET", "/api/servers", "", userC)
+	var list []serverInfo
+	json.Unmarshal(rec.Body.Bytes(), &list)
+	if len(list) != 1 || list[0].Name != "seedbox" {
+		t.Fatalf("list = %+v", list)
+	}
+	path := "/api/servers/" + strconv.FormatInt(list[0].ID, 10)
+	if rec := doReq(mux, "PUT", path, `{"name":" \t ","protocol":"sftp","host":"example.com","username":"u"}`, userC); rec.Code != http.StatusBadRequest {
+		t.Fatalf("blank name on update: got %d, want 400", rec.Code)
+	}
+}
