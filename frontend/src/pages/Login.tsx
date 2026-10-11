@@ -15,7 +15,11 @@ interface AuthConfig {
   registrationOpen: boolean
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
   setupNeeded: boolean
+  passwordReset: boolean
 }
+
+// the token of a password reset link (/?reset=...), read once
+const resetToken = new URLSearchParams(window.location.search).get('reset') ?? ''
 
 export default function Login() {
   const { t, i18n } = useTranslation()
@@ -33,6 +37,8 @@ export default function Login() {
   const [twoFA, setTwoFA] = useState<{ token: string; totp: boolean; webauthn: boolean } | null>(null)
   const [code, setCode] = useState('')
   const [autofill, setAutofill] = useState(false) // browser supports passkey autofill
+  // the forgotten-password detours: asking for a link, and using one
+  const [detour, setDetour] = useState<'forgot' | 'reset' | null>(resetToken ? 'reset' : null)
 
   // email verification redirect lands here with ?verify=ok|invalid
   useEffect(() => {
@@ -199,6 +205,16 @@ export default function Login() {
               {oidcLabel}
             </ButtonLink>
           </Panel>
+        ) : detour ? (
+          <PasswordDetour
+            kind={detour}
+            email={email}
+            onDone={(msg) => {
+              setDetour(null)
+              setError('')
+              setNotice(msg)
+            }}
+          />
         ) : twoFA ? (
           <Panel as="form" className="animate-fadeIn p-6" onSubmit={submitTotp}>
             <h2 className="mb-1 font-display font-semibold tracking-wider">{t('login.totpTitle')}</h2>
@@ -311,6 +327,17 @@ export default function Login() {
             <Button type="submit" variant="primary" className="w-full" disabled={busy}>
               {mode === 'login' ? t('login.submitLogin') : t('login.submitRegister')}
             </Button>
+            {mode === 'login' && cfg.passwordReset && (
+              <Button
+                className="mt-3 block w-full text-center"
+                onClick={() => {
+                  setNotice('')
+                  setDetour('forgot')
+                }}
+              >
+                {t('login.forgot')}
+              </Button>
+            )}
             {mode === 'login' && !autofill && (
               <Button className="mt-3 block w-full text-center" disabled={busy} onClick={passkeyLogin}>
                 <Fingerprint aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -327,5 +354,116 @@ export default function Login() {
         )}
       </div>
     </main>
+  )
+}
+
+// The two steps of a forgotten password. "forgot" asks for a link by mail; the
+// answer is the same whether or not the address has an account. "reset" is
+// where the link lands: a new password, twice, and back to the login.
+function PasswordDetour({
+  kind,
+  email: initialEmail,
+  onDone,
+}: {
+  kind: 'forgot' | 'reset'
+  email: string
+  onDone: (notice: string) => void
+}) {
+  const { t } = useTranslation()
+  const [email, setEmail] = useState(initialEmail)
+  const [password, setPassword] = useState('')
+  const [again, setAgain] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const leave = (notice: string) => {
+    // the token is spent (or abandoned): a reload must not show the form again
+    if (resetToken) history.replaceState(null, '', window.location.pathname)
+    onDone(notice)
+  }
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (kind === 'reset' && password !== again) return setError(t('account.passwordMismatch'))
+    setBusy(true)
+    setError('')
+    try {
+      if (kind === 'forgot') {
+        await api.post('/api/auth/forgot', { email })
+        leave(t('login.forgotSent'))
+      } else {
+        await api.post('/api/auth/reset', { token: resetToken, password })
+        leave(t('login.resetDone'))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('app.error'))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Panel as="form" className="animate-fadeIn p-6" onSubmit={submit}>
+      <h2 className="mb-1 font-display font-semibold tracking-wider">
+        {kind === 'forgot' ? t('login.forgotTitle') : t('login.resetTitle')}
+      </h2>
+      <p className="mb-4 text-xs text-t-muted">{kind === 'forgot' ? t('login.forgotHint') : t('login.resetHint')}</p>
+      {kind === 'forgot' ? (
+        <>
+          <Badge as="label" htmlFor="forgot-email" className="mb-1 block w-fit">
+            {t('login.email')}
+          </Badge>
+          <Input
+            id="forgot-email"
+            className="mb-4"
+            type="email"
+            autoComplete="username"
+            autoFocus
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </>
+      ) : (
+        <>
+          <Badge as="label" htmlFor="reset-password" className="mb-1 block w-fit">
+            {t('account.passwordNew')}
+          </Badge>
+          <Input
+            id="reset-password"
+            className="mb-4"
+            type="password"
+            autoComplete="new-password"
+            autoFocus
+            required
+            minLength={10}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <Badge as="label" htmlFor="reset-again" className="mb-1 block w-fit">
+            {t('account.passwordAgain')}
+          </Badge>
+          <Input
+            id="reset-again"
+            className="mb-4"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={10}
+            value={again}
+            onChange={(e) => setAgain(e.target.value)}
+          />
+        </>
+      )}
+      {error && (
+        <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+          {error}
+        </p>
+      )}
+      <Button type="submit" variant="primary" className="w-full" disabled={busy}>
+        {kind === 'forgot' ? t('login.forgotSubmit') : t('login.resetSubmit')}
+      </Button>
+      <Button className="mt-3 block w-full text-center" onClick={() => leave('')}>
+        {t('servers.cancel')}
+      </Button>
+    </Panel>
   )
 }

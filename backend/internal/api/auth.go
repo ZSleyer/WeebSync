@@ -464,6 +464,8 @@ type AuthConfigResponse struct {
 	AuthMode         string   `json:"authMode"`
 	SetupNeeded      bool     `json:"setupNeeded"`
 	OidcEnvLocked    []string `json:"oidcEnvLocked"`
+	// a forgotten password can be reset by mail (SMTP and base URL are set)
+	PasswordReset bool `json:"passwordReset"`
 }
 
 // handleAuthConfig tells the login page whether OIDC is available, whether
@@ -497,5 +499,6 @@ func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 		AuthMode:         mode,
 		SetupNeeded:      users == 0,
 		OidcEnvLocked:    oidcLocked,
+		PasswordReset:    s.passwordResetReady(),
 	})
 }

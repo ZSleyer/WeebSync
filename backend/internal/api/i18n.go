@@ -35,6 +35,22 @@ var catalog = map[string]map[string]string{
 		"en": "Confirm your email",
 		"de": "E-Mail bestätigen",
 	},
+	"email.resetSubject": {
+		"en": "Set a new password",
+		"de": "Neues Passwort setzen",
+	},
+	"email.resetIntro": {
+		"en": "Someone asked to set a new password for your account. The link is good for an hour and once:",
+		"de": "Jemand möchte für dein Konto ein neues Passwort setzen. Der Link gilt eine Stunde und einmal:",
+	},
+	"email.resetButton": {
+		"en": "Set a new password",
+		"de": "Neues Passwort setzen",
+	},
+	"email.resetIgnore": {
+		"en": "If that was not you, ignore this message: your password stays as it is.",
+		"de": "Warst du das nicht, ignoriere diese Nachricht: dein Passwort bleibt, wie es ist.",
+	},
 	"email.downloadDoneOne": {
 		"en": "Download finished",
 		"de": "Download fertig",
