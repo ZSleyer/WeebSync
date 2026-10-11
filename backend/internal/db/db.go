@@ -37,8 +37,12 @@ func Open(path string) (*sql.DB, error) {
 	// high-water mark, one big write burst kept it that size for good.
 	// analysis_limit: every ANALYZE that Optimize triggers reads a sample,
 	// milliseconds instead of the whole file.
+	// _txlock=immediate: a transaction takes the write lock at BEGIN, where
+	// busy_timeout waits for it. A deferred one that read first failed at its
+	// first write with SQLITE_BUSY as soon as any other commit came between,
+	// and a running download commits every second.
 	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(1)"+
-		"&_pragma=journal_size_limit(%d)&_pragma=analysis_limit(400)", path, 16<<20)
+		"&_pragma=journal_size_limit(%d)&_pragma=analysis_limit(400)&_txlock=immediate", path, 16<<20)
 	d, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
