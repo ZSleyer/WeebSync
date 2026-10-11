@@ -31,6 +31,42 @@ export const viewKind = (name: string): ViewKind | null => VIEW_KINDS.find(([, r
  */
 export const doneKey = (server: number, path: string) => `viewer.done:${server}:${path}`
 
+const isDone = (server: number, path: string) => {
+  try {
+    return localStorage.getItem(doneKey(server, path)) === '1'
+  } catch {
+    return false
+  }
+}
+
+const isBook = (name: string) => ['comic', 'epub', 'pdf'].includes(viewKind(name) ?? '')
+
+/**
+ * The volume to read next on a manga watch: the first one in order not yet
+ * read to the end, from the local copy, or from the server while nothing is
+ * local yet. Null when the folder holds no volume at all.
+ *
+ * ponytail: one level deep, like firstVideo; a title split into sub folders
+ * starts from its files view.
+ */
+export async function nextVolume(w: Watch): Promise<string | null> {
+  for (const [server, dir] of [
+    [0, watchFolder(w)],
+    [w.serverId, w.remotePath],
+  ] as const) {
+    let entries: Entry[]
+    try {
+      entries = await listFolder(server, dir)
+    } catch {
+      continue
+    }
+    const books = entries.filter((e) => !e.isDir && isBook(e.name)).sort(byName)
+    if (books.length)
+      return viewHref(server, (books.find((b) => !isDone(server, b.path)) ?? books[books.length - 1]).path)
+  }
+  return null
+}
+
 /** The viewer's address for a file. */
 export const viewHref = (server: number, path: string) => `/view?server=${server}&path=${encodeURIComponent(path)}`
 

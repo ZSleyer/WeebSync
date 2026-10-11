@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
+  BookOpen,
   CalendarDays,
   CalendarRange,
   GalleryHorizontal,
@@ -31,7 +32,7 @@ const GROUP_ICON: Record<string, LucideIcon> = {
 }
 import { useQuery } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link, Navigate, useSearchParams } from 'react-router'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import {
   Badge,
   Button,
@@ -64,6 +65,7 @@ import Press from '../components/Press'
 import {
   attentionInfo,
   behindLabel,
+  haveLabel,
   dubOverdueLabel,
   dubProgressLabel,
   dubWaitingLabel,
@@ -74,6 +76,7 @@ import {
 import { addDays, dayKey, episodeLabel, fileStatus, startOfDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
+import { nextVolume } from '../components/playLinks'
 import { useWatchActions, watchFields } from '../components/watchActions'
 import { useSeriesModal } from '../components/SeriesModal'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
@@ -143,6 +146,15 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
     'cal',
   )
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
+  // manga sit apart from what is watched: their own list, their own counts
+  const [kind, setKind] = usePersistedView('weebsync.watches.kind', ['video', 'manga'] as const, 'video', 'kind')
+  const hasManga = watches.some((w) => w.category === 'manga')
+  const ofKind = hasManga ? watches.filter((w) => (w.category === 'manga') === (kind === 'manga')) : watches
+  const navigate = useNavigate()
+  const read = async (w: Watch) => {
+    const href = await nextVolume(w)
+    if (href) navigate(href)
+  }
   // a tap on a calendar entry opens the title's card
   // the cover and a calendar entry open the app's one title card
   const { open: openSeries } = useSeriesModal()
@@ -160,6 +172,16 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
   const showGaps = (w: Watch) => showSeries(w, 'episodes')
   // everything but "check now", for the desktop menu and the phone sheet alike
   const rowActions = (w: Watch): RowAction[] => [
+    ...(w.category === 'manga'
+      ? [
+          {
+            key: 'read',
+            icon: <BookOpen aria-hidden size="1em" />,
+            label: t('watch.read'),
+            onClick: () => void read(w),
+          },
+        ]
+      : []),
     { key: 'edit', icon: <Pencil aria-hidden size="1em" />, label: t('servers.edit'), onClick: () => setEdit(w) },
     ...(w.plexAudioLang || w.plexSubLang
       ? [
@@ -335,7 +357,7 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
   const nameOf = (w: Watch) =>
     (w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')).toLowerCase()
   const seasonOf = (w: Watch) => Number(w.template.match(/S(\d+)E/i)?.[1] ?? 0)
-  const sorted = [...watches].sort((a, b) => {
+  const sorted = [...ofKind].sort((a, b) => {
     switch (sort) {
       case 'last':
         return (
@@ -354,7 +376,7 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
   // downloading, waiting in the middle, finished at the bottom (each keeps
   // the chosen sort order within it)
   const needsAttention = (w: Watch) => (w.attention?.length ?? 0) > 0
-  const attentionCount = watches.filter(needsAttention).length
+  const attentionCount = ofKind.filter(needsAttention).length
   const groupOf = (w: Watch): 'attention' | 'syncing' | 'waiting' | 'idle' | 'complete' =>
     needsAttention(w)
       ? 'attention'
@@ -449,6 +471,19 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
         </PageActions>
       )}
 
+      {/* video or manga: only once there is a manga to tell apart */}
+      {view === 'list' && hasManga && (
+        <Segmented
+          aria-label={t('watch.kind')}
+          value={kind}
+          onChange={setKind}
+          className="mb-4"
+          options={[
+            { value: 'video', label: t('watch.kindVideo') },
+            { value: 'manga', label: t('watch.kindManga') },
+          ]}
+        />
+      )}
       {/* the attention filter: only while something needs a hand, or it is on */}
       {view === 'list' && (attentionCount > 0 || filter === 'attention') && (
         <div className="mb-4 flex justify-end">
@@ -802,7 +837,10 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                                     ? t('watch.chipRetry', { n: w.checkAttempts, when: untilCheck(w.nextCheck) })
                                     : t('watch.chipNext', { when: untilCheck(w.nextCheck) }),
                                   (w.seenEpisodes ?? 0) > 0 ? t('watch.seen', { count: w.seenEpisodes }) : null,
-                                  w.template || w.pattern ? t('watch.renamed') : null,
+                                  // a manga keeps its names unless a regex rule renames it
+                                  (w.category === 'manga' ? w.mode === 'regex' && w.pattern : w.template || w.pattern)
+                                    ? t('watch.renamed')
+                                    : null,
                                 ]
                                   .filter(Boolean)
                                   .join(' · ')}
@@ -922,13 +960,9 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                           }
                           status={
                             <>
-                              {w.media && w.media.episodes > 0 ? (
-                                <p className={w.complete ? 'text-ok' : 'text-t-secondary'}>
-                                  {t('watch.episodes', { have: w.localFiles, total: w.media.episodes })}
-                                </p>
-                              ) : (
-                                <p className="text-t-secondary">{t('watch.files', { count: w.localFiles })}</p>
-                              )}
+                              <p className={w.complete ? 'text-ok' : 'text-t-secondary'}>
+                                {haveLabel(t, w, w.media?.episodes ?? 0)}
+                              </p>
                               {w.complete && (
                                 <p className="mt-1 text-ok" role="status">
                                   <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -939,6 +973,17 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                           }
                           actions={
                             <>
+                              {w.category === 'manga' && (
+                                <Button
+                                  size="sm"
+                                  variant="primary"
+                                  className="flex-1 sm:flex-none"
+                                  onClick={() => void read(w)}
+                                >
+                                  <BookOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                                  {t('watch.read')}
+                                </Button>
+                              )}
                               <Button size="sm" className="flex-1 sm:flex-none" onClick={() => check(w.id)}>
                                 <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                                 {t('watch.checkNow')}
@@ -1208,11 +1253,7 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
           {/* the count and the bar sit at the foot of the tile, so they line up
               across a row however long the titles above them ran */}
           <div className="mt-auto pt-1">
-            <p className={`text-ctl-sm ${w.complete ? 'text-ok' : 'text-t-muted'}`}>
-              {total > 0
-                ? t('watch.episodes', { have: w.localFiles, total })
-                : t('watch.files', { count: w.localFiles })}
-            </p>
+            <p className={`text-ctl-sm ${w.complete ? 'text-ok' : 'text-t-muted'}`}>{haveLabel(t, w, total)}</p>
             {total > 0 && (
               <Progress
                 value={(w.localFiles / total) * 100}

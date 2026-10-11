@@ -52,6 +52,7 @@ import {
 import { api, epLabel, mediaTitle, watchTitle, type Media, type MediaExtras, type Review, type Watch } from '../api'
 import {
   behindLabel,
+  haveLabel,
   dubOverdueLabel,
   dubProgressLabel,
   dubWaitingLabel,
@@ -1402,9 +1403,7 @@ function WatchBlock({
           label={t('series.progressLabel', { name: watchTitle(w) })}
           className="w-32"
         />
-        <span className={w.complete ? 'text-ok' : 'text-t-secondary'}>
-          {total > 0 ? t('watch.episodes', { have: w.localFiles, total }) : t('watch.files', { count: w.localFiles })}
-        </span>
+        <span className={w.complete ? 'text-ok' : 'text-t-secondary'}>{haveLabel(t, w, total)}</span>
         {w.complete && (
           <span className="text-ok">
             <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
