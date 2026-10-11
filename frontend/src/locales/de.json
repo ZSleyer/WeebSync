@@ -243,6 +243,9 @@
     "copy": "Kopieren"
   },
   "setup": {
+    "serverRetry": "Speichern und erneut testen",
+    "serverTestFailed": "Der Verbindungstest ist fehlgeschlagen: {{msg}}",
+    "finishFailed": "Nichts wurde gespeichert: {{msg}}",
     "stepOf": "Schritt {{n}} von {{total}}",
     "title": "Ersteinrichtung",
     "step": {
@@ -549,7 +552,6 @@
     "view": "Ansicht",
     "catalog": "Katalog",
     "classic": "Klassisch",
-    "catalog": "Katalog",
     "catalogOnce": "Katalog (einmalig)",
     "catalogPersist": "Katalog (dauerhaft)",
     "autoCatalogHint": "Klassisch = Liste. Katalog (einmalig) zeigt diesen Ordner jetzt als Katalog, ohne es zu merken. Katalog (dauerhaft) speichert den Ordner als Katalog-Ordner, er öffnet künftig wieder so.",

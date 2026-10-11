@@ -243,6 +243,9 @@
     "copy": "Copy"
   },
   "setup": {
+    "serverRetry": "Save and test again",
+    "serverTestFailed": "The connection test failed: {{msg}}",
+    "finishFailed": "Nothing was saved: {{msg}}",
     "stepOf": "Step {{n}} of {{total}}",
     "title": "First-run setup",
     "step": {
@@ -549,7 +552,6 @@
     "view": "View",
     "catalog": "Catalog",
     "classic": "Classic",
-    "catalog": "Catalog",
     "catalogOnce": "Catalog (once)",
     "catalogPersist": "Catalog (saved)",
     "autoCatalogHint": "Classic = list. Catalog (once) shows this folder as a catalog now, without remembering it. Catalog (saved) stores the folder as a catalog folder, so it reopens that way next time.",
