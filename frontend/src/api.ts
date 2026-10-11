@@ -257,7 +257,7 @@ export interface Watch {
   nextAiringAt?: number
   waiting: boolean
   airings?: Airing[]
-  category?: 'anime-series' | 'anime-movie' | 'series' | 'movie'
+  category?: 'anime-series' | 'anime-movie' | 'series' | 'movie' | 'manga'
   // caught up on the dub it filters for: the original is ahead but the dub
   // is not due yet - expected waiting, not a problem
   dubWaiting?: boolean

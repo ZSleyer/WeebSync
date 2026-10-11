@@ -55,6 +55,15 @@ export function langWaitingLabel(t: T, w: Watch): string {
 }
 
 // missingLabel: the gaps inside what is local.
+/** What a watch holds against what its title has: episodes, or volumes for a manga. */
+export function haveLabel(t: T, w: Watch, total: number): string {
+  if (w.category === 'manga')
+    return total > 0
+      ? t('watch.volumes', { have: w.localFiles, total })
+      : t('watch.volumeFiles', { count: w.localFiles })
+  return total > 0 ? t('watch.episodes', { have: w.localFiles, total }) : t('watch.files', { count: w.localFiles })
+}
+
 export function missingLabel(t: T, w: Watch): string {
   return t('watch.missing', { count: w.missing!.length, eps: fmtEps(w, w.missing!) })
 }
