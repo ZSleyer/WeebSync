@@ -226,6 +226,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/settings/arr-key", authed(adminOnly(http.HandlerFunc(s.handleArrKeyCreate))))
 	mux.Handle("DELETE /api/settings/arr-key", authed(adminOnly(http.HandlerFunc(s.handleArrKeyDelete))))
 	mux.HandleFunc("GET /api/arr/newznab/api", s.arrGate(s.handleNewznab))
+	mux.HandleFunc("/api/arr/sab/api", s.arrGate(s.handleSab))
 
 	// build/version info + upstream update check (about page)
 	mux.Handle("GET /api/version", authed(http.HandlerFunc(s.handleVersion)))

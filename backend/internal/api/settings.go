@@ -163,6 +163,9 @@ type settingsPayload struct {
 	PlexLibRoots          string         `json:"plexLibRoots"`        // read-only: mounts auto-detected from Plex's reported library locations (flat)
 	PlexLibraries         []LibraryRoots `json:"plexLibraries"`       // read-only: detected mounts grouped by their Plex library
 	PlexSkipOwned         bool           `json:"plexSkipOwned"`       // auto-sync leaves episodes Plex already holds (under any name) on the remote
+	ArrKeySet             bool           `json:"arrKeySet"`           // read-only: the Sonarr/Radarr source is on, managed via /api/settings/arr-key
+	ArrCompleteDir        string         `json:"arrCompleteDir"`      // local folder grabs from Sonarr/Radarr land in; must be under a download root
+	ArrRoots              string         `json:"arrRoots"`            // newline-separated "appPath => localPath" mappings for apps that see the media under another path
 	OidcProviderName      string         `json:"oidcProviderName"`    // login button label ("Sign in with X")
 	OidcIssuer            string         `json:"oidcIssuer"`
 	OidcClientID          string         `json:"oidcClientId"`
@@ -254,6 +257,9 @@ func (s *Server) settingsState() settingsPayload {
 		PlexLibRoots:          db.Setting(s.DB, "plex_lib_roots"),
 		PlexLibraries:         plexLibraries(db.Setting(s.DB, "plex_lib_map")),
 		PlexSkipOwned:         truthySetting(db.Setting(s.DB, "plex_skip_owned")),
+		ArrKeySet:             db.Setting(s.DB, "arr_key_hash") != "",
+		ArrCompleteDir:        db.Setting(s.DB, "arr_complete_dir"),
+		ArrRoots:              db.Setting(s.DB, "arr_roots"),
 		OidcProviderName:      db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
 		OidcIssuer:            db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
 		OidcClientID:          db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
@@ -485,6 +491,16 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	setSetting(s.DB, "plex_section_sources", in.PlexSectionSources)
 	setSetting(s.DB, "plex_section_anime", in.PlexSectionAnime)
 	setSetting(s.DB, "plex_roots", normalizeRoots(in.PlexRoots))
+	// the mapping first: its local side widens the roots the folder is
+	// checked against
+	setSetting(s.DB, "arr_roots", normalizeRoots(in.ArrRoots))
+	if dir := strings.TrimSpace(in.ArrCompleteDir); dir != "" {
+		if _, err := s.safeLocal(dir); err != nil {
+			writeErr(w, http.StatusBadRequest, "arrCompleteDir: "+err.Error())
+			return
+		}
+	}
+	setSetting(s.DB, "arr_complete_dir", strings.TrimSpace(in.ArrCompleteDir))
 	// the Plex roots widen the local-path allowlist (ffprobe + one-off sync into
 	// the library); refresh the transfer manager's copy so downloads there pass,
 	// and re-detect the auto roots from Plex in case the connection just changed

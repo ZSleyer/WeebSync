@@ -46,7 +46,11 @@ func (s *Server) DownloadFinished(d *transfer.Download) {
 	}
 	// a new episode in a watched folder counts from now on
 	s.forgetUnwatched()
-	s.NotifyDownloadFinished(d)
+	// a grab Sonarr/Radarr handed over is theirs to announce; a push or mail
+	// from here would only double their own notification
+	if !s.isArrJob(d.ID) {
+		s.NotifyDownloadFinished(d)
+	}
 	s.NotifyHaDownload(d)
 }
 
