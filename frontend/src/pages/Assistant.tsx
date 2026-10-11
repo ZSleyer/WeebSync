@@ -172,6 +172,11 @@ export default function Assistant() {
   useEffect(() => {
     chatIdRef.current = chatId
   }, [chatId])
+  // bumped whenever another conversation takes the screen (opened or new):
+  // a stream, a save or a create-all started before only writes back to
+  // the conversation it started in
+  const convRef = useRef(0)
+  const turnsRef = useRef(turns)
   const [attachments, setAttachments] = useState<string[]>([])
   // the saved chats: a sheet on a phone, a panel beside the chat on a
   // desktop that may stay open while chatting - remembered per device
@@ -260,6 +265,7 @@ export default function Assistant() {
   } = useMenu()
 
   useEffect(() => {
+    turnsRef.current = turns
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(turns))
     } catch {
@@ -294,30 +300,50 @@ export default function Assistant() {
       /* best effort */
     }
   }, [chatId, chatKey])
+  const saveChat = async (id: number | null, list: Turn[]) => {
+    const first = list.find((tr) => tr.role === 'user')
+    const title = (first?.content.trim() || t('assistant.untitled')).slice(0, 80)
+    if (id) await api.put(`/api/ai/chats/${id}`, { title, turns: list })
+    else id = (await api.post<{ id: number }>('/api/ai/chats', { title, turns: list })).id
+    qc.invalidateQueries({ queryKey: ['ai-chats'] })
+    return id
+  }
   useEffect(() => {
     if (streaming || turns.length === 0) return
     const json = JSON.stringify(turns)
     if (json === savedRef.current) return
     const timer = setTimeout(async () => {
+      const conv = convRef.current
       savedRef.current = json
-      const first = turns.find((tr) => tr.role === 'user')
-      const title = (first?.content.trim() || t('assistant.untitled')).slice(0, 80)
       try {
-        if (chatId) await api.put(`/api/ai/chats/${chatId}`, { title, turns })
-        else {
-          const { id } = await api.post<{ id: number }>('/api/ai/chats', { title, turns })
-          setChatId(id)
-        }
-        qc.invalidateQueries({ queryKey: ['ai-chats'] })
+        const id = await saveChat(chatId, turns)
+        // a new chat's row id answers after the user may have moved on
+        if (conv === convRef.current) setChatId(id)
       } catch {
-        savedRef.current = '' // try again with the next change
+        if (conv === convRef.current) savedRef.current = '' // try again with the next change
       }
     }, 800)
     return () => clearTimeout(timer)
+    // saveChat only reads t and qc
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turns, streaming, chatId, qc, t])
 
-  const newChat = () => {
+  // another conversation takes the screen: the running answer stops, and
+  // what this one holds that is not saved yet (an answer cut off here, or
+  // one still inside the autosave delay) is saved to it on the way out
+  const leaveChat = (keep: boolean) => {
+    convRef.current++
     abortRef.current?.abort()
+    const left = turnsRef.current
+    if (!keep || left.length === 0 || JSON.stringify(left) === savedRef.current) return
+    const last = left.length - 1
+    void saveChat(
+      chatIdRef.current,
+      left.map((tr, i) => (i === last ? { ...tr, tool: undefined } : tr)),
+    ).catch(() => {})
+  }
+  const newChat = (keep = true) => {
+    leaveChat(keep)
     setTurns([])
     setQueue([])
     setAttachments([])
@@ -332,7 +358,7 @@ export default function Assistant() {
     } catch (e) {
       return fail(e)
     }
-    abortRef.current?.abort()
+    leaveChat(true)
     setQueue([])
     setTurns(c.turns)
     savedRef.current = JSON.stringify(c.turns)
@@ -349,7 +375,7 @@ export default function Assistant() {
       message: t('assistant.chatDeleted'),
       remove: () =>
         api.del(`/api/ai/chats/${id}`).then(() => {
-          if (id === chatIdRef.current) newChat()
+          if (id === chatIdRef.current) newChat(false)
         }),
     })
 
@@ -382,6 +408,11 @@ export default function Assistant() {
       { role: 'assistant', content: '' },
     ])
     setStreaming(true)
+    const conv = convRef.current
+    // once the user opened another chat, nothing of this answer goes there
+    const patch = (fn: (turn: Turn) => Turn) => {
+      if (conv === convRef.current) patchLast(fn)
+    }
     const ac = new AbortController()
     abortRef.current = ac
     // cards and proposals arrive while tools run, before the answer is
@@ -399,10 +430,10 @@ export default function Assistant() {
         (ev) => {
           switch (ev.type) {
             case 'delta':
-              patchLast((tr) => ({ ...tr, content: tr.content + ev.text, tool: undefined }))
+              patch((tr) => ({ ...tr, content: tr.content + ev.text, tool: undefined }))
               break
             case 'reasoning':
-              patchLast((tr) => ({
+              patch((tr) => ({
                 ...addStep(tr, { kind: 'reasoning', text: ev.text }),
                 stepsOpen: tr.stepsTouched ? tr.stepsOpen : true,
               }))
@@ -410,7 +441,7 @@ export default function Assistant() {
             case 'tool': {
               // what the model said before calling a tool is its narration:
               // it belongs to the transcript, the answer starts after the tools
-              patchLast((tr) => {
+              patch((tr) => {
                 const narrated = tr.content.trim() ? addStep(tr, { kind: 'reasoning', text: tr.content.trim() }) : tr
                 return {
                   ...addStep({ ...narrated, content: '' }, { kind: 'tool', name: ev.name, params: ev.params }),
@@ -421,7 +452,7 @@ export default function Assistant() {
               break
             }
             case 'tool_done':
-              patchLast((tr) => {
+              patch((tr) => {
                 const steps = [...(tr.steps ?? [])]
                 for (let i = steps.length - 1; i >= 0; i--) {
                   const st = steps[i]
@@ -442,7 +473,7 @@ export default function Assistant() {
               pending.cards.push(...ev.cards)
               break
             case 'links':
-              patchLast((tr) => ({ ...tr, links: ev.cards }))
+              patch((tr) => ({ ...tr, links: ev.cards }))
               break
             case 'upgrades': {
               // the upgrades tool and show_upgrades may both name a card
@@ -457,6 +488,7 @@ export default function Assistant() {
                 const i = q.indexOf(ev.text)
                 return i < 0 ? q : q.filter((_, j) => j !== i)
               })
+              if (conv !== convRef.current) break
               setTurns((prev) => [
                 ...prev.map((tr, i) =>
                   i === prev.length - 1
@@ -468,12 +500,12 @@ export default function Assistant() {
               ])
               break
             case 'error':
-              patchLast((tr) => ({ ...tr, error: ev.message, tool: undefined }))
+              patch((tr) => ({ ...tr, error: ev.message, tool: undefined }))
               break
             case 'done':
               // the transcript stays open while it is being written and folds
               // away with the answer, unless the user toggled it themselves
-              patchLast((tr) => ({ ...tr, tool: undefined, stepsOpen: tr.stepsTouched ? tr.stepsOpen : false }))
+              patch((tr) => ({ ...tr, tool: undefined, stepsOpen: tr.stepsTouched ? tr.stepsOpen : false }))
               break
           }
         },
@@ -488,10 +520,10 @@ export default function Assistant() {
       )
     } catch (e) {
       if (!ac.signal.aborted) {
-        patchLast((tr) => ({ ...tr, error: e instanceof Error ? e.message : String(e), tool: undefined }))
+        patch((tr) => ({ ...tr, error: e instanceof Error ? e.message : String(e), tool: undefined }))
       }
     } finally {
-      patchLast((tr) => ({
+      patch((tr) => ({
         ...tr,
         tool: undefined,
         proposals: pending.proposals.length ? [...(tr.proposals ?? []), ...pending.proposals] : tr.proposals,
@@ -499,7 +531,7 @@ export default function Assistant() {
         upgrades: pending.upgrades.length ? [...(tr.upgrades ?? []), ...pending.upgrades] : tr.upgrades,
       }))
       setStreaming(false)
-      abortRef.current = null
+      if (abortRef.current === ac) abortRef.current = null
     }
   }
 
@@ -533,6 +565,7 @@ export default function Assistant() {
   const createAll = async (ti: number) => {
     const open = (turns[ti]?.proposals ?? []).map((p, idx) => ({ p, idx })).filter(({ p }) => !p.done && !p.unverified)
     if (open.length < 2) return
+    const conv = convRef.current
     let ok = 0
     let failed = 0
     for (const { p, idx } of open) {
@@ -549,6 +582,7 @@ export default function Assistant() {
       }
       if (error) failed++
       else ok++
+      if (conv !== convRef.current) continue
       setTurns((prev) =>
         prev.map((tr, i) =>
           i === ti
@@ -564,7 +598,7 @@ export default function Assistant() {
     }
     qc.invalidateQueries({ queryKey: ['watches'] })
     qc.invalidateQueries({ queryKey: ['downloads'] })
-    setNotice(t('assistant.createdCount', { ok, failed }))
+    if (conv === convRef.current) setNotice(t('assistant.createdCount', { ok, failed }))
   }
 
   if (status && !status.configured) {
@@ -623,7 +657,7 @@ export default function Assistant() {
           <History aria-hidden size="1.2em" />
         </Button>
         {!empty && (
-          <Button size="sm" aria-label={t('assistant.clear')} title={t('assistant.clear')} onClick={newChat}>
+          <Button size="sm" aria-label={t('assistant.clear')} title={t('assistant.clear')} onClick={() => newChat()}>
             <Plus aria-hidden size="1.2em" />
           </Button>
         )}
