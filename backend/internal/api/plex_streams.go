@@ -186,12 +186,13 @@ func (s *Server) trackedEpisodes(w Watch) map[int]bool {
 		ep, _ := strconv.Atoi(m[2])
 		eps[epKey(se, ep)] = true
 	}
-	// instr(x, p) = 1 rather than LIKE p||'/%': the path is user data and LIKE
-	// would read a "_" in a folder name as a wildcard.
+	// a range rather than LIKE p||'/%': the path is user data and LIKE would
+	// read a "_" in a folder name as a wildcard. One range on the parent index,
+	// see remoteShowRoot.
 	nameFn := s.watchNameFn(w)
 	rows, err := s.DB.Query(`SELECT name FROM remote_index
-		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR instr(parent, ?) = 1)`,
-		w.ServerID, w.RemotePath, w.RemotePath+"/")
+		WHERE server_id = ?1 AND is_dir = 0 AND parent >= ?2 AND parent < ?2 || '0' AND (parent = ?2 OR parent >= ?2 || '/')`,
+		w.ServerID, w.RemotePath)
 	if err == nil {
 		for rows.Next() {
 			var name string

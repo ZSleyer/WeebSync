@@ -410,8 +410,8 @@ func (s *Server) copySizes(serverID int64, folder string) map[int64]bool {
 		return out
 	}
 	rows, err := s.DB.Query(`SELECT name, size FROM remote_index
-		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR parent LIKE ?||'/%')`,
-		serverID, folder, folder)
+		WHERE server_id = ?1 AND is_dir = 0 AND parent >= ?2 AND parent < ?2 || '0' AND (parent = ?2 OR parent >= ?2 || '/')`,
+		serverID, folder)
 	if err != nil {
 		return out
 	}
@@ -989,8 +989,8 @@ func (s *Server) addMissingEpisodes(acc *sugAcc) {
 func (s *Server) remoteEpisodeNums(serverID int64, folder string) map[int]bool {
 	out := map[int]bool{}
 	rows, err := s.DB.Query(`SELECT name FROM remote_index
-		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR parent LIKE ?||'/%')`,
-		serverID, folder, folder)
+		WHERE server_id = ?1 AND is_dir = 0 AND parent >= ?2 AND parent < ?2 || '0' AND (parent = ?2 OR parent >= ?2 || '/')`,
+		serverID, folder)
 	if err != nil {
 		return out
 	}
