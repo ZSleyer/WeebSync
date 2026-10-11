@@ -255,6 +255,8 @@ export default function Assistant() {
   const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   const abortRef = useRef<AbortController | null>(null)
+  // the running answer's held-back cards, for a switch that cuts it off
+  const pendingRef = useRef<Pending | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
   const {
     open: modelOpen,
@@ -334,12 +336,14 @@ export default function Assistant() {
   const leaveChat = (keep: boolean) => {
     convRef.current++
     abortRef.current?.abort()
+    const held = pendingRef.current
+    pendingRef.current = null
     const left = turnsRef.current
-    if (!keep || left.length === 0 || JSON.stringify(left) === savedRef.current) return
+    if (!keep || left.length === 0 || (!held && JSON.stringify(left) === savedRef.current)) return
     const last = left.length - 1
     void saveChat(
       chatIdRef.current,
-      left.map((tr, i) => (i === last ? { ...tr, tool: undefined } : tr)),
+      left.map((tr, i) => (i !== last ? tr : held ? withPending(tr, held) : { ...tr, tool: undefined })),
     ).catch(() => {})
   }
   const newChat = (keep = true) => {
@@ -419,11 +423,8 @@ export default function Assistant() {
     // written; shown right away they push the streaming text around. They
     // wait here and land below the answer once the stream ends, however it
     // ends (done, error, abort) - nothing accepted gets lost
-    const pending: { proposals: NonNullable<Turn['proposals']>; cards: AiCard[]; upgrades: UpgradeSuggestion[] } = {
-      proposals: [],
-      cards: [],
-      upgrades: [],
-    }
+    const pending: Pending = { proposals: [], cards: [], upgrades: [] }
+    pendingRef.current = pending
     try {
       await streamAiChat(
         history,
@@ -523,13 +524,8 @@ export default function Assistant() {
         patch((tr) => ({ ...tr, error: e instanceof Error ? e.message : String(e), tool: undefined }))
       }
     } finally {
-      patch((tr) => ({
-        ...tr,
-        tool: undefined,
-        proposals: pending.proposals.length ? [...(tr.proposals ?? []), ...pending.proposals] : tr.proposals,
-        cards: pending.cards.length ? [...(tr.cards ?? []), ...pending.cards] : tr.cards,
-        upgrades: pending.upgrades.length ? [...(tr.upgrades ?? []), ...pending.upgrades] : tr.upgrades,
-      }))
+      patch((tr) => withPending(tr, pending))
+      if (pendingRef.current === pending) pendingRef.current = null
       setStreaming(false)
       if (abortRef.current === ac) abortRef.current = null
     }
@@ -1277,6 +1273,20 @@ export default function Assistant() {
       )}
     </div>
   )
+}
+
+// Pending holds what an answer's tools delivered while it streams; it joins
+// the last turn once the stream ends (or the chat is left mid-answer).
+type Pending = { proposals: NonNullable<Turn['proposals']>; cards: AiCard[]; upgrades: UpgradeSuggestion[] }
+
+function withPending(tr: Turn, p: Pending): Turn {
+  return {
+    ...tr,
+    tool: undefined,
+    proposals: p.proposals.length ? [...(tr.proposals ?? []), ...p.proposals] : tr.proposals,
+    cards: p.cards.length ? [...(tr.cards ?? []), ...p.cards] : tr.cards,
+    upgrades: p.upgrades.length ? [...(tr.upgrades ?? []), ...p.upgrades] : tr.upgrades,
+  }
 }
 
 // toolSentence phrases one transcript step from the tool's name, the
