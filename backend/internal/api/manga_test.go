@@ -53,6 +53,11 @@ func TestMangaScope(t *testing.T) {
 	if n != 0 {
 		t.Errorf("manga joined %d series", n)
 	}
+	// an anime template left on a manga watch does not rename its volumes
+	w := Watch{ServerID: 1, RemotePath: "/Books/M/Monster", Mode: "template", Template: "{title} - S{season:02}E{episode:02}"}
+	if fn := s.watchNameFn(w); fn != nil {
+		t.Errorf("manga watch renamed to %q", fn("Monster 01.cbz"))
+	}
 }
 
 func TestMangaNames(t *testing.T) {
