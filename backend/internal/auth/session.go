@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/db"
 )
 
 const sessionTTL = 30 * 24 * time.Hour
@@ -158,6 +160,42 @@ func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID
 		Expires: expires,
 	})
 	return nil
+}
+
+// SessionToken is the raw session token the request carries, "" without one.
+func SessionToken(r *http.Request) string {
+	if c, err := r.Cookie("weebsync_session"); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+// SetPassword checks and stores a new password, then ends the account's
+// sessions, all but the one keepToken names ("" ends every one): whoever
+// knew the old password may still be signed in with it. A reset link that is
+// still out dies with it. The address counts as verified from here: every
+// way to this call vouches for it (an admin, the operator's CLI, the reset
+// mail's link, or the signed-in account itself). sql.ErrNoRows when the
+// account does not exist.
+func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
+	if err := ValidatePassword(password); err != nil {
+		return err
+	}
+	hash, err := HashPassword(password)
+	if err != nil {
+		return err
+	}
+	return db.Tx(d, func(tx *sql.Tx) error {
+		res, err := tx.Exec(`UPDATE users SET password_hash = ?, reset_token_hash = '', email_verified = 1 WHERE id = ?`, hash, userID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return sql.ErrNoRows
+		}
+		_, err = tx.Exec(`DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`, userID, hashToken(keepToken))
+		return err
+	})
 }
 
 func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) {

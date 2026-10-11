@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Panel } from '@weebsync/design-system'
@@ -20,11 +20,97 @@ export default function Account() {
         <Panel className="p-5 text-sm text-t-muted">{t('account.oidcOnly')}</Panel>
       ) : (
         <div className="space-y-4">
+          <PasswordSection />
           <PasskeySection />
           <TotpSection />
         </div>
       )}
     </section>
+  )
+}
+
+// Changing the password ends the account's other sessions; this one stays.
+// An account that signs in through OIDC has none, so it sees nothing here.
+function PasswordSection() {
+  const { t } = useTranslation()
+  const { data: me } = useAuth()
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [again, setAgain] = useState('')
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+  const [busy, setBusy] = useState(false)
+  if (!me?.hasPassword) return null
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    setDone(false)
+    if (next !== again) return setError(t('account.passwordMismatch'))
+    setBusy(true)
+    setError('')
+    try {
+      await api.put('/api/auth/password', { current, new: next })
+      setCurrent('')
+      setNext('')
+      setAgain('')
+      setDone(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('app.error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Panel as="form" className="p-5" aria-label={t('account.passwordTitle')} onSubmit={submit}>
+      <Badge tone="accent">{t('account.passwordTitle')}</Badge>
+      <p className="mt-2 text-xs text-t-muted">{t('account.passwordHint')}</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <label className="grid gap-1">
+          <span className="t-label">{t('account.passwordCurrent')}</span>
+          <Input
+            type="password"
+            autoComplete="current-password"
+            required
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+          />
+        </label>
+        <label className="grid gap-1">
+          <span className="t-label">{t('account.passwordNew')}</span>
+          <Input
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={10}
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+          />
+        </label>
+        <label className="grid gap-1">
+          <span className="t-label">{t('account.passwordAgain')}</span>
+          <Input
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={10}
+            value={again}
+            onChange={(e) => setAgain(e.target.value)}
+          />
+        </label>
+      </div>
+      <Button type="submit" size="sm" variant="primary" className="mt-3" disabled={busy}>
+        {t('account.passwordChange')}
+      </Button>
+      <p role="status" className="mt-3 text-sm text-ok empty:hidden">
+        {done ? t('account.passwordChanged') : ''}
+      </p>
+      {error && (
+        <p className="mt-3 text-sm text-err" role="alert">
+          {error}
+        </p>
+      )}
+    </Panel>
   )
 }
 

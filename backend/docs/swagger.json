@@ -4506,6 +4506,32 @@
                 ],
                 "type": "object"
             },
+            "api.passwordChange": {
+                "properties": {
+                    "current": {
+                        "type": "string"
+                    },
+                    "new": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "current",
+                    "new"
+                ],
+                "type": "object"
+            },
+            "api.passwordSet": {
+                "properties": {
+                    "password": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "password"
+                ],
+                "type": "object"
+            },
             "api.plexAccountResponse": {
                 "properties": {
                     "linked": {
@@ -8783,6 +8809,102 @@
                     }
                 },
                 "summary": "Probe a URL for an OIDC provider",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/auth/password": {
+            "put": {
+                "description": "Replaces the caller's password after checking the current one, and ends the caller's other sessions. An account that signs in through OIDC has no password to change.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.passwordChange",
+                                        "description": "current and new password",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "current and new password",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Change own password",
                 "tags": [
                     "Auth"
                 ]
@@ -16412,6 +16534,113 @@
                     }
                 ],
                 "summary": "Update user role",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/api/users/{id}/password": {
+            "put": {
+                "description": "Sets a new password for an account (admin only) and ends that account's sessions; your own session stays when the account is yours.",
+                "parameters": [
+                    {
+                        "description": "user id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.passwordSet",
+                                        "description": "new password",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "new password",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Set a user's password",
                 "tags": [
                     "Users"
                 ]
