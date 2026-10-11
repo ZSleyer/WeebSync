@@ -88,10 +88,13 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 	s.seriesMu.Lock()
 	defer s.seriesMu.Unlock()
 
+	// every lookup below decides whether a series is created: one that failed
+	// must stop here, or a read error passes for "not there yet" and the show
+	// is bundled twice. A later match or sweep links it.
 	var have int
-	if s.DB.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE source = ? AND media_id = ?`,
-		source, mediaID).Scan(&have); have > 0 {
-		return false, title // already bundled
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE source = ? AND media_id = ?`,
+		source, mediaID).Scan(&have); err != nil || have > 0 {
+		return false, title // already bundled, or unknown
 	}
 
 	// a season of a known show joins that show, whatever it calls itself. The
@@ -106,7 +109,11 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 		seriesID = s.seriesByProvider(ref.Source, ref.MediaID)
 	}
 	if seriesID == 0 {
-		seriesID = s.findSeries(key, year)
+		var err error
+		if seriesID, err = s.findSeries(key, year); err != nil {
+			slog.Warn("series lookup failed", "title", logSafe(title), "err", err)
+			return false, title
+		}
 	}
 	if seriesID == 0 {
 		res, err := s.DB.Exec(`INSERT INTO series (key, title, year) VALUES (?, ?, ?)`, key, title, year)
@@ -134,24 +141,24 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 
 // findSeries returns the id of an existing series matching key under the year
 // gate (year within 1, or either side unknown), or 0 for none. Caller holds
-// seriesMu.
-func (s *Server) findSeries(key string, year int) int64 {
+// seriesMu. A read that failed is an error, not a "none".
+func (s *Server) findSeries(key string, year int) (int64, error) {
 	rows, err := s.DB.Query(`SELECT id, year FROM series WHERE key = ?`, key)
 	if err != nil {
-		return 0
+		return 0, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var id int64
 		var sy int
-		if rows.Scan(&id, &sy) != nil {
-			continue
+		if err := rows.Scan(&id, &sy); err != nil {
+			return 0, err
 		}
 		if d := year - sy; year == 0 || sy == 0 || (d >= -1 && d <= 1) {
-			return id
+			return id, nil
 		}
 	}
-	return 0
+	return 0, rows.Err()
 }
 
 // probeState records HOW a copy's languages were established. It is three

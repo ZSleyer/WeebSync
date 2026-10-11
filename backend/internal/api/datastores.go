@@ -581,7 +581,13 @@ func (s *Server) handleAdminDataReset(w http.ResponseWriter, r *http.Request) {
 		if in.IncludeDecisions {
 			cond = "1 = 1"
 		}
-		requeueList = s.automaticMatches(cond)
+		// the wipe below would make every folder this list missed wait for
+		// the sweep: no list, no reset
+		var err error
+		if requeueList, err = s.automaticMatches(cond); err != nil {
+			dbErrDetail(w, "reset requeue list", err)
+			return
+		}
 	}
 
 	// One transaction: a reset that dies halfway leaves exactly the half-state

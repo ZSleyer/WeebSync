@@ -25,20 +25,23 @@ func (s *Server) unsortedDir(userID int64) string {
 // waiting in the collecting folder. Enqueue only skips what is complete at the
 // EXPECTED target, so without this the next check would see the season folder
 // still missing the episode and fetch it a second time - gigabytes per round.
-func (s *Server) pendingRemotePaths(watchID int64) map[string]bool {
+// A list that could not be read whole is an error, never a shorter list: the
+// caller must not take what is missing from it for missing on disk.
+func (s *Server) pendingRemotePaths(watchID int64) (map[string]bool, error) {
 	out := map[string]bool{}
 	rows, err := s.DB.Query(`SELECT remote_path FROM pending_episodes WHERE watch_id = ?`, watchID)
 	if err != nil {
-		return out
+		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var p string
-		if rows.Scan(&p) == nil {
-			out[p] = true
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
 		}
+		out[p] = true
 	}
-	return out
+	return out, rows.Err()
 }
 
 // rememberPending records the freshly downloaded files that are waiting for the
