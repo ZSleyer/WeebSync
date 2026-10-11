@@ -2038,6 +2038,27 @@ li.t-swiperow { border-radius: 0; }
    beside every card and bright between them, as if broken */
 .t-timeline__row[data-past] > * { opacity: 0.6; }
 .t-timeline__row[data-past]::before { background: var(--color-accent); }
+/* The desktop week: the days around the picked one, as many as fit at a
+   card's width (260px), always an odd count so the picked day stays in the
+   middle - 7 on a wide screen, 5, else 3. Every column is equally wide and
+   every card the same as on the phone; nothing is squeezed into a sliver.
+   The day band above still shows the whole fortnight. Columns are made only
+   for days shown (auto-flow), so hiding one leaves no empty track. */
+.t-week { container-type: inline-size; }
+.t-week__grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+@container (width < 1892px) {
+  .t-week__grid > :is(:nth-child(1), :nth-child(7)) { display: none; }
+}
+@container (width < 1348px) {
+  .t-week__grid > :is(:nth-child(2), :nth-child(6)) { display: none; }
+}
+
 /* now, on today's panel: it drifts down past the releases as the clock runs,
    the time beside it saying what the line is */
 .t-timeline > .t-timeline__now {
