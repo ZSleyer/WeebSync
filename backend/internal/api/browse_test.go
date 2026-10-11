@@ -40,8 +40,8 @@ func TestVirtualEntries(t *testing.T) {
 	if !ok || len(es) != 3 {
 		t.Fatalf("top: %v %v", names(es), ok)
 	}
-	if es[0].Name != "haibara/plex" || es[0].Path != "/media/disk1/plex" ||
-		es[1].Name != "shiho/plex/animeseries" || es[2].Name != "shinichi/plex/tvseries" {
+	if es[0].Name != "disk1/plex" || es[0].Path != "/media/disk1/plex" ||
+		es[1].Name != "disk2/plex/animeseries" || es[2].Name != "disk3/plex/tvseries" {
 		t.Errorf("top entries: %+v", es)
 	}
 	// below a shared parent: the real mounts appear
@@ -61,7 +61,7 @@ func TestVirtualEntries(t *testing.T) {
 		t.Error("unrelated path must not be virtual")
 	}
 	// breadcrumb-style path without leading slash
-	es, ok = virtualEntries(roots, "media/haibara/plex")
+	es, ok = virtualEntries(roots, "media/disk1/plex")
 	if !ok || len(es) != 2 {
 		t.Errorf("relative crumb path: %v %v", names(es), ok)
 	}
