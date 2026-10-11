@@ -71,6 +71,9 @@ func (s *Server) SweepLoop(ctx context.Context) {
 				}
 				db.SetSetting(s.DB, "cache_pruned_at", time.Now().UTC().Format(time.RFC3339))
 			}
+			// keep the planner's statistics in step with the tables as the
+			// crawler and the prune grow and shrink them; a no-op while fresh
+			db.Optimize(s.DB)
 			// write down what the caches currently say is airing, before the
 			// providers drop the slots that have passed - the calendar's only
 			// source for the days just gone

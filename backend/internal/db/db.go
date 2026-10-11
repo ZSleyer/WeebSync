@@ -6,8 +6,10 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"sort"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -31,7 +33,12 @@ func Open(path string) (*sql.DB, error) {
 	// only a checkpoint is - a running download commits its progress every
 	// second, on a box without an SSD each of those was a disk seek. It cannot
 	// corrupt the database; a power cut may lose the last commits.
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(1)", path)
+	// journal_size_limit: a checkpoint rewinds the WAL but left the file at its
+	// high-water mark, one big write burst kept it that size for good.
+	// analysis_limit: every ANALYZE that Optimize triggers reads a sample,
+	// milliseconds instead of the whole file.
+	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(1)"+
+		"&_pragma=journal_size_limit(%d)&_pragma=analysis_limit(400)", path, 16<<20)
 	d, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
@@ -40,7 +47,51 @@ func Open(path string) (*sql.DB, error) {
 		d.Close()
 		return nil, err
 	}
+	compact(d)
+	Optimize(d)
+	// a connection reads the statistics when it opens and never again, so the
+	// ones that ran the migrations go and the pool starts fresh. And none is
+	// kept longer than an hour, which is how a later Optimize reaches them.
+	d.Close()
+	if d, err = sql.Open("sqlite", dsn); err != nil {
+		return nil, err
+	}
+	d.SetConnMaxLifetime(time.Hour)
 	return d, nil
+}
+
+// Optimize refreshes the query planner's statistics where they are missing or
+// a table has changed a lot since, and does nothing otherwise, so it is cheap
+// to call on every sweep. Without statistics SQLite cannot tell a narrow index
+// range from a whole server's prefix of remote_index and may pick the scan.
+// 0x10000: look at every table, not only those this pooled connection touched.
+func Optimize(d *sql.DB) {
+	if _, err := d.Exec(`PRAGMA optimize=0x10002`); err != nil {
+		slog.Warn("db optimize failed", "err", err)
+	}
+}
+
+// compactAt is the share of free pages above which compact rewrites the file.
+const compactAt = 0.2
+
+// compact rewrites the database once a fifth of it is free pages, which is
+// what a big prune or a data reset leaves behind: SQLite reuses free pages but
+// never hands them back, and the live rows stay scattered over the old extent.
+// Only here, before anything else holds the handle: VACUUM keeps the write
+// lock for its whole run, longer than any busy_timeout on a slow disk.
+// Best effort - short of disk space it fails and the file stays as it was.
+func compact(d *sql.DB) {
+	var pages, free int64
+	d.QueryRow(`PRAGMA page_count`).Scan(&pages)
+	d.QueryRow(`PRAGMA freelist_count`).Scan(&free)
+	if pages == 0 || float64(free)/float64(pages) < compactAt {
+		return
+	}
+	if _, err := d.Exec(`VACUUM`); err != nil {
+		slog.Warn("db compact failed", "pages", pages, "free", free, "err", err)
+		return
+	}
+	slog.Info("db compacted", "pages", pages, "freed", free)
 }
 
 // appliedMigrations reads the whole ledger at once. Asking per file instead
