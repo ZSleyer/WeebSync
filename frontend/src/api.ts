@@ -1,71 +1,23 @@
 // Typed fetch helpers for the WeebSync API.
 
-export interface User {
-  id: number
-  email: string
-  isAdmin: boolean
-}
+import type { Schemas } from './api.gen'
 
-export interface UserAccount {
-  id: number
-  email: string
-  isAdmin: boolean
-  createdAt: string
-}
+export type User = Schemas['api.MeResponse']
 
-export interface ServerInfo {
-  id: number
-  name: string
-  protocol: 'sftp' | 'ftps' | 'ftp'
-  host: string
-  port: number
-  username: string
-  rootPath: string
-  maxConnections: number
-  /** picture for the source switch, one of SERVER_ICONS or empty */
-  icon: string
-  /** tint where sources meet, one of SOURCE_COLORS or empty for automatic */
-  color: string
-}
+export type UserAccount = Schemas['api.userInfo']
+
+export type ServerInfo = Schemas['api.serverInfo']
 
 // Which folder a sync creates below the target: none, one named after the
 // remote folder, or one named after the series title.
-export type SubfolderMode = 'none' | 'remote' | 'title'
+export type SubfolderMode = Schemas['api.KindDefaults']['subfolderSource']
 
 // What a new auto-sync starts from, per media kind and shared.
-export interface KindDefaults {
-  localPath: string
-  /** mirrors subfolderSource === 'remote'; kept for older clients */
-  subfolder: boolean
-  subfolderSource: SubfolderMode
-  /** replaces spaces in a title folder; '' keeps them */
-  subfolderSeparator: string
-  template: string
-  separator: string
-}
+export type KindDefaults = Schemas['api.KindDefaults']
 
-export interface WatchDefaults {
-  kinds: Partial<Record<'anime-series' | 'anime-movie' | 'series' | 'movie', KindDefaults>>
-  common: {
-    renameProvider: string
-    renameOrdering: string
-    renameTitleLang: string
-    airedMapping: boolean
-    wantDub: string
-    wantSub: string
-    dubLagDays: number
-    plexAudioLang: string
-    plexSubLang: string
-  }
-}
+export type WatchDefaults = Schemas['api.WatchDefaults']
 
-export interface Entry {
-  name: string
-  path: string
-  size: number
-  isDir: boolean
-  modTime: string
-}
+export type Entry = Schemas['remote.Entry']
 
 // Filesystem failures the backend classifies. Anything it did not recognize
 // arrives as '' and stays a raw error string.
@@ -75,10 +27,7 @@ export const FS_ERROR_CODES: readonly string[] = ['permission_denied', 'disk_ful
 
 // Identity the container writes files as. A "permission denied" on a mounted
 // media directory is only fixable once the user knows which UID to grant.
-export interface ContainerIdentity {
-  uid: number
-  gid: number
-}
+export type ContainerIdentity = Schemas['api.statusContainer']
 
 // The slice of GET /api/status the UI reads. The endpoint is admin-gated, so a
 // non-admin session gets a 403 and the UI has to stay useful without it.
@@ -89,68 +38,15 @@ export interface SystemStatus {
   disks?: DiskUsage[]
 }
 
-export interface DiskUsage {
-  path: string
-  totalBytes: number
-  freeBytes: number
-  usedBytes: number
-  // the other library paths on the same filesystem
-  paths?: string[]
-}
+export type DiskUsage = Schemas['api.statusDisk']
 
 // Background job families, as /api/jobs reports them. Every signed-in user may
 // see THAT work is running; pausing and stopping are admin-only endpoints.
-export interface JobsStatus {
-  running: string[]
-  paused: string[]
-}
+export type JobsStatus = Schemas['api.JobsStatus']
 
-export interface Download {
-  id: number
-  userId: number
-  serverId: number
-  remotePath: string
-  localPath: string
-  size: number
-  transferred: number
-  status: 'queued' | 'running' | 'paused' | 'done' | 'error' | 'canceled'
-  error?: string
-  // classified reason behind `error`, when the backend recognized one. `error`
-  // keeps the raw text; this is what the UI is allowed to branch on.
-  errorCode?: FsErrorCode | string
-  rateLimit: number
-  bytesPerSec?: number
-  // failures behind this row so far, and when the next attempt starts (unix
-  // seconds). A row waiting for its next attempt stays 'queued' and keeps
-  // `error`, so the UI can show the reason next to the countdown.
-  attempts?: number
-  retryAt?: number
-  // start order of the queue: the scheduler takes the lowest first
-  queuePos: number
-  createdAt: string
-}
+export type Download = Schemas['transfer.Download']
 
-export interface Media {
-  id: number
-  title: { romaji: string; english: string; preferred?: string }
-  // color: the poster's dominant colour (AniList), the frame's fill until it loads
-  coverImage: { large: string; extraLarge?: string; color?: string | null }
-  bannerImage: string
-  trailer?: { id: string; site: string; thumbnail: string } | null
-  nextAiringEpisode?: { airingAt: number; episode: number } | null
-  episodes: number
-  seasonYear: number
-  format: string
-  status: string
-  averageScore: number
-  genres: string[]
-  description: string
-  siteUrl?: string
-  popularity?: number // audience size, comparable within one metadata source
-  studios?: string[] // main studios (AniList) or networks/companies (TMDB)
-  startDate?: number // YYYYMMDD, 0/absent = unknown
-  endDate?: number
-}
+export type Media = Schemas['anilist.Media']
 
 // CJK_RE matches Japanese/Chinese native script (kana, CJK ideographs, fullwidth
 // forms) - a title we never want to display raw.
@@ -174,157 +70,31 @@ export function mediaTitle(
   return romaji || english || fallback
 }
 
-export interface CatalogItem {
-  entry: Entry
-  media?: Media
-  source?: string // anilist | tmdb:tv | tmdb:movie
-  pending?: boolean // metadata still resolving in the background
-  kind?: string // 'movie' | 'series' heuristic classification, '' = unknown
-  local?: LocalStat // only in the local catalog: what the folder holds on disk
-}
+export type CatalogItem = Schemas['api.catalogItem']
 
 // LocalStat: contents of a local folder, counted at any depth.
-export interface LocalStat {
-  videos: number
-  files: number
-  bytes: number
-  modTime?: string
-}
+export type LocalStat = Schemas['api.LocalStat']
 
-export interface CatalogResponse {
-  scope: string // '' = anime (AniList), 'manga' = AniList manga, 'tv' | 'movie' = TMDB
-  items: CatalogItem[]
-  // season folders: series of that season not on the server yet (AniList)
-  upcoming?: Media[]
-  // ...and those on air for a while that it still lacks
-  missing?: Media[]
-  // media id -> folder on the same server holding it or its prequel
-  elsewhere?: Record<number, string>
-}
+export type CatalogResponse = Schemas['api.catalogResponse']
 
-export interface Watch {
-  id: number
-  userId: number
-  serverId: number
-  serverName: string
-  remotePath: string
-  localPath: string
-  mode: string
-  template: string
-  separator: string
-  titleOverride: string
-  pattern: string
-  replacement: string
-  subfolder: boolean
-  mediaId: number
-  mediaSource: string
-  fromEpisode: number
-  airedMapping: boolean
-  renameProvider: string
-  renameOrdering: string
-  renameTitleLang: string
-  renameSeriesId: number
-  wantDub: string
-  wantSub: string
-  dubLagDays: number // days the wantDub release trails the original when nothing observed says otherwise; 0 = observed only
-  plexAudioLang: string
-  plexSubLang: string // "" = leave Plex alone, "off" = none, "Ger" = full, "Ger:forced" = forced
-  plexStreamMiss?: string // what the files could not deliver: csv of "audio", "sub"
-  langWaiting: number
-  langWaitingEps?: EpRef[] // which episodes the language filter held back at the last check
-  missing?: EpRef[]
-  seasons?: number[] // seasons the local folder holds, specials left out
-  unsorted?: number // episodes waiting in the collecting folder for the provider
-  offset?: number
-  intervalMin: number
-  lastCheck: string
-  nextCheck: number // unix seconds of the next scheduled check
-  lastResult: string // error text of the last check, '' on success
-  // consecutive failed checks; > 0 means nextCheck is a retry, not the interval
-  checkAttempts?: number
-  lastQueued: number // files queued at the last check, -1 = none yet
-  lastUploading: number
-  lastOwned: number // files left on the remote: the library holds the episode under another name
-  createdAt: string
-  media?: Media
-  localFiles: number
-  active: number
-  complete: boolean
-  nextEpisode?: number
-  nextEpisodeAbs?: number
-  behind?: number
-  seenEpisodes?: number
-  nextAiringAt?: number
-  waiting: boolean
-  airings?: Airing[]
-  category?: 'anime-series' | 'anime-movie' | 'series' | 'movie' | 'manga'
-  // caught up on the dub it filters for: the original is ahead but the dub
-  // is not due yet - expected waiting, not a problem
-  dubWaiting?: boolean
-  dubExpectedAt?: number // forecast unix seconds of the next dub release; missing = no date known
-  dubOverdue?: boolean // the forecast plus a week of grace passed without a release
-  dubNextEpisode?: number // the episode the filtered dub is waited for
-  behindLate?: boolean // more behind than the usual upload lag explains
-  // no dub filter, but the older files carry a dub the newer ones lack
-  dubProgress?: { lang: string; have: number; total: number; next: EpRef; expectedAt?: number }
-  attention?: string[] // why this watch needs a hand, worst first; the backend's one source
-}
+export type Watch = Schemas['api.Watch']
 
 // What a sync did. The counters answer the question a bare "0 queued" leaves
 // open: nothing to do, or something wrong?
-export interface SyncResult {
-  queued: number
-  ids?: number[]
-  skipped?: number // already at the target, same size
-  uploading?: number // still growing on the remote
-  filtered?: number // dropped by the language filter
-}
+export type SyncResult = Schemas['api.DownloadCreateResponse']
 
-export interface Airing {
-  at: number // unix seconds
-  episode: number // local numbering (offset applied)
-  episodeAbs?: number // original absolute number when it differs
-  dub?: string // the dub this slot releases (de, en, ...); missing = the original
-  est?: boolean // projected from the original plus the lag, not a published date
-  have?: boolean // the episode is in the local folder already
-  remoteAt?: number // unix seconds the file reached the server, or should (remoteEst)
-  remoteEst?: boolean // remoteAt is the slot plus the learned upload lag, not a sighting
-}
+export type Airing = Schemas['api.Airing']
 
-export interface ProviderLinks {
-  anilist?: string
-  tmdb?: string
-  tvdb?: string
-  imdb?: string
-  plex?: string
-}
+export type ProviderLinks = Schemas['api.ProviderLinks']
 
 // DownloadGroup is one series folder's metadata, shared by every download from
 // it. Kept out of Download because the SSE stream replaces that object per
 // progress tick and would wipe anything added to it.
-export interface DownloadGroup {
-  serverId: number
-  serverName?: string
-  folder: string
-  title?: string // empty when the folder has no catalog match
-  cover?: string
-  overview?: string
-  providers?: string[]
-  links: ProviderLinks
-  watchId?: number
-}
+export type DownloadGroup = Schemas['api.DownloadGroup']
 
-export interface DownloadItemMeta {
-  g: string // group key
-  season?: number
-  episode?: number
-  title?: string // episode title, only when the provider cache is warm
-}
+export type DownloadItemMeta = Schemas['api.DownloadItemMeta']
 
-export interface DownloadMeta {
-  groups: Record<string, DownloadGroup>
-  items: Record<string, DownloadItemMeta> // by download id
-}
+export type DownloadMeta = Schemas['api.DownloadMetaResponse']
 
 // downloadLabel is what the queue puts on a download: the series and episode
 // title when the metadata knows the folder, the bare file name when it does not.
@@ -344,273 +114,77 @@ export function downloadLabel(d: Download, meta?: DownloadMeta) {
   return { label: [group.title, item.title].filter(Boolean).join(' - '), ep, name, group, item }
 }
 
-export interface SuggestionCandidate {
-  serverId: number
-  serverName: string
-  path: string
-}
+export type SuggestionCandidate = Schemas['api.plexCandidate']
 
 // SuggestionItem is one deduplicated suggestion (a single series regardless of
 // how many providers surfaced it). category ∈ anime-movie|anime-tv|movie|tv.
-export interface SuggestionItem {
-  refKey: string // series:{id} | fold:{key}:{year} — the series-wide ignore key
-  seriesId: number
-  category: string
-  title: string
-  year?: number
-  cover?: string
-  media: Media
-  providers: string[] // anilist | tmdb | tvdb | imdb | plex
-  links: ProviderLinks
-  candidates: SuggestionCandidate[]
-  status?: string // watchlist: CURRENT | PLANNING | COMPLETED
-  showKey?: string // local Plex key (incomplete)
-  season?: number // 0 = movie/base
-  isMovie?: boolean
-  progress?: number
-  have?: number // incomplete: episodes present
-  need?: number // incomplete: episodes through the sequel
-  sequel?: Media
-  plexFolder?: string
-  because?: string[]
-  why?: string // one line from the server, in the user's language: why this is listed // recommended: the finished titles this was derived from
-  library?: string // incomplete: the Plex library this came from, shown on the card
-  sync?: SyncPlan // incomplete: where a one-off sync creates the season/movie folder
-  /** incomplete: season (missing season/movie) | sequel (Plex chain) | episodes (gaps in an owned season) */
-  kind?: 'season' | 'sequel' | 'episodes'
-  /** incomplete/episodes: the numbers a remote copy has and the local season lacks */
-  missing?: number[]
-}
+export type SuggestionItem = Schemas['api.SugItem']
 
 // SyncPlan is the pre-computed local target for a one-off sync of a suggestion:
 // a series season into its Season folder under the show, a movie into its own
 // subfolder. localPath empty = target unresolved (UI hides the button).
-export interface SyncPlan {
-  localPath: string
-  template?: string
-  /** space replacement of the template the plan was named with; "" keeps spaces */
-  separator?: string
-  subfolder: boolean
-  replace?: boolean // upgrade: trash the copy this sync improves on once the new file is in place
-}
+export type SyncPlan = Schemas['api.SyncPlan']
 
 // DuplicateItem is content the library holds twice: the same season/movie in
 // several folders, or one episode under two names in one folder.
-export interface DuplicateItem {
-  refKey: string
-  title: string
-  cover?: string
-  category: string
-  season: number
-  isMovie?: boolean
-  library?: string
-  copies: DuplicateCopy[]
-  why?: string
-  keep?: string // folder of the copy the quality order would keep
-  episodes?: number[] // the episode numbers present twice
-  twice?: DuplicateEpisode[] // dupep: the files behind each doubled episode
-}
+export type DuplicateItem = Schemas['api.DuplicateItem']
 
-export interface DuplicateEpisode {
-  episode: number
-  files: { path: string; bytes: number }[]
-}
+export type DuplicateEpisode = Schemas['api.DuplicateEpisode']
 
-export interface DuplicateCopy extends UpgradeVariant {
-  files: number
-  bytes: number
-}
+export type DuplicateCopy = Schemas['api.DuplicateCopy']
 
-export interface SuggestionsResponse {
-  watchlist: SuggestionItem[]
-  recommended: SuggestionItem[]
-  trending: SuggestionItem[]
-  upgrades: UpgradeSuggestion[]
-  incomplete: SuggestionItem[]
-  building: boolean
-  duplicates?: DuplicateItem[]
-}
+export type SuggestionsResponse = Schemas['api.SuggestionsResponse']
 
-export interface UpgradeVariant {
-  serverId: number
-  serverName?: string // "" = local filesystem
-  folder: string
-  resRank: number // max video height, 0 = unknown
-  dub: string[]
-  sub: string[]
-  // the subset of sub that is a SELECTABLE track (subtitle stream or sidecar
-  // file). A language in sub but not in soft is burned into the picture.
-  soft: string[]
-  // how the languages were established: 0 nothing measured yet, 1 read from the
-  // container, 2 measured and the container would not answer
-  probed: number
-}
+export type UpgradeVariant = Schemas['api.UpgradeVariant']
 
 // One episode as the metadata provider lists it, flagged with whether the
 // watch's local folder holds it. season is the LOCAL one, i.e. what is on disk.
-export interface WatchEpisode {
-  season: number
-  episode: number
-  absolute?: number
-  local?: number // local number, only when a {episode-N} template renumbers it
-  title?: string
-  aired?: string // YYYY-MM-DD
-  have: boolean
-  upcoming?: boolean // dated in the future, so its absence is not a gap
-}
+export type WatchEpisode = Schemas['api.WatchEpisode']
 
 // episodes is never null: without a provider the numbers from the local file
 // names still explain the gap badge, and reason says why the titles are gone.
-export interface WatchEpisodes {
-  provider?: string // tvdb | tmdb
-  seriesId?: number
-  title?: string
-  url?: string
-  reason?: 'no_provider' | 'no_series' | 'provider_error'
-  missing: number
-  episodes: WatchEpisode[]
-}
+export type WatchEpisodes = Schemas['api.WatchEpisodesResponse']
 
 // One season - or the movie - of a show the library already holds. folder is a
 // local directory, or a "plex:" key when the Plex path is not a shared mount.
-export interface LocalSeason {
-  season: number
-  folder: string
-  resRank: number
-  isMovie?: boolean
-}
+export type LocalSeason = Schemas['api.LocalSeason']
 
-export interface UpgradeSuggestion {
-  key: string // dismiss key, form "unit:{showKey}:{season}", films carry a ":m" suffix
-  seriesId?: number
-  showKey: string
-  season: number // 0 = movie/base
-  isMovie?: boolean
-  title: string
-  why?: string // one line from the server: what the better copy adds
-  from: UpgradeVariant // best LOCAL copy (Plex)
-  to: UpgradeVariant // recommended REMOTE copy (best)
-  options: UpgradeVariant[] // ALL remote copies
-  improvesRes: boolean
-  improvesSub: boolean
-  improvesDub: boolean
-  improvesSoft: boolean // same language, but selectable instead of burned in
-  // the sub/dub gain rests on file names because the container would not
-  // answer, so it cannot be confirmed from here
-  languageUnverified?: boolean
-  providers: string[]
-  links: ProviderLinks
-  cover?: string
-  format?: string // MOVIE | TV | ...
-  episodes?: number
-  category: string // anime-movie | anime-tv | movie | tv, for grouping
-  library?: string // the Plex library this copy lives in, shown on the card
-  sync?: SyncPlan // where a one-off sync writes (into the existing local season/movie folder)
-  localSeasons?: LocalSeason[] // every season of this show the library already has
-  /** resolved provider record behind the unit, for the detail view */
-  media?: Media
-}
+export type UpgradeSuggestion = Schemas['api.UpgradeSuggestion']
 
-export interface UpgradeDims {
-  res: boolean
-  sub: boolean
-  dub: boolean
-  soft: boolean
-  /** enabled axes, most important first: decides the recommended copy and the order of the list */
-  order: string[]
-}
+export type UpgradeDims = Schemas['api.UpgradeDims']
 
-export interface DismissedItem {
-  kind: string
-  refKey: string
-  label: string
-  dismissedAt: string
-}
+export type DismissedItem = Schemas['api.DismissedItem']
 
-export interface PlexAccount {
-  linked: boolean
-  user?: string
-}
+export type PlexAccount = Schemas['api.plexAccountResponse']
 
-export interface PlexLinkStart {
-  id: number
-  code: string
-  url: string
-}
+export type PlexLinkStart = Schemas['api.plexLinkResponse']
 
-export interface PlexWatchItem {
-  title: string
-  year: number
-  type: string // show | movie
-  tvdb: number
-  tmdb: number
-}
+export type PlexWatchItem = Schemas['api.PlexWatchItem']
 
-export interface Review {
-  summary: string
-  score: number // reviewer's 0-100 rating
-  rating: number // upvotes (AniList only)
-  user: { name: string; avatar?: { medium: string } }
-}
+export type Review = Schemas['anilist.Review']
 
 // The title card's secondary content, from GET /api/media/extras. Every list
 // is present; a source that has no such thing sends it empty.
-export interface MediaExtras {
-  relations: { relationType: string; node: Media }[]
-  recommendations: Media[]
-  characters: { name: string; image?: string; role?: string; voiceActor?: string }[]
-  links: { site: string; url: string; type?: string; icon?: string; color?: string; language?: string }[]
-  threads: {
-    id: number
-    title: string
-    replies: number
-    views: number
-    repliedAt?: number
-    url: string
-    user?: string
-    category?: string
-  }[]
-}
+export type MediaExtras = Schemas['api.mediaExtrasResponse']
 
 // the display title of a watch: the override, else the record's, else the folder
 /** Which provider record a suggestion's `media` is: anime is AniList, the rest TMDB. */
 /** One item waiting in a trash folder: a video with its sidecars, or a folder. */
-export interface TrashEntry {
-  path: string // the handle for restore and delete
-  name: string
-  dir: string // where it came from
-  isDir: boolean
-  size: number
-  files: number // the video and its sidecars
-  trashedAt: number
-  expiresAt: number
-}
+export type TrashEntry = Schemas['api.TrashEntry']
 
 export const suggestionSource = (s: { category: string; isMovie?: boolean }) =>
   s.category.startsWith('anime') ? 'anilist' : s.isMovie || s.category === 'movie' ? 'tmdb:movie' : 'tmdb:tv'
 
 export const watchTitle = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
 
-export interface SearchResult {
-  results: Entry[]
-  indexed: number
-}
+export type SearchResult = Schemas['api.ServerSearchResponse']
 
-export interface RenamePair {
-  old: string
-  new: string
-  error?: string
-}
+export type RenamePair = Schemas['api.renamePair']
 
 // KeyConflict is the 409 body a dial returns when the server's SSH host key
 // is not trusted yet or has changed: the fingerprints to review and the key
 // that "accept" pins.
-export interface KeyConflict {
-  code: 'host_key_unknown' | 'host_key_mismatch'
-  newKey: string
-  newFingerprint: string
-  oldFingerprint?: string
-}
+export type KeyConflict = Schemas['api.HostKeyConflict']
 
 // keyConflictOf reads a host key conflict off a failed request, null for any
 // other failure.
@@ -663,35 +237,13 @@ export const api = {
 
 // ── assistant ──
 
-export interface AiStatus {
-  configured: boolean
-  model?: string
-  connected?: boolean
-  /** a SearXNG is set, so web search and research can be switched on */
-  webSearch?: boolean
-  error?: string
-}
+export type AiStatus = Schemas['api.aiStatusResponse']
 
-export interface AiModels {
-  models: string[]
-  default: string
-  /** per model: reads pictures (true), does not (false), endpoint does not say (null) */
-  vision?: Record<string, boolean | null>
-  error?: string
-}
+export type AiModels = Schemas['api.aiModelsResponse']
 
-export interface AiChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-  /** data URLs of pictures attached to a user message */
-  images?: string[]
-}
+export type AiChatMessage = Schemas['api.aiChatMessage']
 
-export interface AiChatSummary {
-  id: number
-  title: string
-  updatedAt: string
-}
+export type AiChatSummary = Schemas['api.aiChatSummary']
 
 // AiProposal is a vetted action the assistant suggests; fields prefill the
 // watch dialog, the user confirms there.
@@ -837,10 +389,7 @@ export function langLabel(w: Pick<Watch, 'wantDub' | 'wantSub'>): string {
 }
 
 // One episode with its season.
-export interface EpRef {
-  s: number
-  e: number
-}
+export type EpRef = Schemas['api.EpRef']
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 

@@ -142,21 +142,21 @@ describe('syncOutcome', () => {
     o?.count !== undefined ? `${k}:${o.count}` : ((o?.reasons as string) ?? k)
 
   it('says nothing when files were queued - the queue is the answer', () => {
-    expect(syncOutcome({ queued: 3, skipped: 2 }, t)).toBe('')
+    expect(syncOutcome({ ids: [], queued: 3, skipped: 2 }, t)).toBe('')
   })
 
   it('names the reason when nothing was queued', () => {
-    expect(syncOutcome({ queued: 0, skipped: 12 }, t)).toBe('remote.syncSkipped:12')
+    expect(syncOutcome({ ids: [], queued: 0, skipped: 12 }, t)).toBe('remote.syncSkipped:12')
   })
 
   it('lists every reason that applies', () => {
-    expect(syncOutcome({ queued: 0, skipped: 1, uploading: 2, filtered: 3 }, t)).toBe(
+    expect(syncOutcome({ ids: [], queued: 0, skipped: 1, uploading: 2, filtered: 3 }, t)).toBe(
       'remote.syncSkipped:1, remote.syncUploading:2, remote.syncFiltered:3',
     )
   })
 
   it('falls back to a plain answer when nothing explains it', () => {
-    expect(syncOutcome({ queued: 0 }, t)).toBe('remote.syncNothing')
+    expect(syncOutcome({ ids: [], queued: 0 }, t)).toBe('remote.syncNothing')
   })
 })
 

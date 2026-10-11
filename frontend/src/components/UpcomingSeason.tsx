@@ -82,7 +82,7 @@ export default function UpcomingSeason({
 }: {
   upcoming: Media[]
   missing: Media[]
-  elsewhere: Record<number, string>
+  elsewhere: Partial<Record<number, string>>
   onOpenFolder: (path: string) => void
 }) {
   const { t, i18n } = useTranslation()
@@ -135,7 +135,7 @@ function Section({
   title: string
   hint: string
   rows: { m: Media; e: Expected }[]
-  elsewhere: Record<number, string>
+  elsewhere: Partial<Record<number, string>>
   onOpenFolder: (path: string) => void
 }) {
   const { t } = useTranslation()
