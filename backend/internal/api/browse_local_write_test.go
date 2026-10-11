@@ -100,3 +100,37 @@ func TestDeleteLocal(t *testing.T) {
 		t.Errorf("folder still there after recursive delete")
 	}
 }
+
+// the trash folder beside displaced copies is the trash page's business: the
+// local listing leaves it out, and the catalog's counts do not include it
+func TestBrowseLocalHidesTrash(t *testing.T) {
+	root := t.TempDir()
+	s := &Server{DownloadRoot: root}
+	for _, f := range []string{"Show/e01.mkv", "Show/" + trashDir + "/e01.old.mkv"} {
+		full := filepath.Join(root, f)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := httptest.NewRequest(http.MethodGet, "/api/browse/local?path=Show", nil)
+	w := httptest.NewRecorder()
+	s.handleBrowseLocal(w, r)
+	if w.Code != http.StatusOK || strings.Contains(w.Body.String(), trashDir) || !strings.Contains(w.Body.String(), "e01.mkv") {
+		t.Errorf("listing: %d %s", w.Code, w.Body.String())
+	}
+	entries, err := s.listLocal("/Show")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name == trashDir {
+			t.Errorf("catalog listing shows the trash folder")
+		}
+	}
+	if st := s.localStat(filepath.Join(root, "Show")); st.Videos != 1 || st.Files != 1 {
+		t.Errorf("stat counts the trash: %+v", st)
+	}
+}

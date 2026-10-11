@@ -267,6 +267,9 @@ func (s *Server) handleBrowseLocal(w http.ResponseWriter, r *http.Request) {
 	}
 	entries := make([]remote.Entry, 0, len(items))
 	for _, it := range items {
+		if isTrashDir(it) {
+			continue
+		}
 		info, err := it.Info()
 		var size int64
 		var mod time.Time
@@ -361,6 +364,9 @@ func (s *Server) listLocal(rel string) ([]remote.Entry, error) {
 	}
 	out := make([]remote.Entry, 0, len(items))
 	for _, it := range items {
+		if isTrashDir(it) {
+			continue
+		}
 		p := path.Join("/", rel, it.Name())
 		if len(roots) > 1 {
 			p = path.Join(local.Abs, it.Name())
@@ -414,7 +420,7 @@ func (s *Server) localStat(abs string) LocalStat {
 				return nil // unreadable entry: skip, a partial count still helps
 			}
 			if d.IsDir() {
-				return nil
+				return skipTrash(d) // copies waiting for deletion are not what the folder holds
 			}
 			if seen++; seen > statWalkLimit {
 				return fs.SkipAll
