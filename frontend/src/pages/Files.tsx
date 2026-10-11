@@ -70,7 +70,7 @@ import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
 import { useCatalogView } from '../components/useCatalogView'
 import { FileBrowser, LocalPicker, PathCrumbs, PlayIcon } from '../components/FileBrowser'
-import { firstVideo, isVideo, playHref } from '../components/playLinks'
+import { catalogTitle, firstVideo, isVideo, playHref } from '../components/playLinks'
 import PathInput from '../components/PathInput'
 import PillSelect from '../components/PillSelect'
 import FileIcon from '../components/FileIcon'
@@ -142,30 +142,18 @@ export default function Files() {
   // above says (the same query, so a catalog seen before answers from cache).
   // A file of no known title plays directly.
   const playFile = async (e: Entry) => {
-    const up = (p: string) => p.slice(0, p.lastIndexOf('/'))
-    const folder = up(e.path)
     try {
-      for (const dir of [folder, up(folder)]) {
-        if (!dir || dir === '/') break
-        const list = up(dir).replace(/^\//, '')
-        const cat = await qc.fetchQuery<CatalogResponse>({
-          queryKey: ['catalog', active, list],
-          queryFn: () =>
-            api.get(`/api/servers/${active}/catalog${list ? `?path=${encodeURIComponent('/' + list)}` : ''}`),
-          staleTime: 5 * 60_000,
+      const it = await catalogTitle(qc, active, e.path)
+      if (it) {
+        series.open({
+          source: it.source,
+          id: it.media.id,
+          media: it.media,
+          folders: [{ server: active, path: it.dir }],
+          playPath: e.path,
+          tab: 'episodes',
         })
-        const it = cat.items.find((i) => i.entry.path === dir)
-        if (it?.media) {
-          series.open({
-            source: it.source,
-            id: it.media.id,
-            media: it.media,
-            folders: [{ server: active, path: dir }],
-            playPath: e.path,
-            tab: 'episodes',
-          })
-          return
-        }
+        return
       }
     } catch {
       // no catalog to ask: the file still plays
@@ -850,10 +838,10 @@ export function CatalogGrid({
     setStarting(e.path)
     try {
       const first = await firstVideo(serverId, e.path)
-      if (first) {
-        series.close()
-        goTo(playHref(serverId, first))
-      } else toast({ message: t('player.noVideo') })
+      // no close() first: its delayed step back would pop the player again.
+      // An open card stays in history behind it, so back returns to it.
+      if (first) goTo(playHref(serverId, first))
+      else toast({ message: t('player.noVideo') })
     } catch (err) {
       toast({ message: err instanceof Error ? err.message : t('app.error') })
     } finally {

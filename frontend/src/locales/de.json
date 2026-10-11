@@ -45,6 +45,7 @@
   },
   "palette": {
     "title": "Suchen",
+    "ctrl": "Strg",
     "placeholder": "Seite, Serie, Ordner oder Datei",
     "page": "Seite",
     "recent": "Zuletzt geöffnet",
@@ -463,6 +464,18 @@
     "subtitles": "Untertitel",
     "subOff": "Aus",
     "subError": "Die Untertitel konnten nicht geladen werden.",
+    "about": "Zu dieser Folge",
+    "openTitle": "Titel öffnen",
+    "episodeOf": "Folge {{n}} von {{total}}",
+    "duration": "Dauer",
+    "picture": "Bild",
+    "mode": "Wiedergabe",
+    "mode_direct": "Direkt",
+    "mode_copy": "Umgepackt",
+    "mode_transcode": "Umgewandelt",
+    "burned": "Untertitel eingebrannt",
+    "source": "Quelle",
+    "file": "Datei",
     "transcoding": "Der Browser kann diese Datei nicht direkt abspielen. Der Server wandelt sie beim Abspielen um, Spulen startet die Umwandlung an der neuen Stelle neu."
   },
   "remote": {

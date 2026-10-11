@@ -7,6 +7,7 @@ import { Count, Dialog } from '@weebsync/design-system'
 import { api, mediaTitle, type ServerInfo, type Watch } from '../api'
 import { localColor, serverColor, tint, type SourceColorName } from './sourceColor'
 import { useSeriesModal } from './SeriesModal'
+import { filesLink } from './playLinks'
 import { PANELS, useSettingsGroups } from '../pages/settings/SettingsLayout'
 import { useSuggestionGroups } from '../pages/Suggestions'
 
@@ -47,10 +48,6 @@ interface SearchHit {
   name: string
   isDir: boolean
 }
-
-/** Files at a folder; a jump remounts the page, so it starts from the link. */
-export const filesLink = (serverId: number, path: string) =>
-  `/files?${serverId ? `server=${serverId}` : 'source=local'}&path=${encodeURIComponent(path.replace(/^\//, ''))}`
 
 /**
  * Ctrl+K (Cmd+K) from anywhere, or the search button in the phone's bar: one

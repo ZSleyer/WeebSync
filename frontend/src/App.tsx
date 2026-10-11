@@ -35,6 +35,7 @@ import UpdateToast from './components/UpdateToast'
 import ScrollMemory from './components/ScrollMemory'
 import PageScroll from './components/PageScroll'
 import CommandPalette from './components/CommandPalette'
+import { useBack } from './components/playLinks'
 import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
 import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions, ShellFooter, WIDE_MQ } from './components/PageActions'
@@ -138,6 +139,9 @@ export interface RouteHandle {
   back?: string
   /** the section this screen belongs to, for the document title */
   section?: string
+  /** a screen opened from many places goes back where it came from; `back`
+   *  is then only where a direct link leads */
+  backHistory?: boolean
 }
 const h = (title: string, back?: string, section?: string): RouteHandle => ({ title, back, section })
 const inSettings = (title: string) => h(title, '/settings', 'nav.settings')
@@ -198,7 +202,7 @@ export const router = createBrowserRouter(
       <Route
         path="/play"
         lazy={() => import('./pages/Player').then((m) => ({ Component: m.default }))}
-        handle={h('player.title', '/files', 'nav.files')}
+        handle={{ ...h('player.title', '/files', 'nav.files'), backHistory: true }}
       />
       <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
         <Route index element={<SettingsHub />} />
@@ -316,7 +320,8 @@ function RouteTitle() {
 function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
   const location = useLocation()
-  const { title, back } = useScreen()
+  const { title, back, backHistory } = useScreen()
+  const goBack = useBack(back ?? '/')
   // the header mark lights up while something transfers; same query the
   // sampler keeps alive, so this costs no extra request
   const { data: transferring = false } = useQuery({
@@ -405,7 +410,7 @@ function Shell({ email }: { email: string }) {
         >
           <Search aria-hidden size="1em" className="shrink-0" />
           <span className="flex-1 text-left">{t('palette.title')}</span>
-          <kbd className="font-mono text-ctl-sm">{/Mac|iP/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+          <kbd className="font-mono text-ctl-sm">{`${/Mac|iP/.test(navigator.platform) ? '⌘' : t('palette.ctrl')} + K`}</kbd>
         </button>
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto py-3" aria-label={t('nav.main')}>
@@ -453,7 +458,16 @@ function Shell({ email }: { email: string }) {
     <AppBar
       leading={
         back ? (
-          <Link to={back} aria-label={t('nav.back')} className="t-iconbtn text-t-secondary hover:text-t-primary">
+          <Link
+            to={back}
+            aria-label={t('nav.back')}
+            className="t-iconbtn text-t-secondary hover:text-t-primary"
+            onClick={(e) => {
+              if (!backHistory) return
+              e.preventDefault()
+              goBack()
+            }}
+          >
             <ArrowLeft aria-hidden size="1.25em" />
           </Link>
         ) : (
