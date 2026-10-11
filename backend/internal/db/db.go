@@ -135,12 +135,28 @@ func migrate(d *sql.DB) error {
 		if err != nil {
 			return err
 		}
-		if _, err := d.Exec(string(sqlBytes)); err != nil {
-			return fmt.Errorf("migration %s: %w", name, err)
-		}
-		if _, err := d.Exec(`INSERT INTO schema_migrations (name) VALUES (?)`, name); err != nil {
+		if err := applyMigration(d, name, string(sqlBytes)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// applyMigration runs one file and records it in a single transaction. Run as
+// separate commits, a crash or a failing statement midway left the first
+// statements applied and the file unrecorded: on the next start it ran again,
+// failed on its own "duplicate column", and the app never came up.
+func applyMigration(d *sql.DB, name, body string) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(body); err != nil {
+		return fmt.Errorf("migration %s: %w", name, err)
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_migrations (name) VALUES (?)`, name); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
