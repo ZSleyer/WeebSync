@@ -204,6 +204,12 @@ export const router = createBrowserRouter(
         lazy={() => import('./pages/Player').then((m) => ({ Component: m.default }))}
         handle={{ ...h('player.title', '/files', 'nav.files'), backHistory: true }}
       />
+      {/* lazy as well: the readers and pdf.js only load when a file is opened */}
+      <Route
+        path="/view"
+        lazy={() => import('./pages/Viewer').then((m) => ({ Component: m.default }))}
+        handle={{ ...h('viewer.title', '/files', 'nav.files'), backHistory: true }}
+      />
       <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
         <Route index element={<SettingsHub />} />
         <Route path="general" element={<General />} handle={inSettings('settings.nav.general')} />
