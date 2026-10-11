@@ -2,7 +2,7 @@
 
 Container-based web app for downloading and syncing files and folders from your own S/FTP servers - with a metadata catalog, a download manager with live speed throttling, and a rename engine.
 
-> **Status: stable (2026.10.1).** Releases follow the Home Assistant scheme `YEAR.MONTH.N`: the first release of a month is `.1`, each fix after it counts up (`2026.10.2`), the next month starts over (`2026.11.1`). `:latest` follows the newest release. Use it at your own risk - it is a spare-time project without warranty.
+> **Status: stable (2026.10.1).** Releases follow the Home Assistant scheme `YEAR.MONTH.N`: a month's release is `.0`, each fix after it counts up (`2026.10.1`), the next month starts over (`2026.11.0`). `:latest` follows the newest release. Use it at your own risk - it is a spare-time project without warranty.
 
 Inspired by [BastianGanze/weebsync](https://github.com/BastianGanze/weebsync). This is a full ground-up reimplementation, built with heavy LLM assistance - it shares the idea, not the code.
 
@@ -31,7 +31,7 @@ Runs **behind a TLS reverse proxy** (Traefik/Nginx/Caddy); it does not terminate
 | Tag | When | Use |
 |---|---|---|
 | `ghcr.io/zsleyer/weebsync:latest` | newest release | **recommended** - only moves on a release |
-| `:2026.10.1` / `:2026.10` | each release | pin an exact release / follow a month's line with its fixes |
+| `:2026.10.0` / `:2026.10` | each release | pin an exact release / follow a month's line with its fixes |
 | `:nightly` | daily (03:00 UTC) from green `main` | unreleased changes, moves at most once a day |
 | `:dev` | every push to `main` that passes CI | the same code a few hours earlier |
 | `:nightly-<sha>` / `:dev-<sha>` | with each build | pin an exact build |
