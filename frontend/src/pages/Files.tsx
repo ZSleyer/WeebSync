@@ -1161,6 +1161,7 @@ export function CatalogGrid({
             onChange={setScope}
             options={[
               { value: 'anime', label: t('remote.scopeAnime') },
+              { value: 'manga', label: t('remote.scopeManga') },
               { value: 'tv', label: t('remote.scopeTv') },
               { value: 'movie', label: t('remote.scopeMovie') },
               ...(caps?.tvdbApiKeySet ? [{ value: 'tvdb', label: t('remote.scopeTvdb') }] : []),
@@ -2028,7 +2029,7 @@ function RematchForm({
     const idm =
       q.match(/themoviedb\.org\/(?:tv|movie)\/(\d+)/) ??
       q.match(/thetvdb\.com\/series\/(\d+)/) ??
-      q.match(/anilist\.co\/anime\/(\d+)/) ??
+      q.match(/anilist\.co\/(?:anime|manga)\/(\d+)/) ??
       q.match(/^\s*(\d+)\s*$/)
     try {
       let next: Media[]
@@ -2048,7 +2049,7 @@ function RematchForm({
             ? `/api/tvdb/search?q=${encodeURIComponent(q)}`
             : tmdbKind
               ? `/api/tmdb/search?kind=${tmdbKind}&q=${encodeURIComponent(q)}`
-              : `/api/anilist/search?q=${encodeURIComponent(q)}`,
+              : `/api/anilist/search?q=${encodeURIComponent(q)}${item.source === 'anilist:manga' ? '&type=manga' : ''}`,
         )
       }
       if (mySeq !== seq.current) return // a newer request superseded this one
