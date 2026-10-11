@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -108,42 +107,33 @@ func (s *Server) probeQuality(dir string) (q FolderQuality, ok bool) {
 	if _, err := exec.LookPath("ffprobe"); err != nil {
 		return q, false
 	}
+	var videos, names []string
+	var total, newest int64
+	// the signature comes from the folder cache, so an unchanged folder costs
+	// neither a walk nor the three ffprobe processes
+	files := s.localFiles(dir)
+	for _, f := range files {
+		if transfer.VideoExt[strings.ToLower(filepath.Ext(f.name))] {
+			videos = append(videos, f.sub)
+		}
+		names = append(names, f.name)
+		total += f.size
+		newest = max(newest, f.mtime)
+	}
+	if len(videos) == 0 {
+		return q, false
+	}
+	sig := fmt.Sprintf("%d:%d:%d", len(files), total, newest)
+	if cached, hit := s.probeCacheGet(dir, sig); hit {
+		return cached, true
+	}
 	local, err := s.openLocal(dir)
 	if err != nil {
 		return q, false
 	}
 	defer local.Close()
-	var videos, names []string
-	var files int
-	var total, newest int64
-	fs.WalkDir(local.Root.FS(), filepath.ToSlash(local.Name), func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		if transfer.VideoExt[strings.ToLower(filepath.Ext(p))] {
-			videos = append(videos, p)
-		}
-		names = append(names, d.Name())
-		// the signature is built from the walk that has to happen anyway, so
-		// the cache costs a stat per file and saves three ffprobe processes
-		files++
-		if fi, ferr := d.Info(); ferr == nil {
-			total += fi.Size()
-			if m := fi.ModTime().Unix(); m > newest {
-				newest = m
-			}
-		}
-		return nil
-	})
-	if len(videos) == 0 {
-		return q, false
-	}
-	sig := fmt.Sprintf("%d:%d:%d", files, total, newest)
-	if cached, hit := s.probeCacheGet(dir, sig); hit {
-		return cached, true
-	}
 	q, ok = probeFilesWith(videos, func(ctx context.Context, name string) ([]probeStream, bool) {
-		file, err := local.Root.Open(filepath.FromSlash(name))
+		file, err := local.Root.Open(filepath.Join(local.Name, name))
 		if err != nil {
 			return nil, false
 		}
@@ -463,8 +453,8 @@ func (s *Server) localFilenameQuality(dir string) FolderQuality {
 	q := FolderQuality{}
 	var names []string
 	dub, sub := map[string]bool{}, map[string]bool{}
-	s.walkLocal(dir, func(_ string, d fs.DirEntry) error {
-		name := d.Name()
+	for _, f := range s.localFiles(dir) {
+		name := f.name
 		names = append(names, name)
 		if r := rename.Resolution(name); r > q.ResRank {
 			q.ResRank = r
@@ -476,8 +466,7 @@ func (s *Server) localFilenameQuality(dir string) FolderQuality {
 		for _, c := range rename.Codes(st) {
 			sub[canonCode(c)] = true
 		}
-		return nil
-	})
+	}
 	// a sidecar is readable without ffprobe, so it is the one selectable
 	// subtitle this branch can still establish
 	soft, any := sidecarSubs(names)

@@ -71,8 +71,8 @@ type Server struct {
 	media    mediaJobs
 	fonts    fontIndex
 
-	// the video files of watched folders, between walks (local_videos.go)
-	localVids localVideoCache
+	// the files of local folders between walks, kept current by inotify (local_files.go)
+	localCache localCache
 
 	// follow-ups the user typed while an assistant answer streams, taken up
 	// by the running loop between its rounds (see aiSteer in ai.go)
