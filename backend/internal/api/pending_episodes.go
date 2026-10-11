@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"path"
 	"path/filepath"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/rename"
 )
 
@@ -193,9 +195,17 @@ func (s *Server) filePendingEpisode(downloadID int64, w Watch, from string, seas
 		return
 	}
 	slog.Info("pending episode filed", "from", logSafe(from), "to", logSafe(dst.Abs), "season", season, "episode", ep)
-	// keep the history pointing at the file that exists
-	s.DB.Exec(`UPDATE downloads SET local_path = ? WHERE id = ?`, dst.Abs, downloadID)
-	s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID)
+	// keep the history pointing at the file that exists, and only then let
+	// the entry go - together, or the history lost its file
+	if err := db.Tx(s.DB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`UPDATE downloads SET local_path = ? WHERE id = ?`, dst.Abs, downloadID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID)
+		return err
+	}); err != nil {
+		slog.Warn("pending episode filed but not recorded", "to", logSafe(dst.Abs), "err", err)
+	}
 	// The collecting folder sits inside the watch target, so Plex had already
 	// indexed this file under its old name and the stream pass had already run
 	// on it - successfully, which is why its queue row is gone. The move makes
