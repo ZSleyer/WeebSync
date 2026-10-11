@@ -397,6 +397,9 @@ func (s *Server) handleWatchDefaultsPut(w http.ResponseWriter, r *http.Request) 
 	if !readJSON(w, r, &in) {
 		return
 	}
+	if !validDubLag(w, in.Common.DubLagDays) {
+		return
+	}
 	clean := WatchDefaults{Kinds: map[string]KindDefaults{}, Common: in.Common}
 	for kind, k := range in.Kinds {
 		if !slices.Contains(watchKinds, kind) {
@@ -444,4 +447,14 @@ func (s *Server) handleWatchDefaultsPut(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// validDubLag answers 400 for a dub lag outside the 0-365 days the form
+// offers; a year is already far beyond any real dub.
+func validDubLag(w http.ResponseWriter, days int) bool {
+	if days < 0 || days > 365 {
+		writeErr(w, http.StatusBadRequest, "dubLagDays: must be 0-365")
+		return false
+	}
+	return true
 }
