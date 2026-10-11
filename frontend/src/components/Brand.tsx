@@ -42,8 +42,10 @@ const INK_S = 0.05
 const S_AT = 492.6
 const S_SKEW = -9
 // the part of the W the mark keeps, in the mark's units: everything but the
-// upper right arm, cut along the S's left edge. Opening, the cut keeps its
-// shape and slides off to the right: one clean edge uncovers the arm
+// upper right arm, cut along the S's left edge. Opening, the arm grows back
+// out of its stub: the cut edge (points 4-6) travels up the arm's own
+// direction - 0.19 across per unit up, measured on the glyph - keeping its
+// angle, while the segment before it stays on the arm's inner edge
 const W_CUT = [
   [-50, -50],
   [384, -50],
@@ -55,7 +57,9 @@ const W_CUT = [
   [760, 650],
   [-50, 650],
 ]
-const W_OPEN = W_CUT.map(([x, y]) => [x < 0 ? x : x + 420, y])
+const ARM = 0.19
+const GROW = 430
+const W_OPEN = W_CUT.map(([x, y], i) => (i >= 4 && i <= 6 ? [x + ARM * GROW, y - GROW] : [x, y]))
 const pick = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)]
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
