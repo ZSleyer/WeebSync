@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowDownWideNarrow,
+  BookOpen,
   Check,
   Download,
   Eye,
@@ -70,7 +71,7 @@ import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
 import { useCatalogView } from '../components/useCatalogView'
 import { FileBrowser, LocalPicker, PathCrumbs, PlayIcon } from '../components/FileBrowser'
-import { catalogTitle, firstVideo, isVideo, playHref } from '../components/playLinks'
+import { catalogTitle, firstVideo, isVideo, playHref, viewHref, viewKind } from '../components/playLinks'
 import PathInput from '../components/PathInput'
 import PillSelect from '../components/PillSelect'
 import FileIcon from '../components/FileIcon'
@@ -142,6 +143,11 @@ export default function Files() {
   // above says (the same query, so a catalog seen before answers from cache).
   // A file of no known title plays directly.
   const playFile = async (e: Entry) => {
+    // a book, a song, a document: the viewer, no title card in between
+    if (!isVideo(e.name)) {
+      if (viewKind(e.name)) goTo(viewHref(active, e.path))
+      return
+    }
     try {
       const it = await catalogTitle(qc, active, e.path)
       if (it) {
@@ -604,6 +610,12 @@ export default function Files() {
               {t('player.play')}
             </Button>
           )}
+          {selection && !isVideo(selection.name) && viewKind(selection.name) && (
+            <Button size="sm" onClick={() => playFile(selection)}>
+              <BookOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('viewer.open')}
+            </Button>
+          )}
           {selection && canEdit && (
             <>
               <Button
@@ -733,7 +745,7 @@ function SearchResults({
       )}
       <ul>
         {data?.results.map((e) => {
-          const playable = !e.isDir && isVideo(e.name)
+          const playable = !e.isDir && (isVideo(e.name) || !!viewKind(e.name))
           return (
             <li key={e.path} className="flex items-stretch border-b border-border-subtle/50">
               {playable && <PlayIcon name={e.name} onPlay={() => onPlay(e)} />}
