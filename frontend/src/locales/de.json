@@ -887,6 +887,7 @@
     "volumeFiles_one": "{{count}} Band",
     "volumeFiles_other": "{{count}} Bände",
     "read": "Lesen",
+    "noVolume": "In diesem Ordner liegt noch kein Band zum Lesen",
     "kind": "Art",
     "kindVideo": "Video",
     "kindManga": "Manga",
