@@ -2311,7 +2311,9 @@ li.t-swiperow { border-radius: 0; }
 }
 .t-player-chip--accent { color: var(--color-accent); border-color: currentColor; }
 .t-player-chip--err { color: var(--accent-red); border-color: currentColor; }
-.t-player-chip--button { cursor: pointer; background: transparent; }
+/* a chip that is a button is a target too: 22px line and the border make the
+   24px (WCAG 2.5.8), and the text keeps its ellipsis in the title row */
+.t-player-chip--button { cursor: pointer; background: transparent; line-height: 22px; }
 @media (hover: hover) {
   .t-player-chip--button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
 }
@@ -2433,7 +2435,8 @@ li.t-swiperow { border-radius: 0; }
   min-height: var(--pl-hit);
   justify-content: center;
 }
-.t-player-time { color: rgb(230 235 240 / 0.8); padding-inline: 0.5rem; }
+/* the time is a button (elapsed or remaining): a 24px target like the rest */
+.t-player-time { color: rgb(230 235 240 / 0.8); padding-inline: 0.5rem; min-height: 24px; min-width: 24px; align-items: center; }
 /* volume slides out of the mute button instead of always taking room */
 .t-player-volume { display: inline-flex; align-items: center; }
 .t-player-volume media-volume-range {

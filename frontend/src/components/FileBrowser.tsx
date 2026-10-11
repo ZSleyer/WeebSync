@@ -79,7 +79,7 @@ export function PathCrumbs({
         <span key={i} className="flex items-center">
           <button
             type="button"
-            className="min-h-6 max-w-40 truncate px-1.5 text-accent hover:underline"
+            className="min-h-6 min-w-6 max-w-40 truncate px-1.5 text-accent hover:underline"
             onClick={(e) => {
               e.stopPropagation()
               onNavigate(crumbs.slice(0, i + 1).join('/'))
