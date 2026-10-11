@@ -10,6 +10,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "airingAt",
+                    "episode"
+                ],
                 "type": "object"
             },
             "anilist.Character": {
@@ -27,6 +31,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "name"
+                ],
                 "type": "object"
             },
             "anilist.ExternalLink": {
@@ -50,6 +57,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "site",
+                    "url"
+                ],
                 "type": "object"
             },
             "anilist.Media": {
@@ -66,6 +77,9 @@
                                 "uniqueItems": false
                             }
                         },
+                        "required": [
+                            "nodes"
+                        ],
                         "type": "object"
                     },
                     "averageScore": {
@@ -91,6 +105,9 @@
                                 "type": "string"
                             }
                         },
+                        "required": [
+                            "large"
+                        ],
                         "type": "object"
                     },
                     "description": {
@@ -134,7 +151,14 @@
                                 "type": "integer"
                             }
                         },
-                        "type": "object"
+                        "required": [
+                            "airingAt",
+                            "episode"
+                        ],
+                        "type": [
+                            "object",
+                            "null"
+                        ]
                     },
                     "popularity": {
                         "description": "Popularity is the audience size (AniList: users on their lists, TMDB:\nvote count). Comparable within one source, which is all the catalog\nsorts across: the metadata source is picked per folder.",
@@ -191,6 +215,10 @@
                                 "type": "string"
                             }
                         },
+                        "required": [
+                            "romaji",
+                            "english"
+                        ],
                         "type": "object"
                     },
                     "trailer": {
@@ -206,7 +234,15 @@
                                 "type": "string"
                             }
                         },
-                        "type": "object"
+                        "required": [
+                            "id",
+                            "site",
+                            "thumbnail"
+                        ],
+                        "type": [
+                            "object",
+                            "null"
+                        ]
                     },
                     "type": {
                         "description": "Type is ANIME or MANGA (light novels are MANGA with format NOVEL).\nAniList ids are unique across both, so one id never means two works.",
@@ -217,6 +253,21 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "id",
+                    "title",
+                    "coverImage",
+                    "bannerImage",
+                    "trailer",
+                    "nextAiringEpisode",
+                    "episodes",
+                    "seasonYear",
+                    "format",
+                    "status",
+                    "averageScore",
+                    "genres",
+                    "description"
+                ],
                 "type": "object"
             },
             "anilist.Relation": {
@@ -228,6 +279,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "relationType",
+                    "node"
+                ],
                 "type": "object"
             },
             "anilist.Review": {
@@ -249,15 +304,28 @@
                                         "type": "string"
                                     }
                                 },
+                                "required": [
+                                    "medium"
+                                ],
                                 "type": "object"
                             },
                             "name": {
                                 "type": "string"
                             }
                         },
+                        "required": [
+                            "name",
+                            "avatar"
+                        ],
                         "type": "object"
                     }
                 },
+                "required": [
+                    "summary",
+                    "score",
+                    "rating",
+                    "user"
+                ],
                 "type": "object"
             },
             "anilist.Thread": {
@@ -287,6 +355,13 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "id",
+                    "title",
+                    "replies",
+                    "views",
+                    "url"
+                ],
                 "type": "object"
             },
             "api.Airing": {
@@ -320,6 +395,10 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "at",
+                    "episode"
+                ],
                 "type": "object"
             },
             "api.AuthConfigResponse": {
@@ -347,6 +426,14 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "oidc",
+                    "oidcName",
+                    "registrationOpen",
+                    "authMode",
+                    "setupNeeded",
+                    "oidcEnvLocked"
+                ],
                 "type": "object"
             },
             "api.BulkResponse": {
@@ -355,6 +442,9 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "affected"
+                ],
                 "type": "object"
             },
             "api.CancelResponse": {
@@ -363,6 +453,9 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "canceled"
+                ],
                 "type": "object"
             },
             "api.CommonDefaults": {
@@ -399,6 +492,17 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "renameProvider",
+                    "renameOrdering",
+                    "renameTitleLang",
+                    "airedMapping",
+                    "wantDub",
+                    "wantSub",
+                    "dubLagDays",
+                    "plexAudioLang",
+                    "plexSubLang"
+                ],
                 "type": "object"
             },
             "api.DeleteLocalRequest": {
@@ -411,6 +515,10 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "path",
+                    "recursive"
+                ],
                 "type": "object"
             },
             "api.DismissedItem": {
@@ -428,6 +536,12 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "kind",
+                    "refKey",
+                    "label",
+                    "dismissedAt"
+                ],
                 "type": "object"
             },
             "api.DownloadCreateRequest": {
@@ -447,6 +561,12 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "serverId",
+                    "remotePath",
+                    "localPath",
+                    "flat"
+                ],
                 "type": "object"
             },
             "api.DownloadCreateResponse": {
@@ -474,6 +594,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "queued",
+                    "ids"
+                ],
                 "type": "object"
             },
             "api.DownloadGroup": {
@@ -514,6 +638,11 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "serverId",
+                    "folder",
+                    "links"
+                ],
                 "type": "object"
             },
             "api.DownloadItemMeta": {
@@ -532,6 +661,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "g"
+                ],
                 "type": "object"
             },
             "api.DownloadMetaResponse": {
@@ -551,6 +683,10 @@
                         "type": "object"
                     }
                 },
+                "required": [
+                    "groups",
+                    "items"
+                ],
                 "type": "object"
             },
             "api.DownloadsBulkRequest": {
@@ -567,6 +703,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "action",
+                    "ids"
+                ],
                 "type": "object"
             },
             "api.DownloadsCancelRequest": {
@@ -579,6 +719,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "ids"
+                ],
                 "type": "object"
             },
             "api.DownloadsReorderRequest": {
@@ -592,6 +735,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "ids"
+                ],
                 "type": "object"
             },
             "api.DubProgress": {
@@ -610,13 +756,20 @@
                         "type": "string"
                     },
                     "next": {
-                        "$ref": "#/components/schemas/api.EpRef"
+                        "$ref": "#/components/schemas/api.EpRef",
+                        "description": "first episode after the last dubbed one"
                     },
                     "total": {
                         "description": "local episodes",
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "lang",
+                    "have",
+                    "total",
+                    "next"
+                ],
                 "type": "object"
             },
             "api.DuplicateCopy": {
@@ -638,7 +791,8 @@
                         "type": "string"
                     },
                     "probed": {
-                        "$ref": "#/components/schemas/api.probeState"
+                        "$ref": "#/components/schemas/api.probeState",
+                        "description": "Probed: how the languages above were established - 0 nothing measured yet,\n1 read from the container streams, 2 measuring was attempted and the\ncontainer would not answer. The card shows this so a disputed suggestion\ncan be judged without reading the log."
                     },
                     "resRank": {
                         "type": "integer"
@@ -666,6 +820,17 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "serverId",
+                    "folder",
+                    "resRank",
+                    "dub",
+                    "sub",
+                    "soft",
+                    "probed",
+                    "files",
+                    "bytes"
+                ],
                 "type": "object"
             },
             "api.DuplicateEpisode": {
@@ -681,6 +846,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "episode",
+                    "files"
+                ],
                 "type": "object"
             },
             "api.DuplicateFile": {
@@ -692,6 +861,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "path",
+                    "bytes"
+                ],
                 "type": "object"
             },
             "api.DuplicateItem": {
@@ -750,6 +923,13 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "refKey",
+                    "title",
+                    "category",
+                    "season",
+                    "copies"
+                ],
                 "type": "object"
             },
             "api.DuplicateTrashRequest": {
@@ -759,6 +939,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "path"
+                ],
                 "type": "object"
             },
             "api.EmailPrefsResponse": {
@@ -781,6 +964,11 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "enabled",
+                    "available",
+                    "smtpAvailable"
+                ],
                 "type": "object"
             },
             "api.EmailPrefsUpdateRequest": {
@@ -793,6 +981,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "enabled"
+                ],
                 "type": "object"
             },
             "api.EmailPrefsUpdateResponse": {
@@ -805,6 +996,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "enabled"
+                ],
                 "type": "object"
             },
             "api.EpRef": {
@@ -817,6 +1011,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "s",
+                    "e"
+                ],
                 "type": "object"
             },
             "api.ErrorResponse": {
@@ -825,6 +1023,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "error"
+                ],
                 "type": "object"
             },
             "api.HostKeyConflict": {
@@ -850,6 +1051,12 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "error",
+                    "code",
+                    "newKey",
+                    "newFingerprint"
+                ],
                 "type": "object"
             },
             "api.JobPauseRequest": {
@@ -861,6 +1068,10 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "family",
+                    "paused"
+                ],
                 "type": "object"
             },
             "api.JobStopResponse": {
@@ -874,6 +1085,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "stopped"
+                ],
                 "type": "object"
             },
             "api.JobsStatus": {
@@ -895,6 +1109,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "running",
+                    "paused"
+                ],
                 "type": "object"
             },
             "api.KindDefaults": {
@@ -921,12 +1139,21 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "localPath",
+                    "subfolder",
+                    "subfolderSource",
+                    "subfolderSeparator",
+                    "template",
+                    "separator"
+                ],
                 "type": "object"
             },
             "api.LegacyImportRequest": {
                 "properties": {
                     "config": {
-                        "$ref": "#/components/schemas/api.legacyConfig"
+                        "$ref": "#/components/schemas/api.legacyConfig",
+                        "description": "parsed old weebsync.config.json"
                     },
                     "dryRun": {
                         "description": "true = preview only, no writes",
@@ -941,7 +1168,15 @@
                         "type": "string"
                     },
                     "server": {
-                        "$ref": "#/components/schemas/api.serverInput"
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/api.serverInput"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "server to create (protocol/port/password confirmed by the user)"
                     },
                     "serverId": {
                         "description": "reuse an existing server instead of creating one",
@@ -956,6 +1191,15 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "config",
+                    "dryRun",
+                    "localRoot",
+                    "serverId",
+                    "server",
+                    "intervalMin",
+                    "watches"
+                ],
                 "type": "object"
             },
             "api.LegacyImportResult": {
@@ -977,6 +1221,12 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "serverId",
+                    "imported",
+                    "skipped",
+                    "errors"
+                ],
                 "type": "object"
             },
             "api.LegacyPlan": {
@@ -1010,6 +1260,13 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "server",
+                    "watches",
+                    "intervalMin",
+                    "warnings",
+                    "dropped"
+                ],
                 "type": "object"
             },
             "api.LegacyServerPlan": {
@@ -1036,6 +1293,15 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "name",
+                    "protocol",
+                    "host",
+                    "port",
+                    "username",
+                    "oldPort",
+                    "hasPassword"
+                ],
                 "type": "object"
             },
             "api.LegacyWatchPlan": {
@@ -1083,6 +1349,20 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "id",
+                    "remotePath",
+                    "localPath",
+                    "mode",
+                    "template",
+                    "titleOverride",
+                    "pattern",
+                    "replacement",
+                    "fromEpisode",
+                    "offset",
+                    "warnings",
+                    "error"
+                ],
                 "type": "object"
             },
             "api.LibraryRoots": {
@@ -1099,6 +1379,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "title",
+                    "roots"
+                ],
                 "type": "object"
             },
             "api.LocalSeason": {
@@ -1117,6 +1401,11 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "season",
+                    "folder",
+                    "resRank"
+                ],
                 "type": "object"
             },
             "api.LocalStat": {
@@ -1139,6 +1428,12 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "videos",
+                    "files",
+                    "bytes",
+                    "modTime"
+                ],
                 "type": "object"
             },
             "api.LocaleResponse": {
@@ -1147,6 +1442,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "locale"
+                ],
                 "type": "object"
             },
             "api.LoginResponse": {
@@ -1184,6 +1482,11 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "id",
+                    "email",
+                    "isAdmin"
+                ],
                 "type": "object"
             },
             "api.MkdirLocalRequest": {
@@ -1192,6 +1495,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "path"
+                ],
                 "type": "object"
             },
             "api.NotifyPrefsResponse": {
@@ -1217,6 +1523,12 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "push",
+                    "available",
+                    "pushAvailable",
+                    "freq"
+                ],
                 "type": "object"
             },
             "api.NotifyPrefsUpdateRequest": {
@@ -1232,6 +1544,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "push",
+                    "freq"
+                ],
                 "type": "object"
             },
             "api.OIDCDiscoverResponse": {
@@ -1240,6 +1556,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "issuer"
+                ],
                 "type": "object"
             },
             "api.OkResponse": {
@@ -1249,6 +1568,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "status"
+                ],
                 "type": "object"
             },
             "api.PlayFont": {
@@ -1264,6 +1586,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "index"
+                ],
                 "type": "object"
             },
             "api.PlayInfo": {
@@ -1297,6 +1622,12 @@
                         "$ref": "#/components/schemas/api.PlayVideo"
                     }
                 },
+                "required": [
+                    "duration",
+                    "audio",
+                    "subs",
+                    "fonts"
+                ],
                 "type": "object"
             },
             "api.PlayTrack": {
@@ -1331,6 +1662,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "index",
+                    "codec"
+                ],
                 "type": "object"
             },
             "api.PlayVideo": {
@@ -1351,6 +1686,11 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "codec",
+                    "width",
+                    "height"
+                ],
                 "type": "object"
             },
             "api.PlexShowRef": {
@@ -1372,6 +1712,12 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "ratingKey",
+                    "title",
+                    "year",
+                    "library"
+                ],
                 "type": "object"
             },
             "api.PlexShowResponse": {
@@ -1392,6 +1738,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "source",
+                    "candidates"
+                ],
                 "type": "object"
             },
             "api.PlexWatchItem": {
@@ -1413,6 +1763,13 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "title",
+                    "year",
+                    "type",
+                    "tvdb",
+                    "tmdb"
+                ],
                 "type": "object"
             },
             "api.ProviderLinks": {
@@ -1441,6 +1798,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "key"
+                ],
                 "type": "object"
             },
             "api.RateLimitRequest": {
@@ -1449,6 +1809,9 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "rateLimit"
+                ],
                 "type": "object"
             },
             "api.RateLimitResponse": {
@@ -1457,6 +1820,9 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "rateLimit"
+                ],
                 "type": "object"
             },
             "api.ReaderBook": {
@@ -1479,6 +1845,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "base",
+                    "kind"
+                ],
                 "type": "object"
             },
             "api.RecoveryCodesResponse": {
@@ -1491,6 +1861,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "recoveryCodes"
+                ],
                 "type": "object"
             },
             "api.RegisterResponse": {
@@ -1505,6 +1878,9 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "email"
+                ],
                 "type": "object"
             },
             "api.RenameLocalRequest": {
@@ -1518,6 +1894,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "path",
+                    "name"
+                ],
                 "type": "object"
             },
             "api.SearchHit": {
@@ -1539,6 +1919,12 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "serverId",
+                    "path",
+                    "name",
+                    "isDir"
+                ],
                 "type": "object"
             },
             "api.SearchResponse": {
@@ -1551,6 +1937,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "results"
+                ],
                 "type": "object"
             },
             "api.ServerLanguagesResponse": {
@@ -1570,6 +1959,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "dub",
+                    "sub"
+                ],
                 "type": "object"
             },
             "api.ServerSearchResponse": {
@@ -1585,6 +1978,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "results",
+                    "indexed"
+                ],
                 "type": "object"
             },
             "api.SetupOIDCResponse": {
@@ -1596,6 +1993,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "oidcEnabled"
+                ],
                 "type": "object"
             },
             "api.SpeedHistoryResponse": {
@@ -1613,6 +2013,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "samples",
+                    "end"
+                ],
                 "type": "object"
             },
             "api.StatusResponse": {
@@ -1636,13 +2040,19 @@
                                 "uniqueItems": false
                             }
                         },
+                        "required": [
+                            "count",
+                            "reasons",
+                            "watches"
+                        ],
                         "type": "object"
                     },
                     "container": {
                         "$ref": "#/components/schemas/api.statusContainer"
                     },
                     "disk": {
-                        "$ref": "#/components/schemas/api.statusDisk"
+                        "$ref": "#/components/schemas/api.statusDisk",
+                        "description": "Disk is the download root's filesystem, kept for consumers that read\none value; Disks is every filesystem the library spans, the root first"
                     },
                     "disks": {
                         "items": {
@@ -1674,6 +2084,13 @@
                                 "type": "integer"
                             }
                         },
+                        "required": [
+                            "active",
+                            "queued",
+                            "running",
+                            "totalBytesPerSec",
+                            "etaSeconds"
+                        ],
                         "type": "object"
                     },
                     "jobs": {
@@ -1701,6 +2118,17 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "downloads",
+                    "lastFinished",
+                    "watches",
+                    "attention",
+                    "nextReleases",
+                    "jobs",
+                    "disk",
+                    "disks",
+                    "container"
+                ],
                 "type": "object"
             },
             "api.SubPending": {
@@ -1710,6 +2138,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "status"
+                ],
                 "type": "object"
             },
             "api.SugItem": {
@@ -1791,7 +2222,8 @@
                         "type": "integer"
                     },
                     "sequel": {
-                        "$ref": "#/components/schemas/anilist.Media"
+                        "$ref": "#/components/schemas/anilist.Media",
+                        "description": "incomplete"
                     },
                     "seriesId": {
                         "description": "0 when not bundled yet",
@@ -1806,7 +2238,8 @@
                         "type": "string"
                     },
                     "sync": {
-                        "$ref": "#/components/schemas/api.SyncPlan"
+                        "$ref": "#/components/schemas/api.SyncPlan",
+                        "description": "incomplete (missing unit): where a one-off sync creates the season/movie folder"
                     },
                     "title": {
                         "type": "string"
@@ -1819,6 +2252,16 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "refKey",
+                    "seriesId",
+                    "category",
+                    "title",
+                    "media",
+                    "providers",
+                    "links",
+                    "candidates"
+                ],
                 "type": "object"
             },
             "api.SuggestionsResponse": {
@@ -1870,6 +2313,15 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "watchlist",
+                    "recommended",
+                    "trending",
+                    "upgrades",
+                    "incomplete",
+                    "duplicates",
+                    "building"
+                ],
                 "type": "object"
             },
             "api.SyncPlan": {
@@ -1896,6 +2348,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "localPath",
+                    "subfolder"
+                ],
                 "type": "object"
             },
             "api.TotpSetupResponse": {
@@ -1910,6 +2366,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "secret",
+                    "otpauthUrl"
+                ],
                 "type": "object"
             },
             "api.TrashEntry": {
@@ -1947,6 +2407,16 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "path",
+                    "name",
+                    "dir",
+                    "isDir",
+                    "size",
+                    "files",
+                    "trashedAt",
+                    "expiresAt"
+                ],
                 "type": "object"
             },
             "api.TrashRequest": {
@@ -1955,6 +2425,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "path"
+                ],
                 "type": "object"
             },
             "api.TrustHostKeyInput": {
@@ -1964,6 +2437,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "key"
+                ],
                 "type": "object"
             },
             "api.TwoFactorStatusResponse": {
@@ -1972,6 +2448,9 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "enabled"
+                ],
                 "type": "object"
             },
             "api.UpgradeDims": {
@@ -1998,6 +2477,13 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "res",
+                    "sub",
+                    "dub",
+                    "soft",
+                    "order"
+                ],
                 "type": "object"
             },
             "api.UpgradeSuggestion": {
@@ -2017,7 +2503,8 @@
                         "type": "string"
                     },
                     "from": {
-                        "$ref": "#/components/schemas/api.UpgradeVariant"
+                        "$ref": "#/components/schemas/api.UpgradeVariant",
+                        "description": "best LOCAL copy"
                     },
                     "improvesDub": {
                         "type": "boolean"
@@ -2059,7 +2546,8 @@
                         "uniqueItems": false
                     },
                     "media": {
-                        "$ref": "#/components/schemas/anilist.Media"
+                        "$ref": "#/components/schemas/anilist.Media",
+                        "description": "Media is the resolved provider record behind the unit, for a detail view"
                     },
                     "options": {
                         "description": "all remote copies",
@@ -2086,19 +2574,38 @@
                         "type": "string"
                     },
                     "sync": {
-                        "$ref": "#/components/schemas/api.SyncPlan"
+                        "$ref": "#/components/schemas/api.SyncPlan",
+                        "description": "where a one-off sync writes (into the existing local season/movie folder)"
                     },
                     "title": {
                         "type": "string"
                     },
                     "to": {
-                        "$ref": "#/components/schemas/api.UpgradeVariant"
+                        "$ref": "#/components/schemas/api.UpgradeVariant",
+                        "description": "recommended remote copy"
                     },
                     "why": {
                         "description": "one line, in the user's language: what the better copy adds",
                         "type": "string"
                     }
                 },
+                "required": [
+                    "key",
+                    "showKey",
+                    "season",
+                    "title",
+                    "from",
+                    "to",
+                    "options",
+                    "improvesRes",
+                    "improvesSub",
+                    "improvesDub",
+                    "improvesSoft",
+                    "providers",
+                    "links",
+                    "category",
+                    "sync"
+                ],
                 "type": "object"
             },
             "api.UpgradeVariant": {
@@ -2115,7 +2622,8 @@
                         "type": "string"
                     },
                     "probed": {
-                        "$ref": "#/components/schemas/api.probeState"
+                        "$ref": "#/components/schemas/api.probeState",
+                        "description": "Probed: how the languages above were established - 0 nothing measured yet,\n1 read from the container streams, 2 measuring was attempted and the\ncontainer would not answer. The card shows this so a disputed suggestion\ncan be judged without reading the log."
                     },
                     "resRank": {
                         "type": "integer"
@@ -2143,6 +2651,15 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "serverId",
+                    "folder",
+                    "resRank",
+                    "dub",
+                    "sub",
+                    "soft",
+                    "probed"
+                ],
                 "type": "object"
             },
             "api.Watch": {
@@ -2211,7 +2728,8 @@
                         "type": "boolean"
                     },
                     "dubProgress": {
-                        "$ref": "#/components/schemas/api.DubProgress"
+                        "$ref": "#/components/schemas/api.DubProgress",
+                        "description": "DubProgress: a dub the older files carry and the newer ones lack, on a\nwatch without a dub filter; nil when there is none."
                     },
                     "dubWaiting": {
                         "description": "DubWaiting: the watch is caught up on the dub it filters for; the\noriginal is ahead but the dub is not due yet - expected waiting, not\nsomething to look at.",
@@ -2266,7 +2784,8 @@
                         "type": "string"
                     },
                     "media": {
-                        "$ref": "#/components/schemas/anilist.Media"
+                        "$ref": "#/components/schemas/anilist.Media",
+                        "description": "enriched for the overview"
                     },
                     "mediaId": {
                         "description": "linked AniList/TMDB id → metadata (cover, episodes, airing); 0 = auto/none",
@@ -2400,6 +2919,47 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "id",
+                    "userId",
+                    "serverId",
+                    "serverName",
+                    "remotePath",
+                    "localPath",
+                    "mode",
+                    "template",
+                    "separator",
+                    "titleOverride",
+                    "pattern",
+                    "replacement",
+                    "subfolder",
+                    "mediaId",
+                    "mediaSource",
+                    "fromEpisode",
+                    "airedMapping",
+                    "renameProvider",
+                    "renameOrdering",
+                    "renameTitleLang",
+                    "renameSeriesId",
+                    "wantDub",
+                    "wantSub",
+                    "dubLagDays",
+                    "plexAudioLang",
+                    "plexSubLang",
+                    "intervalMin",
+                    "lastCheck",
+                    "nextCheck",
+                    "lastResult",
+                    "lastQueued",
+                    "lastUploading",
+                    "langWaiting",
+                    "lastOwned",
+                    "createdAt",
+                    "localFiles",
+                    "active",
+                    "complete",
+                    "waiting"
+                ],
                 "type": "object"
             },
             "api.WatchCheckResponse": {
@@ -2409,6 +2969,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "status"
+                ],
                 "type": "object"
             },
             "api.WatchCreateResponse": {
@@ -2417,6 +2980,9 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "id"
+                ],
                 "type": "object"
             },
             "api.WatchDefaults": {
@@ -2431,6 +2997,10 @@
                         "type": "object"
                     }
                 },
+                "required": [
+                    "kinds",
+                    "common"
+                ],
                 "type": "object"
             },
             "api.WatchDefaultsResponse": {
@@ -2465,6 +3035,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "kinds",
+                    "common"
+                ],
                 "type": "object"
             },
             "api.WatchEpisode": {
@@ -2500,6 +3074,11 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "season",
+                    "episode",
+                    "have"
+                ],
                 "type": "object"
             },
             "api.WatchEpisodesResponse": {
@@ -2534,6 +3113,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "missing",
+                    "episodes"
+                ],
                 "type": "object"
             },
             "api.WebAuthnBeginResponse": {
@@ -2543,6 +3126,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "sessionId",
+                    "publicKey"
+                ],
                 "type": "object"
             },
             "api.WebAuthnCredential": {
@@ -2563,6 +3150,13 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "id",
+                    "name",
+                    "passwordless",
+                    "createdAt",
+                    "lastUsed"
+                ],
                 "type": "object"
             },
             "api.WebFont": {
@@ -2577,6 +3171,11 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "family",
+                    "regular",
+                    "bold"
+                ],
                 "type": "object"
             },
             "api.WriteCheckError": {
@@ -2593,6 +3192,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "error"
+                ],
                 "type": "object"
             },
             "api.adminAnilistInfo": {
@@ -2601,6 +3203,9 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "accounts"
+                ],
                 "type": "object"
             },
             "api.adminCacheEntriesResponse": {
@@ -2616,6 +3221,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "total",
+                    "entries"
+                ],
                 "type": "object"
             },
             "api.adminCacheEntry": {
@@ -2633,6 +3242,12 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "key",
+                    "fetchedAt",
+                    "stale",
+                    "bytes"
+                ],
                 "type": "object"
             },
             "api.adminDataResponse": {
@@ -2645,6 +3260,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "stores"
+                ],
                 "type": "object"
             },
             "api.adminDataStore": {
@@ -2710,6 +3328,22 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "name",
+                    "kind",
+                    "tables",
+                    "rows",
+                    "bytes",
+                    "oldest",
+                    "newest",
+                    "ttlSec",
+                    "stale",
+                    "pruneSec",
+                    "prunable",
+                    "rebuild",
+                    "needs",
+                    "keptOnReset"
+                ],
                 "type": "object"
             },
             "api.adminIndexInfo": {
@@ -2728,6 +3362,11 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "tickSec",
+                    "recheckSec",
+                    "servers"
+                ],
                 "type": "object"
             },
             "api.adminIndexServer": {
@@ -2760,6 +3399,16 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "id",
+                    "name",
+                    "rows",
+                    "dirs",
+                    "pendingDirs",
+                    "stalestListedAt",
+                    "intervalMin",
+                    "batch"
+                ],
                 "type": "object"
             },
             "api.adminJobsResponse": {
@@ -2801,6 +3450,17 @@
                         "$ref": "#/components/schemas/api.adminWatchInfo"
                     }
                 },
+                "required": [
+                    "running",
+                    "matchQueue",
+                    "ttl",
+                    "plex",
+                    "anilist",
+                    "index",
+                    "watch",
+                    "matches",
+                    "logLevel"
+                ],
                 "type": "object"
             },
             "api.adminMatchEntry": {
@@ -2822,6 +3482,13 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "folder",
+                    "mediaId",
+                    "manual",
+                    "source",
+                    "title"
+                ],
                 "type": "object"
             },
             "api.adminMatchStat": {
@@ -2849,6 +3516,15 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "serverId",
+                    "name",
+                    "source",
+                    "total",
+                    "matched",
+                    "unmatched",
+                    "manual"
+                ],
                 "type": "object"
             },
             "api.adminMatchesResponse": {
@@ -2864,6 +3540,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "total",
+                    "entries"
+                ],
                 "type": "object"
             },
             "api.adminPlexInfo": {
@@ -2878,6 +3558,11 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "configured",
+                    "suggestionsAt",
+                    "ttlSec"
+                ],
                 "type": "object"
             },
             "api.adminTTLInfo": {
@@ -2892,6 +3577,11 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "anilistH",
+                    "tmdbH",
+                    "plexH"
+                ],
                 "type": "object"
             },
             "api.adminWatchInfo": {
@@ -2903,6 +3593,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "intervalMin",
+                    "count"
+                ],
                 "type": "object"
             },
             "api.aiChatBody": {
@@ -2919,6 +3613,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "title",
+                    "turns"
+                ],
                 "type": "object"
             },
             "api.aiChatCreated": {
@@ -2927,6 +3625,9 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "id"
+                ],
                 "type": "object"
             },
             "api.aiChatFull": {
@@ -2949,6 +3650,12 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "id",
+                    "title",
+                    "updatedAt",
+                    "turns"
+                ],
                 "type": "object"
             },
             "api.aiChatMessage": {
@@ -2969,6 +3676,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "role",
+                    "content"
+                ],
                 "type": "object"
             },
             "api.aiChatRequest": {
@@ -2999,6 +3710,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "messages"
+                ],
                 "type": "object"
             },
             "api.aiChatSummary": {
@@ -3013,6 +3727,11 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "id",
+                    "title",
+                    "updatedAt"
+                ],
                 "type": "object"
             },
             "api.aiModelsResponse": {
@@ -3032,12 +3751,20 @@
                     },
                     "vision": {
                         "additionalProperties": {
-                            "type": "boolean"
+                            "type": [
+                                "boolean",
+                                "null"
+                            ]
                         },
                         "description": "Vision per model: true, false, or null when the endpoint does not say",
                         "type": "object"
                     }
                 },
+                "required": [
+                    "models",
+                    "default",
+                    "vision"
+                ],
                 "type": "object"
             },
             "api.aiStatusResponse": {
@@ -3059,6 +3786,9 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "configured"
+                ],
                 "type": "object"
             },
             "api.aiSteerRequest": {
@@ -3067,6 +3797,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "text"
+                ],
                 "type": "object"
             },
             "api.aiSteerResponse": {
@@ -3075,6 +3808,9 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "queued"
+                ],
                 "type": "object"
             },
             "api.aiWatchFields": {
@@ -3161,6 +3897,29 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "remotePath",
+                    "localPath",
+                    "mode",
+                    "template",
+                    "separator",
+                    "titleOverride",
+                    "pattern",
+                    "replacement",
+                    "subfolder",
+                    "mediaId",
+                    "mediaSource",
+                    "fromEpisode",
+                    "airedMapping",
+                    "renameProvider",
+                    "renameOrdering",
+                    "renameTitleLang",
+                    "renameSeriesId",
+                    "wantDub",
+                    "wantSub",
+                    "plexAudioLang",
+                    "plexSubLang"
+                ],
                 "type": "object"
             },
             "api.anilistMeResponse": {
@@ -3186,6 +3945,11 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "configured",
+                    "clientId",
+                    "connected"
+                ],
                 "type": "object"
             },
             "api.anilistProgressRequest": {
@@ -3197,6 +3961,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "mediaId",
+                    "progress"
+                ],
                 "type": "object"
             },
             "api.anilistSuggestion": {
@@ -3223,6 +3991,12 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "status",
+                    "progress",
+                    "media",
+                    "candidates"
+                ],
                 "type": "object"
             },
             "api.anilistSuggestionsResponse": {
@@ -3249,6 +4023,12 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "connected",
+                    "building",
+                    "suggestions",
+                    "trending"
+                ],
                 "type": "object"
             },
             "api.anilistTokenRequest": {
@@ -3257,6 +4037,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "token"
+                ],
                 "type": "object"
             },
             "api.anilistTokenResponse": {
@@ -3269,6 +4052,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "status",
+                    "name"
+                ],
                 "type": "object"
             },
             "api.animescheduleMeResponse": {
@@ -3283,6 +4070,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "configured",
+                    "connected"
+                ],
                 "type": "object"
             },
             "api.catalogItem": {
@@ -3295,7 +4086,8 @@
                         "type": "string"
                     },
                     "local": {
-                        "$ref": "#/components/schemas/api.LocalStat"
+                        "$ref": "#/components/schemas/api.LocalStat",
+                        "description": "Local: what the folder holds on disk. Only set for the local catalog,\nwhere the question is \"what do I have\", not \"what can I fetch\"."
                     },
                     "media": {
                         "$ref": "#/components/schemas/anilist.Media"
@@ -3309,6 +4101,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "entry"
+                ],
                 "type": "object"
             },
             "api.catalogMatchRequest": {
@@ -3321,6 +4116,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "folder",
+                    "mediaId"
+                ],
                 "type": "object"
             },
             "api.catalogResponse": {
@@ -3360,6 +4159,10 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "scope",
+                    "items"
+                ],
                 "type": "object"
             },
             "api.credentials": {
@@ -3375,6 +4178,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "email",
+                    "password"
+                ],
                 "type": "object"
             },
             "api.dataResetRequest": {
@@ -3385,9 +4192,16 @@
                     },
                     "requeue": {
                         "description": "Requeue re-runs the automatic match on every server afterwards.\nAbsent means true - a reset that leaves the catalog empty is not useful.",
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     }
                 },
+                "required": [
+                    "includeDecisions",
+                    "requeue"
+                ],
                 "type": "object"
             },
             "api.dataResetResponse": {
@@ -3412,6 +4226,11 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "deleted",
+                    "kept",
+                    "queued"
+                ],
                 "type": "object"
             },
             "api.deletedResponse": {
@@ -3420,6 +4239,9 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "deleted"
+                ],
                 "type": "object"
             },
             "api.dismissRequest": {
@@ -3437,6 +4259,11 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "kind",
+                    "refKey",
+                    "label"
+                ],
                 "type": "object"
             },
             "api.ipStatus": {
@@ -3453,6 +4280,11 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "ip",
+                    "blocked",
+                    "tokens"
+                ],
                 "type": "object"
             },
             "api.jobStartedResponse": {
@@ -3462,16 +4294,25 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "status"
+                ],
                 "type": "object"
             },
             "api.legacyConfig": {
                 "description": "parsed old weebsync.config.json",
                 "properties": {
                     "autoSyncIntervalInMinutes": {
-                        "type": "integer"
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
                     },
                     "debugFileNames": {
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     },
                     "server": {
                         "properties": {
@@ -3488,10 +4329,19 @@
                                 "type": "string"
                             }
                         },
+                        "required": [
+                            "host",
+                            "port",
+                            "user",
+                            "password"
+                        ],
                         "type": "object"
                     },
                     "startAsTray": {
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     },
                     "syncMaps": {
                         "items": {
@@ -3501,9 +4351,20 @@
                         "uniqueItems": false
                     },
                     "syncOnStart": {
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     }
                 },
+                "required": [
+                    "syncOnStart",
+                    "autoSyncIntervalInMinutes",
+                    "debugFileNames",
+                    "startAsTray",
+                    "server",
+                    "syncMaps"
+                ],
                 "type": "object"
             },
             "api.legacySyncMap": {
@@ -3525,9 +4386,20 @@
                     },
                     "rename": {
                         "description": "absent in old files, then derived",
-                        "type": "boolean"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     }
                 },
+                "required": [
+                    "id",
+                    "originFolder",
+                    "destinationFolder",
+                    "fileRegex",
+                    "fileRenameTemplate",
+                    "rename"
+                ],
                 "type": "object"
             },
             "api.logLevelRequest": {
@@ -3537,6 +4409,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "level"
+                ],
                 "type": "object"
             },
             "api.mediaExtrasResponse": {
@@ -3577,6 +4452,13 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "relations",
+                    "recommendations",
+                    "characters",
+                    "links",
+                    "threads"
+                ],
                 "type": "object"
             },
             "api.plexAccountResponse": {
@@ -3588,6 +4470,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "linked"
+                ],
                 "type": "object"
             },
             "api.plexCandidate": {
@@ -3602,6 +4487,11 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "serverId",
+                    "serverName",
+                    "path"
+                ],
                 "type": "object"
             },
             "api.plexLinkResponse": {
@@ -3617,6 +4507,11 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "id",
+                    "code",
+                    "url"
+                ],
                 "type": "object"
             },
             "api.plexMeResponse": {
@@ -3642,6 +4537,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "configured",
+                    "connected"
+                ],
                 "type": "object"
             },
             "api.plexShowLinkRequest": {
@@ -3651,6 +4550,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "ratingKey"
+                ],
                 "type": "object"
             },
             "api.plexSuggestion": {
@@ -3703,6 +4605,16 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "showTitle",
+                    "year",
+                    "leafCount",
+                    "folder",
+                    "library",
+                    "sequel",
+                    "chainNeed",
+                    "candidates"
+                ],
                 "type": "object"
             },
             "api.plexSuggestionsResponse": {
@@ -3722,6 +4634,11 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "configured",
+                    "building",
+                    "suggestions"
+                ],
                 "type": "object"
             },
             "api.probeState": {
@@ -3757,9 +4674,17 @@
                                 "type": "string"
                             }
                         },
+                        "required": [
+                            "p256dh",
+                            "auth"
+                        ],
                         "type": "object"
                     }
                 },
+                "required": [
+                    "endpoint",
+                    "keys"
+                ],
                 "type": "object"
             },
             "api.rematchRequest": {
@@ -3771,6 +4696,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "path",
+                    "all"
+                ],
                 "type": "object"
             },
             "api.rematchResponse": {
@@ -3779,6 +4708,9 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "queued"
+                ],
                 "type": "object"
             },
             "api.renamePair": {
@@ -3793,6 +4725,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "old",
+                    "new"
+                ],
                 "type": "object"
             },
             "api.renameProfileResponse": {
@@ -3857,6 +4793,21 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "detected",
+                    "provider",
+                    "ordering",
+                    "language",
+                    "showTitle",
+                    "seriesProvider",
+                    "seriesId",
+                    "seriesTitle",
+                    "seriesOriginal",
+                    "seriesUrl",
+                    "seriesCover",
+                    "seriesOverview",
+                    "ambiguous"
+                ],
                 "type": "object"
             },
             "api.reviewsResponse": {
@@ -3869,6 +4820,9 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "reviews"
+                ],
                 "type": "object"
             },
             "api.scopeRequest": {
@@ -3881,6 +4835,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "path",
+                    "kind"
+                ],
                 "type": "object"
             },
             "api.scopeResponse": {
@@ -3890,6 +4848,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "scope"
+                ],
                 "type": "object"
             },
             "api.seriesCandidate": {
@@ -3904,6 +4865,11 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "id",
+                    "title",
+                    "year"
+                ],
                 "type": "object"
             },
             "api.serverInfo": {
@@ -3941,6 +4907,18 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "id",
+                    "name",
+                    "protocol",
+                    "host",
+                    "port",
+                    "username",
+                    "rootPath",
+                    "maxConnections",
+                    "icon",
+                    "color"
+                ],
                 "type": "object"
             },
             "api.serverInput": {
@@ -3978,6 +4956,18 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "name",
+                    "protocol",
+                    "host",
+                    "port",
+                    "username",
+                    "password",
+                    "rootPath",
+                    "maxConnections",
+                    "icon",
+                    "color"
+                ],
                 "type": "object"
             },
             "api.settingsPayload": {
@@ -4223,6 +5213,60 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "baseUrl",
+                    "maxConcurrent",
+                    "globalRateLimit",
+                    "watchIntervalMin",
+                    "registrationDisabled",
+                    "trustedNetworks",
+                    "trustedProxies",
+                    "forceHttps",
+                    "authMode",
+                    "anilistClientId",
+                    "anilistSecretSet",
+                    "anilistRedirectUrl",
+                    "tmdbApiKeySet",
+                    "tvdbApiKeySet",
+                    "animescheduleTokenSet",
+                    "aiBaseUrl",
+                    "aiModel",
+                    "aiApiKeySet",
+                    "aiSearchUrl",
+                    "haWebhookUrl",
+                    "plexUrl",
+                    "plexTokenSet",
+                    "plexSections",
+                    "plexSectionSources",
+                    "plexSectionAnime",
+                    "plexRoots",
+                    "plexLibRoots",
+                    "plexLibraries",
+                    "plexSkipOwned",
+                    "arrKeySet",
+                    "arrCompleteDir",
+                    "arrRoots",
+                    "oidcProviderName",
+                    "oidcIssuer",
+                    "oidcClientId",
+                    "oidcRedirectUrl",
+                    "oidcClientSecretSet",
+                    "oidcClaim",
+                    "oidcAdminValues",
+                    "oidcUserValues",
+                    "oidcEnabled",
+                    "smtpHost",
+                    "smtpPort",
+                    "smtpUsername",
+                    "smtpFrom",
+                    "smtpSecurity",
+                    "smtpPasswordSet",
+                    "apiTokenSet",
+                    "downloadRoots",
+                    "downloadsEnvSet",
+                    "onboardingDone",
+                    "envLocked"
+                ],
                 "type": "object"
             },
             "api.statusAttention": {
@@ -4241,6 +5285,11 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "id",
+                    "name",
+                    "reasons"
+                ],
                 "type": "object"
             },
             "api.statusContainer": {
@@ -4252,6 +5301,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "uid",
+                    "gid"
+                ],
                 "type": "object"
             },
             "api.statusDisk": {
@@ -4278,6 +5331,12 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "path",
+                    "totalBytes",
+                    "freeBytes",
+                    "usedBytes"
+                ],
                 "type": "object"
             },
             "api.statusFinished": {
@@ -4302,6 +5361,12 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "id",
+                    "name",
+                    "status",
+                    "finishedAt"
+                ],
                 "type": "object"
             },
             "api.statusRelease": {
@@ -4322,6 +5387,11 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "at",
+                    "name",
+                    "episode"
+                ],
                 "type": "object"
             },
             "api.statusRunning": {
@@ -4348,6 +5418,15 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "id",
+                    "name",
+                    "status",
+                    "size",
+                    "transferred",
+                    "bytesPerSec",
+                    "progress"
+                ],
                 "type": "object"
             },
             "api.statusWatch": {
@@ -4365,6 +5444,12 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "id",
+                    "name",
+                    "lastCheck",
+                    "lastResult"
+                ],
                 "type": "object"
             },
             "api.tmdbMeResponse": {
@@ -4388,6 +5473,11 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "configured",
+                    "keyValid",
+                    "connected"
+                ],
                 "type": "object"
             },
             "api.tmdbSuggestion": {
@@ -4410,6 +5500,11 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "media",
+                    "source",
+                    "candidates"
+                ],
                 "type": "object"
             },
             "api.tmdbSuggestionsResponse": {
@@ -4437,6 +5532,12 @@
                         "uniqueItems": false
                     }
                 },
+                "required": [
+                    "configured",
+                    "connected",
+                    "watchlist",
+                    "trending"
+                ],
                 "type": "object"
             },
             "api.tokenResponse": {
@@ -4445,6 +5546,9 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "token"
+                ],
                 "type": "object"
             },
             "api.tvdbMeResponse": {
@@ -4459,6 +5563,10 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "configured",
+                    "connected"
+                ],
                 "type": "object"
             },
             "api.updateCheckResponse": {
@@ -4467,6 +5575,9 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "updateCheck"
+                ],
                 "type": "object"
             },
             "api.userCreatedResponse": {
@@ -4478,6 +5589,10 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "id",
+                    "email"
+                ],
                 "type": "object"
             },
             "api.userInfo": {
@@ -4495,6 +5610,12 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "id",
+                    "email",
+                    "isAdmin",
+                    "createdAt"
+                ],
                 "type": "object"
             },
             "api.userUpdatedResponse": {
@@ -4506,6 +5627,10 @@
                         "type": "boolean"
                     }
                 },
+                "required": [
+                    "id",
+                    "isAdmin"
+                ],
                 "type": "object"
             },
             "api.versionInfo": {
@@ -4540,6 +5665,16 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "version",
+                    "channel",
+                    "commit",
+                    "repo",
+                    "updateCheck",
+                    "updateAvailable",
+                    "latest",
+                    "url"
+                ],
                 "type": "object"
             },
             "plex.Section": {
@@ -4567,6 +5702,14 @@
                         "type": "string"
                     }
                 },
+                "required": [
+                    "key",
+                    "type",
+                    "title",
+                    "agent",
+                    "provider",
+                    "ordering"
+                ],
                 "type": "object"
             },
             "remote.Entry": {
@@ -4587,6 +5730,13 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "name",
+                    "path",
+                    "size",
+                    "isDir",
+                    "modTime"
+                ],
                 "type": "object"
             },
             "transfer.Download": {
@@ -4647,31 +5797,45 @@
                         "type": "integer"
                     }
                 },
+                "required": [
+                    "id",
+                    "userId",
+                    "serverId",
+                    "remotePath",
+                    "localPath",
+                    "size",
+                    "transferred",
+                    "status",
+                    "rateLimit",
+                    "queuePos",
+                    "createdAt"
+                ],
                 "type": "object"
             }
         },
         "securitySchemes": {
-            "CookieAuth": {
+            "BearerAuth": {
                 "in": "header",
                 "name": "Authorization",
                 "type": "apiKey"
             },
-            "BearerAuth": {
-                "type": "apiKey",
+            "CookieAuth": {
                 "in": "header",
-                "name": "Authorization"
+                "name": "Authorization",
+                "type": "apiKey"
             }
         }
+    },
+    "externalDocs": {
+        "description": "",
+        "url": ""
     },
     "info": {
         "description": "Self-hosted S/FTP anime and media sync: servers, catalog, downloads, watches, suggestions and auth. The interactive docs are served only by local dev builds.",
         "title": "WeebSync API",
         "version": "1.0"
     },
-    "externalDocs": {
-        "description": "",
-        "url": ""
-    },
+    "openapi": "3.1.0",
     "paths": {
         "/api/admin/cache/{scope}/entries": {
             "delete": {
@@ -4937,8 +6101,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.dataResetRequest",
-                                        "summary": "request",
-                                        "description": "reset options"
+                                        "description": "reset options",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -5326,8 +6490,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.JobPauseRequest",
-                                        "summary": "body",
-                                        "description": "Family and desired state"
+                                        "description": "Family and desired state",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -5572,8 +6736,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.logLevelRequest",
-                                        "summary": "request",
-                                        "description": "log level"
+                                        "description": "log level",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -5887,8 +7051,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.adminTTLInfo",
-                                        "summary": "request",
-                                        "description": "TTL overrides in hours"
+                                        "description": "TTL overrides in hours",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -5973,8 +7137,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.aiChatRequest",
-                                        "summary": "body",
-                                        "description": "conversation so far"
+                                        "description": "conversation so far",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -6084,8 +7248,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.aiChatBody",
-                                        "summary": "body",
-                                        "description": "title and turns"
+                                        "description": "title and turns",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -6278,8 +7442,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.aiChatBody",
-                                        "summary": "body",
-                                        "description": "title and turns"
+                                        "description": "title and turns",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -6426,8 +7590,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.aiSteerRequest",
-                                        "summary": "body",
-                                        "description": "the follow-up"
+                                        "description": "the follow-up",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -6711,8 +7875,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.anilistProgressRequest",
-                                        "summary": "body",
-                                        "description": "Media id and watched-episode count"
+                                        "description": "Media id and watched-episode count",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -6891,8 +8055,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.anilistTokenRequest",
-                                        "summary": "body",
-                                        "description": "AniList access token"
+                                        "description": "AniList access token",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -7048,8 +8212,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.EmailPrefsUpdateRequest",
-                                        "summary": "prefs",
-                                        "description": "Categories to enable"
+                                        "description": "Categories to enable",
+                                        "summary": "prefs"
                                     }
                                 ]
                             }
@@ -7197,8 +8361,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.credentials",
-                                        "summary": "body",
-                                        "description": "Credentials"
+                                        "description": "Credentials",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -7435,8 +8599,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.NotifyPrefsUpdateRequest",
-                                        "summary": "prefs",
-                                        "description": "Push categories and frequency"
+                                        "description": "Push categories and frequency",
+                                        "summary": "prefs"
                                     }
                                 ]
                             }
@@ -7711,8 +8875,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.credentials",
-                                        "summary": "body",
-                                        "description": "Credentials"
+                                        "description": "Credentials",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -8128,8 +9292,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.UpgradeDims",
-                                        "summary": "body",
-                                        "description": "Enabled axes"
+                                        "description": "Enabled axes",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -8276,8 +9440,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.WatchDefaults",
-                                        "summary": "body",
-                                        "description": "defaults"
+                                        "description": "defaults",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -8895,8 +10059,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.DeleteLocalRequest",
-                                        "summary": "body",
-                                        "description": "Entry path and recursive flag"
+                                        "description": "Entry path and recursive flag",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -9048,8 +10212,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.MkdirLocalRequest",
-                                        "summary": "body",
-                                        "description": "Directory path relative to the download root"
+                                        "description": "Directory path relative to the download root",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -9124,8 +10288,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.RenameLocalRequest",
-                                        "summary": "body",
-                                        "description": "Entry path and new name"
+                                        "description": "Entry path and new name",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -9267,8 +10431,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.DownloadCreateRequest",
-                                        "summary": "body",
-                                        "description": "Download request"
+                                        "description": "Download request",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -9343,8 +10507,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.DownloadsBulkRequest",
-                                        "summary": "body",
-                                        "description": "Bulk action and optional ids"
+                                        "description": "Bulk action and optional ids",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -9419,8 +10583,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.DownloadsCancelRequest",
-                                        "summary": "body",
-                                        "description": "Download ids to cancel"
+                                        "description": "Download ids to cancel",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -9531,8 +10695,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.RateLimitRequest",
-                                        "summary": "body",
-                                        "description": "Global rate limit in bytes/s"
+                                        "description": "Global rate limit in bytes/s",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -9617,8 +10781,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.DownloadsReorderRequest",
-                                        "summary": "body",
-                                        "description": "Queued download ids in the new order"
+                                        "description": "Queued download ids in the new order",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -9739,8 +10903,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.Watch",
-                                        "summary": "body",
-                                        "description": "Sync spec (remotePath, localPath, template, ...)"
+                                        "description": "Sync spec (remotePath, localPath, template, ...)",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -10159,8 +11323,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.RateLimitRequest",
-                                        "summary": "body",
-                                        "description": "Per-download rate limit in bytes/s"
+                                        "description": "Per-download rate limit in bytes/s",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -10404,8 +11568,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.LegacyImportRequest",
-                                        "summary": "body",
-                                        "description": "Old config plus import options"
+                                        "description": "Old config plus import options",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -11698,8 +12862,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.pushSubInput",
-                                        "summary": "subscription",
-                                        "description": "Push subscription"
+                                        "description": "Push subscription",
+                                        "summary": "subscription"
                                     }
                                 ]
                             }
@@ -11762,8 +12926,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.pushSubInput",
-                                        "summary": "subscription",
-                                        "description": "Push subscription"
+                                        "description": "Push subscription",
+                                        "summary": "subscription"
                                     }
                                 ]
                             }
@@ -12322,8 +13486,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.serverInput",
-                                        "summary": "body",
-                                        "description": "Server configuration"
+                                        "description": "Server configuration",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -12474,8 +13638,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.serverInput",
-                                        "summary": "body",
-                                        "description": "Server configuration"
+                                        "description": "Server configuration",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -12734,8 +13898,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.catalogMatchRequest",
-                                        "summary": "body",
-                                        "description": "Folder and media id"
+                                        "description": "Folder and media id",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -12831,8 +13995,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.rematchRequest",
-                                        "summary": "body",
-                                        "description": "Path and whether to re-match all folders"
+                                        "description": "Path and whether to re-match all folders",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -12981,8 +14145,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.scopeRequest",
-                                        "summary": "body",
-                                        "description": "Path and scope kind"
+                                        "description": "Path and scope kind",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -13337,8 +14501,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.TrustHostKeyInput",
-                                        "summary": "body",
-                                        "description": "Accepted host key"
+                                        "description": "Accepted host key",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -13423,8 +14587,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.settingsPayload",
-                                        "summary": "request",
-                                        "description": "settings"
+                                        "description": "settings",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -13823,8 +14987,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.dismissRequest",
-                                        "summary": "body",
-                                        "description": "Item to restore (kind + refKey)"
+                                        "description": "Item to restore (kind + refKey)",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -13886,8 +15050,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.dismissRequest",
-                                        "summary": "body",
-                                        "description": "Item to ignore"
+                                        "description": "Item to ignore",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -13990,8 +15154,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.DuplicateTrashRequest",
-                                        "summary": "body",
-                                        "description": "Local path"
+                                        "description": "Local path",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -14436,8 +15600,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.TrashRequest",
-                                        "summary": "body",
-                                        "description": "Entry path, empty for everything"
+                                        "description": "Entry path, empty for everything",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -14548,8 +15712,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.TrashRequest",
-                                        "summary": "body",
-                                        "description": "Entry path"
+                                        "description": "Entry path",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -14883,8 +16047,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.credentials",
-                                        "summary": "request",
-                                        "description": "email and password"
+                                        "description": "email and password",
+                                        "summary": "request"
                                     }
                                 ]
                             }
@@ -15354,8 +16518,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.Watch",
-                                        "summary": "body",
-                                        "description": "Watch definition (serverId and remotePath required)"
+                                        "description": "Watch definition (serverId and remotePath required)",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -15760,8 +16924,8 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.plexShowLinkRequest",
-                                        "summary": "body",
-                                        "description": "Show to bind"
+                                        "description": "Show to bind",
+                                        "summary": "body"
                                     }
                                 ]
                             }
@@ -15894,7 +17058,6 @@
             }
         }
     },
-    "openapi": "3.1.0",
     "servers": [
         {
             "url": "/"
