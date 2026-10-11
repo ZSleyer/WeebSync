@@ -89,6 +89,7 @@ import { avgSpeed, SPEED_SPAN, useSpeedHistory } from '../speedHistory'
 import { countdown } from '../countdown'
 import { jobLabel } from '../jobs'
 import { useConfirm } from '../components/confirm'
+import { useFailToast, useToast } from '../components/toast'
 import PageActions, { PageFooter, WIDE_MQ } from '../components/PageActions'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth, useNow, usePersistedQuery } from '../hooks'
@@ -1826,19 +1827,42 @@ function LimitInput({
   caption?: boolean
 }) {
   const { t } = useTranslation()
+  const toast = useToast()
+  const fail = useFailToast()
   const [unit, setUnit] = useState<'KiB' | 'MiB'>(bytes >= MIB && bytes % MIB === 0 ? 'MiB' : 'KiB')
   const [val, setVal] = useState<string | null>(null)
   const factor = unit === 'MiB' ? MIB : 1024
   const shown = val ?? (bytes > 0 ? String(bytes / factor) : '')
-  const save = async () => {
-    if (val === null) return
-    const n = Number(val)
-    if (Number.isNaN(n) || n < 0) return
+  // commits the number in the field in the given unit. What is saved is what
+  // the field and the pressed chip say together
+  const commit = async (text: string, f: number) => {
+    const n = text.trim() === '' ? 0 : Number(text)
+    const b = Math.round(n * f)
+    // the backend reads an int64; a number past the safe range does not even
+    // parse there, so it is refused here with the reason instead
+    if (!Number.isFinite(n) || n < 0 || !Number.isSafeInteger(b)) {
+      setVal(null) // back to the saved value, not a field that looks applied
+      toast({ message: t('dash.limitInvalid') })
+      return
+    }
     try {
-      await onSave(Math.round(n * factor))
+      await onSave(b)
+    } catch (err) {
+      fail(err)
     } finally {
       setVal(null) // re-derive from server state either way
     }
+  }
+  const save = () => {
+    if (val !== null) void commit(val, factor)
+  }
+  // a unit picked right after typing belongs to the typed number: "5" then
+  // MiB/s saves 5 MiB/s. Without a typed number the chip only changes how the
+  // saved limit is shown, it never writes
+  const switchUnit = (u: 'KiB' | 'MiB') => {
+    if (u === unit) return
+    setUnit(u)
+    if (val !== null) void commit(val, u === 'MiB' ? MIB : 1024)
   }
   return (
     // one line at every width: three stacked rows for a control nobody sets
@@ -1861,17 +1885,21 @@ function LimitInput({
         onKeyDown={(e) => e.key === 'Enter' && save()}
       />
       {/* the unit as two pressed chips, not a select: one tap, both choices
-          in view, and the same control the catalog's view switch is */}
-      <Segmented
-        aria-label={t('dash.limitUnit')}
-        value={unit}
-        onChange={setUnit}
-        className="shrink-0 flex-nowrap"
-        options={[
-          { value: 'KiB', label: 'KiB/s' },
-          { value: 'MiB', label: 'MiB/s' },
-        ]}
-      />
+          in view, and the same control the catalog's view switch is. The
+          mousedown is held so a click on a chip does not blur the field
+          first, which would save the typed number in the old unit */}
+      <span className="contents" onMouseDown={(e) => e.preventDefault()}>
+        <Segmented
+          aria-label={t('dash.limitUnit')}
+          value={unit}
+          onChange={switchUnit}
+          className="shrink-0 flex-nowrap"
+          options={[
+            { value: 'KiB', label: 'KiB/s' },
+            { value: 'MiB', label: 'MiB/s' },
+          ]}
+        />
+      </span>
     </label>
   )
 }

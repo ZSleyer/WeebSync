@@ -401,7 +401,8 @@
     "clearHistory": "Verlauf leeren",
     "clearHistoryConfirm_one": "{{count}} Eintrag aus dem Verlauf entfernen?",
     "clearHistoryConfirm_other": "{{count}} Einträge aus dem Verlauf entfernen?",
-    "limitUnit": "Einheit des Limits"
+    "limitUnit": "Einheit des Limits",
+    "limitInvalid": "Kein gültiges Limit: gib 0 oder mehr ein, oder lass das Feld für kein Limit leer."
   },
   "files": {
     "title": "DATEIEN",
