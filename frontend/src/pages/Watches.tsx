@@ -78,6 +78,7 @@ import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import { nextVolume } from '../components/playLinks'
 import { useWatchActions, watchFields } from '../components/watchActions'
+import { useFailToast, useToast } from '../components/toast'
 import { useSeriesModal } from '../components/SeriesModal'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
 import { useNow } from '../hooks'
@@ -155,9 +156,18 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
   const hasManga = watches.some((w) => w.category === 'manga')
   const ofKind = hasManga ? watches.filter((w) => (w.category === 'manga') === (kind === 'manga')) : watches
   const navigate = useNavigate()
+  const toast = useToast()
+  const fail = useFailToast()
+  // nextVolume already treats an unreachable folder as empty, so the toast
+  // covers both: a click always answers, even when there is nothing to open
   const read = async (w: Watch) => {
-    const href = await nextVolume(w)
-    if (href) navigate(href)
+    try {
+      const href = await nextVolume(w)
+      if (href) navigate(href)
+      else toast({ message: t('watch.noVolume') })
+    } catch (err) {
+      fail(err)
+    }
   }
   // a tap on a calendar entry opens the title's card
   // the cover and a calendar entry open the app's one title card
