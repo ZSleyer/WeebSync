@@ -109,7 +109,7 @@ export default function Login() {
   // the pending token is gone (expired or too many wrong codes): back to the
   // password step, the second-factor form would only keep failing
   const twoFactorFailed = (msg: string) => {
-    if (msg.includes('expired login')) {
+    if (msg === i18n.t('errors.loginExpired')) {
       setTwoFA(null)
       setError(t('login.twoFactorExpired'))
     } else setError(msg)

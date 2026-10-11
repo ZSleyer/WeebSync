@@ -1,4 +1,27 @@
 {
+  "errors": {
+    "invalidCredentials": "E-Mail oder Passwort ist falsch.",
+    "emailUnverified": "Bestätige zuerst deine E-Mail-Adresse: der Link ist in deinem Postfach.",
+    "invalidCode": "Der Code ist falsch.",
+    "loginExpired": "Die Anmeldung ist abgelaufen. Fang noch einmal an.",
+    "passkeyFailed": "Der Schlüssel wurde nicht angenommen.",
+    "emailTaken": "Zu dieser Adresse gibt es schon ein Konto.",
+    "invalidEmail": "Das ist keine gültige E-Mail-Adresse.",
+    "registrationClosed": "Die Registrierung ist geschlossen. Frag einen Admin nach einem Konto.",
+    "passwordDisabled": "Die Anmeldung mit Passwort ist hier aus. Nutze den Anbieter.",
+    "weakPassword": "Das Passwort braucht mindestens 10 Zeichen.",
+    "wrongPassword": "Das Passwort ist falsch.",
+    "resetLinkInvalid": "Der Link ist ungültig oder abgelaufen. Fordere einen neuen an.",
+    "oidcAccount": "Dieses Konto meldet sich über den Anbieter an.",
+    "lastAdminDelete": "Der letzte Admin kann nicht gelöscht werden.",
+    "lastAdminDemote": "Der letzte Admin kann die Rolle nicht verlieren.",
+    "deleteSelf": "Dein eigenes Konto kannst du nicht löschen.",
+    "rolesByOidc": "Die Rollen kommen hier aus den Gruppen des Anbieters.",
+    "noManualUsers": "Bei Anmeldung über einen Anbieter kommen Konten vom Anbieter.",
+    "tooMany": "Zu viele Versuche. Warte einen Moment.",
+    "tooManyWait_one": "Zu viele Versuche. Versuch es in {{count}} Sekunde wieder.",
+    "tooManyWait_other": "Zu viele Versuche. Versuch es in {{count}} Sekunden wieder."
+  },
   "common": {
     "undo": "Rückgängig",
     "undoFailed": "Das hat nicht geklappt, der Eintrag ist wieder da.",
