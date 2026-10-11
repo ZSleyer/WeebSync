@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { episodeLabel, upcomingAirings } from '../airings'
+import { episodeLabel, fileStatus, upcomingAirings } from '../airings'
 import type { Watch } from '../api'
 
 const watch = (id: number, airings: { at: number; episode: number; episodeAbs?: number }[]) =>
@@ -60,5 +60,18 @@ describe('episodeLabel', () => {
     expect(episodeLabel(t, { episode: 14, episodeAbs: 80 })).toBe('watch.nextEp:14 (80)')
     expect(episodeLabel(t, { episode: 14, dub: 'de' })).toBe('watch.dubEp:14:DE')
     expect(episodeLabel(t, { episode: 14, dub: 'de', est: true })).toBe('~ watch.dubEp:14:DE')
+  })
+})
+
+// The line under a calendar entry: on disk wins, then a real sighting on the
+// server, then the learned expectation - late once its time has passed.
+describe('fileStatus', () => {
+  const now = 1_000_000 * 1000
+  it('says what is known about the file', () => {
+    expect(fileStatus({ have: true, remoteAt: 5 }, now)).toEqual({ kind: 'have' })
+    expect(fileStatus({ remoteAt: 900_000 }, now)).toEqual({ kind: 'onServer', at: 900_000 })
+    expect(fileStatus({ remoteAt: 1_100_000, remoteEst: true }, now)).toEqual({ kind: 'expected', at: 1_100_000 })
+    expect(fileStatus({ remoteAt: 900_000, remoteEst: true }, now)).toEqual({ kind: 'late', at: 900_000 })
+    expect(fileStatus({}, now)).toBeUndefined()
   })
 })

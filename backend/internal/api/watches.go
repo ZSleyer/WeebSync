@@ -110,8 +110,15 @@ type Airing struct {
 	At         int64  `json:"at"`
 	Episode    int    `json:"episode"`
 	EpisodeAbs int    `json:"episodeAbs,omitempty"`
-	Dub        string `json:"dub,omitempty"` // the dub this slot releases, short tag (de, en); "" = the original
-	Est        bool   `json:"est,omitempty"` // projected from the original plus the lag, not a date anyone published
+	Dub        string `json:"dub,omitempty"`  // the dub this slot releases, short tag (de, en); "" = the original
+	Est        bool   `json:"est,omitempty"`  // projected from the original plus the lag, not a date anyone published
+	Have       bool   `json:"have,omitempty"` // the episode is in the local folder already
+	// RemoteAt: when the episode's file reached the server - the first check
+	// that queued it - or, before it has, when it should, from the slot plus
+	// the upload lag learned on this watch (RemoteEst). Only on the slots of
+	// the track the watch fetches; 0 when nothing is known yet.
+	RemoteAt  int64 `json:"remoteAt,omitempty"`
+	RemoteEst bool  `json:"remoteEst,omitempty"`
 }
 
 // WatchCreateResponse carries the id of a newly created watch.
@@ -1096,7 +1103,8 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 			minEp = 0
 		}
 		it.LocalFiles = s.countVideos(local, minEp)
-		it.Missing = missingEpisodes(s.localEpisodeNums(local, minEp))
+		localNums := s.localEpisodeNums(local, minEp)
+		it.Missing = missingEpisodes(localNums)
 		it.Unsorted = s.pendingCount(it.ID)
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
@@ -1199,6 +1207,20 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 				}
 				return it.Airings[i].Dub < it.Airings[j].Dub
 			})
+			if !it.AiredMapping {
+				lang := dubLang(it.WantDub)
+				// what an upload trails: the dub release on a dub watch, the broadcast otherwise
+				base := map[int]int64{}
+				for _, a := range s.langAirings(it.MediaSource, it.MediaID, lang) {
+					base[a.Episode+offset] = a.At
+				}
+				if lang == "" {
+					for _, a := range slots {
+						base[a.Episode+offset] = a.At
+					}
+				}
+				markAirings(it.Airings, localNums, s.firstSeen(userID, it.ServerID, it.RemotePath), base, lang)
+			}
 		}
 		it.Attention = watchAttention(it)
 		list = append(list, it)
@@ -1280,6 +1302,71 @@ const seasonStride = 100000
 // that the name carries an absolute number in the episode field, and letting it
 // set the span would invent gaps for every number in between.
 const maxEpisode = 999
+
+// firstSeen is when each episode of a watch first turned up on the server:
+// the first time a check queued its file, keyed on the episode number the
+// file was renamed to. Good to one check interval.
+//
+// ponytail: read from the download history, so a cleared history forgets the
+// sightings until new ones come in; a table of its own is the upgrade if that
+// bites.
+func (s *Server) firstSeen(userID, serverID int64, remotePath string) map[int]int64 {
+	rows, err := s.DB.Query(`SELECT local_path, MIN(created_at) FROM downloads
+		WHERE user_id = ? AND server_id = ? AND remote_path LIKE ? || '%' GROUP BY local_path`,
+		userID, serverID, remotePath)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	seen := map[int]int64{}
+	for rows.Next() {
+		var local, created string
+		if rows.Scan(&local, &created) != nil {
+			continue
+		}
+		m := epSeasonRe.FindStringSubmatch(path.Base(local))
+		t, terr := time.Parse(time.DateTime, created)
+		if m == nil || terr != nil {
+			continue
+		}
+		ep, _ := strconv.Atoi(m[2])
+		if at := t.Unix(); seen[ep] == 0 || at < seen[ep] {
+			seen[ep] = at
+		}
+	}
+	return seen
+}
+
+// markAirings tells each calendar slot whether its episode is on disk, and
+// for the track the watch fetches (lang, "" = the original) when the file
+// reached the server or should: a sighting where there is one, else the slot
+// plus the watch's own upload lag - the median over its newest three
+// sightings against base, the time each episode was released.
+func markAirings(airings []Airing, local map[int]bool, seen map[int]int64, base map[int]int64, lang string) {
+	have := map[int]bool{}
+	for k := range local {
+		if se, ep := splitEpKey(k); se != 0 {
+			have[ep] = true
+		}
+	}
+	var sightings []Airing
+	for ep, at := range seen {
+		sightings = append(sightings, Airing{At: at, Episode: ep})
+	}
+	lag, known := lagFromReleases(sightings, base)
+	for i := range airings {
+		a := &airings[i]
+		a.Have = have[a.Episode]
+		if a.Dub != lang {
+			continue
+		}
+		if at, ok := seen[a.Episode]; ok {
+			a.RemoteAt = at
+		} else if known {
+			a.RemoteAt, a.RemoteEst = a.At+lag, true
+		}
+	}
+}
 
 func epKey(season, episode int) int { return season*seasonStride + episode }
 

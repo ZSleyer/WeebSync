@@ -279,6 +279,9 @@ export interface Airing {
   episodeAbs?: number // original absolute number when it differs
   dub?: string // the dub this slot releases (de, en, ...); missing = the original
   est?: boolean // projected from the original plus the lag, not a published date
+  have?: boolean // the episode is in the local folder already
+  remoteAt?: number // unix seconds the file reached the server, or should (remoteEst)
+  remoteEst?: boolean // remoteAt is the slot plus the learned upload lag, not a sighting
 }
 
 export interface ProviderLinks {

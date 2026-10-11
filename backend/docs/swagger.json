@@ -296,6 +296,17 @@
                     "est": {
                         "description": "projected from the original plus the lag, not a date anyone published",
                         "type": "boolean"
+                    },
+                    "have": {
+                        "description": "the episode is in the local folder already",
+                        "type": "boolean"
+                    },
+                    "remoteAt": {
+                        "description": "RemoteAt: when the episode's file reached the server - the first check\nthat queued it - or, before it has, when it should, from the slot plus\nthe upload lag learned on this watch (RemoteEst). Only on the slots of\nthe track the watch fetches; 0 when nothing is known yet.",
+                        "type": "integer"
+                    },
+                    "remoteEst": {
+                        "type": "boolean"
                     }
                 },
                 "type": "object"
