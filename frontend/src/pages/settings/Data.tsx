@@ -2,7 +2,7 @@ import { ChevronRight, RefreshCw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Navigate, useNavigate, useParams } from 'react-router'
+import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import {
   Badge,
   Button,
@@ -60,7 +60,6 @@ export default function Data() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [error, setError] = useState('')
-  const navigate = useNavigate()
   const [resetOpen, setResetOpen] = useState(false)
   const { data } = useAdminJobs()
   const { data: inventory } = useAdminData()
@@ -164,20 +163,20 @@ export default function Data() {
       </>
     ) : null
 
-  // one line per store, a button: the numbers that matter at a glance, the
+  // one line per store, a link to the store's own page (so it opens in a new
+  // tab and reads as navigation): the numbers that matter at a glance, the
   // rest behind it. Tall enough for a thumb.
   const storeRow = (s: DataStore) => (
     <li key={s.name}>
-      <button
-        type="button"
-        onClick={() => navigate(encodeURIComponent(s.name))}
+      <Link
+        to={encodeURIComponent(s.name)}
         className="flex min-h-12 w-full cursor-pointer items-center gap-3 border-b border-border-subtle px-1 text-left text-sm transition-colors hover:bg-bg-hover"
       >
         <span className="min-w-0 flex-1 break-words font-semibold text-t-primary">{storeLabel(t, s.name)}</span>
         {staleBadge(s.stale, s.prunable)}
         <Count className="shrink-0">{fmtNum(s.rows)}</Count>
         <ChevronRight aria-hidden size="1em" className="shrink-0 text-t-faint" />
-      </button>
+      </Link>
     </li>
   )
 
