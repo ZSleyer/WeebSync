@@ -7,7 +7,7 @@ import JASSUB from 'jassub'
 // Vite turns the query into a URL string; the linter only sees the .ts file
 // eslint-disable-next-line import/default
 import jassubWorkerUrl from './jassubWorker?worker&url'
-import { Captions, PictureInPicture2, SkipBack, SkipForward, X } from 'lucide-react'
+import { ArrowLeft, Captions, PictureInPicture2, SkipBack, SkipForward, X } from 'lucide-react'
 import {
   MediaControlBar,
   MediaController,
@@ -25,7 +25,6 @@ import {
 import {
   MediaChromeMenu,
   MediaChromeMenuItem,
-  MediaPlaybackRateMenu,
   MediaSettingsMenu,
   MediaSettingsMenuButton,
   MediaSettingsMenuItem,
@@ -36,28 +35,9 @@ import { addTranslation, setLanguage } from 'media-chrome/dist/utils/i18n.js'
 import { De } from 'media-chrome/dist/lang/de.js'
 import { api, keyConflictOf, type ServerInfo } from '../api'
 import HostKeyPrompt from '../components/HostKeyPrompt'
-import { listFolder, playHref, videosIn } from '../components/playLinks'
+import { filesLink, listFolder, playHref, useBack, videosIn } from '../components/playLinks'
 import Loading from '../components/Loading'
-
-interface PlayTrack {
-  index: number
-  codec: string
-  lang?: string
-  title?: string
-  default?: boolean
-  forced?: boolean
-  channels?: number
-  image?: boolean
-  file?: string
-}
-
-interface PlayInfo {
-  duration: number
-  video?: { codec: string; profile?: string; pixFmt?: string; width: number; height: number }
-  audio: PlayTrack[]
-  subs: PlayTrack[]
-  fonts: number[]
-}
+import PlayerInfo, { CODEC_NAMES, trackLabel, type PlayInfo, type PlayTrack } from './PlayerInfo'
 
 // A Bluray picture track inside the file: the browser draws it itself (libpgs),
 // the server only copies it out. DVD and DVB pictures are still burned in.
@@ -72,6 +52,7 @@ addTranslation('de', De)
 // no frame, so the watchdog below has the last word.
 const DIRECT_CONTAINERS = new Set(['mkv', 'mp4', 'm4v', 'webm', 'mov'])
 const DIRECT_AUDIO = new Set(['aac', 'mp3', 'opus', 'vorbis', 'flac'])
+const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const FIREFOX_ANDROID = /Android.*Firefox\//.test(navigator.userAgent)
 
 // The codec string for a picture: profile and bit depth matter, a phone that
@@ -121,24 +102,6 @@ async function canDecodeVideo(v: PlayInfo['video']): Promise<boolean> {
   return document.createElement('video').canPlayType(type) !== ''
 }
 
-// ffmpeg's codec names, as people know the formats
-const CODEC_NAMES: Record<string, string> = {
-  hdmv_pgs_subtitle: 'PGS',
-  dvd_subtitle: 'VobSub',
-  dvb_subtitle: 'DVB',
-  subrip: 'SRT',
-  mov_text: 'Text',
-  webvtt: 'VTT',
-  eac3: 'E-AC3',
-  truehd: 'TrueHD',
-}
-
-function trackLabel(tr: PlayTrack, i: number): string {
-  const codec = CODEC_NAMES[tr.codec] ?? tr.codec.toUpperCase()
-  const bits = [tr.lang, tr.title && tr.title !== tr.lang ? tr.title : '', codec]
-  return bits.filter(Boolean).join(' · ') || `#${i + 1}`
-}
-
 // the route: every file gets a fresh player, so the tracks, the transcode
 // fallback and the subtitles of one episode never leak into the next
 export default function Player() {
@@ -169,6 +132,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
 
   const [audio, setAudio] = useState<number | null>(null)
   const [sub, setSub] = useState<string | null>(null)
+  const [rate, setRate] = useState(1)
   // the watchdog saw the browser fail at a file it claimed it could play
   const [forceHls, setForceHls] = useState(false)
 
@@ -356,6 +320,8 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const prev = at > 0 ? episodes[at - 1] : undefined
   const next = at >= 0 && at < episodes.length - 1 ? episodes[at + 1] : undefined
   const goTo = (e: { path: string }) => navigate(playHref(server, e.path), { replace: true })
+  // switching episodes replaces the entry, so one step back always leaves the player
+  const back = useBack(filesLink(server, parent))
   // at the end of an episode the next one starts after a short count, which
   // the title row shows and lets the user skip or call off
   const [nextIn, setNextIn] = useState<number | null>(null)
@@ -622,225 +588,258 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     v && v.height > 0 && `${v.height}p`,
   ].filter(Boolean)
 
-  return (
-    <MediaController
-      ref={playerRef}
-      lang={i18n.language}
-      className="t-player"
-      // media-chrome's hotkeys (space, k, f, m, arrows) act only while focus is
-      // inside the player, never page-wide (WCAG 2.1.4)
-      onPointerDown={noteHidden}
-      onPointerUp={tapSeek}
-    >
-      {/* captions are libass on a canvas over the picture: a <track> cannot
-          carry ASS styling, positioning or the file's fonts */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video
-        ref={videoRef}
-        slot="media"
-        playsInline
-        // Chrome on Android lays a cast button over every video, and keeps it
-        // there: the player has its own controls and no cast target
-        // and Firefox one for picture in picture; ours is in the dock (it
-        // lifts this for the moment it asks, see togglePip)
-        {...{ disableRemotePlayback: true, disablePictureInPicture: true }}
-      />
+  const serverName = server
+    ? (servers.data?.find((x) => x.id === server)?.name ?? t('player.remote'))
+    : t('player.local')
 
-      <div slot="top-chrome" className="t-player-top">
-        <span className="t-player-title" title={path}>
-          {name}
-        </span>
-        <span className="t-player-chip" title={server ? t('player.fromServer') : t('player.fromLocal')}>
-          {server ? (servers.data?.find((x) => x.id === server)?.name ?? t('player.remote')) : t('player.local')}
-        </span>
-        {facts.map((f) => (
-          <span key={f as string} className="t-player-chip">
-            {f}
+  return (
+    <>
+      <MediaController
+        ref={playerRef}
+        lang={i18n.language}
+        className="t-player"
+        // media-chrome's hotkeys (space, k, f, m, arrows) act only while focus is
+        // inside the player, never page-wide (WCAG 2.1.4)
+        onPointerDown={noteHidden}
+        onPointerUp={tapSeek}
+      >
+        {/* captions are libass on a canvas over the picture: a <track> cannot
+          carry ASS styling, positioning or the file's fonts */}
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video
+          ref={videoRef}
+          slot="media"
+          playsInline
+          // Chrome on Android lays a cast button over every video, and keeps it
+          // there: the player has its own controls and no cast target
+          // and Firefox one for picture in picture; ours is in the dock (it
+          // lifts this for the moment it asks, see togglePip)
+          {...{ disableRemotePlayback: true, disablePictureInPicture: true }}
+        />
+
+        <div slot="top-chrome" className="t-player-top">
+          {/* the phone's app bar has this arrow already; the desktop and
+            fullscreen have only this one */}
+          <button type="button" className="t-player-btn t-player-back" aria-label={t('nav.back')} onClick={back}>
+            <ArrowLeft aria-hidden size={20} />
+          </button>
+          <span className="t-player-title" title={path}>
+            {name}
           </span>
-        ))}
-        {hls && !copy && (
-          <span className="t-player-chip t-player-chip--accent" title={t('player.transcoding')}>
-            {t('player.transcode')}
+          <span className="t-player-chip" title={server ? t('player.fromServer') : t('player.fromLocal')}>
+            {serverName}
           </span>
-        )}
-        {nextIn !== null && next && (
-          <span className="t-player-next" role="status">
+          {facts.map((f) => (
+            <span key={f as string} className="t-player-chip">
+              {f}
+            </span>
+          ))}
+          {hls && !copy && (
+            <span className="t-player-chip t-player-chip--accent" title={t('player.transcoding')}>
+              {t('player.transcode')}
+            </span>
+          )}
+          {nextIn !== null && next && (
+            <span className="t-player-next" role="status">
+              <button
+                type="button"
+                className="t-player-chip t-player-chip--accent t-player-chip--button"
+                onClick={() => goTo(next)}
+              >
+                {t('player.nextIn', { secs: nextIn })}
+              </button>
+              <button
+                type="button"
+                className="t-player-chip t-player-chip--button"
+                aria-label={t('player.nextCancel')}
+                onClick={() => setNextIn(null)}
+              >
+                <X aria-hidden size="1em" />
+              </button>
+            </span>
+          )}
+          {mutedStart && (
             <button
               type="button"
               className="t-player-chip t-player-chip--accent t-player-chip--button"
-              onClick={() => goTo(next)}
+              onClick={() => {
+                const v = videoRef.current
+                if (v) v.muted = false
+              }}
             >
-              {t('player.nextIn', { secs: nextIn })}
+              {t('player.unmute')}
             </button>
-            <button
-              type="button"
-              className="t-player-chip t-player-chip--button"
-              aria-label={t('player.nextCancel')}
-              onClick={() => setNextIn(null)}
-            >
-              <X aria-hidden size="1em" />
-            </button>
-          </span>
-        )}
-        {mutedStart && (
-          <button
-            type="button"
-            className="t-player-chip t-player-chip--accent t-player-chip--button"
-            onClick={() => {
-              const v = videoRef.current
-              if (v) v.muted = false
-            }}
-          >
-            {t('player.unmute')}
-          </button>
-        )}
-        {subPending && (
-          <span className="t-player-chip" role="status">
-            {t('player.subLoading')}
-          </span>
-        )}
-        {subError && (
-          <span className="t-player-chip t-player-chip--err" role="alert">
-            {subError}
-          </span>
-        )}
-      </div>
+          )}
+          {subPending && (
+            <span className="t-player-chip" role="status">
+              {t('player.subLoading')}
+            </span>
+          )}
+          {subError && (
+            <span className="t-player-chip t-player-chip--err" role="alert">
+              {subError}
+            </span>
+          )}
+        </div>
 
-      {/* noautohide: a double-tap flash must show while the controls are away;
+        {/* noautohide: a double-tap flash must show while the controls are away;
           the big play button has its own paused-only rule */}
-      <div slot="centered-chrome" className="t-player-center" {...{ noautohide: '' }}>
-        <span className="t-player-flash" data-side="back" data-on={flash?.side === 'back' || undefined} aria-hidden>
-          {flash?.side === 'back' && `- ${flash.secs} s`}
-        </span>
-        <MediaLoadingIndicator noAutohide className="t-player-spinner" />
-        <MediaPlayButton className="t-player-bigplay" />
-        <span className="t-player-flash" data-side="fwd" data-on={flash?.side === 'fwd' || undefined} aria-hidden>
-          {flash?.side === 'fwd' && `+ ${flash.secs} s`}
-        </span>
-      </div>
+        <div slot="centered-chrome" className="t-player-center" {...{ noautohide: '' }}>
+          <span className="t-player-flash" data-side="back" data-on={flash?.side === 'back' || undefined} aria-hidden>
+            {flash?.side === 'back' && `- ${flash.secs} s`}
+          </span>
+          <MediaLoadingIndicator noAutohide className="t-player-spinner" />
+          <MediaPlayButton className="t-player-bigplay" />
+          <span className="t-player-flash" data-side="fwd" data-on={flash?.side === 'fwd' || undefined} aria-hidden>
+            {flash?.side === 'fwd' && `+ ${flash.secs} s`}
+          </span>
+        </div>
 
-      <MediaSettingsMenu hidden anchor="auto" className="t-player-menu">
-        <MediaSettingsMenuItem>
-          {t('player.subtitles')}
-          <TrackMenu
-            title={t('player.subtitles')}
-            value={subKey}
-            options={[
-              { value: 'none', label: t('player.subOff') },
-              ...data.subs.map((s, i) => ({ value: subValue(s), label: trackLabel(s, i) })),
-            ]}
-            onChange={(val) => {
-              resumeAt.current = videoRef.current?.currentTime ?? 0
-              setSub(val)
-            }}
-          />
-        </MediaSettingsMenuItem>
-        {episodes.length > 1 && (
+        <MediaSettingsMenu hidden anchor="auto" className="t-player-menu">
           <MediaSettingsMenuItem>
-            {t('player.episodes')}
+            {t('player.subtitles')}
             <TrackMenu
-              title={t('player.episodes')}
-              value={at >= 0 ? episodes[at].path : ''}
-              options={episodes.map((e) => ({ value: e.path, label: e.name.replace(/\.[^.]+$/, '') }))}
-              onChange={(p) => goTo({ path: p })}
-            />
-          </MediaSettingsMenuItem>
-        )}
-        {data.audio.length > 1 && (
-          <MediaSettingsMenuItem>
-            {t('player.audio')}
-            <TrackMenu
-              title={t('player.audio')}
-              value={String(audioIdx)}
-              options={data.audio.map((a, i) => ({ value: String(a.index), label: trackLabel(a, i) }))}
+              title={t('player.subtitles')}
+              value={subKey}
+              options={[
+                { value: 'none', label: t('player.subOff') },
+                ...data.subs.map((s, i) => ({ value: subValue(s), label: trackLabel(s, i) })),
+              ]}
               onChange={(val) => {
                 resumeAt.current = videoRef.current?.currentTime ?? 0
-                setAudio(Number(val))
+                setSub(val)
               }}
             />
           </MediaSettingsMenuItem>
-        )}
-        <MediaSettingsMenuItem>
-          {t('player.speed')}
-          <MediaPlaybackRateMenu slot="submenu" hidden rates={[0.5, 0.75, 1, 1.25, 1.5, 2]}>
-            <div slot="title">{t('player.speed')}</div>
-          </MediaPlaybackRateMenu>
-        </MediaSettingsMenuItem>
-      </MediaSettingsMenu>
-
-      <div className="t-player-dock">
-        <MediaControlBar className="t-player-scrub">
-          <MediaTimeRange>
-            <MediaPreviewTimeDisplay slot="preview" />
-          </MediaTimeRange>
-        </MediaControlBar>
-        <MediaControlBar className="t-player-bar">
-          <MediaPlayButton />
-          <MediaSeekBackwardButton seekOffset={10} />
-          <MediaSeekForwardButton seekOffset={10} />
-          <span className="t-player-volume">
-            <MediaMuteButton />
-            <MediaVolumeRange />
-          </span>
-          {/* a narrow player shows the current time only (CSS picks one) */}
-          <MediaTimeDisplay showDuration className="t-player-time t-player-time--full" />
-          <MediaTimeDisplay className="t-player-time t-player-time--short" />
-          <span className="flex-1" />
           {episodes.length > 1 && (
-            <>
-              <button
-                type="button"
-                className="t-player-btn t-player-prev"
-                aria-label={t('player.prevEpisode')}
-                title={prev ? `${t('player.prevEpisode')}: ${prev.name}` : t('player.prevEpisode')}
-                disabled={!prev}
-                onClick={() => prev && goTo(prev)}
-              >
-                <SkipBack aria-hidden size={20} />
-              </button>
-              <button
-                type="button"
-                className="t-player-btn t-player-nextep"
-                aria-label={t('player.nextEpisode')}
-                title={next ? `${t('player.nextEpisode')}: ${next.name}` : t('player.nextEpisode')}
-                disabled={!next}
-                onClick={() => next && goTo(next)}
-              >
-                <SkipForward aria-hidden size={20} />
-              </button>
-            </>
+            <MediaSettingsMenuItem>
+              {t('player.episodes')}
+              <TrackMenu
+                title={t('player.episodes')}
+                value={at >= 0 ? episodes[at].path : ''}
+                options={episodes.map((e) => ({ value: e.path, label: e.name.replace(/\.[^.]+$/, '') }))}
+                onChange={(p) => goTo({ path: p })}
+              />
+            </MediaSettingsMenuItem>
           )}
-          <button
-            type="button"
-            className="t-player-btn t-player-cc"
-            aria-pressed={subKey !== 'none'}
-            aria-label={`${t('player.subtitles')}: ${subLabel}`}
-            title={`${t('player.subtitles')}: ${subLabel}`}
-            disabled={data.subs.length === 0}
-            onClick={() => {
-              const first = data.subs.find((s) => !s.forced) ?? data.subs[0]
-              setSub(subKey === 'none' && first ? subValue(first) : 'none')
-            }}
-          >
-            <Captions aria-hidden size={20} />
-          </button>
-          <MediaSettingsMenuButton />
-          {pipSupported && (
+          {data.audio.length > 1 && (
+            <MediaSettingsMenuItem>
+              {t('player.audio')}
+              <TrackMenu
+                title={t('player.audio')}
+                value={String(audioIdx)}
+                options={data.audio.map((a, i) => ({ value: String(a.index), label: trackLabel(a, i) }))}
+                onChange={(val) => {
+                  resumeAt.current = videoRef.current?.currentTime ?? 0
+                  setAudio(Number(val))
+                }}
+              />
+            </MediaSettingsMenuItem>
+          )}
+          <MediaSettingsMenuItem>
+            {t('player.speed')}
+            {/* the same menu as the tracks: media-chrome's rate menu draws its
+                items in its own shadow, out of reach of the menu's styling */}
+            <TrackMenu
+              title={t('player.speed')}
+              value={String(rate)}
+              options={RATES.map((r) => ({ value: String(r), label: `${r}x` }))}
+              onChange={(val) => {
+                const v = videoRef.current
+                setRate(Number(val))
+                if (v) v.playbackRate = v.defaultPlaybackRate = Number(val)
+              }}
+            />
+          </MediaSettingsMenuItem>
+        </MediaSettingsMenu>
+
+        <div className="t-player-dock">
+          <MediaControlBar className="t-player-scrub">
+            <MediaTimeRange>
+              <MediaPreviewTimeDisplay slot="preview" />
+            </MediaTimeRange>
+          </MediaControlBar>
+          <MediaControlBar className="t-player-bar">
+            <MediaPlayButton />
+            <MediaSeekBackwardButton seekOffset={10} />
+            <MediaSeekForwardButton seekOffset={10} />
+            <span className="t-player-volume">
+              <MediaMuteButton />
+              <MediaVolumeRange />
+            </span>
+            {/* a narrow player shows the current time only (CSS picks one) */}
+            <MediaTimeDisplay showDuration className="t-player-time t-player-time--full" />
+            <MediaTimeDisplay className="t-player-time t-player-time--short" />
+            <span className="flex-1" />
+            {episodes.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="t-player-btn t-player-prev"
+                  aria-label={t('player.prevEpisode')}
+                  title={prev ? `${t('player.prevEpisode')}: ${prev.name}` : t('player.prevEpisode')}
+                  disabled={!prev}
+                  onClick={() => prev && goTo(prev)}
+                >
+                  <SkipBack aria-hidden size={20} />
+                </button>
+                <button
+                  type="button"
+                  className="t-player-btn t-player-nextep"
+                  aria-label={t('player.nextEpisode')}
+                  title={next ? `${t('player.nextEpisode')}: ${next.name}` : t('player.nextEpisode')}
+                  disabled={!next}
+                  onClick={() => next && goTo(next)}
+                >
+                  <SkipForward aria-hidden size={20} />
+                </button>
+              </>
+            )}
             <button
               type="button"
-              className="t-player-btn t-player-pip"
-              aria-pressed={inPip}
-              aria-label={t('player.pip')}
-              title={t('player.pip')}
-              onClick={togglePip}
+              className="t-player-btn t-player-cc"
+              aria-pressed={subKey !== 'none'}
+              aria-label={`${t('player.subtitles')}: ${subLabel}`}
+              title={`${t('player.subtitles')}: ${subLabel}`}
+              disabled={data.subs.length === 0}
+              onClick={() => {
+                const first = data.subs.find((s) => !s.forced) ?? data.subs[0]
+                setSub(subKey === 'none' && first ? subValue(first) : 'none')
+              }}
             >
-              <PictureInPicture2 aria-hidden size={20} />
+              <Captions aria-hidden size={20} />
             </button>
-          )}
-          <MediaFullscreenButton />
-        </MediaControlBar>
-      </div>
-    </MediaController>
+            <MediaSettingsMenuButton />
+            {pipSupported && (
+              <button
+                type="button"
+                className="t-player-btn t-player-pip"
+                aria-pressed={inPip}
+                aria-label={t('player.pip')}
+                title={t('player.pip')}
+                onClick={togglePip}
+              >
+                <PictureInPicture2 aria-hidden size={20} />
+              </button>
+            )}
+            <MediaFullscreenButton />
+          </MediaControlBar>
+        </div>
+      </MediaController>
+      <PlayerInfo
+        server={server}
+        path={path}
+        info={data}
+        files={episodes}
+        at={at}
+        onPick={goTo}
+        audioIdx={audioIdx}
+        sub={subTrack}
+        mode={!hls ? 'direct' : copy ? 'copy' : 'transcode'}
+        burned={burn >= 0}
+        serverName={serverName}
+      />
+    </>
   )
 }
 

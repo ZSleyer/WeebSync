@@ -2117,8 +2117,6 @@ li.t-swiperow { border-radius: 0; }
   /* always 16:9 and never taller than the screen: when the height runs out
      the player narrows instead. A max-height alone kept the full width, broke
      the ratio and let the picture spill past the bottom edge. */
-  width: min(100%, calc((100dvh - 8rem) * 16 / 9));
-  margin-inline: auto;
   aspect-ratio: 16 / 9;
   /* the controls fit the player's own width, not the window's: a phone held
      sideways has a wide window and a narrow player */
@@ -2195,6 +2193,45 @@ li.t-swiperow { border-radius: 0; }
   border-radius: 0;
 }
 
+/* the player's width, see above; the panel under the picture lines up with it */
+.t-player,
+.t-player-info {
+  width: min(100%, calc((100dvh - 8rem) * 16 / 9));
+  margin-inline: auto;
+}
+
+/* under the picture: the title and episode on one side, the folder's
+   episodes on the other once there is room; no card, the page is the surface */
+.t-player-info {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 1.25rem;
+}
+@media (width >= 48rem) {
+  .t-player-info { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+.t-player-info__list {
+  max-height: 22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.t-player-info__ep {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: var(--ctl-h);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r-ctl);
+  font-size: 0.875rem;
+  text-align: start;
+  color: var(--color-t-secondary);
+}
+.t-player-info__ep[aria-current] { color: var(--color-accent); background: var(--color-bg-hover); }
+@media (hover: hover) {
+  .t-player-info__ep:hover { background: var(--color-bg-hover); }
+}
+
 /* title row: the file and what it is, quiet until the pointer moves */
 .t-player-top {
   display: flex;
@@ -2247,7 +2284,7 @@ li.t-swiperow { border-radius: 0; }
    brings its own square, borderless box, so this names the box directly. */
 .t-player-menu {
   z-index: 2;
-  min-width: 16rem;
+  min-width: 18rem;
   /* media-chrome pins the menu over its button, which sits inside the dock;
      these put it over the dock instead (--pl-dock-h is measured) */
   right: 0.75rem;
@@ -2261,7 +2298,10 @@ li.t-swiperow { border-radius: 0; }
   transform-origin: bottom right;
   line-height: 1.4;
   font-family: var(--font-sans);
-  font-size: 14px;
+  /* the dock's scale: rows as tall as its buttons, type as large as its
+     time; the submenus read the same variable */
+  font-size: 15px;
+  --media-font-size: 15px;
   --media-font-family: var(--font-sans);
   --media-menu-item-description-max-width: 10rem;
 }
@@ -2278,10 +2318,17 @@ li.t-swiperow { border-radius: 0; }
 /* the settings list itself does not scroll (its slot is overflow: visible so
    a submenu can slide in beside it): its container does, while no submenu
    is open - a scrolling box would clip the one sliding in */
-.t-player-menu::part(container) { overflow-y: auto; }
+/* No bars while the menu fits: the closed submenus wait beside the list
+   for their slide, and sideways scrolling to them made a horizontal bar,
+   whose height pushed a vertical one in; their closed pose (shrunk, 4px
+   down) reached below the list too. Down scrolls only when it must. */
+.t-player-menu::part(container) { overflow: hidden auto; }
+.t-player-menu [slot='submenu'] { --media-menu-transform-out: none; }
 .t-player-menu:has(> [aria-expanded='true'])::part(container) { overflow: visible; }
 .t-player-menu :is(media-settings-menu-item, media-chrome-menu-item) {
-  padding: 0.5rem 0.625rem;
+  box-sizing: border-box;
+  min-height: var(--pl-hit);
+  padding: 0.25rem 0.75rem;
   border-radius: var(--r-xs);
   gap: 0.75rem;
 }
@@ -2373,6 +2420,12 @@ li.t-swiperow { border-radius: 0; }
 .t-player-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
 .t-player-btn:disabled { opacity: 0.35; }
 .t-player-next { display: inline-flex; gap: 0.25rem; flex-shrink: 0; }
+/* out of the player; below lg the app bar's arrow does it, except in
+   fullscreen, where there is no app bar */
+.t-player-back { flex-shrink: 0; width: 2rem; height: 2rem; margin: -0.25rem 0 -0.25rem -0.375rem; }
+@media (width < 64rem) {
+  .t-player:not(:fullscreen) .t-player-back { display: none; }
+}
 .t-player-next > :first-child { animation: t-next-in var(--dur-2) var(--ease-out); }
 @keyframes t-next-in { from { opacity: 0; translate: 6px 0; } }
 /* on: a short straight accent bar under the icon, the way a selected tab

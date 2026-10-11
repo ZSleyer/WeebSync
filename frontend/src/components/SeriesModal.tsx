@@ -66,7 +66,7 @@ import { WIDE_MQ } from './PageActions'
 import type { SheetAction } from './ActionSheet'
 import MediaDetail, { GenreChips } from './MediaDetail'
 import EpisodeList, { type EpisodeFolder } from './EpisodeList'
-import { playHref } from './playLinks'
+import { playHref, watchFolder } from './playLinks'
 import { WatchForm } from './WatchDialog'
 import { useWatchActions, watchFields } from './watchActions'
 
@@ -560,15 +560,7 @@ function SeriesCard({
   // where the title's episodes lie: what the caller knows (the catalog's
   // folder) and the local folder of every watch, once each
   const folders: EpisodeFolder[] = []
-  for (const f of [
-    ...(cur.folders ?? []),
-    ...mine.map((w) => ({
-      server: 0,
-      path: w.subfolder
-        ? `${w.localPath.replace(/\/$/, '')}/${w.remotePath.replace(/\/+$/, '').split('/').pop()}`
-        : w.localPath,
-    })),
-  ]) {
+  for (const f of [...(cur.folders ?? []), ...mine.map((w) => ({ server: 0, path: watchFolder(w) }))]) {
     if (f.path && !folders.some((g) => g.server === f.server && g.path === f.path)) folders.push(f)
   }
   // a play button opens the player; the card stays in history behind it, so

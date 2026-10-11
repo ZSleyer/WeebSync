@@ -45,6 +45,7 @@
   },
   "palette": {
     "title": "Search",
+    "ctrl": "Ctrl",
     "placeholder": "Page, series, folder or file",
     "page": "Page",
     "recent": "Recently opened",
@@ -463,6 +464,18 @@
     "subtitles": "Subtitles",
     "subOff": "Off",
     "subError": "The subtitles could not be loaded.",
+    "about": "About this episode",
+    "openTitle": "Open title",
+    "episodeOf": "Episode {{n}} of {{total}}",
+    "duration": "Duration",
+    "picture": "Picture",
+    "mode": "Playback",
+    "mode_direct": "Direct",
+    "mode_copy": "Repackaged",
+    "mode_transcode": "Transcoded",
+    "burned": "subtitles burned in",
+    "source": "Source",
+    "file": "File",
     "transcoding": "The browser cannot play this file directly. The server converts it while it plays, and seeking restarts the conversion at the new position."
   },
   "remote": {
