@@ -1774,7 +1774,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	id, _ := res.LastInsertId()
 	s.linkMedia(in.ServerID, in.RemotePath, in.MediaID, in.MediaSource)
 	if in.MediaID <= 0 {
-		s.ensureWatchMatch(in.ServerID, in.RemotePath)
+		s.ensureWatchMatch(in.ServerID, in.RemotePath, in.LocalPath)
 	}
 	go s.runWatch(id) // first sync right away
 	writeJSON(w, http.StatusCreated, WatchCreateResponse{ID: id})
@@ -1860,7 +1860,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.linkMedia(serverID, in.RemotePath, in.MediaID, in.MediaSource)
 	if in.MediaID <= 0 {
-		s.ensureWatchMatch(serverID, in.RemotePath)
+		s.ensureWatchMatch(serverID, in.RemotePath, in.LocalPath)
 	}
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
 		go s.runWatch(id) // paths changed: check the new folder right away
@@ -1903,18 +1903,51 @@ func (s *Server) linkMedia(serverID int64, folder string, mediaID int, source st
 // not matched yet, so an auto-sync created from the browser or the assistant
 // gets its title, cover and airing data like any catalog folder - a folder
 // outside every catalog view would otherwise stay bare until someone opened
-// it there. Reports whether a match was queued.
-func (s *Server) ensureWatchMatch(serverID int64, folder string) bool {
-	var n int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE server_id = ? AND folder = ?`, serverID, folder).Scan(&n)
-	if n > 0 {
+// it there. A stored miss (media_id 0) is searched again, past the search
+// cache that holds the empty answer; a manual unmatch is left alone. Reports
+// whether a match was queued.
+//
+// The source follows the catalog mark on the remote side, else the Plex
+// library the watch writes into: an unscoped folder would otherwise always be
+// searched on AniList, which knows no western shows.
+func (s *Server) ensureWatchMatch(serverID int64, folder, localPath string) bool {
+	var mediaID, manual int
+	stored := s.DB.QueryRow(`SELECT media_id, manual FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+		serverID, folder).Scan(&mediaID, &manual) == nil
+	if stored && (mediaID != 0 || manual == 1) {
 		return false
 	}
-	name := path.Base(folder)
-	scope := scopeForItem(s.scopeFor(serverID, path.Dir(folder)), s.itemKind(serverID, folder, name))
-	s.queueScopedMatch(serverID, folder, name, scope, false)
+	name, scope := s.watchMatchQuery(serverID, folder, localPath)
+	s.queueScopedMatch(serverID, folder, name, scope, stored)
 	return true
 }
+
+// watchMatchQuery is the search name and scope of a watch folder.
+func (s *Server) watchMatchQuery(serverID int64, folder, localPath string) (name, scope string) {
+	titleDir, name := path.Dir(folder), path.Base(folder)
+	// a season folder ("S06", "Season 2", "Staffel.5") names no title: the
+	// show folder above it does, and the season rides along for the matcher
+	if m := seasonDirNameRe.FindStringSubmatch(name); m != nil && titleDir != "/" && titleDir != "." {
+		n, _ := strconv.Atoi(m[1])
+		name = path.Base(titleDir) + " Season " + strconv.Itoa(n)
+		titleDir = path.Dir(titleDir)
+	}
+	scope = s.scopeFor(serverID, titleDir)
+	if scope == "" {
+		// Plex roots are absolute; a relative local path lives under the
+		// download root
+		target := localPath
+		if abs, err := s.safeLocal(localPath); err == nil && !path.IsAbs(localPath) {
+			target = abs
+		}
+		scope = s.plexLibraryScope(target)
+	}
+	return name, scopeForItem(scope, s.itemKind(serverID, folder, name))
+}
+
+// seasonDirNameRe matches a folder that is only a season marker. Anchored: a
+// title merely starting with "S " is a title.
+var seasonDirNameRe = regexp.MustCompile(`(?i)^(?:s|season[ ._-]?|staffel[ ._-]?)(\d{1,3})$`)
 
 // handleWatchDelete removes one of the caller's watches.
 //

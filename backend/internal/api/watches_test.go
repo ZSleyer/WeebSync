@@ -12,7 +12,9 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/dbtest"
+	"github.com/ch4d1/weebsync/internal/plex"
 	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -215,12 +217,73 @@ func TestEnsureWatchMatchQueuesOnlyUnmatchedFolders(t *testing.T) {
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
 	s := &Server{DB: d, Anilist: anilist.New(d)}
-	if !s.ensureWatchMatch(1, "/x/Show") {
+	db.SetSetting(d, "jobs_paused", "m") // decide only, search nothing
+	if !s.ensureWatchMatch(1, "/x/Show", "/media/lib/Show") {
 		t.Fatal("an unmatched folder should be queued")
 	}
-	d.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id) VALUES (1, '/x/Show', 'anilist', 5)`)
-	if s.ensureWatchMatch(1, "/x/Show") {
+	d.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id) VALUES (1, '/x/Show', 'anilist', 0)`)
+	if !s.ensureWatchMatch(1, "/x/Show", "/media/lib/Show") {
+		t.Fatal("a stored miss should be searched again")
+	}
+	d.Exec(`UPDATE catalog_matches SET manual = 1`)
+	if s.ensureWatchMatch(1, "/x/Show", "/media/lib/Show") {
+		t.Fatal("a manual unmatch must stay")
+	}
+	d.Exec(`UPDATE catalog_matches SET manual = 0, media_id = 5`)
+	if s.ensureWatchMatch(1, "/x/Show", "/media/lib/Show") {
 		t.Fatal("a matched folder must not be queued again")
+	}
+}
+
+// An unscoped watch folder is searched in the source of the Plex library it
+// writes into, and a season folder is searched by its show's name.
+func TestWatchMatchQuery(t *testing.T) {
+	d := dbtest.Open(t)
+	s := &Server{DB: d}
+	db.SetSetting(d, "plex_lib_scopes", "/media/series\ttv\n/media/anime\tanime\n/media/anime/films\tmovie")
+	tests := []struct {
+		folder, local, name, scope string
+	}{
+		{"/x/Show (2020)", "/media/series/Show (2020)", "Show (2020)", "tv"},
+		{"/x/Show (2020)", "/media/series", "Show (2020)", "tv"},
+		{"/x/Show/S06", "/media/anime/Show", "Show Season 6", "anime"},
+		{"/x/Show/Staffel.5", "/media/series/Show", "Show Season 5", "tv"},
+		{"/x/Show/Season 2", "/media/series/Show", "Show Season 2", "tv"},
+		{"/x/S Show", "/media/series/S Show", "S Show", "tv"},
+		{"/x/Film", "/media/anime/films/Film", "Film", "movie"},
+		{"/x/Show", "/elsewhere/Show", "Show", ""},
+	}
+	for _, tt := range tests {
+		name, scope := s.watchMatchQuery(1, tt.folder, tt.local)
+		if name != tt.name || scope != tt.scope {
+			t.Errorf("%s -> %s: got (%q, %q), want (%q, %q)", tt.folder, tt.local, name, scope, tt.name, tt.scope)
+		}
+	}
+	// a catalog mark on the remote side wins over the library
+	d.Exec(`INSERT INTO catalog_scopes (server_id, path, kind) VALUES (1, '/x', 'anime')`)
+	if _, scope := s.watchMatchQuery(1, "/x/Show/S02", "/media/series/Show"); scope != "anime" {
+		t.Errorf("catalog mark: got %q", scope)
+	}
+}
+
+func TestLibraryScope(t *testing.T) {
+	tests := []struct {
+		sec  plex.Section
+		src  string
+		want string
+	}{
+		{plex.Section{Type: "show", Title: "Series"}, "tmdb", "tv"},
+		{plex.Section{Type: "show", Title: "Series"}, "tvdb", "tvdb"},
+		{plex.Section{Type: "show", Title: "Series"}, "anilist+tvdb", "anime"},
+		{plex.Section{Type: "movie", Title: "Films"}, "tvdb", "movie"},
+		{plex.Section{Type: "movie", Title: "Anime Films"}, "", "anime"},
+		{plex.Section{Type: "show", Title: "Series", Provider: "tvdb"}, "", "tvdb"},
+		{plex.Section{Type: "show", Title: "Series"}, "", "tv"},
+	}
+	for _, tt := range tests {
+		if got := libraryScope(tt.sec, tt.src); got != tt.want {
+			t.Errorf("%+v %q: got %q, want %q", tt.sec, tt.src, got, tt.want)
+		}
 	}
 }
 

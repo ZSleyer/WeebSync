@@ -101,10 +101,12 @@ func (s *Server) indexPlexLibrary(ctx context.Context) {
 
 // storePlexRoots caches, from Plex's reported library locations: the local mounts
 // (plex_lib_roots, mapped through any path mapping) merged into localRoots, and a
-// root->library-title map (plex_lib_map) used to group suggestions by library.
-// Refreshes the transfer allowlist so a sync into the library is permitted.
+// root->library-title map (plex_lib_map) used to group suggestions by library,
+// and a root->match-scope map (plex_lib_scopes) so an auto-sync writing into a
+// library is matched against the source chosen for it. Refreshes the transfer allowlist so a sync into the library is permitted.
 func (s *Server) storePlexRoots(sections []plex.Section) {
-	var roots, mapLines []string
+	var roots, mapLines, scopeLines []string
+	srcOf := s.sectionSources()
 	for _, sec := range sections {
 		if sec.Type != "show" && sec.Type != "movie" {
 			continue
@@ -118,10 +120,12 @@ func (s *Server) storePlexRoots(sections []plex.Section) {
 				roots = append(roots, local)
 			}
 			mapLines = append(mapLines, local+"\t"+sec.Title)
+			scopeLines = append(scopeLines, local+"\t"+libraryScope(sec, srcOf[sec.Key]))
 		}
 	}
 	db.SetSetting(s.DB, "plex_lib_roots", strings.Join(roots, "\n"))
 	db.SetSetting(s.DB, "plex_lib_map", strings.Join(mapLines, "\n"))
+	db.SetSetting(s.DB, "plex_lib_scopes", strings.Join(scopeLines, "\n"))
 	if s.Transfers != nil {
 		s.Transfers.Roots = s.localRoots()
 	}
@@ -162,18 +166,48 @@ func (s *Server) plexRescan(dir string) {
 // matching library root), or "" when unknown (path not under a known library, or
 // not yet detected). Used to group upgrade/incomplete suggestions by library.
 func (s *Server) plexLibraryOf(folder string) string {
+	return s.libraryEntry("plex_lib_map", folder)
+}
+
+// plexLibraryScope returns the match scope (anime | tvdb | tv | movie) of the
+// Plex library owning a local folder, "" when the folder is in none.
+func (s *Server) plexLibraryScope(folder string) string {
+	return s.libraryEntry("plex_lib_scopes", folder)
+}
+
+// libraryEntry reads a "root\tvalue" per line setting and returns the value of
+// the longest root containing folder.
+func (s *Server) libraryEntry(key, folder string) string {
 	if folder == "" || !strings.HasPrefix(folder, "/") {
 		return ""
 	}
 	best := -1
-	title := ""
-	for _, ln := range splitLines(db.Setting(s.DB, "plex_lib_map")) {
-		root, t, ok := strings.Cut(ln, "\t")
+	value := ""
+	for _, ln := range splitLines(db.Setting(s.DB, key)) {
+		root, v, ok := strings.Cut(ln, "\t")
 		if ok && (folder == root || strings.HasPrefix(folder, root+"/")) && len(root) > best {
-			best, title = len(root), t
+			best, value = len(root), v
 		}
 	}
-	return title
+	return value
+}
+
+// libraryScope turns a library's metadata source (the user's choice, else the
+// default for the library) into the catalog scope its folders are matched in.
+// TVDB has no films here, so a film library set to it searches TMDB.
+func libraryScope(sec plex.Section, src string) string {
+	if src == "" {
+		src = DefaultSectionSource(sec)
+	}
+	switch {
+	case strings.HasPrefix(src, "anilist"):
+		return "anime"
+	case sec.Type == "movie":
+		return "movie"
+	case src == "tvdb":
+		return "tvdb"
+	}
+	return "tv"
 }
 
 // RefreshPlexRoots is the exported entry point for wiring at startup.

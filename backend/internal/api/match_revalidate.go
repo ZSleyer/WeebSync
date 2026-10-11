@@ -100,3 +100,50 @@ func (s *Server) cachedMedia(source string, id int) *anilist.Media {
 	}
 	return nil
 }
+
+// watchMatchRules names how watch folders are matched; bumping it searches every
+// watch's stored miss (media_id 0) once more.
+const watchMatchRules = "2026-10-library-scope"
+
+// BackfillWatchMatches queues a match for every watch folder that has none.
+// Watches older than ensureWatchMatch never got one, and a queued search that
+// was dropped (full queue, timeout, search error) leaves no row that a catalog
+// poll would ever revisit for a folder outside every catalog view. Stored
+// misses are retried once per rule set. Run after the Plex roots are known:
+// the library scope decides where a folder is searched.
+//
+// ponytail: a dropped search waits for the next start; re-queue from the watch
+// check if that proves too slow.
+func (s *Server) BackfillWatchMatches() {
+	retryMisses := db.Setting(s.DB, "watch_match_rules") != watchMatchRules
+	rows, err := s.DB.Query(`SELECT w.server_id, w.remote_path, w.local_path, m.media_id IS NULL
+		FROM watches w LEFT JOIN catalog_matches m ON m.server_id = w.server_id AND m.folder = w.remote_path`)
+	if err != nil {
+		return
+	}
+	type watchFolder struct {
+		serverID      int64
+		remote, local string
+		missing       bool
+	}
+	var all []watchFolder
+	for rows.Next() {
+		var w watchFolder
+		if rows.Scan(&w.serverID, &w.remote, &w.local, &w.missing) == nil {
+			all = append(all, w)
+		}
+	}
+	rows.Close()
+	queued := 0
+	for _, w := range all {
+		if (w.missing || retryMisses) && s.ensureWatchMatch(w.serverID, w.remote, w.local) {
+			queued++
+		}
+	}
+	slog.Info("watch matches backfilled", "watches", len(all), "queued", queued)
+	// a Plex that did not answer yet leaves no library scopes: retry the misses
+	// on the next start rather than settle them on AniList
+	if s.plexClient() == nil || db.Setting(s.DB, "plex_lib_scopes") != "" {
+		db.SetSetting(s.DB, "watch_match_rules", watchMatchRules)
+	}
+}
