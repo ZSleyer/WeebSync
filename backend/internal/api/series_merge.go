@@ -199,7 +199,8 @@ func (s *Server) refreshShowTitle(seriesID int64) {
 		}
 	}
 	rows.Close()
-	if len(titles) == 0 {
+	// the shared prefix of half the seasons is not the show's name
+	if rows.Err() != nil || len(titles) == 0 {
 		return
 	}
 	name := titles[0]

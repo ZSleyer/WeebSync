@@ -101,7 +101,7 @@ func (s *Server) downloadsMeta(userID int64) (DownloadMetaResponse, error) {
 	}
 	rows.Close()
 
-	bySrc, bySeries := s.seriesProviderMaps()
+	bySrc, bySeries, _ := s.seriesProviderMaps()
 	locale := s.userLocale(userID)
 	showOf := map[string]string{}           // "<serverId>|<fileDir>" -> show folder
 	epTitles := map[string]map[int]string{} // group key -> episode title by epKey

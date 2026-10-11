@@ -96,8 +96,13 @@ func (s *Server) anilistFromSeries(tvdb, tmdb, season int) (int, bool) {
 	var ids []int
 	for rows.Next() {
 		var id int
-		rows.Scan(&id)
+		if rows.Scan(&id) != nil {
+			return 0, false
+		}
 		ids = append(ids, id)
+	}
+	if rows.Err() != nil {
+		return 0, false // a partial read can make an ambiguous match look unique
 	}
 	if len(ids) == 1 {
 		return ids[0], true
@@ -135,8 +140,13 @@ func (s *Server) anilistFromAnimeIDs(tvdb, tmdb, season int) (int, bool) {
 		var all []row
 		for rows.Next() {
 			var r row
-			rows.Scan(&r.id, &r.season)
+			if rows.Scan(&r.id, &r.season) != nil {
+				return 0, false
+			}
 			all = append(all, r)
+		}
+		if rows.Err() != nil {
+			return 0, false
 		}
 		if len(all) == 1 {
 			return all[0].id, true
