@@ -15,6 +15,7 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/secret"
 )
 
@@ -151,8 +152,7 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid code")
 		return
 	}
-	s.DB.Exec(`UPDATE user_totp SET confirmed_at = datetime('now') WHERE user_id = ?`, u.ID)
-	codes, err := s.regenRecoveryCodes(u.ID)
+	codes, err := s.confirmTotp(u.ID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "could not generate recovery codes")
 		return
@@ -186,8 +186,17 @@ func (s *Server) handleTotpDisable(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "invalid password")
 		return
 	}
-	s.DB.Exec(`DELETE FROM user_totp WHERE user_id = ?`, u.ID)
-	s.DB.Exec(`DELETE FROM user_recovery_codes WHERE user_id = ?`, u.ID)
+	// both or neither: a failed first delete answered "ok" with 2FA still on
+	if err := db.Tx(s.DB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM user_totp WHERE user_id = ?`, u.ID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(`DELETE FROM user_recovery_codes WHERE user_id = ?`, u.ID)
+		return err
+	}); err != nil {
+		writeErr(w, http.StatusInternalServerError, "could not disable TOTP")
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -265,18 +274,33 @@ func (s *Server) totpSecret(userID int64) (string, bool) {
 	return sec, true
 }
 
-// regenRecoveryCodes replaces the user's recovery codes with 10 fresh ones and
-// returns the plaintext (only chance to see them).
-func (s *Server) regenRecoveryCodes(userID int64) ([]string, error) {
-	s.DB.Exec(`DELETE FROM user_recovery_codes WHERE user_id = ?`, userID)
+// confirmTotp switches the user's TOTP on and replaces the recovery codes with
+// 10 fresh ones, returning the plaintext (only chance to see them). One
+// transaction: the user must never be shown codes that were not stored, nor
+// end up with TOTP on and no way back in.
+func (s *Server) confirmTotp(userID int64) ([]string, error) {
 	codes := make([]string, 0, 10)
-	for i := 0; i < 10; i++ {
-		c, err := recoveryCode()
-		if err != nil {
-			return nil, err
+	err := db.Tx(s.DB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`UPDATE user_totp SET confirmed_at = datetime('now') WHERE user_id = ?`, userID); err != nil {
+			return err
 		}
-		codes = append(codes, c)
-		s.DB.Exec(`INSERT INTO user_recovery_codes (user_id, code_hash) VALUES (?, ?)`, userID, hashToken(c))
+		if _, err := tx.Exec(`DELETE FROM user_recovery_codes WHERE user_id = ?`, userID); err != nil {
+			return err
+		}
+		for i := 0; i < 10; i++ {
+			c, err := recoveryCode()
+			if err != nil {
+				return err
+			}
+			codes = append(codes, c)
+			if _, err := tx.Exec(`INSERT INTO user_recovery_codes (user_id, code_hash) VALUES (?, ?)`, userID, hashToken(c)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return codes, nil
 }
