@@ -3838,7 +3838,7 @@
             "api.scopeRequest": {
                 "properties": {
                     "kind": {
-                        "description": "\"\" | anime | tv | movie",
+                        "description": "\"\" | anime | manga | tv | movie | tvdb",
                         "type": "string"
                     },
                     "path": {
@@ -3850,7 +3850,7 @@
             "api.scopeResponse": {
                 "properties": {
                     "scope": {
-                        "description": "\"\" | anime | tv | movie",
+                        "description": "\"\" | anime | manga | tv | movie | tvdb",
                         "type": "string"
                     }
                 },

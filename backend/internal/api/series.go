@@ -59,6 +59,9 @@ func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual
 // series row was inserted (not when the provider joined an existing series or
 // was already bundled), so the caller can raise a "new series" notification.
 func (s *Server) linkSeries(source string, mediaID int) (created bool, title string) {
+	if source == mangaSource {
+		return false, "" // series bundle what is watched; a manga is read
+	}
 	media, _ := s.sourceMedia(source, mediaID)
 	if media == nil {
 		return false, "" // metadata not cached yet; a later match/sweep links it

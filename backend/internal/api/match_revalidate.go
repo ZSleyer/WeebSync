@@ -64,7 +64,11 @@ func (s *Server) RevalidateMatches() {
 		// a local folder asks Plex first (its guid names the 2012 JoJo, not a
 		// title search); force would skip that
 		force := r.serverID != localServerID
-		s.queueScopedMatch(r.serverID, r.folder, path.Base(r.folder), s.scopeFor(r.serverID, path.Dir(r.folder)), force)
+		scope := s.scopeFor(r.serverID, path.Dir(r.folder))
+		if r.source == mangaSource {
+			scope = "manga" // a manga stays a manga; its tree often carries no mark
+		}
+		s.queueScopedMatch(r.serverID, r.folder, path.Base(r.folder), scope, force)
 		dropped++
 	}
 	if dropped > 0 {

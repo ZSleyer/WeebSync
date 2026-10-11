@@ -194,6 +194,7 @@ type matchJob struct {
 	folder   string
 	name     string
 	force    bool // bypass the search cache (user-triggered re-match)
+	manga    bool // search AniList's MANGA catalogue, stored as anilist:manga
 }
 
 // seasonDirRe matches season folders like "2026-3 Summer" (quarter 1-4).
@@ -215,7 +216,7 @@ func seasonFromPath(p string) (string, int) {
 // deduplicated and drained in batches of 10 by a single worker (one GraphQL
 // request per batch). Persists only on a successful search so failures are
 // retried by a later catalog poll.
-func (s *Server) queueMatch(serverID int64, folder, name string, force bool) {
+func (s *Server) queueMatch(serverID int64, folder, name string, force, manga bool) {
 	key := fmt.Sprintf("m:%d:%s", serverID, folder)
 	if s.jobPaused(key) {
 		return
@@ -237,7 +238,7 @@ func (s *Server) queueMatch(serverID int64, folder, name string, force bool) {
 		go s.matchWorker()
 	})
 	select {
-	case s.matchCh <- matchJob{serverID, folder, name, force}:
+	case s.matchCh <- matchJob{serverID, folder, name, force, manga}:
 	default: // queue full: drop, the next poll re-queues
 		s.dropJob(key)
 	}
@@ -277,7 +278,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 	reqs := make([]anilist.SearchReq, len(batch))
 	for i, b := range batch {
 		season, year := seasonFromPath(b.folder)
-		reqs[i] = anilist.SearchReq{Query: GuessTitle(b.name), Season: season, Year: year, Force: b.force}
+		reqs[i] = anilist.SearchReq{Query: GuessTitle(b.name), Season: season, Year: year, Force: b.force, Manga: b.manga}
 	}
 	results, err := s.Anilist.SearchBatch(ctx, reqs)
 	if err != nil {
@@ -314,7 +315,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 		}
 	}
 	runFallback("unfiltered", retry, func(i int) anilist.SearchReq {
-		return anilist.SearchReq{Query: reqs[i].Query, Force: reqs[i].Force}
+		return anilist.SearchReq{Query: reqs[i].Query, Force: reqs[i].Force, Manga: reqs[i].Manga}
 	})
 	var alt []int
 	for i, b := range batch {
@@ -323,7 +324,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 		}
 	}
 	runFallback("alt-title", alt, func(i int) anilist.SearchReq {
-		return anilist.SearchReq{Query: GuessAltTitle(batch[i].name), Force: reqs[i].Force}
+		return anilist.SearchReq{Query: GuessAltTitle(batch[i].name), Force: reqs[i].Force, Manga: reqs[i].Manga}
 	})
 	infos := make([]match.Info, len(batch))
 	for i, b := range batch {
@@ -336,7 +337,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 		}
 	}
 	runFallback("normalized", normed, func(i int) anilist.SearchReq {
-		return anilist.SearchReq{Query: match.Normalize(reqs[i].Query), Force: reqs[i].Force}
+		return anilist.SearchReq{Query: match.Normalize(reqs[i].Query), Force: reqs[i].Force, Manga: reqs[i].Manga}
 	})
 	var stripped []int
 	for i := range results {
@@ -347,7 +348,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 		}
 	}
 	runFallback("stripped-markers", stripped, func(i int) anilist.SearchReq {
-		return anilist.SearchReq{Query: match.StripMarkers(reqs[i].Query), Force: reqs[i].Force}
+		return anilist.SearchReq{Query: match.StripMarkers(reqs[i].Query), Force: reqs[i].Force, Manga: reqs[i].Manga}
 	})
 
 	// pick the best-scoring candidate per folder instead of the first hit;
@@ -366,7 +367,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 			picked[i] = &results[i][idx]
 			slog.Debug("match picked", "folder", logSafe(batch[i].folder), "media", picked[i].ID,
 				"title", picked[i].Title.Romaji, "candidates", len(results[i]), "confident", true)
-		case infos[i].Season >= 2 && match.SeasonOf(results[i][idx]) == 0:
+		case infos[i].Season >= 2 && match.SeasonOf(results[i][idx]) == 0 && !batch[i].manga:
 			picked[i], rescue[i] = &results[i][idx], true
 			// sequel folder, best candidate has no season marker: keep it
 			// tentatively for the relations pass to confirm or discard
@@ -385,7 +386,11 @@ func (s *Server) matchBatch(batch []matchJob) {
 			mediaID = picked[i].ID
 			s.Anilist.CacheMedia(picked[i])
 		}
-		s.persistMatch(b.serverID, b.folder, mediaID, false, "anilist")
+		src := "anilist"
+		if b.manga {
+			src = mangaSource
+		}
+		s.persistMatch(b.serverID, b.folder, mediaID, false, src)
 	}
 }
 
@@ -592,9 +597,10 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		if scope == "" {
+		if scope == "" || isShelf(e.Name) {
 			// no metadata source chosen for this path yet: show the plain
-			// structure and wait for the user to pick one (persisted mark)
+			// structure and wait for the user to pick one (persisted mark).
+			// An alphabet shelf is structure too, its titles are one deeper.
 			items = append(items, item)
 			continue
 		}
@@ -778,15 +784,15 @@ func (s *Server) reuseMatch(serverID int64, name, source string) (int, bool) {
 func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, force bool) {
 	// local library: try Plex's authoritative tvdb/tmdb id first (also drains
 	// the sweep this way); an explicit rematch (force) still does a title search
-	if serverID == localServerID && !force {
+	if serverID == localServerID && !force && scope != "manga" {
 		src := sourceForScope(scope)
 		if id, ok := s.matchLocalByPlexID(folder, src); ok {
 			s.persistMatch(serverID, folder, id, false, src)
 			return
 		}
 	}
-	if scope == "" || scope == "anime" {
-		s.queueMatch(serverID, folder, name, force)
+	if scope == "" || scope == "anime" || scope == "manga" {
+		s.queueMatch(serverID, folder, name, force, scope == "manga")
 		return
 	}
 	if scope == "tvdb" {
