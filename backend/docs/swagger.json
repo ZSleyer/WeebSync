@@ -74,6 +74,9 @@
                     "bannerImage": {
                         "type": "string"
                     },
+                    "chapters": {
+                        "type": "integer"
+                    },
                     "coverImage": {
                         "properties": {
                             "color": {
@@ -204,6 +207,14 @@
                             }
                         },
                         "type": "object"
+                    },
+                    "type": {
+                        "description": "Type is ANIME or MANGA (light novels are MANGA with format NOVEL).\nAniList ids are unique across both, so one id never means two works.",
+                        "type": "string"
+                    },
+                    "volumes": {
+                        "description": "Volumes and Chapters are the MANGA counterparts of Episodes, 0 while\nthe work is still running or AniList does not know.",
+                        "type": "integer"
                     }
                 },
                 "type": "object"
