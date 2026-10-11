@@ -407,8 +407,8 @@ func (s *Server) queueMatches(matches []catalogMatch) {
 			s.queueTmdbMatch(m.serverID, m.folder, path.Base(m.folder), strings.TrimPrefix(m.source, "tmdb:"), true)
 		case "tvdb":
 			s.queueTvdbMatch(m.serverID, m.folder, path.Base(m.folder), true)
-		default: // anilist
-			s.queueMatch(m.serverID, m.folder, path.Base(m.folder), true)
+		default: // anilist, anilist:manga
+			s.queueMatch(m.serverID, m.folder, path.Base(m.folder), true, m.source == mangaSource)
 		}
 	}
 }

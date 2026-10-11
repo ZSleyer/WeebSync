@@ -150,6 +150,8 @@ type WatchCheckResponse struct {
 // split, from the metadata provider plus the AniList format.
 func watchCategory(source string, m *anilist.Media) string {
 	switch {
+	case source == mangaSource:
+		return "manga" // light novels too: same shelf, same reader
 	case source == "tmdb:movie":
 		return "movie"
 	case source == "tmdb:tv":
@@ -1338,14 +1340,16 @@ var epNumRe = regexp.MustCompile(`(?i)S\d+E(\d+)`)
 // bogus gap).
 var epSeasonRe = regexp.MustCompile(`(?i)S(\d+)E(\d+)`)
 
-// countVideos counts local video files. When minEp > 0, only files whose
+// countVideos counts local video files, and the volumes of a manga watch
+// (no folder holds both). When minEp > 0, only files whose
 // SxxEyy episode number is >= minEp count - for watches that share a season
 // folder with earlier parts (e.g. Dr. Stone S4 Part 3 starts at E26, Conan
 // S33 at E31), so only this part's episodes are tallied.
 func (s *Server) countVideos(rel string, minEp int) int {
 	n := 0
 	for _, v := range s.localFiles(rel) {
-		if !videoExt[strings.ToLower(filepath.Ext(v.name))] {
+		ext := strings.ToLower(filepath.Ext(v.name))
+		if !videoExt[ext] && !transfer.BookExt[ext] {
 			continue
 		}
 		if minEp > 0 {
@@ -1889,7 +1893,7 @@ func (s *Server) linkMedia(serverID int64, folder string, mediaID int, source st
 	if mediaID <= 0 {
 		return
 	}
-	if source != "tmdb:tv" && source != "tmdb:movie" {
+	if source != "tmdb:tv" && source != "tmdb:movie" && source != mangaSource {
 		source = "anilist"
 	}
 	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)
@@ -1941,7 +1945,39 @@ func (s *Server) watchMatchQuery(serverID int64, folder, localPath string) (name
 		}
 		scope = s.plexLibraryScope(target)
 	}
+	if (scope == "" || scope == "anime") && s.holdsBooks(serverID, folder) {
+		scope = "manga"
+	}
 	return name, scopeForItem(scope, s.itemKind(serverID, folder, name))
+}
+
+// holdsBooks reports whether a remote folder holds manga or novel volumes and
+// no video, so a watch on it is matched against manga without a mark - manga
+// trees shelve titles under letter folders, often more than one level below
+// any folder that could carry one. The remote index decides; a folder it has
+// not reached yet falls back to a "manga" somewhere in its path.
+func (s *Server) holdsBooks(serverID int64, folder string) bool {
+	var books, videos, seen int
+	rows, err := s.DB.Query(`SELECT name FROM remote_index WHERE server_id = ? AND parent = ? AND is_dir = 0`, serverID, folder)
+	if err == nil {
+		for rows.Next() {
+			var n string
+			rows.Scan(&n)
+			seen++
+			ext := strings.ToLower(path.Ext(n))
+			if transfer.BookExt[ext] {
+				books++
+			} else if videoExt[ext] {
+				videos++
+			}
+		}
+		rows.Close()
+	}
+	if seen > 0 {
+		return books > 0 && videos == 0
+	}
+	// ponytail: path heuristic until the crawler has listed the folder
+	return strings.Contains(strings.ToLower(path.Dir(folder)), "manga")
 }
 
 // seasonDirNameRe matches a folder that is only a season marker. Anchored: a

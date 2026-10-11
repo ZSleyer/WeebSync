@@ -21,15 +21,28 @@ import (
 // do not reach into subfolders: a catalog view describes the folder it was
 // chosen for, and a level deeper is usually a different kind of listing
 // (seasons, versions) that should not be matched as titles again.
+//
+// The one exception is an alphabet shelf: "Manga/M/Monster" files its titles
+// under a letter folder, and that folder takes the mark of the one above it.
 func (s *Server) scopeFor(serverID int64, p string) string {
 	var kind string
 	s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, p).Scan(&kind)
+	if kind == "" && isShelf(path.Base(p)) && path.Dir(p) != p {
+		s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, path.Dir(p)).Scan(&kind)
+	}
 	return kind
 }
 
+// shelfRe matches an alphabet shelf folder: one letter, or the bucket the
+// digits and symbols are sorted into.
+var shelfRe = regexp.MustCompile(`^(?:[A-Za-z]|0-9|#|[0-9]|-)$`)
+
+// isShelf reports whether a folder name is an alphabet shelf, not a title.
+func isShelf(name string) bool { return shelfRe.MatchString(name) }
+
 // scopeResponse reports the metadata scope of a catalog path.
 type scopeResponse struct {
-	Scope string `json:"scope"` // "" | anime | tv | movie
+	Scope string `json:"scope"` // "" | anime | manga | tv | movie | tvdb
 }
 
 // handleCatalogScopeGet reports the scope of a path without listing the folder
@@ -65,12 +78,19 @@ func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, scopeResponse{Scope: s.scopeFor(serverID, dir)})
 }
 
+// mangaSource is the catalog_matches source of a folder matched against
+// AniList's MANGA catalogue. Plain "anilist" stays anime: the anime-only passes
+// (season identity, relations, dubs, the anime id mapping) never see a manga.
+const mangaSource = "anilist:manga"
+
 // sourceForScope maps a scope kind to the catalog_matches source tag.
 // 'anime' is an explicit override mark below a TMDB/TVDB-scoped folder.
 func sourceForScope(kind string) string {
 	switch kind {
 	case "", "anime":
 		return "anilist"
+	case "manga":
+		return mangaSource
 	case "tvdb":
 		return "tvdb"
 	default:
@@ -81,7 +101,7 @@ func sourceForScope(kind string) string {
 // scopeRequest is the body of handleCatalogScope.
 type scopeRequest struct {
 	Path string `json:"path"`
-	Kind string `json:"kind"` // "" | anime | tv | movie
+	Kind string `json:"kind"` // "" | anime | manga | tv | movie | tvdb
 }
 
 // handleCatalogScope sets or clears a folder mark.
@@ -108,7 +128,7 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch in.Kind {
-	case "", "anime", "tv", "movie", "tvdb":
+	case "", "anime", "manga", "tv", "movie", "tvdb":
 	default:
 		writeErr(w, http.StatusBadRequest, "invalid kind")
 		return
@@ -283,7 +303,7 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 		return !fresh && m.Status != "FINISHED" && m.Status != "CANCELLED"
 	}
 	switch {
-	case source == "anilist":
+	case source == "anilist" || source == mangaSource:
 		m, fresh = s.Anilist.CachedMedia(id)
 		if m == nil {
 			s.queueMediaFetch(id)
@@ -291,6 +311,11 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 		}
 		if outdated(m) {
 			s.queueMediaFetch(id)
+		}
+		// a manga counts volumes where an anime counts episodes: one number
+		// for completeness and the overview, labelled by the watch category
+		if source == mangaSource && m.Episodes == 0 {
+			m.Episodes = m.Volumes
 		}
 	case strings.HasPrefix(source, "tmdb:"):
 		if s.Tmdb == nil {

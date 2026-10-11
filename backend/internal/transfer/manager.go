@@ -412,6 +412,11 @@ var ErrNotFound = fmt.Errorf("download not found")
 // completeness checks).
 var VideoExt = map[string]bool{".mkv": true, ".mp4": true, ".avi": true, ".ts": true, ".m2ts": true, ".webm": true, ".mov": true}
 
+// BookExt lists file extensions counted as a manga or novel volume. Not part
+// of the "still uploading" size check: volumes differ in size too much for a
+// median to say anything.
+var BookExt = map[string]bool{".cbz": true, ".cbr": true, ".epub": true, ".pdf": true, ".mobi": true, ".azw3": true}
+
 // SubExt lists file extensions treated as a subtitle sitting beside a video.
 // Such a file is a real, selectable subtitle track - the thing a release with
 // burned-in subtitles cannot offer - so the quality scan counts it.
