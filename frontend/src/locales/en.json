@@ -1029,6 +1029,7 @@
     "usersYou": "you",
     "usersMakeAdmin": "Make admin",
     "usersRemoveAdmin": "Remove admin",
+    "usersConfirmSelfDemote": "Remove your own admin role? You lose access to the settings and the user list at once, and only another admin can give it back.",
     "usersConfirmDelete": "Delete user \"{{email}}\"? All of this user's servers and downloads will be removed.",
     "look": "appearance",
     "theme": "Theme",
