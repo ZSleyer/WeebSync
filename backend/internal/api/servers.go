@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/secret"
@@ -231,27 +232,47 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
-	res, err := s.DB.Exec(`DELETE FROM servers WHERE id = ? AND user_id = ?`, id, u.ID)
+	var found bool
+	// one transaction: a failure halfway left the catalog rows of a server
+	// that no longer exists, and answered "ok"
+	err := db.Tx(s.DB, func(tx *sql.Tx) error {
+		res, err := tx.Exec(`DELETE FROM servers WHERE id = ? AND user_id = ?`, id, u.ID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil
+		}
+		found = true
+		// catalog rows carry no foreign key any more (source id 0 is the local
+		// filesystem, which has no server row), so clean them up here.
+		// Provider ids are knowledge about the world, not about this server:
+		// which TVDB id a show has does not change because a server was
+		// removed. They used to be deleted whenever no match referenced them,
+		// which also wiped every id Plex had contributed - those have no match
+		// row by definition - and threw away a cross-provider bridge that takes
+		// a full sweep to rebuild. What does go is a series left without any
+		// provider at all.
+		for _, q := range []string{
+			`DELETE FROM catalog_matches WHERE server_id = ?`,
+			`DELETE FROM catalog_scopes WHERE server_id = ?`,
+			`DELETE FROM catalog_variants WHERE server_id = ?`,
+		} {
+			if _, err := tx.Exec(q, id); err != nil {
+				return err
+			}
+		}
+		_, err = tx.Exec(`DELETE FROM series WHERE id NOT IN (SELECT series_id FROM series_provider)`)
+		return err
+	})
 	if err != nil {
 		dbErr(w)
 		return
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if !found {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
 	}
-	// catalog rows carry no foreign key any more (source id 0 is the local
-	// filesystem, which has no server row), so clean them up here
-	s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ?`, id)
-	s.DB.Exec(`DELETE FROM catalog_scopes WHERE server_id = ?`, id)
-	s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = ?`, id)
-	// Provider ids are knowledge about the world, not about this server: which
-	// TVDB id a show has does not change because a server was removed. They used
-	// to be deleted whenever no match referenced them, which also wiped every id
-	// Plex had contributed - those have no match row by definition - and threw
-	// away a cross-provider bridge that takes a full sweep to rebuild. What does
-	// go is a series left without any provider at all.
-	s.DB.Exec(`DELETE FROM series WHERE id NOT IN (SELECT series_id FROM series_provider)`)
 	s.Conns.Evict(id)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
