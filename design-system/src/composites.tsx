@@ -676,14 +676,22 @@ export interface CalendarDayProps {
   /** the heading names the section for a screen reader but is not drawn -
       for a panel whose day is already written above it */
   quietHeading?: boolean
+  /** the day is today: its heading is a filled chip, the others outlined */
+  today?: boolean
   className?: string
 }
 
 /** A day column: chip heading plus its releases. */
-export function CalendarDay({ day, quietHeading, children, className }: CalendarDayProps) {
+export function CalendarDay({ day, quietHeading, today, children, className }: CalendarDayProps) {
   return (
-    <section className={cx('min-w-0', className)}>
-      <h3 className={quietHeading ? 'sr-only' : 't-label t-label--accent mb-2'}>{day}</h3>
+    <section className={cx('min-w-0', className)} aria-current={today ? 'date' : undefined}>
+      <h3
+        className={
+          quietHeading ? 'sr-only' : cx('t-label mb-2', today ? 'border-accent bg-accent' : 't-label--accent')
+        }
+      >
+        {day}
+      </h3>
       <ul className="flex flex-col gap-2">{children}</ul>
     </section>
   )
@@ -730,9 +738,8 @@ export interface DayTimelineProps {
  * stacks and nothing can overlap.
  *
  * What lies before the marker has aired: its stretch of the axis is filled
- * and its rows step back. The marker itself sticks to the top or bottom edge
- * of the screen once it would scroll away, with the time beside it, so the
- * reader always knows which way "now" is.
+ * and its rows step back. The marker stands at its time on the axis, the
+ * time beside it, and scrolls with the day like everything else on it.
  *
  * ponytail: the page scrolls, not this. A day fits on a screen once the gaps
  * are cut; an own scroller anchored on the marker is the upgrade if a day ever

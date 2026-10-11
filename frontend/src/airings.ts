@@ -2,7 +2,17 @@ import type { Watch } from './api'
 
 // One scheduled release of a watched series. The watches page groups these
 // by day for its calendar, the dashboard shows the next few.
-export type Airing = { at: number; episode: number; episodeAbs?: number; dub?: string; est?: boolean; watch: Watch }
+export type Airing = {
+  at: number
+  episode: number
+  episodeAbs?: number
+  dub?: string
+  est?: boolean
+  have?: boolean
+  remoteAt?: number
+  remoteEst?: boolean
+  watch: Watch
+}
 
 /**
  * Every release the providers know, flattened across the watches and sorted by
@@ -20,6 +30,9 @@ export function upcomingAirings(watches: Watch[], now = Date.now(), withinDays?:
         episodeAbs: a.episodeAbs,
         dub: a.dub,
         est: a.est,
+        have: a.have,
+        remoteAt: a.remoteAt,
+        remoteEst: a.remoteEst,
         watch: w,
       })),
     )
@@ -39,6 +52,22 @@ export function episodeLabel(
   let s = e.dub ? t('watch.dubEp', { n: e.episode, lang: e.dub.toUpperCase() }) : t('watch.nextEp', { n: e.episode })
   if (e.episodeAbs && e.episodeAbs !== e.episode) s += ` (${e.episodeAbs})`
   return e.est ? `~ ${s}` : s
+}
+
+/**
+ * What a calendar entry says about the file behind it: on disk; seen on the
+ * server (the first check that queued it); or expected there, from the slot
+ * plus the watch's learned upload lag - and once that time has passed without
+ * a file, that it is late. Undefined when nothing is known.
+ */
+export function fileStatus(
+  e: { have?: boolean; remoteAt?: number; remoteEst?: boolean },
+  now: number,
+): { kind: 'have' | 'onServer' | 'expected' | 'late'; at?: number } | undefined {
+  if (e.have) return { kind: 'have' }
+  if (!e.remoteAt) return undefined
+  if (!e.remoteEst) return { kind: 'onServer', at: e.remoteAt }
+  return { kind: e.remoteAt * 1000 <= now ? 'late' : 'expected', at: e.remoteAt }
 }
 
 /** Local midnight of the day `d` is in. */

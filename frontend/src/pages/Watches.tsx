@@ -62,7 +62,7 @@ import { api, fmtMissing, langLabel, mediaTitle, type Watch } from '../api'
 import ActionSheet from '../components/ActionSheet'
 import Press from '../components/Press'
 import { attentionInfo, dubOverdueLabel, dubWaitingLabel } from '../attention'
-import { addDays, dayKey, episodeLabel, startOfDay, upcomingAirings, type Airing } from '../airings'
+import { addDays, dayKey, episodeLabel, fileStatus, startOfDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import { useWatchActions, watchFields } from '../components/watchActions'
@@ -248,6 +248,35 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
   // one release, in the agenda, the phone's day or a desktop week column
   const entryOf = (e: Airing, compact?: boolean) => <li key={entryKey(e)}>{entryBody(e, compact)}</li>
   const entryKey = (e: Airing) => `${e.watch.id}-${e.episode}-${e.at}-${e.dub ?? ''}`
+  // The file behind an entry, under its episode line: on disk, on the server,
+  // or when it should be there - the weekday too when that is not the slot's day.
+  const fileLine = (e: Airing) => {
+    const st = fileStatus(e, now)
+    if (!st) return null
+    if (st.kind === 'have')
+      return (
+        <span className="mt-0.5 flex items-center gap-1 text-ctl-sm text-ok">
+          <Check aria-hidden size="1em" />
+          {t('watch.fileHave')}
+        </span>
+      )
+    const d = new Date((st.at ?? 0) * 1000)
+    const time =
+      (startOfDay(d).getTime() === startOfDay(new Date(e.at * 1000)).getTime()
+        ? ''
+        : `${d.toLocaleDateString([], { weekday: 'short' })} `) +
+      d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const key = { onServer: 'watch.fileOnServer', expected: 'watch.fileExpected', late: 'watch.fileLate' }[st.kind]
+    const tone = { onServer: 'text-accent', expected: 'text-t-muted', late: 'text-warn' }[st.kind]
+    return (
+      <span
+        className={`mt-0.5 block text-ctl-sm ${tone}`}
+        title={st.kind === 'onServer' ? undefined : t('watch.fileEstimate')}
+      >
+        {t(key, { time })}
+      </span>
+    )
+  }
   const entryBody = (e: Airing, compact?: boolean) => {
     const name = e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '')
     return (
@@ -257,7 +286,12 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
           compact={compact}
           cover={e.watch.media?.coverImage?.large}
           title={name}
-          episode={<span title={e.est ? t('watch.dubEstimate') : undefined}>{episodeLabel(t, e)}</span>}
+          episode={
+            <>
+              <span title={e.est ? t('watch.dubEstimate') : undefined}>{episodeLabel(t, e)}</span>
+              {fileLine(e)}
+            </>
+          }
           time={
             // the JST hover lives on the text itself - CalendarEntry owns the <p> around it
             <span title={e.watch.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(e.at, 'Asia/Tokyo')} JST`}>
@@ -611,54 +645,43 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                       </EmptyState>
                     ) : (
                       // desktop: seven days side by side, the picked one in the
-                      // middle and marked; today is the band's to mark
+                      // middle; the band above marks it, the column needs no
+                      // frame of its own
                       <div className="grid grid-cols-7 gap-3">
                         {weekDays(i).map((d) => {
                           const k = dayKey(d)
                           const items = byDay.get(k) ?? []
+                          const isTodayCol = d.getTime() === today.getTime()
                           return (
                             <CalendarDay
                               key={k}
-                              className={
-                                k === selectedDay
-                                  ? 'rounded-md outline-2 outline-offset-4 outline-accent/40'
-                                  : d.getTime() < today.getTime()
-                                    ? 'opacity-60'
-                                    : undefined
-                              }
+                              today={isTodayCol}
+                              // days gone step back; today stands out by its
+                              // filled chip and its axis, days to come stay full
+                              className={!isTodayCol && d.getTime() < today.getTime() ? 'opacity-50' : undefined}
                               day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
                             >
                               {items.length === 0 ? (
                                 <li className="text-xs text-t-faint">{t('watch.week.free')}</li>
-                              ) : d.getTime() === today.getTime() ? (
-                                // today: now stands between what has aired and
-                                // what is still to come, as on the phone's axis
-                                <>
-                                  {items
-                                    .filter((e) => e.at * 1000 < now)
-                                    .map((e) => (
-                                      <li key={entryKey(e)} className="opacity-60">
-                                        {entryBody(e, true)}
-                                      </li>
-                                    ))}
-                                  <li
-                                    role="separator"
-                                    className="t-nowline"
-                                    data-label={t('watch.week.now', {
+                              ) : isTodayCol ? (
+                                // today: the phone's axis, with now at its time
+                                <li>
+                                  <DayTimeline
+                                    entries={items.map((e) => ({
+                                      key: entryKey(e),
+                                      at: e.at,
+                                      node: entryBody(e, true),
+                                    }))}
+                                    now={now}
+                                    nowLabel={t('watch.week.now', {
                                       time: new Date(now).toLocaleTimeString([], {
                                         hour: '2-digit',
                                         minute: '2-digit',
                                       }),
                                     })}
-                                    aria-label={t('watch.week.now', {
-                                      time: new Date(now).toLocaleTimeString([], {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      }),
-                                    })}
+                                    gapLabel={gapLabel}
                                   />
-                                  {items.filter((e) => e.at * 1000 >= now).map((e) => entryOf(e, true))}
-                                </>
+                                </li>
                               ) : (
                                 items.map((e) => entryOf(e, true))
                               )}
