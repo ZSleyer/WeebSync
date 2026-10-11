@@ -21,11 +21,12 @@ import (
 // handleAnilistSearch searches AniList by title for the match dialog.
 //
 //	@Summary		Search AniList
-//	@Description	Search AniList media by title.
+//	@Description	Search AniList media by title, anime unless type=manga.
 //	@Tags			Suggestions
 //	@Produce		json
-//	@Param			q	query		string	true	"Search query"
-//	@Success		200	{array}		anilist.Media
+//	@Param			q		query		string	true	"Search query"
+//	@Param			type	query		string	false	"anime (default) | manga"
+//	@Success		200		{array}		anilist.Media
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		502	{object}	ErrorResponse
 //	@Security		CookieAuth
@@ -34,6 +35,15 @@ func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if q == "" {
 		writeErr(w, http.StatusBadRequest, "q required")
+		return
+	}
+	if r.URL.Query().Get("type") == "manga" {
+		res, err := s.Anilist.SearchBatch(r.Context(), []anilist.SearchReq{{Query: q, Manga: true}})
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, append([]anilist.Media{}, res[0]...))
 		return
 	}
 	list, err := s.Anilist.Search(r.Context(), q)
