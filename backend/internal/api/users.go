@@ -102,7 +102,10 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "hash error")
 		return
 	}
-	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, upgrade_dims) VALUES (?, ?, 'res,sub,dub,soft')`, c.Email, hash)
+	// verified: the admin vouches for the address, and the account gets no
+	// verification mail that could confirm it - unverified, its login was
+	// refused with "email not verified" and nothing could ever change that
+	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, email_verified, upgrade_dims) VALUES (?, ?, 1, 'res,sub,dub,soft')`, c.Email, hash)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "email already registered")
 		return
