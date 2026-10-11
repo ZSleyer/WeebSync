@@ -661,6 +661,8 @@
     "syncOpen": "Sync ...",
     "syncTitle": "Sync {{name}}",
     "syncTarget": "Goes to:",
+    "syncTargetRel": "{{path}} in the download folder",
+    "syncTargetRoot": "the download folder",
     "noResults": "No matches in the index.",
     "indexBuilding": "The index is still being built and improves over time.",
     "indexCount": "{{count}} entries in the index",

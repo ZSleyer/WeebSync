@@ -5,6 +5,7 @@ import { isSeasonFolder } from '../components/RenameOptions'
 import {
   classifyTargets,
   pinSeason,
+  resolveLocalTarget,
   seasonInPath,
   subfolderTargetDir,
   syncRequestPath,
@@ -191,5 +192,20 @@ describe('classifyTargets', () => {
 
   it('does not let a directory of the same name count as a collision', () => {
     expect(classifyTargets([pair('Extras')], { Extras: 10 }, [dir('Extras')])).toEqual({ Extras: 'new' })
+  })
+})
+
+describe('resolveLocalTarget', () => {
+  const roots = ['/media/a', '/media/b/']
+  it('keeps a path inside a root, absolute or root-less', () => {
+    expect(resolveLocalTarget(roots, '/media/b/Show')).toBe('/media/b/Show')
+    expect(resolveLocalTarget(roots, 'media/a/Show/')).toBe('/media/a/Show')
+    expect(resolveLocalTarget(roots, '/media/a')).toBe('/media/a')
+  })
+  it('puts anything else under the primary root', () => {
+    expect(resolveLocalTarget(roots, 'Show/Season 01')).toBe('/media/a/Show/Season 01')
+    expect(resolveLocalTarget(roots, '/Show')).toBe('/media/a/Show')
+    expect(resolveLocalTarget(roots, '/media/ab')).toBe('/media/a/media/ab')
+    expect(resolveLocalTarget(roots, '')).toBe('/media/a')
   })
 })
