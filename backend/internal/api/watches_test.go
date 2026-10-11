@@ -235,6 +235,30 @@ func TestEnsureWatchMatchQueuesOnlyUnmatchedFolders(t *testing.T) {
 	}
 }
 
+// Watches without a row are queued on every start, stored misses once per rule
+// set, matched folders never.
+func TestBackfillWatchMatches(t *testing.T) {
+	d := dbtest.Open(t)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	for _, f := range []string{"/x/A", "/x/B", "/x/C"} {
+		d.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, ?, '/lib')`, f)
+	}
+	d.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id) VALUES (1, '/x/B', 'anilist', 0), (1, '/x/C', 'anilist', 5)`)
+	s := &Server{DB: d, Anilist: anilist.New(d)}
+	db.SetSetting(d, "jobs_paused", "m") // decide only, search nothing
+	if n := s.BackfillWatchMatches(); n != 2 {
+		t.Fatalf("first start: queued %d, want 2", n)
+	}
+	if got := db.Setting(d, "watch_match_rules"); got != watchMatchRules {
+		t.Fatalf("rule stamp: got %q", got)
+	}
+	if n := s.BackfillWatchMatches(); n != 1 {
+		t.Fatalf("next start: queued %d, want 1 (the folder without a row)", n)
+	}
+}
+
 // An unscoped watch folder is searched in the source of the Plex library it
 // writes into, and a season folder is searched by its show's name.
 func TestWatchMatchQuery(t *testing.T) {
