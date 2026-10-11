@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Panel, ROW_GRID, Select } from '@weebsync/design-system'
 import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
 import { useAiModels } from '../../hooks'
-import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
+import { EnvBadge, FieldIssue, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import Smtp from './Smtp'
 
@@ -102,7 +102,7 @@ function StatusStrip({ smtp, ha }: { smtp: boolean; ha: boolean }) {
 
 export default function Integrations() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked, dirty } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty, issue } = useSettingsForm()
   if (!form) return null
 
   // one panel per provider, the connection status as its first row and the
@@ -262,8 +262,11 @@ export default function Integrations() {
                 value={form.aiBaseUrl}
                 disabled={locked('aiBaseUrl')}
                 onChange={(e) => set('aiBaseUrl', e.target.value)}
+                aria-invalid={!!issue('aiBaseUrl') || undefined}
+                aria-describedby={issue('aiBaseUrl') ? 'aiBaseUrl-issue' : undefined}
               />
               <span className="mt-1 block">{t('settings.aiBaseUrlHint')}</span>
+              <FieldIssue id="aiBaseUrl-issue" msg={issue('aiBaseUrl')} />
             </label>
             <label className="text-xs text-t-muted">
               {t('settings.aiApiKey')}
@@ -289,8 +292,11 @@ export default function Integrations() {
                 value={form.aiSearchUrl}
                 disabled={locked('aiSearchUrl')}
                 onChange={(e) => set('aiSearchUrl', e.target.value)}
+                aria-invalid={!!issue('aiSearchUrl') || undefined}
+                aria-describedby={issue('aiSearchUrl') ? 'aiSearchUrl-issue' : undefined}
               />
               <span className="mt-1 block">{t('settings.aiSearchUrlHint')}</span>
+              <FieldIssue id="aiSearchUrl-issue" msg={issue('aiSearchUrl')} />
             </label>
           </div>
         </div>
@@ -306,8 +312,11 @@ export default function Integrations() {
               placeholder="http://homeassistant.local:8123/api/webhook/weebsync"
               value={form.haWebhookUrl}
               onChange={(e) => set('haWebhookUrl', e.target.value)}
+              aria-invalid={!!issue('haWebhookUrl') || undefined}
+              aria-describedby={issue('haWebhookUrl') ? 'haWebhookUrl-issue' : undefined}
             />
             <span className="mt-1 block">{t('settings.haWebhookUrlHint')}</span>
+            <FieldIssue id="haWebhookUrl-issue" msg={issue('haWebhookUrl')} />
           </label>
         </div>
       </Panel>
