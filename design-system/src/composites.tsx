@@ -134,7 +134,13 @@ export function MediaCard({
   return (
     <Panel className={cx('flex flex-wrap items-center gap-4 p-3', className)}>
       <CoverButton src={cover} tint={coverTint} onClick={onCover} label={coverLabel} />
-      <div className="min-w-0 flex-1">
+      {/* the text column's floor is what makes the row wrap: at a plain
+          min-w-0 it gave way to the counters and buttons until it was a
+          few letters wide (the auto-sync list beside the title panel, where
+          the viewport is wide but the card is not). At 14rem the counters
+          and buttons drop to a line of their own instead; the min() keeps
+          it from ever pushing out of a narrower card. */}
+      <div className="min-w-[min(14rem,100%)] flex-1">
         <h3 className="truncate text-sm font-medium text-t-primary">{title}</h3>
         {path && (
           <p className="truncate font-mono text-ctl-sm text-t-muted" title={pathTitle}>
