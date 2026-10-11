@@ -15,6 +15,10 @@ func TestSearchCacheKeyNormalized(t *testing.T) {
 	if c.cacheKey() == a.cacheKey() {
 		t.Error("season/year-filtered key must differ from the plain key")
 	}
+	// "One Piece" is an anime and a manga: one must never answer the other
+	if m := (SearchReq{Query: "Show Name", Manga: true}); m.cacheKey() == a.cacheKey() {
+		t.Error("manga key must differ from the anime key")
+	}
 }
 
 // media payloads are read back in two shapes: the GraphQL objects AniList

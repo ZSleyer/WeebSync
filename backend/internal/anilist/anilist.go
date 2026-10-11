@@ -155,6 +155,13 @@ type Media struct {
 	// the title; the Crunchyroll one carries the series id the dub recorder
 	// reads releases under (see CrunchyrollID).
 	ExternalLinks []ExternalLink `json:"externalLinks,omitempty"`
+	// Type is ANIME or MANGA (light novels are MANGA with format NOVEL).
+	// AniList ids are unique across both, so one id never means two works.
+	Type string `json:"type,omitempty"`
+	// Volumes and Chapters are the MANGA counterparts of Episodes, 0 while
+	// the work is still running or AniList does not know.
+	Volumes  int `json:"volumes,omitempty"`
+	Chapters int `json:"chapters,omitempty"`
 	// Schema is the payload version this entry was written with, see MediaSchema.
 	Schema int `json:"schema,omitempty"`
 }
@@ -202,7 +209,7 @@ const mediaFields = `id title { romaji english native } coverImage { large extra
 	trailer { id site thumbnail }
 	nextAiringEpisode { airingAt episode }
 	airingSchedule(notYetAired: true, perPage: 25) { nodes { airingAt episode } }
-	episodes seasonYear format status averageScore popularity genres description(asHtml: false)
+	episodes type volumes chapters seasonYear format status averageScore popularity genres description(asHtml: false)
 	studios(isMain: true) { nodes { name } }
 	externalLinks { site url }
 	startDate { year month day } endDate { year month day }`
@@ -338,6 +345,9 @@ type SearchReq struct {
 	Season string
 	Year   int
 	Force  bool
+	// Manga searches MANGA instead of ANIME. Most long runners exist as
+	// both, so it is part of the cache key.
+	Manga bool
 }
 
 // normQuery folds case and whitespace so folder-name variants of the same
@@ -349,9 +359,25 @@ func normQuery(q string) string {
 func (r SearchReq) cacheKey() string {
 	q := normQuery(r.Query)
 	if r.Season == "" && r.Year == 0 {
-		return "search:" + q
+		return r.keyPrefix() + q
 	}
-	return fmt.Sprintf("search:%s|%s%d", q, r.Season, r.Year)
+	return fmt.Sprintf("%s%s|%s%d", r.keyPrefix(), q, r.Season, r.Year)
+}
+
+// keyPrefix keeps manga hits apart from anime ones under the same query.
+// normQuery lowercases, so no anime key can carry the upper-case marker.
+func (r SearchReq) keyPrefix() string {
+	if r.Manga {
+		return "search:MANGA|"
+	}
+	return "search:"
+}
+
+func (r SearchReq) mediaType() string {
+	if r.Manga {
+		return "MANGA"
+	}
+	return "ANIME"
 }
 
 // SearchBatch resolves several searches with one GraphQL request using field
@@ -379,7 +405,7 @@ func (c *Client) SearchBatch(ctx context.Context, reqs []SearchReq) ([][]Media, 
 	for n, i := range missing {
 		r := reqs[i]
 		decls = append(decls, fmt.Sprintf("$q%d: String", n))
-		args := fmt.Sprintf("search: $q%d, type: ANIME", n)
+		args := fmt.Sprintf("search: $q%d, type: %s", n, r.mediaType())
 		if r.Season != "" {
 			decls = append(decls, fmt.Sprintf("$se%d: MediaSeason", n))
 			args += fmt.Sprintf(", season: $se%d", n)
@@ -414,7 +440,7 @@ func (c *Client) SearchBatch(ctx context.Context, reqs []SearchReq) ([][]Media, 
 		// same title, so folders without season info (other servers/paths)
 		// reuse it instead of re-querying; empty results don't poison it
 		if r := reqs[i]; (r.Season != "" || r.Year != 0) && len(list) > 0 {
-			c.store("search:"+normQuery(r.Query), string(payload))
+			c.store(r.keyPrefix()+normQuery(r.Query), string(payload))
 		}
 	}
 	return out, nil
@@ -816,7 +842,9 @@ func (c *Client) Media(ctx context.Context, id int) (*Media, error) {
 			Media *Media `json:"Media"`
 		} `json:"data"`
 	}
-	gql := fmt.Sprintf(`query ($id: Int) { Media(id: $id, type: ANIME) { %s } }`, mediaFields)
+	// no type filter: ids are unique across anime and manga, and a manga
+	// watch resolves its work through here as well
+	gql := fmt.Sprintf(`query ($id: Int) { Media(id: $id) { %s } }`, mediaFields)
 	if err := c.query(ctx, gql, map[string]any{"id": id}, &resp); err != nil {
 		return nil, err
 	}
