@@ -2,7 +2,10 @@ package api
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -41,7 +44,11 @@ func (s *Server) loadWAUser(userID int64) (*waUser, error) {
 		if _, err := rand.Read(handle); err != nil {
 			return nil, err
 		}
-		s.DB.Exec(`UPDATE users SET webauthn_handle = ? WHERE id = ?`, handle, userID)
+		// a handle that was not stored would bind the new passkey to an id no
+		// later login can find
+		if _, err := s.DB.Exec(`UPDATE users SET webauthn_handle = ? WHERE id = ?`, handle, userID); err != nil {
+			return nil, err
+		}
 	}
 	u.handle = handle
 	u.creds = s.waCredentials(userID)
@@ -150,7 +157,10 @@ func (s *Server) storeCredential(userID int64, c *webauthn.Credential, name stri
 // updateCredential re-saves a credential after a login (sign-count bump).
 func (s *Server) updateCredential(c *webauthn.Credential) {
 	if raw, err := json.Marshal(c); err == nil {
-		s.DB.Exec(`UPDATE webauthn_credentials SET cred_json = ?, last_used = datetime('now') WHERE credential_id = ?`, raw, c.ID)
+		// the sign count is what tells a cloned authenticator apart
+		if _, err := s.DB.Exec(`UPDATE webauthn_credentials SET cred_json = ?, last_used = datetime('now') WHERE credential_id = ?`, raw, c.ID); err != nil {
+			slog.Warn("webauthn sign count not stored", "err", err)
+		}
 	}
 }
 
@@ -485,11 +495,15 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 // @Param    id path int true "Credential ID"
 // @Success  200 {object} OkResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/webauthn/credentials/{id} [delete]
 func (s *Server) handleWebAuthnDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	s.DB.Exec(`DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?`, pathID(r), u.ID)
+	if _, err := s.DB.Exec(`DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?`, pathID(r), u.ID); err != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -525,8 +539,17 @@ const loginPendingMaxAttempts = 5
 
 // failLoginPending counts a wrong second factor against the pending token and
 // drops it once the budget is spent, so the next attempt needs the password again.
+//
+// Fails closed: when the count cannot be written the token goes at once, so a
+// database error never hands out attempts the budget did not count.
 func (s *Server) failLoginPending(token string) {
 	h := hashToken(token)
-	s.DB.Exec(`UPDATE login_pending SET attempts = attempts + 1 WHERE token_hash = ?`, h)
-	s.DB.Exec(`DELETE FROM login_pending WHERE token_hash = ? AND attempts >= ?`, h, loginPendingMaxAttempts)
+	var attempts int
+	err := s.DB.QueryRow(`UPDATE login_pending SET attempts = attempts + 1 WHERE token_hash = ? RETURNING attempts`, h).Scan(&attempts)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && attempts < loginPendingMaxAttempts) {
+		return
+	}
+	if _, derr := s.DB.Exec(`DELETE FROM login_pending WHERE token_hash = ?`, h); derr != nil {
+		slog.Error("login pending token not dropped", "err", derr)
+	}
 }
