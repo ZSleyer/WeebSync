@@ -25,10 +25,19 @@ export default function ConfirmModal({
 }: ConfirmOptions & { onConfirm: () => void; onCancel: () => void }) {
   const { t } = useTranslation()
   const titleId = useId()
+  // the message is the question itself: screen readers announce it with
+  // the title when focus lands in the dialog
+  const messageId = useId()
   // Escape and the backdrop both close the dialog, and both mean "cancel";
   // the two buttons report their decision and let the parent unmount us.
   return (
-    <Dialog onClose={onCancel} danger={destructive} width="max-w-md" aria-labelledby={titleId}>
+    <Dialog
+      onClose={onCancel}
+      danger={destructive}
+      width="max-w-md"
+      aria-labelledby={titleId}
+      aria-describedby={messageId}
+    >
       <header className="flex items-center gap-2 border-b border-border-subtle px-5 py-4">
         {destructive && (
           <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-err">
@@ -45,7 +54,9 @@ export default function ConfirmModal({
           {title ?? t('common.confirmTitle')}
         </h3>
       </header>
-      <div className="px-5 py-4 text-sm whitespace-pre-line text-t-secondary">{message}</div>
+      <div id={messageId} className="px-5 py-4 text-sm whitespace-pre-line text-t-secondary">
+        {message}
+      </div>
       <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
         <Button onClick={onCancel} autoFocus>
           <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
