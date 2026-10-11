@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -1339,22 +1338,18 @@ var epSeasonRe = regexp.MustCompile(`(?i)S(\d+)E(\d+)`)
 // S33 at E31), so only this part's episodes are tallied.
 func (s *Server) countVideos(rel string, minEp int) int {
 	n := 0
-	s.walkLocal(rel, func(_ string, d fs.DirEntry) error {
-		if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
-			return nil
-		}
+	for _, v := range s.localVideos(rel) {
 		if minEp > 0 {
-			m := epNumRe.FindStringSubmatch(d.Name())
+			m := epNumRe.FindStringSubmatch(v.name)
 			if m == nil {
-				return nil
+				continue
 			}
 			if ep, _ := strconv.Atoi(m[1]); ep < minEp {
-				return nil
+				continue
 			}
 		}
 		n++
-		return nil
-	})
+	}
 	return n
 }
 
@@ -1481,26 +1476,18 @@ func (s *Server) localEpisodeFiles(rel string) map[int][]DuplicateFile {
 // SxxEyy number (only episodes >= minEp when minEp > 0), with the file's path
 // in the caller's form (rel joined with the path below it) and its size.
 func (s *Server) walkEpisodes(rel string, minEp int, fn func(key int, path string, size int64)) {
-	s.walkLocal(rel, func(sub string, d fs.DirEntry) error {
-		if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
-			return nil
-		}
-		m := epSeasonRe.FindStringSubmatch(d.Name())
+	for _, v := range s.localVideos(rel) {
+		m := epSeasonRe.FindStringSubmatch(v.name)
 		if m == nil {
-			return nil
+			continue
 		}
 		se, _ := strconv.Atoi(m[1])
 		ep, _ := strconv.Atoi(m[2])
 		if ep >= minEp && ep <= maxEpisode {
-			var size int64
-			if fi, ferr := d.Info(); ferr == nil {
-				size = fi.Size()
-			}
 			// season-encoded so gaps stay per-season
-			fn(epKey(se, ep), filepath.Join(rel, sub), size)
+			fn(epKey(se, ep), filepath.Join(rel, v.sub), v.size)
 		}
-		return nil
-	})
+	}
 }
 
 // missingEpisodes returns the gaps WITHIN the contiguous span of local episodes,

@@ -46,6 +46,9 @@ func (s *Server) probeRemoteLang(userID, serverID int64, remotePath string) (dub
 	if dub, sub, ok = s.cachedRemoteLang(serverID, remotePath); ok {
 		return dub, sub, true
 	}
+	if _, failed := s.cacheGet(langProbeFailKey(serverID, remotePath), langProbeFailTTL); failed {
+		return nil, nil, false
+	}
 	ext := strings.ToLower(filepath.Ext(remotePath))
 	if !transfer.VideoExt[ext] {
 		return nil, nil, false
@@ -98,6 +101,9 @@ func (s *Server) probeRemoteLang(userID, serverID int64, remotePath string) (dub
 		}
 		return dub, sub, true
 	}
+	// neither window described the file, and the next check would pull both
+	// again (60 MB through the temp dir) for the same answer
+	s.cacheSet(langProbeFailKey(serverID, remotePath), "")
 	return nil, nil, false
 }
 
@@ -170,6 +176,14 @@ func (s *Server) representativeRemote(serverID int64, folder string) string {
 
 func langProbeKey(serverID int64, remotePath string) string {
 	return fmt.Sprintf("langprobe:%d:%s", serverID, remotePath)
+}
+
+// a file whose header ffprobe could not read is left alone this long: a day,
+// not for good, in case it was still being uploaded
+const langProbeFailTTL = 24 * time.Hour
+
+func langProbeFailKey(serverID int64, remotePath string) string {
+	return fmt.Sprintf("langprobe-failed:%d:%s", serverID, remotePath)
 }
 
 // cachedRemoteLang answers from the probe cache alone and never dials.

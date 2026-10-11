@@ -73,3 +73,10 @@ services:
     security_opt: [no-new-privileges:true]
     read_only: true
     tmpfs: [/tmp, /var/tmp]
+    # Docker's default json-file log grows without bound; skip this if the
+    # daemon already sets a log driver or rotation globally
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

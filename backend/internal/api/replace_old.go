@@ -44,6 +44,8 @@ func (s *Server) DownloadFinished(d *transfer.Download) {
 	if d.Status == "done" && d.ReplaceOld {
 		s.replaceOldCopy(d)
 	}
+	// a new episode in a watched folder counts from now on
+	s.forgetLocalVideos()
 	s.NotifyDownloadFinished(d)
 	s.NotifyHaDownload(d)
 }

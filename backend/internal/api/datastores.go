@@ -138,8 +138,9 @@ var dataStores = []dataStore{
 
 	// Audio and subtitle languages read out of a remote file's header. By far
 	// the most expensive row in this table to refill: every miss pulls megabytes
-	// over SFTP and runs ffprobe, which is why it is kept for a month.
-	cacheStore("cache:langprobe", 720*time.Hour, "", "langprobe:"),
+	// over SFTP and runs ffprobe, which is why it is kept for a month. Files
+	// whose header could not be read are remembered too, for a day.
+	cacheStore("cache:langprobe", 720*time.Hour, "", "langprobe:", "langprobe-failed:"),
 	// The per-user suggestion page, pre-assembled by the sweep so the first
 	// visit does not have to build it.
 	{name: "cache:suggestions", tables: []string{"anilist_cache"}, kind: kindCache,
