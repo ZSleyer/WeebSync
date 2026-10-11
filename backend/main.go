@@ -65,6 +65,10 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "-healthcheck" {
 		os.Exit(healthcheck(addr))
 	}
+	// account recovery from the shell, for when nobody can sign in
+	if len(os.Args) > 1 && os.Args[1] == "reset-password" {
+		os.Exit(resetPassword(env("WEEBSYNC_DATA", "./data"), os.Args[2:], os.Stdin, os.Stderr))
+	}
 
 	// app-wide logger: keeps stderr text output, adds a runtime-switchable
 	// level (WEEBSYNC_LOG_LEVEL: trace|debug|info|warn|error) and mirrors
