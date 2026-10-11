@@ -808,6 +808,8 @@
       "next": "Next week",
       "today": "Today",
       "strip": "Pick a day",
+      "dayLabel_one": "{{date}}, {{count}} release",
+      "dayLabel_other": "{{date}}, {{count}} releases",
       "empty": "No releases on these days.",
       "jump": "To the next release",
       "free": "free"

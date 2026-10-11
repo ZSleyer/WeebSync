@@ -799,6 +799,9 @@ export interface DayScrollerDay {
   today?: boolean
   /** a day already over: context on the left of the band, not a target */
   past?: boolean
+  /** the cell's accessible name, e.g. "Sunday, 4 October, 2 releases": the
+   * visible "SO 4 0" has no month and leaves the count unexplained */
+  label?: string
 }
 
 export interface DayScrollerProps {
@@ -1122,6 +1125,7 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
               key={d.key}
               type="button"
               data-day={d.key}
+              aria-label={d.label}
               aria-pressed={pressed}
               aria-current={d.today ? 'date' : undefined}
               onClick={() => onSelect(d.key)}
