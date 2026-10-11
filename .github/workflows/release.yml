@@ -55,6 +55,9 @@ jobs:
         id: meta
         with:
           images: ghcr.io/${{ github.repository }}
+          # latest only where the tags below say so: the default (auto) adds
+          # it to every semver build, an older release rebuilt included
+          flavor: latest=false
           # YEAR.MONTH.N reads as semver: the exact release, and the month's
           # line (2026.10) that moves with its fixes
           tags: |
