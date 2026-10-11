@@ -120,7 +120,7 @@ func (s *Server) handlePlayHLSIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	src, _ := playSourceFrom(r)
-	info, err := s.playInfo(r.Context(), src)
+	info, err := s.infoFor(r.Context(), src)
 	if err != nil {
 		writePlayErr(w, src, err)
 		return

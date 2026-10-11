@@ -2,11 +2,13 @@ package mkvsubs
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -46,9 +48,19 @@ func TestReadMatchesFFmpeg(t *testing.T) {
 	}
 	defer f.Close()
 	fi, _ := f.Stat()
-	s, err := Read(f, fi.Size(), 8)
+	c := &countingReader{r: f}
+	s, err := Read(c, fi.Size(), 8)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// on a remote file each read is a round trip: a few per line, not one per
+	// EBML field
+	lines := 0
+	for _, ev := range s.Events {
+		lines += len(ev)
+	}
+	if n := c.n.Load(); n > int64(3*lines+50) {
+		t.Fatalf("%d reads for %d lines", n, lines)
 	}
 	stream := 0
 	for i, tr := range s.Tracks {
@@ -61,8 +73,12 @@ func TestReadMatchesFFmpeg(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := dialogues(string(out))
-		// the same lines; the order of lines that start together is the
-		// muxer's business, libass sorts them itself
+		// the same lines in the same order: libass breaks ties between lines
+		// that collide by their order in the script
+		if strings.Join(mine, "\n") == strings.Join(want, "\n") {
+			stream++
+			continue
+		}
 		count := map[string]int{}
 		for _, l := range want {
 			count[l]++
@@ -80,11 +96,21 @@ func TestReadMatchesFFmpeg(t *testing.T) {
 			sort.Strings(diff)
 			t.Fatalf("track %d: %d lines, ffmpeg %d; + only ffmpeg, - only mine:\n%s", tr.Number, len(mine), len(want), strings.Join(diff, "\n"))
 		}
-		stream++
+		t.Fatalf("track %d: the lines of ffmpeg in another order", tr.Number)
 	}
 	if stream == 0 {
 		t.Fatal("no text track")
 	}
+}
+
+type countingReader struct {
+	r io.ReaderAt
+	n atomic.Int64
+}
+
+func (c *countingReader) ReadAt(p []byte, off int64) (int, error) {
+	c.n.Add(1)
+	return c.r.ReadAt(p, off)
 }
 
 func TestSUPFraming(t *testing.T) {
