@@ -19,7 +19,7 @@
       "nightly": "Nightly",
       "stable": "Stable"
     },
-    "updateDev": "A newer build is available.",
+    "updateBuild": "New {{channel}} build {{sha}} available.",
     "updateStable": "Version {{version}} is available.",
     "updateLink": "Details",
     "license": "License",

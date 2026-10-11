@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppBar, AppShell, Button, navItemClass, TabBar, useMediaQuery } from '@weebsync/design-system'
 import { api, type Download } from './api'
-import { useAuth, useEvents, useUpdateHint } from './hooks'
+import { updateText, useAuth, useEvents, useUpdateHint } from './hooks'
 import Brand from './components/Brand'
 import Logo from './components/Logo'
 import { useSpeedSampler } from './speedHistory'
@@ -341,8 +341,7 @@ function Shell({ email }: { email: string }) {
   // a line in the rail's foot, so an admin sees it without opening Settings;
   // the About panel has the details
   const update = useUpdateHint()
-  const updateText =
-    update && (update.channel === 'stable' ? t('about.updateStable', { version: update.latest }) : t('about.updateDev'))
+  const updateLine = update && updateText(t, update)
 
   // How the screen changes, decided once per navigation (a plain re-render
   // must not replay it). <main> is keyed on the top-level page, so it only
@@ -438,7 +437,7 @@ function Shell({ email }: { email: string }) {
         {update && (
           <Link to="/settings/about" className="mb-3 flex items-center gap-2 text-xs text-warn hover:underline">
             <span aria-hidden className="size-2 shrink-0 rounded-full bg-warn" />
-            <span className="min-w-0 truncate">{updateText}</span>
+            <span className="min-w-0 truncate">{updateLine}</span>
           </Link>
         )}
         <p className="mb-2 truncate font-mono text-xs text-t-muted" title={email}>
