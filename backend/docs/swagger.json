@@ -1240,6 +1240,21 @@
                 },
                 "type": "object"
             },
+            "api.PlayFont": {
+                "properties": {
+                    "index": {
+                        "type": "integer"
+                    },
+                    "names": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
             "api.PlayInfo": {
                 "properties": {
                     "audio": {
@@ -1253,9 +1268,9 @@
                         "type": "number"
                     },
                     "fonts": {
-                        "description": "Fonts are the stream indices of the font attachments, for /api/play/font",
+                        "description": "Fonts are the font attachments by stream index, for /api/play/font",
                         "items": {
-                            "type": "integer"
+                            "$ref": "#/components/schemas/api.PlayFont"
                         },
                         "type": "array",
                         "uniqueItems": false

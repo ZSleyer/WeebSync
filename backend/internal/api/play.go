@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/mkvsubs"
 	"github.com/ch4d1/weebsync/internal/remote"
 	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/transfer"
@@ -237,7 +238,11 @@ func (s *Server) servePlayFileTracked(w http.ResponseWriter, r *http.Request, sr
 	var body io.ReadSeeker = f.ReadSeeker
 	if tok != nil {
 		tok.size.Store(f.size)
-		body = &trackedReader{ReadSeeker: f.ReadSeeker, tok: tok}
+		if len(tok.holes) > 0 {
+			body = &holeReader{rs: body, holes: tok.holes}
+		}
+		// tracked around the holes: their zeros count as read
+		body = &trackedReader{ReadSeeker: body, tok: tok}
 	}
 	w.Header().Set("Content-Type", playMime(src.path))
 	// a video is watched for longer than any write deadline the server might
@@ -318,6 +323,7 @@ func (s *Server) ffInputFor(ctx context.Context, src playSource) (*ffInput, erro
 	if err != nil {
 		return nil, err
 	}
+	tok.holes = s.mkvFontsFor(ctx, src, f.size).holes()
 	return &ffInput{url: url, whitelist: "http,tcp", opts: remoteInputOpts, done: release,
 		complete: tok.whole}, nil
 }
@@ -365,6 +371,7 @@ type playLoop struct {
 // anything else, and a high-water mark would call that whole.
 type loopToken struct {
 	src     playSource
+	holes   []mkvsubs.Attachment // font bytes served as zeros, see holeReader
 	size    atomic.Int64
 	mu      sync.Mutex
 	covered int64
@@ -460,8 +467,11 @@ type PlayInfo struct {
 	Video    *PlayVideo  `json:"video,omitempty"`
 	Audio    []PlayTrack `json:"audio"`
 	Subs     []PlayTrack `json:"subs"`
-	// Fonts are the stream indices of the font attachments, for /api/play/font
-	Fonts []int `json:"fonts"`
+	// Fonts are the font attachments by stream index, for /api/play/font
+	Fonts []PlayFont `json:"fonts"`
+	// fontData is where each font's bytes lie, when the file was walked for
+	// them: /api/play/font then reads just the one asked for
+	fontData map[int]fontFile
 }
 
 var imageSubCodecs = map[string]bool{"hdmv_pgs_subtitle": true, "dvd_subtitle": true, "dvb_subtitle": true, "xsub": true}
@@ -500,7 +510,7 @@ func (s *Server) handlePlayInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) playInfo(ctx context.Context, src playSource) (PlayInfo, error) {
-	info := PlayInfo{Audio: []PlayTrack{}, Subs: []PlayTrack{}, Fonts: []int{}}
+	info := PlayInfo{Audio: []PlayTrack{}, Subs: []PlayTrack{}, Fonts: []PlayFont{}}
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	in, err := s.ffInputFor(ctx, src)
@@ -542,6 +552,10 @@ func (s *Server) playInfo(ctx context.Context, src playSource) (PlayInfo, error)
 		return info, err
 	}
 	info.Duration, _ = strconv.ParseFloat(probed.Format.Duration, 64)
+	// the walk ffInputFor made (or makes now, for a local file) finds each
+	// font's bytes and names; ffprobe and it meet on the file name
+	mf := s.mkvFontsFor(ctx, src, -1)
+	used := map[int]bool{}
 	for _, st := range probed.Streams {
 		t := PlayTrack{Index: st.Index, Codec: st.CodecName, Lang: langCode(st.Tags.Language), Title: st.Tags.Title,
 			Default: st.Disposition.Default == 1, Forced: st.Disposition.Forced == 1, Channels: st.Channels}
@@ -557,10 +571,30 @@ func (s *Server) playInfo(ctx context.Context, src playSource) (PlayInfo, error)
 			t.Image = imageSubCodecs[st.CodecName]
 			info.Subs = append(info.Subs, t)
 		case "attachment":
-			if isFont(st.Tags.Mimetype, st.Tags.Filename) {
-				info.Fonts = append(info.Fonts, st.Index)
+			if !isFont(st.Tags.Mimetype, st.Tags.Filename) {
+				continue
 			}
+			f := PlayFont{Index: st.Index}
+			if mf != nil {
+				for i, ff := range mf.files {
+					if !used[i] && ff.Name == st.Tags.Filename {
+						used[i] = true
+						f.Names = ff.Names
+						if info.fontData == nil {
+							info.fontData = map[int]fontFile{}
+						}
+						info.fontData[st.Index] = ff
+						break
+					}
+				}
+			}
+			info.Fonts = append(info.Fonts, f)
 		}
+	}
+	// fonts the loopback hides that no stream matched: a dump would write the
+	// zeros, so none is made and such a font is simply missing
+	if mf != nil && len(mf.files) > 0 && info.fontData == nil {
+		info.fontData = map[int]fontFile{}
 	}
 	return info, nil
 }
