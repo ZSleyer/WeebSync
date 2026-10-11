@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { FolderOpen, FolderPlus, Pencil, Play } from 'lucide-react'
+import { BookOpen, Eye, FolderOpen, FolderPlus, Pencil, Play } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button, Input } from '@weebsync/design-system'
@@ -9,7 +9,7 @@ import HostKeyPrompt from './HostKeyPrompt'
 import Loading from './Loading'
 import PathInput from './PathInput'
 import { InlineRename, type Renaming } from './InlineRename'
-import { isVideo } from './playLinks'
+import { isVideo, viewKind } from './playLinks'
 
 // Path breadcrumb: root button plus one button per segment. Shared by the
 // classic file list and the catalog grid, so both navigate the same way. Given
@@ -224,7 +224,7 @@ export function FileBrowser({
                     <InlineRename name={e.name} onDone={renaming.onDone} />
                   </li>
                 )
-              const playable = !!onPlay && !e.isDir && isVideo(e.name)
+              const playable = !!onPlay && !e.isDir && (isVideo(e.name) || !!viewKind(e.name))
               return (
                 <li key={e.path} className="group/row flex items-stretch border-b border-border-subtle/50">
                   {playable && <PlayIcon name={e.name} onPlay={() => onPlay(e)} />}
@@ -237,7 +237,7 @@ export function FileBrowser({
                       if (e.isDir) onNavigate(e.path.replace(/^\//, ''))
                       else if (selectable) onSelect(e)
                     }}
-                    // a video plays on a double click; anything else is picked
+                    // a video plays and a book opens on a double click; anything else is picked
                     onDoubleClick={() => (playable ? onPlay(e) : selectable && onSelect(e))}
                   >
                     {!playable && <FileIcon isDir={e.isDir} name={e.name} />}
@@ -266,21 +266,30 @@ export function FileBrowser({
   )
 }
 
-// PlayIcon is a video row's file icon that is also its play button: the film
-// glyph turns into the play glyph under the pointer or focus, so a file plays
-// from where it is listed instead of from an action bar.
+// PlayIcon is a row's file icon that is also its play button: the file's
+// glyph turns into what opening it does under the pointer or focus - play for
+// a video or a song, the book for a volume or a PDF, the eye for anything to
+// look at - so a file opens from where it is listed instead of from an action bar.
 export function PlayIcon({ name, onPlay }: { name: string; onPlay: () => void }) {
   const { t } = useTranslation()
+  const video = isVideo(name)
+  const kind = viewKind(name)
   return (
     <button
       type="button"
       className="t-play-icon"
-      aria-label={t('player.playItem', { name })}
-      title={t('player.play')}
+      aria-label={video ? t('player.playItem', { name }) : t('viewer.openItem', { name })}
+      title={video ? t('player.play') : t('viewer.open')}
       onClick={onPlay}
     >
       <FileIcon isDir={false} name={name} className="t-play-icon__file" />
-      <Play aria-hidden size="1em" className="t-play-icon__play" fill="currentColor" strokeWidth={0} />
+      {video || kind === 'audio' ? (
+        <Play aria-hidden size="1em" className="t-play-icon__play" fill="currentColor" strokeWidth={0} />
+      ) : kind === 'comic' || kind === 'epub' || kind === 'pdf' ? (
+        <BookOpen aria-hidden size="1em" className="t-play-icon__play" />
+      ) : (
+        <Eye aria-hidden size="1em" className="t-play-icon__play" />
+      )}
     </button>
   )
 }
