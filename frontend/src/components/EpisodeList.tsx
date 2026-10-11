@@ -1,11 +1,11 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { Check, Clock, ExternalLink, Play, X } from 'lucide-react'
+import { BookOpen, Check, Clock, ExternalLink, Play, X } from 'lucide-react'
 import { useQueries } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, ButtonLink, Divider, useReveal } from '@weebsync/design-system'
 import { api, fmtBytes, type Entry, type Watch, type WatchEpisode, type WatchEpisodes } from '../api'
 import Loading from './Loading'
-import { listFolder, videosIn } from './playLinks'
+import { isVideo, listFolder, titleFilesIn } from './playLinks'
 
 /** A folder a title's episodes lie in: the local library (server 0) or a server. */
 export interface EpisodeFolder {
@@ -81,17 +81,17 @@ export function matchFiles<F extends { name: string }>(
   return { hits, rest }
 }
 
-/** A folder's videos and those of its season folders, one level down. */
+/** A folder's videos (or volumes) and those of its season folders, one level down. */
 async function episodeGroups(f: EpisodeFolder): Promise<Group[]> {
   const entries = await listFolder(f.server, f.path)
   const groups: Group[] = []
-  const here = videosIn(entries)
+  const here = titleFilesIn(entries)
   if (here.length) groups.push({ label: '', files: here })
   const seasons = entries
     .filter((e) => e.isDir)
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
   for (const s of seasons) {
-    const files = videosIn(await listFolder(f.server, s.path))
+    const files = titleFilesIn(await listFolder(f.server, s.path))
     if (files.length) groups.push({ label: s.name, files })
   }
   return groups
@@ -186,7 +186,7 @@ export default function EpisodeList({
           onClick={() => onPlay(f.server, f.path)}
         >
           {rest}
-          <span className="sr-only">{t('player.play')}</span>
+          <span className="sr-only">{isVideo(f.name) ? t('player.play') : t('viewer.open')}</span>
         </button>
       </li>
     )
@@ -212,7 +212,11 @@ export default function EpisodeList({
               null,
               <>
                 <span className="t-ep-file__icon" aria-hidden>
-                  <Play size="0.9em" fill="currentColor" strokeWidth={0} />
+                  {isVideo(e.name) ? (
+                    <Play size="0.9em" fill="currentColor" strokeWidth={0} />
+                  ) : (
+                    <BookOpen size="0.9em" />
+                  )}
                 </span>
                 {m && (
                   <span className="shrink-0 font-mono text-xs tabular-nums text-t-secondary">
