@@ -606,6 +606,7 @@
     "sort_added": "Date Added",
     "scope": "Source",
     "scopeAnime": "Anime (AniList)",
+    "scopeManga": "Manga & light novels (AniList)",
     "scopeTv": "Series (TMDB)",
     "scopeMovie": "Movies (TMDB)",
     "scopeTvdb": "Series (TVDB)",
