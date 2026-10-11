@@ -209,7 +209,7 @@ type aiModelsResponse struct {
 //	@Security		CookieAuth
 //	@Router			/api/ai/models [get]
 func (s *Server) handleAiModels(w http.ResponseWriter, r *http.Request) {
-	out := aiModelsResponse{Models: []string{}}
+	out := aiModelsResponse{Models: []string{}, Vision: map[string]*bool{}}
 	if s.AI == nil || !s.AI.Enabled() {
 		writeJSON(w, http.StatusOK, out)
 		return
@@ -219,7 +219,6 @@ func (s *Server) handleAiModels(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		out.Error = logSafe(err.Error())
 	} else {
-		out.Vision = map[string]*bool{}
 		for _, m := range models {
 			out.Models = append(out.Models, m.ID)
 			out.Vision[m.ID] = m.Vision
