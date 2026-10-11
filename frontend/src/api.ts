@@ -466,7 +466,15 @@ export function fmtBytes(n: number): string {
     v /= 1024
     u++
   } while (v >= 1024 && u < units.length - 1)
-  return `${v.toFixed(v >= 100 ? 0 : 1)} ${units[u]}`
+  // the decimal mark follows the UI language like every other number ("1,8
+  // MiB" in German); no grouping, so "1023 KiB" never reads as 1.023
+  const digits = v >= 100 ? 0 : 1
+  const num = v.toLocaleString(i18n.language || 'en', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    useGrouping: false,
+  })
+  return `${num} ${units[u]}`
 }
 
 export function fmtSpeed(bps: number): string {
