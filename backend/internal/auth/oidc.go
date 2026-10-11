@@ -163,15 +163,24 @@ func randHex() (string, error) {
 
 // CallbackHandler exchanges the code, verifies the ID token, links or creates
 // the user by verified email and starts a session.
+// callbackFail sends a failed sign-in back to the app with a code the login
+// page explains in the UI language. A bare error text on the callback URL left
+// the user with no way back, and in auto-redirect mode going back to the app
+// went straight to the provider again.
+func callbackFail(w http.ResponseWriter, r *http.Request, code string) {
+	slog.Info("oidc sign-in refused", "reason", code)
+	http.Redirect(w, r, "/?oidc_error="+code, http.StatusFound)
+}
+
 func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	o := m.Get()
 	if o == nil {
-		http.Error(w, "oidc not configured", http.StatusNotFound)
+		callbackFail(w, r, "not_configured")
 		return
 	}
 	stateCookie, err := r.Cookie("weebsync_oidc_state")
 	if err != nil || r.URL.Query().Get("state") != stateCookie.Value {
-		http.Error(w, "invalid state", http.StatusBadRequest)
+		callbackFail(w, r, "invalid_state")
 		return
 	}
 	nonceCookie, nerr := r.Cookie("weebsync_oidc_nonce")
@@ -189,7 +198,7 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	octx := oidc.ClientContext(r.Context(), netguard.Client(10*time.Second))
 	token, err := o.config.Exchange(octx, r.URL.Query().Get("code"))
 	if err != nil {
-		http.Error(w, "token exchange failed", http.StatusBadGateway)
+		callbackFail(w, r, "exchange_failed")
 		return
 	}
 	rawID, _ := token.Extra("id_token").(string)
@@ -197,28 +206,28 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	if err == nil && (nerr != nil || idToken.Nonce != nonceCookie.Value) {
 		// bind the ID token to this login: replay of a token minted for another
 		// flow (different nonce) is rejected
-		http.Error(w, "invalid nonce", http.StatusBadRequest)
+		callbackFail(w, r, "invalid_state")
 		return
 	}
 	if err != nil {
-		http.Error(w, "id token verification failed", http.StatusBadGateway)
+		callbackFail(w, r, "verify_failed")
 		return
 	}
 	var claims map[string]any
 	if err := idToken.Claims(&claims); err != nil {
-		http.Error(w, "invalid claims", http.StatusBadGateway)
+		callbackFail(w, r, "verify_failed")
 		return
 	}
 	email, _ := claims["email"].(string)
 	if email == "" {
-		http.Error(w, "no email claim", http.StatusBadGateway)
+		callbackFail(w, r, "no_email")
 		return
 	}
 	// fail closed on an unverified email: findOrCreateOIDCUser links by email to
 	// a pre-existing (possibly admin) account, so an IdP that lets users assert
 	// an arbitrary unverified address must not be trusted for account linking.
 	if !emailVerified(claims) {
-		http.Error(w, "email not verified by the identity provider", http.StatusForbidden)
+		callbackFail(w, r, "email_unverified")
 		return
 	}
 	var admin *bool
@@ -228,7 +237,7 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		// access gate: with a user allowlist configured, only members of an
 		// allowed (or admin) group may log in, fail closed on a missing claim
 		if len(o.userValues) > 0 && !isAdmin && !(present && claimMatches(claims, o.claim, o.userValues)) {
-			http.Error(w, "access denied: not in an allowed group", http.StatusForbidden)
+			callbackFail(w, r, "not_allowed")
 			return
 		}
 		// admin mapping: only sync when the claim is present, so a
@@ -238,15 +247,20 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	userID, err := findOrCreateOIDCUser(m.DB, email, admin, len(o.userValues) > 0)
+	if errors.Is(err, errNotProvisioned) {
+		callbackFail(w, r, "not_provisioned")
+		return
+	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+		slog.Error("oidc user lookup failed", "err", err)
+		callbackFail(w, r, "session_error")
 		return
 	}
 	// the provider's session id ties our session to the one at the IdP, so a
 	// logout there can end this one too (see BackchannelLogoutHandler)
 	sid, _ := claims["sid"].(string)
 	if err := CreateSessionOIDC(m.DB, w, r, userID, sid, idToken.Subject); err != nil {
-		http.Error(w, "session error", http.StatusInternalServerError)
+		callbackFail(w, r, "session_error")
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -304,6 +318,10 @@ func claimMatches(claims map[string]any, name string, values []string) bool {
 // in: without one, a new identity is only auto-provisioned as the first account
 // (bootstrap) - otherwise an OIDC-configured instance with no allowlist would
 // let any IdP identity in, which contradicts closed-by-default registration.
+// errNotProvisioned: a new identity on an instance without an allowed-group
+// list, which only links existing accounts.
+var errNotProvisioned = errors.New("oidc provisioning requires an allowed-group allowlist")
+
 func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool, gated bool) (int64, error) {
 	var id int64
 	err := d.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&id)
@@ -331,11 +349,13 @@ func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool, gated bool) (int
 			return 0, err
 		}
 		if users > 0 {
-			return 0, fmt.Errorf("oidc provisioning requires an allowed-group allowlist")
+			return 0, errNotProvisioned
 		}
 	}
 	// first user always becomes admin (an install must never be adminless)
-	res, err := d.Exec(`INSERT INTO users (email, is_admin, upgrade_dims) VALUES (?, (SELECT COUNT(*) = 0 FROM users) OR ?, 'res,sub,dub,soft')`,
+	// verified: the callback only gets here with the provider's email_verified;
+	// unverified, the account never got a notification mail
+	res, err := d.Exec(`INSERT INTO users (email, is_admin, email_verified, upgrade_dims) VALUES (?, (SELECT COUNT(*) = 0 FROM users) OR ?, 1, 'res,sub,dub,soft')`,
 		email, admin != nil && *admin)
 	if err != nil {
 		return 0, err

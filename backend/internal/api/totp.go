@@ -170,6 +170,7 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 // @Success  200 {object} OkResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/totp [delete]
@@ -183,8 +184,11 @@ func (s *Server) handleTotpDisable(w http.ResponseWriter, r *http.Request) {
 	}
 	var hash string
 	s.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, u.ID).Scan(&hash)
-	if hash == "" || !auth.VerifyPassword(in.Password, hash) {
-		writeErr(w, http.StatusUnauthorized, "invalid password")
+	// An OIDC account has no password to confirm with, and its TOTP guards
+	// nothing: only a password login asks for it. It used to be stuck on.
+	// 403, not 401: the session is fine, and a 401 would sign the client out.
+	if hash != "" && !auth.VerifyPassword(in.Password, hash) {
+		writeErr(w, http.StatusForbidden, "invalid password")
 		return
 	}
 	// both or neither: a failed first delete answered "ok" with 2FA still on

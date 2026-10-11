@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/dbtest"
@@ -49,6 +50,13 @@ func TestOIDCAdminSync(t *testing.T) {
 	if !isAdmin(id1) {
 		t.Error("first user must be admin")
 	}
+	// the provider confirmed the address, or the callback would not get here;
+	// unverified, the account never got a notification mail
+	var verified bool
+	d.QueryRow(`SELECT email_verified FROM users WHERE id = ?`, id1).Scan(&verified)
+	if !verified {
+		t.Error("an OIDC-created account must count as verified")
+	}
 	// claim promotes a new user
 	id2, _ := findOrCreateOIDCUser(d, "second@example.com", &yes, true)
 	if !isAdmin(id2) {
@@ -71,8 +79,8 @@ func TestOIDCAdminSync(t *testing.T) {
 	}
 
 	// ungated (no allowlist) + not the first account: new identities are refused
-	if _, err := findOrCreateOIDCUser(d, "stranger@example.com", nil, false); err == nil {
-		t.Error("ungated provisioning of a new identity must be refused")
+	if _, err := findOrCreateOIDCUser(d, "stranger@example.com", nil, false); !errors.Is(err, errNotProvisioned) {
+		t.Errorf("ungated provisioning of a new identity must be refused, got %v", err)
 	}
 	// but an existing account still logs in even ungated
 	if _, err := findOrCreateOIDCUser(d, "first@example.com", nil, false); err != nil {
