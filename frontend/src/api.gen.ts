@@ -1919,6 +1919,13 @@ export interface Schemas {
     relations: Schemas['anilist.Relation'][]
     threads: Schemas['anilist.Thread'][]
   }
+  'api.passwordChange': {
+    current: string
+    new: string
+  }
+  'api.passwordSet': {
+    password: string
+  }
   'api.plexAccountResponse': {
     linked: boolean
     user?: string

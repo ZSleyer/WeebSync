@@ -150,6 +150,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/webauthn/2fa/begin", s.authLimiter.limit(s.handleWebAuthn2FABegin))
 	mux.HandleFunc("POST /api/auth/webauthn/2fa/finish", s.authLimiter.limit(s.handleWebAuthn2FAFinish))
 	mux.Handle("GET /api/auth/me", authed(http.HandlerFunc(s.handleMe)))
+	mux.Handle("PUT /api/auth/password", authed(s.authLimiter.limit(s.handlePasswordChange)))
 	mux.HandleFunc("GET /api/auth/config", s.handleAuthConfig)
 	mux.HandleFunc("POST /api/auth/setup/oidc", s.handleSetupOIDC)
 	// optional session: guarded inside (open during first-run, admin afterwards)
@@ -224,6 +225,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/users", authed(adminOnly(http.HandlerFunc(s.handleUserCreate))))
 	mux.Handle("PUT /api/users/{id}", authed(adminOnly(http.HandlerFunc(s.handleUserUpdate))))
 	mux.Handle("DELETE /api/users/{id}", authed(adminOnly(http.HandlerFunc(s.handleUserDelete))))
+	mux.Handle("PUT /api/users/{id}/password", authed(adminOnly(http.HandlerFunc(s.handleUserPassword))))
 
 	// one-shot migration from the original Node weebsync's config.json
 	mux.Handle("POST /api/import/legacy", authed(http.HandlerFunc(s.handleLegacyImport)))

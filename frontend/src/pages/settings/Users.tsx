@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Panel } from '@weebsync/design-system'
+import { Badge, Button, Dialog, Input, Panel } from '@weebsync/design-system'
 import { api, type UserAccount } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { useAuth } from '../../hooks'
@@ -27,6 +27,8 @@ export default function Users() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [pwFor, setPwFor] = useState<UserAccount | null>(null)
 
   const opts = {
     onSuccess: () => {
@@ -77,6 +79,11 @@ export default function Users() {
             <Button size="sm" disabled={rolesManagedByOidc || toggle.isPending} onClick={() => toggle.mutate(u)}>
               {u.isAdmin ? t('settings.usersRemoveAdmin') : t('settings.usersMakeAdmin')}
             </Button>
+            {settings?.authMode === 'password' && (
+              <Button size="sm" onClick={() => setPwFor(u)}>
+                {t('settings.usersSetPassword')}
+              </Button>
+            )}
             <Button
               size="sm"
               variant="danger"
@@ -134,6 +141,80 @@ export default function Users() {
           {error}
         </p>
       )}
+      <p role="status" className="mt-2 text-xs text-ok empty:hidden">
+        {notice}
+      </p>
+      {pwFor && (
+        <SetPasswordDialog
+          user={pwFor}
+          onClose={(done) => {
+            setPwFor(null)
+            setNotice(done ? t('settings.usersPasswordSet', { email: pwFor.email }) : '')
+          }}
+        />
+      )}
     </Panel>
+  )
+}
+
+// An admin's way back in for someone who forgot their password: the new one
+// replaces the old, and the account's sessions end.
+function SetPasswordDialog({ user, onClose }: { user: UserAccount; onClose: (done: boolean) => void }) {
+  const { t } = useTranslation()
+  const titleId = useId()
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await api.put(`/api/users/${user.id}/password`, { password })
+      onClose(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('app.error'))
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog onClose={() => onClose(false)} width="max-w-md" aria-labelledby={titleId}>
+      <form onSubmit={submit}>
+        <header className="border-b border-border-subtle px-5 py-4">
+          <h3 id={titleId} className="font-display font-semibold tracking-wider">
+            {t('settings.usersSetPasswordTitle', { email: user.email })}
+          </h3>
+        </header>
+        <div className="space-y-2 px-5 py-4">
+          <p className="text-sm text-t-secondary">{t('settings.usersSetPasswordHint')}</p>
+          <label className="block text-xs text-t-muted">
+            {t('account.passwordNew')}
+            <Input
+              className="mt-1 font-mono"
+              type="password"
+              required
+              minLength={10}
+              autoComplete="new-password"
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          {error && (
+            <p className="text-xs text-err" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
+          <Button type="button" onClick={() => onClose(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" variant="primary" disabled={busy}>
+            {t('settings.usersSetPassword')}
+          </Button>
+        </footer>
+      </form>
+    </Dialog>
   )
 }
