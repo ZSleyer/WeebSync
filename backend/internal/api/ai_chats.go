@@ -59,6 +59,7 @@ func (b *aiChatBody) valid(w http.ResponseWriter) bool {
 //	@Tags			Assistant
 //	@Produce		json
 //	@Success		200	{array}	aiChatSummary
+//	@Failure		500		{object}		ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/ai/chats [get]
 func (s *Server) handleAiChatsList(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +90,7 @@ func (s *Server) handleAiChatsList(w http.ResponseWriter, r *http.Request) {
 //	@Success		200		{object}	aiChatCreated
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		415		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/ai/chats [post]
 func (s *Server) handleAiChatCreate(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +117,7 @@ func (s *Server) handleAiChatCreate(w http.ResponseWriter, r *http.Request) {
 //	@Param			id	path		int	true	"chat id"
 //	@Success		200	{object}	aiChatFull
 //	@Failure		404	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/ai/chats/{id} [get]
 func (s *Server) handleAiChatGet(w http.ResponseWriter, r *http.Request) {
@@ -149,6 +152,7 @@ func (s *Server) handleAiChatGet(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure			404		{object}	ErrorResponse
 //	@Failure		415		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/ai/chats/{id} [put]
 func (s *Server) handleAiChatPut(w http.ResponseWriter, r *http.Request) {
@@ -179,6 +183,7 @@ func (s *Server) handleAiChatPut(w http.ResponseWriter, r *http.Request) {
 //	@Param			id	path		int	true	"chat id"
 //	@Success		200	{object}	OkResponse
 //	@Failure		404	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/ai/chats/{id} [delete]
 func (s *Server) handleAiChatDelete(w http.ResponseWriter, r *http.Request) {

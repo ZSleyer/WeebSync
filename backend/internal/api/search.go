@@ -36,6 +36,7 @@ const (
 // @Param    q query string true "Search words"
 // @Success  200 {object} SearchResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/search [get]
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {

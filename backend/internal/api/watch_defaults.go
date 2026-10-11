@@ -388,6 +388,7 @@ var renameOrderings = []string{"", "official", "dvd", "absolute", "aired"}
 //	@Success		200		{object}	OkResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		415		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/auth/watch-defaults [put]
 func (s *Server) handleWatchDefaultsPut(w http.ResponseWriter, r *http.Request) {
