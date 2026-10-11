@@ -34,7 +34,7 @@ type WatchEpisodesResponse struct {
 	SeriesID int            `json:"seriesId,omitempty"`
 	Title    string         `json:"title,omitempty"` // series title at the provider
 	URL      string         `json:"url,omitempty"`   // series page at the provider
-	Reason   string         `json:"reason,omitempty"`
+	Reason   string         `json:"reason,omitempty" enums:"no_provider,provider_error,no_series"`
 	Missing  int            `json:"missing"` // episodes in the list the folder does not hold
 	Episodes []WatchEpisode `json:"episodes"`
 }
