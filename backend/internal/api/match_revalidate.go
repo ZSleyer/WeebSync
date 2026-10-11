@@ -45,6 +45,9 @@ func (s *Server) RevalidateMatches() {
 		}
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		return // a partial pass must not stamp the rule set as applied
+	}
 	dropped := 0
 	for _, r := range all {
 		m := s.cachedMedia(r.source, r.mediaID)
@@ -138,6 +141,9 @@ func (s *Server) BackfillWatchMatches() int {
 		}
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		return 0 // a partial pass must not stamp the rule set as applied
+	}
 	queued := 0
 	for _, w := range all {
 		if (w.missing || retryMisses) && s.ensureWatchMatch(w.serverID, w.remote, w.local) {

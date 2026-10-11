@@ -308,10 +308,14 @@ func (s *Server) BackfillSeries() {
 	var all []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.serverID, &r.folder, &r.mediaID, &r.source)
-		all = append(all, r)
+		if rows.Scan(&r.serverID, &r.folder, &r.mediaID, &r.source) == nil {
+			all = append(all, r)
+		}
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		return // the flag below would leave the unread matches unlinked for good
+	}
 	for _, r := range all {
 		s.linkSeries(r.source, r.mediaID)
 		s.refreshVariant(r.serverID, r.folder)
@@ -368,6 +372,9 @@ func (s *Server) backfillPlexStreams() {
 		}
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		return // the flag stays unset, the next tick reads the watches again
+	}
 	// through loadWatch, so the pass knows how this watch names its files - it
 	// has to resolve a remote name to an episode number to know what it covers
 	var todo []Watch
@@ -410,25 +417,32 @@ func (s *Server) BackfillUnits() {
 	if animeN == 0 {
 		s.refreshAnimeIDs()
 	}
-	// re-derive the unit for every remote matched folder whose variant lacks it
-	if rows, err := s.DB.Query(`SELECT cm.server_id, cm.folder FROM catalog_matches cm
+	// re-derive the unit for every remote matched folder whose variant lacks
+	// it. A read that failed ends the pass with the flag unset: set, it would
+	// leave the unread folders without a unit for good.
+	rows, err := s.DB.Query(`SELECT cm.server_id, cm.folder FROM catalog_matches cm
 		JOIN catalog_variants cv ON cv.server_id = cm.server_id AND cv.folder = cm.folder
-		WHERE cm.server_id != 0 AND cm.media_id != 0 AND cv.show_key = ''`); err == nil {
-		type f struct {
-			sid    int64
-			folder string
+		WHERE cm.server_id != 0 AND cm.media_id != 0 AND cv.show_key = ''`)
+	if err != nil {
+		return
+	}
+	type f struct {
+		sid    int64
+		folder string
+	}
+	var todo []f
+	for rows.Next() {
+		var x f
+		if rows.Scan(&x.sid, &x.folder) == nil {
+			todo = append(todo, x)
 		}
-		var todo []f
-		for rows.Next() {
-			var x f
-			if rows.Scan(&x.sid, &x.folder) == nil {
-				todo = append(todo, x)
-			}
-		}
-		rows.Close()
-		for _, x := range todo {
-			s.refreshVariant(x.sid, x.folder)
-		}
+	}
+	rows.Close()
+	if rows.Err() != nil {
+		return
+	}
+	for _, x := range todo {
+		s.refreshVariant(x.sid, x.folder)
 	}
 	// stale server-0 rows are the OLD per-show Plex index (no show_key). Drop them
 	// and force a per-season re-index on the next sweep tick.
