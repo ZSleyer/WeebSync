@@ -782,6 +782,17 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
         </div>
       ) : (
         <div className="grid gap-6">
+          {/* the filter is remembered, so it can outlive the last problem it
+              was switched on for; without this the page is a header and a
+              chip reading 0 */}
+          {grouped.length === 0 && filter === 'attention' && (
+            <EmptyState>
+              <p>{t('watch.attentionEmpty')}</p>
+              <Button size="sm" className="mt-3" onClick={() => setFilter('all')}>
+                {t('watch.attentionShowAll')}
+              </Button>
+            </EmptyState>
+          )}
           {grouped.map(({ g, items }) => {
             const GroupIcon = GROUP_ICON[g]
             return (
