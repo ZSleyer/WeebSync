@@ -34,6 +34,8 @@ var userDataTables = map[string]bool{
 	"push_subscriptions":   true,
 	"login_pending":        true,
 	"plex_stream_queue":    true,
+	"arr_releases":         true, // the guids Sonarr/Radarr hold; dropping them breaks grabs in flight
+	"arr_jobs":             true, // grabs the apps are still following
 	// bookkeeping of the migration runner itself
 	"schema_migrations": true,
 }
