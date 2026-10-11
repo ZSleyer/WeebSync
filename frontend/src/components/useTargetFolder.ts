@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { ApiError, api, type Entry, type RenamePair, type SubfolderMode } from '../api'
+import { useAuth } from '../hooks'
 
 // syncTargetDir is the folder a sync actually writes into: with the subfolder
 // option a directory sync creates a folder named after the remote one, without
@@ -76,6 +78,40 @@ export function subfolderTargetDir(
 // appends the remote base itself), and sending it too would append it twice.
 export function syncRequestPath(mode: SubfolderMode, localPath: string, target: string): string {
   return mode === 'title' ? target : localPath
+}
+
+// resolveLocalTarget is the absolute folder a local path lands in, the way
+// transfer.resolveLocal reads it: a path inside one of the roots stays as it
+// is (a relative one is a root-less spelling of it), anything else is taken
+// under the primary root.
+export function resolveLocalTarget(roots: string[], p: string): string {
+  const clean = '/' + p.split('/').filter(Boolean).join('/')
+  const inside = (root: string) => {
+    const r = root.replace(/\/+$/, '')
+    return clean === r || clean.startsWith(`${r}/`)
+  }
+  if (roots.some(inside)) return clean
+  const primary = roots[0].replace(/\/+$/, '')
+  return clean === '/' ? primary || '/' : primary + clean
+}
+
+// useLocalTargetLabel spells a local target for a hint line. The roots come
+// with the instance settings, which only an admin may read; without them an
+// absolute path is shown as it is and a relative one as lying in the
+// download folder, the one thing known about it.
+export function useLocalTargetLabel(p: string): string {
+  const { t } = useTranslation()
+  const { data: user } = useAuth()
+  const { data: settings } = useQuery<{ downloadRoots?: string[] }>({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/api/settings'),
+    enabled: !!user?.isAdmin,
+  })
+  const roots = settings?.downloadRoots ?? []
+  if (roots.length > 0) return resolveLocalTarget(roots, p)
+  const clean = p.replace(/\/+$/, '')
+  if (clean.startsWith('/')) return clean
+  return clean ? t('remote.syncTargetRel', { path: clean }) : t('remote.syncTargetRoot')
 }
 
 // useTargetFolder lists the folder a sync would write into. entries === null

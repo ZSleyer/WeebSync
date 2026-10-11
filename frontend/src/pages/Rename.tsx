@@ -10,6 +10,7 @@ import { LocalPicker } from '../components/FileBrowser'
 import { PageFooter, WIDE_MQ } from '../components/PageActions'
 import PathInput from '../components/PathInput'
 import RenameOptions, { type RenameRule } from '../components/RenameOptions'
+import { useLocalTargetLabel } from '../components/useTargetFolder'
 
 const EMPTY_RULE: RenameRule = {
   mode: 'template',
@@ -32,6 +33,7 @@ export default function Rename() {
   // Files opens this with the folder it was on (?path=)
   const [params] = useSearchParams()
   const [path, setPath] = useState(() => params.get('path') ?? '')
+  const folderLabel = useLocalTargetLabel(path)
   const [rule, setRule] = useState<RenameRule>(EMPTY_RULE)
   const [preview, setPreview] = useState<RenamePair[] | null>(null)
   const [applied, setApplied] = useState<RenamePair[] | null>(null)
@@ -128,7 +130,7 @@ export default function Rename() {
           <Panel as="section" className="flex h-96 min-w-0 flex-col" aria-label={t('rename.folderSection')}>
             <div className="border-b border-border-subtle px-3 py-2">
               <Badge>
-                {t('rename.folder')}: downloads/{path}
+                {t('rename.folder')}: {folderLabel}
               </Badge>
             </div>
             <LocalPicker path={path} onNavigate={setPath} />

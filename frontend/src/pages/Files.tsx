@@ -80,7 +80,13 @@ import { TrashButton } from './Trash'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
 import RenamePreview from '../components/RenamePreview'
 import { useRenamePreview } from '../components/useRenamePreview'
-import { subfolderMode, subfolderTargetDir, syncRequestPath, useTargetFolder } from '../components/useTargetFolder'
+import {
+  subfolderMode,
+  subfolderTargetDir,
+  syncRequestPath,
+  useLocalTargetLabel,
+  useTargetFolder,
+} from '../components/useTargetFolder'
 import HostKeyPrompt from '../components/HostKeyPrompt'
 import SubfolderChoice from '../components/SubfolderChoice'
 import UpcomingSeason from '../components/UpcomingSeason'
@@ -1786,6 +1792,7 @@ function SyncForm({
     fileSize: entry.isDir ? undefined : entry.size,
   })
   const { entries: targetEntries, missing: targetMissing } = useTargetFolder(target)
+  const targetLabel = useLocalTargetLabel(target)
   return (
     <div className={`dialog-body ${className}`}>
       <header className="flex items-start gap-2 border-b border-border-subtle px-5 py-4">
@@ -1844,7 +1851,7 @@ function SyncForm({
 
         <div className="space-y-1">
           <p className="text-xs text-t-muted">
-            {t('remote.syncTarget')} <span className="font-mono text-t-secondary">downloads/{target}</span>
+            {t('remote.syncTarget')} <span className="font-mono text-t-secondary">{targetLabel}</span>
           </p>
           {/* no folder name: the full path is right above, and several
                 levels can be missing at once */}
