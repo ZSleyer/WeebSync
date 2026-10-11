@@ -278,7 +278,9 @@
     "totpConfirm": "Bestätigen & aktivieren",
     "recoveryTitle": "Recovery-Codes - jetzt sicher speichern",
     "recoveryHint": "Jeder Code funktioniert einmal, falls du keinen Zugriff auf die App hast. Sie werden nicht erneut angezeigt.",
-    "copy": "Kopieren"
+    "copy": "Kopieren",
+    "copied": "In die Zwischenablage kopiert.",
+    "copySelect": "Kopieren ist hier nicht möglich. Die Codes sind markiert, kopiere sie selbst."
   },
   "setup": {
     "serverRetry": "Speichern und erneut testen",

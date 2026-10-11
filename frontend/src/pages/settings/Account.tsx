@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Panel } from '@weebsync/design-system'
@@ -235,6 +235,21 @@ function TotpSection() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // the copy button says what it did; without a clipboard (plain http, an
+  // old engine) or when the write is refused, the codes are selected so the
+  // user copies them by hand
+  const [copied, setCopied] = useState<'' | 'ok' | 'select'>('')
+  const codesRef = useRef<HTMLUListElement>(null)
+  const copyCodes = async (codes: string[]) => {
+    try {
+      if (!navigator.clipboard) throw new Error('no clipboard')
+      await navigator.clipboard.writeText(codes.join('\n'))
+      setCopied('ok')
+    } catch {
+      if (codesRef.current) window.getSelection()?.selectAllChildren(codesRef.current)
+      setCopied('select')
+    }
+  }
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -273,17 +288,27 @@ function TotpSection() {
         <div className="mt-4 rounded-lg border border-warn/40 bg-warn/5 p-4">
           <p className="mb-2 text-sm text-warn">{t('account.recoveryTitle')}</p>
           <p className="mb-3 text-xs text-t-muted">{t('account.recoveryHint')}</p>
-          <ul className="grid grid-cols-2 gap-1 font-mono text-sm">
+          <ul ref={codesRef} className="grid grid-cols-2 gap-1 font-mono text-sm">
             {recovery.map((c) => (
               <li key={c}>{c}</li>
             ))}
           </ul>
-          <Button size="sm" className="mt-3" onClick={() => navigator.clipboard?.writeText(recovery.join('\n'))}>
+          <Button size="sm" className="mt-3" onClick={() => copyCodes(recovery)}>
             {t('account.copy')}
           </Button>
-          <Button size="sm" className="mt-3 ml-2" onClick={() => setRecovery(null)}>
+          <Button
+            size="sm"
+            className="mt-3 ml-2"
+            onClick={() => {
+              setRecovery(null)
+              setCopied('')
+            }}
+          >
             {t('remote.close')}
           </Button>
+          <p role="status" className={`mt-2 text-xs empty:hidden ${copied === 'ok' ? 'text-ok' : 'text-warn'}`}>
+            {copied === 'ok' ? t('account.copied') : copied === 'select' ? t('account.copySelect') : ''}
+          </p>
         </div>
       )}
 
