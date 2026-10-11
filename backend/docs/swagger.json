@@ -184,6 +184,7 @@
                         "type": "string"
                     },
                     "startDate": {
+                        "description": "YYYYMMDD, 0 = unknown",
                         "type": "integer"
                     },
                     "status": {
@@ -287,9 +288,11 @@
             "anilist.Review": {
                 "properties": {
                     "rating": {
+                        "description": "upvotes (AniList only)",
                         "type": "integer"
                     },
                     "score": {
+                        "description": "the reviewer's 0-100 rating",
                         "type": "integer"
                     },
                     "summary": {
@@ -366,6 +369,7 @@
             "api.Airing": {
                 "properties": {
                     "at": {
+                        "description": "unix seconds",
                         "type": "integer"
                     },
                     "dub": {
@@ -373,6 +377,7 @@
                         "type": "string"
                     },
                     "episode": {
+                        "description": "local numbering (offset applied)",
                         "type": "integer"
                     },
                     "episodeAbs": {
@@ -650,6 +655,7 @@
                         "type": "integer"
                     },
                     "g": {
+                        "description": "group key",
                         "type": "string"
                     },
                     "season": {
@@ -794,6 +800,7 @@
                         "description": "Probed: how the languages above were established - 0 nothing measured yet,\n1 read from the container streams, 2 measuring was attempted and the\ncontainer would not answer. The card shows this so a disputed suggestion\ncan be judged without reading the log."
                     },
                     "resRank": {
+                        "description": "max video height, 0 = unknown",
                         "type": "integer"
                     },
                     "serverId": {
@@ -2207,6 +2214,7 @@
                         "type": "integer"
                     },
                     "providers": {
+                        "description": "anilist | tmdb | tvdb | imdb | plex",
                         "items": {
                             "type": "string"
                         },
@@ -2218,6 +2226,7 @@
                         "type": "string"
                     },
                     "season": {
+                        "description": "0 = movie/base",
                         "type": "integer"
                     },
                     "sequel": {
@@ -2564,6 +2573,7 @@
                         "uniqueItems": false
                     },
                     "season": {
+                        "description": "0 = movie/base",
                         "type": "integer"
                     },
                     "seriesId": {
@@ -2625,6 +2635,7 @@
                         "description": "Probed: how the languages above were established - 0 nothing measured yet,\n1 read from the container streams, 2 measuring was attempted and the\ncontainer would not answer. The card shows this so a disputed suggestion\ncan be judged without reading the log."
                     },
                     "resRank": {
+                        "description": "max video height, 0 = unknown",
                         "type": "integer"
                     },
                     "serverId": {

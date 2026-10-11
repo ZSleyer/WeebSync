@@ -570,7 +570,7 @@ type UpgradeVariant struct {
 	ServerID   int64    `json:"serverId"`
 	ServerName string   `json:"serverName,omitempty"` // "" = local filesystem
 	Folder     string   `json:"folder"`
-	ResRank    int      `json:"resRank"`
+	ResRank    int      `json:"resRank"` // max video height, 0 = unknown
 	Dub        []string `json:"dub"`
 	Sub        []string `json:"sub"`
 	// Soft is the subset of Sub the copy can hand over as a selectable track
@@ -601,7 +601,7 @@ type UpgradeSuggestion struct {
 	Key         string           `json:"key"` // dismiss key: unit:{showKey}:{season}
 	SeriesID    int64            `json:"seriesId,omitempty"`
 	ShowKey     string           `json:"showKey"`
-	Season      int              `json:"season"`
+	Season      int              `json:"season"` // 0 = movie/base
 	IsMovie     bool             `json:"isMovie,omitempty"`
 	Title       string           `json:"title"`
 	Why         string           `json:"why,omitempty"` // one line, in the user's language: what the better copy adds

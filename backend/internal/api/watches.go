@@ -122,8 +122,8 @@ type Watch struct {
 // Airing is one upcoming episode slot for the calendar, in the watch's local
 // numbering (offset applied); EpisodeAbs carries the original number when it differs.
 type Airing struct {
-	At         int64  `json:"at"`
-	Episode    int    `json:"episode"`
+	At         int64  `json:"at"`      // unix seconds
+	Episode    int    `json:"episode"` // local numbering (offset applied)
 	EpisodeAbs int    `json:"episodeAbs,omitempty"`
 	Dub        string `json:"dub,omitempty"`  // the dub this slot releases, short tag (de, en); "" = the original
 	Est        bool   `json:"est,omitempty"`  // projected from the original plus the lag, not a date anyone published

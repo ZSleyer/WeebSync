@@ -34,7 +34,7 @@ type DownloadGroup struct {
 // DownloadItemMeta is the per-file half: which group it belongs to and which
 // episode it is. Field names are short because there is one per download.
 type DownloadItemMeta struct {
-	Group   string `json:"g"`
+	Group   string `json:"g"` // group key
 	Season  int    `json:"season,omitempty"`
 	Episode int    `json:"episode,omitempty"`
 	Title   string `json:"title,omitempty"` // episode title, only when the provider cache is warm
