@@ -94,6 +94,13 @@ func TestDubProgressOf(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("trailing GerDub = %+v, want %+v", got, want)
 	}
+	// a finished, dubbed season beside it does not count into the progress
+	for e := 1; e <= 16; e++ {
+		rz[epKey(2, e)] = "GerJapDub,"
+	}
+	if got := dubProgressOf(rz); !reflect.DeepEqual(got, want) {
+		t.Errorf("with a dubbed season before = %+v, want %+v", got, want)
+	}
 	for name, m := range map[string]map[int]string{
 		"dub reaches the end": tags([2]int{1, 1}, "GerJapDub,", [2]int{1, 2}, "GerDub,"),
 		"japanese only":       tags([2]int{1, 1}, "JapDub,", [2]int{1, 2}, "JapDub,"),

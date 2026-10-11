@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"net/http"
 	"path"
 	"path/filepath"
@@ -1051,14 +1052,14 @@ func (s *Server) watchLangFilter(w Watch) func(string) bool {
 		// dimension, trust it (no download). Only when a wanted dimension has
 		// NO filename tag - the "not everything is in the name" case - do we
 		// pull the header and read the real tracks with ffprobe.
-		dubTag, subTag := rename.LangTags(remotePath)
+		dubTag, subTag := rename.PathLangTags(remotePath)
 		ambiguous := (w.WantDub != "" && dubTag == "") || (w.WantSub != "" && subTag == "")
 		if !ambiguous {
-			return rename.LangMatch(remotePath, w.WantDub, w.WantSub)
+			return rename.PathLangMatch(remotePath, w.WantDub, w.WantSub)
 		}
 		dub, sub, ok := s.probeRemoteLang(w.UserID, w.ServerID, remotePath)
 		if !ok {
-			return rename.LangMatch(remotePath, w.WantDub, w.WantSub) // fall back to the name
+			return rename.PathLangMatch(remotePath, w.WantDub, w.WantSub) // fall back to the name
 		}
 		if w.WantDub != "" && !dub[canonCode(w.WantDub)] {
 			return false
@@ -1141,8 +1142,17 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 			dubTags[k] += d + ","
 		})
 		it.Missing = missingEpisodes(localNums)
-		it.Seasons = localSeasons(localNums)
 		it.LangWaitingEps = parseEpKeys(langWaitingEps)
+		// the seasons the watch is about: on disk, and the ones only waiting
+		// for their language yet (a new season with nothing local)
+		seasonKeys := maps.Clone(localNums)
+		for _, r := range it.LangWaitingEps {
+			if seasonKeys == nil {
+				seasonKeys = map[int]bool{}
+			}
+			seasonKeys[epKey(r.Season, r.Episode)] = true
+		}
+		it.Seasons = localSeasons(seasonKeys)
 		it.Unsorted = s.pendingCount(it.ID)
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
@@ -1267,6 +1277,12 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 					}
 				}
 				markAirings(it.Airings, localNums, s.firstSeen(userID, it.ServerID, it.RemotePath), base, lang)
+				// measured against the original, Behind also holds what the
+				// source has but only in another language: that is waiting
+				// for the dub (LangWaiting), not missing from the source
+				if behindTrack == "" && (it.WantDub != "" || it.WantSub != "") {
+					it.Behind = max(0, it.Behind-it.LangWaiting)
+				}
 				it.BehindLate = behindLate(it.Behind, it.Airings, behindTrack, now)
 			}
 			if p := it.DubProgress; p != nil {
@@ -1603,7 +1619,18 @@ func dubProgressOf(tags map[int]string) *DubProgress {
 	}
 	i := sort.SearchInts(keys, last[best]) + 1
 	se, ep := splitEpKey(keys[i])
-	return &DubProgress{Lang: spelled[best], Have: have[best], Total: len(keys), Next: EpRef{se, ep}}
+	// how far, within the season the next episode belongs to: a folder with
+	// a finished earlier season would otherwise read 28/34 for 13/19
+	p := &DubProgress{Lang: spelled[best], Next: EpRef{se, ep}}
+	for _, k := range keys {
+		if s, _ := splitEpKey(k); s == se {
+			p.Total++
+			if k < keys[i] {
+				p.Have++
+			}
+		}
+	}
+	return p
 }
 
 // localSeasons lists the seasons among season-encoded keys, specials left out.

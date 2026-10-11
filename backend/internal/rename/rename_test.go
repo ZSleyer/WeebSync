@@ -175,6 +175,25 @@ func TestLangMatch(t *testing.T) {
 	}
 }
 
+func TestPathLangMatch(t *testing.T) {
+	const dir = "/S/2026-4 Fall/Show [GerJapDub,GerEngSub,CR]/"
+	cases := []struct {
+		path, wantDub, wantSub string
+		ok                     bool
+	}{
+		{dir + "Show E01 [JapDub][GerEngSub].mkv", "Ger", "", false}, // the file's own tag wins
+		{dir + "Show E01 [GerJapDub][GerEngSub].mkv", "Ger", "", true},
+		{dir + "Show E01.mkv", "Ger", "Eng", true},       // untagged file: the folder speaks
+		{dir + "Show E01 [JapDub].mkv", "", "Eng", true}, // sub left open by the name
+		{"/S/Show/Show E01.mkv", "Ger", "", false},       // no tag anywhere
+	}
+	for _, c := range cases {
+		if got := PathLangMatch(c.path, c.wantDub, c.wantSub); got != c.ok {
+			t.Errorf("PathLangMatch(%q, %q, %q) = %v, want %v", c.path, c.wantDub, c.wantSub, got, c.ok)
+		}
+	}
+}
+
 func TestCodes(t *testing.T) {
 	got := Codes("GerJapDub")
 	if len(got) != 2 || got[0] != "Ger" || got[1] != "Jap" {
