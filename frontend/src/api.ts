@@ -244,6 +244,7 @@ export interface Watch {
   checkAttempts?: number
   lastQueued: number // files queued at the last check, -1 = none yet
   lastUploading: number
+  lastOwned: number // files left on the remote: the library holds the episode under another name
   createdAt: string
   media?: Media
   localFiles: number
