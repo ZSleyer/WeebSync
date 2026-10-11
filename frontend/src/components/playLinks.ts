@@ -8,6 +8,36 @@ export const isVideo = (name: string) => /\.(mkv|mp4|avi|ts|m2ts|webm|mov)$/i.te
 /** The player's address for a file: server 0 is the local library. */
 export const playHref = (server: number, path: string) => `/play?server=${server}&path=${encodeURIComponent(path)}`
 
+/**
+ * What the viewer makes of a file; null for what it does not open. Comics,
+ * EPUBs and spreadsheets are unpacked on the server (read.open), the rest is
+ * streamed as is (viewMime in play.go).
+ */
+export type ViewKind = 'comic' | 'epub' | 'sheet' | 'pdf' | 'audio' | 'image' | 'text'
+const VIEW_KINDS: [ViewKind, RegExp][] = [
+  ['comic', /\.(cbz|cbr|zip|rar)$/i],
+  ['epub', /\.epub$/i],
+  ['sheet', /\.(ods|xlsx)$/i],
+  ['pdf', /\.pdf$/i],
+  ['audio', /\.(mp3|flac|m4a|m4b|aac|ogg|opus|wav|mka)$/i],
+  ['image', /\.(jpe?g|png|gif|webp|avif|bmp)$/i],
+  ['text', /\.(txt|nfo|md|log|cue|lrc|json|xml|csv|ini|diz|sfv)$/i],
+]
+export const viewKind = (name: string): ViewKind | null => VIEW_KINDS.find(([, re]) => re.test(name))?.[0] ?? null
+
+/**
+ * A volume read to its last page or chapter, remembered in this browser. The
+ * reader marks it; "Read" on a manga watch skips what is marked.
+ */
+export const doneKey = (server: number, path: string) => `viewer.done:${server}:${path}`
+
+/** The viewer's address for a file. */
+export const viewHref = (server: number, path: string) => `/view?server=${server}&path=${encodeURIComponent(path)}`
+
+/** Where the bytes of a file are served, for the viewers that read them as is. */
+export const streamUrl = (server: number, path: string) =>
+  `/api/play/stream?server=${server}&path=${encodeURIComponent(path)}`
+
 /** Files at a folder; a jump remounts the page, so it starts from the link. */
 export const filesLink = (serverId: number, path: string) =>
   `/files?${serverId ? `server=${serverId}` : 'source=local'}&path=${encodeURIComponent(path.replace(/^\//, ''))}`
