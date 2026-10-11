@@ -10913,7 +10913,7 @@
         },
         "/api/play/stream": {
             "get": {
-                "description": "Serves the raw bytes of a local (server omitted or 0) or remote video with HTTP Range support, for direct playback in the browser.",
+                "description": "Serves the raw bytes of a local (server omitted or 0) or remote video, subtitle, audio, picture, PDF or text file with HTTP Range support, for the player and the viewers in the browser.",
                 "parameters": [
                     {
                         "description": "Server ID, 0 or omitted for a local file",
@@ -11000,7 +11000,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "summary": "Stream a video file",
+                "summary": "Stream a file",
                 "tags": [
                     "Player"
                 ]

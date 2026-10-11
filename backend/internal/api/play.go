@@ -54,6 +54,20 @@ type playSource struct {
 }
 
 func playSourceFrom(r *http.Request) (playSource, error) {
+	src, err := fileSourceFrom(r)
+	if err != nil {
+		return src, err
+	}
+	ext := strings.ToLower(filepath.Ext(src.path))
+	if !transfer.VideoExt[ext] && !transfer.SubExt[ext] {
+		return src, errors.New("not a video or subtitle file")
+	}
+	return src, nil
+}
+
+// fileSourceFrom reads the file a request names; the endpoints decide which
+// kinds of file they serve.
+func fileSourceFrom(r *http.Request) (playSource, error) {
 	q := r.URL.Query()
 	src := playSource{userID: auth.UserFrom(r.Context()).ID, path: q.Get("path")}
 	if v := q.Get("server"); v != "" && v != "0" {
@@ -63,11 +77,25 @@ func playSourceFrom(r *http.Request) (playSource, error) {
 		}
 		src.serverID = id
 	}
-	ext := strings.ToLower(filepath.Ext(src.path))
-	if !transfer.VideoExt[ext] && !transfer.SubExt[ext] {
-		return src, errors.New("not a video or subtitle file")
-	}
 	return src, nil
+}
+
+// viewMime is what the stream endpoint serves besides video and subtitles,
+// with the type a browser needs to show it: audio for the audio player,
+// pictures, PDF for the document viewer, and text. Text is always plain text,
+// whatever it calls itself - an .nfo is CP437 art, not markup - and nothing
+// here is HTML or SVG: a remote file must never become a page of this origin.
+var viewMime = map[string]string{
+	".mp3": "audio/mpeg", ".flac": "audio/flac", ".m4a": "audio/mp4", ".m4b": "audio/mp4",
+	".aac": "audio/aac", ".ogg": "audio/ogg", ".opus": "audio/ogg", ".wav": "audio/wav",
+	".mka": "audio/x-matroska",
+	".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif",
+	".webp": "image/webp", ".avif": "image/avif", ".bmp": "image/bmp",
+	".pdf": "application/pdf",
+	".txt": "text/plain", ".nfo": "text/plain", ".md": "text/plain", ".log": "text/plain",
+	".cue": "text/plain", ".lrc": "text/plain", ".json": "text/plain", ".xml": "text/plain",
+	".csv": "text/plain", ".ini": "text/plain", ".diz": "text/plain", ".sfv": "text/plain",
+	".idx": "text/plain",
 }
 
 // playFile is an open source file: seekable, sized, and closed when done.
@@ -171,7 +199,11 @@ func (f *remoteFile) Close() {
 // container's own type, not a sniffed one: the server sends nosniff, and the
 // alpine image has no mime table that knows .mkv.
 func playMime(name string) string {
-	switch ext := strings.ToLower(filepath.Ext(name)); ext {
+	ext := strings.ToLower(filepath.Ext(name))
+	if t := viewMime[ext]; t != "" {
+		return t
+	}
+	switch ext {
 	case ".mkv":
 		return "video/x-matroska"
 	case ".webm":
@@ -188,8 +220,8 @@ func playMime(name string) string {
 	}
 }
 
-// @Summary  Stream a video file
-// @Description Serves the raw bytes of a local (server omitted or 0) or remote video with HTTP Range support, for direct playback in the browser.
+// @Summary  Stream a file
+// @Description Serves the raw bytes of a local (server omitted or 0) or remote video, subtitle, audio, picture, PDF or text file with HTTP Range support, for the player and the viewers in the browser.
 // @Tags     Player
 // @Produce  octet-stream
 // @Param    server query int    false "Server ID, 0 or omitted for a local file"
@@ -203,9 +235,14 @@ func playMime(name string) string {
 // @Security CookieAuth
 // @Router   /api/play/stream [get]
 func (s *Server) handlePlayStream(w http.ResponseWriter, r *http.Request) {
-	src, err := playSourceFrom(r)
+	src, err := fileSourceFrom(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(src.path))
+	if !transfer.VideoExt[ext] && !transfer.SubExt[ext] && viewMime[ext] == "" {
+		writeErr(w, http.StatusBadRequest, "not a file the player or viewer can show")
 		return
 	}
 	s.servePlayFile(w, r, src)
@@ -245,6 +282,10 @@ func (s *Server) servePlayFileTracked(w http.ResponseWriter, r *http.Request, sr
 		body = &trackedReader{ReadSeeker: body, tok: tok}
 	}
 	w.Header().Set("Content-Type", playMime(src.path))
+	if ext := strings.ToLower(filepath.Ext(src.path)); viewMime[ext] != "" && ext != ".pdf" {
+		// opened on its own in a tab, a file from a server stays inert
+		w.Header().Set("Content-Security-Policy", "sandbox")
+	}
 	// a video is watched for longer than any write deadline the server might
 	// one day get; streaming must not be cut off by it
 	http.NewResponseController(w).SetWriteDeadline(time.Time{})
