@@ -793,6 +793,8 @@
     "layout": "Layout",
     "viewGrid": "Grid",
     "viewList": "List",
+    "attentionEmpty": "Nothing needs attention right now.",
+    "attentionShowAll": "Show all",
     "group": {
       "attention": "Needs attention",
       "syncing": "Downloading",

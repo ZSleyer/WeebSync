@@ -793,6 +793,8 @@
     "layout": "Darstellung",
     "viewGrid": "Raster",
     "viewList": "Liste",
+    "attentionEmpty": "Gerade braucht nichts deine Aufmerksamkeit.",
+    "attentionShowAll": "Alle zeigen",
     "group": {
       "attention": "Braucht Aufmerksamkeit",
       "syncing": "Wird geladen",
