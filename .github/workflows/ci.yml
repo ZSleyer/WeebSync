@@ -78,6 +78,11 @@ jobs:
         run: yarn lint
       - name: format (oxfmt)
         run: yarn format:check
+      - name: api types in sync
+        run: |
+          yarn gen:api
+          git diff --exit-code src/api.gen.ts \
+            || { echo "API types out of date - run backend/gen-docs.sh, then yarn gen:api, and commit src/api.gen.ts"; exit 1; }
       - name: test (vitest)
         run: yarn test
       - name: production dependency audit
