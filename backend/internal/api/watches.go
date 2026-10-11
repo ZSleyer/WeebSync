@@ -403,7 +403,11 @@ func (s *Server) runWatch(id int64) {
 	nameFn, waiting := s.watchNameFnQuarantine(w, s.unsortedDir(w.UserID))
 	// files already collected must not be fetched again: Enqueue only skips
 	// what is complete at the EXPECTED target, and theirs is still empty
-	skip := s.pendingRemotePaths(w.ID)
+	skip, err := s.pendingRemotePaths(w.ID)
+	if err != nil {
+		slog.Warn("watch check skipped: waiting files unreadable", "watch", w.ID, "err", err)
+		return
+	}
 	res, err := s.Transfers.EnqueueSkipping(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
 		nameFn, andNotPending(s.watchLangFilter(w), skip), s.watchOwned(w), true, !w.Subfolder, false)
 	ids, uploading, filtered, owned := res.IDs, res.Uploading, res.Filtered, res.Owned

@@ -186,7 +186,7 @@ func TestPendingRemotePathsFeedTheSkip(t *testing.T) {
 	s.DB.Exec(`INSERT INTO pending_episodes (download_id, watch_id, token, local_path, remote_path)
 		VALUES (7,1,'1208','/tmp/x.mkv','/ftp/Conan/1208.mkv')`)
 
-	skip := s.pendingRemotePaths(1)
+	skip, _ := s.pendingRemotePaths(1)
 	if !skip["/ftp/Conan/1208.mkv"] {
 		t.Fatal("the waiting file is not on the skip list")
 	}

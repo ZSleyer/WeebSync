@@ -189,28 +189,32 @@ type sabJob struct {
 	createdAt, updatedAt                    string
 }
 
-func (s *Server) sabJobs() []sabJob {
+// sabJobs fails rather than coming back short: a job missing from both the
+// queue and the history looks to the app like a vanished download, which it
+// marks failed, blocklists and grabs again.
+func (s *Server) sabJobs() ([]sabJob, error) {
 	rows, err := s.DB.Query(`SELECT j.nzo_id, j.title, j.category, j.job_dir, j.download_id, j.size, j.created_at,
 			COALESCE(d.status, ''), COALESCE(d.error, ''), COALESCE(d.transferred, 0), COALESCE(d.user_id, 0), COALESCE(d.updated_at, j.created_at)
 		FROM arr_jobs j LEFT JOIN downloads d ON d.id = j.download_id ORDER BY j.created_at`)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 	var out []sabJob
 	for rows.Next() {
 		var j sabJob
-		if rows.Scan(&j.nzo, &j.title, &j.cat, &j.jobDir, &j.downloadID, &j.size, &j.createdAt,
-			&j.status, &j.errMsg, &j.transferred, &j.userID, &j.updatedAt) == nil {
-			if j.downloadID == 0 {
-				j.status = "done"
-			} else if j.status == "" {
-				j.status, j.errMsg = "error", "the download was removed from WeebSync"
-			}
-			out = append(out, j)
+		if err := rows.Scan(&j.nzo, &j.title, &j.cat, &j.jobDir, &j.downloadID, &j.size, &j.createdAt,
+			&j.status, &j.errMsg, &j.transferred, &j.userID, &j.updatedAt); err != nil {
+			return nil, err
 		}
+		if j.downloadID == 0 {
+			j.status = "done"
+		} else if j.status == "" {
+			j.status, j.errMsg = "error", "the download was removed from WeebSync"
+		}
+		out = append(out, j)
 	}
-	return out
+	return out, rows.Err()
 }
 
 // sabValues reads the comma list of nzo ids a delete/pause names.
@@ -225,7 +229,11 @@ func sabValues(r *http.Request) map[string]bool {
 }
 
 func (s *Server) sabQueue(w http.ResponseWriter, r *http.Request) {
-	jobs := s.sabJobs()
+	jobs, err := s.sabJobs()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"status": false, "error": "job list unavailable"})
+		return
+	}
 	switch r.FormValue("name") {
 	case "delete":
 		want := sabValues(r)
@@ -277,7 +285,11 @@ func (s *Server) sabQueue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) sabHistory(w http.ResponseWriter, r *http.Request) {
-	jobs := s.sabJobs()
+	jobs, err := s.sabJobs()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"status": false, "error": "job list unavailable"})
+		return
+	}
 	if r.FormValue("name") == "delete" {
 		// the app forgets a job it imported; the files are its business now
 		want := sabValues(r)

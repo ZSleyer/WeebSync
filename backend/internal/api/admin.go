@@ -364,7 +364,8 @@ func (s *Server) rematchServer(serverID int64, all bool) int {
 	if all {
 		cond = ""
 	}
-	matches := s.automaticMatches(`server_id = ? AND manual = 0 `+cond, serverID)
+	// deletes only the rows it read, so a short list does no harm
+	matches, _ := s.automaticMatches(`server_id = ? AND manual = 0 `+cond, serverID)
 	s.queueMatches(matches)
 	for _, m := range matches {
 		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
@@ -382,20 +383,21 @@ type catalogMatch struct {
 
 // automaticMatches reads the match rows selected by cond (which must never
 // include manual rows - those are nobody's to re-run).
-func (s *Server) automaticMatches(cond string, args ...any) []catalogMatch {
+func (s *Server) automaticMatches(cond string, args ...any) ([]catalogMatch, error) {
 	rows, err := s.DB.Query(`SELECT server_id, folder, source FROM catalog_matches WHERE `+cond, args...)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 	var out []catalogMatch
 	for rows.Next() {
 		var m catalogMatch
-		if rows.Scan(&m.serverID, &m.folder, &m.source) == nil {
-			out = append(out, m)
+		if err := rows.Scan(&m.serverID, &m.folder, &m.source); err != nil {
+			return nil, err
 		}
+		out = append(out, m)
 	}
-	return out
+	return out, rows.Err()
 }
 
 // queueMatches fires one forced (cache-bypassing) search per folder, routed to
