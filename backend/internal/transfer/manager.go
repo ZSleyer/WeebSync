@@ -117,8 +117,11 @@ func NewManager(db *sql.DB, dial Dialer, downloadRoot string) *Manager {
 		wake:   make(chan struct{}, 1),
 	}
 	m.reloadSettings()
-	// crashed mid-transfer? back to the queue
-	db.Exec(`UPDATE downloads SET status = 'queued' WHERE status = 'running'`)
+	// crashed mid-transfer? back to the queue. Left 'running', nothing would
+	// ever pick them up again.
+	if _, err := db.Exec(`UPDATE downloads SET status = 'queued' WHERE status = 'running'`); err != nil {
+		slog.Error("interrupted downloads not requeued", "err", err)
+	}
 	go m.loop()
 	go m.speedLoop()
 	return m
