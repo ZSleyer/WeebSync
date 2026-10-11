@@ -58,10 +58,19 @@ import {
   useMediaQuery,
   useMenu,
 } from '@weebsync/design-system'
-import { api, fmtMissing, langLabel, mediaTitle, type Watch } from '../api'
+import { api, epLabel, mediaTitle, type Watch } from '../api'
 import ActionSheet from '../components/ActionSheet'
 import Press from '../components/Press'
-import { attentionInfo, dubOverdueLabel, dubWaitingLabel } from '../attention'
+import {
+  attentionInfo,
+  behindLabel,
+  dubOverdueLabel,
+  dubProgressLabel,
+  dubWaitingLabel,
+  langWaitingLabel,
+  missingLabel,
+  seasonLabel,
+} from '../attention'
 import { addDays, dayKey, episodeLabel, fileStatus, startOfDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
@@ -805,9 +814,10 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                               {/* the upcoming episode leads the row: it is what the
                               page is watched for. Number and date share one chip
                               so they cannot end up on separate lines. */}
+                              {seasonLabel(t, w) && <Badge size="sm">{seasonLabel(t, w)}</Badge>}
                               {!!w.nextAiringAt && (
                                 <Badge
-                                  tone={w.behind ? 'warn' : 'ok'}
+                                  tone={w.behindLate ? 'warn' : 'ok'}
                                   size="sm"
                                   title={
                                     w.mediaSource?.startsWith('tmdb')
@@ -816,17 +826,16 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                                   }
                                 >
                                   <CalendarDays aria-hidden size="1em" />
-                                  {t('watch.chipEp', { n: w.nextEpisode })}
-                                  {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode
-                                    ? ` (${w.nextEpisodeAbs})`
-                                    : ''}
+                                  {t('watch.chipEp', { n: epLabel(w, w.nextEpisode!) })}
                                   {` · ${airFmtChip(w.nextAiringAt)}`}
                                 </Badge>
                               )}
                               {(w.behind ?? 0) > 0 && (
-                                <Badge tone="warn" size="sm">
+                                // warn only once it is late: a few hours behind
+                                // the broadcast is how the source works
+                                <Badge tone={w.behindLate ? 'warn' : undefined} size="sm">
                                   <Clock aria-hidden size="1em" />
-                                  {t('watch.behind', { count: w.behind })}
+                                  {behindLabel(t, w)}
                                 </Badge>
                               )}
                               {(w.missing?.length ?? 0) > 0 && (
@@ -838,14 +847,11 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                                   type="button"
                                   tone="err"
                                   size="sm"
-                                  title={w.missing!.join(', ')}
+                                  title={w.missing!.map((r) => epLabel(w, r.e, r.s)).join(', ')}
                                   onClick={() => showGaps(w)}
                                 >
                                   <TriangleAlert aria-hidden size="1em" />
-                                  {t('watch.missing', {
-                                    count: w.missing!.length,
-                                    eps: fmtMissing(w.missing!, w.offset),
-                                  })}
+                                  {missingLabel(t, w)}
                                 </Badge>
                               )}
                               {(w.unsorted ?? 0) > 0 && (
@@ -872,11 +878,18 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                                 </Badge>
                               ) : (
                                 (w.langWaiting ?? 0) > 0 && (
-                                  <Badge tone="warn" size="sm">
+                                  <Badge size="sm">
                                     <Clock aria-hidden size="1em" />
-                                    {t('watch.langWaiting', { count: w.langWaiting, lang: langLabel(w) })}
+                                    {langWaitingLabel(t, w)}
                                   </Badge>
                                 )
+                              )}
+                              {w.dubProgress && (
+                                // the older files are dubbed, the newer not yet
+                                <Badge size="sm">
+                                  <Languages aria-hidden size="1em" />
+                                  {dubProgressLabel(t, w)}
+                                </Badge>
                               )}
                               {w.plexStreamMiss && (
                                 // the one setting that used to fail in total silence:
@@ -1173,8 +1186,8 @@ function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => 
           {(!!w.nextAiringAt || w.active > 0 || attention) && (
             <div className="mt-1 flex flex-wrap gap-1">
               {!!w.nextAiringAt && (
-                <Badge size="sm" tone={w.behind ? 'warn' : 'ok'}>
-                  {t('watch.chipEp', { n: w.nextEpisode })} · {when(w.nextAiringAt)}
+                <Badge size="sm" tone={w.behindLate ? 'warn' : 'ok'}>
+                  {t('watch.chipEp', { n: epLabel(w, w.nextEpisode!) })} · {when(w.nextAiringAt)}
                 </Badge>
               )}
               {w.active > 0 && (

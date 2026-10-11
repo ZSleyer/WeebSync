@@ -214,22 +214,25 @@ func (s *Server) aiAiring(userID int64, days int) any {
 		At      string `json:"at"`
 	}
 	type entry struct {
-		ID          int64  `json:"id"`
-		Title       string `json:"title"`
-		Category    string `json:"category,omitempty"`
-		LocalFiles  int    `json:"localFiles"`
-		Complete    bool   `json:"complete,omitempty"`
-		NextEpisode int    `json:"nextEpisode,omitempty"`
-		NextAiring  string `json:"nextAiring,omitempty"`
-		Upcoming    []slot `json:"upcoming,omitempty"`
-		Missing     []int  `json:"missing,omitempty"`
-		Behind      int    `json:"behind,omitempty"`
-		LastResult  string `json:"lastError,omitempty"`
+		ID          int64    `json:"id"`
+		Title       string   `json:"title"`
+		Category    string   `json:"category,omitempty"`
+		LocalFiles  int      `json:"localFiles"`
+		Complete    bool     `json:"complete,omitempty"`
+		NextEpisode int      `json:"nextEpisode,omitempty"`
+		NextAiring  string   `json:"nextAiring,omitempty"`
+		Upcoming    []slot   `json:"upcoming,omitempty"`
+		Missing     []string `json:"missing,omitempty"` // SxxEyy
+		Behind      int      `json:"behind,omitempty"`
+		LastResult  string   `json:"lastError,omitempty"`
 	}
 	out := []entry{}
 	for _, w := range list {
 		e := entry{ID: w.ID, Title: w.TitleOverride, Category: w.Category, LocalFiles: w.LocalFiles, Complete: w.Complete,
-			NextEpisode: w.NextEpisode, Missing: w.Missing, Behind: w.Behind, LastResult: w.LastResult}
+			NextEpisode: w.NextEpisode, Behind: w.Behind, LastResult: w.LastResult}
+		for _, m := range w.Missing {
+			e.Missing = append(e.Missing, m.String())
+		}
 		if e.Title == "" && w.Media != nil {
 			e.Title = aiTitle(*w.Media)
 		}

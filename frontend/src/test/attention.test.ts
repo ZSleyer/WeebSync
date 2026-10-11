@@ -34,13 +34,14 @@ describe('attentionInfo', () => {
       attention: ['checkFailed', 'behind', 'missing', 'langWaiting'],
       lastResult: 'boom',
       behind: 2,
-      missing: [4],
+      missing: [{ s: 1, e: 4 }],
       langWaiting: 3,
     })
     const chips = attentionInfo(t, w)
     expect(chips.map((c) => c.key)).toEqual(['checkFailed', 'behind', 'missing', 'langWaiting'])
     expect(chips[0]).toEqual({ key: 'checkFailed', tone: 'err', text: 'dash.checkFailed' })
     expect(chips[1].text).toBe('watch.behind {"count":2}')
+    expect(chips[2].text).toBe('watch.missing {"count":1,"eps":"4"}')
     expect(chips[3].text).toBe('watch.langWaiting {"count":3,"lang":"Ger-Dub"}')
   })
   it('is empty when the backend saw nothing', () => {

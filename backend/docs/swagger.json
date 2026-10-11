@@ -583,6 +583,31 @@
                 },
                 "type": "object"
             },
+            "api.DubProgress": {
+                "description": "DubProgress: a dub the older files carry and the newer ones lack, on a\nwatch without a dub filter; nil when there is none.",
+                "properties": {
+                    "expectedAt": {
+                        "description": "forecast of Next's dub; 0 = no date known",
+                        "type": "integer"
+                    },
+                    "have": {
+                        "description": "local episodes carrying it",
+                        "type": "integer"
+                    },
+                    "lang": {
+                        "description": "the code as the names spell it (Ger, Eng, ...)",
+                        "type": "string"
+                    },
+                    "next": {
+                        "$ref": "#/components/schemas/api.EpRef"
+                    },
+                    "total": {
+                        "description": "local episodes",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "api.DuplicateCopy": {
                 "properties": {
                     "bytes": {
@@ -767,6 +792,18 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    }
+                },
+                "type": "object"
+            },
+            "api.EpRef": {
+                "description": "first episode after the last dubbed one",
+                "properties": {
+                    "e": {
+                        "type": "integer"
+                    },
+                    "s": {
+                        "type": "integer"
                     }
                 },
                 "type": "object"
@@ -2090,6 +2127,10 @@
                         "description": "episodes aired per AniList but not yet available locally (the source release can lag the original broadcast)",
                         "type": "integer"
                     },
+                    "behindLate": {
+                        "description": "BehindLate: Behind holds more episodes than the last behindGrace of\nreleases explains - the source is not just a few hours behind.",
+                        "type": "boolean"
+                    },
                     "category": {
                         "description": "anime-series | anime-movie | series | movie (calendar filter)",
                         "type": "string"
@@ -2113,9 +2154,16 @@
                         "description": "days the WantDub release trails the original when no release has shown the lag yet; 0 = observed only",
                         "type": "integer"
                     },
+                    "dubNextEpisode": {
+                        "description": "the episode the filtered dub is waited for, local numbering",
+                        "type": "integer"
+                    },
                     "dubOverdue": {
                         "description": "the forecast plus a week of grace passed without a release",
                         "type": "boolean"
+                    },
+                    "dubProgress": {
+                        "$ref": "#/components/schemas/api.DubProgress"
                     },
                     "dubWaiting": {
                         "description": "DubWaiting: the watch is caught up on the dub it filters for; the\noriginal is ahead but the dub is not due yet - expected waiting, not\nsomething to look at.",
@@ -2135,6 +2183,14 @@
                     "langWaiting": {
                         "description": "videos on the remote skipped by the dub/sub filter, target not yet local",
                         "type": "integer"
+                    },
+                    "langWaitingEps": {
+                        "description": "LangWaitingEps: which episodes the dub/sub filter held back at the\nlast check (LangWaiting is their count); empty when the names carry\nno SxxEyy.",
+                        "items": {
+                            "$ref": "#/components/schemas/api.EpRef"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "lastCheck": {
                         "type": "string"
@@ -2171,7 +2227,7 @@
                     "missing": {
                         "description": "gaps below the newest local episode (e.g. have 1,2,3,5 → 4 is missing), independent of airing state",
                         "items": {
-                            "type": "integer"
+                            "$ref": "#/components/schemas/api.EpRef"
                         },
                         "type": "array",
                         "uniqueItems": false
@@ -2240,6 +2296,14 @@
                     },
                     "replacement": {
                         "type": "string"
+                    },
+                    "seasons": {
+                        "description": "seasons the local folder holds (specials left out), ascending",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "seenEpisodes": {
                         "description": "watched episodes from the linked AniList list",

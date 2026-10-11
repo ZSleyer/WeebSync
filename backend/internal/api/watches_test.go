@@ -234,11 +234,13 @@ func TestWatchAttention(t *testing.T) {
 		want []string
 	}{
 		{"nothing wrong", Watch{}, nil},
-		{"failed check first", Watch{LastResult: "boom", Behind: 2}, []string{"checkFailed", "behind"}},
+		{"failed check first", Watch{LastResult: "boom", Behind: 2, BehindLate: true}, []string{"checkFailed", "behind"}},
 		{"every reason in order", Watch{
-			LastResult: "x", Behind: 1, Missing: []int{4}, DubOverdue: true,
+			LastResult: "x", Behind: 1, BehindLate: true, Missing: []EpRef{{1, 4}}, DubOverdue: true,
 			LangWaiting: 3, Unsorted: 2, PlexStreamMiss: "audio",
-		}, []string{"checkFailed", "behind", "missing", "dubOverdue", "langWaiting", "unsorted", "plexStreamMiss"}},
+		}, []string{"checkFailed", "behind", "missing", "dubOverdue", "unsorted", "plexStreamMiss"}},
+		{"usual upload lag is not attention", Watch{Behind: 1}, nil},
+		{"dub not out yet is not attention", Watch{LangWaiting: 3}, nil},
 		{"expected dub waiting is not attention", Watch{LangWaiting: 3, DubWaiting: true}, nil},
 		{"overdue dub still is", Watch{LangWaiting: 3, DubWaiting: true, DubOverdue: true}, []string{"dubOverdue"}},
 	}

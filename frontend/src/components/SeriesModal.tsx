@@ -48,18 +48,16 @@ import {
   useBackEntry,
   useMediaQuery,
 } from '@weebsync/design-system'
+import { api, epLabel, mediaTitle, watchTitle, type Media, type MediaExtras, type Review, type Watch } from '../api'
 import {
-  api,
-  fmtMissing,
-  langLabel,
-  mediaTitle,
-  watchTitle,
-  type Media,
-  type MediaExtras,
-  type Review,
-  type Watch,
-} from '../api'
-import { dubOverdueLabel, dubWaitingLabel } from '../attention'
+  behindLabel,
+  dubOverdueLabel,
+  dubProgressLabel,
+  dubWaitingLabel,
+  langWaitingLabel,
+  missingLabel,
+  seasonLabel,
+} from '../attention'
 import { useNow } from '../hooks'
 import ActionMenu from './ActionMenu'
 import { WIDE_MQ } from './PageActions'
@@ -1092,7 +1090,7 @@ function StateLine({ watch: w }: { watch: Watch }) {
     total > 0
       ? t('series.state.local', { have: w.localFiles, total })
       : t('series.state.files', { count: w.localFiles }),
-    w.missing?.length ? t('series.state.missing', { ep: fmtMissing(w.missing.slice(0, 1), w.offset) }) : '',
+    w.missing?.length ? t('series.state.missing', { ep: epLabel(w, w.missing[0].e, w.missing[0].s) }) : '',
     w.nextAiringAt
       ? t('series.state.next', {
           n: w.nextEpisode,
@@ -1309,10 +1307,10 @@ function WatchBlock({
         </p>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-ctl-sm">
+        {seasonLabel(t, w) && <Badge size="sm">{seasonLabel(t, w)}</Badge>}
         {!!w.nextAiringAt && (
-          <Badge tone={w.behind ? 'warn' : 'ok'} size="sm">
-            {t('watch.chipEp', { n: w.nextEpisode })}
-            {w.nextEpisodeAbs && w.nextEpisodeAbs !== w.nextEpisode ? ` (${w.nextEpisodeAbs})` : ''}
+          <Badge tone={w.behindLate ? 'warn' : 'ok'} size="sm">
+            {t('watch.chipEp', { n: epLabel(w, w.nextEpisode!) })}
             {' · '}
             {new Date(w.nextAiringAt * 1000).toLocaleString([], {
               weekday: 'short',
@@ -1324,15 +1322,15 @@ function WatchBlock({
           </Badge>
         )}
         {(w.behind ?? 0) > 0 && (
-          <Badge tone="warn" size="sm">
+          <Badge tone={w.behindLate ? 'warn' : undefined} size="sm">
             <Clock aria-hidden size="1em" />
-            {t('watch.behind', { count: w.behind })}
+            {behindLabel(t, w)}
           </Badge>
         )}
         {(w.missing?.length ?? 0) > 0 && (
-          <Badge tone="err" size="sm" title={w.missing!.join(', ')}>
+          <Badge tone="err" size="sm" title={w.missing!.map((r) => epLabel(w, r.e, r.s)).join(', ')}>
             <TriangleAlert aria-hidden size="1em" />
-            {t('watch.missing', { count: w.missing!.length, eps: fmtMissing(w.missing!, w.offset) })}
+            {missingLabel(t, w)}
           </Badge>
         )}
         {(w.unsorted ?? 0) > 0 && (
@@ -1353,11 +1351,17 @@ function WatchBlock({
           </Badge>
         ) : (
           (w.langWaiting ?? 0) > 0 && (
-            <Badge tone="warn" size="sm">
+            <Badge size="sm">
               <Clock aria-hidden size="1em" />
-              {t('watch.langWaiting', { count: w.langWaiting, lang: langLabel(w) })}
+              {langWaitingLabel(t, w)}
             </Badge>
           )
+        )}
+        {w.dubProgress && (
+          <Badge size="sm">
+            <Languages aria-hidden size="1em" />
+            {dubProgressLabel(t, w)}
+          </Badge>
         )}
         {w.plexStreamMiss && (
           <Badge tone="warn" size="sm" title={t('watch.plexMissHint')}>

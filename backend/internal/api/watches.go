@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -88,16 +90,28 @@ type Watch struct {
 	Waiting        bool           `json:"waiting"`                  // smart sync: idle until NextAiringAt
 	Behind         int            `json:"behind,omitempty"`         // episodes aired per AniList but not yet available locally (the source release can lag the original broadcast)
 	Unsorted       int            `json:"unsorted,omitempty"`       // episodes waiting in the collecting folder for the provider to list their number
-	Missing        []int          `json:"missing,omitempty"`        // gaps below the newest local episode (e.g. have 1,2,3,5 → 4 is missing), independent of airing state
+	Missing        []EpRef        `json:"missing,omitempty"`        // gaps below the newest local episode (e.g. have 1,2,3,5 → 4 is missing), independent of airing state
+	Seasons        []int          `json:"seasons,omitempty"`        // seasons the local folder holds (specials left out), ascending
 	Offset         int            `json:"offset,omitempty"`         // {episode-N} renumber offset: absolute episode = local - offset (for showing the original number)
 	Airings        []Airing       `json:"airings,omitempty"`        // every scheduled future release the provider knows (multi-week calendar)
 	Category       string         `json:"category,omitempty"`       // anime-series | anime-movie | series | movie (calendar filter)
 	// DubWaiting: the watch is caught up on the dub it filters for; the
 	// original is ahead but the dub is not due yet - expected waiting, not
 	// something to look at.
-	DubWaiting    bool  `json:"dubWaiting,omitempty"`
-	DubExpectedAt int64 `json:"dubExpectedAt,omitempty"` // forecast unix seconds of the next dub release; 0 = no date known
-	DubOverdue    bool  `json:"dubOverdue,omitempty"`    // the forecast plus a week of grace passed without a release
+	DubWaiting     bool  `json:"dubWaiting,omitempty"`
+	DubExpectedAt  int64 `json:"dubExpectedAt,omitempty"`  // forecast unix seconds of the next dub release; 0 = no date known
+	DubOverdue     bool  `json:"dubOverdue,omitempty"`     // the forecast plus a week of grace passed without a release
+	DubNextEpisode int   `json:"dubNextEpisode,omitempty"` // the episode the filtered dub is waited for, local numbering
+	// LangWaitingEps: which episodes the dub/sub filter held back at the
+	// last check (LangWaiting is their count); empty when the names carry
+	// no SxxEyy.
+	LangWaitingEps []EpRef `json:"langWaitingEps,omitempty"`
+	// BehindLate: Behind holds more episodes than the last behindGrace of
+	// releases explains - the source is not just a few hours behind.
+	BehindLate bool `json:"behindLate,omitempty"`
+	// DubProgress: a dub the older files carry and the newer ones lack, on a
+	// watch without a dub filter; nil when there is none.
+	DubProgress *DubProgress `json:"dubProgress,omitempty"`
 	// Attention: why this watch needs a hand, ordered by severity; empty =
 	// fine. The one needs-attention source - dashboard, tile and the machine
 	// status all read this, never their own arithmetic.
@@ -390,6 +404,16 @@ func (s *Server) runWatch(id int64) {
 	res, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
 		nameFn, andNotPending(s.watchLangFilter(w), skip), true, !w.Subfolder, false)
 	ids, uploading, filtered := res.IDs, res.Uploading, res.Filtered
+	var filteredKeys []int
+	for _, t := range res.FilteredTargets {
+		if m := epSeasonRe.FindStringSubmatch(filepath.Base(t)); m != nil {
+			se, _ := strconv.Atoi(m[1])
+			ep, _ := strconv.Atoi(m[2])
+			filteredKeys = append(filteredKeys, epKey(se, ep))
+		}
+	}
+	slices.Sort(filteredKeys) // two releases of one episode share a target
+	filteredKeys = slices.Compact(filteredKeys)
 	if waiting != nil {
 		s.rememberPending(w.ID, ids, waiting())
 	}
@@ -413,15 +437,15 @@ func (s *Server) runWatch(id int64) {
 		s.DB.QueryRow(`SELECT check_attempts FROM watches WHERE id = ?`, id).Scan(&attempts)
 		attempts++
 		retryAt = time.Now().Add(s.watchBackoff(attempts)).Unix()
-		result, queued, uploading, filtered = err.Error(), -1, 0, 0
+		result, queued, uploading, filtered, filteredKeys = err.Error(), -1, 0, 0, nil
 		slog.Warn("watch check", "id", id, "attempt", attempts, "err", err)
 	} else if queued > 0 || uploading > 0 || filtered > 0 {
 		slog.Info("watch checked", "id", id, "queued", queued, "uploading", uploading, "filtered", filtered)
 	} else {
 		slog.Debug("watch checked", "id", id, "queued", 0)
 	}
-	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ?,
-		check_attempts = ?, retry_at = ? WHERE id = ?`, result, queued, uploading, filtered, attempts, retryAt, id)
+	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ?, last_filtered_eps = ?,
+		check_attempts = ?, retry_at = ? WHERE id = ?`, result, queued, uploading, filtered, epKeysCSV(filteredKeys), attempts, retryAt, id)
 }
 
 // watchBackoff staggers the wait before a failed check is repeated: a minute,
@@ -1073,7 +1097,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.dub_lag_days, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.check_attempts, w.retry_at, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.dub_lag_days, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.last_filtered_eps, w.check_attempts, w.retry_at, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, userID)
 	if err != nil {
@@ -1085,9 +1109,10 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 	for rows.Next() {
 		var it Watch
 		var retryAt int64
+		var langWaitingEps string
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
 			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub, &it.DubLagDays, &it.PlexAudioLang, &it.PlexSubLang, &it.PlexStreamMiss,
-			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &it.CheckAttempts, &retryAt, &it.CreatedAt); err != nil {
+			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &langWaitingEps, &it.CheckAttempts, &retryAt, &it.CreatedAt); err != nil {
 			return nil, err
 		}
 		it.IntervalMin = interval
@@ -1103,15 +1128,33 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 			minEp = 0
 		}
 		it.LocalFiles = s.countVideos(local, minEp)
-		localNums := s.localEpisodeNums(local, minEp)
+		// one walk for the gap list, the seasons and the dub tags of the names
+		var localNums map[int]bool
+		dubTags := map[int]string{}
+		s.walkEpisodes(local, minEp, func(k int, p string, _ int64) {
+			if localNums == nil {
+				localNums = map[int]bool{}
+			}
+			localNums[k] = true
+			if d, _ := rename.LangTags(filepath.Base(p)); d != "" {
+				dubTags[k] += d + ","
+			}
+		})
 		it.Missing = missingEpisodes(localNums)
+		it.Seasons = localSeasons(localNums)
+		it.LangWaitingEps = parseEpKeys(langWaitingEps)
 		it.Unsorted = s.pendingCount(it.ID)
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
 			userID, it.ServerID, it.RemotePath).Scan(&it.Active)
 		offset := watchOffset(it.Template)
 		it.Offset = offset
-		it.Complete = watchComplete(it.Media, it.LocalFiles) && it.Active == 0
+		// No dub filter, yet the older files carry a dub the newer ones lack:
+		// the dub is still coming, so the title is not done.
+		if it.WantDub == "" {
+			it.DubProgress = dubProgressOf(dubTags)
+		}
+		it.Complete = watchComplete(it.Media, it.LocalFiles) && it.Active == 0 && it.DubProgress == nil
 		if it.Media != nil {
 			it.MediaID = it.Media.ID
 			it.SeenEpisodes = progress[it.Media.ID]
@@ -1177,13 +1220,17 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 			// The dub the watch filters for gets slots of its own: the
 			// releases recorded in that language, and for the rest of the
 			// original slots a projection (see dubSlots).
+			behindTrack := "" // the slots Behind is counted against
 			if lang := dubLang(it.WantDub); lang != "" {
 				dubbed, fc := s.dubSlots(it.MediaSource, it.MediaID, lang, it.DubLagDays, slots, from, offset, start)
 				it.Airings = append(it.Airings, dubbed...)
+				// the episode the dub is waited for, in local numbering
+				it.DubNextEpisode = max(start, 1) + it.LocalFiles
 				// A dub watch is measured against the dub schedule, not the
 				// original broadcast: trailing the original is the deal, not
 				// a problem. Without a known lag the original stays the ruler.
 				if fc.Known && !it.AiredMapping {
+					behindTrack = lang
 					origBehind := it.Behind
 					behind, expectedAt, overdue := dubStanding(fc, offset, start, it.LocalFiles, now)
 					if it.Media != nil && it.Media.NextAiring != nil {
@@ -1220,6 +1267,13 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 					}
 				}
 				markAirings(it.Airings, localNums, s.firstSeen(userID, it.ServerID, it.RemotePath), base, lang)
+				it.BehindLate = behindLate(it.Behind, it.Airings, behindTrack, now)
+			}
+			if p := it.DubProgress; p != nil {
+				_, fc := s.dubSlots(it.MediaSource, it.MediaID, dubLang(p.Lang), 0, slots, from, offset, start)
+				if at, ok := fc.OrigAt[p.Next.Episode-offset]; ok && fc.Known {
+					p.ExpectedAt = at + fc.Lag
+				}
 			}
 		}
 		it.Attention = watchAttention(it)
@@ -1228,16 +1282,16 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 	return list, nil
 }
 
-// watchAttention is THE needs-a-hand predicate, worst first. Expected dub
-// waiting is not attention: the language backlog only counts while the dub
-// schedule does not explain it (DubWaiting), and an overdue dub is its own
-// reason.
+// watchAttention is THE needs-a-hand predicate, worst first. Expected
+// waiting is not attention: an episode the source has not uploaded yet only
+// counts once it is late (BehindLate), a language backlog is the dub not
+// being out yet, and only an overdue dub is a reason of its own.
 func watchAttention(w Watch) []string {
 	var out []string
 	if w.LastResult != "" {
 		out = append(out, "checkFailed")
 	}
-	if w.Behind > 0 {
+	if w.Behind > 0 && w.BehindLate {
 		out = append(out, "behind")
 	}
 	if len(w.Missing) > 0 {
@@ -1245,9 +1299,6 @@ func watchAttention(w Watch) []string {
 	}
 	if w.DubOverdue {
 		out = append(out, "dubOverdue")
-	}
-	if w.LangWaiting > 0 && !w.DubWaiting {
-		out = append(out, "langWaiting")
 	}
 	if w.Unsorted > 0 {
 		out = append(out, "unsorted")
@@ -1442,7 +1493,7 @@ func (s *Server) walkEpisodes(rel string, minEp int, fn func(key int, path strin
 // tail are not gaps. nums are season-encoded (see epKey) and gaps are
 // computed within each season's own lo..hi span, so a multi-season (aired-
 // mapping) watch never reports the cross-season number range as missing.
-func missingEpisodes(nums map[int]bool) []int {
+func missingEpisodes(nums map[int]bool) []EpRef {
 	if len(nums) < 2 {
 		return nil
 	}
@@ -1457,8 +1508,8 @@ func missingEpisodes(nums map[int]bool) []int {
 		}
 		bySeason[se][ep] = true
 	}
-	var missing []int
-	for _, eps := range bySeason {
+	var missing []EpRef
+	for se, eps := range bySeason {
 		lo, hi := 1<<31, 0
 		for e := range eps {
 			if e < lo {
@@ -1470,12 +1521,143 @@ func missingEpisodes(nums map[int]bool) []int {
 		}
 		for e := lo + 1; e < hi; e++ {
 			if !eps[e] {
-				missing = append(missing, e)
+				missing = append(missing, EpRef{se, e})
 			}
 		}
 	}
-	sort.Ints(missing)
+	sortEpRefs(missing)
 	return missing
+}
+
+// behindGrace is how long an aired episode may be missing from the source
+// before Behind stops being the usual upload lag.
+const behindGrace = 2 * 24 * time.Hour
+
+// behindLate reports whether behind episodes are more than the releases of
+// the last behindGrace on the given track (dub tag, "" = original) explain.
+func behindLate(behind int, airings []Airing, track string, now time.Time) bool {
+	if behind == 0 {
+		return false
+	}
+	recent := 0
+	for _, a := range airings {
+		if a.Dub == track && !a.Est && !a.Have && a.At <= now.Unix() && a.At > now.Add(-behindGrace).Unix() {
+			recent++
+		}
+	}
+	return behind > recent
+}
+
+// DubProgress is how far a dub has come on a watch that fetches whatever
+// the source has: the older episodes are dubbed, the newer not yet.
+type DubProgress struct {
+	Lang       string `json:"lang"`                 // the code as the names spell it (Ger, Eng, ...)
+	Have       int    `json:"have"`                 // local episodes carrying it
+	Total      int    `json:"total"`                // local episodes
+	Next       EpRef  `json:"next"`                 // first episode after the last dubbed one
+	ExpectedAt int64  `json:"expectedAt,omitempty"` // forecast of Next's dub; 0 = no date known
+}
+
+// dubProgressOf reads the dub tags of a folder's names (episode key -> tags)
+// for a dub other than Japanese that stops partway: dubbed up to some
+// episode, missing on every one after it. The dub with the most episodes
+// wins. Names without a tag count as lacking it.
+//
+// ponytail: names only. A renamed file without a {dub} token says nothing;
+// probing the audio tracks would be the upgrade path.
+func dubProgressOf(tags map[int]string) *DubProgress {
+	if len(tags) == 0 {
+		return nil
+	}
+	var keys []int
+	for k := range tags {
+		if se, _ := splitEpKey(k); se != 0 {
+			keys = append(keys, k)
+		}
+	}
+	sort.Ints(keys)
+	have, last, spelled := map[string]int{}, map[string]int{}, map[string]string{}
+	for _, k := range keys {
+		seen := map[string]bool{}
+		for _, c := range rename.Codes(tags[k]) {
+			l := dubLang(c)
+			if l == "" || seen[l] {
+				continue // Japanese is the original, not a dub
+			}
+			seen[l] = true
+			have[l]++
+			last[l] = k
+			if spelled[l] == "" {
+				spelled[l] = c
+			}
+		}
+	}
+	best := ""
+	for l, n := range have {
+		if best == "" || n > have[best] || (n == have[best] && l < best) {
+			best = l
+		}
+	}
+	if best == "" || last[best] == keys[len(keys)-1] {
+		return nil // no dub, or it reaches the newest episode
+	}
+	i := sort.SearchInts(keys, last[best]) + 1
+	se, ep := splitEpKey(keys[i])
+	return &DubProgress{Lang: spelled[best], Have: have[best], Total: len(keys), Next: EpRef{se, ep}}
+}
+
+// localSeasons lists the seasons among season-encoded keys, specials left out.
+func localSeasons(nums map[int]bool) []int {
+	seen := map[int]bool{}
+	var out []int
+	for k := range nums {
+		if se, _ := splitEpKey(k); se != 0 && !seen[se] {
+			seen[se] = true
+			out = append(out, se)
+		}
+	}
+	sort.Ints(out)
+	return out
+}
+
+// epKeysCSV and parseEpKeys carry a list of season-encoded keys through a
+// text column.
+func epKeysCSV(keys []int) string {
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = strconv.Itoa(k)
+	}
+	return strings.Join(parts, ",")
+}
+
+func parseEpKeys(csv string) []EpRef {
+	var out []EpRef
+	for _, p := range strings.Split(csv, ",") {
+		if k, err := strconv.Atoi(p); err == nil {
+			se, ep := splitEpKey(k)
+			out = append(out, EpRef{se, ep})
+		}
+	}
+	sortEpRefs(out)
+	return out
+}
+
+// EpRef names one episode with its season, so a watch spanning several
+// seasons can say which E05 it means.
+type EpRef struct {
+	Season  int `json:"s"`
+	Episode int `json:"e"`
+}
+
+func (r EpRef) String() string { return fmt.Sprintf("S%02dE%02d", r.Season, r.Episode) }
+
+func sortEpRefs(l []EpRef) {
+	sort.Slice(l, func(i, j int) bool {
+		if l[i].Season != l[j].Season {
+			return l[i].Season < l[j].Season
+		}
+		return l[i].Episode < l[j].Episode
+	})
 }
 
 // WriteCheckError is the error body of a save rejected because the local target
