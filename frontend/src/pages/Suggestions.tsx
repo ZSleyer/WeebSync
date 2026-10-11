@@ -80,7 +80,7 @@ import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../components/upgradeQuality'
 import WatchDialog, { WatchForm, type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
-import { useAiStatus, usePersistedQuery, useAuth } from '../hooks'
+import { useAiStatus, usePersistedQuery, useAuth, useWholeSave } from '../hooks'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
 import { SectionOutlet } from '../components/RouteTransition'
 import { SectionNav, type SectionGroup } from '../components/SectionNav'
@@ -771,35 +771,32 @@ export function UpgradesSection() {
   // can be switched on without losing its place; every change is saved whole
   const AXES = ['res', 'soft', 'sub', 'dub'] as const
   type Axis = (typeof AXES)[number]
-  const order: Axis[] = dims
-    ? [
-        ...(dims.order ?? []).filter((a): a is Axis => (AXES as readonly string[]).includes(a)),
-        ...AXES.filter((a) => !(dims.order ?? []).includes(a)),
-      ]
-    : [...AXES]
-  const saveDims = async (next: UpgradeDims) => {
-    try {
-      await api.put('/api/auth/upgrade-dims', next)
-      qc.invalidateQueries({ queryKey: ['upgrade-dims'] })
-      qc.invalidateQueries({ queryKey: ['suggestions'] })
-    } catch (e) {
-      fail(e)
-    }
-  }
-  const toggle = (key: Axis) => {
-    if (!dims) return
-    const on = !dims[key]
-    void saveDims({ ...dims, [key]: on, order: order.filter((a) => (a === key ? on : dims[a])) })
-  }
-  const move = (key: Axis, dir: -1 | 1) => {
-    if (!dims) return
-    const i = order.indexOf(key)
-    const j = i + dir
-    if (i < 0 || j < 0 || j >= order.length) return
-    const next = [...order]
-    ;[next[i], next[j]] = [next[j], next[i]]
-    void saveDims({ ...dims, order: next.filter((a) => dims[a]) })
-  }
+  // each change applies to the latest dims, so a second click before the
+  // first save returns builds on it instead of undoing it
+  const saveDims = useWholeSave<UpgradeDims>(
+    'upgrade-dims',
+    (next) => api.put('/api/auth/upgrade-dims', next),
+    () => qc.invalidateQueries({ queryKey: ['suggestions'] }),
+  )
+  const orderOf = (d: UpgradeDims): Axis[] => [
+    ...(d.order ?? []).filter((a): a is Axis => (AXES as readonly string[]).includes(a)),
+    ...AXES.filter((a) => !(d.order ?? []).includes(a)),
+  ]
+  const toggle = (key: Axis) =>
+    saveDims((d) => {
+      const on = !d[key]
+      return { ...d, [key]: on, order: orderOf(d).filter((a) => (a === key ? on : d[a])) }
+    })
+  const move = (key: Axis, dir: -1 | 1) =>
+    saveDims((d) => {
+      const next = orderOf(d)
+      const i = next.indexOf(key)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= next.length) return d
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return { ...d, order: next.filter((a) => d[a]) }
+    })
+  const order: Axis[] = dims ? orderOf(dims) : [...AXES]
   const dismiss = async (u: UpgradeSuggestion) => {
     try {
       await api.post('/api/suggestions/dismiss', { kind: 'upgrade', refKey: u.key, label: u.title })
