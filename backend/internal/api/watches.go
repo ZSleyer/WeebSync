@@ -1072,6 +1072,11 @@ func (s *Server) watchLangFilter(w Watch) func(string) bool {
 	if w.WantDub == "" && w.WantSub == "" {
 		return nil
 	}
+	// a volume has no dub to filter for: a language default on a manga
+	// watch would hold back every file without a word about it
+	if s.isMangaWatch(w) {
+		return nil
+	}
 	return func(remotePath string) bool {
 		// fast path: when the name already carries a tag for every wanted
 		// dimension, trust it (no download). Only when a wanted dimension has
