@@ -36,6 +36,11 @@ func (s *Server) localRoots() []string {
 		for _, p := range extra {
 			add(p)
 		}
+		// where Sonarr/Radarr keep their media, as configured in arr_roots
+		arrExtra, _ := s.arrRootConfig()
+		for _, p := range arrExtra {
+			add(p)
+		}
 		// mounts auto-detected from Plex's reported library locations
 		for _, p := range splitLines(db.Setting(s.DB, "plex_lib_roots")) {
 			add(p)
