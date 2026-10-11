@@ -10,7 +10,9 @@ describe('Brand', () => {
     expect(container.querySelector('[role="img"]')).toHaveAccessibleName('WeebSync')
     expect(shown(container.querySelectorAll('[data-ch]'))).toEqual(Array(8).fill('1'))
     // no letter stands in its mark pose
-    expect([...container.querySelectorAll<HTMLElement>('[data-ch]')].map((e) => e.style.transform)).toEqual(Array(8).fill(''))
+    expect([...container.querySelectorAll<HTMLElement>('[data-ch]')].map((e) => e.style.transform)).toEqual(
+      Array(8).fill(''),
+    )
     expect(container.querySelector('[data-slogan]')).toHaveTextContent('かしら')
   })
 
