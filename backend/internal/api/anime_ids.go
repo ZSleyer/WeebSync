@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -41,7 +43,7 @@ type animeID struct {
 	imdbID     string
 }
 
-// refreshAnimeIDs downloads the Fribb mapping and upserts it into anime_ids.
+// refreshAnimeIDs downloads the Fribb mapping and rebuilds anime_ids from it.
 // Gated to once a day by the caller (setting anime_ids_at). Best-effort: a fetch
 // or parse error just leaves the previous rows in place.
 func (s *Server) refreshAnimeIDs() {
@@ -70,36 +72,45 @@ func (s *Server) refreshAnimeIDs() {
 		return
 	}
 
-	tx, err := s.DB.Begin()
-	if err != nil {
-		return
-	}
-	defer tx.Rollback()
-	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO anime_ids
-		(anilist_id, tvdb_id, tvdb_season, tmdb_id, tmdb_kind, tmdb_season, imdb_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`)
-	if err != nil {
-		return
-	}
-	defer stmt.Close()
+	// a rebuild in one transaction: the old mapping stays readable until the
+	// new one is complete, ids the dataset dropped go with it, and a failure
+	// keeps the old mapping whole and the stamp unset, so the next sweep retries
 	n := 0
-	for _, e := range entries {
-		if e.AnilistID == 0 {
-			continue
+	errNoRows := errors.New("no usable rows")
+	err = db.Tx(s.DB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM anime_ids`); err != nil {
+			return err
 		}
-		id := parseFribb(e)
-		if id.tvdbID == 0 && id.tmdbID == 0 && id.imdbID == "" {
-			continue // no usable cross-provider id
+		stmt, err := tx.Prepare(`INSERT OR REPLACE INTO anime_ids
+			(anilist_id, tvdb_id, tvdb_season, tmdb_id, tmdb_kind, tmdb_season, imdb_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`)
+		if err != nil {
+			return err
 		}
-		if _, err := stmt.Exec(e.AnilistID, id.tvdbID, id.tvdbSeason,
-			id.tmdbID, id.tmdbKind, id.tmdbSeason, id.imdbID); err == nil {
+		defer stmt.Close()
+		for _, e := range entries {
+			if e.AnilistID == 0 {
+				continue
+			}
+			id := parseFribb(e)
+			if id.tvdbID == 0 && id.tmdbID == 0 && id.imdbID == "" {
+				continue // no usable cross-provider id
+			}
+			if _, err := stmt.Exec(e.AnilistID, id.tvdbID, id.tvdbSeason,
+				id.tmdbID, id.tmdbKind, id.tmdbSeason, id.imdbID); err != nil {
+				return err
+			}
 			n++
 		}
-	}
-	if n == 0 {
+		if n == 0 {
+			return errNoRows // a broken download must not empty the table
+		}
+		return nil
+	})
+	if err != nil {
+		slog.Warn("anime-ids refresh not stored", "err", err)
 		return
 	}
-	tx.Commit()
 	db.SetSetting(s.DB, "anime_ids_at", time.Now().UTC().Format(time.RFC3339))
 	slog.Info("anime-ids refreshed", "rows", n, "entries", len(entries))
 }
