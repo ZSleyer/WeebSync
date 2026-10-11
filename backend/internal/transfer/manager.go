@@ -459,7 +459,10 @@ type EnqueueResult struct {
 	IDs       []int64
 	Uploading int // still growing on the remote, so not fetched yet
 	Filtered  int // skipped by the language filter
-	Skipped   int // already present at the target, same size
+	// FilteredTargets: the local targets of the Filtered files, so a caller
+	// can say which episodes wait for their language
+	FilteredTargets []string
+	Skipped         int // already present at the target, same size
 }
 
 func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat, replaceOld bool) (res EnqueueResult, err error) {
@@ -547,8 +550,10 @@ func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, n
 				rooted, rerr := OpenLocal(m.roots(), local)
 				if rerr != nil {
 					res.Filtered++
+					res.FilteredTargets = append(res.FilteredTargets, local)
 				} else if _, serr := rooted.Root.Stat(rooted.Name); serr != nil {
 					res.Filtered++
+					res.FilteredTargets = append(res.FilteredTargets, local)
 				}
 				if rooted != nil {
 					rooted.Close()

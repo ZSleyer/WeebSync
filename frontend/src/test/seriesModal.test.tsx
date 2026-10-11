@@ -208,7 +208,19 @@ describe('SeriesModalProvider', () => {
   })
 
   it('says what the user has of the title in one line under its name', async () => {
-    serve({ watches: [{ ...watch(1), missing: [4, 5], nextAiringAt: 1_900_000_000, nextEpisode: 12 } as Watch] })
+    serve({
+      watches: [
+        {
+          ...watch(1),
+          missing: [
+            { s: 1, e: 4 },
+            { s: 1, e: 5 },
+          ],
+          nextAiringAt: 1_900_000_000,
+          nextEpisode: 12,
+        } as Watch,
+      ],
+    })
     app()
     fireEvent.click(screen.getByText('öffnen'))
     const heading = screen.getByRole('heading', { name: 'Frieren', level: 3 })

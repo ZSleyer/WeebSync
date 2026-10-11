@@ -4,7 +4,8 @@ import { jobFamily, jobLabel } from '../jobs'
 import {
   downloadLabel,
   fmtBytes,
-  fmtMissing,
+  epLabel,
+  fmtEps,
   fmtSpeed,
   mediaTitle,
   plexStreamLabel,
@@ -61,26 +62,44 @@ describe('mediaTitle', () => {
   })
 })
 
-describe('fmtMissing', () => {
+describe('fmtEps', () => {
+  const s1 = (...e: number[]) => e.map((n) => ({ s: 1, e: n }))
+
   it('joins the numbers with commas', () => {
-    expect(fmtMissing([1, 2, 3])).toBe('1, 2, 3')
+    expect(fmtEps({ seasons: [1] }, s1(1, 2, 3))).toBe('1, 2, 3')
   })
 
   it('caps the list at five entries', () => {
-    expect(fmtMissing([1, 2, 3, 4, 5, 6, 7])).toBe('1, 2, 3, 4, 5')
+    expect(fmtEps({}, s1(1, 2, 3, 4, 5, 6, 7))).toBe('1, 2, 3, 4, 5')
   })
 
   it('appends the original absolute number when a renumber offset is active', () => {
     // a series renumbered from absolute 1206 down to 59 carries offset -1147
-    expect(fmtMissing([59, 60], -1147)).toBe('59 (1206), 60 (1207)')
+    expect(fmtEps({ offset: -1147 }, s1(59, 60))).toBe('59 (1206), 60 (1207)')
   })
 
   it('treats a zero offset as no offset', () => {
-    expect(fmtMissing([12], 0)).toBe('12')
+    expect(fmtEps({ offset: 0 }, s1(12))).toBe('12')
+  })
+
+  it('names the season once the folder holds several', () => {
+    expect(
+      fmtEps({ seasons: [1, 2] }, [
+        { s: 1, e: 4 },
+        { s: 2, e: 6 },
+      ]),
+    ).toBe('S01E04, S02E06')
   })
 
   it('renders an empty list as an empty string', () => {
-    expect(fmtMissing([])).toBe('')
+    expect(fmtEps({}, [])).toBe('')
+  })
+})
+
+describe('epLabel', () => {
+  it('puts an episode without a season into the latest one', () => {
+    expect(epLabel({ seasons: [2, 3] }, 5)).toBe('S03E05')
+    expect(epLabel({ seasons: [3] }, 5)).toBe('5')
   })
 })
 

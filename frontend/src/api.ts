@@ -231,7 +231,9 @@ export interface Watch {
   plexSubLang: string // "" = leave Plex alone, "off" = none, "Ger" = full, "Ger:forced" = forced
   plexStreamMiss?: string // what the files could not deliver: csv of "audio", "sub"
   langWaiting: number
-  missing?: number[]
+  langWaitingEps?: EpRef[] // which episodes the language filter held back at the last check
+  missing?: EpRef[]
+  seasons?: number[] // seasons the local folder holds, specials left out
   unsorted?: number // episodes waiting in the collecting folder for the provider
   offset?: number
   intervalMin: number
@@ -260,6 +262,10 @@ export interface Watch {
   dubWaiting?: boolean
   dubExpectedAt?: number // forecast unix seconds of the next dub release; missing = no date known
   dubOverdue?: boolean // the forecast plus a week of grace passed without a release
+  dubNextEpisode?: number // the episode the filtered dub is waited for
+  behindLate?: boolean // more behind than the usual upload lag explains
+  // no dub filter, but the older files carry a dub the newer ones lack
+  dubProgress?: { lang: string; have: number; total: number; next: EpRef; expectedAt?: number }
   attention?: string[] // why this watch needs a hand, worst first; the backend's one source
 }
 
@@ -829,12 +835,30 @@ export function langLabel(w: Pick<Watch, 'wantDub' | 'wantSub'>): string {
   return [w.wantDub && `${w.wantDub}-Dub`, w.wantSub && `${w.wantSub}-Sub`].filter(Boolean).join('/')
 }
 
-// fmtMissing renders missing episode numbers, appending the original absolute
-// number in parens when a renumber offset is active (e.g. "59 (1206)").
-export function fmtMissing(missing: number[], offset?: number): string {
-  return missing
+// One episode with its season.
+export interface EpRef {
+  s: number
+  e: number
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+// epLabel names an episode of a watch: with its season once the folder holds
+// more than one (the latest when none is given - that is where new episodes
+// land), the bare number otherwise, where the season chip says which. The
+// original absolute number follows in parens under a renumber offset.
+export function epLabel(w: Pick<Watch, 'seasons' | 'offset'>, e: number, s?: number): string {
+  const seasons = w.seasons ?? []
+  const abs = w.offset ? ` (${e - w.offset})` : ''
+  if (seasons.length > 1) return `S${pad2(s ?? seasons[seasons.length - 1])}E${pad2(e)}${abs}`
+  return `${e}${abs}`
+}
+
+// fmtEps renders up to five episodes of a watch (see epLabel).
+export function fmtEps(w: Pick<Watch, 'seasons' | 'offset'>, eps: EpRef[]): string {
+  return eps
     .slice(0, 5)
-    .map((m) => (offset ? `${m} (${m - offset})` : `${m}`))
+    .map((r) => epLabel(w, r.e, r.s))
     .join(', ')
 }
 
