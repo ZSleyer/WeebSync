@@ -824,6 +824,7 @@
     "kind": "Kind",
     "kindVideo": "Video",
     "kindManga": "Manga",
+    "mangaHint": "Manga and light novels are only fetched: volumes keep their names, and the language, Plex and renaming rules don't apply.",
     "files": "{{count}} files",
     "complete": "Complete, sync can be removed",
     "deleted": "Auto-sync for \"{{name}}\" removed. Downloaded files stay.",
