@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FolderOpen, TriangleAlert } from 'lucide-react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
 import { ActionBar, Badge, Button, Panel, useMediaQuery } from '@weebsync/design-system'
@@ -13,7 +13,8 @@ import RenameOptions, { type RenameRule } from '../components/RenameOptions'
 const EMPTY_RULE: RenameRule = {
   mode: 'template',
   template: '{title} - S{season:02}E{episode:02}',
-  separator: '_',
+  // spaces stay, like the auto-sync defaults: '_' made "Show_-_S01E01"
+  separator: '',
   titleOverride: '',
   pattern: '',
   replacement: '',
@@ -53,6 +54,12 @@ export default function Rename() {
   const hasRule = (rule.mode === 'template' && !!rule.template) || (rule.mode === 'regex' && !!rule.pattern)
   const renameable = (p: RenamePair) => !p.error && p.old !== p.new
 
+  // which rule the shown preview belongs to. Apply sends the preview's names,
+  // so while a newer rule still waits out the debounce or its request, Apply
+  // would rename the files after the rule the user just changed away from.
+  const ruleKey = JSON.stringify([path, rule])
+  const [previewFor, setPreviewFor] = useState('')
+
   // live preview, debounced against typing - same behaviour as the watch dialog
   useEffect(() => {
     if (!hasRule) {
@@ -67,6 +74,7 @@ export default function Rename() {
         const next = await api.post<RenamePair[]>('/api/rename/preview', { path, ...rule })
         if (stale) return
         setPreview(next)
+        setPreviewFor(ruleKey)
         setApplied(null)
         setPicked(new Set(next.filter(renameable).map((p) => p.old)))
       } catch (e) {
@@ -82,24 +90,11 @@ export default function Rename() {
       stale = true
       clearTimeout(run)
     }
+    // the whole rule goes into the request, so any change of it re-runs this
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    path,
-    hasRule,
-    rule.mode,
-    rule.template,
-    rule.separator,
-    rule.titleOverride,
-    rule.pattern,
-    rule.replacement,
-    rule.fromEpisode,
-    rule.airedMapping,
-    rule.renameProvider,
-    rule.renameOrdering,
-    rule.renameTitleLang,
-    rule.renameSeriesId,
-  ])
+  }, [ruleKey, hasRule])
 
+  const qc = useQueryClient()
   const doApply = useMutation({
     meta: { silent: true },
     mutationFn: () =>
@@ -110,6 +105,8 @@ export default function Rename() {
     onSuccess: (r) => {
       setApplied(r)
       setPreview(null)
+      // the file listings still show the old names
+      qc.invalidateQueries({ queryKey: ['local'] })
     },
   })
 
@@ -261,7 +258,7 @@ export default function Rename() {
               <ActionBar aria-label={t('rename.apply')}>
                 <Button
                   variant="primary"
-                  disabled={picked.size === 0 || doApply.isPending}
+                  disabled={picked.size === 0 || doApply.isPending || previewFor !== ruleKey}
                   onClick={() => doApply.mutate()}
                 >
                   {t('rename.apply')}
