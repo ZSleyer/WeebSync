@@ -824,6 +824,7 @@
     "kind": "Art",
     "kindVideo": "Video",
     "kindManga": "Manga",
+    "mangaHint": "Manga und Light Novels werden nur geholt: Bände behalten ihren Namen, Sprach-, Plex- und Umbenennungsregeln gelten nicht.",
     "files": "{{count}} Dateien",
     "complete": "Komplett, Sync kann entfernt werden",
     "deleted": "Auto-Sync für „{{name}}“ entfernt. Heruntergeladene Dateien bleiben.",
