@@ -22,10 +22,10 @@ func TestSafeLocalNeverEscapesRoot(t *testing.T) {
 
 func TestVirtualEntries(t *testing.T) {
 	roots := []string{
-		"/media/haibara/plex/animeseries",
-		"/media/haibara/plex/animemovies",
-		"/media/shiho/plex/animeseries",
-		"/media/shinichi/plex/tvseries",
+		"/media/disk1/plex/animeseries",
+		"/media/disk1/plex/animemovies",
+		"/media/disk2/plex/animeseries",
+		"/media/disk3/plex/tvseries",
 	}
 	names := func(es []remote.Entry) []string {
 		out := make([]string, len(es))
@@ -40,20 +40,20 @@ func TestVirtualEntries(t *testing.T) {
 	if !ok || len(es) != 3 {
 		t.Fatalf("top: %v %v", names(es), ok)
 	}
-	if es[0].Name != "haibara/plex" || es[0].Path != "/media/haibara/plex" ||
-		es[1].Name != "shiho/plex/animeseries" || es[2].Name != "shinichi/plex/tvseries" {
+	if es[0].Name != "disk1/plex" || es[0].Path != "/media/disk1/plex" ||
+		es[1].Name != "disk2/plex/animeseries" || es[2].Name != "disk3/plex/tvseries" {
 		t.Errorf("top entries: %+v", es)
 	}
 	// below a shared parent: the real mounts appear
-	es, ok = virtualEntries(roots, "/media/haibara/plex")
+	es, ok = virtualEntries(roots, "/media/disk1/plex")
 	if !ok || len(es) != 2 || es[0].Name != "animemovies" || es[1].Name != "animeseries" {
 		t.Fatalf("disk level: %v %v", names(es), ok)
 	}
 	// a real root and anything below it is NOT virtual
-	if _, ok := virtualEntries(roots, "/media/haibara/plex/animeseries"); ok {
+	if _, ok := virtualEntries(roots, "/media/disk1/plex/animeseries"); ok {
 		t.Error("root itself must browse the filesystem")
 	}
-	if _, ok := virtualEntries(roots, "/media/haibara/plex/animeseries/Show"); ok {
+	if _, ok := virtualEntries(roots, "/media/disk1/plex/animeseries/Show"); ok {
 		t.Error("path inside a root must browse the filesystem")
 	}
 	// unrelated path: not virtual (falls through to safeLocal)
@@ -61,7 +61,7 @@ func TestVirtualEntries(t *testing.T) {
 		t.Error("unrelated path must not be virtual")
 	}
 	// breadcrumb-style path without leading slash
-	es, ok = virtualEntries(roots, "media/haibara/plex")
+	es, ok = virtualEntries(roots, "media/disk1/plex")
 	if !ok || len(es) != 2 {
 		t.Errorf("relative crumb path: %v %v", names(es), ok)
 	}

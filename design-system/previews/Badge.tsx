@@ -37,7 +37,7 @@ export const Sizes = () => (
  */
 export const Multiline = () => (
   <div style={{ maxWidth: 260 }}>
-    <Badge tone="ok" multiline>Plex: verbunden als plex@example.com auf sherry</Badge>
+    <Badge tone="ok" multiline>Plex: verbunden als plex@example.com auf server</Badge>
   </div>
 )
 
