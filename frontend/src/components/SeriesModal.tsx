@@ -66,6 +66,7 @@ import { WIDE_MQ } from './PageActions'
 import type { SheetAction } from './ActionSheet'
 import MediaDetail, { GenreChips } from './MediaDetail'
 import EpisodeList, { type EpisodeFolder } from './EpisodeList'
+import Loading from './Loading'
 import { isVideo, playHref, viewHref, watchFolder } from './playLinks'
 import { WatchForm } from './WatchDialog'
 import { useWatchActions, watchFields } from './watchActions'
@@ -971,6 +972,9 @@ function SeriesCard({
                 {k === 'cast' && (
                   <div className="p-5 pt-3">
                     <Unavailable when={extrasFailed} source={source} />
+                    {/* not asked yet (still out of view) or on its way: a
+                        heading alone would read as an empty section */}
+                    {!extras && !extrasFailed && <Loading />}
                     {extras && extras.characters.length === 0 && (
                       <p className="text-sm text-t-muted">{t('series.noCast')}</p>
                     )}
@@ -1006,6 +1010,7 @@ function SeriesCard({
                 {k === 'similar' && (
                   <div className="p-5 pt-3">
                     <Unavailable when={extrasFailed} source={source} />
+                    {!extras && !extrasFailed && <Loading />}
                     {extras && extras.relations.length === 0 && extras.recommendations.length === 0 && (
                       <p className="text-sm text-t-muted">{t('series.noSimilar')}</p>
                     )}
@@ -1034,9 +1039,12 @@ function SeriesCard({
                 )}
                 {/* the reviews are a request of their own: not before the
                     section is near */}
-                {k === 'community' && near && (
-                  <Community source={source} id={cur.id} threads={extras?.threads} failed={extrasFailed} />
-                )}
+                {k === 'community' &&
+                  (near ? (
+                    <Community source={source} id={cur.id} threads={extras?.threads} failed={extrasFailed} />
+                  ) : (
+                    <Loading className="p-5 pt-3" />
+                  ))}
               </section>
             ))}
           </div>
@@ -1170,6 +1178,7 @@ function Community({
       {!source.startsWith('tmdb') && (
         <section className="mb-4">
           <h5 className="t-label mb-2">{t('series.threads')}</h5>
+          {!threads && !failed && <Loading />}
           {threads && threads.length === 0 && <p className="text-sm text-t-muted">{t('series.noThreads')}</p>}
           <ul className="grid grid-cols-[minmax(0,1fr)] divide-y divide-border-subtle">
             {threads?.map((th) => (
@@ -1201,6 +1210,7 @@ function Community({
           {t('remote.reviews')}
           {rev ? ` (${rev.reviews.length})` : ''}
         </h5>
+        {!rev && !reviewsFailed && <Loading />}
         {rev && rev.reviews.length === 0 && <p className="text-sm text-t-muted">{t('remote.noReviews')}</p>}
         {/* chat-bubble layout: avatar beside a bordered bubble per review */}
         <ul className="grid grid-cols-[minmax(0,1fr)] gap-3">
