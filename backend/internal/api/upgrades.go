@@ -1535,7 +1535,7 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 	// Drive off catalog_matches, not series_provider: a variant's show_key is
 	// derived straight from its match, so an orphan match (not yet bundled into a
 	// series) still resolves a title/cover here. bySrc backfills the series id.
-	bySrc, _ := s.seriesProviderMaps()
+	bySrc, _, _ := s.seriesProviderMaps()
 	kinds := s.seriesKinds()
 	rows, err := s.DB.Query(`SELECT DISTINCT source, media_id FROM catalog_matches WHERE media_id != 0`)
 	if err != nil {

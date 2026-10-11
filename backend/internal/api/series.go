@@ -196,7 +196,9 @@ type FolderQuality struct {
 // one. Which of the two it was is recorded in Probed, because only the local
 // side can ever be measured and a comparison that does not know that lets a
 // name overrule a measurement.
-func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
+// ok is false when the remote listing could not be read whole: the caller keeps
+// the row it has rather than storing a quality read off half the files.
+func (s *Server) scanQuality(serverID int64, folder string) (FolderQuality, bool) {
 	q := FolderQuality{}
 	if serverID == 0 {
 		// local: no remote_index. Read the real quality from the files via
@@ -205,7 +207,7 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 		if abs, err := s.safeLocal(folder); err == nil {
 			if pq, ok := s.probeQuality(abs); ok {
 				pq.Probed = probeMeasured
-				return pq
+				return pq, true
 			}
 			// ffprobe is missing, or no file in the folder would answer: the
 			// names are all that is left, and the attempt is recorded so the
@@ -213,9 +215,9 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 			// come
 			fq := s.localFilenameQuality(abs)
 			fq.Probed = probeFailed
-			return fq
+			return fq, true
 		}
-		return q
+		return q, true
 	}
 	// remote: only the crawler's file listing exists, so every value below is a
 	// guess read off a name. Probed stays probeNone.
@@ -223,7 +225,7 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 		WHERE server_id = ?1 AND is_dir = 0 AND parent >= ?2 AND parent < ?2 || '0' AND (parent = ?2 OR parent >= ?2 || '/')`,
 		serverID, folder)
 	if err != nil {
-		return q
+		return q, false
 	}
 	defer rows.Close()
 	var names []string
@@ -245,6 +247,9 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 			subSet[canonCode(c)] = true
 		}
 	}
+	if rows.Err() != nil {
+		return q, false
+	}
 	// a subtitle file in the listing is the one selectable subtitle a remote
 	// copy can prove without being opened, and it costs nothing to read
 	soft, any := sidecarSubs(names)
@@ -263,20 +268,23 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 			// what the names advertise on top of that is the burned-in half
 			q.Sub = keysSorted(unionSets(subSet, measuredSoft))
 			q.Probed = probeMeasured
-			return q
+			return q, true
 		}
 	}
 	q.Dub = keysSorted(dubSet)
 	q.Sub = keysSorted(unionSets(subSet, soft))
 	q.Soft = keysSorted(soft)
-	return q
+	return q, true
 }
 
 // refreshVariant recomputes and stores a folder's quality variant along with the
 // canonical unit (show_key, season, is_movie) it belongs to, so upgrade and
 // incomplete comparisons can GROUP BY that unit across servers.
 func (s *Server) refreshVariant(serverID int64, folder string) {
-	q := s.scanQuality(serverID, folder)
+	q, ok := s.scanQuality(serverID, folder)
+	if !ok {
+		return // listing unreadable: the stored variant stays until the next pass
+	}
 	showKey, season, isMovie := s.folderUnit(serverID, folder)
 	// libKind stays empty: a remote copy lives in no Plex library, so there is
 	// no library whose kind it could inherit.

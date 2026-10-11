@@ -112,6 +112,9 @@ func (s *Server) folderKind(serverID int64, folder, name string) string {
 			}
 		}
 		rows.Close()
+		if rows.Err() != nil {
+			vids, subdirs = 0, 0 // half a listing is no evidence: decide by name
+		}
 	}
 	switch {
 	case vids == 1 && subdirs == 0:
@@ -781,8 +784,13 @@ func (s *Server) reuseMatch(serverID int64, name, source string) (int, bool) {
 	var ids []int
 	for rows.Next() {
 		var id int
-		rows.Scan(&id)
+		if rows.Scan(&id) != nil {
+			return 0, false
+		}
 		ids = append(ids, id)
+	}
+	if rows.Err() != nil {
+		return 0, false // a partial read can make an ambiguous match look unique
 	}
 	if len(ids) != 1 {
 		return 0, false

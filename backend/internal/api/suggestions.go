@@ -78,7 +78,7 @@ type providerRef struct {
 // seriesProviderMaps scans series_provider once into two lookup maps:
 // (source,media_id)->series_id and series_id->provider hits. Cheap: the table
 // is small and this avoids a query per suggestion.
-func (s *Server) seriesProviderMaps() (bySrc map[string]int64, bySeries map[int64][]providerRef) {
+func (s *Server) seriesProviderMaps() (bySrc map[string]int64, bySeries map[int64][]providerRef, err error) {
 	bySrc, bySeries = map[string]int64{}, map[int64][]providerRef{}
 	rows, err := s.DB.Query(`SELECT source, media_id, series_id FROM series_provider`)
 	if err != nil {
@@ -95,7 +95,7 @@ func (s *Server) seriesProviderMaps() (bySrc map[string]int64, bySeries map[int6
 		bySrc[src+"|"+strconv.Itoa(mid)] = sid
 		bySeries[sid] = append(bySeries[sid], providerRef{src, mid})
 	}
-	return
+	return bySrc, bySeries, rows.Err()
 }
 
 // sugAcc deduplicates suggestions by RefKey within one bucket, unioning the
@@ -482,7 +482,7 @@ func (s *Server) rebuildSuggestions(userID int64) {
 // applied per-request at read time.
 func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) SuggestionsResponse {
 	start := time.Now()
-	bySrc, bySeries := s.seriesProviderMaps()
+	bySrc, bySeries, _ := s.seriesProviderMaps()
 	locale := s.userLocale(userID)
 
 	// ── Trending: AniList + TMDB discovery charts ──

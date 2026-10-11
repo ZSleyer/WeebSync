@@ -60,7 +60,11 @@ func (s *Server) refreshSeriesKinds(budget int) {
 	if len(ids) == 0 {
 		return
 	}
-	_, bySeries := s.seriesProviderMaps()
+	// a kind is decided once and for good, so never from a partial read
+	_, bySeries, err := s.seriesProviderMaps()
+	if err != nil {
+		return
+	}
 	decided := 0
 	for _, id := range ids {
 		refs := bySeries[id]

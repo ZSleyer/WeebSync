@@ -2001,6 +2001,9 @@ func (s *Server) holdsBooks(serverID int64, folder string) bool {
 			}
 		}
 		rows.Close()
+		if rows.Err() != nil {
+			seen = 0 // half a listing is no evidence: fall back to the path
+		}
 	}
 	if seen > 0 {
 		return books > 0 && videos == 0

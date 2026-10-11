@@ -1289,7 +1289,7 @@ func (s *Server) aiLists(userID int64) any {
 		}
 		out["anilist"] = entries
 	}
-	bySrc, bySeries := s.seriesProviderMaps()
+	bySrc, bySeries, _ := s.seriesProviderMaps()
 	plex := []aiListEntry{}
 	for _, it := range s.plexWatchlistItems(userID, bySrc, bySeries) {
 		plex = append(plex, aiListEntry{ID: it.Media.ID, Title: it.Title, Year: it.Year, Format: it.Media.Format,
