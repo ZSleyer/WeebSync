@@ -5710,6 +5710,10 @@
                     "email": {
                         "type": "string"
                     },
+                    "emailVerified": {
+                        "description": "false while a self-registered account has not confirmed its address",
+                        "type": "boolean"
+                    },
                     "id": {
                         "type": "integer"
                     },
@@ -5721,7 +5725,8 @@
                     "id",
                     "email",
                     "isAdmin",
-                    "createdAt"
+                    "createdAt",
+                    "emailVerified"
                 ],
                 "type": "object"
             },
@@ -15160,6 +15165,72 @@
                 "summary": "Create Sonarr/Radarr key",
                 "tags": [
                     "Settings"
+                ]
+            }
+        },
+        "/api/settings/smtp/test": {
+            "post": {
+                "description": "Sends a test email to the calling admin's address with the saved SMTP settings (admin only) and reports the server's answer.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Send a test email",
+                "tags": [
+                    "Email"
                 ]
             }
         },

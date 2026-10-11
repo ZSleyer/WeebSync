@@ -116,8 +116,9 @@ func emailHTML(locale, title, content, extra, manage string) string {
 }
 
 // sendVerifyEmail delivers the account-verification link. Fire-and-forget:
-// failures are logged, the account still exists and can be re-verified once
-// SMTP works (admin can also verify via the users panel).
+// failures are logged, and the send stamp is cleared again so the next login
+// attempt mails a fresh link instead of waiting out the day. An admin can
+// also set the account a password in the users panel, which verifies it.
 func (s *Server) sendVerifyEmail(to, token, locale string) {
 	if s.Mail == nil {
 		return
@@ -134,7 +135,8 @@ func (s *Server) sendVerifyEmail(to, token, locale string) {
 		`<p style="margin:6px 0;color:#6e7681;font-size:12px">` + html.EscapeString(ignore) + `</p>`
 	htmlBody := emailHTML(locale, welcome, emailLines([]string{intro}), button, "")
 	if err := s.Mail.Send(to, "WeebSync – "+tr(locale, "email.verifySubject"), text, htmlBody); err != nil {
-		slog.Warn("verify email", "to", to, "err", err)
+		slog.Error("verify email failed", "to", to, "err", err)
+		s.DB.Exec(`UPDATE users SET verify_sent_at = '' WHERE email = ? AND email_verified = 0`, to)
 	}
 }
 
@@ -154,7 +156,9 @@ func (s *Server) sendResetEmail(to, token, locale string) {
 
 // reissueVerify mails a fresh link when the user's current one has expired.
 func (s *Server) reissueVerify(userID int64, email string) {
-	if s.Mail == nil || !s.Mail.Configured() {
+	// no link can be built without the public address: stamping a send that
+	// never happens held the next try back for a day
+	if s.Mail == nil || !s.Mail.Configured() || s.baseURL() == "" {
 		return
 	}
 	token := randToken()
@@ -608,4 +612,35 @@ func (s *Server) handleEmailPrefsPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, EmailPrefsUpdateResponse{Enabled: clean})
+}
+
+// handleSmtpTest sends a test mail to the calling admin with the stored mail
+// settings, so a wrong host, port or sender shows up here and not as a
+// verification mail that never arrives.
+//
+// @Summary      Send a test email
+// @Description  Sends a test email to the calling admin's address with the saved SMTP settings (admin only) and reports the server's answer.
+// @Tags         Email
+// @Produce      json
+// @Success      200  {object}  OkResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      502  {object}  ErrorResponse
+// @Failure      503  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/settings/smtp/test [post]
+func (s *Server) handleSmtpTest(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	if s.Mail == nil || !s.Mail.Configured() {
+		writeErr(w, http.StatusServiceUnavailable, "no mail server is set up")
+		return
+	}
+	locale := s.userLocale(u.ID)
+	subject := tr(locale, "email.testSubject")
+	body := tr(locale, "email.testBody")
+	if err := s.Mail.Send(u.Email, "WeebSync – "+subject, body, emailHTML(locale, subject, emailLines([]string{body}), "", "")); err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

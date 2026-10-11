@@ -223,7 +223,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
-	if verified == 0 {
+	// Without a mail server there is no inbox to check and no link could come:
+	// the account was registered while one was set up, which is gone since.
+	// Verification is only asked for when mail can deliver it, the same rule
+	// registration follows.
+	if verified == 0 && s.Mail != nil && s.Mail.Configured() {
 		// the link expires after a day; a login attempt past that gets a
 		// fresh one, so an expired link is never a lockout
 		s.reissueVerify(id, c.Email)
