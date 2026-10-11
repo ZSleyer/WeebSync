@@ -153,7 +153,17 @@ func addAttr(m map[string]any, a slog.Attr) {
 	if a.Key == "" {
 		return
 	}
-	m[a.Key] = a.Value.Any()
+	// the line goes out as JSON: an error would marshal its fields ({} for
+	// unexported ones, {"Op":"dial",...} for others) and a duration its
+	// nanoseconds, so both are written the way the text log writes them
+	switch v := a.Value.Any().(type) {
+	case error:
+		m[a.Key] = v.Error()
+	case time.Duration:
+		m[a.Key] = v.String()
+	default:
+		m[a.Key] = v
+	}
 }
 
 // ── SSE fan-out (mirrors transfer.Manager) ──────────────────

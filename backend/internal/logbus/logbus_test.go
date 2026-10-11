@@ -2,6 +2,7 @@ package logbus
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -69,5 +70,19 @@ func TestEnabledRespectsLevel(t *testing.T) {
 	lvl.Set(LevelTrace)
 	if !b.Enabled(context.Background(), LevelTrace) {
 		t.Error("trace should be enabled after switching to trace")
+	}
+}
+
+// Errors and durations reach the live log as text, not as marshalled structs
+// or nanoseconds.
+func TestErrorAndDurationAsText(t *testing.T) {
+	lvl := new(slog.LevelVar)
+	b := New(lvl, 5)
+	slog.New(b).Warn("dial", "err", errors.New("connection refused"), "in", 80*time.Second)
+	line := b.Backlog()[0]
+	for _, want := range []string{`"err":"connection refused"`, `"in":"1m20s"`} {
+		if !strings.Contains(line, want) {
+			t.Errorf("line %s lacks %s", line, want)
+		}
 	}
 }
