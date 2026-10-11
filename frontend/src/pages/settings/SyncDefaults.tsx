@@ -67,7 +67,7 @@ export default function SyncDefaults() {
   const tidy = (d: WatchDefaults): WatchDefaults => ({
     ...d,
     kinds: Object.fromEntries(
-      Object.entries(d.kinds).map(([c, k]) => [c, { ...k, localPath: trimSlashes(k.localPath) }]),
+      Object.entries(d.kinds).flatMap(([c, k]) => (k ? [[c, { ...k, localPath: trimSlashes(k.localPath) }]] : [])),
     ),
   })
   const save = useMutation({
