@@ -38,11 +38,14 @@ export default function Users() {
     onError: (e: Error) => setError(e.message),
   }
   const create = useMutation({
-    mutationFn: () => api.post('/api/users', { email, password }),
+    mutationFn: (body: { email: string; password: string }) => api.post('/api/users', body),
     ...opts,
-    onSuccess: () => {
+    onMutate: () => setNotice(''),
+    onSuccess: (_, body) => {
       setEmail('')
       setPassword('')
+      // the form just empties itself; say what happened
+      setNotice(t('settings.usersCreated', { email: body.email }))
       opts.onSuccess()
     },
   })
@@ -123,7 +126,7 @@ export default function Users() {
           className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
           onSubmit={(e) => {
             e.preventDefault()
-            create.mutate()
+            create.mutate({ email, password })
           }}
         >
           <label className="text-xs text-t-muted">

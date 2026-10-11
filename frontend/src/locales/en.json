@@ -1022,6 +1022,7 @@
     "usersSetPasswordTitle": "New password for {{email}}",
     "usersSetPasswordHint": "Replaces the current password and signs the account out everywhere. Hand the new one over yourself.",
     "usersPasswordSet": "New password set for {{email}}.",
+    "usersCreated": "Account {{email}} created.",
     "usersUnverified": "unconfirmed",
     "usersCreate": "Create",
     "usersOidcOnly": "Manual creation is disabled in OIDC mode - users onboard via the identity provider.",
