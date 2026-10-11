@@ -2210,6 +2210,10 @@
                     "lastCheck": {
                         "type": "string"
                     },
+                    "lastOwned": {
+                        "description": "files skipped at the last check because the library holds the episode under another name",
+                        "type": "integer"
+                    },
                     "lastQueued": {
                         "description": "files queued at the last check, -1 = none yet",
                         "type": "integer"
@@ -4092,6 +4096,10 @@
                     "plexSections": {
                         "description": "csv of section keys, empty = all show/movie sections",
                         "type": "string"
+                    },
+                    "plexSkipOwned": {
+                        "description": "auto-sync leaves episodes Plex already holds (under any name) on the remote",
+                        "type": "boolean"
                     },
                     "plexToken": {
                         "description": "write-only",

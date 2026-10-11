@@ -162,6 +162,7 @@ type settingsPayload struct {
 	PlexRoots             string         `json:"plexRoots"`           // manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)
 	PlexLibRoots          string         `json:"plexLibRoots"`        // read-only: mounts auto-detected from Plex's reported library locations (flat)
 	PlexLibraries         []LibraryRoots `json:"plexLibraries"`       // read-only: detected mounts grouped by their Plex library
+	PlexSkipOwned         bool           `json:"plexSkipOwned"`       // auto-sync leaves episodes Plex already holds (under any name) on the remote
 	OidcProviderName      string         `json:"oidcProviderName"`    // login button label ("Sign in with X")
 	OidcIssuer            string         `json:"oidcIssuer"`
 	OidcClientID          string         `json:"oidcClientId"`
@@ -252,6 +253,7 @@ func (s *Server) settingsState() settingsPayload {
 		PlexRoots:             db.Setting(s.DB, "plex_roots"),
 		PlexLibRoots:          db.Setting(s.DB, "plex_lib_roots"),
 		PlexLibraries:         plexLibraries(db.Setting(s.DB, "plex_lib_map")),
+		PlexSkipOwned:         truthySetting(db.Setting(s.DB, "plex_skip_owned")),
 		OidcProviderName:      db.SettingOrEnv(s.DB, "oidc_provider_name", "OIDC_PROVIDER_NAME"),
 		OidcIssuer:            db.SettingOrEnv(s.DB, "oidc_issuer", "OIDC_ISSUER"),
 		OidcClientID:          db.SettingOrEnv(s.DB, "oidc_client_id", "OIDC_CLIENT_ID"),
@@ -472,6 +474,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	setSetting(s.DB, "oidc_user_values", in.OidcUserValues)
 	setSetting(s.DB, "plex_url", strings.TrimSpace(in.PlexURL))
 	setSetting(s.DB, "plex_sections", in.PlexSections)
+	setSetting(s.DB, "plex_skip_owned", strconv.FormatBool(in.PlexSkipOwned))
 	// both of these decide what indexPlexLibrary writes onto every local row, so
 	// a change has to reach the rows rather than wait out the hourly gate: clear
 	// the stamp and the next sweep tick re-indexes.

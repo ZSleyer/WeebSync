@@ -76,6 +76,7 @@ type Watch struct {
 	LastQueued    int    `json:"lastQueued"`    // files queued at the last check, -1 = none yet
 	LastUploading int    `json:"lastUploading"` // files still uploading remotely at the last check
 	LangWaiting   int    `json:"langWaiting"`   // videos on the remote skipped by the dub/sub filter, target not yet local
+	LastOwned     int    `json:"lastOwned"`     // files skipped at the last check because the library holds the episode under another name
 	CreatedAt     string `json:"createdAt"`
 
 	// enriched for the overview
@@ -401,9 +402,9 @@ func (s *Server) runWatch(id int64) {
 	// files already collected must not be fetched again: Enqueue only skips
 	// what is complete at the EXPECTED target, and theirs is still empty
 	skip := s.pendingRemotePaths(w.ID)
-	res, err := s.Transfers.Enqueue(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
-		nameFn, andNotPending(s.watchLangFilter(w), skip), true, !w.Subfolder, false)
-	ids, uploading, filtered := res.IDs, res.Uploading, res.Filtered
+	res, err := s.Transfers.EnqueueSkipping(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
+		nameFn, andNotPending(s.watchLangFilter(w), skip), s.watchOwned(w), true, !w.Subfolder, false)
+	ids, uploading, filtered, owned := res.IDs, res.Uploading, res.Filtered, res.Owned
 	var filteredKeys []int
 	for _, t := range res.FilteredTargets {
 		if m := epSeasonRe.FindStringSubmatch(filepath.Base(t)); m != nil {
@@ -437,15 +438,15 @@ func (s *Server) runWatch(id int64) {
 		s.DB.QueryRow(`SELECT check_attempts FROM watches WHERE id = ?`, id).Scan(&attempts)
 		attempts++
 		retryAt = time.Now().Add(s.watchBackoff(attempts)).Unix()
-		result, queued, uploading, filtered, filteredKeys = err.Error(), -1, 0, 0, nil
+		result, queued, uploading, filtered, filteredKeys, owned = err.Error(), -1, 0, 0, nil, 0
 		slog.Warn("watch check", "id", id, "attempt", attempts, "err", err)
 	} else if queued > 0 || uploading > 0 || filtered > 0 {
-		slog.Info("watch checked", "id", id, "queued", queued, "uploading", uploading, "filtered", filtered)
+		slog.Info("watch checked", "id", id, "queued", queued, "uploading", uploading, "filtered", filtered, "owned", owned)
 	} else {
-		slog.Debug("watch checked", "id", id, "queued", 0)
+		slog.Debug("watch checked", "id", id, "queued", 0, "owned", owned)
 	}
 	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ?, last_filtered_eps = ?,
-		check_attempts = ?, retry_at = ? WHERE id = ?`, result, queued, uploading, filtered, epKeysCSV(filteredKeys), attempts, retryAt, id)
+		last_owned = ?, check_attempts = ?, retry_at = ? WHERE id = ?`, result, queued, uploading, filtered, epKeysCSV(filteredKeys), owned, attempts, retryAt, id)
 }
 
 // watchBackoff staggers the wait before a failed check is repeated: a minute,
@@ -675,6 +676,8 @@ func (s *Server) renameProvider(explicit string) string {
 // show in the library language ("Yomi no Tsugai" is "Das Band der Unterwelt"
 // there) while the source folder romanises it and appends the season.
 //
+// An empty title switches the title route off.
+//
 // how names the route that won ("series" | "title"), for the logs. ok=false means
 // unresolved: the caller must leave the library alone rather than act on a guess.
 func (s *Server) plexShowForWatch(w Watch, title string) (sh *plex.Show, ord plex.Ordering, how string, ok bool) {
@@ -697,6 +700,9 @@ func (s *Server) plexShowForWatch(w Watch, title string) (sh *plex.Show, ord ple
 			s.rememberPlexShow(w, sh)
 			return sh, ord, "path", true
 		}
+	}
+	if title == "" {
+		return nil, plex.Ordering{}, "", false // identity only, no guessing
 	}
 	sh, ord, ok = s.plexShowFor(title, target)
 	if !ok {
@@ -1097,7 +1103,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 	interval := s.watchInterval()
 	rows, err := s.DB.Query(`SELECT w.id, w.user_id, w.server_id, s.name, w.remote_path, w.local_path,
-			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.dub_lag_days, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.last_filtered_eps, w.check_attempts, w.retry_at, w.created_at
+			w.mode, w.template, w.separator, w.title_override, w.pattern, w.replacement, w.subfolder, w.from_episode, w.aired_mapping, w.rename_provider, w.rename_ordering, w.rename_title_lang, w.rename_series_id, w.want_dub, w.want_sub, w.dub_lag_days, w.plex_audio_lang, w.plex_sub_lang, w.plex_stream_miss, w.last_check, w.last_result, w.last_queued, w.last_uploading, w.last_filtered, w.last_filtered_eps, w.last_owned, w.check_attempts, w.retry_at, w.created_at
 		FROM watches w JOIN servers s ON s.id = w.server_id
 		WHERE w.user_id = ? ORDER BY w.id DESC`, userID)
 	if err != nil {
@@ -1112,7 +1118,7 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 		var langWaitingEps string
 		if err := rows.Scan(&it.ID, &it.UserID, &it.ServerID, &it.ServerName, &it.RemotePath, &it.LocalPath,
 			&it.Mode, &it.Template, &it.Separator, &it.TitleOverride, &it.Pattern, &it.Replacement, &it.Subfolder, &it.FromEpisode, &it.AiredMapping, &it.RenameProvider, &it.RenameOrdering, &it.RenameTitleLang, &it.RenameSeriesID, &it.WantDub, &it.WantSub, &it.DubLagDays, &it.PlexAudioLang, &it.PlexSubLang, &it.PlexStreamMiss,
-			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &langWaitingEps, &it.CheckAttempts, &retryAt, &it.CreatedAt); err != nil {
+			&it.LastCheck, &it.LastResult, &it.LastQueued, &it.LastUploading, &it.LangWaiting, &langWaitingEps, &it.LastOwned, &it.CheckAttempts, &retryAt, &it.CreatedAt); err != nil {
 			return nil, err
 		}
 		it.IntervalMin = interval
