@@ -398,7 +398,7 @@ export default function RenameOptions({
           type="number"
           className="font-mono"
           value={rule.fromEpisode || ''}
-          placeholder="z.B. 26 (Dr. Stone S4E26)"
+          placeholder={t('common.example', { value: '26 (Dr. Stone S4E26)' })}
           onChange={(e) => onChange({ fromEpisode: Number(e.target.value) || 0 })}
         />
       </div>
@@ -474,7 +474,7 @@ export default function RenameOptions({
                     <option value="">{t('watch.renameAuto')}</option>
                     {caps?.tvdbApiKeySet && <option value="tvdb:official">TVDB Aired</option>}
                     {caps?.tvdbApiKeySet && <option value="tvdb:dvd">TVDB DVD</option>}
-                    {caps?.tvdbApiKeySet && <option value="tvdb:absolute">TVDB Absolut</option>}
+                    {caps?.tvdbApiKeySet && <option value="tvdb:absolute">{t('watch.renameTvdbAbsolute')}</option>}
                     {caps?.tmdbApiKeySet && <option value="tmdb:aired">TMDB Aired</option>}
                   </Select>
                 </label>

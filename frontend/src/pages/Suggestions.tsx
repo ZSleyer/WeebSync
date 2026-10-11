@@ -370,7 +370,7 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
                   await api.post('/api/watches', { serverId: watch.serverId, ...f })
                   // back on the card, its auto-sync section shows the new watch
                   await qc.invalidateQueries({ queryKey: ['watches'] })
-                  toast({ message: t('watch.saved') })
+                  toast({ message: t('watch.created') })
                 }}
                 onClose={() => setWatch(null)}
               />
@@ -383,7 +383,7 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
             initial={watch.initial}
             onSave={async (f) => {
               await api.post('/api/watches', { serverId: watch.serverId, ...f })
-              setNotice(t('watch.saved'))
+              setNotice(t('watch.created'))
             }}
             onClose={() => setWatch(null)}
           />
@@ -601,7 +601,7 @@ function SugCard({
                 {it.media.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}
               </Badge>
             )}
-            {!it.status && it.media.episodes > 0 && (
+            {!it.status && it.media.format !== 'MOVIE' && it.media.episodes > 0 && (
               <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
                 <ListVideo aria-hidden size="1em" />
                 {t('suggestions.episodes', { count: it.media.episodes })}

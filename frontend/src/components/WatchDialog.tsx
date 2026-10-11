@@ -387,15 +387,16 @@ export function WatchForm({
                 type="number"
                 className="font-mono"
                 value={f.mediaId || ''}
-                placeholder={
-                  f.mediaSource === 'tvdb'
-                    ? 'z.B. 72454 (Detektiv Conan)'
-                    : f.mediaSource?.startsWith('tmdb')
-                      ? 'z.B. 1399 (Game of Thrones)'
-                      : manga
-                        ? 'z.B. 30013 (One Piece)'
-                        : 'z.B. 21 (One Piece)'
-                }
+                placeholder={t('common.example', {
+                  value:
+                    f.mediaSource === 'tvdb'
+                      ? '72454 (Detective Conan)'
+                      : f.mediaSource?.startsWith('tmdb')
+                        ? '1399 (Game of Thrones)'
+                        : manga
+                          ? '30013 (One Piece)'
+                          : '21 (One Piece)',
+                })}
                 onChange={(e) => setF({ ...f, mediaId: Number(e.target.value) || 0 })}
               />
             </Field>

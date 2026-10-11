@@ -6,6 +6,7 @@
     "confirm": "Bestätigen",
     "cancel": "Abbrechen",
     "close": "Schließen",
+    "example": "z. B. {{value}}",
     "confirmTitle": "Bestätigen",
     "discard": "Verwerfen",
     "keepEditing": "Weiter bearbeiten",
@@ -123,6 +124,8 @@
       "library": "durchsucht die Bibliothek",
       "downloads": "liest die Warteschlange",
       "airing": "liest den Kalender",
+      "recommend": "bereitet Titelkarten vor",
+      "show_upgrades": "bereitet Upgrade-Karten vor",
       "series_seasons": "löst die Staffeln auf"
     },
     "unconfigured": "Es ist kein Assistent-Endpoint konfiguriert.",
@@ -137,6 +140,8 @@
       "my_watches": { "start": "Lese deine Auto-Syncs…", "done": "{{count}} Auto-Syncs: {{names}}" },
       "recommend": { "start": "Bereite {{titlesCount}} Titelkarten vor…", "done": "{{shown}} Karten gezeigt.", "doneSkipped": "{{shown}} Karten gezeigt, {{skipped}} übersprungen, weil schon vorhanden: {{skippedNames}}" },
       "show_upgrades": { "start": "Bereite {{keysCount}} Upgrade-Karten vor…", "done": "{{shown}} Upgrade-Karten gezeigt." },
+      "web_search": { "start": "Sucht im Web…", "done": "Websuche fertig." },
+      "fetch_page": { "start": "Liest eine Seite…", "done": "Seite gelesen." },
       "propose": { "start": "Prüfe „{{title}}“ ({{kind}}) unter {{remotePath}}…", "done": "Vorschlag angenommen.", "rejected": "Abgelehnt: {{reason}}" },
       "search_media": { "start": "Suche „{{query}}“ bei den Anbietern…", "done": "{{count}} Treffer: {{names}}" },
       "library": { "start": "Durchsuche die Bibliothek…", "done": "{{count}} Ordner in der Bibliothek: {{names}}" },
@@ -219,6 +224,7 @@
     "copy": "Kopieren"
   },
   "setup": {
+    "stepOf": "Schritt {{n}} von {{total}}",
     "title": "Ersteinrichtung",
     "step": {
       "account": "Konto",
@@ -423,7 +429,7 @@
     "open_one": "Papierkorb, {{count}} Eintrag",
     "open_other": "Papierkorb, {{count}} Einträge",
     "label": "Papierkorb",
-    "title": "PAPIERKORB",
+    "title": "Papierkorb",
     "hint": "Ersetzte und aussortierte Kopien warten hier in versteckten .weebsync-trash-Ordnern neben ihrem Ursprung, bis die Frist abläuft oder du sie löschst.",
     "empty0": "Der Papierkorb ist leer.",
     "files_one": "{{count}} Datei",
@@ -705,6 +711,7 @@
     "tvdbAttribution": "Metadaten von TheTVDB. Bitte ergänze fehlende Informationen oder unterstütze mit einem Abo.",
     "renameOrdering": "Reihenfolge (Anbieter)",
     "renameTitleLang": "Titelsprache",
+    "renameTvdbAbsolute": "TVDB Absolut",
     "renameAuto": "Auto (aus Plex)",
     "langAuto": "Auto (Systemsprache)",
     "plexDetected": "Aus Plex erkannt: {{ordering}} · {{lang}}",
@@ -1220,6 +1227,7 @@
           "anime-ids": "täglicher Listen-Abgleich",
           "rematch-all": "Alles neu matchen",
           "sweep": "Hintergrund-Sweep",
+          "plex-index": "stündlicher Bibliotheksindex",
           "plex-sweep": "Plex-Abgleich im Sweep",
           "watch-check": "nächste Auto-Sync-Prüfung"
         },
@@ -1302,6 +1310,7 @@
               "name": "Crunchyroll-Staffelzuordnung",
               "desc": "Welche Staffel einer Serie auf Crunchyroll ein beobachteter Titel ist, damit die Synchro-Prüfung stündlich nur eine Folgenliste holt. Günstig neu aufzubauen."
             },
+            "animeschedule": { "name": "AnimeSchedule", "desc": "Die ID eines Titels bei AnimeSchedule und die wöchentlichen englischen Synchro-Termine, die der Synchro-Kalender liest. Günstig neu aufzubauen." },
             "plex": {
               "name": "Plex-Bibliothek",
               "desc": "Abzug deiner Plex-Bibliothek samt vorberechneter Vorschläge. Der Neuaufbau dauert je nach Bibliotheksgröße einige Minuten."
@@ -1355,6 +1364,7 @@
             "name": "Wartende Folgen",
             "desc": "Bereits geladene Dateien, deren Folgennummer der Anbieter noch nicht kannte. Löschen vergisst auch, dass die Datei schon geholt wurde: die nächste Prüfung lädt sie erneut."
           },
+          "trash": { "name": "Papierkorb-Liste", "desc": "Kopien, die ein Upgrade-Sync beiseitegelegt hat und die auf das Ende ihrer Frist warten. Löschen lässt die Dateien in ihren .weebsync-trash-Ordnern liegen, zum Aufräumen von Hand; nichts füllt die Liste wieder." },
           "airings": {
             "name": "Kalender-Verlauf",
             "desc": "Was die Anbieter als Ausstrahlungstermin gemeldet haben, nach dem Termin festgehalten - ihre Zeitpläne geben nur die Zukunft heraus. Löschen nimmt dem Kalender die vergangene Woche dauerhaft: nachgeholt werden kann sie nirgends."
@@ -1603,7 +1613,8 @@
     "have": "Vorhanden",
     "better": "Besser",
     "openPlex": "In Plex öffnen",
-    "episodes": "{{count}} Folgen",
+    "episodes_one": "{{count}} Folge",
+    "episodes_other": "{{count}} Folgen",
     "localPath": "Lokaler Speicherpfad",
     "season": "Staffel {{season}}",
     "localSeasons": "Lokal vorhanden",
