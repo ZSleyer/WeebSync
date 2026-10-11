@@ -265,7 +265,6 @@
                     "format",
                     "status",
                     "averageScore",
-                    "genres",
                     "description"
                 ],
                 "type": "object"

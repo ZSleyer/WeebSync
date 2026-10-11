@@ -117,6 +117,8 @@ func convertLegacy(cfg legacyConfig, localRoot string) LegacyPlan {
 		},
 		IntervalMin: 30,
 		Warnings:    []string{"legacyWarnFtp"},
+		Dropped:     []string{},
+		Watches:     []LegacyWatchPlan{},
 	}
 	if cfg.AutoSyncIntervalInMinutes != nil {
 		p.IntervalMin = min(max(*cfg.AutoSyncIntervalInMinutes, 5), 1440)
@@ -156,7 +158,7 @@ func convertLegacy(cfg legacyConfig, localRoot string) LegacyPlan {
 // convertSyncMap maps one syncMap onto a watch, without the local path (which
 // needs the whole set to find a common prefix).
 func convertSyncMap(m legacySyncMap) LegacyWatchPlan {
-	w := LegacyWatchPlan{ID: m.ID, RemotePath: strings.TrimRight(m.OriginFolder, "/")}
+	w := LegacyWatchPlan{ID: m.ID, RemotePath: strings.TrimRight(m.OriginFolder, "/"), Warnings: []string{}}
 
 	rename := m.FileRegex != "" || m.FileRenameTemplate != ""
 	if m.Rename != nil {
