@@ -1,7 +1,9 @@
-import { StrictMode } from 'react'
+import { StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router/dom'
+import { useTranslation } from 'react-i18next'
+import { CloseLabelContext } from '@weebsync/design-system'
 import './index.css'
 import './locales'
 import { router } from './App'
@@ -36,6 +38,13 @@ window.addEventListener('keydown', (e) => {
 })
 window.addEventListener('pointerdown', () => root.classList.remove('kbd'))
 
+// the design system's icon-only close buttons speak the UI language
+function CloseLabel({ children }: { children: ReactNode }) {
+  const { t } = useTranslation()
+  const label = t('common.close')
+  return <CloseLabelContext.Provider value={label}>{children}</CloseLabelContext.Provider>
+}
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 10_000 } },
 })
@@ -45,7 +54,9 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <ConfirmProvider>
         <ToastProvider>
-          <RouterProvider router={router} />
+          <CloseLabel>
+            <RouterProvider router={router} />
+          </CloseLabel>
         </ToastProvider>
       </ConfirmProvider>
     </QueryClientProvider>
