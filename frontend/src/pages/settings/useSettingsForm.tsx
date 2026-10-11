@@ -40,6 +40,9 @@ export interface SettingsState {
   plexSectionAnime: string // csv of key:0|1 - does this library hold anime
   plexRoots: string
   plexSkipOwned: boolean
+  arrKeySet: boolean // read-only: the Sonarr/Radarr source is on
+  arrCompleteDir: string
+  arrRoots: string
   plexLibRoots: string // read-only: auto-detected from Plex library locations (flat)
   plexLibraries?: { title: string; roots: string[] }[] // read-only: grouped by library
   oidcProviderName: string
