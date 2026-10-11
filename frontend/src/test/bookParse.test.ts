@@ -6,12 +6,31 @@ import {
   epubToc,
   odsSheets,
   resolveIn,
+  trimUtf8Tail,
   xlsxRows,
   xlsxSheetParts,
   xlsxStrings,
 } from '../components/bookParse'
 
 describe('decodeText', () => {
+  it('reads a text cut mid-character as UTF-8, without the broken tail', () => {
+    const full = new TextEncoder().encode('Grüße ' + 'あ'.repeat(10))
+    for (const drop of [1, 2]) {
+      const cut = full.slice(0, full.length - drop)
+      expect(decodeText(cut, 'a.txt', true)).toBe('Grüße ' + 'あ'.repeat(9))
+    }
+    // a cut on a character boundary keeps everything
+    expect(decodeText(full, 'a.txt', true)).toBe('Grüße ' + 'あ'.repeat(10))
+  })
+
+  it('trims only an incomplete sequence at the end', () => {
+    const emoji = new TextEncoder().encode('a😀')
+    expect([...trimUtf8Tail(emoji.slice(0, 4))]).toEqual([0x61])
+    expect(trimUtf8Tail(emoji)).toEqual(emoji)
+    expect(trimUtf8Tail(new Uint8Array([0x61, 0x62]))).toEqual(new Uint8Array([0x61, 0x62]))
+    expect(trimUtf8Tail(new Uint8Array())).toEqual(new Uint8Array())
+  })
+
   it('reads UTF-8 first', () => {
     expect(decodeText(new TextEncoder().encode('Grüße ░'), 'a.txt')).toBe('Grüße ░')
   })
