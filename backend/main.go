@@ -172,7 +172,7 @@ func main() {
 
 	httpSrv := &http.Server{
 		Addr:    addr,
-		Handler: harden(mux),
+		Handler: harden(srv.ForgetLocalOnWrite(mux)),
 		// request contexts inherit rootCtx: on SIGTERM the SSE streams
 		// (/api/events) end immediately, so Shutdown below returns fast
 		BaseContext: func(net.Listener) context.Context { return rootCtx },

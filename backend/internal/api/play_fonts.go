@@ -235,12 +235,14 @@ func (s *Server) writeFont(j *mediaJob, n int, a fontFile) error {
 
 // fontCache keeps fonts across files: the episodes of a release carry the
 // same ones, and over a slow remote each is seconds to read. It lives in the
-// temp dir - a restart empties it, a backup of the data never carries it.
+// temp dir - a restart empties it, a backup of the data never carries it -
+// and that is a tmpfs in the compose file, memory: only the fonts a script
+// asked for land here, so a release costs a few MB.
 type fontCache struct {
 	mu sync.Mutex
 }
 
-var fontCacheMax int64 = 512 << 20
+var fontCacheMax int64 = 128 << 20
 
 func fontCacheDir() string { return filepath.Join(os.TempDir(), "weebsync-fonts") }
 
