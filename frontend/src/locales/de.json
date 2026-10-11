@@ -652,6 +652,7 @@
     "selectItem": "{{name}} auswählen",
     "newFolder": "neuer Ordner…",
     "emptyDir": "leer",
+    "dirNotFound": "Diesen Ordner gibt es nicht (mehr).",
     "emptyLocal": "leer, Unterordner unten anlegen",
     "path": "Pfad",
     "editPath": "Pfad bearbeiten",

@@ -652,6 +652,7 @@
     "selectItem": "Select {{name}}",
     "newFolder": "new folder…",
     "emptyDir": "empty",
+    "dirNotFound": "This folder does not exist (any more).",
     "emptyLocal": "empty, create a subfolder below",
     "path": "Path",
     "editPath": "Edit path",

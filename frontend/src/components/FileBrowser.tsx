@@ -3,7 +3,7 @@ import { BookOpen, Eye, FolderOpen, FolderPlus, Pencil, Play } from 'lucide-reac
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button, Input } from '@weebsync/design-system'
-import { api, fmtBytes, keyConflictOf, type Entry } from '../api'
+import { api, ApiError, fmtBytes, keyConflictOf, type Entry } from '../api'
 import FileIcon from './FileIcon'
 import HostKeyPrompt from './HostKeyPrompt'
 import Loading from './Loading'
@@ -186,11 +186,16 @@ export function FileBrowser({
             onRejected={() => setRejectedFor(listing)}
           />
         ) : (
-          error && (
+          error &&
+          // a folder that is not there (deleted, renamed, an old link) is said
+          // so in words; the breadcrumbs above lead back up
+          (error instanceof ApiError && error.status === 404 ? (
+            <p className="p-4 text-sm text-t-muted">{t('remote.dirNotFound')}</p>
+          ) : (
             <p className="wrap-break-word p-4 text-sm text-err">
               {error instanceof Error ? error.message : t('app.error')}
             </p>
-          )
+          ))
         )}
         {!isLoading && !error && entries.length === 0 && (
           <p className="p-4 text-sm text-t-muted">{emptyHint ?? t('remote.emptyDir')}</p>
