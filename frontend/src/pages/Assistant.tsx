@@ -562,9 +562,14 @@ export default function Assistant() {
   // can be removed again like any other. Each goes through the same
   // endpoint the dialog uses, one after the other; a failure lands on its
   // card, the rest go on.
+  const [creatingAll, setCreatingAll] = useState(false)
+  const creatingRef = useRef(false)
   const createAll = async (ti: number) => {
     const open = (turns[ti]?.proposals ?? []).map((p, idx) => ({ p, idx })).filter(({ p }) => !p.done && !p.unverified)
-    if (open.length < 2) return
+    // a second click while the first run goes would create everything twice
+    if (open.length < 2 || creatingRef.current) return
+    creatingRef.current = true
+    setCreatingAll(true)
     const conv = convRef.current
     let ok = 0
     let failed = 0
@@ -596,6 +601,8 @@ export default function Assistant() {
         ),
       )
     }
+    creatingRef.current = false
+    setCreatingAll(false)
     qc.invalidateQueries({ queryKey: ['watches'] })
     qc.invalidateQueries({ queryKey: ['downloads'] })
     if (conv === convRef.current) setNotice(t('assistant.createdCount', { ok, failed }))
@@ -1164,7 +1171,12 @@ export default function Assistant() {
                           <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
                         ))}
                         {(tr.proposals?.filter((p) => !p.done && !p.unverified).length ?? 0) >= 2 && (
-                          <Button variant="primary" className="mt-3" onClick={() => void createAll(ti)}>
+                          <Button
+                            variant="primary"
+                            className="mt-3"
+                            aria-disabled={creatingAll || undefined}
+                            onClick={() => void createAll(ti)}
+                          >
                             {t('assistant.createAll', {
                               count: tr.proposals!.filter((p) => !p.done && !p.unverified).length,
                             })}
