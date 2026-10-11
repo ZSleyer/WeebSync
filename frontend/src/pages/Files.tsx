@@ -69,7 +69,7 @@ import {
 import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../components/catalogSort'
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
-import { useCatalogView } from '../components/useCatalogView'
+import { scopeChanged, useCatalogView } from '../components/useCatalogView'
 import { FileBrowser, LocalPicker, PathCrumbs, PlayIcon } from '../components/FileBrowser'
 import { catalogTitle, firstVideo, isVideo, playHref, viewHref, viewKind } from '../components/playLinks'
 import PathInput from '../components/PathInput'
@@ -1063,7 +1063,7 @@ export function CatalogGrid({
     setScopeError('')
     try {
       await api.put(`/api/servers/${serverId}/catalog/scope`, { path: path ? '/' + path : '', kind })
-      qc.invalidateQueries({ queryKey: ['catalog', serverId] })
+      scopeChanged(qc, serverId)
     } catch (err) {
       setScopeError(err instanceof Error ? err.message : t('app.error'))
     }
