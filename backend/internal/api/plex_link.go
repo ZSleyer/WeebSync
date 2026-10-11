@@ -141,15 +141,31 @@ func (s *Server) handleWatchPlexShowLink(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusBadRequest, "no such show in Plex")
 		return
 	}
-	// everything is checked, so the old link can go: a rejected request must
-	// leave the series with the binding it had
-	s.DB.Exec(`DELETE FROM series_provider WHERE series_id = ? AND source = 'plex'`, seriesID)
+	// everything is checked, so the binding can change: a rejected request must
+	// leave the series with the one it had. The new one is written and pinned
+	// first, the old one goes last - a write that fails on the way leaves an
+	// extra binding behind, never none and never an unpinned one that the
+	// rating-key resolve would later drop.
 	// a chosen show is an exact binding, so it may unite what its ids name
 	s.attachPlexIdentity(seriesID, plexGuid{
 		TVDB: sh.TVDBID, TMDB: sh.TMDBID, IMDB: sh.IMDBID, Year: sh.Year, RatingKey: sh.RatingKey,
 	}, true)
-	s.DB.Exec(`UPDATE series_provider SET manual = 1 WHERE series_id = ? AND source = 'plex' AND media_id = ?`,
+	res, err := s.DB.Exec(`UPDATE series_provider SET manual = 1 WHERE series_id = ? AND source = 'plex' AND media_id = ?`,
 		seriesID, rk)
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		// the identity did not land (claimed by another series in between)
+		writeErr(w, http.StatusConflict, "that Plex show is already bound to another series")
+		return
+	}
+	if _, err := s.DB.Exec(`DELETE FROM series_provider WHERE series_id = ? AND source = 'plex' AND media_id != ?`,
+		seriesID, rk); err != nil {
+		dbErr(w)
+		return
+	}
 	slog.Info("plex link set by hand", "series", seriesID, "watch", wt.ID, "ratingKey", rk)
 	w.WriteHeader(http.StatusNoContent)
 }
