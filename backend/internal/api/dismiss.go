@@ -48,6 +48,7 @@ func (s *Server) dismissedKeys(userID int64, kind string) map[string]bool {
 //	@Param			body	body	dismissRequest	true	"Item to ignore"
 //	@Success		200	{object}	OkResponse
 //	@Failure		415	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/suggestions/dismiss [post]
 func (s *Server) handleDismiss(w http.ResponseWriter, r *http.Request) {
@@ -60,8 +61,11 @@ func (s *Server) handleDismiss(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "kind and refKey required")
 		return
 	}
-	s.DB.Exec(`INSERT OR REPLACE INTO suggestion_dismissals (user_id, kind, ref_key, label, dismissed_at)
-		VALUES (?, ?, ?, ?, ?)`, u.ID, in.Kind, in.RefKey, in.Label, time.Now().UTC().Format(time.RFC3339))
+	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO suggestion_dismissals (user_id, kind, ref_key, label, dismissed_at)
+		VALUES (?, ?, ?, ?, ?)`, u.ID, in.Kind, in.RefKey, in.Label, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -73,6 +77,7 @@ func (s *Server) handleDismiss(w http.ResponseWriter, r *http.Request) {
 //	@Param			body	body	dismissRequest	true	"Item to restore (kind + refKey)"
 //	@Success		200	{object}	OkResponse
 //	@Failure		415	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/suggestions/dismiss [delete]
 func (s *Server) handleDismissRestore(w http.ResponseWriter, r *http.Request) {
@@ -81,8 +86,11 @@ func (s *Server) handleDismissRestore(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	s.DB.Exec(`DELETE FROM suggestion_dismissals WHERE user_id = ? AND kind = ? AND ref_key = ?`,
-		u.ID, in.Kind, in.RefKey)
+	if _, err := s.DB.Exec(`DELETE FROM suggestion_dismissals WHERE user_id = ? AND kind = ? AND ref_key = ?`,
+		u.ID, in.Kind, in.RefKey); err != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -92,6 +100,7 @@ func (s *Server) handleDismissRestore(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Suggestions
 //	@Produce		json
 //	@Success		200	{array}	DismissedItem
+//	@Failure		500		{object}		ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/suggestions/dismissed [get]
 func (s *Server) handleDismissedList(w http.ResponseWriter, r *http.Request) {

@@ -118,7 +118,10 @@ func (s *Server) handleWatchPlexShowLink(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if in.RatingKey == "" {
-		s.DB.Exec(`DELETE FROM series_provider WHERE series_id = ? AND source = 'plex'`, seriesID)
+		if _, err := s.DB.Exec(`DELETE FROM series_provider WHERE series_id = ? AND source = 'plex'`, seriesID); err != nil {
+			dbErr(w)
+			return
+		}
 		slog.Info("plex link cleared", "series", seriesID, "watch", wt.ID)
 		w.WriteHeader(http.StatusNoContent)
 		return

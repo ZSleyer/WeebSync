@@ -511,6 +511,7 @@ func (s *Server) handleUpgradeDimsGet(w http.ResponseWriter, r *http.Request) {
 //	@Param			body	body		UpgradeDims	true	"Enabled axes"
 //	@Success		200		{object}	OkResponse
 //	@Failure		415		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/auth/upgrade-dims [put]
 func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
@@ -534,7 +535,10 @@ func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	d := dimsFromOrder(order)
-	s.DB.Exec(`UPDATE users SET upgrade_dims = ? WHERE id = ?`, strings.Join(d.Order, ","), u.ID)
+	if _, err := s.DB.Exec(`UPDATE users SET upgrade_dims = ? WHERE id = ?`, strings.Join(d.Order, ","), u.ID); err != nil {
+		dbErr(w)
+		return
+	}
 	// the cached suggestions were ranked under the old axes: age them and
 	// rebuild now, so the page keeps showing the old order only until the
 	// rebuild lands rather than nothing at all in the meantime

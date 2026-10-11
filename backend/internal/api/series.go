@@ -16,15 +16,20 @@ import (
 // step: the canonical series bundle (series/series_provider) and the folder's
 // quality variant. Every matcher writes through here so a match can never land
 // without being bundled. media_id 0 (explicit no-match) only writes the row.
-func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual bool, source string) {
+// A match that was not stored is reported and goes no further; the background
+// matchers try again on a later pass, a user's own pick gets the error.
+func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual bool, source string) error {
 	m := 0
 	if manual {
 		m = 1
 	}
-	s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, ?, ?)`,
-		serverID, folder, mediaID, m, source)
+	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, ?, ?)`,
+		serverID, folder, mediaID, m, source); err != nil {
+		slog.Warn("match not stored", "server", serverID, "folder", logSafe(folder), "err", err)
+		return err
+	}
 	if mediaID == 0 {
-		return
+		return nil
 	}
 	created, title := s.linkSeries(source, mediaID)
 	s.refreshVariant(serverID, folder)
@@ -38,6 +43,7 @@ func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual
 			s.NotifyEvent(owner, "suggestion", tr(s.userLocale(owner), "notify.newSeries"), title, "/suggestions")
 		}
 	}
+	return nil
 }
 
 // linkSeries attaches a (source, media_id) provider hit to a canonical series,
