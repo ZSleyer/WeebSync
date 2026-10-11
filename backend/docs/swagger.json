@@ -3977,6 +3977,18 @@
                         "description": "read-only, managed via /api/settings/token",
                         "type": "boolean"
                     },
+                    "arrCompleteDir": {
+                        "description": "local folder grabs from Sonarr/Radarr land in; must be under a download root",
+                        "type": "string"
+                    },
+                    "arrKeySet": {
+                        "description": "read-only: the Sonarr/Radarr source is on, managed via /api/settings/arr-key",
+                        "type": "boolean"
+                    },
+                    "arrRoots": {
+                        "description": "newline-separated \"appPath => localPath\" mappings for apps that see the media under another path",
+                        "type": "string"
+                    },
                     "authMode": {
                         "description": "password | oidc-only | oidc-auto",
                         "type": "string"
@@ -13028,6 +13040,116 @@
                     }
                 ],
                 "summary": "Update settings",
+                "tags": [
+                    "Settings"
+                ]
+            }
+        },
+        "/api/settings/arr-key": {
+            "delete": {
+                "description": "Revokes the Sonarr/Radarr key, which switches the indexer and download client off (their routes answer 404). Admin only.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Delete Sonarr/Radarr key",
+                "tags": [
+                    "Settings"
+                ]
+            },
+            "post": {
+                "description": "Mints the API key Sonarr, Radarr and Prowlarr use for the WeebSync indexer and download client, admin only. Switches the source on. Only the hash is stored; the raw key is returned exactly once.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.tokenResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Create Sonarr/Radarr key",
                 "tags": [
                     "Settings"
                 ]
