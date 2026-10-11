@@ -586,11 +586,9 @@ function TextView({ server, path }: { server: number; path: string }) {
     queryFn: async () => {
       const res = await fetch(streamUrl(server, path), { headers: { Range: `bytes=0-${TEXT_LIMIT - 1}` } })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const cut = res.status === 206 && /\/(\d+)$/.exec(res.headers.get('Content-Range') ?? '')
-      return {
-        text: decodeText(new Uint8Array(await res.arrayBuffer()), name),
-        cut: !!cut && Number(cut[1]) > TEXT_LIMIT,
-      }
+      const total = res.status === 206 && /\/(\d+)$/.exec(res.headers.get('Content-Range') ?? '')
+      const cut = !!total && Number(total[1]) > TEXT_LIMIT
+      return { text: decodeText(new Uint8Array(await res.arrayBuffer()), name, cut), cut }
     },
   })
   if (text.isPending) return <Loading />

@@ -9,12 +9,28 @@ const CP437_HIGH =
   'ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ '
 
 /**
- * Text from bytes: UTF-8 when the bytes are valid UTF-8, otherwise CP437 for
- * an .nfo/.diz (scene art) and windows-1252 for anything else.
+ * The bytes without a UTF-8 sequence that a cut left incomplete at the end:
+ * a range read stops at a byte count, not at a character, and the strict
+ * decoder below would refuse the whole text for that one broken character.
  */
-export function decodeText(bytes: Uint8Array, name: string): string {
+export function trimUtf8Tail(bytes: Uint8Array): Uint8Array {
+  // the last lead byte sits at most three continuation bytes (10xxxxxx) back
+  let i = bytes.length - 1
+  while (i >= 0 && i > bytes.length - 4 && (bytes[i] & 0xc0) === 0x80) i--
+  if (i < 0) return bytes
+  const lead = bytes[i]
+  const need = lead >= 0xf0 ? 4 : lead >= 0xe0 ? 3 : lead >= 0xc0 ? 2 : 1
+  return i + need > bytes.length ? bytes.subarray(0, i) : bytes
+}
+
+/**
+ * Text from bytes: UTF-8 when the bytes are valid UTF-8, otherwise CP437 for
+ * an .nfo/.diz (scene art) and windows-1252 for anything else. `cut` says the
+ * bytes are the start of a longer file, which may end mid-character.
+ */
+export function decodeText(bytes: Uint8Array, name: string, cut = false): string {
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    return new TextDecoder('utf-8', { fatal: true }).decode(cut ? trimUtf8Tail(bytes) : bytes)
   } catch {
     if (/\.(nfo|diz)$/i.test(name)) {
       let out = ''
