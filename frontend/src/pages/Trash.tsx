@@ -8,6 +8,7 @@ import { api, fmtBytes, type TrashEntry } from '../api'
 import { useAuth } from '../hooks'
 import { useConfirm } from '../components/confirm'
 import Loading from '../components/Loading'
+import PageActions from '../components/PageActions'
 
 const trashQuery = { queryKey: ['trash'], queryFn: () => api.get<TrashEntry[]>('/api/trash'), staleTime: 60_000 }
 
@@ -96,11 +97,22 @@ export default function TrashPage() {
   return (
     <div>
       <PageHeader title={t('trash.title')} sub={t('trash.hint')}>
-        {admin && entries && entries.length > 0 && (
-          <Button size="sm" variant="danger" disabled={busy} onClick={() => void emptyAll()}>
-            {t('trash.empty')}
-          </Button>
-        )}
+        {/* the app bar on a phone: this page is stacked on Files there,
+            which hides the in-page header and everything in it */}
+        <PageActions>
+          {admin && entries && entries.length > 0 && (
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={busy}
+              aria-label={t('trash.empty')}
+              onClick={() => void emptyAll()}
+            >
+              <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] lg:mr-1" />
+              <span className="hidden lg:inline">{t('trash.empty')}</span>
+            </Button>
+          )}
+        </PageActions>
       </PageHeader>
       <Panel className="mt-4 overflow-hidden">
         {isPending ? (
@@ -119,12 +131,8 @@ export default function TrashPage() {
                   <File aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-t-primary" title={e.name}>
-                    {e.name}
-                  </p>
-                  <p className="truncate font-mono text-ctl-sm text-t-muted" title={e.dir}>
-                    {e.dir}
-                  </p>
+                  <p className="text-sm font-medium wrap-anywhere text-t-primary">{e.name}</p>
+                  <p className="font-mono text-ctl-sm wrap-anywhere text-t-muted">{e.dir}</p>
                   <p className="text-ctl-sm text-t-muted">
                     {fmtBytes(e.size)}
                     {e.files > 1 && ` · ${t('trash.files', { count: e.files })}`}
