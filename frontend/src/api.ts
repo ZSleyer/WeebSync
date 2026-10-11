@@ -214,7 +214,8 @@ async function request<T>(method: string, url: string, body?: unknown, headers?:
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
-    let msg = res.statusText
+    // HTTP/2 carries no reason phrase, so statusText is empty behind most proxies
+    let msg = res.statusText || `HTTP ${res.status}`
     let data: unknown
     try {
       data = await res.json()
@@ -225,7 +226,10 @@ async function request<T>(method: string, url: string, body?: unknown, headers?:
     }
     throw new ApiError(res.status, msg, data)
   }
-  return res.json()
+  // a 204 (or any empty body) is a success with nothing to read; res.json()
+  // would throw "Unexpected end of JSON input" on it
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
 }
 
 export const api = {
