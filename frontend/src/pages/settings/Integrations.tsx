@@ -7,6 +7,7 @@ import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../..
 import { useAiModels } from '../../hooks'
 import { EnvBadge, FieldIssue, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
+import { useConfirm } from '../../components/confirm'
 import Smtp from './Smtp'
 
 // The five status queries, shared by the panels and the strip on top so
@@ -61,7 +62,7 @@ type Tone = 'ok' | 'err' | 'neutral'
 
 // One chip per provider, coloured by its state, linking to its panel: the
 // overview of a long page, and the way to reach the one that needs work.
-function StatusStrip({ smtp, ha }: { smtp: boolean; ha: boolean }) {
+function StatusStrip({ smtp, ha, arr }: { smtp: boolean; ha: boolean; arr: boolean }) {
   const { t } = useTranslation()
   const anilist = useQuery(ANILIST_ME).data
   const tmdb = useQuery(TMDB_ME).data
@@ -85,6 +86,7 @@ function StatusStrip({ smtp, ha }: { smtp: boolean; ha: boolean }) {
     ['tvdb', 'TVDB', state(tvdb?.connected, tvdb?.configured)],
     ['animeschedule', 'AnimeSchedule', state(animeschedule?.connected, animeschedule?.configured)],
     ['plex', t('settings.plex'), state(plex?.connected, plex?.configured)],
+    ['arr', 'Sonarr / Radarr', state(false, false, arr)],
     ['ai', t('settings.ai'), state(ai?.connected, !!ai?.error, ai?.configured)],
     ['homeassistant', t('settings.homeAssistant'), state(false, false, ha)],
     ['email', t('settings.email'), state(false, false, smtp)],
@@ -110,7 +112,7 @@ export default function Integrations() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
-      <StatusStrip smtp={!!form.smtpHost} ha={!!form.haWebhookUrl} />
+      <StatusStrip smtp={!!form.smtpHost} ha={!!form.haWebhookUrl} arr={form.arrKeySet} />
       <Panel as="section" id="anilist" className="mb-4 p-5" aria-label="AniList">
         <Badge tone="accent">AniList</Badge>
         <div className="mt-3 grid grid-cols-1 gap-4">
@@ -256,6 +258,8 @@ export default function Integrations() {
           )}
         </div>
       </Panel>
+
+      <ArrPanel form={form} set={set} />
 
       <Panel as="section" id="ai" className="mb-4 p-5" aria-label={t('settings.ai')}>
         <Badge tone="accent">{t('settings.ai')}</Badge>
@@ -696,6 +700,150 @@ function PlexAccount() {
 
 // TVDB connection status. The v4 login returns a bare token, so there is no
 // account name to show - only whether the key is accepted.
+// WeebSync as a source for Sonarr/Radarr (via Prowlarr or directly): one key
+// switches the indexer and the download client on, nothing runs without it.
+// The key is shown once, like the machine token; the folder and the path
+// mapping are ordinary settings and go through the save bar.
+function ArrPanel({
+  form,
+  set,
+}: {
+  form: SettingsState
+  set: <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => void
+}) {
+  const { t } = useTranslation()
+  const confirm = useConfirm()
+  const qc = useQueryClient()
+  const [key, setKey] = useState('')
+  const [copied, setCopied] = useState('')
+  const [error, setError] = useState('')
+  const refresh = () => qc.invalidateQueries({ queryKey: ['settings'] })
+  const generate = useMutation({
+    mutationFn: () => api.post<{ token: string }>('/api/settings/arr-key'),
+    onSuccess: (out) => {
+      setKey(out.token)
+      setError('')
+      refresh()
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+  const revoke = useMutation({
+    mutationFn: () => api.del('/api/settings/arr-key'),
+    onSuccess: () => {
+      setKey('')
+      refresh()
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+  // the form is a one-shot copy; the live settings follow generate/revoke
+  const { data: live } = useQuery<SettingsState>({ queryKey: ['settings'], queryFn: () => api.get('/api/settings') })
+  const on = (live?.arrKeySet ?? form.arrKeySet) || !!key
+  const origin = window.location.origin
+  const host = window.location.hostname
+  const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
+  const copy = async (what: string, value: string) => {
+    await navigator.clipboard.writeText(value)
+    setCopied(what)
+  }
+  const rows: [string, string, string][] = [
+    ['indexer', t('settings.arrIndexerUrl'), `${origin}/api/arr/newznab`],
+    ['clientHost', t('settings.arrClientHost'), host],
+    ['clientPort', t('settings.arrClientPort'), port],
+    ['clientBase', t('settings.arrClientBase'), '/api/arr/sab'],
+  ]
+  return (
+    <Panel as="section" id="arr" className="mb-4 p-5" aria-label="Sonarr / Radarr">
+      <Badge tone="accent">Sonarr / Radarr</Badge>
+      <div className="mt-3 grid grid-cols-1 gap-4">
+        <p className="text-xs text-t-muted">{t('settings.arrIntro')}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={on ? 'ok' : 'neutral'}>{on ? t('settings.arrOn') : t('settings.arrOff')}</Badge>
+          <Button size="sm" disabled={generate.isPending} onClick={() => generate.mutate()}>
+            {on ? t('settings.arrKeyRegenerate') : t('settings.arrKeyGenerate')}
+          </Button>
+          {on && (
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={revoke.isPending}
+              onClick={async () => {
+                if (await confirm({ message: t('settings.arrConfirmOff'), destructive: true })) revoke.mutate()
+              }}
+            >
+              {t('settings.arrTurnOff')}
+            </Button>
+          )}
+        </div>
+        {key && (
+          <label className="text-xs text-t-muted">
+            {t('settings.arrKeyShowOnce')}
+            <span className="mt-1 flex gap-2">
+              <Input className="font-mono" readOnly value={key} onFocus={(e) => e.target.select()} />
+              <Button size="sm" className="shrink-0" onClick={() => copy('key', key)}>
+                {t('settings.apiTokenCopy')}
+              </Button>
+            </span>
+          </label>
+        )}
+        {on && (
+          <>
+            <div className={ROW_GRID}>
+              <label className="text-xs text-t-muted">
+                {t('settings.arrCompleteDir')}
+                <Input
+                  className="mt-1 font-mono"
+                  placeholder="/media/downloads"
+                  value={form.arrCompleteDir}
+                  onChange={(e) => set('arrCompleteDir', e.target.value)}
+                />
+                <span className="mt-1 block">{t('settings.arrCompleteDirHint')}</span>
+              </label>
+              <label className="text-xs text-t-muted">
+                {t('settings.arrRoots')}
+                <textarea
+                  className="t-input mt-1 font-mono"
+                  rows={2}
+                  placeholder={'/data => /mnt/media'}
+                  value={form.arrRoots}
+                  onChange={(e) => set('arrRoots', e.target.value)}
+                />
+                <span className="mt-1 block">{t('settings.arrRootsHint')}</span>
+              </label>
+            </div>
+            <fieldset className="rounded-lg border border-border-subtle p-3">
+              <Badge as="legend">{t('settings.arrSetup')}</Badge>
+              <p className="text-xs text-t-muted">{t('settings.arrSetupHint')}</p>
+              <dl className="mt-2 grid grid-cols-1 gap-2 text-xs">
+                {rows.map(([id, label, value]) => (
+                  <div key={id} className="flex flex-wrap items-center gap-2">
+                    <dt className="basis-40 shrink-0 text-t-muted">{label}</dt>
+                    <dd className="flex min-w-0 flex-1 items-center gap-2">
+                      <code className="min-w-0 break-all font-mono text-t-secondary">{value}</code>
+                      <Button size="sm" className="shrink-0" onClick={() => copy(id, value)}>
+                        {t('settings.apiTokenCopy')}
+                      </Button>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </fieldset>
+          </>
+        )}
+        {copied && (
+          <p className="text-xs text-ok" role="status">
+            {t('settings.apiTokenCopied')}
+          </p>
+        )}
+        {error && (
+          <p className="text-xs text-err" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    </Panel>
+  )
+}
+
 function TvdbAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
