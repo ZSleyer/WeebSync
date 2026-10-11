@@ -77,7 +77,24 @@ export default function Users() {
             {u.id === meId && <Badge>{t('settings.usersYou')}</Badge>}
             {u.isAdmin && <Badge tone="accent">{t('settings.usersAdmin')}</Badge>}
             {!u.emailVerified && <Badge tone="warn">{t('settings.usersUnverified')}</Badge>}
-            <Button size="sm" disabled={rolesManagedByOidc || toggle.isPending} onClick={() => toggle.mutate(u)}>
+            <Button
+              size="sm"
+              disabled={rolesManagedByOidc || toggle.isPending}
+              onClick={async () => {
+                // demoting yourself takes this very page away at once: ask first
+                if (
+                  u.id === meId &&
+                  u.isAdmin &&
+                  !(await confirm({
+                    message: t('settings.usersConfirmSelfDemote'),
+                    confirmLabel: t('settings.usersRemoveAdmin'),
+                    destructive: true,
+                  }))
+                )
+                  return
+                toggle.mutate(u)
+              }}
+            >
               {u.isAdmin ? t('settings.usersRemoveAdmin') : t('settings.usersMakeAdmin')}
             </Button>
             {settings?.authMode === 'password' && (

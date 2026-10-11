@@ -1029,6 +1029,7 @@
     "usersYou": "du",
     "usersMakeAdmin": "Zum Admin machen",
     "usersRemoveAdmin": "Admin entziehen",
+    "usersConfirmSelfDemote": "Dir selbst die Admin-Rolle entziehen? Du verlierst sofort den Zugriff auf die Einstellungen und die Benutzerliste, und nur ein anderer Admin kann sie dir zurückgeben.",
     "usersConfirmDelete": "Benutzer \"{{email}}\" löschen? Alle Server und Downloads dieses Benutzers werden entfernt.",
     "look": "darstellung",
     "theme": "Theme",
