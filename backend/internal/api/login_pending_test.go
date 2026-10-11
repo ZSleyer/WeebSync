@@ -115,7 +115,7 @@ func TestRecoveryCodeRedeemsOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &Server{DB: d}
-	codes, err := s.regenRecoveryCodes(1)
+	codes, err := s.confirmTotp(1)
 	if err != nil || len(codes) != 10 {
 		t.Fatalf("codes=%d err=%v", len(codes), err)
 	}
@@ -132,7 +132,7 @@ func TestRecoveryCodeRedeemsOnce(t *testing.T) {
 
 func TestLoginTotpAcceptsRecoveryCodeOnce(t *testing.T) {
 	mux, s, token, _ := totpFixture(t)
-	codes, err := s.regenRecoveryCodes(1)
+	codes, err := s.confirmTotp(1)
 	if err != nil {
 		t.Fatal(err)
 	}
