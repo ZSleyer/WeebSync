@@ -45,7 +45,7 @@ func (s *Server) DownloadFinished(d *transfer.Download) {
 		s.replaceOldCopy(d)
 	}
 	// a new episode in a watched folder counts from now on
-	s.forgetLocalVideos()
+	s.forgetUnwatched()
 	s.NotifyDownloadFinished(d)
 	s.NotifyHaDownload(d)
 }

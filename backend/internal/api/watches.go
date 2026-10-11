@@ -1338,7 +1338,10 @@ var epSeasonRe = regexp.MustCompile(`(?i)S(\d+)E(\d+)`)
 // S33 at E31), so only this part's episodes are tallied.
 func (s *Server) countVideos(rel string, minEp int) int {
 	n := 0
-	for _, v := range s.localVideos(rel) {
+	for _, v := range s.localFiles(rel) {
+		if !videoExt[strings.ToLower(filepath.Ext(v.name))] {
+			continue
+		}
 		if minEp > 0 {
 			m := epNumRe.FindStringSubmatch(v.name)
 			if m == nil {
@@ -1476,7 +1479,10 @@ func (s *Server) localEpisodeFiles(rel string) map[int][]DuplicateFile {
 // SxxEyy number (only episodes >= minEp when minEp > 0), with the file's path
 // in the caller's form (rel joined with the path below it) and its size.
 func (s *Server) walkEpisodes(rel string, minEp int, fn func(key int, path string, size int64)) {
-	for _, v := range s.localVideos(rel) {
+	for _, v := range s.localFiles(rel) {
+		if !videoExt[strings.ToLower(filepath.Ext(v.name))] {
+			continue
+		}
 		m := epSeasonRe.FindStringSubmatch(v.name)
 		if m == nil {
 			continue

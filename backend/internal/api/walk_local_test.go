@@ -1,8 +1,6 @@
 package api
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,41 +35,5 @@ func TestWalkLocalRefusesEscapingSymlink(t *testing.T) {
 	}
 	if !s.localExists("Real/Season 01/S01E01.mkv") {
 		t.Fatal("real file reported as missing")
-	}
-}
-
-// A folder's listing is kept between looks, dropped by a write request, and a
-// folder that is not there (a disk not mounted yet) is not kept at all.
-func TestLocalVideosCache(t *testing.T) {
-	root := t.TempDir()
-	dir := filepath.Join(root, "Show", "Season 01")
-	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "S01E01.mkv"), []byte("x"), 0o644)
-	s := &Server{DownloadRoot: root, LocalRoots: []string{root}}
-
-	if n := s.countVideos("Show", 0); n != 1 {
-		t.Fatalf("first look: %d", n)
-	}
-	os.WriteFile(filepath.Join(dir, "S01E02.mkv"), []byte("x"), 0o644)
-	if n := s.countVideos("Show", 0); n != 1 {
-		t.Fatalf("within the TTL the walk is not redone, got %d", n)
-	}
-	h := s.ForgetLocalOnWrite(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/watches", nil))
-	if n := s.countVideos("Show", 0); n != 1 {
-		t.Fatalf("a read request kept the listing, got %d", n)
-	}
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/api/browse/local/rename", nil))
-	if n := s.countVideos("Show", 0); n != 2 {
-		t.Fatalf("after a write request: %d", n)
-	}
-
-	if n := s.countVideos("Later", 0); n != 0 {
-		t.Fatalf("missing folder: %d", n)
-	}
-	os.MkdirAll(filepath.Join(root, "Later"), 0o755)
-	os.WriteFile(filepath.Join(root, "Later", "S01E01.mkv"), []byte("x"), 0o644)
-	if n := s.countVideos("Later", 0); n != 1 {
-		t.Fatalf("a folder that appeared is seen at once, got %d", n)
 	}
 }

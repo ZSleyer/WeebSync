@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"path"
@@ -403,15 +402,11 @@ func (s *Server) copySizes(serverID int64, folder string) map[int64]bool {
 	out := map[int64]bool{}
 	if serverID == 0 {
 		// a "plex:..." key or a path outside the allowed roots walks nothing
-		s.walkLocal(folder, func(_ string, d fs.DirEntry) error {
-			if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
-				return nil
+		for _, f := range s.localFiles(folder) {
+			if videoExt[strings.ToLower(filepath.Ext(f.name))] && f.size > 0 {
+				out[f.size] = true
 			}
-			if fi, ferr := d.Info(); ferr == nil && fi.Size() > 0 {
-				out[fi.Size()] = true
-			}
-			return nil
-		})
+		}
 		return out
 	}
 	rows, err := s.DB.Query(`SELECT name, size FROM remote_index
@@ -1184,16 +1179,12 @@ func outermostCopies(s *Server, locals []UpgradeVariant) []UpgradeVariant {
 
 // localCopyStats counts a local folder's video files and their bytes.
 func (s *Server) localCopyStats(folder string) (files int, bytes int64) {
-	s.walkLocal(folder, func(_ string, d fs.DirEntry) error {
-		if !videoExt[strings.ToLower(filepath.Ext(d.Name()))] {
-			return nil
-		}
-		if fi, ferr := d.Info(); ferr == nil {
+	for _, f := range s.localFiles(folder) {
+		if videoExt[strings.ToLower(filepath.Ext(f.name))] {
 			files++
-			bytes += fi.Size()
+			bytes += f.size
 		}
-		return nil
-	})
+	}
 	return files, bytes
 }
 
