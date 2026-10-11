@@ -1,6 +1,7 @@
 import { ArrowLeft, Folder, Save, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useProviders } from '../hooks'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Dialog, Field, IconButton, Input, Select } from '@weebsync/design-system'
 import { api, ApiError, plexStreamLabel, plexStreamOptions, type SubfolderMode } from '../api'
@@ -99,14 +100,8 @@ export function WatchForm({
   const { t } = useTranslation()
   const confirm = useConfirm()
   const [f, setF] = useState(initial)
-  // TVDB is only offered as a source when a key is set (settings is admin-only;
-  // a 403 just leaves the option hidden)
-  const { data: caps } = useQuery<{ tvdbApiKeySet?: boolean; tmdbApiKeySet?: boolean }>({
-    queryKey: ['settings'],
-    queryFn: () => api.get('/api/settings'),
-    retry: false,
-    staleTime: 5 * 60_000,
-  })
+  // TVDB is only offered as a source when a key is set
+  const caps = useProviders()
   // the rename profile + resolved series match Plex/the provider report
   const { data: detected } = useQuery<RenameProfile>({
     queryKey: ['rename-profile', serverId, f.remotePath, f.localPath, f.renameProvider],

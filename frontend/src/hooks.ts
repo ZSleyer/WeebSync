@@ -32,6 +32,14 @@ export function useAuth() {
   })
 }
 
+// useProviders: which metadata providers have keys, for the source and
+// ordering options. From the user query, since the settings are admin-only:
+// for everyone else the options were always hidden behind a 403.
+export function useProviders() {
+  const { data } = useAuth()
+  return { tvdbApiKeySet: !!data?.tvdbApiKeySet, tmdbApiKeySet: !!data?.tmdbApiKeySet }
+}
+
 // usePersistedQuery: useQuery + localStorage snapshot. The last result shows
 // instantly (marked stale, so a live refetch starts right away and entries
 // may disappear after it) instead of a skeleton on every page load. The
