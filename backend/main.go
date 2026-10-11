@@ -152,7 +152,10 @@ func main() {
 	go srv.RevalidateMatches()         // once per matcher rule set: drop what the rules would not match today
 	go srv.BackfillUnits()             // one-time, self-detecting: fill show_key/season on pre-migration rows
 	go srv.ClearStaleSuggestionCache() // drop cached suggestion blobs once when their format changed
-	go srv.RefreshPlexRoots()          // auto-detect Plex library mounts up front (not just on the hourly index)
+	go func() {
+		srv.RefreshPlexRoots()     // auto-detect Plex library mounts up front (not just on the hourly index)
+		srv.BackfillWatchMatches() // after the roots: a watch is matched in its library's source
+	}()
 	go srv.SweepLoop(rootCtx)
 	go srv.HaAttentionLoop(rootCtx) // webhook push when the needs-attention picture changes
 	go srv.LangProbeLoop(rootCtx)   // measures remote copies an upgrade is waiting on (dials, so not part of the sweep)
