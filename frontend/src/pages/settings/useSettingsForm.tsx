@@ -64,6 +64,8 @@ export interface SettingsState {
   downloadsEnvSet?: boolean // read-only: WEEBSYNC_DOWNLOADS is set
   onboardingDone?: boolean // first-run wizard finished; write-once
   envLocked: string[]
+  // read-only: field -> why its stored value fails the check a save would run
+  fieldIssues?: Record<string, string>
 }
 
 // secrets are write-only: "" keeps the stored value, "-" clears it
@@ -130,7 +132,28 @@ export function useSettingsForm() {
   // the same blanked secrets
   const dirty = !!edited && !!seeded && JSON.stringify(edited) !== JSON.stringify(seeded)
 
-  return { form, set, save, saved, locked, dirty }
+  // what is wrong with one field: the save just refused it (the backend
+  // prefixes the field name), or its stored value broke since it was saved
+  // (host no longer resolves); editing the field hides the latter.
+  const issue = (k: keyof SettingsState) => {
+    const msg = save.error?.message
+    if (msg?.startsWith(`${k}:`)) return msg.slice(k.length + 1).trim()
+    if (data?.fieldIssues?.[k] && form?.[k] === data[k]) return data.fieldIssues[k]
+    return undefined
+  }
+
+  return { form, set, save, saved, locked, dirty, issue }
+}
+
+// Error line under a field, wired to its input via aria-describedby.
+export function FieldIssue({ id, msg }: { id: string; msg?: string }) {
+  const { t } = useTranslation()
+  if (!msg) return null
+  return (
+    <span id={id} className="mt-1 block text-err">
+      {t('settings.fieldIssue', { msg })}
+    </span>
+  )
 }
 
 // Lock icon next to a field label whose value is forced by an env var.

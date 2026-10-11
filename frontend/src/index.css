@@ -786,6 +786,7 @@ summary::-webkit-details-marker { display: none; }
   border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
 }
 .t-input::placeholder { color: var(--text-faint); }
+.t-input[aria-invalid='true'] { border-color: var(--accent-red); }
 /* env-locked and other read-only fields: visibly muted, value stays legible */
 .t-input:disabled, .t-select:disabled {
   color: var(--text-muted);
