@@ -278,7 +278,9 @@
     "totpConfirm": "Confirm & enable",
     "recoveryTitle": "Recovery codes - save them now",
     "recoveryHint": "Each code works once if you lose access to the app. They won't be shown again.",
-    "copy": "Copy"
+    "copy": "Copy",
+    "copied": "Copied to the clipboard.",
+    "copySelect": "Copying is not available here. The codes are selected, copy them yourself."
   },
   "setup": {
     "serverRetry": "Save and test again",
