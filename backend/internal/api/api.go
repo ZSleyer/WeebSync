@@ -95,6 +95,9 @@ type Server struct {
 
 	// per-IP brute-force limiter on the auth endpoints; admin-inspectable
 	authLimiter *ipLimiter
+	// the passkey challenge: the login page asks for one on every visit, so it
+	// gets a budget of its own instead of eating the password attempts
+	challengeLimiter *ipLimiter
 
 	// pending download-notification digests: "userID|category" → items, plus
 	// the flush timer each key is waiting on (restarted on every new item)
@@ -131,6 +134,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	if s.authLimiter == nil {
 		s.authLimiter = newIPLimiter(5, 5, s.ipTrusted)
 	}
+	// a challenge guesses nothing; the cap only keeps the ceremony store small
+	if s.challengeLimiter == nil {
+		s.challengeLimiter = newIPLimiter(60, 30, s.ipTrusted)
+	}
 	mux.HandleFunc("POST /api/auth/register", s.authLimiter.limit(s.handleRegister))
 	mux.HandleFunc("POST /api/auth/login", s.authLimiter.limit(s.handleLogin))
 	mux.HandleFunc("POST /api/auth/login/totp", s.authLimiter.limit(s.handleLoginTotp))
@@ -147,7 +154,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/auth/webauthn/register/finish", authed(http.HandlerFunc(s.handleWebAuthnRegisterFinish)))
 	mux.Handle("GET /api/auth/webauthn/credentials", authed(http.HandlerFunc(s.handleWebAuthnList)))
 	mux.Handle("DELETE /api/auth/webauthn/credentials/{id}", authed(http.HandlerFunc(s.handleWebAuthnDelete)))
-	mux.HandleFunc("POST /api/auth/webauthn/login/begin", s.authLimiter.limit(s.handleWebAuthnLoginBegin))
+	mux.HandleFunc("POST /api/auth/webauthn/login/begin", s.challengeLimiter.limit(s.handleWebAuthnLoginBegin))
 	mux.HandleFunc("POST /api/auth/webauthn/login/finish", s.authLimiter.limit(s.handleWebAuthnLoginFinish))
 	mux.HandleFunc("POST /api/auth/webauthn/2fa/begin", s.authLimiter.limit(s.handleWebAuthn2FABegin))
 	mux.HandleFunc("POST /api/auth/webauthn/2fa/finish", s.authLimiter.limit(s.handleWebAuthn2FAFinish))

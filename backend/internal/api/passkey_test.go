@@ -35,3 +35,22 @@ func TestPasskeyNeedsPassword(t *testing.T) {
 		t.Errorf("passkey for a password account: got %d, want 200: %s", rec.Code, rec.Body)
 	}
 }
+
+// The login page asks for a passkey challenge on every visit. Those requests
+// used to share the password login's five attempts, so five page loads locked
+// out the right password.
+func TestPasskeyChallengeLeavesLoginBudget(t *testing.T) {
+	mux, s, _, _, _, userID := setupUsersTest(t)
+	s.DB.Exec(`INSERT INTO settings (key, value) VALUES ('base_url', 'https://example.com')`)
+	setPassword(t, s, userID, "longenough123")
+	s.DB.Exec(`UPDATE users SET email_verified = 1 WHERE id = ?`, userID)
+
+	for range 8 {
+		if rec := doReq(mux, "POST", "/api/auth/webauthn/login/begin", "", nil); rec.Code != http.StatusOK {
+			t.Fatalf("challenge: got %d: %s", rec.Code, rec.Body)
+		}
+	}
+	if rec := doReq(mux, "POST", "/api/auth/login", `{"email":"user@example.com","password":"longenough123"}`, nil); rec.Code != http.StatusOK {
+		t.Errorf("login after page loads: got %d, want 200: %s", rec.Code, rec.Body)
+	}
+}
