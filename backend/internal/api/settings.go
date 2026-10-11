@@ -186,6 +186,34 @@ type settingsPayload struct {
 	OnboardingDone        bool           `json:"onboardingDone"`         // first-run wizard finished (or an install that predates it)
 	// json field names whose value comes from an env var; the UI locks them
 	EnvLocked []string `json:"envLocked"`
+	// read-only: json field name -> why its stored value now fails the check a
+	// save would run (e.g. the host no longer resolves)
+	FieldIssues map[string]string `json:"fieldIssues,omitempty"`
+}
+
+// checkOutboundURL accepts "" or an absolute http(s) URL whose host passes the
+// netguard. The guard resolves the host, so the answer can change over time.
+func checkOutboundURL(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("must be an absolute http(s) URL")
+	}
+	return netguard.Allowed(u.Hostname())
+}
+
+// fieldIssues re-checks the stored outbound URLs so the UI can mark the one
+// that broke since it was saved, without that blocking any save.
+func fieldIssues(p settingsPayload) map[string]string {
+	out := map[string]string{}
+	for field, v := range map[string]string{"aiBaseUrl": p.AiBaseURL, "aiSearchUrl": p.AiSearchURL, "haWebhookUrl": p.HaWebhookURL} {
+		if err := checkOutboundURL(v); err != nil {
+			out[field] = err.Error()
+		}
+	}
+	return out
 }
 
 func (s *Server) settingsState() settingsPayload {
@@ -195,7 +223,7 @@ func (s *Server) settingsState() settingsPayload {
 	}
 	limit, _ := strconv.ParseInt(db.Setting(s.DB, "global_rate_limit"), 10, 64)
 	smtpPort, _ := strconv.ParseInt(db.SettingOrEnv(s.DB, "smtp_port", "SMTP_PORT"), 10, 64)
-	return settingsPayload{
+	p := settingsPayload{
 		BaseURL:               db.SettingOrEnv(s.DB, "base_url", "WEEBSYNC_BASE_URL"),
 		MaxConcurrent:         conc,
 		GlobalRateLimit:       limit,
@@ -245,6 +273,8 @@ func (s *Server) settingsState() settingsPayload {
 		OnboardingDone:        s.onboardingDone(),
 		EnvLocked:             envLockedFields(),
 	}
+	p.FieldIssues = fieldIssues(p)
+	return p
 }
 
 // onboardingDone reports whether the first-run wizard still has steps to run.
@@ -380,49 +410,31 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	setSetting(s.DB, "base_url", baseURL)
-	// assistant endpoint: empty or an absolute http(s) URL that resolves to a
+	// outbound targets: empty or an absolute http(s) URL that resolves to a
 	// dialable host (the guard refuses metadata/link-local; LAN is fine)
 	aiURL := strings.TrimRight(strings.TrimSpace(in.AiBaseURL), "/")
-	if aiURL != "" {
-		u, err := url.Parse(aiURL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			writeErr(w, http.StatusBadRequest, "aiBaseUrl must be an absolute http(s) URL")
-			return
+	searchURL := strings.TrimRight(strings.TrimSpace(in.AiSearchURL), "/")
+	// Home Assistant webhook: the webhook id in the path is the secret per HA's
+	// own model
+	haURL := strings.TrimSpace(in.HaWebhookURL)
+	for _, f := range []struct{ field, value, stored string }{
+		{"aiBaseUrl", aiURL, db.SettingOrEnv(s.DB, "ai_base_url", "AI_BASE_URL")},
+		{"aiSearchUrl", searchURL, db.SettingOrEnv(s.DB, "ai_search_url", "AI_SEARCH_URL")},
+		{"haWebhookUrl", haURL, db.Setting(s.DB, "ha_webhook_url")},
+	} {
+		// an unchanged value passed when it was saved: a target that stopped
+		// resolving since (its container down) must not block saving some
+		// other page. settingsState flags it on its own field instead.
+		if f.value == f.stored {
+			continue
 		}
-		if err := netguard.Allowed(u.Hostname()); err != nil {
-			writeErr(w, http.StatusBadRequest, "aiBaseUrl: "+err.Error())
+		if err := checkOutboundURL(f.value); err != nil {
+			writeErr(w, http.StatusBadRequest, f.field+": "+err.Error())
 			return
 		}
 	}
 	setSetting(s.DB, "ai_base_url", aiURL)
-	// the web search's SearXNG: same rule as the endpoint
-	searchURL := strings.TrimRight(strings.TrimSpace(in.AiSearchURL), "/")
-	if searchURL != "" {
-		u, err := url.Parse(searchURL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			writeErr(w, http.StatusBadRequest, "aiSearchUrl must be an absolute http(s) URL")
-			return
-		}
-		if err := netguard.Allowed(u.Hostname()); err != nil {
-			writeErr(w, http.StatusBadRequest, "aiSearchUrl: "+err.Error())
-			return
-		}
-	}
 	setSetting(s.DB, "ai_search_url", searchURL)
-	// Home Assistant webhook: outbound POST target, the webhook id in the
-	// path is the secret per HA's own model
-	haURL := strings.TrimSpace(in.HaWebhookURL)
-	if haURL != "" {
-		u, err := url.Parse(haURL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			writeErr(w, http.StatusBadRequest, "haWebhookUrl must be an absolute http(s) URL")
-			return
-		}
-		if err := netguard.Allowed(u.Hostname()); err != nil {
-			writeErr(w, http.StatusBadRequest, "haWebhookUrl: "+err.Error())
-			return
-		}
-	}
 	setSetting(s.DB, "ha_webhook_url", haURL)
 	setSetting(s.DB, "ai_model", strings.TrimSpace(in.AiModel))
 	setSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))

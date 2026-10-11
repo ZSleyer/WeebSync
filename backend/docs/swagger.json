@@ -3986,6 +3986,13 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "fieldIssues": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "description": "read-only: json field name -> why its stored value now fails the check a\nsave would run (e.g. the host no longer resolves)",
+                        "type": "object"
+                    },
                     "forceHttps": {
                         "description": "always mark cookies Secure - for a proxy that terminates TLS",
                         "type": "boolean"
