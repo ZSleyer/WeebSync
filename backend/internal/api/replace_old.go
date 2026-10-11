@@ -38,6 +38,11 @@ func skipTrash(d fs.DirEntry) error {
 	return nil
 }
 
+// isTrashDir says whether a listed entry is a trash folder. The listings leave
+// it out: it is the trash page's business, and a row for it in the library
+// would offer to select, sync or delete it like any folder.
+func isTrashDir(d fs.DirEntry) bool { return d.IsDir() && d.Name() == trashDir }
+
 // DownloadFinished is wired as transfer.OnFinished: an upgrade sync moves the
 // copy it improved on aside, then the owner is told as usual.
 func (s *Server) DownloadFinished(d *transfer.Download) {
