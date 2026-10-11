@@ -40,7 +40,7 @@ type SugItem struct {
 	Year       int             `json:"year,omitempty"`
 	Cover      string          `json:"cover,omitempty"`
 	Media      anilist.Media   `json:"media"`
-	Providers  []string        `json:"providers"`
+	Providers  []string        `json:"providers"` // anilist | tmdb | tvdb | imdb | plex
 	Links      ProviderLinks   `json:"links"`
 	Candidates []plexCandidate `json:"candidates"`
 
@@ -51,7 +51,7 @@ type SugItem struct {
 	Sequel     *anilist.Media `json:"sequel,omitempty"`   // incomplete
 	PlexFolder string         `json:"plexFolder,omitempty"`
 	ShowKey    string         `json:"showKey,omitempty"` // incomplete (missing unit): canonical unit
-	Season     int            `json:"season,omitempty"`
+	Season     int            `json:"season,omitempty"`  // 0 = movie/base
 	IsMovie    bool           `json:"isMovie,omitempty"`
 	Because    []string       `json:"because,omitempty"` // recommended: the finished titles behind it
 	Why        string         `json:"why,omitempty"`     // one line, in the user's language: why this is listed

@@ -148,8 +148,8 @@ type Media struct {
 	// vote count). Comparable within one source, which is all the catalog
 	// sorts across: the metadata source is picked per folder.
 	Popularity int         `json:"popularity,omitempty"`
-	Studios    StudioNames `json:"studios,omitempty"` // main studios/networks
-	StartDate  FuzzyDate   `json:"startDate,omitempty"`
+	Studios    StudioNames `json:"studios,omitempty"`   // main studios/networks
+	StartDate  FuzzyDate   `json:"startDate,omitempty"` // YYYYMMDD, 0 = unknown
 	EndDate    FuzzyDate   `json:"endDate,omitempty"`
 	// ExternalLinks are the streaming and official sites AniList lists for
 	// the title; the Crunchyroll one carries the series id the dub recorder
@@ -616,8 +616,8 @@ func (c *Client) Search(ctx context.Context, q string) ([]Media, error) {
 // rating, Rating the review's upvote count.
 type Review struct {
 	Summary string `json:"summary"`
-	Score   int    `json:"score"`
-	Rating  int    `json:"rating"`
+	Score   int    `json:"score"`  // the reviewer's 0-100 rating
+	Rating  int    `json:"rating"` // upvotes (AniList only)
 	User    struct {
 		Name   string `json:"name"`
 		Avatar struct {
