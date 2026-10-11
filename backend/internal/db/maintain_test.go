@@ -5,6 +5,30 @@ import (
 	"testing"
 )
 
+// A migration that fails midway leaves nothing behind, so the next start runs
+// it from the top instead of tripping over its own first half.
+func TestMigrationIsAtomic(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	err = applyMigration(d, "migrations/999_broken.sql",
+		`ALTER TABLE servers ADD COLUMN half TEXT; INSERT INTO no_such_table VALUES (1);`)
+	if err == nil {
+		t.Fatal("broken migration applied")
+	}
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('servers') WHERE name = 'half'`).Scan(&n)
+	if n != 0 {
+		t.Error("first statement of a failed migration stayed")
+	}
+	d.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE name = 'migrations/999_broken.sql'`).Scan(&n)
+	if n != 0 {
+		t.Error("failed migration recorded")
+	}
+}
+
 // Opening the database looks after it: a file that is mostly free pages after
 // a big delete is rewritten, and the planner gets statistics for the tables.
 func TestOpenCompactsAndAnalyzes(t *testing.T) {
