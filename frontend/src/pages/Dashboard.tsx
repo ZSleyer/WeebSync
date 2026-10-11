@@ -293,10 +293,13 @@ export default function Dashboard() {
   const activeIds = active.map((d) => d.id)
   const historyIds = finished.map((d) => d.id)
   const selectRow = (id: number, shift: boolean) => {
+    // read the anchor now: the updater runs later, after the line below has
+    // already moved it to this row, and the range would shrink to one
+    const anchor = lastClick.current
     setSelected((prev) => {
       const next = new Set(prev)
-      if (shift && lastClick.current !== null) {
-        const a = visibleIds.indexOf(lastClick.current)
+      if (shift && anchor !== null) {
+        const a = visibleIds.indexOf(anchor)
         const b = visibleIds.indexOf(id)
         if (a !== -1 && b !== -1) {
           for (let i = Math.min(a, b); i <= Math.max(a, b); i++) next.add(visibleIds[i])
