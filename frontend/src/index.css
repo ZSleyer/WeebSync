@@ -539,7 +539,7 @@ a.t-label {
 /* press feedback on the weighted buttons; no transform on hover */
 .t-btn--primary:active:not(:disabled),
 .t-btn--danger:active:not(:disabled) { transform: scale(0.98); }
-.t-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.t-btn:is(:disabled, [aria-disabled='true']) { opacity: 0.45; cursor: not-allowed; }
 .t-btn--primary {
   background: var(--accent-blue);
   border-color: var(--accent-blue);
