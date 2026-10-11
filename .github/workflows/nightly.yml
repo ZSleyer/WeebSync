@@ -87,7 +87,7 @@ jobs:
           # :dev is a live channel like :nightly - the add-on follows it, so it
           # must survive the prune. Its per-commit dev-<sha> tags are exactly
           # what should be swept up, which is why only the bare tag is excluded.
-          # Releases (2026.10.1, the 2026.10 line, the old 1.0.0) stay too.
+          # Releases (2026.10.0, the 2026.10 line, the old 1.0.0) stay too.
           exclude-tags: "nightly,dev,latest,20*,1.*"
           delete-untagged: true
           delete-ghost-images: true
