@@ -27,8 +27,8 @@ const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)'
 const EASE_IN = 'cubic-bezier(0.4, 0, 1, 1)'
 // The mark is the wordmark's own W and S: the same Chakra Petch 700 glyphs,
 // the S set 9° oblique and shifted left over the W, whose upper right arm the
-// S cuts away. Measured against the traced mark by overlaying both (the only
-// difference left is a sliver at the S's lower left end), so the move between
+// S cuts away, and the S's lower left end cut short in turn. Measured against
+// the traced mark (public/favicon.svg) by overlaying both, so the move between
 // mark and wordmark is the two letters taking that pose and leaving it - no
 // swap between artwork and type anywhere in it.
 // Glyph metrics in em: cap height, ascent and descent of the font's line box,
@@ -60,6 +60,21 @@ const W_CUT = [
 const ARM = 0.19
 const GROW = 430
 const W_OPEN = W_CUT.map(([x, y], i) => (i >= 4 && i <= 6 ? [x + ARM * GROW, y - GROW] : [x, y]))
+// The S's lower left end in the mark is cut too, on a line parallel to the
+// W's right leg (public/favicon.svg: 653,496 to 633,594), so a gap stays
+// between them; the glyph's own end ran on into the W. Only below the S's
+// middle bar, the rest of its left side is untouched. Opening, the cut slides
+// off to the left along the same line.
+const S_CUT = [
+  [-50, -50],
+  [1100, -50],
+  [1100, 700],
+  [611.4, 700],
+  [682.8, 350],
+  [-50, 350],
+]
+const S_OPEN = S_CUT.map(([x, y], i) => (i === 3 || i === 4 ? [x - 400, y] : [x, y]))
+const SLANT = Math.tan((S_SKEW * Math.PI) / 180)
 const pick = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)]
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -132,14 +147,22 @@ export default function Brand({
       const tx = (s ? mb.left + S_AT * unit : mb.left) - (lb.left + ox)
       const ty = (s ? mb.bottom : mb.top) - (lb.top + oy)
       const u = (CAP * fs) / LOGO_H
+      // mark units into the letter's own box: the W's ink top left is the
+      // mark's 0,0; the S's origin is S_AT on the foot, and the slant is
+      // undone, since the clip is drawn before the letter's transform
+      const local = ([x, y]: number[]) =>
+        s ? [ox + (x - S_AT - SLANT * (y - LOGO_H)) * u, oy + (y - LOGO_H) * u] : [ox + x * u, capTop + y * u]
       const poly = (pts: number[][]) =>
-        `polygon(${pts.map(([x, y]) => `${(ox + x * u).toFixed(1)}px ${(capTop + y * u).toFixed(1)}px`).join(', ')})`
+        `polygon(${pts
+          .map(local)
+          .map(([x, y]) => `${x.toFixed(1)}px ${y.toFixed(1)}px`)
+          .join(', ')})`
       return {
         origin: `${ox.toFixed(1)}px ${oy.toFixed(1)}px`,
         at: `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${k.toFixed(4)}) skewX(${s ? S_SKEW : 0}deg)`,
         home: 'translate(0px, 0px) scale(1) skewX(0deg)',
-        cut: poly(W_CUT),
-        open: poly(W_OPEN),
+        cut: poly(s ? S_CUT : W_CUT),
+        open: poly(s ? S_OPEN : W_OPEN),
       }
     }
     const rest = (which: 'mark' | 'word') => {
@@ -157,6 +180,7 @@ export default function Brand({
         lw.style.clipPath = pw.cut
         ls.style.transformOrigin = ps.origin
         ls.style.transform = ps.at
+        ls.style.clipPath = ps.cut
       }
       if (tag) tag.style.opacity = which === 'word' ? '1' : '0'
     }
@@ -172,7 +196,10 @@ export default function Brand({
         { transform: pw.at, clipPath: pw.cut },
         { transform: pw.home, clipPath: pw.open },
       ]
-      const sk = [{ transform: ps.at }, { transform: ps.home }]
+      const sk = [
+        { transform: ps.at, clipPath: ps.cut },
+        { transform: ps.home, clipPath: ps.open },
+      ]
       return [
         run(lw, toWord ? w : w.toReversed(), { duration, delay, easing }),
         run(ls, toWord ? sk : sk.toReversed(), { duration, delay: delay + 30, easing }),
