@@ -153,10 +153,7 @@ function Section({
           const folder = elsewhere[m.id]
           return (
             <Panel as="article" key={m.id} className="group flex flex-col overflow-clip">
-              <button
-                className="text-left"
-                onClick={() => series.open({ source: 'anilist', id: m.id, media: m })}
-              >
+              <button className="text-left" onClick={() => series.open({ source: 'anilist', id: m.id, media: m })}>
                 <Cover
                   size="fill"
                   src={m.coverImage.extraLarge || m.coverImage.large}
