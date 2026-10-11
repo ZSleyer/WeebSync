@@ -237,7 +237,8 @@ export default function Login() {
         ) : twoFA ? (
           <Panel as="form" className="animate-fadeIn p-6" onSubmit={submitTotp}>
             <h2 className="mb-1 font-display font-semibold tracking-wider">{t('login.totpTitle')}</h2>
-            <p className="mb-4 text-xs text-t-muted">{t('login.totpHint')}</p>
+            {/* with only a security key there is no code field to point at */}
+            <p className="mb-4 text-xs text-t-muted">{twoFA.totp ? t('login.totpHint') : t('login.securityKeyHint')}</p>
             {twoFA.webauthn && (
               <Button className="mb-4 block w-full" disabled={busy} onClick={securityKey2FA}>
                 <KeyRound aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
