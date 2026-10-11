@@ -237,6 +237,7 @@
     "verifyInvalid": "Confirmation link invalid or already used.",
     "totpTitle": "Two-factor verification",
     "totpHint": "Enter the 6-digit code from your authenticator app (or a recovery code).",
+    "securityKeyHint": "Confirm the sign-in with your security key.",
     "twoFactorExpired": "Login expired, please enter your password again.",
     "totpCode": "Code",
     "passkey": "Sign in with a passkey",
