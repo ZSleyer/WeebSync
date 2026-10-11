@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, type AiModels, type AiStatus, type Download, type User } from './api'
 import i18n, { syncLocale } from './locales'
 
@@ -39,6 +39,37 @@ export function useAuth() {
 export function useProviders() {
   const { data } = useAuth()
   return { tvdbApiKeySet: !!data?.tvdbApiKeySet, tmdbApiKeySet: !!data?.tmdbApiKeySet }
+}
+
+// useWholeSave: a setting saved whole (the full list or object in one PUT)
+// for a query key. Built from the rendered data, two quick toggles both sent
+// the old state with one change each, and the later PUT undid the earlier.
+// Here every change applies to the latest cached value at once, the PUTs run
+// one after another, and once the last one settles the server's state is
+// refetched, which also rolls a failed save back. Errors toast globally.
+export function useWholeSave<T>(key: string, save: (next: T) => Promise<unknown>, onSettled?: () => void) {
+  const qc = useQueryClient()
+  const mutationKey = [key, 'save']
+  const m = useMutation({
+    mutationKey,
+    scope: { id: mutationKey.join(':') },
+    mutationFn: save,
+    onSettled: () => {
+      // the settling save still counts as pending here
+      if (qc.isMutating({ mutationKey }) > 1) return
+      void qc.invalidateQueries({ queryKey: [key] })
+      onSettled?.()
+    },
+  })
+  return (change: (cur: T) => T) => {
+    const cur = qc.getQueryData<T>([key])
+    if (cur === undefined) return
+    const next = change(cur)
+    // a refetch already on its way would paint the old state over this one
+    void qc.cancelQueries({ queryKey: [key] })
+    qc.setQueryData([key], next)
+    m.mutate(next)
+  }
 }
 
 // usePersistedQuery: useQuery + localStorage snapshot. The last result shows
