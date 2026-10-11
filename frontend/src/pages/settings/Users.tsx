@@ -76,6 +76,7 @@ export default function Users() {
             </span>
             {u.id === meId && <Badge>{t('settings.usersYou')}</Badge>}
             {u.isAdmin && <Badge tone="accent">{t('settings.usersAdmin')}</Badge>}
+            {!u.emailVerified && <Badge tone="warn">{t('settings.usersUnverified')}</Badge>}
             <Button size="sm" disabled={rolesManagedByOidc || toggle.isPending} onClick={() => toggle.mutate(u)}>
               {u.isAdmin ? t('settings.usersRemoveAdmin') : t('settings.usersMakeAdmin')}
             </Button>

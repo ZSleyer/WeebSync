@@ -335,7 +335,7 @@ export default function Integrations() {
         </div>
       </Panel>
 
-      <Smtp form={form} set={set} locked={locked} />
+      <Smtp form={form} set={set} locked={locked} dirty={dirty} />
       <SaveBar form={form} save={save} saved={saved} />
     </>
   )

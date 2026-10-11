@@ -2447,6 +2447,10 @@ export interface Schemas {
   'api.userInfo': {
     createdAt: string
     email: string
+    /**
+     * false while a self-registered account has not confirmed its address
+     */
+    emailVerified: boolean
     id: number
     isAdmin: boolean
   }

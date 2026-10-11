@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Input, Panel, Select } from '@weebsync/design-system'
+import { api } from '../../api'
 import { EnvBadge, type SettingsState } from './useSettingsForm'
 
 // The SMTP section of the Integrations screen. It takes the screen's form
@@ -9,12 +11,27 @@ export default function Smtp({
   form,
   set,
   locked,
+  dirty,
 }: {
   form: SettingsState
   set: <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => void
   locked: (k: keyof SettingsState) => boolean
+  /** unsaved edits: the test mails with the saved settings, so it waits */
+  dirty: boolean
 }) {
   const { t } = useTranslation()
+  // a wrong host or sender shows up here instead of as a verification mail
+  // that never arrives
+  const [test, setTest] = useState<{ busy?: boolean; ok?: boolean; err?: string }>({})
+  const sendTest = async () => {
+    setTest({ busy: true })
+    try {
+      await api.post('/api/settings/smtp/test')
+      setTest({ ok: true })
+    } catch (e) {
+      setTest({ err: e instanceof Error ? e.message : t('app.error') })
+    }
+  }
   return (
     <Panel as="section" id="email" className="mb-4 p-5" aria-label={t('settings.email')}>
       <Badge tone="accent">{t('settings.email')}</Badge>
@@ -96,6 +113,20 @@ export default function Smtp({
           <span className="mt-1 block">{t('settings.smtpFromHint')}</span>
         </label>
       </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button size="sm" disabled={test.busy || dirty || !form.smtpHost} onClick={sendTest}>
+          {t('settings.smtpTest')}
+        </Button>
+        <span role="status" className="text-xs text-ok empty:hidden">
+          {test.ok ? t('settings.smtpTestSent') : ''}
+        </span>
+        {dirty && <span className="text-xs text-t-muted">{t('settings.smtpTestSaveFirst')}</span>}
+      </div>
+      {test.err && (
+        <p className="mt-2 text-xs text-err" role="alert">
+          {t('settings.smtpTestFailed', { msg: test.err })}
+        </p>
+      )}
     </Panel>
   )
 }

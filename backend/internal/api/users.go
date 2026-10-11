@@ -14,6 +14,8 @@ type userInfo struct {
 	Email     string `json:"email"`
 	IsAdmin   bool   `json:"isAdmin"`
 	CreatedAt string `json:"createdAt"`
+	// false while a self-registered account has not confirmed its address
+	EmailVerified bool `json:"emailVerified"`
 }
 
 // userCreatedResponse is returned when a user is created.
@@ -41,7 +43,7 @@ type userUpdatedResponse struct {
 // @Security     CookieAuth
 // @Router       /api/users [get]
 func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.DB.Query(`SELECT id, email, is_admin, created_at FROM users ORDER BY id`)
+	rows, err := s.DB.Query(`SELECT id, email, is_admin, created_at, email_verified FROM users ORDER BY id`)
 	if err != nil {
 		dbErr(w)
 		return
@@ -50,7 +52,7 @@ func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 	users := []userInfo{}
 	for rows.Next() {
 		var u userInfo
-		if err := rows.Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt, &u.EmailVerified); err != nil {
 			dbErr(w)
 			return
 		}

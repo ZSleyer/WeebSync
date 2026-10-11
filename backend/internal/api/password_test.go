@@ -128,3 +128,27 @@ func TestPasswordResetByMail(t *testing.T) {
 		t.Errorf("login with the new password: %d %s", rec.Code, rec.Body)
 	}
 }
+
+// Verification is only asked for while a mail server can deliver the link;
+// without one the login used to say "check your inbox" for a mail that could
+// never come.
+func TestUnverifiedLoginFollowsMail(t *testing.T) {
+	mux, s, _, _, _, userID := setupUsersTest(t)
+	s.Mail = mailer.New(s.DB)
+	setPassword(t, s, userID, "longenough123")
+	login := `{"email":"user@example.com","password":"longenough123"}`
+
+	if rec := doReq(mux, "POST", "/api/auth/login", login, nil); rec.Code != http.StatusOK {
+		t.Errorf("unverified, no mail server: got %d, want 200: %s", rec.Code, rec.Body)
+	}
+	db.SetSetting(s.DB, "smtp_host", "127.0.0.1")
+	if rec := doReq(mux, "POST", "/api/auth/login", login, nil); rec.Code != http.StatusForbidden {
+		t.Errorf("unverified, mail server set: got %d, want 403", rec.Code)
+	}
+	// no base URL: no link can be built, so no send is stamped either
+	var sent string
+	s.DB.QueryRow(`SELECT verify_sent_at FROM users WHERE id = ?`, userID).Scan(&sent)
+	if sent != "" {
+		t.Errorf("verify_sent_at = %q without a base URL", sent)
+	}
+}

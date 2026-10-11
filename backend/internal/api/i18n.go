@@ -35,6 +35,14 @@ var catalog = map[string]map[string]string{
 		"en": "Confirm your email",
 		"de": "E-Mail bestätigen",
 	},
+	"email.testSubject": {
+		"en": "Test email",
+		"de": "Test-E-Mail",
+	},
+	"email.testBody": {
+		"en": "Mail from WeebSync reaches you: the email settings work.",
+		"de": "Mail von WeebSync kommt bei dir an: die E-Mail-Einstellungen funktionieren.",
+	},
 	"email.resetSubject": {
 		"en": "Set a new password",
 		"de": "Neues Passwort setzen",
