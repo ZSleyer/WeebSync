@@ -64,6 +64,20 @@ func Open(path string) (*sql.DB, error) {
 	return d, nil
 }
 
+// Tx runs fn in a transaction and commits it when fn returns nil, so writes
+// that only make sense together land together or not at all.
+func Tx(d *sql.DB, fn func(*sql.Tx) error) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // Optimize refreshes the query planner's statistics where they are missing or
 // a table has changed a lot since, and does nothing otherwise, so it is cheap
 // to call on every sweep. Without statistics SQLite cannot tell a narrow index
