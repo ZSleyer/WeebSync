@@ -23,3 +23,7 @@ PY
 
 # Only swagger.json is embedded/served; drop the extras swag also writes.
 rm -f docs/swagger.yaml docs/docs.go
+
+# swag marks no field required and none nullable; derive both from the structs
+# so the generated frontend types match what the handlers send.
+go run ./cmd/openapi-tighten docs/swagger.json
