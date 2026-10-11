@@ -6,6 +6,7 @@
     "confirm": "Confirm",
     "cancel": "Cancel",
     "close": "Close",
+    "example": "e.g. {{value}}",
     "confirmTitle": "Confirm",
     "discard": "Discard",
     "keepEditing": "Keep editing",
@@ -123,6 +124,8 @@
       "library": "searches the library",
       "downloads": "reads the queue",
       "airing": "reads the calendar",
+      "recommend": "prepares title cards",
+      "show_upgrades": "prepares upgrade cards",
       "series_seasons": "resolves the seasons"
     },
     "unconfigured": "No assistant endpoint is configured.",
@@ -137,6 +140,8 @@
       "my_watches": { "start": "Reading your auto-syncs…", "done": "{{count}} auto-syncs: {{names}}" },
       "recommend": { "start": "Preparing {{titlesCount}} title cards…", "done": "{{shown}} cards shown.", "doneSkipped": "{{shown}} cards shown, {{skipped}} skipped as already covered: {{skippedNames}}" },
       "show_upgrades": { "start": "Preparing {{keysCount}} upgrade cards…", "done": "{{shown}} upgrade cards shown." },
+      "web_search": { "start": "Searching the web…", "done": "Web search finished." },
+      "fetch_page": { "start": "Reading a page…", "done": "Page read." },
       "propose": { "start": "Checking a {{kind}} of “{{title}}” on {{remotePath}}…", "done": "Proposal accepted.", "rejected": "Rejected: {{reason}}" },
       "search_media": { "start": "Looking up \"{{query}}\" at the providers…", "done": "{{count}} hits: {{names}}" },
       "library": { "start": "Searching the library…", "done": "{{count}} folders in the library: {{names}}" },
@@ -219,6 +224,7 @@
     "copy": "Copy"
   },
   "setup": {
+    "stepOf": "Step {{n}} of {{total}}",
     "title": "First-run setup",
     "step": {
       "account": "Account",
@@ -423,7 +429,7 @@
     "open_one": "Trash, {{count}} entry",
     "open_other": "Trash, {{count}} entries",
     "label": "Trash",
-    "title": "TRASH",
+    "title": "Trash",
     "hint": "Replaced and discarded copies wait here in hidden .weebsync-trash folders beside where they came from, until their time is up or you delete them.",
     "empty0": "The trash is empty.",
     "files_one": "{{count}} file",
@@ -705,6 +711,7 @@
     "tvdbAttribution": "Metadata provided by TheTVDB. Please consider adding missing information or subscribing.",
     "renameOrdering": "Ordering (provider)",
     "renameTitleLang": "Title language",
+    "renameTvdbAbsolute": "TVDB Absolute",
     "renameAuto": "Auto (from Plex)",
     "langAuto": "Auto (system language)",
     "plexDetected": "Detected from Plex: {{ordering}} · {{lang}}",
@@ -1220,6 +1227,7 @@
           "anime-ids": "daily list refresh",
           "rematch-all": "Rematch everything",
           "sweep": "background sweep",
+          "plex-index": "hourly library index",
           "plex-sweep": "Plex pass of the sweep",
           "watch-check": "next auto-sync check"
         },
@@ -1302,6 +1310,7 @@
               "name": "Crunchyroll season map",
               "desc": "Which of a series' seasons on Crunchyroll a watched title is, so the dub release check asks for one episode list an hour. Cheap to rebuild."
             },
+            "animeschedule": { "name": "AnimeSchedule", "desc": "A title's id on AnimeSchedule and the weekly English dub timetables the dub calendar reads. Cheap to rebuild." },
             "plex": {
               "name": "Plex library",
               "desc": "A copy of your Plex library plus the precomputed suggestions. Rebuilding takes a few minutes on a large library."
@@ -1355,6 +1364,7 @@
             "name": "Waiting episodes",
             "desc": "Files already downloaded whose episode number the provider did not know yet. Deleting also forgets that the file was fetched, so the next check downloads it again."
           },
+          "trash": { "name": "Trash list", "desc": "Copies an upgrade sync moved aside, waiting for their grace period to end. Deleting the list leaves the files in their .weebsync-trash folders for cleanup by hand; nothing refills it." },
           "airings": {
             "name": "Calendar history",
             "desc": "What the providers announced as airing slots, kept once they passed - their schedules only ever hand out the future. Deleting it takes the past week from the calendar for good: nothing can fetch it back."
@@ -1603,7 +1613,8 @@
     "have": "Current",
     "better": "Better",
     "openPlex": "Open in Plex",
-    "episodes": "{{count}} episodes",
+    "episodes_one": "{{count}} episode",
+    "episodes_other": "{{count}} episodes",
     "localPath": "Local path",
     "season": "Season {{season}}",
     "localSeasons": "Already in your library",

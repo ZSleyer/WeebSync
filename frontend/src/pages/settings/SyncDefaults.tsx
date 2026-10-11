@@ -186,7 +186,7 @@ export default function SyncDefaults() {
               <option value="">{t('watch.renameAuto')}</option>
               {caps?.tvdbApiKeySet && <option value="tvdb:official">TVDB Aired</option>}
               {caps?.tvdbApiKeySet && <option value="tvdb:dvd">TVDB DVD</option>}
-              {caps?.tvdbApiKeySet && <option value="tvdb:absolute">TVDB Absolut</option>}
+              {caps?.tvdbApiKeySet && <option value="tvdb:absolute">{t('watch.renameTvdbAbsolute')}</option>}
               {caps?.tmdbApiKeySet && <option value="tmdb:aired">TMDB Aired</option>}
             </Select>
           </Field>

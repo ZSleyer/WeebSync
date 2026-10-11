@@ -1210,7 +1210,7 @@ export default function Assistant() {
             if (current.kind === 'watch') {
               await api.post('/api/watches', { serverId: current.serverId, ...f })
               qc.invalidateQueries({ queryKey: ['watches'] })
-              setNotice(t('watch.saved'))
+              setNotice(t('watch.created'))
             } else {
               const r = await api.post<SyncResult>('/api/downloads/sync', { serverId: current.serverId, ...f })
               const why = syncOutcome(r, t)
