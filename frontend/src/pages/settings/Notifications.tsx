@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Button, Checkbox, Panel, Select } from '@weebsync/design-system'
 import { api } from '../../api'
 import { useFailToast } from '../../components/toast'
+import { useWholeSave } from '../../hooks'
 import { pushSubscription, pushSupported, subscribePush, unsubscribePush } from '../../push'
 
 export default function Notifications() {
@@ -153,22 +154,18 @@ interface NotifyPrefs {
 // (instant / hourly / daily) that batches the notification digest.
 function NotifyPrefsSection() {
   const { t } = useTranslation()
-  const qc = useQueryClient()
   const { data } = useQuery<NotifyPrefs>({
     queryKey: ['notify-prefs'],
     queryFn: () => api.get('/api/auth/notify-prefs'),
   })
-  const save = useMutation({
-    mutationFn: (body: { push: string[]; freq: string }) => api.put('/api/auth/notify-prefs', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notify-prefs'] }),
-  })
+  const update = useWholeSave<NotifyPrefs>('notify-prefs', (p) =>
+    api.put('/api/auth/notify-prefs', { push: p.push, freq: p.freq }),
+  )
   if (!data) return null
 
-  const togglePush = (cat: string) => {
-    const push = data.push.includes(cat) ? data.push.filter((c) => c !== cat) : [...data.push, cat]
-    save.mutate({ push, freq: data.freq })
-  }
-  const setFreq = (freq: string) => save.mutate({ push: data.push, freq })
+  const togglePush = (cat: string) =>
+    update((p) => ({ ...p, push: p.push.includes(cat) ? p.push.filter((c) => c !== cat) : [...p.push, cat] }))
+  const setFreq = (freq: string) => update((p) => ({ ...p, freq }))
 
   return (
     <>
