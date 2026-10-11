@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/mail"
@@ -16,6 +17,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
 	"github.com/ch4d1/weebsync/internal/secret"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // validateTrustedNetworks rejects a CSV that contains anything but valid CIDRs
@@ -365,7 +367,7 @@ func (s *Server) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 // handleSettingsPut updates the instance settings.
 //
 // @Summary      Update settings
-// @Description  Updates the instance settings (admin only). Write-only secrets: an empty string keeps the stored value, "-" clears it. Env-locked keys are ignored. Returns the effective settings, including any OIDC reload error.
+// @Description  Updates the instance settings (admin only). Fields left out keep their value, and only values that differ from the stored ones are checked; a refused save writes nothing. Write-only secrets: an empty string keeps the stored value, "-" clears it. Env-locked keys are ignored. Returns the effective settings, including any OIDC reload error.
 // @Tags         Settings
 // @Accept       json
 // @Produce      json
@@ -379,45 +381,58 @@ func (s *Server) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 // @Security     CookieAuth
 // @Router       /api/settings [put]
 func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
-	var in settingsPayload
+	// A save carries the fields its page changed. The body lands on top of the
+	// current state, so a field it leaves out keeps its value, and only a value
+	// that differs from the stored one is checked: a setting on another page
+	// that has gone bad since it was saved (its host stopped resolving) must not
+	// block this save. Nothing is written until every check has passed, and then
+	// all of it in one transaction - a refused save used to keep whatever was
+	// written before the failing check.
+	cur := s.settingsState()
+	in := cur
 	if !readJSON(w, r, &in) {
 		return
 	}
-	if in.MaxConcurrent < 1 || in.MaxConcurrent > 20 {
-		writeErr(w, http.StatusBadRequest, "maxConcurrent must be 1-20")
+	bad := func(field, msg string) {
+		writeErr(w, http.StatusBadRequest, field+": "+msg)
+	}
+	if in.MaxConcurrent != cur.MaxConcurrent && (in.MaxConcurrent < 1 || in.MaxConcurrent > 20) {
+		bad("maxConcurrent", "must be 1-20")
 		return
 	}
-	if in.GlobalRateLimit < 0 {
-		writeErr(w, http.StatusBadRequest, "globalRateLimit must be >= 0")
+	if in.GlobalRateLimit != cur.GlobalRateLimit && in.GlobalRateLimit < 0 {
+		bad("globalRateLimit", "must be >= 0")
 		return
 	}
-	if in.WatchIntervalMin < 5 || in.WatchIntervalMin > 1440 {
-		writeErr(w, http.StatusBadRequest, "watchIntervalMin must be 5-1440")
+	if in.WatchIntervalMin != cur.WatchIntervalMin && (in.WatchIntervalMin < 5 || in.WatchIntervalMin > 1440) {
+		bad("watchIntervalMin", "must be 5-1440")
 		return
 	}
-	switch in.AuthMode {
-	case "password", "oidc-only", "oidc-auto":
-	default:
-		writeErr(w, http.StatusBadRequest, "invalid authMode")
-		return
-	}
-	// OIDC-only/auto without working OIDC would lock everyone out
-	if in.AuthMode != "password" && in.OidcIssuer == "" {
-		writeErr(w, http.StatusBadRequest, "authMode requires an OIDC issuer")
-		return
+	in.OidcIssuer = strings.TrimSpace(in.OidcIssuer)
+	if in.AuthMode != cur.AuthMode || in.OidcIssuer != cur.OidcIssuer {
+		switch in.AuthMode {
+		case "password", "oidc-only", "oidc-auto":
+		default:
+			bad("authMode", "invalid")
+			return
+		}
+		// OIDC-only/auto without working OIDC would lock everyone out
+		if in.AuthMode != "password" && in.OidcIssuer == "" {
+			bad("authMode", "requires an OIDC issuer")
+			return
+		}
 	}
 
 	// instance URL: empty or an absolute http(s) origin
 	baseURL := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")
-	if baseURL != "" {
+	if baseURL != "" && baseURL != cur.BaseURL {
 		u, err := url.Parse(baseURL)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
 			(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
-			writeErr(w, http.StatusBadRequest, "baseUrl must be an absolute http(s) URL")
+			bad("baseUrl", "must be an absolute http(s) URL")
 			return
 		}
 	}
-	setSetting(s.DB, "base_url", baseURL)
 	// outbound targets: empty or an absolute http(s) URL that resolves to a
 	// dialable host (the guard refuses metadata/link-local; LAN is fine)
 	aiURL := strings.TrimRight(strings.TrimSpace(in.AiBaseURL), "/")
@@ -426,193 +441,157 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	// own model
 	haURL := strings.TrimSpace(in.HaWebhookURL)
 	for _, f := range []struct{ field, value, stored string }{
-		{"aiBaseUrl", aiURL, db.SettingOrEnv(s.DB, "ai_base_url", "AI_BASE_URL")},
-		{"aiSearchUrl", searchURL, db.SettingOrEnv(s.DB, "ai_search_url", "AI_SEARCH_URL")},
-		{"haWebhookUrl", haURL, db.Setting(s.DB, "ha_webhook_url")},
+		{"aiBaseUrl", aiURL, cur.AiBaseURL},
+		{"aiSearchUrl", searchURL, cur.AiSearchURL},
+		{"haWebhookUrl", haURL, cur.HaWebhookURL},
 	} {
-		// an unchanged value passed when it was saved: a target that stopped
-		// resolving since (its container down) must not block saving some
-		// other page. settingsState flags it on its own field instead.
 		if f.value == f.stored {
 			continue
 		}
 		if err := checkOutboundURL(f.value); err != nil {
-			writeErr(w, http.StatusBadRequest, f.field+": "+err.Error())
+			bad(f.field, err.Error())
 			return
 		}
 	}
-	setSetting(s.DB, "ai_base_url", aiURL)
-	setSetting(s.DB, "ai_search_url", searchURL)
-	setSetting(s.DB, "ha_webhook_url", haURL)
-	setSetting(s.DB, "ai_model", strings.TrimSpace(in.AiModel))
-	setSetting(s.DB, "max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
-	setSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
-	setSetting(s.DB, "watch_interval_min", strconv.FormatInt(in.WatchIntervalMin, 10))
-	if err := validateTrustedNetworks(in.TrustedNetworks); err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
-		return
+	trustedNetworks := strings.TrimSpace(in.TrustedNetworks)
+	if trustedNetworks != cur.TrustedNetworks {
+		if err := validateTrustedNetworks(trustedNetworks); err != nil {
+			bad("trustedNetworks", err.Error())
+			return
+		}
 	}
 	// The UI may only name concrete proxies. "trust whatever is in front of
 	// me" stays an env-only decision: switched on without a proxy actually
 	// there, any client could forge its own address.
-	if err := validateTrustedNetworks(in.TrustedProxies); err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	setSetting(s.DB, "registration_disabled", strconv.FormatBool(in.RegistrationDisabled))
-	// one-way: the wizard marks itself done, a later save never reopens it
-	if in.OnboardingDone {
-		setSetting(s.DB, "onboarding_done", "true")
-	}
-	setSetting(s.DB, "trusted_networks", strings.TrimSpace(in.TrustedNetworks))
-	setSetting(s.DB, "trusted_proxies", strings.TrimSpace(in.TrustedProxies))
-	setSetting(s.DB, "force_https", strconv.FormatBool(in.ForceHTTPS))
-	// take effect without a restart, and re-read through setSetting so an
-	// env-locked value keeps winning over whatever the form just sent
-	s.applyProxyConfig()
-	setSetting(s.DB, "auth_mode", in.AuthMode)
-	setSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
-	setSetting(s.DB, "oidc_issuer", strings.TrimSpace(in.OidcIssuer))
-	setSetting(s.DB, "oidc_client_id", strings.TrimSpace(in.OidcClientID))
-	setSetting(s.DB, "oidc_redirect_url", strings.TrimSpace(in.OidcRedirectURL))
-	setSetting(s.DB, "oidc_claim", in.OidcClaim)
-	setSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
-	setSetting(s.DB, "oidc_user_values", in.OidcUserValues)
-	setSetting(s.DB, "plex_url", strings.TrimSpace(in.PlexURL))
-	setSetting(s.DB, "plex_sections", in.PlexSections)
-	setSetting(s.DB, "plex_skip_owned", strconv.FormatBool(in.PlexSkipOwned))
-	// both of these decide what indexPlexLibrary writes onto every local row, so
-	// a change has to reach the rows rather than wait out the hourly gate: clear
-	// the stamp and the next sweep tick re-indexes.
-	if in.PlexSectionSources != db.Setting(s.DB, "plex_section_sources") ||
-		in.PlexSectionAnime != db.Setting(s.DB, "plex_section_anime") {
-		setSetting(s.DB, "plex_indexed_at", "")
-	}
-	setSetting(s.DB, "plex_section_sources", in.PlexSectionSources)
-	setSetting(s.DB, "plex_section_anime", in.PlexSectionAnime)
-	setSetting(s.DB, "plex_roots", normalizeRoots(in.PlexRoots))
-	// the mapping first: its local side widens the roots the folder is
-	// checked against
-	setSetting(s.DB, "arr_roots", normalizeRoots(in.ArrRoots))
-	if dir := strings.TrimSpace(in.ArrCompleteDir); dir != "" {
-		if _, err := s.safeLocal(dir); err != nil {
-			writeErr(w, http.StatusBadRequest, "arrCompleteDir: "+err.Error())
+	trustedProxies := strings.TrimSpace(in.TrustedProxies)
+	if trustedProxies != cur.TrustedProxies {
+		if err := validateTrustedNetworks(trustedProxies); err != nil {
+			bad("trustedProxies", err.Error())
 			return
 		}
 	}
-	setSetting(s.DB, "arr_complete_dir", strings.TrimSpace(in.ArrCompleteDir))
+	arrDir := strings.TrimSpace(in.ArrCompleteDir)
+	arrRoots := normalizeRoots(in.ArrRoots)
+	if arrDir != "" && (arrDir != cur.ArrCompleteDir || arrRoots != cur.ArrRoots) {
+		// the mapping's local side widens the roots the folder is checked
+		// against, so the roots this save brings count already.
+		// ponytail: a mapping this save removes still counts until it is written
+		roots := s.localRoots()
+		extra, _ := parsePlexRoots(arrRoots)
+		if _, err := transfer.ResolveLocal(append(roots, extra...), arrDir); err != nil {
+			bad("arrCompleteDir", err.Error())
+			return
+		}
+	}
+	if in.SmtpSecurity != cur.SmtpSecurity {
+		switch in.SmtpSecurity {
+		case "", "starttls", "tls", "none":
+		default:
+			bad("smtpSecurity", "invalid")
+			return
+		}
+	}
+	if in.SmtpPort != cur.SmtpPort && (in.SmtpPort < 0 || in.SmtpPort > 65535) {
+		bad("smtpPort", "must be 0-65535")
+		return
+	}
+	// the from address becomes the SMTP envelope sender: a bare name gets
+	// SRS-rewritten by relays into garbage and flagged as spam
+	smtpFrom := strings.TrimSpace(in.SmtpFrom)
+	if smtpFrom != "" && smtpFrom != cur.SmtpFrom {
+		if _, err := mail.ParseAddress(smtpFrom); err != nil {
+			bad("smtpFrom", "must be a valid email address")
+			return
+		}
+	}
+
+	var writes settingWrites
+	writes.set("base_url", baseURL)
+	writes.set("ai_base_url", aiURL)
+	writes.set("ai_search_url", searchURL)
+	writes.set("ha_webhook_url", haURL)
+	writes.set("ai_model", strings.TrimSpace(in.AiModel))
+	writes.set("max_concurrent", strconv.FormatInt(in.MaxConcurrent, 10))
+	writes.set("global_rate_limit", strconv.FormatInt(in.GlobalRateLimit, 10))
+	writes.set("watch_interval_min", strconv.FormatInt(in.WatchIntervalMin, 10))
+	writes.set("registration_disabled", strconv.FormatBool(in.RegistrationDisabled))
+	// one-way: the wizard marks itself done, a later save never reopens it
+	if in.OnboardingDone {
+		writes.set("onboarding_done", "true")
+	}
+	writes.set("trusted_networks", trustedNetworks)
+	writes.set("trusted_proxies", trustedProxies)
+	writes.set("force_https", strconv.FormatBool(in.ForceHTTPS))
+	writes.set("auth_mode", in.AuthMode)
+	writes.set("oidc_provider_name", in.OidcProviderName)
+	writes.set("oidc_issuer", in.OidcIssuer)
+	writes.set("oidc_client_id", strings.TrimSpace(in.OidcClientID))
+	writes.set("oidc_redirect_url", strings.TrimSpace(in.OidcRedirectURL))
+	writes.set("oidc_claim", in.OidcClaim)
+	writes.set("oidc_admin_values", in.OidcAdminValues)
+	writes.set("oidc_user_values", in.OidcUserValues)
+	writes.set("plex_url", strings.TrimSpace(in.PlexURL))
+	writes.set("plex_sections", in.PlexSections)
+	writes.set("plex_skip_owned", strconv.FormatBool(in.PlexSkipOwned))
+	// both of these decide what indexPlexLibrary writes onto every local row, so
+	// a change has to reach the rows rather than wait out the hourly gate: clear
+	// the stamp and the next sweep tick re-indexes.
+	if in.PlexSectionSources != cur.PlexSectionSources || in.PlexSectionAnime != cur.PlexSectionAnime {
+		writes.set("plex_indexed_at", "")
+	}
+	writes.set("plex_section_sources", in.PlexSectionSources)
+	writes.set("plex_section_anime", in.PlexSectionAnime)
+	writes.set("plex_roots", normalizeRoots(in.PlexRoots))
+	writes.set("arr_roots", arrRoots)
+	writes.set("arr_complete_dir", arrDir)
+	writes.set("anilist_client_id", strings.TrimSpace(in.AnilistClientID))
+	writes.set("anilist_redirect_url", strings.TrimSpace(in.AnilistRedirectURL))
+	writes.set("smtp_host", strings.TrimSpace(in.SmtpHost))
+	writes.set("smtp_port", strconv.FormatInt(in.SmtpPort, 10))
+	writes.set("smtp_username", in.SmtpUsername)
+	writes.set("smtp_from", smtpFrom)
+	writes.set("smtp_security", in.SmtpSecurity)
+	// secrets are write-only: "" keeps the stored value, "-" clears it.
+	// Trimmed: IDs/secrets/keys are pasted and stray whitespace breaks
+	// authentication in ways that are invisible in the UI. The SMTP password
+	// is taken as typed.
+	for _, sec := range []struct{ key, value string }{
+		{"anilist_client_secret", strings.TrimSpace(in.AnilistClientSecret)},
+		{"tmdb_api_key", strings.TrimSpace(in.TmdbApiKey)},
+		{"tvdb_api_key", strings.TrimSpace(in.TvdbApiKey)},
+		{"animeschedule_token", strings.TrimSpace(in.AnimescheduleToken)},
+		{"ai_api_key", strings.TrimSpace(in.AiApiKey)},
+		{"plex_token", strings.TrimSpace(in.PlexToken)},
+		{"oidc_client_secret", strings.TrimSpace(in.OidcClientSecret)},
+		{"smtp_password", in.SmtpPassword},
+	} {
+		if sec.value == "" {
+			continue
+		}
+		if sec.value == "-" {
+			sec.value = ""
+		}
+		enc, err := secret.EncodeSetting(sec.value)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "encrypt error")
+			return
+		}
+		writes.set(sec.key, enc)
+	}
+	if err := writes.commit(s.DB); err != nil {
+		slog.Error("settings save failed", "err", err)
+		writeErr(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	// take effect without a restart, and re-read through the settings so an
+	// env-locked value keeps winning over whatever the form just sent
+	s.applyProxyConfig()
 	// the Plex roots widen the local-path allowlist (ffprobe + one-off sync into
 	// the library); refresh the transfer manager's copy so downloads there pass,
 	// and re-detect the auto roots from Plex in case the connection just changed
 	s.Transfers.Roots = s.localRoots()
 	go s.refreshPlexRoots()
-	setSetting(s.DB, "anilist_client_id", strings.TrimSpace(in.AnilistClientID))
-	setSetting(s.DB, "anilist_redirect_url", strings.TrimSpace(in.AnilistRedirectURL))
-	saveSecret := func(key, value string) bool {
-		if err := setSecretSetting(s.DB, key, value); err != nil {
-			writeErr(w, http.StatusInternalServerError, "encrypt error")
-			return false
-		}
-		return true
-	}
-	// secrets are write-only: "" keeps the stored value, "-" clears it.
-	// Trimmed: IDs/secrets/keys are pasted and stray whitespace breaks
-	// authentication in ways that are invisible in the UI.
-	if v := strings.TrimSpace(in.AnilistClientSecret); v == "-" {
-		if !saveSecret("anilist_client_secret", "") {
-			return
-		}
-	} else if v != "" {
-		if !saveSecret("anilist_client_secret", v) {
-			return
-		}
-	}
-	if v := strings.TrimSpace(in.TmdbApiKey); v == "-" {
-		if !saveSecret("tmdb_api_key", "") {
-			return
-		}
-	} else if v != "" {
-		if !saveSecret("tmdb_api_key", v) {
-			return
-		}
-	}
-	if v := strings.TrimSpace(in.TvdbApiKey); v == "-" {
-		if !saveSecret("tvdb_api_key", "") {
-			return
-		}
-	} else if v != "" {
-		if !saveSecret("tvdb_api_key", v) {
-			return
-		}
-	}
-	if v := strings.TrimSpace(in.AnimescheduleToken); v == "-" {
-		if !saveSecret("animeschedule_token", "") {
-			return
-		}
-	} else if v != "" {
-		if !saveSecret("animeschedule_token", v) {
-			return
-		}
-	}
-	if v := strings.TrimSpace(in.AiApiKey); v == "-" {
-		if !saveSecret("ai_api_key", "") {
-			return
-		}
-	} else if v != "" {
-		if !saveSecret("ai_api_key", v) {
-			return
-		}
-	}
-	if v := strings.TrimSpace(in.PlexToken); v == "-" {
-		if !saveSecret("plex_token", "") {
-			return
-		}
-	} else if v != "" {
-		if !saveSecret("plex_token", v) {
-			return
-		}
-	}
-	if v := strings.TrimSpace(in.OidcClientSecret); v == "-" {
-		if !saveSecret("oidc_client_secret", "") {
-			return
-		}
-	} else if v != "" {
-		if !saveSecret("oidc_client_secret", v) {
-			return
-		}
-	}
-
-	// SMTP
-	switch in.SmtpSecurity {
-	case "", "starttls", "tls", "none":
-	default:
-		writeErr(w, http.StatusBadRequest, "invalid smtpSecurity")
-		return
-	}
-	// the from address becomes the SMTP envelope sender: a bare name gets
-	// SRS-rewritten by relays into garbage and flagged as spam
-	if f := strings.TrimSpace(in.SmtpFrom); f != "" {
-		if _, err := mail.ParseAddress(f); err != nil {
-			writeErr(w, http.StatusBadRequest, "smtpFrom must be a valid email address")
-			return
-		}
-	}
-	setSetting(s.DB, "smtp_host", strings.TrimSpace(in.SmtpHost))
-	setSetting(s.DB, "smtp_port", strconv.FormatInt(in.SmtpPort, 10))
-	setSetting(s.DB, "smtp_username", in.SmtpUsername)
-	setSetting(s.DB, "smtp_from", strings.TrimSpace(in.SmtpFrom))
-	setSetting(s.DB, "smtp_security", in.SmtpSecurity)
-	// password is write-only and stored encrypted: "" keeps, "-" clears
-	if in.SmtpPassword == "-" {
-		if !saveSecret("smtp_password", "") {
-			return
-		}
-	} else if in.SmtpPassword != "" {
-		if !saveSecret("smtp_password", in.SmtpPassword) {
-			return
-		}
-	}
-
 	s.Transfers.SettingsChanged()
 	// rebuild the OIDC provider; the client sees the effective config + error
 	out := s.settingsState()
@@ -621,6 +600,28 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	}
 	out.OidcEnabled = s.OIDC.Enabled()
 	writeJSON(w, http.StatusOK, out)
+}
+
+// settingWrites holds a save's writes until every check has passed. Env-locked
+// keys are left out: a DB write would be shadowed by the env value and quietly
+// resurface once the variable is unset.
+type settingWrites []struct{ key, value string }
+
+func (ws *settingWrites) set(key, value string) {
+	if !envLocked(key) {
+		*ws = append(*ws, struct{ key, value string }{key, value})
+	}
+}
+
+func (ws settingWrites) commit(d *sql.DB) error {
+	return db.Tx(d, func(tx *sql.Tx) error {
+		for _, w := range ws {
+			if err := db.SetSetting(tx, w.key, w.value); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // ownsEvent checks the userId field of a progress event without a full struct.

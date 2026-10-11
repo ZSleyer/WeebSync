@@ -43,3 +43,50 @@ func TestSettingsPutSkipsUnchangedBrokenURL(t *testing.T) {
 		t.Errorf("changed blocked URL: got %d %s, want 400 naming haWebhookUrl", rec.Code, rec.Body)
 	}
 }
+
+// A refused save writes nothing: before, every field written ahead of the
+// failing check stayed saved.
+func TestSettingsPutRefusedWritesNothing(t *testing.T) {
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	s.OIDC = auth.NewManager(context.Background(), s.DB)
+	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
+
+	rec := doReq(mux, "PUT", "/api/settings",
+		`{"maxConcurrent":9,"baseUrl":"https://example.com","trustedNetworks":"nope!!"}`, adminC)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "trustedNetworks:") {
+		t.Fatalf("got %d %s, want 400 naming trustedNetworks", rec.Code, rec.Body)
+	}
+	if v := db.Setting(s.DB, "max_concurrent"); v != "" {
+		t.Errorf("max_concurrent = %q after a refused save", v)
+	}
+	if v := db.Setting(s.DB, "base_url"); v != "" {
+		t.Errorf("base_url = %q after a refused save", v)
+	}
+}
+
+// A save carries only what its page changed: the rest keeps its value, and a
+// stored value that would fail its check now does not block it.
+func TestSettingsPutPartial(t *testing.T) {
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	s.OIDC = auth.NewManager(context.Background(), s.DB)
+	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
+	db.SetSetting(s.DB, "smtp_from", "Just A Name") // invalid, but stored before
+	db.SetSetting(s.DB, "plex_url", "http://plex.example.com")
+
+	if rec := doReq(mux, "PUT", "/api/settings", `{"maxConcurrent":5}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("partial save: %d %s", rec.Code, rec.Body)
+	}
+	if v := db.Setting(s.DB, "max_concurrent"); v != "5" {
+		t.Errorf("max_concurrent = %q, want 5", v)
+	}
+	if v := db.Setting(s.DB, "plex_url"); v != "http://plex.example.com" {
+		t.Errorf("plex_url = %q, an omitted field changed", v)
+	}
+	if v := db.Setting(s.DB, "smtp_from"); v != "Just A Name" {
+		t.Errorf("smtp_from = %q, an omitted field changed", v)
+	}
+	rec := doReq(mux, "PUT", "/api/settings", `{"smtpPort":70000}`, adminC)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "smtpPort:") {
+		t.Errorf("smtp port 70000: got %d %s, want 400", rec.Code, rec.Body)
+	}
+}

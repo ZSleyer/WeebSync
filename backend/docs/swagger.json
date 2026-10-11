@@ -14629,7 +14629,7 @@
         },
         "/api/settings": {
             "put": {
-                "description": "Updates the instance settings (admin only). Write-only secrets: an empty string keeps the stored value, \"-\" clears it. Env-locked keys are ignored. Returns the effective settings, including any OIDC reload error.",
+                "description": "Updates the instance settings (admin only). Fields left out keep their value, and only values that differ from the stored ones are checked; a refused save writes nothing. Write-only secrets: an empty string keeps the stored value, \"-\" clears it. Env-locked keys are ignored. Returns the effective settings, including any OIDC reload error.",
                 "requestBody": {
                     "content": {
                         "application/json": {
