@@ -10,7 +10,7 @@ import { FileBrowser, LocalPicker } from './FileBrowser'
 import { FsErrorNote, isFsErrorCode } from './FsErrorNote'
 import PathInput from './PathInput'
 import PlexShowField, { usePlexShow } from './PlexShowField'
-import RenameOptions, { Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
+import RenameOptions, { FromEpisodeField, Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
 import RenamePreview from './RenamePreview'
 import { useRenamePreview } from './useRenamePreview'
 import SubfolderChoice from './SubfolderChoice'
@@ -373,7 +373,9 @@ export function WatchForm({
                 <option value="anilist:manga">AniList (Manga, Light Novel)</option>
                 <option value="tmdb:tv">TMDB Serie</option>
                 <option value="tmdb:movie">TMDB Film</option>
-                {(caps?.tvdbApiKeySet || f.mediaSource === 'tvdb') && <option value="tvdb">TVDB Serie</option>}
+                {(caps?.tvdbApiKeySet || f.mediaSource === 'tvdb') && (
+                  <option value="tvdb">TVDB Serie</option>
+                )}
               </Select>
             </Field>
             <Field label={t('watch.mediaId')} htmlFor="watch-mediaid">
@@ -396,6 +398,9 @@ export function WatchForm({
               />
             </Field>
           </div>
+          {/* which of the record's episodes the local folder is held against;
+              it counts with or without renaming, so it lives here */}
+          {!manga && <FromEpisodeField rule={f} onChange={(patch) => setF({ ...f, ...patch })} idPrefix="watch" />}
         </section>
 
         {/* dub, subtitles, Plex tracks and episode names say nothing about a
@@ -513,6 +518,7 @@ export function WatchForm({
                     caps={caps}
                     detected={detected}
                     idPrefix="watch"
+                    countField={false}
                     seriesQuery={f.remotePath.split('/').filter(Boolean).slice(-1)[0] || ''}
                     seasonFolder={{
                       name: f.localPath.split('/').findLast(Boolean) || '',
