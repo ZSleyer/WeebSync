@@ -85,8 +85,10 @@ const BLANK_SECRETS = {
 }
 
 // Shared admin form: each settings sub-page seeds from GET /api/settings and
-// saves the full state - safe per-page because PUT validates the complete
-// payload and untouched secrets stay "" (no-op).
+// saves only the fields that differ from it. The backend keeps what a save
+// leaves out and checks only what changed, so a stale tab no longer reverts
+// another tab's save, and a value on another page that went bad since does
+// not block this one.
 export function useSettingsForm() {
   const qc = useQueryClient()
   const { data } = useQuery<SettingsState>({
@@ -101,7 +103,15 @@ export function useSettingsForm() {
 
   const save = useMutation({
     meta: { silent: true },
-    mutationFn: (s: SettingsState) => api.put<SettingsState>('/api/settings', s),
+    mutationFn: (s: SettingsState) =>
+      api.put<SettingsState>(
+        '/api/settings',
+        // compared with the fetched state, not the seeded form: a default the
+        // form fills in (oidcClaim "groups") is a change the backend has to get
+        Object.fromEntries(
+          Object.entries(s).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(data?.[k as keyof SettingsState])),
+        ),
+      ),
     onSuccess: (fresh) => {
       qc.setQueryData(['settings'], fresh)
       // dependent queries gate UI on the saved config (AniList connect button,
@@ -116,9 +126,14 @@ export function useSettingsForm() {
         'tmdb-me',
         'tmdb-suggestions',
         'tvdb-me',
+        'animeschedule-me',
+        'ai-status',
+        'ai-models',
       ])
         qc.invalidateQueries({ queryKey: [key] })
-      setForm({ ...fresh, ...BLANK_SECRETS })
+      // back to the seeded form: a copy of `fresh` would read as dirty as soon
+      // as a refetch changed anything in `data` (a false unsaved warning)
+      setForm(null)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
