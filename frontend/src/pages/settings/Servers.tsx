@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Lock, LockOpen, Pencil, Plus, PlugZap, Save, Trash2, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -178,8 +178,22 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   const [protocol, setProtocol] = useState(editing?.protocol ?? 'sftp')
   const [icon, setIcon] = useState(editing?.icon ?? '')
   const [color, setColor] = useState(editing?.color ?? '')
-  // uncontrolled form: any input change marks it dirty for the close guard
+  // uncontrolled form: any input change marks it dirty for the close guard;
+  // the icon and colour pickers are buttons, not inputs, so they mark it
+  // themselves (a form change event never fires for them)
   const [dirty, setDirty] = useState(false)
+  const pickIcon = (v: string) => {
+    setIcon(v)
+    setDirty(true)
+  }
+  const pickColor = (v: string) => {
+    setColor(v)
+    setDirty(true)
+  }
+  // a second Enter or click while the first save is in flight would create
+  // the server twice; the ref closes the gap before the disabled re-render
+  const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
   // Dialog asks this before Escape or a backdrop click closes it
   const mayClose = async () => {
     if (
@@ -208,6 +222,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (busyRef.current) return
     const fd = new FormData(e.currentTarget)
     const body = {
       name: fd.get('name'),
@@ -222,6 +237,8 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
       color,
     }
     setError('')
+    busyRef.current = true
+    setBusy(true)
     try {
       if (editing) await api.put(`/api/servers/${editing.id}`, body)
       else await api.post('/api/servers', body)
@@ -230,6 +247,9 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
+    } finally {
+      busyRef.current = false
+      setBusy(false)
     }
   }
 
@@ -253,7 +273,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             <Segmented
               aria-label={t('servers.icon')}
               value={icon}
-              onChange={setIcon}
+              onChange={pickIcon}
               options={[
                 { value: '', label: t('servers.iconNone') },
                 ...Object.keys(SERVER_ICONS).map((k) => ({
@@ -266,7 +286,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
           </Field>
           {/* the tint of this server's entries where sources meet, e.g. in the search */}
           <Field label={t('servers.color')} className="sm:col-span-2">
-            <ColorChoice value={color} onChange={setColor} auto={editing ? serverColor(editing.id) : undefined} />
+            <ColorChoice value={color} onChange={pickColor} auto={editing ? serverColor(editing.id) : undefined} />
           </Field>
           <Field label={t('servers.protocol')}>
             <Select
@@ -337,7 +357,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.cancel')}
           </Button>
-          <Button type="submit" variant="primary">
+          <Button type="submit" variant="primary" disabled={busy}>
             <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.save')}
           </Button>
