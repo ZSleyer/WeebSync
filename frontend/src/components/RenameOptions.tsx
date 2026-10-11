@@ -277,6 +277,35 @@ export function TitleSearch({ value, onChange }: { value: string; onChange: (v: 
   )
 }
 
+/** The "count from episode N" field: which local episodes a watch counts. */
+export function FromEpisodeField({
+  rule,
+  onChange,
+  idPrefix,
+}: {
+  rule: Pick<RenameRule, 'fromEpisode'>
+  onChange: (patch: Partial<RenameRule>) => void
+  idPrefix: string
+}) {
+  const { t } = useTranslation()
+  return (
+    <div>
+      <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor={`${idPrefix}-fromep`}>
+        {t('watch.fromEpisode')}
+        <Hint text={t('watch.fromEpisodeHint')} />
+      </label>
+      <Input
+        id={`${idPrefix}-fromep`}
+        type="number"
+        className="font-mono"
+        value={rule.fromEpisode || ''}
+        placeholder={t('common.example', { value: '26 (Dr. Stone S4E26)' })}
+        onChange={(e) => onChange({ fromEpisode: Number(e.target.value) || 0 })}
+      />
+    </div>
+  )
+}
+
 // RenameOptions is the full rename rule editor: mode switch, template or
 // regex, and the provider layer (localized title, aired-order mapping, series
 // binding). Used by the watch dialog and the rename page, so both offer the
@@ -289,6 +318,7 @@ export default function RenameOptions({
   idPrefix,
   seriesQuery,
   seasonFolder,
+  countField = true,
 }: {
   rule: RenameRule
   onChange: (patch: Partial<RenameRule>) => void
@@ -300,6 +330,9 @@ export default function RenameOptions({
   // set when the target folder can be moved up one level; the warning and its
   // fix button only make sense where a target folder is editable
   seasonFolder?: { name: string; onUseParent: () => void } | null
+  // "count from episode N" is about counting, not naming; the watch dialog
+  // shows it outside the rename options, so it stays visible with rename off
+  countField?: boolean
 }) {
   const { t } = useTranslation()
   const [pickOpen, setPickOpen] = useState(false)
@@ -388,20 +421,7 @@ export default function RenameOptions({
         </div>
       )}
 
-      <div>
-        <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor={`${idPrefix}-fromep`}>
-          {t('watch.fromEpisode')}
-          <Hint text={t('watch.fromEpisodeHint')} />
-        </label>
-        <Input
-          id={`${idPrefix}-fromep`}
-          type="number"
-          className="font-mono"
-          value={rule.fromEpisode || ''}
-          placeholder={t('common.example', { value: '26 (Dr. Stone S4E26)' })}
-          onChange={(e) => onChange({ fromEpisode: Number(e.target.value) || 0 })}
-        />
-      </div>
+      {countField && <FromEpisodeField rule={rule} onChange={onChange} idPrefix={idPrefix} />}
 
       {rule.mode === 'template' && (
         <div className="space-y-4 border-t border-border-subtle pt-4">
