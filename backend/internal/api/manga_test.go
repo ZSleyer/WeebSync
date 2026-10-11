@@ -58,6 +58,11 @@ func TestMangaScope(t *testing.T) {
 	if fn := s.watchNameFn(w); fn != nil {
 		t.Errorf("manga watch renamed to %q", fn("Monster 01.cbz"))
 	}
+	// nor does a dub default hold its volumes back
+	w.WantDub = "Ger"
+	if s.watchLangFilter(w) != nil {
+		t.Error("manga watch got a language filter")
+	}
 }
 
 func TestMangaNames(t *testing.T) {
