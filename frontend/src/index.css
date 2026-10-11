@@ -2482,6 +2482,16 @@ li.t-swiperow { border-radius: 0; }
   transition: opacity var(--dur-2) var(--ease-out), scale var(--dur-2) var(--ease-out);
 }
 .t-player-spinner { grid-column: 2; grid-row: 1; --media-loading-icon-width: 56px; }
+.t-player-step {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: center;
+  margin-top: 0.75rem;
+  background: var(--pl-surface);
+  backdrop-filter: var(--pl-blur);
+}
+/* the words follow media-chrome's own spinner, so they never outstay it */
+.t-player:not([medialoading]) .t-player-step:not(.t-player-chip--err) { display: none; }
 .t-player-flash {
   justify-self: center;
   min-width: 5.5rem;
