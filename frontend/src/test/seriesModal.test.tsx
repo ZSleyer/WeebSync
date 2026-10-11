@@ -235,8 +235,11 @@ describe('SeriesModalProvider', () => {
     fireEvent.click(screen.getByText('öffnen'))
     expect(screen.queryByRole('link', { name: /series.tab.episodes/ })).toBeNull()
     // one page: cast, similar and community stand under the overview
-    expect(screen.getByRole('region', { name: 'series.tab.cast' })).toBeInTheDocument()
-    expect((await screen.findAllByRole('status'))[0]).toHaveTextContent('series.unavailable')
+    const cast = screen.getByRole('region', { name: 'series.tab.cast' })
+    // while the extras are on their way the section says so, not a bare heading
+    expect(within(cast).getByRole('status')).toHaveTextContent('app.loading')
+    await waitFor(() => expect(within(cast).getByRole('status')).toHaveTextContent('series.unavailable'))
+    expect(within(cast).queryByText('app.loading')).toBeNull()
   })
 
   it('marks the section in view and jumps to a section from the row', async () => {
