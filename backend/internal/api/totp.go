@@ -170,6 +170,7 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 // @Success  200 {object} OkResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/totp [delete]
 func (s *Server) handleTotpDisable(w http.ResponseWriter, r *http.Request) {

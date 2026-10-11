@@ -97,6 +97,7 @@ func (s *Server) handleWatchPlexShow(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		404	{object}	ErrorResponse
 //	@Failure		409	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Failure		503	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/watches/{id}/plex-show [put]
