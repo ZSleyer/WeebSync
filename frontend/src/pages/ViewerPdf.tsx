@@ -7,7 +7,7 @@ import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-d
 // eslint-disable-next-line import/default
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import Loading from '../components/Loading'
-import { streamUrl } from '../components/playLinks'
+import { doneKey, streamUrl } from '../components/playLinks'
 import { Paged } from './Viewer'
 
 GlobalWorkerOptions.workerSrc = workerUrl
@@ -44,6 +44,7 @@ export default function ViewerPdf({ server, path }: { server: number; path: stri
     <Paged
       count={pdf.numPages}
       page={`viewer.page:${server}:${path}`}
+      done={doneKey(server, path)}
       direction="western"
       label={path.split('/').pop() ?? ''}
       render={(i, fit) => (
