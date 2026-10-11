@@ -63,6 +63,16 @@ The data dir must belong to that user too: `mkdir -p data && chown 1000:1000 dat
 
 The compose file drops all capabilities, sets `no-new-privileges` and mounts the root filesystem read-only - keep those lines when you adapt it. Writes go to `/data`, the media mounts and a `tmpfs` on `/tmp` and `/var/tmp`; SQLite and ffprobe need a writable temp dir and fail in odd ways without one.
 
+## Locked out
+
+When nobody can sign in any more, set a new password from the shell where the data dir is:
+
+```sh
+docker compose exec -it weebsync /weebsync reset-password admin@example.com
+```
+
+It asks for the new password twice without showing it; piped in, it takes the first line. The account's sessions end and its address counts as verified. An admin can also set a password for any account under **Settings → Users**.
+
 ## Update check
 
 **Settings → About** asks GitHub's public API whether a newer image exists for the channel you run (release, nightly or dev). It is unauthenticated, cached for six hours and sends nothing about your instance. Admins can turn it off on the same page.
