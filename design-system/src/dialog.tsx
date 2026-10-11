@@ -42,6 +42,7 @@ export interface DialogProps {
   closeLabel?: string
   'aria-labelledby'?: string
   'aria-label'?: string
+  'aria-describedby'?: string
   className?: string
   /**
    * Extra classes for the box inside the dialog. A tall modal needs its own
