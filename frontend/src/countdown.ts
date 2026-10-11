@@ -25,5 +25,6 @@ export function countdown(t: TFunction, ts: number, withSec = false, now = Date.
   if (d > 0) return t('watch.inDaysH', { d, h })
   if (h > 0) return withSec ? t('watch.inHoursMS', { h, m, s }) : t('watch.inHoursM', { h, m })
   if (m > 0) return withSec ? t('watch.inMinutesS', { m, s }) : t('watch.inMinutes', { m })
-  return withSec ? t('watch.inSeconds', { s }) : t('watch.inMinutes', { m })
+  // the last minute without seconds is "under a minute", not "in 0m"
+  return withSec ? t('watch.inSeconds', { s }) : t('watch.inUnderMinute')
 }

@@ -239,8 +239,9 @@ describe('countdown', () => {
   it('counts seconds when asked for them', () => {
     expect(countdown(t, inSec(9), true)).toMatch(/^watch\.inSeconds:/)
   })
-  it('falls back to whole minutes without withSec', () => {
-    expect(countdown(t, inSec(9))).toMatch(/^watch\.inMinutes:/)
+  it('says under a minute in the last minute without withSec', () => {
+    expect(countdown(t, inSec(9))).toMatch(/^watch\.inUnderMinute:/)
+    expect(countdown(t, inSec(70))).toMatch(/^watch\.inMinutes:/)
   })
   it('switches to minutes and seconds past a minute', () => {
     expect(countdown(t, inSec(90), true)).toMatch(/^watch\.inMinutesS:/)

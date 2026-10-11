@@ -844,6 +844,7 @@
     "inMinutes": "in {{m}} Min.",
     "inMinutesS": "in {{m}} Min. {{s}} Sek.",
     "inSeconds": "in {{s}} Sek.",
+    "inUnderMinute": "in <1 Min.",
     "behind": "{{count}} noch nicht verfügbar",
     "langWaiting": "{{count}} wartet auf {{lang}}",
     "behindEps_one": "Folge {{eps}} noch nicht verfügbar",

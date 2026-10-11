@@ -844,6 +844,7 @@
     "inMinutes": "in {{m}}m",
     "inMinutesS": "in {{m}}m {{s}}s",
     "inSeconds": "in {{s}}s",
+    "inUnderMinute": "in <1m",
     "behind": "{{count}} not yet available",
     "langWaiting": "{{count}} waiting for {{lang}}",
     "behindEps_one": "episode {{eps}} not yet available",
