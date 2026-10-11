@@ -23,6 +23,7 @@ import {
   ExternalLink,
   FolderClock,
   Languages,
+  Library,
   MessageSquare,
   Pause,
   Pencil,
@@ -1384,6 +1385,12 @@ function WatchBlock({
           <Badge tone="accent" size="sm">
             <Download aria-hidden size="1em" />
             {t('watch.active', { count: w.active })}
+          </Badge>
+        )}
+        {w.lastOwned > 0 && (
+          <Badge size="sm" title={t('watch.ownedHint')}>
+            <Library aria-hidden size="1em" />
+            {t('watch.owned', { count: w.lastOwned })}
           </Badge>
         )}
       </div>

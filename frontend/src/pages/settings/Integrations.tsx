@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Panel, ROW_GRID, Select } from '@weebsync/design-system'
+import { Badge, Button, Checkbox, Input, Panel, ROW_GRID, Select } from '@weebsync/design-system'
 import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
 import { useAiModels } from '../../hooks'
 import { EnvBadge, FieldIssue, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
@@ -242,6 +242,15 @@ export default function Integrations() {
                   />
                   <span className="mt-1 block">{t('settings.plexRootsHint')}</span>
                 </label>
+                <div className="text-xs text-t-muted">
+                  <Checkbox
+                    label={t('settings.plexSkipOwned')}
+                    labelClassName="text-t-secondary"
+                    checked={form.plexSkipOwned}
+                    onChange={(e) => set('plexSkipOwned', e.target.checked)}
+                  />
+                  <span className="mt-1 block">{t('settings.plexSkipOwnedHint')}</span>
+                </div>
               </div>
             </fieldset>
           )}
