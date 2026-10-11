@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, mediaTitle, type Watch } from '../api'
@@ -43,17 +43,33 @@ export function useWatchActions() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['watches'] })
+  // the episode list of one watch is cached for minutes; a save or a check
+  // changes what is on disk and how it is named, so it has to load again too
+  const refreshOne = (id: number) => {
+    refresh()
+    qc.invalidateQueries({ queryKey: ['watch-episodes', id] })
+  }
+  // watches with a check on its way, so a second click does not send another
+  const [checking, setChecking] = useState<ReadonlySet<number>>(new Set())
+  const inFlight = useRef(new Set<number>())
   const fail = (err: unknown) => setError(err instanceof Error ? err.message : t('app.error'))
 
   const check = async (id: number) => {
+    // a ref, not the state: two clicks in one frame both see the old state
+    if (inFlight.current.has(id)) return
+    inFlight.current.add(id)
+    setChecking(new Set(inFlight.current))
     setError('')
     try {
       await api.post(`/api/watches/${id}/check`)
     } catch (err) {
       fail(err)
       return
+    } finally {
+      inFlight.current.delete(id)
+      setChecking(new Set(inFlight.current))
     }
-    setTimeout(refresh, 1500)
+    setTimeout(() => refreshOne(id), 1500)
   }
   const applyPlexStreams = async (id: number) => {
     setError('')
@@ -82,7 +98,7 @@ export function useWatchActions() {
   }
   const save = async (id: number, f: WatchFields) => {
     await api.put(`/api/watches/${id}`, f)
-    refresh()
+    refreshOne(id)
   }
-  return { check, applyPlexStreams, del, save, refresh, error, notice }
+  return { check, checking, applyPlexStreams, del, save, refresh, error, notice }
 }

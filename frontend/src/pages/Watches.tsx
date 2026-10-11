@@ -106,7 +106,11 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
   const [more, setMore] = useState<Watch | null>(null)
   const narrow = useMediaQuery(SHEET_MQ)
   // the same requests the title card runs, so both refresh the same list
-  const { check, applyPlexStreams, del, save, error, notice } = useWatchActions()
+  const { check, checking, applyPlexStreams, del, save, error, notice } = useWatchActions()
+
+  // a check on its way spins its icon; the button stays enabled (and focused),
+  // the hook drops a second click
+  const spin = (id: number) => (checking.has(id) ? 'animate-spin motion-reduce:animate-none' : '')
 
   // AniList airingAt is an absolute unix time; render in the viewer's zone
   // (or a named zone like Asia/Tokyo for the JST hover)
@@ -774,9 +778,10 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                                 aria-label={t('watch.checkNow')}
                                 title={t('watch.checkNow')}
                                 className="min-w-0! flex-1 border border-border-subtle"
+                                aria-busy={checking.has(w.id)}
                                 onClick={() => check(w.id)}
                               >
-                                <RefreshCw aria-hidden size="1.1em" />
+                                <RefreshCw aria-hidden size="1.1em" className={spin(w.id)} />
                               </IconButton>
                               {narrow ? (
                                 <IconButton
@@ -984,8 +989,17 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                                   {t('watch.read')}
                                 </Button>
                               )}
-                              <Button size="sm" className="flex-1 sm:flex-none" onClick={() => check(w.id)}>
-                                <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                              <Button
+                                size="sm"
+                                className="flex-1 sm:flex-none"
+                                aria-busy={checking.has(w.id)}
+                                onClick={() => check(w.id)}
+                              >
+                                <RefreshCw
+                                  aria-hidden
+                                  size="1em"
+                                  className={`mr-1 inline align-[-0.125em] ${spin(w.id)}`}
+                                />
                                 {t('watch.checkNow')}
                               </Button>
                               {narrow ? (
