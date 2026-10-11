@@ -1,3 +1,4 @@
+import i18n from 'i18next'
 import { describe, expect, it } from 'vitest'
 import { countdown } from '../countdown'
 import { jobFamily, jobLabel } from '../jobs'
@@ -124,6 +125,17 @@ describe('fmtBytes', () => {
 
   it('stops at the largest unit instead of inventing one', () => {
     expect(fmtBytes(2048 * 1024 ** 4)).toBe('2048 TiB')
+  })
+
+  it('writes the decimal mark of the UI language, without grouping', () => {
+    const before = i18n.language
+    i18n.language = 'de'
+    try {
+      expect(fmtBytes(1.8 * 1024 ** 2)).toBe('1,8 MiB')
+      expect(fmtBytes(2048 * 1024 ** 4)).toBe('2048 TiB')
+    } finally {
+      i18n.language = before
+    }
   })
 })
 
