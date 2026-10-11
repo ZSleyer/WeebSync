@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
+    "gen:api": "node scripts/gen-api.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
