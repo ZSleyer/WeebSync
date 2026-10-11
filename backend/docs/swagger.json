@@ -6702,13 +6702,21 @@
         },
         "/api/anilist/search": {
             "get": {
-                "description": "Search AniList media by title.",
+                "description": "Search AniList media by title, anime unless type=manga.",
                 "parameters": [
                     {
                         "description": "Search query",
                         "in": "query",
                         "name": "q",
                         "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "anime (default) | manga",
+                        "in": "query",
+                        "name": "type",
                         "schema": {
                             "type": "string"
                         }
