@@ -335,9 +335,24 @@ function TotpSection() {
               onChange={(e) => setCode(e.target.value)}
             />
           </label>
-          <Button size="sm" variant="primary" disabled={busy || !code} onClick={confirm}>
-            {t('account.totpConfirm')}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="primary" disabled={busy || !code} onClick={confirm}>
+              {t('account.totpConfirm')}
+            </Button>
+            {/* a way back out: the unconfirmed secret stays inert on the
+                server and the next start replaces it */}
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setSetup(null)
+                setCode('')
+                setError('')
+              }}
+            >
+              {t('common.cancel')}
+            </Button>
+          </div>
         </div>
       )}
 
