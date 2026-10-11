@@ -4422,14 +4422,14 @@
             "api.versionInfo": {
                 "properties": {
                     "channel": {
-                        "description": "\"stable\" | \"dev\"",
+                        "description": "\"stable\" | \"nightly\" | \"dev\"",
                         "type": "string"
                     },
                     "commit": {
                         "type": "string"
                     },
                     "latest": {
-                        "description": "latest tag (stable) or short sha (dev)",
+                        "description": "latest tag (stable) or short sha of the newest build (nightly, dev)",
                         "type": "string"
                     },
                     "repo": {

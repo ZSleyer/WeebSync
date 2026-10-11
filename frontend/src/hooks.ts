@@ -126,6 +126,13 @@ export function useVersion(enabled = true) {
   })
 }
 
+// updateText says what is out: the release by its number, a build by its
+// channel and commit - "a new build" alone left open which one, and where.
+export function updateText(t: (key: string, opts?: Record<string, unknown>) => string, v: VersionInfo): string {
+  if (v.channel === 'stable') return t('about.updateStable', { version: v.latest })
+  return t('about.updateBuild', { channel: t(`about.channel.${v.channel}`), sha: v.latest })
+}
+
 // useUpdateHint is the version info while a newer build is out, for admins
 // only: they are the ones who deploy, everyone else can do nothing with it.
 export function useUpdateHint() {

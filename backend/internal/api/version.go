@@ -14,12 +14,12 @@ import (
 
 type versionInfo struct {
 	Version         string `json:"version"`
-	Channel         string `json:"channel"` // "stable" | "dev"
+	Channel         string `json:"channel"` // "stable" | "nightly" | "dev"
 	Commit          string `json:"commit"`
 	Repo            string `json:"repo"`
 	UpdateCheck     bool   `json:"updateCheck"`     // instance setting: is the check enabled
 	UpdateAvailable bool   `json:"updateAvailable"` // a newer image exists upstream
-	Latest          string `json:"latest"`          // latest tag (stable) or short sha (dev)
+	Latest          string `json:"latest"`          // latest tag (stable) or short sha of the newest build (nightly, dev)
 	URL             string `json:"url"`             // where to see/get the update
 }
 
@@ -48,9 +48,13 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, info)
 }
 
-// fillUpdate compares the running build against the upstream repo. Stable tracks
-// the latest release tag; dev tracks the tip of main. Best-effort: any error
-// leaves updateAvailable false. Result cached 6h in the shared KV cache.
+// fillUpdate compares the running build against what upstream has published
+// for its channel: stable the latest release, nightly and dev the commit of the
+// newest workflow run that built their image. Not the tip of main - a nightly
+// is built once a day and a dev image only once the push's CI is green, so
+// main's tip announced builds that did not exist (a nightly instance was
+// "outdated" all day long). Best-effort: any error leaves updateAvailable
+// false. Result cached 6h in the shared KV cache.
 func (s *Server) fillUpdate(info *versionInfo) {
 	// the build is part of the key: the answer "a newer build is out" belongs
 	// to the binary that asked. Without it the row the old binary wrote in
@@ -79,18 +83,19 @@ func (s *Server) fillUpdate(info *versionInfo) {
 			info.URL = rel.HTMLURL
 			info.UpdateAvailable = rel.TagName != info.Version
 		}
-	} else {
-		var commit struct {
-			SHA string `json:"sha"`
+	} else if wf := buildWorkflow(info.Channel); wf != "" && info.Commit != "" {
+		var runs struct {
+			Runs []struct {
+				HeadSHA string `json:"head_sha"`
+			} `json:"workflow_runs"`
 		}
-		if fetchJSON(client, "https://api.github.com/repos/"+info.Repo+"/commits/main", &commit) == nil && commit.SHA != "" {
-			short := commit.SHA
-			if len(short) > 7 {
-				short = short[:7]
-			}
-			info.Latest = short
-			info.URL = "https://github.com/" + info.Repo + "/commits/main"
-			info.UpdateAvailable = info.Commit != "" && commit.SHA != info.Commit
+		if fetchJSON(client, "https://api.github.com/repos/"+info.Repo+"/actions/workflows/"+wf, &runs) == nil &&
+			len(runs.Runs) > 0 && runs.Runs[0].HeadSHA != "" {
+			sha := runs.Runs[0].HeadSHA
+			info.Latest = sha[:min(7, len(sha))]
+			// what changed between the running build and the new one
+			info.URL = "https://github.com/" + info.Repo + "/compare/" + info.Commit + "..." + sha
+			info.UpdateAvailable = sha != info.Commit
 		}
 	}
 
@@ -99,6 +104,19 @@ func (s *Server) fillUpdate(info *versionInfo) {
 		Available   bool
 	}{info.Latest, info.URL, info.UpdateAvailable})
 	s.cacheSet(cacheKey, string(payload))
+}
+
+// buildWorkflow is the runs query for the newest successful build of a
+// channel's image: ci.yml publishes :dev from a green push to main,
+// nightly.yml publishes :nightly. "" for a channel without one.
+func buildWorkflow(channel string) string {
+	switch channel {
+	case "dev":
+		return "ci.yml/runs?branch=main&event=push&status=success&per_page=1"
+	case "nightly":
+		return "nightly.yml/runs?branch=main&status=success&per_page=1"
+	}
+	return ""
 }
 
 func fetchJSON(c *http.Client, url string, v any) error {

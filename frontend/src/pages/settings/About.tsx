@@ -3,7 +3,7 @@ import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge, Checkbox, Panel } from '@weebsync/design-system'
 import { api } from '../../api'
-import { useAuth, useVersion } from '../../hooks'
+import { updateText, useAuth, useVersion } from '../../hooks'
 import Brand from '../../components/Brand'
 
 // read once per page load; the year does not change during a session
@@ -21,7 +21,6 @@ export default function About() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['version'] }),
   })
 
-  const dev = data ? data.channel !== 'stable' : false
   const repoUrl = data?.repo ? `https://github.com/${data.repo}` : undefined
 
   return (
@@ -44,9 +43,7 @@ export default function About() {
 
         {data?.updateAvailable && (
           <div className="rounded-md border border-warn/40 bg-warn/5 px-4 py-3 text-sm">
-            <span className="text-warn">
-              {dev ? t('about.updateDev') : t('about.updateStable', { version: data.latest })}
-            </span>
+            <span className="text-warn">{updateText(t, data)}</span>
             {data.url && (
               <>
                 {' '}
