@@ -655,6 +655,10 @@ export interface Schemas {
     hasPassword: boolean
     id: number
     isAdmin: boolean
+    /**
+     * the language mail and push go out in (de or en)
+     */
+    locale: string
     tmdbApiKeySet: boolean
     /**
      * which metadata providers the instance has keys for, so every user (not

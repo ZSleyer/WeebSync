@@ -278,6 +278,8 @@ type MeResponse struct {
 	// only an admin, who can read the settings) is offered their options
 	TvdbApiKeySet bool `json:"tvdbApiKeySet"`
 	TmdbApiKeySet bool `json:"tmdbApiKeySet"`
+	// the language mail and push go out in (de or en)
+	Locale string `json:"locale"`
 }
 
 // handleMe returns the current user.
@@ -295,6 +297,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		ID: u.ID, Email: u.Email, IsAdmin: u.IsAdmin, HasPassword: s.hasPassword(u.ID),
 		TvdbApiKeySet: secret.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
 		TmdbApiKeySet: secret.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
+		Locale:        s.userLocale(u.ID),
 	})
 }
 

@@ -18,10 +18,11 @@ export function useAuth() {
       try {
         const me = await api.get<User>('/api/auth/me')
         // one sync per app load, so the backend knows the language even if
-        // the user never touches the switcher
+        // the user never touches the switcher; only when it differs, not a
+        // write on every page load
         if (!localeSynced) {
           localeSynced = true
-          syncLocale(i18n.language)
+          if (me.locale !== i18n.language) syncLocale(i18n.language)
         }
         return me
       } catch (e) {

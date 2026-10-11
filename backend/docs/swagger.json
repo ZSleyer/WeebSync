@@ -1505,6 +1505,10 @@
                     "isAdmin": {
                         "type": "boolean"
                     },
+                    "locale": {
+                        "description": "the language mail and push go out in (de or en)",
+                        "type": "string"
+                    },
                     "tmdbApiKeySet": {
                         "type": "boolean"
                     },
@@ -1519,7 +1523,8 @@
                     "isAdmin",
                     "hasPassword",
                     "tvdbApiKeySet",
-                    "tmdbApiKeySet"
+                    "tmdbApiKeySet",
+                    "locale"
                 ],
                 "type": "object"
             },
