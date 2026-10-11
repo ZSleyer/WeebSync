@@ -27,7 +27,11 @@ func Open(path string) (*sql.DB, error) {
 		return nil, err
 	}
 	// busy_timeout + WAL: multiple goroutines (API + download workers) share the handle.
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)", path)
+	// synchronous NORMAL: in WAL mode a commit is no longer an fsync of its own,
+	// only a checkpoint is - a running download commits its progress every
+	// second, on a box without an SSD each of those was a disk seek. It cannot
+	// corrupt the database; a power cut may lose the last commits.
+	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(1)", path)
 	d, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
