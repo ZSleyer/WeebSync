@@ -110,6 +110,10 @@ func TestUserCreate(t *testing.T) {
 	if rec := doReq(mux, "POST", "/api/users", `{"email":"new@example.com","password":"longenough123"}`, adminC); rec.Code != http.StatusCreated {
 		t.Errorf("create: got %d, want 201: %s", rec.Code, rec.Body)
 	}
+	// the account can log in at once: no verification mail is ever sent for it
+	if rec := doReq(mux, "POST", "/api/auth/login", `{"email":"new@example.com","password":"longenough123"}`, nil); rec.Code != http.StatusOK {
+		t.Errorf("login of a created account: got %d, want 200: %s", rec.Code, rec.Body)
+	}
 	// duplicate email
 	if rec := doReq(mux, "POST", "/api/users", `{"email":"new@example.com","password":"longenough123"}`, adminC); rec.Code != http.StatusConflict {
 		t.Errorf("duplicate: got %d, want 409", rec.Code)
