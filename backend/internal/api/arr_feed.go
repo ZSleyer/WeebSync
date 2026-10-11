@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
@@ -362,9 +363,14 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 		if n++; n > limit {
 			break
 		}
-		s.DB.Exec(`INSERT INTO arr_releases (guid, server_id, remote_path, size, title) VALUES (?, ?, ?, ?, ?)
+		// only offer what can be looked up again: the grab names nothing but
+		// the guid
+		if _, err := s.DB.Exec(`INSERT INTO arr_releases (guid, server_id, remote_path, size, title) VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(guid) DO UPDATE SET title = excluded.title, seen_at = datetime('now')`,
-			rel.guid, rel.serverID, rel.path, rel.size, rel.title)
+			rel.guid, rel.serverID, rel.path, rel.size, rel.title); err != nil {
+			slog.Warn("arr release not recorded", "err", err)
+			continue
+		}
 		writeNewznabItem(&items, rel, base, key)
 	}
 	// releases the feed has not shown for a month cannot still be grabbed

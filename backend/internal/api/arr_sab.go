@@ -149,8 +149,13 @@ func (s *Server) sabAdd(w http.ResponseWriter, r *http.Request) {
 	raw := make([]byte, 8)
 	rand.Read(raw)
 	nzo := "SABnzbd_nzo_" + hex.EncodeToString(raw)
-	s.DB.Exec(`INSERT INTO arr_jobs (nzo_id, guid, download_id, category, title, job_dir, size) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		nzo, guid, dl, r.FormValue("cat"), title, jobDir, size)
+	// a job id the app tracks but nothing here knows would never report done
+	if _, err := s.DB.Exec(`INSERT INTO arr_jobs (nzo_id, guid, download_id, category, title, job_dir, size) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		nzo, guid, dl, r.FormValue("cat"), title, jobDir, size); err != nil {
+		slog.Warn("sab job not recorded", "release", logSafe(title), "err", err)
+		fail("could not record the job")
+		return
+	}
 	slog.Info("sab add", "release", logSafe(title), "download", dl)
 	writeJSON(w, http.StatusOK, map[string]any{"status": true, "nzo_ids": []string{nzo}})
 }
