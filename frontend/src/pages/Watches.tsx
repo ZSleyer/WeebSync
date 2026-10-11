@@ -449,7 +449,7 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
             <div className="relative" ref={viewRef} style={viewAnchorStyle}>
               <Button
                 size="sm"
-                aria-haspopup="listbox"
+                aria-haspopup="menu"
                 aria-expanded={viewOpen}
                 aria-label={t('watch.view')}
                 title={t('watch.view')}
@@ -642,6 +642,10 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                   count: byDay.get(dayKey(d))?.length,
                   today: d.getTime() === today.getTime(),
                   past: d.getTime() < today.getTime(),
+                  label: t('watch.week.dayLabel', {
+                    date: d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }),
+                    count: byDay.get(dayKey(d))?.length ?? 0,
+                  }),
                 }))}
                 selected={selectedDay}
                 onSelect={(k) => setDayIdx(dayIdxOf(new Date(k + 'T00:00')))}

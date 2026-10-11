@@ -808,6 +808,8 @@
       "next": "Nächste Woche",
       "today": "Heute",
       "strip": "Tag wählen",
+      "dayLabel_one": "{{date}}, {{count}} Ausstrahlung",
+      "dayLabel_other": "{{date}}, {{count}} Ausstrahlungen",
       "empty": "Keine Ausstrahlungen an diesen Tagen.",
       "jump": "Zur nächsten Ausstrahlung",
       "free": "frei"
