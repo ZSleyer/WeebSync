@@ -141,7 +141,7 @@ type Media struct {
 	Format       string       `json:"format"`
 	Status       string       `json:"status"` // FINISHED | RELEASING | NOT_YET_RELEASED | CANCELLED | HIATUS
 	AverageScore int          `json:"averageScore"`
-	Genres       []string     `json:"genres"`
+	Genres       []string     `json:"genres,omitempty"`
 	Description  string       `json:"description"`
 	SiteURL      string       `json:"siteUrl,omitempty"` // provider page for cross-checking
 	// Popularity is the audience size (AniList: users on their lists, TMDB:

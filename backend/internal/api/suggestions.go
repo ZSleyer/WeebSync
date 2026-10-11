@@ -260,6 +260,9 @@ func dedupIncomplete(items []SugItem) []SugItem {
 // (the Plex library the suggestion came from knows whether it holds anime). ""
 // where the caller has nothing to offer; the stored kind always wins.
 func (s *Server) buildItem(m anilist.Media, source string, cands []plexCandidate, plexFolder string, bySrc map[string]int64, bySeries map[int64][]providerRef, fallbackKind string) SugItem {
+	if cands == nil {
+		cands = []plexCandidate{} // a watchlist-only title has no folders
+	}
 	title := displayTitle(m, source) // localized display title
 	m.Title.Preferred = title        // carry it on the media for the frontend
 	// the fold key stays on the romanized title so it matches linkSeries' bundling

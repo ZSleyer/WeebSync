@@ -583,7 +583,7 @@ func (s *Server) handleEmailPrefsPut(w http.ResponseWriter, r *http.Request) {
 	if u.IsAdmin {
 		allowed = append(allowed, adminCategories...)
 	}
-	var clean []string
+	clean := []string{}
 	for _, c := range in.Enabled {
 		if slices.Contains(allowed, c) && !slices.Contains(clean, c) {
 			clean = append(clean, c)

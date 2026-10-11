@@ -192,8 +192,12 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 // enqueueResponse carries the counters through, so the UI can say why a sync
 // queued nothing rather than leaving the user with a bare zero.
 func enqueueResponse(res transfer.EnqueueResult) DownloadCreateResponse {
+	ids := res.IDs
+	if ids == nil {
+		ids = []int64{} // nothing queued: an empty list, not null
+	}
 	return DownloadCreateResponse{
-		Queued: len(res.IDs), IDs: res.IDs,
+		Queued: len(ids), IDs: ids,
 		Skipped: res.Skipped, Uploading: res.Uploading, Filtered: res.Filtered,
 	}
 }
