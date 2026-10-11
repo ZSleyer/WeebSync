@@ -705,6 +705,36 @@ func (c *Client) EpisodeParts(showRatingKey string) ([]EpisodePart, error) {
 	return resp.parts(), nil
 }
 
+// Episode is one episode the library holds, numbered the way the show's
+// ordering in Plex numbers it.
+type Episode struct {
+	Season, Episode int
+}
+
+// Episodes lists every episode of a show that has a file in the library. A
+// show's leaves are what Plex has on disk; it lists no placeholders for the
+// episodes it lacks.
+func (c *Client) Episodes(showRatingKey string) ([]Episode, error) {
+	var resp struct {
+		MediaContainer struct {
+			Metadata []struct {
+				ParentIndex int `json:"parentIndex"`
+				Index       int `json:"index"`
+			} `json:"Metadata"`
+		} `json:"MediaContainer"`
+	}
+	if err := c.get("/library/metadata/"+url.PathEscape(showRatingKey)+"/allLeaves", &resp); err != nil {
+		return nil, err
+	}
+	out := make([]Episode, 0, len(resp.MediaContainer.Metadata))
+	for _, m := range resp.MediaContainer.Metadata {
+		if m.Index > 0 {
+			out = append(out, Episode{m.ParentIndex, m.Index})
+		}
+	}
+	return out, nil
+}
+
 // PartStreams reads ONE episode's parts with their streams via the metadata
 // detail endpoint, which always carries the Stream array.
 func (c *Client) PartStreams(episodeRatingKey string) ([]EpisodePart, error) {
