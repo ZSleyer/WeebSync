@@ -1121,7 +1121,7 @@ describe('DayTimeline', () => {
   })
 
   it('says how long a cut stretch really was', () => {
-    render(
+    const { container } = render(
       <DayTimeline
         entries={[
           { key: 'a', at: at(9), node: <span>A</span> },
@@ -1130,7 +1130,7 @@ describe('DayTimeline', () => {
         gapLabel={gapLabel}
       />,
     )
-    expect(screen.getByText('660min')).toBeTruthy()
+    expect(container.querySelector('.t-timeline__gap [data-label]')).toHaveAttribute('data-label', '660min')
   })
 
   // the marker sits between the releases it has passed and the ones still
