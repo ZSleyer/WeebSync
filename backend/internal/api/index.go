@@ -110,14 +110,16 @@ func (s *Server) indexDir(serverID int64, dir string, entries []remote.Entry) {
 	tx.Commit()
 }
 
-// deleteSubtree drops a path and every row below it. A prefix compare, not
-// LIKE: paths carry "_" and "%" and those are wildcards to LIKE.
+// deleteSubtree drops a path and every row below it. A range, not LIKE: paths
+// carry "_" and "%" and those are wildcards to LIKE. And not substr either,
+// which no index can serve - every vanished entry scanned the whole server
+// inside the listing's transaction. Range form as in remoteShowRoot.
 func deleteSubtree(ex interface {
 	Exec(string, ...any) (sql.Result, error)
 }, serverID int64, p string) {
-	prefix := strings.TrimRight(p, "/") + "/"
-	ex.Exec(`DELETE FROM remote_index WHERE server_id = ? AND (path = ? OR substr(path, 1, ?) = ?)`,
-		serverID, p, len(prefix), prefix)
+	ex.Exec(`DELETE FROM remote_index WHERE server_id = ?1
+		AND path >= ?2 AND path < ?2 || '0' AND (path = ?3 OR path >= ?2 || '/')`,
+		serverID, strings.TrimRight(p, "/"), p)
 }
 
 // gone reports whether a listing failed because the directory is not there

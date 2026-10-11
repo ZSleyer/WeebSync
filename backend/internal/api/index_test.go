@@ -127,12 +127,15 @@ func TestIndexDirDropsVanishedSubtree(t *testing.T) {
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
 	mod := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	s.indexDir(1, "/r", []remote.Entry{entry("/r/Show_A", true, 0, mod), entry("/r/Show_B", true, 0, mod)})
+	s.indexDir(1, "/r", []remote.Entry{entry("/r/Show_A", true, 0, mod), entry("/r/Show_B", true, 0, mod),
+		entry("/r/Show_A (2)", true, 0, mod)})
 	s.indexDir(1, "/r/Show_A", []remote.Entry{entry("/r/Show_A/Season 1", true, 0, mod)})
 	s.indexDir(1, "/r/Show_A/Season 1", []remote.Entry{entry("/r/Show_A/Season 1/e01.mkv", false, 1, mod)})
 	// a sibling whose name starts the same way must not be caught by the prefix
 	s.indexDir(1, "/r/Show_B", []remote.Entry{entry("/r/Show_B/e01.mkv", false, 1, mod)})
-	s.indexDir(1, "/r", []remote.Entry{entry("/r/Show_B", true, 0, mod)})
+	// nor one that sorts between the folder and its subtree (' ' < '/')
+	s.indexDir(1, "/r/Show_A (2)", []remote.Entry{entry("/r/Show_A (2)/e01.mkv", false, 1, mod)})
+	s.indexDir(1, "/r", []remote.Entry{entry("/r/Show_B", true, 0, mod), entry("/r/Show_A (2)", true, 0, mod)})
 	var n int
 	d.QueryRow(`SELECT COUNT(*) FROM remote_index WHERE server_id = 1
 		AND path IN ('/r/Show_A', '/r/Show_A/Season 1', '/r/Show_A/Season 1/e01.mkv')`).Scan(&n)
@@ -140,9 +143,29 @@ func TestIndexDirDropsVanishedSubtree(t *testing.T) {
 		t.Errorf("vanished tree left %d rows", n)
 	}
 	d.QueryRow(`SELECT COUNT(*) FROM remote_index WHERE server_id = 1
-		AND path IN ('/r/Show_B', '/r/Show_B/e01.mkv')`).Scan(&n)
-	if n != 2 {
-		t.Errorf("sibling lost rows: %d", n)
+		AND path IN ('/r/Show_B', '/r/Show_B/e01.mkv', '/r/Show_A (2)', '/r/Show_A (2)/e01.mkv')`).Scan(&n)
+	if n != 4 {
+		t.Errorf("siblings lost rows: %d of 4 left", n)
+	}
+}
+
+// A folder's subtree is read as an index range: its own files and everything
+// below, never a sibling - not one sorting between the folder and its subtree,
+// and not one a LIKE would have caught through the "_" in the folder's name.
+func TestRemoteSubtreeRange(t *testing.T) {
+	d := dbtest.Open(t)
+	s := &Server{DB: d}
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	mod := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	s.indexDir(1, "/r/S_1", []remote.Entry{entry("/r/S_1/Show - 01.mkv", false, 1, mod), entry("/r/S_1/Sub", true, 0, mod)})
+	s.indexDir(1, "/r/S_1/Sub", []remote.Entry{entry("/r/S_1/Sub/Show - 02.mkv", false, 1, mod)})
+	s.indexDir(1, "/r/SX1/Sub", []remote.Entry{entry("/r/SX1/Sub/Show - 05.mkv", false, 1, mod)})
+	s.indexDir(1, "/r/S_1 (2)", []remote.Entry{entry("/r/S_1 (2)/Show - 07.mkv", false, 1, mod)})
+	got := s.remoteEpisodeNums(1, "/r/S_1")
+	if len(got) != 2 || !got[1] || !got[2] {
+		t.Errorf("subtree episodes: %v, want 1 and 2", got)
 	}
 }
 

@@ -207,8 +207,8 @@ func (s *Server) scanQuality(serverID int64, folder string) FolderQuality {
 	// remote: only the crawler's file listing exists, so every value below is a
 	// guess read off a name. Probed stays probeNone.
 	rows, err := s.DB.Query(`SELECT name FROM remote_index
-		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR parent LIKE ?||'/%')`,
-		serverID, folder, folder)
+		WHERE server_id = ?1 AND is_dir = 0 AND parent >= ?2 AND parent < ?2 || '0' AND (parent = ?2 OR parent >= ?2 || '/')`,
+		serverID, folder)
 	if err != nil {
 		return q
 	}

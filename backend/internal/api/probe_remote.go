@@ -156,8 +156,8 @@ func probeRemoteHead(ctx context.Context, client remote.Client, remotePath, ext 
 // upgrade path is the same: sample more of them.
 func (s *Server) representativeRemote(serverID int64, folder string) string {
 	rows, err := s.DB.Query(`SELECT path, name FROM remote_index
-		WHERE server_id = ? AND is_dir = 0 AND (parent = ? OR parent LIKE ?||'/%')
-		ORDER BY path`, serverID, folder, folder)
+		WHERE server_id = ?1 AND is_dir = 0 AND parent >= ?2 AND parent < ?2 || '0' AND (parent = ?2 OR parent >= ?2 || '/')
+		ORDER BY path`, serverID, folder)
 	if err != nil {
 		return ""
 	}
