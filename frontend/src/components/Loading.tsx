@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge, Panel } from '@weebsync/design-system'
 
 // Tempest-style loading indicator: three staggered pulsing bars + label.
 // Motion is globally gated via [data-motion="off"] / prefers-reduced-motion.
-export default function Loading({ label, className = '' }: { label?: string; className?: string }) {
+export default function Loading({ label, className = '' }: { label?: ReactNode; className?: string }) {
   const { t } = useTranslation()
   return (
     <div className={`flex items-center gap-2.5 ${className}`} role="status">

@@ -102,6 +102,17 @@ async function canDecodeVideo(v: PlayInfo['video']): Promise<boolean> {
   return document.createElement('video').canPlayType(type) !== ''
 }
 
+// a wait in words, with the seconds it has taken once they add up: a number
+// that keeps counting shows the player is still at it
+function Waited({ text }: { text: string }) {
+  const [secs, setSecs] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(() => setSecs((x) => x + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return secs < 3 ? text : `${text} · ${secs} s`
+}
+
 // the route: every file gets a fresh player, so the tracks, the transcode
 // fallback and the subtitles of one episode never leak into the next
 export default function Player() {
@@ -192,6 +203,10 @@ function PlayerView({ server, path }: { server: number; path: string }) {
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const resumeAt = useRef(0)
+  // what the spinner waits for, in words: a remote file takes a while before
+  // the first picture and a bare spinner looked like it would never end
+  const [loadStep, setLoadStep] = useState('')
+  const [loadError, setLoadError] = useState(false)
   const [mutedStart, setMutedStart] = useState(false)
   // the muted start ends with the first unmute, whichever control did it
   useEffect(() => {
@@ -220,9 +235,31 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       })
     }
     v.addEventListener('loadedmetadata', onMeta, { once: true })
+    // on the server's side the wait is opening the file (direct) or cutting
+    // the next piece out of it (HLS); on ours it is the buffer filling up
+    const serverStep = !hls ? 'player.stepBuffer' : copy ? 'player.stepRepack' : 'player.stepTranscode'
+    const step = (k: string) => () => setLoadStep(k)
+    const steps: [string, () => void][] = [
+      ['loadstart', step(hls ? serverStep : 'player.stepOpen')],
+      ['loadedmetadata', step('player.stepBuffer')],
+      ['waiting', step(serverStep)],
+      ['canplay', step('')],
+      ['playing', step('')],
+      ['seeked', step('')],
+    ]
+    for (const [e, f] of steps) v.addEventListener(e, f)
+    const fail = () => hls && setLoadError(true)
+    v.addEventListener('error', fail)
+    setLoadError(false)
+    setLoadStep(hls ? serverStep : 'player.stepOpen')
+    const unstep = () => {
+      for (const [e, f] of steps) v.removeEventListener(e, f)
+      v.removeEventListener('error', fail)
+    }
     if (!hls) {
       v.src = `/api/play/stream?${src}`
       return () => {
+        unstep()
         resumeAt.current = v.currentTime
         v.removeEventListener('loadedmetadata', onMeta)
         v.removeAttribute('src')
@@ -233,14 +270,30 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     if (!HlsPlayer.isSupported()) {
       v.src = url // Safari plays HLS itself
       return () => {
+        unstep()
         resumeAt.current = v.currentTime
         v.removeAttribute('src')
       }
     }
-    const h = new HlsPlayer({ startPosition: start })
+    const h = new HlsPlayer({
+      startPosition: start,
+      // the server holds a segment request until ffmpeg wrote it, up to 90 s
+      // for a slow remote; hls.js gave up after 10 s without a byte, four
+      // times, and then sat on a fatal error with the spinner going
+      fragLoadPolicy: {
+        default: {
+          maxTimeToFirstByteMs: 95_000,
+          maxLoadTimeMs: 120_000,
+          timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 },
+          errorRetry: { maxNumRetry: 6, retryDelayMs: 1000, maxRetryDelayMs: 8000 },
+        },
+      },
+    })
+    h.on(HlsPlayer.Events.ERROR, (_, d) => d.fatal && setLoadError(true))
     h.loadSource(url)
     h.attachMedia(v)
     return () => {
+      unstep()
       resumeAt.current = v.currentTime
       v.removeEventListener('loadedmetadata', onMeta)
       h.destroy()
@@ -569,7 +622,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   }
 
   if (!path) return <p className="p-6 text-sm text-t-muted">{t('player.noFile')}</p>
-  if (info.isPending) return <Loading />
+  if (info.isPending) return <Loading className="p-6" label={<Waited text={t('player.stepInfo')} />} />
   const conflict = keyConflictOf(info.error)
   if (conflict)
     return (
@@ -695,7 +748,15 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           <span className="t-player-flash" data-side="back" data-on={flash?.side === 'back' || undefined} aria-hidden>
             {flash?.side === 'back' && `- ${flash.secs} s`}
           </span>
-          <MediaLoadingIndicator noAutohide className="t-player-spinner" />
+          {!loadError && <MediaLoadingIndicator noAutohide className="t-player-spinner" />}
+          {(loadError || loadStep) && (
+            <span
+              className={`t-player-chip t-player-step${loadError ? ' t-player-chip--err' : ''}`}
+              role={loadError ? 'alert' : 'status'}
+            >
+              {loadError ? t('player.loadError') : <Waited key={loadStep} text={t(loadStep)} />}
+            </span>
+          )}
           <MediaPlayButton className="t-player-bigplay" />
           <span className="t-player-flash" data-side="fwd" data-on={flash?.side === 'fwd' || undefined} aria-hidden>
             {flash?.side === 'fwd' && `+ ${flash.secs} s`}
