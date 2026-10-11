@@ -647,7 +647,16 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                       // desktop: seven days side by side, the picked one in the
                       // middle; the band above marks it, the column needs no
                       // frame of its own
-                      <div className="grid grid-cols-7 gap-3">
+                      // the picked day takes twice the room: it is the one
+                      // being read, and today's axis needs the width
+                      <div
+                        className="grid gap-3"
+                        style={{
+                          gridTemplateColumns: weekDays(i)
+                            .map((d) => (dayKey(d) === selectedDay ? 'minmax(0, 2fr)' : 'minmax(0, 1fr)'))
+                            .join(' '),
+                        }}
+                      >
                         {weekDays(i).map((d) => {
                           const k = dayKey(d)
                           const items = byDay.get(k) ?? []
