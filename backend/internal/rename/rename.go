@@ -4,6 +4,7 @@ package rename
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -127,6 +128,39 @@ func Resolution(name string) int {
 // not spuriously match "Eng".
 func LangMatch(name, wantDub, wantSub string) bool {
 	dub, sub := LangTags(name)
+	return tagsMatch(dub, sub, wantDub, wantSub)
+}
+
+// PathLangTags reads a remote path's language tags file first: the file's
+// own tag wins, and only a dimension its name leaves open falls back to the
+// nearest folder that carries one. A season folder is labeled with where it
+// is heading ([GerJapDub]) while its newest files are still [JapDub];
+// scanning the whole path found the folder's tag first and let every one of
+// them through a GerDub filter.
+func PathLangTags(p string) (dub, sub string) {
+	for p != "" && p != "/" && p != "." {
+		d, s := LangTags(path.Base(p))
+		if dub == "" {
+			dub = d
+		}
+		if sub == "" {
+			sub = s
+		}
+		if dub != "" && sub != "" {
+			break
+		}
+		p = path.Dir(p)
+	}
+	return dub, sub
+}
+
+// PathLangMatch is LangMatch over PathLangTags.
+func PathLangMatch(p, wantDub, wantSub string) bool {
+	dub, sub := PathLangTags(p)
+	return tagsMatch(dub, sub, wantDub, wantSub)
+}
+
+func tagsMatch(dub, sub, wantDub, wantSub string) bool {
 	if wantDub != "" && !hasCode(dub, wantDub) {
 		return false
 	}
