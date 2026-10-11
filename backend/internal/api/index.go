@@ -145,11 +145,14 @@ func pathBase(p string) string {
 // loop: a skipped directory kept its empty stamp, sorted first every time
 // and took a slot of every batch without ever being listed.
 func (s *Server) nextCrawlDirs(serverID int64, limit int) []string {
+	// a plain string compare on listed_at (written in sqliteTime, '' sorts
+	// first) so idx_remote_index_crawl hands over the due dirs in order;
+	// datetime() around the column read every row of the server and sorted
 	rows, err := s.DB.Query(`SELECT path FROM remote_index
-		WHERE server_id = ? AND is_dir = 1 AND (listed_at = '' OR datetime(listed_at) <= datetime('now', ?))
+		WHERE server_id = ? AND is_dir = 1 AND listed_at <= ?
 		AND length(path) - length(replace(path, '/', '')) <= ?
-		ORDER BY listed_at = '' DESC, listed_at ASC LIMIT ?`,
-		serverID, "-"+strconv.Itoa(int(crawlRecheck/time.Second))+" seconds", crawlMaxDepth, limit)
+		ORDER BY listed_at LIMIT ?`,
+		serverID, time.Now().UTC().Add(-crawlRecheck).Format(sqliteTime), crawlMaxDepth, limit)
 	if err != nil {
 		return nil
 	}
