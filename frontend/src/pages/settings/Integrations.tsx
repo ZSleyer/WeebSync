@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Checkbox, Input, Panel, ROW_GRID, Select } from '@weebsync/design-system'
-import { api, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
+import { api, ApiError, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
 import { useAiModels } from '../../hooks'
 import { EnvBadge, FieldIssue, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
@@ -630,21 +630,43 @@ function PlexWatchlistAccount() {
   const qc = useQueryClient()
   const { data } = useQuery<PlexAccountT>({ queryKey: ['plex-account'], queryFn: () => api.get('/api/plex/account') })
   const [pin, setPin] = useState<PlexLinkStart | null>(null)
+  const [expired, setExpired] = useState(false)
   const timer = useRef<ReturnType<typeof setInterval>>(undefined)
+  const fail = useFailToast()
 
   useEffect(() => () => clearInterval(timer.current), [])
 
   const start = async () => {
-    const p = await api.post<PlexLinkStart>('/api/plex/link/start')
+    let p: PlexLinkStart
+    try {
+      p = await api.post<PlexLinkStart>('/api/plex/link/start')
+    } catch (e) {
+      return fail(e)
+    }
     setPin(p)
+    setExpired(false)
     window.open(p.url, '_blank', 'noopener')
     clearInterval(timer.current)
+    // the server forgets a link request after ten minutes and answers 404
+    // from then on; polling stops there instead of asking every 2 s forever
+    const until = Date.now() + 10 * 60_000
+    const giveUp = () => {
+      clearInterval(timer.current)
+      setPin(null)
+      setExpired(true)
+    }
     timer.current = setInterval(async () => {
-      const res = await api.get<PlexAccountT>(`/api/plex/link/poll?id=${p.id}`)
-      if (res.linked) {
-        clearInterval(timer.current)
-        setPin(null)
-        qc.invalidateQueries({ queryKey: ['plex-account'] })
+      if (Date.now() > until) return giveUp()
+      try {
+        const res = await api.get<PlexAccountT>(`/api/plex/link/poll?id=${p.id}`)
+        if (res.linked) {
+          clearInterval(timer.current)
+          setPin(null)
+          qc.invalidateQueries({ queryKey: ['plex-account'] })
+        }
+      } catch (e) {
+        // plex.tv unreachable for a moment: the next round asks again
+        if (e instanceof ApiError && e.status === 404) giveUp()
       }
     }, 2000)
   }
@@ -666,9 +688,12 @@ function PlexWatchlistAccount() {
       ) : pin ? (
         <span>{t('settings.plexWatchlistPending', { code: pin.code })}</span>
       ) : (
-        <Button size="sm" onClick={start}>
-          {t('settings.plexWatchlistLink')}
-        </Button>
+        <>
+          <Button size="sm" onClick={start}>
+            {t('settings.plexWatchlistLink')}
+          </Button>
+          {expired && <span role="status">{t('settings.plexWatchlistExpired')}</span>}
+        </>
       )}
     </div>
   )

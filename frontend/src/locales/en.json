@@ -1504,6 +1504,7 @@
     "plexWatchlistUnlink": "Unlink",
     "plexWatchlistLinked": "Watchlist linked as {{user}}",
     "plexWatchlistPending": "Confirm in the plex.tv tab (code {{code}})…",
+    "plexWatchlistExpired": "The plex.tv code has expired. Link again for a new one.",
     "emailCat_suggestion": "Suggestions",
     "emailCat_upgrade": "Upgrades",
     "pushCategories": "Push categories",
