@@ -156,12 +156,13 @@ function PasskeySection() {
     }
   }
   // a passkey is a way in: removing one asks first, and says so when it is
-  // the last one
+  // the last one. A security key only ever confirmed a password sign-in, so
+  // it gets its own words
   const remove = (c: Passkey) => async () => {
     const last = (creds ?? []).filter((x) => x.passwordless).length === 1 && c.passwordless
     const ok = await confirm({
       title: t('account.removeTitle', { name: c.name }),
-      message: last ? t('account.removeLast') : t('account.removeHint'),
+      message: !c.passwordless ? t('account.removeKeyHint') : last ? t('account.removeLast') : t('account.removeHint'),
       confirmLabel: t('account.remove'),
       destructive: true,
     })
