@@ -21,7 +21,7 @@ function LogPanel({ level }: { level: LogLevel }) {
   useEffect(() => {
     pausedRef.current = paused
   }, [paused])
-  const endRef = useRef<HTMLDivElement>(null)
+  const logRef = useRef<HTMLDivElement>(null)
 
   const setLevel = useMutation({
     mutationFn: (lvl: LogLevel) => api.put('/api/admin/loglevel', { level: lvl }),
@@ -48,9 +48,13 @@ function LogPanel({ level }: { level: LogLevel }) {
 
   const shown = filter === 'all' ? lines : lines.filter((l) => l.level === filter)
 
+  // follow the newest line. Keyed on the buffer itself, not its length: at
+  // the cap the length stops changing while lines keep arriving. The log box
+  // scrolls itself; scrollIntoView would drag the whole page along
   useEffect(() => {
-    if (!paused) endRef.current?.scrollIntoView({ block: 'end' })
-  }, [shown.length, paused])
+    const box = logRef.current
+    if (!paused && box) box.scrollTop = box.scrollHeight
+  }, [lines, filter, paused])
 
   const fmtAttrs = (a?: Record<string, unknown>) =>
     a
@@ -111,7 +115,10 @@ function LogPanel({ level }: { level: LogLevel }) {
         </div>
       </div>
       <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.logs.hint')}</p>
-      <div className="mt-3 h-[50dvh] overflow-y-auto rounded-lg border border-border-subtle bg-bg-secondary p-2 font-mono text-xs leading-relaxed lg:h-auto lg:max-h-[60dvh]">
+      <div
+        ref={logRef}
+        className="mt-3 h-[50dvh] overflow-y-auto rounded-lg border border-border-subtle bg-bg-secondary p-2 font-mono text-xs leading-relaxed lg:h-auto lg:max-h-[60dvh]"
+      >
         {shown.length === 0 ? (
           <p className="text-t-secondary">{t('settings.jobs.logs.empty')}</p>
         ) : (
@@ -124,7 +131,6 @@ function LogPanel({ level }: { level: LogLevel }) {
             </div>
           ))
         )}
-        <div ref={endRef} />
       </div>
     </Panel>
   )
