@@ -371,10 +371,10 @@ export function WatchForm({
               <Select value={f.mediaSource || 'anilist'} onChange={(e) => setF({ ...f, mediaSource: e.target.value })}>
                 <option value="anilist">AniList (Anime)</option>
                 <option value="anilist:manga">AniList (Manga, Light Novel)</option>
-                <option value="tmdb:tv">TMDB Serie</option>
-                <option value="tmdb:movie">TMDB Film</option>
+                <option value="tmdb:tv">{t('watch.sourceTmdbTv')}</option>
+                <option value="tmdb:movie">{t('watch.sourceTmdbMovie')}</option>
                 {(caps?.tvdbApiKeySet || f.mediaSource === 'tvdb') && (
-                  <option value="tvdb">TVDB Serie</option>
+                  <option value="tvdb">{t('watch.sourceTvdb')}</option>
                 )}
               </Select>
             </Field>
