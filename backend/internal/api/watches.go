@@ -488,6 +488,19 @@ func (s *Server) watchNameFn(w Watch) func(string) string {
 	return fn
 }
 
+// isMangaWatch reports whether a watch's folder is a manga: matched as one,
+// or - while the match of a new watch is still running - holding volumes.
+func (s *Server) isMangaWatch(w Watch) bool {
+	if w.RemotePath == "" {
+		return false // a preview with no folder behind it
+	}
+	var src string
+	if s.DB.QueryRow(`SELECT source FROM catalog_matches WHERE server_id = ? AND folder = ?`, w.ServerID, w.RemotePath).Scan(&src) != nil {
+		return s.holdsBooks(w.ServerID, w.RemotePath)
+	}
+	return src == mangaSource
+}
+
 // pendingFile is a downloaded episode whose absolute number the provider did
 // not list, so its season is a guess and it waits in the collecting folder.
 type pendingFile struct {
@@ -514,6 +527,11 @@ func (s *Server) watchNameFnQuarantine(w Watch, dir string) (func(string) string
 	}
 	if (o.Mode == "template" && o.Template == "") || (o.Mode == "regex" && o.Pattern == "") {
 		return nil, nil // no rename configured
+	}
+	// an episode template turns volumes into SxxEyy; a manga keeps the names
+	// it came with unless a regex rule says otherwise
+	if o.Mode == "template" && s.isMangaWatch(w) {
+		return nil, nil
 	}
 	// the localized title and aired mapping are independent opt-ins, both only
 	// meaningful for the template mode
