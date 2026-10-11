@@ -1,9 +1,12 @@
 package api
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 )
@@ -99,6 +102,112 @@ func (s *Server) handleUserPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := auth.SetPassword(s.DB, pathID(r), in.Password, auth.SessionToken(r)); err != nil {
+		writePasswordErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// passwordForgot asks for a reset link.
+type passwordForgot struct {
+	Email string `json:"email"`
+}
+
+// passwordReset sets a new password with the token from a reset link.
+type passwordReset struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+// resetHash is what the database keeps of a reset token: a copy of the
+// database then hands nobody a working link.
+func resetHash(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
+// passwordResetReady reports whether a reset link can go out at all: it
+// needs a mail server and the public address the link points to.
+func (s *Server) passwordResetReady() bool {
+	return s.Mail != nil && s.Mail.Configured() && s.baseURL() != "" && !s.passwordAuthBlocked()
+}
+
+// handlePasswordForgot mails a reset link to an account with a password.
+//
+// @Summary      Ask for a password reset link
+// @Description  Mails a link to set a new password, good for an hour and once. Answers the same whether or not the address has an account, so it tells nobody which addresses do; at most one mail per account every five minutes. Accounts that sign in through OIDC get none.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      passwordForgot  true  "account email"
+// @Success      200   {object}  OkResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      429   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Failure      503   {object}  ErrorResponse
+// @Router       /api/auth/forgot [post]
+func (s *Server) handlePasswordForgot(w http.ResponseWriter, r *http.Request) {
+	var in passwordForgot
+	if !readJSON(w, r, &in) {
+		return
+	}
+	if !s.passwordResetReady() {
+		writeErr(w, http.StatusServiceUnavailable, "password reset by mail is not set up")
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(in.Email))
+	token := randToken()
+	res, err := s.DB.Exec(`UPDATE users SET reset_token_hash = ?, reset_sent_at = datetime('now')
+		WHERE email = ? AND password_hash != ''
+		AND (reset_sent_at = '' OR reset_sent_at <= datetime('now', '-5 minutes'))`, resetHash(token), email)
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 1 {
+		var locale string
+		s.DB.QueryRow(`SELECT locale FROM users WHERE email = ?`, email).Scan(&locale)
+		go s.sendResetEmail(email, token, locale)
+	}
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// handlePasswordReset sets a new password with a reset link's token.
+//
+// @Summary      Set a new password from a reset link
+// @Description  Consumes the token of a reset link (good for an hour and once), sets the new password and ends the account's sessions.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      passwordReset  true  "token and new password"
+// @Success      200   {object}  OkResponse
+// @Failure      400   {object}  ErrorResponse
+// @Failure      403   {object}  ErrorResponse
+// @Failure      429   {object}  ErrorResponse
+// @Failure      500   {object}  ErrorResponse
+// @Router       /api/auth/reset [post]
+func (s *Server) handlePasswordReset(w http.ResponseWriter, r *http.Request) {
+	if s.passwordAuthBlocked() {
+		writeErr(w, http.StatusForbidden, "password auth is disabled, use OIDC")
+		return
+	}
+	var in passwordReset
+	if !readJSON(w, r, &in) {
+		return
+	}
+	var id int64
+	err := s.DB.QueryRow(`SELECT id FROM users WHERE reset_token_hash = ? AND reset_token_hash != ''
+		AND reset_sent_at > datetime('now', '-1 hour') AND password_hash != ''`, resetHash(in.Token)).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) || in.Token == "" {
+		writeErr(w, http.StatusBadRequest, "this reset link is invalid or has expired")
+		return
+	}
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	// clears the token with the old password, in one go
+	if err := auth.SetPassword(s.DB, id, in.Password, ""); err != nil {
 		writePasswordErr(w, err)
 		return
 	}

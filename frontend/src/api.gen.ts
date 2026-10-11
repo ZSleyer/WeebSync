@@ -207,6 +207,10 @@ export interface Schemas {
     oidc: boolean
     oidcEnvLocked: string[]
     oidcName: string
+    /**
+     * a forgotten password can be reset by mail (SMTP and base URL are set)
+     */
+    passwordReset: boolean
     registrationOpen: boolean
     setupNeeded: boolean
   }
@@ -1922,6 +1926,13 @@ export interface Schemas {
   'api.passwordChange': {
     current: string
     new: string
+  }
+  'api.passwordForgot': {
+    email: string
+  }
+  'api.passwordReset': {
+    password: string
+    token: string
   }
   'api.passwordSet': {
     password: string

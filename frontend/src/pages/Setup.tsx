@@ -36,6 +36,8 @@ export default function Setup({
   const [oidcReady, setOidcReady] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  // typed twice: a typo here locks the only admin out before anything else exists
+  const [again, setAgain] = useState('')
   const [oidc, setOidc] = useState({
     oidcProviderName: '',
     oidcIssuer: '',
@@ -89,6 +91,7 @@ export default function Setup({
 
   const createAccount = (e: FormEvent) => {
     e.preventDefault()
+    if (password !== again) return setError(t('account.passwordMismatch'))
     run(async () => {
       // locale rides along so server-delivered texts match the ui language
       await api.post('/api/auth/register', { email, password, locale: i18n.language })
@@ -245,6 +248,19 @@ export default function Setup({
               minLength={10}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+            />
+            <Badge as="label" htmlFor="setup-password-again" className="mb-1 block w-fit">
+              {t('login.passwordAgain')}
+            </Badge>
+            <Input
+              id="setup-password-again"
+              className="mb-4"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={10}
+              value={again}
+              onChange={(e) => setAgain(e.target.value)}
             />
             {errorBox}
             <Button type="submit" variant="primary" className="w-full" disabled={busy}>

@@ -423,6 +423,10 @@
                     "oidcName": {
                         "type": "string"
                     },
+                    "passwordReset": {
+                        "description": "a forgotten password can be reset by mail (SMTP and base URL are set)",
+                        "type": "boolean"
+                    },
                     "registrationOpen": {
                         "type": "boolean"
                     },
@@ -436,7 +440,8 @@
                     "registrationOpen",
                     "authMode",
                     "setupNeeded",
-                    "oidcEnvLocked"
+                    "oidcEnvLocked",
+                    "passwordReset"
                 ],
                 "type": "object"
             },
@@ -4521,6 +4526,32 @@
                 ],
                 "type": "object"
             },
+            "api.passwordForgot": {
+                "properties": {
+                    "email": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "email"
+                ],
+                "type": "object"
+            },
+            "api.passwordReset": {
+                "properties": {
+                    "password": {
+                        "type": "string"
+                    },
+                    "token": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "token",
+                    "password"
+                ],
+                "type": "object"
+            },
             "api.passwordSet": {
                 "properties": {
                     "password": {
@@ -8359,6 +8390,87 @@
                 ]
             }
         },
+        "/api/auth/forgot": {
+            "post": {
+                "description": "Mails a link to set a new password, good for an hour and once. Answers the same whether or not the address has an account, so it tells nobody which addresses do; at most one mail per account every five minutes. Accounts that sign in through OIDC get none.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.passwordForgot",
+                                        "description": "account email",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "account email",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
+                    }
+                },
+                "summary": "Ask for a password reset link",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
         "/api/auth/locale": {
             "put": {
                 "description": "Stores the caller's UI language (de or en) for server-delivered emails and push notifications.",
@@ -9128,6 +9240,87 @@
                     }
                 },
                 "summary": "Register a local account",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/auth/reset": {
+            "post": {
+                "description": "Consumes the token of a reset link (good for an hour and once), sets the new password and ends the account's sessions.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.passwordReset",
+                                        "description": "token and new password",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "token and new password",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "summary": "Set a new password from a reset link",
                 "tags": [
                     "Auth"
                 ]
