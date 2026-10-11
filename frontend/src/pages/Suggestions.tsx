@@ -767,7 +767,7 @@ export function IgnoredSection() {
           className="flex items-center justify-between gap-2 border-b border-border-subtle/50 py-1 text-sm"
         >
           <span className="min-w-0 truncate">
-            {d.label || d.refKey} <Badge>{d.kind}</Badge>
+            {d.label || d.refKey} <Badge>{t(`suggestions.ignoredKind_${d.kind}`, d.kind)}</Badge>
           </span>
           <Button size="sm" className="shrink-0" onClick={() => restore(d)}>
             <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
