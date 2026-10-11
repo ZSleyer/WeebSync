@@ -31,8 +31,10 @@ type ProviderLinks struct {
 // providers surfaced it, carrying which integrations recognise it (Providers),
 // links to each, a series-wide ignore key, and the server folders it maps to.
 type SugItem struct {
-	RefKey     string          `json:"refKey"`            // series:{id} | fold:{key}:{year} | unit:… | eps:unit:…
-	Kind       string          `json:"kind,omitempty"`    // incomplete: season (missing season/movie) | sequel (Plex chain) | episodes (gaps in an owned season)
+	RefKey string `json:"refKey"` // series:{id} | fold:{key}:{year} | unit:… | eps:unit:…
+	// Kind, for incomplete: season (missing season/movie), sequel (Plex
+	// chain) or episodes (gaps in an owned season).
+	Kind       string          `json:"kind,omitempty" enums:"season,sequel,episodes"`
 	Missing    []int           `json:"missing,omitempty"` // incomplete/episodes: the episode numbers a remote copy has and the local season lacks
 	SeriesID   int64           `json:"seriesId"`          // 0 when not bundled yet
 	Category   string          `json:"category"`          // anime-movie | anime-tv | movie | tv

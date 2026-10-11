@@ -38,7 +38,7 @@ type KindDefaults struct {
 	// "title" after the series title, "none" for none at all. The title is
 	// resolved once, in the dialog that creates the sync, and lands in the
 	// watch as part of LocalPath - see aiWatchFields.
-	SubfolderSource    string `json:"subfolderSource"`
+	SubfolderSource    string `json:"subfolderSource" enums:"none,remote,title"`
 	SubfolderSeparator string `json:"subfolderSeparator"` // replaces spaces in a title folder; "" keeps them
 	Template           string `json:"template"`
 	Separator          string `json:"separator"`

@@ -70,7 +70,7 @@ func (s *Server) handleAiStatus(w http.ResponseWriter, r *http.Request) {
 // aiChatMessage is one prior turn the client sends back; only user and
 // assistant turns are accepted, the server rebuilds everything else.
 type aiChatMessage struct {
-	Role    string `json:"role" example:"user"`
+	Role    string `json:"role" enums:"user,assistant" example:"user"`
 	Content string `json:"content"`
 	// Images are data URLs (image/*) the user attached, read by a vision model
 	Images []string `json:"images,omitempty"`

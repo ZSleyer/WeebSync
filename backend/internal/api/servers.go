@@ -17,7 +17,7 @@ import (
 type serverInfo struct {
 	ID             int64  `json:"id"`
 	Name           string `json:"name"`
-	Protocol       string `json:"protocol"`
+	Protocol       string `json:"protocol" enums:"sftp,ftps,ftp"`
 	Host           string `json:"host"`
 	Port           int    `json:"port"`
 	Username       string `json:"username"`
@@ -283,7 +283,7 @@ func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 type HostKeyConflict struct {
 	Error string `json:"error"`
 	// Code is host_key_unknown (first contact) or host_key_mismatch.
-	Code string `json:"code" example:"host_key_mismatch"`
+	Code string `json:"code" enums:"host_key_mismatch,host_key_unknown" example:"host_key_mismatch"`
 	// NewKey is the offered key (base64); echo it back to /trust-hostkey on
 	// accept so exactly the reviewed key gets pinned.
 	NewKey         string `json:"newKey"`

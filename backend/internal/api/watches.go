@@ -95,7 +95,8 @@ type Watch struct {
 	Seasons        []int          `json:"seasons,omitempty"`        // seasons the local folder holds (specials left out), ascending
 	Offset         int            `json:"offset,omitempty"`         // {episode-N} renumber offset: absolute episode = local - offset (for showing the original number)
 	Airings        []Airing       `json:"airings,omitempty"`        // every scheduled future release the provider knows (multi-week calendar)
-	Category       string         `json:"category,omitempty"`       // anime-series | anime-movie | series | movie (calendar filter)
+	// Category is the calendar filter.
+	Category string `json:"category,omitempty" enums:"anime-series,anime-movie,series,movie,manga"`
 	// DubWaiting: the watch is caught up on the dub it filters for; the
 	// original is ahead but the dub is not due yet - expected waiting, not
 	// something to look at.

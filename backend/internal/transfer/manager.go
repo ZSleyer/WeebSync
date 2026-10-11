@@ -39,7 +39,7 @@ type Download struct {
 	LocalPath   string `json:"localPath"`
 	Size        int64  `json:"size"`
 	Transferred int64  `json:"transferred"`
-	Status      string `json:"status"`
+	Status      string `json:"status" enums:"queued,running,paused,done,error,canceled"`
 	Error       string `json:"error,omitempty"`
 	// ErrorCode classifies Error into a stable machine-readable reason
 	// (see classifyError); empty when the failure is not one we recognize.

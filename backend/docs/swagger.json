@@ -1038,6 +1038,10 @@
                 "properties": {
                     "code": {
                         "description": "Code is host_key_unknown (first contact) or host_key_mismatch.",
+                        "enum": [
+                            "host_key_mismatch",
+                            "host_key_unknown"
+                        ],
                         "example": "host_key_mismatch",
                         "type": "string"
                     },
@@ -1139,6 +1143,11 @@
                     },
                     "subfolderSource": {
                         "description": "SubfolderSource names the subfolder: \"remote\" after the remote folder,\n\"title\" after the series title, \"none\" for none at all. The title is\nresolved once, in the dialog that creates the sync, and lands in the\nwatch as part of LocalPath - see aiWatchFields.",
+                        "enum": [
+                            "none",
+                            "remote",
+                            "title"
+                        ],
                         "type": "string"
                     },
                     "template": {
@@ -2181,7 +2190,12 @@
                         "type": "boolean"
                     },
                     "kind": {
-                        "description": "incomplete: season (missing season/movie) | sequel (Plex chain) | episodes (gaps in an owned season)",
+                        "description": "Kind, for incomplete: season (missing season/movie), sequel (Plex\nchain) or episodes (gaps in an owned season).",
+                        "enum": [
+                            "season",
+                            "sequel",
+                            "episodes"
+                        ],
                         "type": "string"
                     },
                     "library": {
@@ -2707,7 +2721,14 @@
                         "type": "boolean"
                     },
                     "category": {
-                        "description": "anime-series | anime-movie | series | movie (calendar filter)",
+                        "description": "Category is the calendar filter.",
+                        "enum": [
+                            "anime-series",
+                            "anime-movie",
+                            "series",
+                            "movie",
+                            "manga"
+                        ],
                         "type": "string"
                     },
                     "checkAttempts": {
@@ -3109,6 +3130,11 @@
                         "type": "string"
                     },
                     "reason": {
+                        "enum": [
+                            "no_provider",
+                            "provider_error",
+                            "no_series"
+                        ],
                         "type": "string"
                     },
                     "seriesId": {
@@ -3682,6 +3708,10 @@
                         "uniqueItems": false
                     },
                     "role": {
+                        "enum": [
+                            "user",
+                            "assistant"
+                        ],
                         "example": "user",
                         "type": "string"
                     }
@@ -4908,6 +4938,11 @@
                         "type": "integer"
                     },
                     "protocol": {
+                        "enum": [
+                            "sftp",
+                            "ftps",
+                            "ftp"
+                        ],
                         "type": "string"
                     },
                     "rootPath": {
@@ -5798,6 +5833,14 @@
                         "type": "integer"
                     },
                     "status": {
+                        "enum": [
+                            "queued",
+                            "running",
+                            "paused",
+                            "done",
+                            "error",
+                            "canceled"
+                        ],
                         "type": "string"
                     },
                     "transferred": {
