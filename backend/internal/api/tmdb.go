@@ -118,6 +118,7 @@ type scopeRequest struct {
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		415		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/servers/{id}/catalog/scope [put]
 func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
@@ -162,11 +163,16 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid path")
 		return
 	}
+	var err error
 	if in.Kind == "" {
-		s.DB.Exec(`DELETE FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, in.Path)
+		_, err = s.DB.Exec(`DELETE FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, in.Path)
 	} else {
-		s.DB.Exec(`INSERT OR REPLACE INTO catalog_scopes (server_id, path, kind) VALUES (?, ?, ?)`,
+		_, err = s.DB.Exec(`INSERT OR REPLACE INTO catalog_scopes (server_id, path, kind) VALUES (?, ?, ?)`,
 			serverID, in.Path, in.Kind)
+	}
+	if err != nil {
+		dbErr(w)
+		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

@@ -97,6 +97,7 @@ func (s *Server) handlePlexLinkStart(w http.ResponseWriter, r *http.Request) {
 //	@Produce		json
 //	@Param			id	query	int	true	"PIN id from link/start"
 //	@Success		200	{object}	plexAccountResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/plex/link/poll [get]
 func (s *Server) handlePlexLinkPoll(w http.ResponseWriter, r *http.Request) {
@@ -130,8 +131,11 @@ func (s *Server) handlePlexLinkPoll(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "encrypt failed")
 		return
 	}
-	s.DB.Exec(`INSERT OR REPLACE INTO plex_accounts (user_id, token_enc, plex_user, created_at) VALUES (?, ?, ?, ?)`,
-		u.ID, enc, name, time.Now().UTC().Format(time.RFC3339))
+	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO plex_accounts (user_id, token_enc, plex_user, created_at) VALUES (?, ?, ?, ?)`,
+		u.ID, enc, name, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		dbErr(w)
+		return
+	}
 	forgetLinkFlow("plex", id)
 	writeJSON(w, http.StatusOK, plexAccountResponse{Linked: true, User: name})
 }
@@ -181,11 +185,15 @@ func (s *Server) handlePlexAccount(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Suggestions
 //	@Produce		json
 //	@Success		200	{object}	OkResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/plex/account [delete]
 func (s *Server) handlePlexAccountDisconnect(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	s.DB.Exec(`DELETE FROM plex_accounts WHERE user_id = ?`, u.ID)
+	if _, err := s.DB.Exec(`DELETE FROM plex_accounts WHERE user_id = ?`, u.ID); err != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 

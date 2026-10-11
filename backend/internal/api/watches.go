@@ -1896,7 +1896,9 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	// the library. Apply it to them now, and drop the old verdict: it describes
 	// a question nobody is asking anymore.
 	if in.PlexAudioLang != oldAudio || in.PlexSubLang != oldSub {
-		s.DB.Exec(`UPDATE watches SET plex_stream_miss = '' WHERE id = ?`, id)
+		if _, err := s.DB.Exec(`UPDATE watches SET plex_stream_miss = '' WHERE id = ?`, id); err != nil {
+			slog.Warn("plex stream verdict not cleared", "watch", id, "err", err)
+		}
 		// re-read rather than assemble from the request: the pass has to know
 		// how this watch names its files, and a literal built here would carry
 		// no rename at all

@@ -253,11 +253,15 @@ func (s *Server) handleAnilistToken(w http.ResponseWriter, r *http.Request) {
 //	@Tags			Suggestions
 //	@Produce		json
 //	@Success		200	{object}	OkResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/anilist/connect [delete]
 func (s *Server) handleAnilistDisconnect(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	s.DB.Exec(`DELETE FROM anilist_accounts WHERE user_id = ?`, u.ID)
+	if _, err := s.DB.Exec(`DELETE FROM anilist_accounts WHERE user_id = ?`, u.ID); err != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 

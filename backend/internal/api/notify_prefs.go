@@ -64,6 +64,7 @@ type NotifyPrefsUpdateRequest struct {
 //	@Param			prefs	body	NotifyPrefsUpdateRequest	true	"Push categories and frequency"
 //	@Success		200	{object}	OkResponse
 //	@Failure		415	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/auth/notify-prefs [put]
 func (s *Server) handleNotifyPrefsPut(w http.ResponseWriter, r *http.Request) {
@@ -86,6 +87,9 @@ func (s *Server) handleNotifyPrefsPut(w http.ResponseWriter, r *http.Request) {
 	if !slices.Contains(notifyFreqs, freq) {
 		freq = "instant"
 	}
-	s.DB.Exec(`UPDATE users SET push_prefs = ?, notify_freq = ? WHERE id = ?`, strings.Join(clean, ","), freq, u.ID)
+	if _, err := s.DB.Exec(`UPDATE users SET push_prefs = ?, notify_freq = ? WHERE id = ?`, strings.Join(clean, ","), freq, u.ID); err != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

@@ -926,6 +926,7 @@ type catalogMatchRequest struct {
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		415		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/servers/{id}/catalog/match [put]
 func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
@@ -954,6 +955,9 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	// that was listed there, and its kind can narrow tv to movie
 	scope := s.scopeFor(serverID, path.Dir(in.Folder))
 	source := sourceForScope(scopeForItem(scope, s.itemKind(serverID, in.Folder, path.Base(in.Folder))))
-	s.persistMatch(serverID, in.Folder, in.MediaID, true, source)
+	if s.persistMatch(serverID, in.Folder, in.MediaID, true, source) != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
