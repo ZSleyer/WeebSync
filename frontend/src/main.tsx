@@ -1,12 +1,13 @@
 import { StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router/dom'
 import { useTranslation } from 'react-i18next'
 import { CloseLabelContext } from '@weebsync/design-system'
 import './index.css'
 import './locales'
 import { router } from './App'
+import { ApiError } from './api'
 import { ToastProvider } from './components/toast'
 import { ConfirmProvider } from './components/confirm'
 import { registerServiceWorker } from './push'
@@ -45,8 +46,17 @@ function CloseLabel({ children }: { children: ReactNode }) {
   return <CloseLabelContext.Provider value={label}>{children}</CloseLabelContext.Provider>
 }
 
-const queryClient = new QueryClient({
+// A session that ended elsewhere (logout in another tab, expiry) shows up as
+// the 401 of whatever this tab asks next. The user query is what decides
+// between login screen and app, so it learns of it there: before, the shell
+// stayed up with "unauthorized" in its sections until a reload.
+const signedOut = (e: unknown) => {
+  if (e instanceof ApiError && e.status === 401) queryClient.setQueryData(['me'], null)
+}
+const queryClient: QueryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 10_000 } },
+  queryCache: new QueryCache({ onError: signedOut }),
+  mutationCache: new MutationCache({ onError: signedOut }),
 })
 
 createRoot(document.getElementById('root')!).render(
