@@ -245,7 +245,7 @@ export default function SetupSteps({
               max={1440}
               className="font-mono"
               value={form.watchIntervalMin || ''}
-              onChange={(e) => set('watchIntervalMin', Number(e.target.value))}
+              onChange={(e) => set('watchIntervalMin', Math.trunc(Number(e.target.value)))}
             />
           </Field>
           <Field label={t('settings.maxConcurrent')}>
@@ -255,7 +255,7 @@ export default function SetupSteps({
               max={20}
               className="font-mono"
               value={form.maxConcurrent || ''}
-              onChange={(e) => set('maxConcurrent', Number(e.target.value))}
+              onChange={(e) => set('maxConcurrent', Math.trunc(Number(e.target.value)))}
             />
           </Field>
           <Field label={t('settings.globalLimit')}>
@@ -264,7 +264,7 @@ export default function SetupSteps({
               min={0}
               className="font-mono"
               value={Math.round(form.globalRateLimit / 1024)}
-              onChange={(e) => set('globalRateLimit', Number(e.target.value) * 1024)}
+              onChange={(e) => set('globalRateLimit', Math.trunc(Number(e.target.value)) * 1024)}
             />
           </Field>
         </div>
