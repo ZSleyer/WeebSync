@@ -3,12 +3,21 @@ import { Link } from 'react-router'
 import { File, Folder, Trash2, Undo2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, buttonClass, Count, IconButton, PageHeader, Panel } from '@weebsync/design-system'
+import {
+  ActionBar,
+  Button,
+  buttonClass,
+  Count,
+  IconButton,
+  PageHeader,
+  Panel,
+  useMediaQuery,
+} from '@weebsync/design-system'
 import { api, fmtBytes, type TrashEntry } from '../api'
 import { useAuth } from '../hooks'
 import { useConfirm } from '../components/confirm'
 import Loading from '../components/Loading'
-import PageActions from '../components/PageActions'
+import { PageFooter, WIDE_MQ } from '../components/PageActions'
 
 const trashQuery = { queryKey: ['trash'], queryFn: () => api.get<TrashEntry[]>('/api/trash'), staleTime: 60_000 }
 
@@ -94,25 +103,24 @@ export default function TrashPage() {
       empty.mutate()
   }
 
+  const wide = useMediaQuery(WIDE_MQ)
+  const emptyButton = (
+    <Button size="sm" variant="danger" disabled={busy} onClick={() => void emptyAll()}>
+      <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+      {t('trash.empty')}
+    </Button>
+  )
   return (
     <div>
       <PageHeader title={t('trash.title')} sub={t('trash.hint')}>
-        {/* the app bar on a phone: this page is stacked on Files there,
-            which hides the in-page header and everything in it */}
-        <PageActions>
-          {admin && entries && entries.length > 0 && (
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={busy}
-              aria-label={t('trash.empty')}
-              onClick={() => void emptyAll()}
-            >
-              <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] lg:mr-1" />
-              <span className="hidden lg:inline">{t('trash.empty')}</span>
-            </Button>
-          )}
-        </PageActions>
+        {/* on a phone this page is stacked on Files, which hides the in-page
+            header: the button goes to the footer row above the tab bar, like
+            the other primary actions; destructive ones stay out of the app bar */}
+        {admin && entries && entries.length > 0 && (
+          <PageFooter>
+            {wide ? emptyButton : <ActionBar aria-label={t('trash.empty')}>{emptyButton}</ActionBar>}
+          </PageFooter>
+        )}
       </PageHeader>
       <Panel className="mt-4 overflow-hidden">
         {isPending ? (

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import TrashPage, { TrashButton } from '../pages/Trash'
 import { api, type TrashEntry } from '../api'
-import { AppBarActions } from '../components/PageActions'
+import { ShellFooter } from '../components/PageActions'
 
 vi.mock(import('react-i18next'), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -41,15 +41,15 @@ const entries: TrashEntry[] = [
   },
 ]
 
-// the shell's app bar slot: jsdom matches no media query, so the page sees a
-// phone and puts its actions there
+// the shell's footer row: jsdom matches no media query, so the page sees a
+// phone and puts its primary action there
 function Shell({ children }: { children: ReactNode }) {
   const [node, setNode] = useState<HTMLElement | null>(null)
   return (
-    <AppBarActions.Provider value={node}>
+    <ShellFooter.Provider value={node}>
       <div ref={setNode} />
       {children}
-    </AppBarActions.Provider>
+    </ShellFooter.Provider>
   )
 }
 
