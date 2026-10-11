@@ -358,7 +358,41 @@ func (s *Server) handleAnilistProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Anilist.InvalidateUserList(alID)
+	s.patchSuggestionProgress(u.ID, in.MediaID, in.Progress)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// patchSuggestionProgress writes a new watched count into the user's cached
+// suggestion blob. The page reads that blob, fresh for half an hour, not the
+// list cache: without this the count stayed where it was, and the next +1
+// sent the same number again. fetched_at is left alone, so the blob ages as
+// before.
+func (s *Server) patchSuggestionProgress(userID int64, mediaID, progress int) {
+	key := fmt.Sprintf("suggestions:%d", userID)
+	var payload string
+	if s.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, key).Scan(&payload) != nil {
+		return
+	}
+	var resp SuggestionsResponse
+	if json.Unmarshal([]byte(payload), &resp) != nil {
+		return
+	}
+	changed := false
+	for _, list := range [][]SugItem{resp.Watchlist, resp.Recommended, resp.Trending, resp.Incomplete} {
+		for i := range list {
+			// only an AniList list entry carries a status and a count
+			if list[i].Media.ID == mediaID && list[i].Status != "" {
+				list[i].Progress = progress
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return
+	}
+	if b, err := json.Marshal(resp); err == nil {
+		s.DB.Exec(`UPDATE anilist_cache SET payload = ? WHERE key = ?`, string(b), key)
+	}
 }
 
 // anilistProgress returns mediaID → watched episodes from the cached list.

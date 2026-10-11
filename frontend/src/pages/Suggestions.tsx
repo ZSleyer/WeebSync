@@ -510,12 +510,34 @@ function SugCard({
     onNotice(t('suggestions.rematchQueued', { count: n }))
   }
 
+  // one step at a time: a second click before the first answer would send
+  // the same count again
+  const [stepping, setStepping] = useState(false)
   const plusOne = async () => {
+    if (stepping) return
+    setStepping(true)
+    const progress = (it.progress ?? 0) + 1
     try {
-      await api.post('/api/anilist/progress', { mediaId: it.media.id, progress: (it.progress ?? 0) + 1 })
+      await api.post('/api/anilist/progress', { mediaId: it.media.id, progress })
+      // the new count shows at once, the next +1 builds on it
+      const bump = (list: SuggestionsResponse['watchlist']) =>
+        list.map((x) => (x.media.id === it.media.id && x.status ? { ...x, progress } : x))
+      qc.setQueryData<SuggestionsResponse>(['suggestions'], (d) =>
+        d
+          ? {
+              ...d,
+              watchlist: bump(d.watchlist),
+              recommended: bump(d.recommended),
+              trending: bump(d.trending),
+              incomplete: bump(d.incomplete),
+            }
+          : d,
+      )
       qc.invalidateQueries({ queryKey: ['suggestions'] })
     } catch (e) {
       onNotice(e instanceof Error ? e.message : t('app.error'))
+    } finally {
+      setStepping(false)
     }
   }
 
@@ -626,7 +648,12 @@ function SugCard({
         actions={
           <>
             {it.status && (
-              <Button size="sm" title={t('suggestions.plusOneHint')} onClick={plusOne}>
+              <Button
+                size="sm"
+                title={t('suggestions.plusOneHint')}
+                aria-disabled={stepping || undefined}
+                onClick={plusOne}
+              >
                 <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('suggestions.plusOne')}
               </Button>
