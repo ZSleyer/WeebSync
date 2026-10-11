@@ -19,15 +19,17 @@ export type Step = 'account' | 'oidc' | 'import' | 'server' | 'storage' | 'meta'
 const STEPS: Step[] = ['account', 'oidc', 'import', 'server', 'storage', 'meta']
 
 // The step survives the wizard being mounted afresh: a reload, or RootLayout
-// swapping from the login screen's wizard to the signed-in one once ['me']
-// is refetched after step 01. Without it a reload on step 02 jumped to 03 and
-// the OIDC step was never shown again. A resumed run (initialStep) never goes
-// back behind its own start, which is how the OIDC-only path comes back from
-// its provider at step 03.
+// swapping from the login screen's wizard to the signed-in one once ['me'] is
+// refetched after step 01, which mounts it with initialStep "import". Without
+// it a reload on step 02 jumped to 03 and the OIDC step never came back. The
+// OIDC-only path stores "import" before it leaves for its provider, so it
+// comes back at step 03. Signed out (initialStep "account") there is no
+// account yet, so nothing past step 01 can be resumed.
 const STEP_KEY = 'weebsync.setup.step'
 const storedStep = (initial: Step): Step => {
+  if (initial === 'account') return initial
   const s = sessionStorage.getItem(STEP_KEY) as Step | null
-  return s && STEPS.indexOf(s) > STEPS.indexOf(initial) ? s : initial
+  return s && s !== 'account' && STEPS.includes(s) ? s : initial
 }
 
 export default function Setup({
@@ -308,7 +310,12 @@ export default function Setup({
             <p className="mb-4 text-sm text-t-secondary" role="status">
               {t('setup.oidcReady')}
             </p>
-            <ButtonLink variant="primary" className="block w-full" href="/api/auth/oidc/login">
+            <ButtonLink
+              variant="primary"
+              className="block w-full"
+              href="/api/auth/oidc/login"
+              onClick={() => sessionStorage.setItem(STEP_KEY, 'import')}
+            >
               {oidc.oidcProviderName ? t('login.oidcNamed', { name: oidc.oidcProviderName }) : t('login.oidc')}
             </ButtonLink>
           </Panel>

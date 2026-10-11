@@ -227,7 +227,7 @@ export default function SetupSteps({
         {heading(t('setup.storageTitle'))}
         <p className="mb-4 text-sm text-t-secondary">{t('setup.storageHint')}</p>
         <Badge>{t('setup.roots')}</Badge>
-        <ul className="mb-2 mt-1 rounded-lg border border-border-subtle p-2 font-mono text-xs text-t-secondary">
+        <ul className="mb-2 mt-1 rounded-lg border border-border-subtle p-2 font-mono text-xs break-all text-t-secondary">
           {form.downloadRoots?.map((r) => (
             <li key={r}>{r}</li>
           ))}
