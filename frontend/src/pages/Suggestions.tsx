@@ -383,7 +383,10 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
             initial={watch.initial}
             onSave={async (f) => {
               await api.post('/api/watches', { serverId: watch.serverId, ...f })
-              setNotice(t('watch.created'))
+              // a toast like the in-card branch: a notice badge stayed for the
+              // whole visit, and the auto-sync list has to learn of the watch
+              qc.invalidateQueries({ queryKey: ['watches'] })
+              toast({ message: t('watch.created') })
             }}
             onClose={() => setWatch(null)}
           />
