@@ -71,6 +71,7 @@ export default function SyncDefaults() {
     ),
   })
   const save = useMutation({
+    meta: { silent: true },
     mutationFn: (d: WatchDefaults) => api.put('/api/auth/watch-defaults', tidy(d)),
     onSuccess: (_, d) => {
       setSaved(true)

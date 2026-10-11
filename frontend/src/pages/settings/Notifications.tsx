@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Checkbox, Panel, Select } from '@weebsync/design-system'
 import { api } from '../../api'
+import { useFailToast } from '../../components/toast'
 import { pushSubscription, pushSupported, subscribePush, unsubscribePush } from '../../push'
 
 export default function Notifications() {
@@ -78,6 +79,7 @@ function PushSection() {
   const [enabled, setEnabled] = useState(false)
   const [state, setState] = useState<'ok' | 'denied' | 'unsupported' | ''>(() => (pushSupported() ? '' : 'unsupported'))
   const [sent, setSent] = useState(false)
+  const fail = useFailToast()
   useEffect(() => {
     pushSubscription()
       .then((s) => setEnabled(!!s))
@@ -103,8 +105,12 @@ function PushSection() {
 
   const sendTest = async () => {
     setSent(false)
-    await api.post('/api/push/test', {})
-    setSent(true)
+    try {
+      await api.post('/api/push/test', {})
+      setSent(true)
+    } catch (e) {
+      fail(e)
+    }
   }
 
   return (

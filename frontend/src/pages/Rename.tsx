@@ -101,6 +101,7 @@ export default function Rename() {
   ])
 
   const doApply = useMutation({
+    meta: { silent: true },
     mutationFn: () =>
       api.post<RenamePair[]>('/api/rename/apply', {
         path,

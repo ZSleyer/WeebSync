@@ -8,6 +8,7 @@ import { useAiModels } from '../../hooks'
 import { EnvBadge, FieldIssue, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { useConfirm } from '../../components/confirm'
+import { useFailToast } from '../../components/toast'
 import Smtp from './Smtp'
 
 // The five status queries, shared by the panels and the strip on top so
@@ -848,6 +849,7 @@ function TvdbAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [testing, setTesting] = useState(false)
+  const fail = useFailToast()
   const { data } = useQuery(TVDB_ME)
   // force=1 bypasses the backend's 24h token cache, so a changed key is
   // actually re-tested. fetchQuery writes into the same cache entry.
@@ -859,6 +861,8 @@ function TvdbAccount() {
         queryFn: () => api.get<TvdbMe>('/api/tvdb/me?force=1'),
         staleTime: 0,
       })
+    } catch (e) {
+      fail(e)
     } finally {
       setTesting(false)
     }
@@ -888,6 +892,7 @@ function AnimescheduleAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [testing, setTesting] = useState(false)
+  const fail = useFailToast()
   const { data } = useQuery(ANIMESCHEDULE_ME)
   // the backend caches nothing here; fetchQuery only writes into the same
   // cache entry so the badge changes
@@ -899,6 +904,8 @@ function AnimescheduleAccount() {
         queryFn: () => api.get<AnimescheduleMe>('/api/animeschedule/me?force=1'),
         staleTime: 0,
       })
+    } catch (e) {
+      fail(e)
     } finally {
       setTesting(false)
     }
@@ -982,6 +989,7 @@ function AiAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [testing, setTesting] = useState(false)
+  const fail = useFailToast()
   const { data } = useQuery(AI_STATUS)
   const test = async () => {
     setTesting(true)
@@ -991,6 +999,8 @@ function AiAccount() {
         queryFn: () => api.get<AiStatus>('/api/ai/status?force=1'),
         staleTime: 0,
       })
+    } catch (e) {
+      fail(e)
     } finally {
       setTesting(false)
     }

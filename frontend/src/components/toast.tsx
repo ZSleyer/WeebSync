@@ -2,10 +2,20 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useTranslation } from 'react-i18next'
 import { useQueryClient, type QueryKey } from '@tanstack/react-query'
 
+declare module '@tanstack/react-query' {
+  interface Register {
+    /** `silent`: the mutation shows its own error, the app-wide line stays out of it */
+    mutationMeta: { silent?: boolean }
+  }
+}
+
 // One place for short feedback across the app: a line at the bottom that says
 // what just happened, with "Undo" where that can be taken back. A removal
 // does not ask first. The row goes at once, the server is only told when the
 // line runs out; undo puts the row back without the server ever knowing.
+// A plain message takes a line of its own above that one, so a failure that
+// is reported while a removal still waits neither sends the removal early
+// nor takes its Undo away.
 
 const UNDO_MS = 5000
 
@@ -28,6 +38,8 @@ interface Live extends ToastOptions {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   const [live, setLive] = useState<Live | null>(null)
+  const [notice, setNotice] = useState<Live | null>(null)
+  const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const pending = useRef<{ id: number; commit?: ToastOptions['commit'] } | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const seq = useRef(0)
@@ -43,8 +55,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const toast = useCallback<ToastFn>(
     (opts) => {
-      flush()
       const id = ++seq.current
+      if (!opts.undo && !opts.commit) {
+        clearTimeout(noticeTimer.current)
+        setNotice({ ...opts, id })
+        noticeTimer.current = setTimeout(() => setNotice((l) => (l?.id === id ? null : l)), UNDO_MS)
+        return
+      }
+      flush()
       pending.current = { id, commit: opts.commit }
       setLive({ ...opts, id })
       timer.current = setTimeout(() => {
@@ -53,6 +71,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       }, UNDO_MS)
     },
     [flush],
+  )
+
+  // Every failed mutation says so, unless it handles its own error (onError
+  // on the mutation) or shows it itself (meta.silent). Before this a failed
+  // pause, delete or toggle looked exactly like one that worked.
+  const qc = useQueryClient()
+  useEffect(
+    () =>
+      qc.getMutationCache().subscribe((e) => {
+        if (e.type !== 'updated' || e.action.type !== 'error') return
+        const m = e.mutation
+        if (m.options.onError || m.meta?.silent) return
+        const err = e.action.error
+        toast({ message: t('common.actionFailed', { msg: err instanceof Error ? err.message : String(err) }) })
+      }),
+    [qc, toast, t],
   )
 
   useEffect(() => {
@@ -70,7 +104,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     if (!el?.showPopover) return
     if (el.matches(':popover-open')) el.hidePopover()
     el.showPopover()
-  }, [live])
+  }, [live, notice])
 
   const undo = () => {
     clearTimeout(timer.current)
@@ -83,6 +117,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastCtx.Provider value={toast}>
       {children}
       <div ref={region} popover="manual" role="status" aria-live="polite" className="t-toast-region">
+        {notice && (
+          <div key={notice.id} className="t-toast">
+            <span className="min-w-0 flex-1">{notice.message}</span>
+            <i aria-hidden className="t-toast__time" style={{ animationDuration: `${UNDO_MS}ms` }} />
+          </div>
+        )}
         {live && (
           <div key={live.id} className="t-toast">
             <span className="min-w-0 flex-1">{live.message}</span>
@@ -100,6 +140,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 export const useToast = () => useContext(ToastCtx)
+
+/** For a direct api call outside a mutation: report its failure like a failed mutation. */
+export function useFailToast() {
+  const toast = useToast()
+  const { t } = useTranslation()
+  return (err: unknown) =>
+    toast({ message: t('common.actionFailed', { msg: err instanceof Error ? err.message : String(err) }) })
+}
 
 /**
  * Remove something from a cached list at once and send the removal only when

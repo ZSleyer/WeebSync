@@ -41,7 +41,7 @@ const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
 }
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useToast } from '../components/toast'
+import { useToast, useFailToast } from '../components/toast'
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import {
   Badge,
@@ -423,6 +423,7 @@ function SugCard({
   onSync: (w: { serverId: number; name: string; initial: WatchFields }) => void
   onNotice: (s: string) => void
 }) {
+  const fail = useFailToast()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -486,9 +487,13 @@ function SugCard({
   }
 
   const dismiss = async () => {
-    await api.post('/api/suggestions/dismiss', { kind: 'suggestion', refKey: it.refKey, label: it.title })
-    qc.invalidateQueries({ queryKey: ['suggestions'] })
-    qc.invalidateQueries({ queryKey: ['dismissed'] })
+    try {
+      await api.post('/api/suggestions/dismiss', { kind: 'suggestion', refKey: it.refKey, label: it.title })
+      qc.invalidateQueries({ queryKey: ['suggestions'] })
+      qc.invalidateQueries({ queryKey: ['dismissed'] })
+    } catch (e) {
+      fail(e)
+    }
   }
 
   const rematch = async () => {
@@ -709,14 +714,19 @@ function SugCard({
 // restores them. A bucket like the others, not a modal: on a phone a modal
 // over the list was one more layer to close.
 export function IgnoredSection() {
+  const fail = useFailToast()
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data } = usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
   const items = data ?? []
   const restore = async (d: DismissedItem) => {
-    await api.del('/api/suggestions/dismiss', { kind: d.kind, refKey: d.refKey })
-    qc.invalidateQueries({ queryKey: ['dismissed'] })
-    qc.invalidateQueries({ queryKey: ['suggestions'] })
+    try {
+      await api.del('/api/suggestions/dismiss', { kind: d.kind, refKey: d.refKey })
+      qc.invalidateQueries({ queryKey: ['dismissed'] })
+      qc.invalidateQueries({ queryKey: ['suggestions'] })
+    } catch (e) {
+      fail(e)
+    }
   }
   if (!items.length) return <Badge>{t('suggestions.noIgnored')}</Badge>
   return (
@@ -742,6 +752,7 @@ export function IgnoredSection() {
 // ── Upgrades ──
 
 export function UpgradesSection() {
+  const fail = useFailToast()
   const { t } = useTranslation()
   const { data: defaults } = useWatchDefaults()
   const navigate = useNavigate()
@@ -767,9 +778,13 @@ export function UpgradesSection() {
       ]
     : [...AXES]
   const saveDims = async (next: UpgradeDims) => {
-    await api.put('/api/auth/upgrade-dims', next)
-    qc.invalidateQueries({ queryKey: ['upgrade-dims'] })
-    qc.invalidateQueries({ queryKey: ['suggestions'] })
+    try {
+      await api.put('/api/auth/upgrade-dims', next)
+      qc.invalidateQueries({ queryKey: ['upgrade-dims'] })
+      qc.invalidateQueries({ queryKey: ['suggestions'] })
+    } catch (e) {
+      fail(e)
+    }
   }
   const toggle = (key: Axis) => {
     if (!dims) return
@@ -786,9 +801,13 @@ export function UpgradesSection() {
     void saveDims({ ...dims, order: next.filter((a) => dims[a]) })
   }
   const dismiss = async (u: UpgradeSuggestion) => {
-    await api.post('/api/suggestions/dismiss', { kind: 'upgrade', refKey: u.key, label: u.title })
-    qc.invalidateQueries({ queryKey: ['suggestions'] })
-    qc.invalidateQueries({ queryKey: ['dismissed'] })
+    try {
+      await api.post('/api/suggestions/dismiss', { kind: 'upgrade', refKey: u.key, label: u.title })
+      qc.invalidateQueries({ queryKey: ['suggestions'] })
+      qc.invalidateQueries({ queryKey: ['dismissed'] })
+    } catch (e) {
+      fail(e)
+    }
   }
 
   const items = data?.upgrades ?? []
@@ -897,6 +916,7 @@ export function UpgradesSection() {
 // copy goes is decided in Plex or on disk, the card just marks the one the
 // quality order would keep.
 export function DuplicatesSection() {
+  const fail = useFailToast()
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
@@ -906,9 +926,13 @@ export function DuplicatesSection() {
     refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
   })
   const dismiss = async (d: DuplicateItem) => {
-    await api.post('/api/suggestions/dismiss', { kind: 'duplicate', refKey: d.refKey, label: d.title })
-    qc.invalidateQueries({ queryKey: ['suggestions'] })
-    qc.invalidateQueries({ queryKey: ['dismissed'] })
+    try {
+      await api.post('/api/suggestions/dismiss', { kind: 'duplicate', refKey: d.refKey, label: d.title })
+      qc.invalidateQueries({ queryKey: ['suggestions'] })
+      qc.invalidateQueries({ queryKey: ['dismissed'] })
+    } catch (e) {
+      fail(e)
+    }
   }
   // one copy (a folder, or one file of a doubled episode) goes to the trash
   // folder beside it; the server rebuilds the suggestions afterwards. The
@@ -926,13 +950,14 @@ export function DuplicatesSection() {
       refresh()
       toast({
         message: t('suggestions.dupTrashed', { name }),
-        undo: async () => {
-          const found = (await api.get<TrashEntry[]>('/api/trash'))
-            .filter((e) => e.name === name && e.dir.replace(/\/$/, '') === dir)
-            .sort((a, b) => b.trashedAt - a.trashedAt)[0]
-          if (found) await api.post('/api/trash/restore', { path: found.path })
-          refresh()
-        },
+        undo: () =>
+          void (async () => {
+            const found = (await api.get<TrashEntry[]>('/api/trash'))
+              .filter((e) => e.name === name && e.dir.replace(/\/$/, '') === dir)
+              .sort((a, b) => b.trashedAt - a.trashedAt)[0]
+            if (found) await api.post('/api/trash/restore', { path: found.path })
+            refresh()
+          })().catch(fail),
       })
     } catch (e) {
       setNotice(e instanceof Error ? e.message : String(e))
