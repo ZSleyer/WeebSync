@@ -833,7 +833,7 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                               {(w.behind ?? 0) > 0 && (
                                 // warn only once it is late: a few hours behind
                                 // the broadcast is how the source works
-                                <Badge tone={w.behindLate ? 'warn' : undefined} size="sm">
+                                <Badge tone={w.behindLate ? 'warn' : undefined} size="sm" multiline>
                                   <Clock aria-hidden size="1em" />
                                   {behindLabel(t, w)}
                                 </Badge>
@@ -847,6 +847,7 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                                   type="button"
                                   tone="err"
                                   size="sm"
+                                  multiline
                                   title={w.missing!.map((r) => epLabel(w, r.e, r.s)).join(', ')}
                                   onClick={() => showGaps(w)}
                                 >
@@ -865,20 +866,20 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                               {w.dubOverdue ? (
                                 // the forecast plus a week of grace passed: this
                                 // is no longer expected waiting
-                                <Badge tone="err" size="sm">
+                                <Badge tone="err" size="sm" multiline>
                                   <Clock aria-hidden size="1em" />
                                   {dubOverdueLabel(t, w)}
                                 </Badge>
                               ) : w.dubWaiting ? (
                                 // calm: the dub simply is not out yet, dated when
                                 // the forecast has a date
-                                <Badge size="sm">
+                                <Badge size="sm" multiline>
                                   <Clock aria-hidden size="1em" />
                                   {dubWaitingLabel(t, w)}
                                 </Badge>
                               ) : (
                                 (w.langWaiting ?? 0) > 0 && (
-                                  <Badge size="sm">
+                                  <Badge size="sm" multiline>
                                     <Clock aria-hidden size="1em" />
                                     {langWaitingLabel(t, w)}
                                   </Badge>
@@ -886,7 +887,7 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                               )}
                               {w.dubProgress && (
                                 // the older files are dubbed, the newer not yet
-                                <Badge size="sm">
+                                <Badge size="sm" multiline>
                                   <Languages aria-hidden size="1em" />
                                   {dubProgressLabel(t, w)}
                                 </Badge>

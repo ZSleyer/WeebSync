@@ -1322,13 +1322,13 @@ function WatchBlock({
           </Badge>
         )}
         {(w.behind ?? 0) > 0 && (
-          <Badge tone={w.behindLate ? 'warn' : undefined} size="sm">
+          <Badge tone={w.behindLate ? 'warn' : undefined} size="sm" multiline>
             <Clock aria-hidden size="1em" />
             {behindLabel(t, w)}
           </Badge>
         )}
         {(w.missing?.length ?? 0) > 0 && (
-          <Badge tone="err" size="sm" title={w.missing!.map((r) => epLabel(w, r.e, r.s)).join(', ')}>
+          <Badge tone="err" size="sm" multiline title={w.missing!.map((r) => epLabel(w, r.e, r.s)).join(', ')}>
             <TriangleAlert aria-hidden size="1em" />
             {missingLabel(t, w)}
           </Badge>
@@ -1340,25 +1340,25 @@ function WatchBlock({
           </Badge>
         )}
         {w.dubOverdue ? (
-          <Badge tone="err" size="sm">
+          <Badge tone="err" size="sm" multiline>
             <Clock aria-hidden size="1em" />
             {dubOverdueLabel(t, w)}
           </Badge>
         ) : w.dubWaiting ? (
-          <Badge size="sm">
+          <Badge size="sm" multiline>
             <Clock aria-hidden size="1em" />
             {dubWaitingLabel(t, w)}
           </Badge>
         ) : (
           (w.langWaiting ?? 0) > 0 && (
-            <Badge size="sm">
+            <Badge size="sm" multiline>
               <Clock aria-hidden size="1em" />
               {langWaitingLabel(t, w)}
             </Badge>
           )
         )}
         {w.dubProgress && (
-          <Badge size="sm">
+          <Badge size="sm" multiline>
             <Languages aria-hidden size="1em" />
             {dubProgressLabel(t, w)}
           </Badge>

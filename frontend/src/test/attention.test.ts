@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { langLabel, type Watch } from '../api'
-import { attentionInfo, dubOverdueLabel, dubWaitingLabel } from '../attention'
+import { attentionInfo, behindLabel, dubOverdueLabel, dubWaitingLabel } from '../attention'
 
 // the i18n layer is not under test: t returns key plus options, so every
 // assertion reads which key spoke and with what
@@ -43,6 +43,13 @@ describe('attentionInfo', () => {
     expect(chips[1].text).toBe('watch.behind {"count":2}')
     expect(chips[2].text).toBe('watch.missing {"count":1,"eps":"4"}')
     expect(chips[3].text).toBe('watch.langWaiting {"count":3,"lang":"Ger-Dub"}')
+  })
+  it('names the behind episodes, on a dub watch from its own last file', () => {
+    expect(behindLabel(t, watch({ behind: 2, nextEpisode: 15 }))).toBe('watch.behindEps {"count":2,"eps":"13, 14"}')
+    // local 10, original aired 14, dub released 12: E11 and E12 are behind
+    expect(behindLabel(t, watch({ behind: 2, nextEpisode: 15, dubNextEpisode: 11 }))).toBe(
+      'watch.behindEps {"count":2,"eps":"11, 12"}',
+    )
   })
   it('is empty when the backend saw nothing', () => {
     expect(attentionInfo(t, watch({}))).toEqual([])

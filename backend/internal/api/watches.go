@@ -1136,9 +1136,9 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 				localNums = map[int]bool{}
 			}
 			localNums[k] = true
-			if d, _ := rename.LangTags(filepath.Base(p)); d != "" {
-				dubTags[k] += d + ","
-			}
+			// untagged names stay in as lacking every dub
+			d, _ := rename.LangTags(filepath.Base(p))
+			dubTags[k] += d + ","
 		})
 		it.Missing = missingEpisodes(localNums)
 		it.Seasons = localSeasons(localNums)

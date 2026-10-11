@@ -34,12 +34,14 @@ export function dubOverdueLabel(t: T, w: Watch): string {
   return dubEpPrefix(t, w) + t('watch.dubOverdueNoDate', { lang })
 }
 
-// behindLabel: aired but not on the source yet - the episodes right before
-// the next airing, named when the next airing is known.
+// behindLabel: aired but not on the source yet. A dub watch counts from
+// after its last local file (the original's next airing runs ahead of the
+// dub), any other from right before the next airing.
 export function behindLabel(t: T, w: Watch): string {
   const n = w.behind ?? 0
-  if (!w.nextEpisode) return t('watch.behind', { count: n })
-  const eps = Array.from({ length: Math.min(n, 5) }, (_, i) => epLabel(w, w.nextEpisode! - n + i)).join(', ')
+  const first = w.dubNextEpisode ?? (w.nextEpisode ? w.nextEpisode - n : 0)
+  if (!first) return t('watch.behind', { count: n })
+  const eps = Array.from({ length: Math.min(n, 5) }, (_, i) => epLabel(w, first + i)).join(', ')
   return t('watch.behindEps', { count: n, eps })
 }
 
