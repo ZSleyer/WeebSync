@@ -113,13 +113,13 @@ const watchMatchRules = "2026-10-library-scope"
 // the library scope decides where a folder is searched.
 //
 // ponytail: a dropped search waits for the next start; re-queue from the watch
-// check if that proves too slow.
-func (s *Server) BackfillWatchMatches() {
+// check if that proves too slow. Returns how many folders were queued.
+func (s *Server) BackfillWatchMatches() int {
 	retryMisses := db.Setting(s.DB, "watch_match_rules") != watchMatchRules
 	rows, err := s.DB.Query(`SELECT w.server_id, w.remote_path, w.local_path, m.media_id IS NULL
 		FROM watches w LEFT JOIN catalog_matches m ON m.server_id = w.server_id AND m.folder = w.remote_path`)
 	if err != nil {
-		return
+		return 0
 	}
 	type watchFolder struct {
 		serverID      int64
@@ -146,4 +146,5 @@ func (s *Server) BackfillWatchMatches() {
 	if s.plexClient() == nil || db.Setting(s.DB, "plex_lib_scopes") != "" {
 		db.SetSetting(s.DB, "watch_match_rules", watchMatchRules)
 	}
+	return queued
 }
