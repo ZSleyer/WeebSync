@@ -644,59 +644,52 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                         )}
                       </EmptyState>
                     ) : (
-                      // desktop: seven days side by side, the picked one in the
-                      // middle; the band above marks it, the column needs no
-                      // frame of its own
-                      // the picked day takes twice the room: it is the one
-                      // being read, and today's axis needs the width
-                      <div
-                        className="grid gap-3"
-                        style={{
-                          gridTemplateColumns: weekDays(i)
-                            .map((d) => (dayKey(d) === selectedDay ? 'minmax(0, 2fr)' : 'minmax(0, 1fr)'))
-                            .join(' '),
-                        }}
-                      >
-                        {weekDays(i).map((d) => {
-                          const k = dayKey(d)
-                          const items = byDay.get(k) ?? []
-                          const isTodayCol = d.getTime() === today.getTime()
-                          return (
-                            <CalendarDay
-                              key={k}
-                              today={isTodayCol}
-                              // days gone step back; today stands out by its
-                              // filled chip and its axis, days to come stay full
-                              className={!isTodayCol && d.getTime() < today.getTime() ? 'opacity-50' : undefined}
-                              day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                            >
-                              {items.length === 0 ? (
-                                <li className="text-xs text-t-faint">{t('watch.week.free')}</li>
-                              ) : isTodayCol ? (
-                                // today: the phone's axis, with now at its time
-                                <li>
-                                  <DayTimeline
-                                    entries={items.map((e) => ({
-                                      key: entryKey(e),
-                                      at: e.at,
-                                      node: entryBody(e, true),
-                                    }))}
-                                    now={now}
-                                    nowLabel={t('watch.week.now', {
-                                      time: new Date(now).toLocaleTimeString([], {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      }),
-                                    })}
-                                    gapLabel={gapLabel}
-                                  />
-                                </li>
-                              ) : (
-                                items.map((e) => entryOf(e, true))
-                              )}
-                            </CalendarDay>
-                          )
-                        })}
+                      // desktop: the days around the picked one, as many as fit
+                      // at a card's width - 3, 5 or 7, the picked one in the
+                      // middle (see .t-week); the band above holds the rest
+                      <div className="t-week">
+                        <div className="t-week__grid">
+                          {weekDays(i).map((d) => {
+                            const k = dayKey(d)
+                            const items = byDay.get(k) ?? []
+                            const isTodayCol = d.getTime() === today.getTime()
+                            return (
+                              <CalendarDay
+                                key={k}
+                                today={isTodayCol}
+                                // days gone step back; today stands out by its
+                                // filled chip and its axis, days to come stay full
+                                className={!isTodayCol && d.getTime() < today.getTime() ? 'opacity-50' : undefined}
+                                day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                              >
+                                {items.length === 0 ? (
+                                  <li className="text-xs text-t-faint">{t('watch.week.free')}</li>
+                                ) : isTodayCol ? (
+                                  // today: the phone's axis, with now at its time
+                                  <li>
+                                    <DayTimeline
+                                      entries={items.map((e) => ({
+                                        key: entryKey(e),
+                                        at: e.at,
+                                        node: entryBody(e),
+                                      }))}
+                                      now={now}
+                                      nowLabel={t('watch.week.now', {
+                                        time: new Date(now).toLocaleTimeString([], {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        }),
+                                      })}
+                                      gapLabel={gapLabel}
+                                    />
+                                  </li>
+                                ) : (
+                                  items.map((e) => entryOf(e))
+                                )}
+                              </CalendarDay>
+                            )
+                          })}
+                        </div>
                       </div>
                     )
                   }
