@@ -224,6 +224,10 @@ function TotpSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data } = useQuery<{ enabled: boolean }>({ queryKey: ['totp'], queryFn: () => api.get('/api/auth/totp') })
+  // only a password login asks for the code: an OIDC account gets nothing from
+  // it, so it is not offered, and one already on goes off without a password
+  const { data: me } = useAuth()
+  const oidcOnly = me?.hasPassword === false
   const [setup, setSetup] = useState<SetupData | null>(null)
   const [code, setCode] = useState('')
   const [recovery, setRecovery] = useState<string[] | null>(null)
@@ -286,24 +290,29 @@ function TotpSection() {
         <div className="mt-4">
           <Badge tone="ok">{t('account.totpOn')}</Badge>
           <div className="mt-3 flex flex-wrap items-end gap-2">
-            <label className="text-xs text-t-muted">
-              {t('login.password')}
-              <Input
-                className="mt-1"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </label>
-            <Button size="sm" variant="danger" disabled={busy || !password} onClick={disable}>
+            {!oidcOnly && (
+              <label className="text-xs text-t-muted">
+                {t('login.password')}
+                <Input
+                  className="mt-1"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </label>
+            )}
+            <Button size="sm" variant="danger" disabled={busy || (!oidcOnly && !password)} onClick={disable}>
               {t('account.totpDisable')}
             </Button>
           </div>
         </div>
       )}
 
-      {!recovery && !data?.enabled && !setup && (
+      {!recovery && !data?.enabled && !setup && oidcOnly && (
+        <p className="mt-2 text-xs text-t-muted">{t('account.passkeyNeedsPassword')}</p>
+      )}
+      {!recovery && !data?.enabled && !setup && !oidcOnly && (
         <Button size="sm" variant="primary" className="mt-4" disabled={busy} onClick={start}>
           {t('account.totpEnable')}
         </Button>

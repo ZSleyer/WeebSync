@@ -18,8 +18,14 @@ interface AuthConfig {
   passwordReset: boolean
 }
 
-// the token of a password reset link (/?reset=...), read once
-const resetToken = new URLSearchParams(window.location.search).get('reset') ?? ''
+// what the address brings, read once: the token of a password reset link, a
+// sign-in the provider refused, and a fresh logout
+const landing = new URLSearchParams(window.location.search)
+const resetToken = landing.get('reset') ?? ''
+const oidcError = landing.get('oidc_error') ?? ''
+const loggedOut = landing.has('loggedout')
+// a refused sign-in or a logout must not bounce back to the provider
+const holdRedirect = landing.has('noredirect') || !!oidcError || loggedOut
 
 export default function Login() {
   const { t, i18n } = useTranslation()
@@ -40,21 +46,24 @@ export default function Login() {
   // the forgotten-password detours: asking for a link, and using one
   const [detour, setDetour] = useState<'forgot' | 'reset' | null>(resetToken ? 'reset' : null)
 
-  // email verification redirect lands here with ?verify=ok|invalid
+  // email verification redirect lands here with ?verify=ok|invalid, a refused
+  // OIDC sign-in with ?oidc_error=<code>, a logout with ?loggedout
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get('verify')
     if (v === 'ok') setNotice(t('login.verifyOk'))
     else if (v === 'invalid') setError(t('login.verifyInvalid'))
+    if (oidcError) setError(t(`login.oidcError.${oidcError}`, { defaultValue: t('login.oidcError.generic') }))
+    if (loggedOut) setNotice(t('login.loggedOut'))
   }, [t])
 
   // oidc-auto: straight to the provider; ?noredirect=1 is the escape hatch
   // (e.g. admin needs the password form while the provider is down)
-  const noRedirect = new URLSearchParams(window.location.search).has('noredirect')
+  const noRedirect = landing.has('noredirect')
   useEffect(() => {
-    if (cfg?.authMode === 'oidc-auto' && cfg.oidc && !noRedirect) {
+    if (cfg?.authMode === 'oidc-auto' && cfg.oidc && !holdRedirect) {
       window.location.href = '/api/auth/oidc/login'
     }
-  }, [cfg, noRedirect])
+  }, [cfg])
 
   useEffect(() => {
     document.title = `${t('login.login')} - WeebSync`
@@ -195,11 +204,21 @@ export default function Login() {
 
         {oidcOnly ? (
           <Panel className="animate-fadeIn p-6 text-center">
-            {cfg.authMode === 'oidc-auto' ? (
+            {cfg.authMode === 'oidc-auto' && !holdRedirect ? (
               <p className="mb-4 text-sm text-t-secondary" role="status">
                 {t('login.redirecting')}
               </p>
             ) : null}
+            {notice && (
+              <p className="mb-4 text-sm text-ok" role="status">
+                {notice}
+              </p>
+            )}
+            {error && (
+              <p className="mb-4 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+                {error}
+              </p>
+            )}
             <ButtonLink variant="primary" className="block w-full" href="/api/auth/oidc/login">
               <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {oidcLabel}

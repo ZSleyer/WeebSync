@@ -378,7 +378,9 @@ function Shell({ email }: { email: string }) {
     // full reload to the root: guarantees the app re-gates on a fresh /api/auth/me
     // (which is now 401) and wipes every cached query of the previous user -
     // a plain cache reset raced the data-router re-render and left stale content.
-    window.location.href = '/'
+    // ?loggedout: in auto-redirect mode the login page would otherwise send
+    // the user straight back to the provider, which signs them in again
+    window.location.href = '/?loggedout=1'
   }
 
   const icon = (n: NavEntry) => <n.icon aria-hidden size="1.25em" className="shrink-0" />
