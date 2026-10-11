@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import {
   BookOpen,
   CalendarDays,
@@ -259,7 +259,25 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
   // the desktop grid: the picked day in the middle, three days either side,
   // whatever weekday it is - the band above centres the same day
   const weekDays = (i: number) => Array.from({ length: 7 }, (_, d) => addDays(today, i - 3 + d))
-  const weekHasAny = (i: number) => weekDays(i).some((d) => byDay.has(dayKey(d)))
+  // The grid hides days by its own width (.t-week: 7 columns, 5 below 1892px,
+  // 3 below 1348px), so "nothing this week" has to be judged on the days it
+  // shows: a release three days out is in the 7-day window but off screen on
+  // a narrower grid, and the empty state with its jump would never come.
+  const [weekCols, setWeekCols] = useState(7)
+  // stable, or every render (the clock ticks) would make a new observer
+  const weekBox = useCallback((el: HTMLDivElement | null) => {
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => {
+      const w = e.contentRect.width
+      setWeekCols(w < 1348 ? 3 : w < 1892 ? 5 : 7)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const weekHasAny = (i: number) =>
+    weekDays(i)
+      .slice((7 - weekCols) / 2, (7 + weekCols) / 2)
+      .some((d) => byDay.has(dayKey(d)))
   // the first release after the shown day, for the jump out of a quiet stretch
   const nextAfter = calShown.find((e) => e.at * 1000 >= addDays(selectedDate, 1).getTime())
   const wide = useMediaQuery(WIDE_MQ)
@@ -686,72 +704,74 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                   }}
                 </SwipeDeck>
               ) : (
-                <SwipeDeck index={dayIdx} onIndex={setDayIdx} step={7} canPrev={dayIdx - 7 >= -PAST_DAYS} mouse>
-                  {(i) =>
-                    !weekHasAny(i) ? (
-                      <EmptyState>
-                        <p>{t('watch.week.empty')}</p>
-                        {i === dayIdx && nextAfter && (
-                          <Button
-                            size="sm"
-                            className="mt-3"
-                            onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}
-                          >
-                            {t('watch.week.jump')}
-                          </Button>
-                        )}
-                      </EmptyState>
-                    ) : (
-                      // desktop: the days around the picked one, as many as fit
-                      // at a card's width - 3, 5 or 7, the picked one in the
-                      // middle (see .t-week); the band above holds the rest
-                      <div className="t-week">
-                        <div className="t-week__grid">
-                          {weekDays(i).map((d) => {
-                            const k = dayKey(d)
-                            const items = byDay.get(k) ?? []
-                            const isTodayCol = d.getTime() === today.getTime()
-                            return (
-                              <CalendarDay
-                                key={k}
-                                today={isTodayCol}
-                                // days gone step back; today stands out by its
-                                // filled chip and its axis, days to come stay full
-                                className={!isTodayCol && d.getTime() < today.getTime() ? 'opacity-50' : undefined}
-                                day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                              >
-                                {items.length === 0 ? (
-                                  <li className="text-xs text-t-faint">{t('watch.week.free')}</li>
-                                ) : isTodayCol ? (
-                                  // today: the phone's axis, with now at its time
-                                  <li>
-                                    <DayTimeline
-                                      entries={items.map((e) => ({
-                                        key: entryKey(e),
-                                        at: e.at,
-                                        node: entryBody(e),
-                                      }))}
-                                      now={now}
-                                      nowLabel={t('watch.week.now', {
-                                        time: new Date(now).toLocaleTimeString([], {
-                                          hour: '2-digit',
-                                          minute: '2-digit',
-                                        }),
-                                      })}
-                                      gapLabel={gapLabel}
-                                    />
-                                  </li>
-                                ) : (
-                                  items.map((e) => entryOf(e))
-                                )}
-                              </CalendarDay>
-                            )
-                          })}
+                <div ref={weekBox}>
+                  <SwipeDeck index={dayIdx} onIndex={setDayIdx} step={7} canPrev={dayIdx - 7 >= -PAST_DAYS} mouse>
+                    {(i) =>
+                      !weekHasAny(i) ? (
+                        <EmptyState>
+                          <p>{t('watch.week.empty')}</p>
+                          {i === dayIdx && nextAfter && (
+                            <Button
+                              size="sm"
+                              className="mt-3"
+                              onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}
+                            >
+                              {t('watch.week.jump')}
+                            </Button>
+                          )}
+                        </EmptyState>
+                      ) : (
+                        // desktop: the days around the picked one, as many as fit
+                        // at a card's width - 3, 5 or 7, the picked one in the
+                        // middle (see .t-week); the band above holds the rest
+                        <div className="t-week">
+                          <div className="t-week__grid">
+                            {weekDays(i).map((d) => {
+                              const k = dayKey(d)
+                              const items = byDay.get(k) ?? []
+                              const isTodayCol = d.getTime() === today.getTime()
+                              return (
+                                <CalendarDay
+                                  key={k}
+                                  today={isTodayCol}
+                                  // days gone step back; today stands out by its
+                                  // filled chip and its axis, days to come stay full
+                                  className={!isTodayCol && d.getTime() < today.getTime() ? 'opacity-50' : undefined}
+                                  day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                                >
+                                  {items.length === 0 ? (
+                                    <li className="text-xs text-t-faint">{t('watch.week.free')}</li>
+                                  ) : isTodayCol ? (
+                                    // today: the phone's axis, with now at its time
+                                    <li>
+                                      <DayTimeline
+                                        entries={items.map((e) => ({
+                                          key: entryKey(e),
+                                          at: e.at,
+                                          node: entryBody(e),
+                                        }))}
+                                        now={now}
+                                        nowLabel={t('watch.week.now', {
+                                          time: new Date(now).toLocaleTimeString([], {
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                          }),
+                                        })}
+                                        gapLabel={gapLabel}
+                                      />
+                                    </li>
+                                  ) : (
+                                    items.map((e) => entryOf(e))
+                                  )}
+                                </CalendarDay>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  }
-                </SwipeDeck>
+                      )
+                    }
+                  </SwipeDeck>
+                </div>
               )}
             </>
           )}
