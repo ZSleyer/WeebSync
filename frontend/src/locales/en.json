@@ -401,7 +401,8 @@
     "clearHistory": "Clear history",
     "clearHistoryConfirm_one": "Remove {{count}} entry from the history?",
     "clearHistoryConfirm_other": "Remove {{count}} entries from the history?",
-    "limitUnit": "Rate limit unit"
+    "limitUnit": "Rate limit unit",
+    "limitInvalid": "Not a usable limit: enter 0 or more, or leave the field empty for none."
   },
   "files": {
     "title": "FILES",
