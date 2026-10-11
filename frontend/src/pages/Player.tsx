@@ -38,6 +38,7 @@ import HostKeyPrompt from '../components/HostKeyPrompt'
 import { filesLink, listFolder, playHref, useBack, videosIn } from '../components/playLinks'
 import Loading from '../components/Loading'
 import PlayerInfo, { CODEC_NAMES, trackLabel, type PlayInfo, type PlayTrack } from './PlayerInfo'
+import { renameFamilies, scriptFamilies } from './assFonts'
 
 // A Bluray picture track inside the file: the browser draws it itself (libpgs),
 // the server only copies it out. DVD and DVB pictures are still burned in.
@@ -510,18 +511,33 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           return
         }
         const fontUrl = (i: number) => new URL(`/api/play/font?${src}&index=${i}`, location.href).href
+        // a family the script names but the file lacks comes from the web: in
+        // libass's one default font a sign is wider than it was placed for
+        const embedded = new Set(data.fonts.flatMap((f) => f.names ?? []))
+        const missing = scriptFamilies(content).filter((f) => !embedded.has(f))
+        const web: Record<string, { family: string; regular: string; bold: string }> = missing.length
+          ? await api
+              .get<typeof web>(`/api/play/webfonts?${new URLSearchParams(missing.map((f) => ['family', f]))}`)
+              .catch(() => ({}))
+          : {}
+        if (abort.signal.aborted) return
+        const absolute = (u: string) => new URL(u, location.href).href
         const r = new JASSUB({
           video: v,
           canvas,
           workerUrl: jassubWorkerUrl,
-          subContent: content,
+          subContent: renameFamilies(content, Object.fromEntries(Object.entries(web).map(([f, w]) => [f, w.family]))),
           // a group release carries tens of megabytes of fonts: a named one
           // is fetched when libass asks for its family, the rest up front
           fonts: data.fonts.filter((f) => !f.names?.length).map((f) => fontUrl(f.index)),
-          availableFonts: Object.fromEntries(
+          availableFonts: Object.fromEntries([
+            ...Object.values(web).flatMap((w) => [
+              [w.family.toLowerCase(), absolute(w.regular)],
+              [`${w.family.toLowerCase()} bold`, absolute(w.bold)],
+            ]),
             // reversed: of two fonts with one name the first wins
-            data.fonts.flatMap((f) => (f.names ?? []).map((n) => [n, fontUrl(f.index)])).toReversed(),
-          ),
+            ...data.fonts.flatMap((f) => (f.names ?? []).map((n) => [n, fontUrl(f.index)])).toReversed(),
+          ]),
         })
         renderer = r
         // Firefox hands requestVideoFrameCallback a mediaTime up to half a

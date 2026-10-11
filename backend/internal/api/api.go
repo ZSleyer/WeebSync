@@ -70,6 +70,7 @@ type Server struct {
 	hls      hlsSessions
 	media    mediaJobs
 	fonts    fontIndex
+	webFonts webFontList
 
 	// unpacked comics and EPUBs the reader serves pieces of (reader.go)
 	books bookShelf
@@ -189,6 +190,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/play/info", authed(http.HandlerFunc(s.handlePlayInfo)))
 	mux.Handle("GET /api/play/sub", authed(http.HandlerFunc(s.handlePlaySub)))
 	mux.Handle("GET /api/play/font", authed(http.HandlerFunc(s.handlePlayFont)))
+	mux.Handle("GET /api/play/webfonts", authed(http.HandlerFunc(s.handlePlayWebFonts)))
+	mux.Handle("GET /api/play/webfont", authed(http.HandlerFunc(s.handlePlayWebFont)))
 	mux.Handle("GET /api/play/hls/index.m3u8", authed(http.HandlerFunc(s.handlePlayHLSIndex)))
 	mux.Handle("GET /api/play/hls/seg.ts", authed(http.HandlerFunc(s.handlePlayHLSSegment)))
 	// reader: opening a book is as open as listing it; its pieces are served
