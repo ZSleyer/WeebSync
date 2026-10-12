@@ -94,6 +94,16 @@ func TestNewznabFeed(t *testing.T) {
 	if n != 2 {
 		t.Errorf("%d releases registered, want the 2 shown", n)
 	}
+
+	// a new film the id lists do not know yet is matched by title only; the
+	// RSS sync lists it all the same, Radarr reads it by title and year
+	s.DB.Exec(`INSERT INTO series (id, key, title, year) VALUES (3, 'roboco', 'Me & Roboco The Movie', 2025)`)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, is_movie, series_id) VALUES (1, '/seed/Roboco', 'fold:boku to roboco', 1, 3)`)
+	addRemoteFiles(t, s, 1, "/seed/Roboco", map[string]int64{"Boku to Roboco Movie [1080p].mkv": 400})
+	got := titles("t=movie&cat=2000")
+	if len(got) != 2 || !strings.Contains(strings.Join(got, "|"), "Roboco The Movie (2025)") {
+		t.Errorf("movie RSS without a TMDB id: %q", got)
+	}
 }
 
 // Off until a key exists: an install that never set the source up answers
