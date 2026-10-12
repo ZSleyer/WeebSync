@@ -1442,12 +1442,12 @@
             "desc": "Welcher Ordner zu welcher Serie gehört, soweit die App das selbst entschieden hat. Deine eigenen Korrekturen liegen getrennt davon und bleiben unberührt. Neu zu ermitteln kostet viele Anfragen bei den Anbietern."
           },
           "series": {
-            "name": "Serien-Identität",
-            "desc": "Die über alle Anbieter und Server hinweg zusammengefasste Identität einer Serie, mit Staffeltiteln und Übersetzungen. Hier steckt eine einmal falsch zusammengefasste Serie fest. Baut sich aus den Zuordnungen wieder auf."
+            "name": "Titel-Identität",
+            "desc": "Ein Eintrag pro Titel, Serien und Filme gleichermaßen: über alle Anbieter und Server hinweg zusammengefasst, mit Staffeltiteln und Übersetzungen. Ob Film oder Serie, steht pro Ordner in den Qualitätsmerkmalen. Hier steckt ein einmal falsch zusammengefasster Titel fest. Baut sich aus den Zuordnungen wieder auf."
           },
           "catalog-variants": {
             "name": "Qualitätsmerkmale",
-            "desc": "Auflösung sowie Ton- und Untertitelsprachen je Ordner, die Grundlage der Upgrade-Vorschläge. Wird nach und nach im Hintergrund neu berechnet."
+            "desc": "Film oder Serie, Auflösung sowie Ton- und Untertitelsprachen je Ordner, die Grundlage der Upgrade-Vorschläge und des Feeds für Sonarr/Radarr. Wird nach und nach im Hintergrund neu berechnet."
           },
           "probe-cache": {
             "name": "Gemessene Dateiqualität",
