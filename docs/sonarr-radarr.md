@@ -118,7 +118,14 @@ Spirited Away (2001) German DL 1080p BluRay-WeebSync
 ## Limits
 
 - Only folders the catalog has matched to a show or movie appear; unmatched
-  folders stay invisible.
+  folders stay invisible. The catalog matches the titles inside a folder
+  marked in its catalog view (Anime, TV, Movies ...). A server that adds a
+  folder per broadcast season needs each new one marked: tick *Mark new
+  folders like this one automatically* on a marked season folder, and new
+  folders beside it whose name differs only in numbers and the season
+  (`2026-4 Fall` after `2026-3 Summer`) are marked on their own. The dashboard
+  points out unmarked folders that look like marked ones; the rules are listed
+  under Settings → Servers.
 - Files directly inside a matched folder are listed, not files in subfolders
   below it (those are matched as season folders of their own).
 - Fractional specials (`1165.5`) are left out; the apps cannot place them.
