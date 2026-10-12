@@ -384,6 +384,9 @@ type LocalStat struct {
 	Files   int    `json:"files"`   // all files, at any depth
 	Bytes   int64  `json:"bytes"`   // total size
 	ModTime string `json:"modTime"` // newest file, RFC3339, "" when empty
+	// video files whose name says which episode they are, so a show that
+	// has one episode so far is not taken for a film (kindFromStat)
+	episodes int
 }
 
 type statEntry struct {
@@ -428,6 +431,9 @@ func (s *Server) localStat(abs string) LocalStat {
 			st.Files++
 			if transfer.VideoExt[strings.ToLower(path.Ext(d.Name()))] {
 				st.Videos++
+				if isEpisodeFile(d.Name()) {
+					st.episodes++
+				}
 			}
 			if info, ierr := d.Info(); ierr == nil {
 				st.Bytes += info.Size()
