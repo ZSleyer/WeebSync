@@ -80,6 +80,7 @@ import {
   type Download,
   type DownloadMeta,
   type JobsStatus,
+  type ScopeHint,
   type SystemStatus,
   type Watch,
 } from '../api'
@@ -90,6 +91,7 @@ import { countdown } from '../countdown'
 import { jobLabel } from '../jobs'
 import { useConfirm } from '../components/confirm'
 import { useFailToast, useToast } from '../components/toast'
+import { scopeChanged } from '../components/useCatalogView'
 import PageActions, { PageFooter, WIDE_MQ } from '../components/PageActions'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth, useNow, usePersistedQuery } from '../hooks'
@@ -587,6 +589,7 @@ export default function Dashboard() {
               <Attention watches={watches} />
             </>
           )}
+          <FolderHints />
           <StorageTile />
           <BackgroundWork />
         </aside>
@@ -1196,6 +1199,99 @@ function Attention({ watches }: { watches: Watch[] }) {
             </Link>
           )}
         </>
+      )}
+    </section>
+  )
+}
+
+// New folders that look like marked ones - a new season folder beside last
+// season's - are not matched until they carry a mark of their own. The hint
+// names them with the sibling they resemble and offers the mark, a rule that
+// marks such folders from then on, or to leave the folder as it is. Nothing is
+// marked without a click.
+function FolderHints() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const fail = useFailToast()
+  const [open, toggle] = useFold('folder-hints')
+  const { data: hints = [] } = useQuery<ScopeHint[]>({
+    queryKey: ['scope-hints'],
+    queryFn: () => api.get('/api/catalog/scope-hints'),
+    staleTime: 5 * 60_000,
+  })
+  const mark = useMutation({
+    mutationFn: ({ h, kind, rule }: { h: ScopeHint; kind: string; rule?: boolean }) =>
+      api.put(`/api/servers/${h.serverId}/catalog/scope`, { path: h.path, kind, rule }),
+    onSuccess: (_, { h }) => scopeChanged(qc, h.serverId),
+    onError: fail,
+  })
+  if (hints.length === 0) return null
+  const kindLabel = (kind: string) =>
+    ({
+      anime: t('remote.scopeAnime'),
+      manga: t('remote.scopeManga'),
+      tv: t('remote.scopeTv'),
+      movie: t('remote.scopeMovie'),
+      tvdb: t('remote.scopeTvdb'),
+    })[kind] ?? kind
+  const shown = hints.slice(0, 5)
+  return (
+    <section aria-label={t('dash.folderHints')}>
+      <FoldHeader
+        className="mb-2"
+        icon={<FolderOpen aria-hidden size="1em" />}
+        label={t('dash.folderHints')}
+        count={hints.length}
+        open={open}
+        onToggle={toggle}
+      />
+      {open && (
+        <Panel>
+          <ul className="divide-y divide-border-subtle">
+            {shown.map((h) => (
+              <li key={`${h.serverId}:${h.path}`} className="px-3 py-2 text-sm">
+                <span className="block truncate text-t-secondary" title={h.path}>
+                  {h.name}
+                </span>
+                <span className="mt-1 block text-xs text-t-muted">
+                  {t('dash.folderHintWhy', { server: h.serverName, sibling: h.sibling, kind: kindLabel(h.kind) })}
+                </span>
+                <span className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={mark.isPending}
+                    onClick={() => mark.mutate({ h, kind: h.kind })}
+                    aria-label={`${t('dash.folderHintMark', { kind: kindLabel(h.kind) })}: ${h.name}`}
+                  >
+                    {t('dash.folderHintMark', { kind: kindLabel(h.kind) })}
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={mark.isPending}
+                    onClick={() => mark.mutate({ h, kind: h.kind, rule: true })}
+                    aria-label={`${t('dash.folderHintRule')}: ${h.name}`}
+                  >
+                    {t('dash.folderHintRule')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={mark.isPending}
+                    onClick={() => mark.mutate({ h, kind: 'none' })}
+                    aria-label={`${t('dash.folderHintIgnore')}: ${h.name}`}
+                  >
+                    {t('dash.folderHintIgnore')}
+                  </Button>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {hints.length > shown.length && (
+            <p className="px-3 pb-2 text-[11px] text-t-muted">
+              {t('dash.attentionMore', { count: hints.length - shown.length })}
+            </p>
+          )}
+        </Panel>
       )}
     </section>
   )
