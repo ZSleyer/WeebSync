@@ -291,15 +291,19 @@ func spaHandler(dir string) http.Handler {
 			return
 		}
 		path := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
+		// the document names the hashed bundles of one build: served without a
+		// cache header it gets cached on its Last-Modified alone, and a tab
+		// boots an old build while the update check fetches the new one
 		if info, err := os.Stat(path); err != nil || info.IsDir() {
+			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
 			return
 		}
 		// the bundles are content-hashed and may be cached forever, but these
-		// two keep their name across releases - a stale service worker means
+		// keep their name across releases - a stale service worker means
 		// push notifications silently stop working
 		switch r.URL.Path {
-		case "/sw.js", "/manifest.webmanifest":
+		case "/index.html", "/sw.js", "/manifest.webmanifest":
 			w.Header().Set("Cache-Control", "no-cache")
 		}
 		fs.ServeHTTP(w, r)
