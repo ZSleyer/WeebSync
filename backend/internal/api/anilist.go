@@ -99,6 +99,7 @@ type catalogItem struct {
 // only if movie-collection folders turn out to matter.
 func (s *Server) folderKind(serverID int64, folder, name string) string {
 	var vids, subdirs int
+	var video string
 	rows, err := s.DB.Query(`SELECT name, is_dir FROM remote_index WHERE server_id = ? AND parent = ?`, serverID, folder)
 	if err == nil {
 		for rows.Next() {
@@ -109,6 +110,7 @@ func (s *Server) folderKind(serverID int64, folder, name string) string {
 				subdirs++
 			} else if transfer.VideoExt[strings.ToLower(path.Ext(n))] {
 				vids++
+				video = n
 			}
 		}
 		rows.Close()
@@ -117,6 +119,11 @@ func (s *Server) folderKind(serverID int64, folder, name string) string {
 		}
 	}
 	switch {
+	case vids == 1 && subdirs == 0 && episodeMarkRe.MatchString(video) && !filmWordRe.MatchString(video):
+		// a show that has only just started: one file so far, and it says
+		// which episode it is ("Movie - 365 Days" and a film filed as S00E02
+		// carry the word that says otherwise)
+		return "series"
 	case vids == 1 && subdirs == 0:
 		return "movie"
 	case vids >= 2 || subdirs >= 1:
@@ -126,6 +133,14 @@ func (s *Server) folderKind(serverID int64, folder, name string) string {
 	}
 	return ""
 }
+
+// episodeMarkRe finds an episode marker no film name carries: "S01E01", "E01"
+// as a word of its own, or " - 01" (the release convention). A bare number is
+// not one - "Nobody.2.(2025)" and "10 Cloverfield Lane" are films.
+var (
+	episodeMarkRe = regexp.MustCompile(`(?i)(?:\bS\d{1,2}E\d{1,4}\b|(?:^|[\s._\[(])E\d{1,4}(?:v\d)?(?:$|[\s._\])])| - \d{1,4}(?:v\d)?(?:$|[\s.\[(]))`)
+	filmWordRe    = regexp.MustCompile(`(?i)\b(?:movie|film|gekijouban)\b`)
+)
 
 // kindFromVideos classifies by the number of video files a folder holds - the
 // local catalog's fallback, where there is no remote index to read.
