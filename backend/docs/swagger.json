@@ -4941,6 +4941,46 @@
                 ],
                 "type": "object"
             },
+            "api.scopeHint": {
+                "properties": {
+                    "kind": {
+                        "description": "the siblings' mark",
+                        "enum": [
+                            "anime",
+                            "manga",
+                            "tv",
+                            "movie",
+                            "tvdb"
+                        ],
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string"
+                    },
+                    "serverId": {
+                        "type": "integer"
+                    },
+                    "serverName": {
+                        "type": "string"
+                    },
+                    "sibling": {
+                        "description": "a marked sibling's name, for the reason",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "serverId",
+                    "serverName",
+                    "path",
+                    "name",
+                    "kind",
+                    "sibling"
+                ],
+                "type": "object"
+            },
             "api.scopeRequest": {
                 "properties": {
                     "kind": {
@@ -10838,6 +10878,45 @@
                 "summary": "Rename local entry",
                 "tags": [
                     "Browse"
+                ]
+            }
+        },
+        "/api/catalog/scope-hints": {
+            "get": {
+                "description": "Unmarked folders, not covered by a scope rule, beside marked folders whose names have the same shape (numbers and season names vary) - typically a new season folder. Nothing is marked by this call.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.scopeHint"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Folders that look like marked ones",
+                "tags": [
+                    "Catalog"
                 ]
             }
         },
