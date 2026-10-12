@@ -15137,8 +15137,62 @@
                     "Settings"
                 ]
             },
+            "get": {
+                "description": "Returns the current Sonarr/Radarr API key, admin only. 404 while the source is off, or for a key minted before keys were kept (only its hash exists; mint a new one to see it).",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.tokenResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Show Sonarr/Radarr key",
+                "tags": [
+                    "Settings"
+                ]
+            },
             "post": {
-                "description": "Mints the API key Sonarr, Radarr and Prowlarr use for the WeebSync indexer and download client, admin only. Switches the source on. Only the hash is stored; the raw key is returned exactly once.",
+                "description": "Mints the API key Sonarr, Radarr and Prowlarr use for the WeebSync indexer and download client, admin only. Switches the source on and revokes any previous key.",
                 "responses": {
                     "200": {
                         "content": {

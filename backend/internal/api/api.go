@@ -245,6 +245,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/settings/smtp/test", authed(adminOnly(http.HandlerFunc(s.handleSmtpTest))))
 
 	// Sonarr/Radarr source: indexer + download client, key-gated, 404 while off
+	mux.Handle("GET /api/settings/arr-key", authed(adminOnly(http.HandlerFunc(s.handleArrKeyGet))))
 	mux.Handle("POST /api/settings/arr-key", authed(adminOnly(http.HandlerFunc(s.handleArrKeyCreate))))
 	mux.Handle("DELETE /api/settings/arr-key", authed(adminOnly(http.HandlerFunc(s.handleArrKeyDelete))))
 	mux.HandleFunc("GET /api/arr/newznab/api", s.arrGate(s.handleNewznab))

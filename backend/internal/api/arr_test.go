@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 // Release names are what Sonarr/Radarr decide on, so they must say what the
@@ -114,6 +115,31 @@ func TestArrGate(t *testing.T) {
 	}
 	if w := get("t=caps&apikey=k"); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "tv-search") {
 		t.Fatalf("right key: %d %s", w.Code, w.Body.String())
+	}
+}
+
+// The key goes into three apps, so the settings page can show it again; a
+// key that vanished on reload got regenerated and cut all of them off.
+func TestArrKeyShownAgain(t *testing.T) {
+	if err := secret.Init(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := sizeTestServer(t)
+	call := func(h http.HandlerFunc, method string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		h(w, httptest.NewRequest(method, "/api/settings/arr-key", nil))
+		return w
+	}
+	if w := call(s.handleArrKeyGet, http.MethodGet); w.Code != http.StatusNotFound {
+		t.Fatalf("off: %d, want 404", w.Code)
+	}
+	created := call(s.handleArrKeyCreate, http.MethodPost).Body.String()
+	if shown := call(s.handleArrKeyGet, http.MethodGet).Body.String(); shown != created {
+		t.Fatalf("shown %s, minted %s", shown, created)
+	}
+	call(s.handleArrKeyDelete, http.MethodDelete)
+	if w := call(s.handleArrKeyGet, http.MethodGet); w.Code != http.StatusNotFound {
+		t.Fatalf("after switching off: %d, want 404", w.Code)
 	}
 }
 
