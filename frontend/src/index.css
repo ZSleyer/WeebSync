@@ -1098,8 +1098,8 @@ main:has(.page-fill) {
 /* ── A season's episodes on a rail (EpisodeList): the marks are joined by
    a line coloured by what each episode is, so the holes in a season show as
    red stretches before a single title is read. Rows slide in as they enter
-   the scroller where the browser can tie an animation to that (view
-   timelines); elsewhere they simply stand. ── */
+   the scroller: tied to the scroll for a mouse where the browser has view
+   timelines, once as they come into view elsewhere (useReveal). ── */
 .t-ep { position: relative; }
 /* the rail runs through the middle of each mark: the mark is the 1em icon
    plus its 2px padding and 1.5px ring either side */
@@ -1129,50 +1129,46 @@ main:has(.page-fill) {
 .t-ep[data-state="gone"] { --rail: color-mix(in srgb, var(--accent-red) 55%, transparent); }
 @keyframes t-ep-in { from { opacity: 0.3; transform: translateX(8px); } }
 @media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: view()) {
-    :root:not([data-motion="off"]) .t-ep {
-      animation: t-ep-in linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 80%;
+  /* the query is useReveal's SCROLL_REVEAL_MQ: a finger drags the content,
+     and a row scrubbed by the scroll would lag behind it */
+  @media (hover: hover) and (pointer: fine) {
+    @supports (animation-timeline: view()) {
+      :root:not([data-motion="off"]) .t-ep {
+        animation: t-ep-in linear both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 80%;
+      }
     }
   }
-  /* where rows cannot be tied to the scroll (Firefox), they slide in once as
-     they come into view: useReveal marks them with data-in */
-  @supports not (animation-timeline: view()) {
-    :root:not([data-motion="off"]) .t-ep[data-in="0"] { opacity: 0.3; transform: translateX(8px); }
-    :root:not([data-motion="off"]) .t-ep[data-in="1"] { transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
-  }
+  /* elsewhere (touch, Firefox) rows slide in once as they come into view:
+     useReveal marks them with data-in */
+  :root:not([data-motion="off"]) .t-ep[data-in="0"] { opacity: 0.3; transform: translateX(8px); }
+  :root:not([data-motion="off"]) .t-ep[data-in="1"] { transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
 }
 
 /* The same entrance for any list or grid below the first screen (poster rows,
    calendar days, file lists): rise 8px and fade in as it scrolls into view.
-   useReveal marks the items where view timelines are missing. --i staggers
-   items that arrive together, capped at 8 so a long grid never trails. */
+   Tied to the scroll for a mouse where view timelines exist; on touch and
+   elsewhere useReveal marks the items and they rise once. --i (set by
+   useReveal) staggers items that arrive together, capped at 8 so a long grid
+   never trails. */
 @keyframes t-rise-in { from { opacity: 0; transform: translateY(8px); } }
 @media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: view()) {
-    :root:not([data-motion="off"]) .t-reveal {
-      animation: t-rise-in linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 60%;
+  @media (hover: hover) and (pointer: fine) {
+    @supports (animation-timeline: view()) {
+      :root:not([data-motion="off"]) .t-reveal {
+        animation: t-rise-in linear both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 60%;
+      }
     }
   }
-  @supports not (animation-timeline: view()) {
-    :root:not([data-motion="off"]) .t-reveal[data-in="0"] { opacity: 0; transform: translateY(8px); }
-    :root:not([data-motion="off"]) .t-reveal[data-in="1"] {
-      transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out);
-      transition-delay: calc(min(var(--i, 0), 8) * 40ms);
-    }
+  :root:not([data-motion="off"]) .t-reveal[data-in="0"] { opacity: 0; transform: translateY(8px); }
+  :root:not([data-motion="off"]) .t-reveal[data-in="1"] {
+    transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out);
+    transition-delay: calc(min(var(--i, 0), 8) * 40ms);
   }
 }
-/* siblings stagger by their place in a run of eight, so a caller sets nothing */
-.t-reveal:nth-child(8n + 2) { --i: 1; }
-.t-reveal:nth-child(8n + 3) { --i: 2; }
-.t-reveal:nth-child(8n + 4) { --i: 3; }
-.t-reveal:nth-child(8n + 5) { --i: 4; }
-.t-reveal:nth-child(8n + 6) { --i: 5; }
-.t-reveal:nth-child(8n + 7) { --i: 6; }
-.t-reveal:nth-child(8n + 8) { --i: 7; }
 
 /* ── The page's large title and the app bar (PageHeader, PageScroll) ──
    On a desktop the page header is the heading over the content. On a phone a

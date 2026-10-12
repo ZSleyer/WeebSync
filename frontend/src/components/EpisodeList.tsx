@@ -319,7 +319,9 @@ export default function EpisodeList({
         <Loading />
       ) : (
         epsIn && (
-          <div className="grid gap-3">
+          // the column has to be capped: an auto track grows to the longest
+          // file name and the card scrolls sideways
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
             {watches.length > 0 && anyLeft && <h5 className="t-label">{t('series.otherFiles')}</h5>}
             {files}
             {failed && <p className="text-sm text-err">{t('series.episodesError')}</p>}
