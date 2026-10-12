@@ -9,6 +9,7 @@ import { EnvBadge, FieldIssue, SaveBar, useSettingsForm, type SettingsState } fr
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { useConfirm } from '../../components/confirm'
 import { useFailToast } from '../../components/toast'
+import { copyText } from '../../clipboard'
 import Smtp from './Smtp'
 
 // The five status queries, shared by the panels and the strip on top so
@@ -728,8 +729,9 @@ function PlexAccount() {
 // account name to show - only whether the key is accepted.
 // WeebSync as a source for Sonarr/Radarr (via Prowlarr or directly): one key
 // switches the indexer and the download client on, nothing runs without it.
-// The key is shown once, like the machine token; the folder and the path
-// mapping are ordinary settings and go through the save bar.
+// The key stays readable here: it goes into three apps, and one that was gone
+// after a reload got regenerated, which cut all of them off. The folder and
+// the path mapping are ordinary settings and go through the save bar.
 function ArrPanel({
   form,
   set,
@@ -740,14 +742,13 @@ function ArrPanel({
   const { t } = useTranslation()
   const confirm = useConfirm()
   const qc = useQueryClient()
-  const [key, setKey] = useState('')
   const [copied, setCopied] = useState('')
   const [error, setError] = useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['settings'] })
   const generate = useMutation({
     mutationFn: () => api.post<{ token: string }>('/api/settings/arr-key'),
     onSuccess: (out) => {
-      setKey(out.token)
+      qc.setQueryData(['arr-key'], out)
       setError('')
       refresh()
     },
@@ -756,20 +757,30 @@ function ArrPanel({
   const revoke = useMutation({
     mutationFn: () => api.del('/api/settings/arr-key'),
     onSuccess: () => {
-      setKey('')
+      qc.removeQueries({ queryKey: ['arr-key'] })
       refresh()
     },
     onError: (e: Error) => setError(e.message),
   })
   // the form is a one-shot copy; the live settings follow generate/revoke
   const { data: live } = useQuery<SettingsState>({ queryKey: ['settings'], queryFn: () => api.get('/api/settings') })
-  const on = (live?.arrKeySet ?? form.arrKeySet) || !!key
+  const on = live?.arrKeySet ?? form.arrKeySet
+  // 404 for a key minted before keys were kept: only its hash exists
+  const stored = useQuery({
+    queryKey: ['arr-key'],
+    queryFn: () => api.get<{ token: string }>('/api/settings/arr-key'),
+    enabled: on,
+    retry: false,
+  })
+  const key = on ? (stored.data?.token ?? '') : ''
+  const legacy = on && stored.error instanceof ApiError && stored.error.status === 404
   const origin = window.location.origin
   const host = window.location.hostname
   const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
   const copy = async (what: string, value: string) => {
-    await navigator.clipboard.writeText(value)
-    setCopied(what)
+    const ok = await copyText(value)
+    setCopied(ok ? what : '')
+    setError(ok ? '' : t('settings.arrCopyFailed'))
   }
   const rows: [string, string, string][] = [
     ['indexer', t('settings.arrIndexerUrl'), `${origin}/api/arr/newznab`],
@@ -784,7 +795,14 @@ function ArrPanel({
         <p className="text-xs text-t-muted">{t('settings.arrIntro')}</p>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={on ? 'ok' : 'neutral'}>{on ? t('settings.arrOn') : t('settings.arrOff')}</Badge>
-          <Button size="sm" disabled={generate.isPending} onClick={() => generate.mutate()}>
+          <Button
+            size="sm"
+            disabled={generate.isPending}
+            onClick={async () => {
+              if (!on || (await confirm({ message: t('settings.arrConfirmRegenerate'), destructive: true })))
+                generate.mutate()
+            }}
+          >
             {on ? t('settings.arrKeyRegenerate') : t('settings.arrKeyGenerate')}
           </Button>
           {on && (
@@ -810,6 +828,12 @@ function ArrPanel({
               </Button>
             </span>
           </label>
+        )}
+        {legacy && <p className="text-xs text-warn">{t('settings.arrKeyLegacy')}</p>}
+        {on && !form.arrCompleteDir.trim() && (
+          <p className="text-xs text-warn" role="alert">
+            {t('settings.arrCompleteDirMissing')}
+          </p>
         )}
         {on && (
           <>
