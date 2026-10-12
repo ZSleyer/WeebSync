@@ -59,6 +59,15 @@ func (s *Server) sabCategories() []string {
 }
 
 func (s *Server) sabConfig(w http.ResponseWriter) {
+	complete := s.arrCompleteDir()
+	if complete == "" {
+		// an empty complete_dir reads to the app as a folder named after the
+		// category ("/anime"), and every grab would fail later: say it in the
+		// app's connection test instead, the way SABnzbd reports errors
+		writeJSON(w, http.StatusOK, map[string]any{"status": false,
+			"error": "WeebSync has no download folder for Sonarr/Radarr yet (Settings > Integrations > Sonarr / Radarr)"})
+		return
+	}
 	var cats []map[string]any
 	for i, c := range s.sabCategories() {
 		dir := c
@@ -69,7 +78,7 @@ func (s *Server) sabConfig(w http.ResponseWriter) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"config": map[string]any{
 		"misc": map[string]any{
-			"complete_dir":         s.arrAppPath(s.arrCompleteDir()),
+			"complete_dir":         s.arrAppPath(complete),
 			"enable_tv_sorting":    false,
 			"enable_movie_sorting": false,
 			"enable_date_sorting":  false,
