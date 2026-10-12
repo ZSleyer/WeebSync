@@ -260,7 +260,7 @@ func harden(next http.Handler) http.Handler {
 		// dictation that recognises nothing. Only our own origin, and only the
 		// microphone - camera and location stay off.
 		h.Set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()")
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
 			h.Set("Cache-Control", "no-store")
 			// this reader wraps first, so a handler that asks for a wider cap
 			// cannot widen it back - the assistant routes carry conversations
