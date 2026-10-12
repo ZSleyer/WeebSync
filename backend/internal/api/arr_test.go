@@ -143,6 +143,18 @@ func TestArrKeyShownAgain(t *testing.T) {
 	}
 }
 
+// Without a download folder the app would build "/<category>" and fail on
+// every grab; its connection test gets the reason instead.
+func TestSabConfigWithoutFolder(t *testing.T) {
+	s, _ := sizeTestServer(t)
+	setArrKey(s, "k")
+	w := httptest.NewRecorder()
+	s.arrGate(s.handleSab)(w, httptest.NewRequest(http.MethodGet, "/api?mode=get_config&apikey=k", nil))
+	if !strings.Contains(w.Body.String(), `"status":false`) || !strings.Contains(w.Body.String(), "download folder") {
+		t.Fatalf("get_config without a folder: %s", w.Body.String())
+	}
+}
+
 // setArrKey switches the source on with a known key, stored the way
 // handleArrKeyCreate stores it.
 func setArrKey(s *Server, key string) {
