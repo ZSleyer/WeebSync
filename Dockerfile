@@ -1,5 +1,5 @@
 # ── frontend build ── (arch-independent JS, always native)
-FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS web
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:143494b1da2945f061539253adc65e4f1569ddf07da2d384c022c791a9d90a4a AS web
 # node images stopped shipping yarn and corepack with node 25
 RUN npm i -g yarn@1.22.22
 # the frontend keeps its place in the tree: @weebsync/design-system resolves to
