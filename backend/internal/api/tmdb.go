@@ -24,11 +24,20 @@ import (
 //
 // The one exception is an alphabet shelf: "Manga/M/Monster" files its titles
 // under a letter folder, and that folder takes the mark of the one above it.
+// A folder without a mark of its own can get one from a scope rule on its
+// parent (scope_rules.go); a stored "none" keeps a rule off one folder.
 func (s *Server) scopeFor(serverID int64, p string) string {
 	var kind string
-	s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, p).Scan(&kind)
-	if kind == "" && isShelf(path.Base(p)) && path.Dir(p) != p {
-		s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, path.Dir(p)).Scan(&kind)
+	err := s.DB.QueryRow(`SELECT kind FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, p).Scan(&kind)
+	switch {
+	case err == nil:
+	case isShelf(path.Base(p)) && path.Dir(p) != p:
+		kind = s.scopeFor(serverID, path.Dir(p))
+	default:
+		_, kind = s.ruleScope(serverID, p)
+	}
+	if kind == scopeNone {
+		return ""
 	}
 	return kind
 }
@@ -43,6 +52,13 @@ func isShelf(name string) bool { return shelfRe.MatchString(name) }
 // scopeResponse reports the metadata scope of a catalog path.
 type scopeResponse struct {
 	Scope string `json:"scope"` // "" | anime | manga | tv | movie | tvdb
+	// the name shape a rule made from this folder would cover; "" when its
+	// name has nothing that varies (no number, no season) or it is the root
+	RuleShape string `json:"ruleShape"`
+	// the rule that covers this folder (its parent and shape), 0 for none.
+	// Scope came from it unless the folder carries a mark of its own.
+	RuleID   int64  `json:"ruleId"`
+	RuleKind string `json:"ruleKind"`
 }
 
 // handleCatalogScopeGet reports the scope of a path without listing the folder
@@ -75,7 +91,14 @@ func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
 	if dir == "" {
 		dir = rootPath
 	}
-	writeJSON(w, http.StatusOK, scopeResponse{Scope: s.scopeFor(serverID, dir)})
+	out := scopeResponse{Scope: s.scopeFor(serverID, dir)}
+	if path.Dir(dir) != dir {
+		if shape := folderShape(path.Base(dir)); shapeVaries(shape) {
+			out.RuleShape = shape
+		}
+		out.RuleID, out.RuleKind = s.ruleScope(serverID, dir)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // mangaSource is the catalog_matches source of a folder matched against
@@ -101,7 +124,12 @@ func sourceForScope(kind string) string {
 // scopeRequest is the body of handleCatalogScope.
 type scopeRequest struct {
 	Path string `json:"path"`
-	Kind string `json:"kind"` // "" | anime | manga | tv | movie | tvdb
+	// "" clears the mark; "none" stores "no mark", which keeps a scope rule
+	// and the hints off this folder
+	Kind string `json:"kind"` // "" | none | anime | manga | tv | movie | tvdb
+	// also mark new folders beside this one whose name has the same shape
+	// (numbers and season names vary); needs a kind and a name that varies
+	Rule bool `json:"rule,omitempty"`
 }
 
 // handleCatalogScope sets or clears a folder mark.
@@ -129,7 +157,7 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch in.Kind {
-	case "", "anime", "manga", "tv", "movie", "tvdb":
+	case "", scopeNone, "anime", "manga", "tv", "movie", "tvdb":
 	default:
 		writeErr(w, http.StatusBadRequest, "invalid kind")
 		return
@@ -163,12 +191,29 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid path")
 		return
 	}
+	shape := folderShape(path.Base(in.Path))
+	if in.Rule && (in.Kind == "" || in.Kind == scopeNone || path.Dir(in.Path) == in.Path || !shapeVaries(shape)) {
+		writeErr(w, http.StatusBadRequest, "no rule possible for this folder")
+		return
+	}
+	ruleID, _ := s.ruleScope(serverID, in.Path)
 	var err error
-	if in.Kind == "" {
-		_, err = s.DB.Exec(`DELETE FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, in.Path)
-	} else {
+	switch {
+	case in.Kind != "":
 		_, err = s.DB.Exec(`INSERT OR REPLACE INTO catalog_scopes (server_id, path, kind) VALUES (?, ?, ?)`,
 			serverID, in.Path, in.Kind)
+	case ruleID != 0:
+		// clearing a folder a rule covers: without a stored "none" the rule
+		// would mark it again at once
+		_, err = s.DB.Exec(`INSERT OR REPLACE INTO catalog_scopes (server_id, path, kind) VALUES (?, ?, ?)`,
+			serverID, in.Path, scopeNone)
+	default:
+		_, err = s.DB.Exec(`DELETE FROM catalog_scopes WHERE server_id = ? AND path = ?`, serverID, in.Path)
+	}
+	if err == nil && in.Rule {
+		_, err = s.DB.Exec(`INSERT INTO catalog_scope_rules (server_id, parent, shape, kind) VALUES (?, ?, ?, ?)
+			ON CONFLICT (server_id, parent, shape) DO UPDATE SET kind = excluded.kind`,
+			serverID, path.Dir(in.Path), shape, in.Kind)
 	}
 	if err != nil {
 		dbErr(w)

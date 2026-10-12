@@ -2111,16 +2111,47 @@ export interface Schemas {
   }
   'api.scopeRequest': {
     /**
-     * "" | anime | manga | tv | movie | tvdb
+     * "" clears the mark; "none" stores "no mark", which keeps a scope rule
+     * and the hints off this folder
      */
     kind: string
     path: string
+    /**
+     * also mark new folders beside this one whose name has the same shape
+     * (numbers and season names vary); needs a kind and a name that varies
+     */
+    rule?: boolean
   }
   'api.scopeResponse': {
+    /**
+     * the rule that covers this folder (its parent and shape), 0 for none.
+     * Scope came from it unless the folder carries a mark of its own.
+     */
+    ruleId: number
+    ruleKind: string
+    /**
+     * the name shape a rule made from this folder would cover; "" when its
+     * name has nothing that varies (no number, no season) or it is the root
+     */
+    ruleShape: string
     /**
      * "" | anime | manga | tv | movie | tvdb
      */
     scope: string
+  }
+  'api.scopeRule': {
+    id: number
+    kind: "anime" | "manga" | "tv" | "movie" | "tvdb"
+    parent: string
+    serverId: number
+    /**
+     * "" for the local library
+     */
+    serverName: string
+    /**
+     * name with {n} and {season} placeholders
+     */
+    shape: string
   }
   'api.seriesCandidate': {
     id: number

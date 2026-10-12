@@ -200,7 +200,7 @@ var dataStores = []dataStore{
 
 	// Human decisions. Nothing rebuilds these, so the reset only touches them
 	// when explicitly asked to.
-	{name: "catalog-decisions", tables: []string{"catalog_matches", "catalog_scopes"}, kind: kindDecision,
+	{name: "catalog-decisions", tables: []string{"catalog_matches", "catalog_scopes", "catalog_scope_rules"}, kind: kindDecision,
 		where: "manual = 1", keptOnReset: true},
 	{name: "suggestion-dismissals", tables: []string{"suggestion_dismissals"}, kind: kindDecision,
 		timeCol: "dismissed_at", keptOnReset: true},

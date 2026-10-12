@@ -4944,11 +4944,15 @@
             "api.scopeRequest": {
                 "properties": {
                     "kind": {
-                        "description": "\"\" | anime | manga | tv | movie | tvdb",
+                        "description": "\"\" clears the mark; \"none\" stores \"no mark\", which keeps a scope rule\nand the hints off this folder",
                         "type": "string"
                     },
                     "path": {
                         "type": "string"
+                    },
+                    "rule": {
+                        "description": "also mark new folders beside this one whose name has the same shape\n(numbers and season names vary); needs a kind and a name that varies",
+                        "type": "boolean"
                     }
                 },
                 "required": [
@@ -4959,13 +4963,67 @@
             },
             "api.scopeResponse": {
                 "properties": {
+                    "ruleId": {
+                        "description": "the rule that covers this folder (its parent and shape), 0 for none.\nScope came from it unless the folder carries a mark of its own.",
+                        "type": "integer"
+                    },
+                    "ruleKind": {
+                        "type": "string"
+                    },
+                    "ruleShape": {
+                        "description": "the name shape a rule made from this folder would cover; \"\" when its\nname has nothing that varies (no number, no season) or it is the root",
+                        "type": "string"
+                    },
                     "scope": {
                         "description": "\"\" | anime | manga | tv | movie | tvdb",
                         "type": "string"
                     }
                 },
                 "required": [
-                    "scope"
+                    "scope",
+                    "ruleShape",
+                    "ruleId",
+                    "ruleKind"
+                ],
+                "type": "object"
+            },
+            "api.scopeRule": {
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "kind": {
+                        "enum": [
+                            "anime",
+                            "manga",
+                            "tv",
+                            "movie",
+                            "tvdb"
+                        ],
+                        "type": "string"
+                    },
+                    "parent": {
+                        "type": "string"
+                    },
+                    "serverId": {
+                        "type": "integer"
+                    },
+                    "serverName": {
+                        "description": "\"\" for the local library",
+                        "type": "string"
+                    },
+                    "shape": {
+                        "description": "name with {n} and {season} placeholders",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "serverId",
+                    "serverName",
+                    "parent",
+                    "shape",
+                    "kind"
                 ],
                 "type": "object"
             },
@@ -10780,6 +10838,102 @@
                 "summary": "Rename local entry",
                 "tags": [
                     "Browse"
+                ]
+            }
+        },
+        "/api/catalog/scope-rules": {
+            "get": {
+                "description": "Rules that mark new folders like a marked one: same parent, same name shape (numbers and season names vary), same kind.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.scopeRule"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "List catalog scope rules",
+                "tags": [
+                    "Catalog"
+                ]
+            }
+        },
+        "/api/catalog/scope-rules/{id}": {
+            "delete": {
+                "description": "Removes a scope rule. Folders it covered are no longer marked by it; folders with their own mark keep it, and matches already made stay.",
+                "parameters": [
+                    {
+                        "description": "Rule id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Delete a catalog scope rule",
+                "tags": [
+                    "Catalog"
                 ]
             }
         },

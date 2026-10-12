@@ -260,6 +260,7 @@ func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 		for _, q := range []string{
 			`DELETE FROM catalog_matches WHERE server_id = ?`,
 			`DELETE FROM catalog_scopes WHERE server_id = ?`,
+			`DELETE FROM catalog_scope_rules WHERE server_id = ?`,
 			`DELETE FROM catalog_variants WHERE server_id = ?`,
 		} {
 			if _, err := tx.Exec(q, id); err != nil {
