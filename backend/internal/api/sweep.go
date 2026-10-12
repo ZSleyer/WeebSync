@@ -131,7 +131,7 @@ func (s *Server) SweepLoop(ctx context.Context) {
 // sweepServer enqueues matches for unmatched folders under this server's scope
 // marks and refreshes stale variants, both capped by budget.
 func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
-	scopes, err := s.DB.Query(`SELECT path, kind FROM catalog_scopes WHERE server_id = ?`, serverID)
+	scopes, err := s.DB.Query(`SELECT path, kind FROM catalog_scopes WHERE server_id = ? AND kind != ?`, serverID, scopeNone)
 	if err != nil {
 		return
 	}
@@ -143,6 +143,10 @@ func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
 		marks = append(marks, m)
 	}
 	scopes.Close()
+	// folders a scope rule covers are marks too, though nothing stores them
+	for _, m := range s.ruleMarks(serverID) {
+		marks = append(marks, scope{m[0], m[1]})
+	}
 
 	queued := 0
 	for _, m := range marks {
