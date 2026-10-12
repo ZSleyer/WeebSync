@@ -337,11 +337,14 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 		files = s.arrFiles(`cv.is_movie = 0 AND (cv.show_key = ? OR (cv.series_id > 0 AND cv.series_id IN
 			(SELECT series_id FROM series_provider WHERE source = 'tvdb' AND media_id = ?)))`, 2000, "tvdb:"+strconv.Itoa(id), id)
 	case r.FormValue("q") == "" && r.FormValue("imdbid") == "":
-		kind := "tvdb:%"
 		if movie {
-			kind = "tmdb:%"
+			// every matched film, not only those with a TMDB id: Radarr reads
+			// a film in the feed by title and year, and a new anime film is
+			// matched long before the id lists carry its TMDB id
+			files = s.arrFiles(`cv.is_movie = 1 AND cv.show_key != ''`, limit)
+		} else {
+			files = s.arrFiles(`cv.is_movie = 0 AND cv.show_key LIKE 'tvdb:%'`, limit)
 		}
-		files = s.arrFiles(`cv.is_movie = ? AND cv.show_key LIKE ?`, limit, movie, kind)
 	}
 	wantSe, _ := strconv.Atoi(r.FormValue("season"))
 	wantEp, _ := strconv.Atoi(r.FormValue("ep"))
