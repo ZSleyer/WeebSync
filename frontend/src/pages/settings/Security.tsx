@@ -7,6 +7,7 @@ import { useConfirm } from '../../components/confirm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { EnvBadge, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import Users from './Users'
+import { copyText } from '../../clipboard'
 
 export default function Security() {
   const { t } = useTranslation()
@@ -301,14 +302,7 @@ function ApiTokenSection() {
             {t('settings.apiTokenShowOnce')}
             <span className="mt-1 flex gap-2">
               <Input className="font-mono" readOnly value={token} onFocus={(e) => e.target.select()} />
-              <Button
-                size="sm"
-                className="shrink-0"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(token)
-                  setCopied(true)
-                }}
-              >
+              <Button size="sm" className="shrink-0" onClick={async () => setCopied(await copyText(token))}>
                 {t('settings.apiTokenCopy')}
               </Button>
             </span>
