@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { api } from '../api'
+import { api, type ScopeInfo } from '../api'
 import { useFailToast } from './toast'
 
 // The three folder view modes, shared by the Remote and Local browsers:
@@ -11,12 +11,30 @@ import { useFailToast } from './toast'
 export type CatalogViewValue = 'classic' | 'catalogOnce' | 'catalogPersist'
 
 // A folder's scope lives in two caches: the cheap probe below and the catalog
-// listing itself. A mark changes both, and its subfolders inherit it, so a
-// change clears every folder of the server in both. With only one of them
-// cleared, pinning read a stale "unmarked" and overwrote a tv mark with anime.
+// listing itself. A mark changes both, and a scope rule reaches its sibling
+// folders (an alphabet shelf its parent's), so a change clears every folder of
+// the server in both, plus the rule list and the dashboard hints. With only
+// one of them cleared, pinning read a stale "unmarked" and overwrote a tv mark
+// with anime.
 export const scopeChanged = (qc: QueryClient, serverId: number) => {
   qc.invalidateQueries({ queryKey: ['catalog', serverId] })
   qc.invalidateQueries({ queryKey: ['catalog-scope', serverId] })
+  qc.invalidateQueries({ queryKey: ['scope-rules'] })
+  qc.invalidateQueries({ queryKey: ['scope-hints'] })
+}
+
+// useScopeInfo is the cheap scope probe (no listing, no matching): the mark,
+// and the scope rule a folder could seed or is covered by. Previous data
+// carries over while the next probe loads so the view does not flicker.
+export function useScopeInfo(serverId: number, path: string) {
+  return useQuery<ScopeInfo>({
+    queryKey: ['catalog-scope', serverId, path],
+    queryFn: () =>
+      api.get(`/api/servers/${serverId}/catalog/scope${path ? `?path=${encodeURIComponent('/' + path)}` : ''}`),
+    enabled: serverId >= 0,
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+  })
 }
 
 // useCatalogView derives a folder's effective view from its saved catalog scope
@@ -32,16 +50,7 @@ export function useCatalogView(serverId: number, path: string) {
   const override = peek?.folder === folder ? peek.view : null
   const setOverride = (view: 'classic' | 'catalog') => setPeek({ folder, view })
 
-  // cheap scope probe (no listing/matching); previous data carries over while
-  // the next probe loads so the view does not flicker on navigation
-  const { data: scopeInfo } = useQuery<{ scope: string }>({
-    queryKey: ['catalog-scope', serverId, path],
-    queryFn: () =>
-      api.get(`/api/servers/${serverId}/catalog/scope${path ? `?path=${encodeURIComponent('/' + path)}` : ''}`),
-    enabled: serverId >= 0,
-    staleTime: 60_000,
-    placeholderData: (prev) => prev,
-  })
+  const { data: scopeInfo } = useScopeInfo(serverId, path)
   const scoped = !!scopeInfo?.scope
 
   const view: 'classic' | 'catalog' = override ?? (scoped ? 'catalog' : 'classic')
@@ -69,7 +78,9 @@ export function useCatalogView(serverId: number, path: string) {
   const set = async (next: CatalogViewValue) => {
     if (next === 'classic') {
       setOverride('classic')
-      if (scoped) await putScope('') // clear the mark: folder is classic again
+      // clear the mark: folder is classic again (under a scope rule the server
+      // stores "none" instead, or the rule would mark it again at once)
+      if (scoped) await putScope('')
     } else if (next === 'catalogOnce') {
       setOverride('catalog') // transient, no persistence
       // unpinning a saved folder drops its mark (a tv/movie/tvdb mark too,
