@@ -15,12 +15,16 @@ work the same either way.
 
 Settings → Integrations → **Sonarr / Radarr**:
 
-1. *Turn on (create key)*. The key is shown only once; it is the API key for
-   the indexer and the download client in every app.
+1. *Turn on (create key)*. The key stays visible on this page; it is the API
+   key for the indexer and the download client in every app. *New key*
+   revokes the old one, so every app has to get the new one.
 2. **Download folder**: where grabs land, one folder per release. It must be
    inside a download root (`WEEBSYNC_DOWNLOADS`) and visible to Sonarr/Radarr.
+   This is required: without it the download client test in the apps fails
+   with "WeebSync has no download folder for Sonarr/Radarr yet".
 3. **Path mapping**, only when the apps see that folder under another path:
    one line `appPath => localPath`, e.g. `/downloads => /mnt/media/downloads`.
+   See [Docker: different paths](#docker-different-paths).
 
 ## In Sonarr and Radarr
 
@@ -31,25 +35,65 @@ Settings → Integrations → **Sonarr / Radarr**:
 | URL | `http://weebsync.example.com:8080/api/arr/newznab` |
 | API Path | `/api` |
 | API Key | the key from above |
-| Categories | Sonarr `5000, 5040`, anime `5070`; Radarr `2000` |
+| Categories | Sonarr `5000, 5040`; Radarr `2000` |
+| Anime Categories (Sonarr) | `5070` |
+| Anime Standard Format Search (Sonarr) | on |
+
+Sonarr searches series of the type *Anime* by title and absolute number,
+which WeebSync does not answer (it searches by TVDB id). With *Anime Standard
+Format Search* on, Sonarr also asks by TVDB id, season and episode.
+
+The indexer test asks for the newest releases. It fails with "Query
+successful, but no results in the configured categories were returned" as
+long as WeebSync has not matched any remote folder yet: let the remote index
+and the catalog run first (Files → a server, or wait for the background
+crawl), then add the indexer.
 
 **Download client** → add → *SABnzbd*:
 
 | Field | Value |
 | --- | --- |
 | Host / Port | WeebSync's host and port |
-| URL Base | `/api/arr/sab` |
+| URL Base | `/api/arr/sab` (or empty) |
 | API Key | the key from above |
+| Username / Password | empty |
 | Category | `tv` (Sonarr), `movies` (Radarr) |
+
+*URL Base* is an advanced setting: click *Show Advanced* to see it. Left empty
+the app asks `/api`, which WeebSync answers as well.
 
 Use the address the apps reach WeebSync under - in a Docker setup usually the
 container name, not the public URL.
+
+## Docker: different paths
+
+WeebSync tells the app where a finished release lies, as a path on its own
+side. If Sonarr/Radarr run in another container and mount that folder under
+another path, Sonarr warns:
+
+> You are using docker; download client WeebSync places downloads in
+> /media/downloads/tv but this directory does not appear to exist inside the
+> container. Review your remote path mappings and container volume settings.
+
+Fix it in **one** of two places, not both:
+
+- **In WeebSync**, field *Path mapping*: `appPath => localPath`, e.g.
+  `/downloads => /media/downloads` when Sonarr mounts the folder as
+  `/downloads`. WeebSync then reports paths the way Sonarr sees them.
+- **In Sonarr/Radarr**, Settings → Download Clients → *Remote Path Mappings*
+  (advanced): Host = the host entered for the WeebSync download client,
+  Remote Path = the download folder as WeebSync sees it (`/media/downloads/`),
+  Local Path = the same folder inside the Sonarr container (`/downloads/`).
+
+A path like `/anime` or `/tv` in that warning (only the category, no folder in
+front) means the download folder in WeebSync is not set.
 
 ## In Prowlarr
 
 Indexers → add → *Generic Newznab* with the same URL, API path and key.
 Prowlarr hands it to Sonarr and Radarr like any other indexer; the download
-client is still added in each app.
+client is still added in each app. Prowlarr itself needs no download client
+for this - only for grabbing from Prowlarr's own search page.
 
 ## What the apps see
 
