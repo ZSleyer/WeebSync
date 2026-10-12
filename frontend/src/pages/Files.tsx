@@ -70,6 +70,7 @@ import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
 import { scopeChanged, useCatalogView } from '../components/useCatalogView'
+import ScopeRuleLine from '../components/ScopeRuleLine'
 import { FileBrowser, LocalPicker, PathCrumbs, PlayIcon } from '../components/FileBrowser'
 import { catalogTitle, firstVideo, isVideo, playHref, viewHref, viewKind } from '../components/playLinks'
 import PathInput from '../components/PathInput'
@@ -1071,6 +1072,15 @@ export function CatalogGrid({
     }
   }
 
+  const scopeOptions = [
+    { value: 'anime', label: t('remote.scopeAnime') },
+    { value: 'manga', label: t('remote.scopeManga') },
+    { value: 'tv', label: t('remote.scopeTv') },
+    { value: 'movie', label: t('remote.scopeMovie') },
+    ...(caps?.tvdbApiKeySet ? [{ value: 'tvdb', label: t('remote.scopeTvdb') }] : []),
+  ]
+  const scopeLabel = (kind: string) => scopeOptions.find((o) => o.value === kind)?.label ?? kind
+
   // mark the current folder's metadata source; '' clears the own mark so the
   // parent's (or the anime default) applies again
   const setScope = async (kind: string) => {
@@ -1173,13 +1183,7 @@ export function CatalogGrid({
             placeholder={t('remote.scopeNone')}
             value={data?.scope ?? ''}
             onChange={setScope}
-            options={[
-              { value: 'anime', label: t('remote.scopeAnime') },
-              { value: 'manga', label: t('remote.scopeManga') },
-              { value: 'tv', label: t('remote.scopeTv') },
-              { value: 'movie', label: t('remote.scopeMovie') },
-              ...(caps?.tvdbApiKeySet ? [{ value: 'tvdb', label: t('remote.scopeTvdb') }] : []),
-            ]}
+            options={scopeOptions}
           />
           {groups.length > 1 && (
             <PillSelect
@@ -1223,6 +1227,7 @@ export function CatalogGrid({
               </p>
             )
           )}
+          {path && <ScopeRuleLine serverId={serverId} path={path} kindLabel={scopeLabel} />}
         </div>
         {/* a leaf folder holds files, not titles: offer the classic list instead
           of leaving the user at a dead end */}

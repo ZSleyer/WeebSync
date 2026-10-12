@@ -9,6 +9,11 @@ export type UserAccount = Schemas['api.userInfo']
 
 export type ServerInfo = Schemas['api.serverInfo']
 
+// A folder's catalog mark and the scope rule around it.
+export type ScopeInfo = Schemas['api.scopeResponse']
+export type ScopeRule = Schemas['api.scopeRule']
+export type ScopeHint = Schemas['api.scopeHint']
+
 // Which folder a sync creates below the target: none, one named after the
 // remote folder, or one named after the series title.
 export type SubfolderMode = Schemas['api.KindDefaults']['subfolderSource']
