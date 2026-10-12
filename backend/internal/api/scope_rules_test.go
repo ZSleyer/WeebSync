@@ -121,6 +121,43 @@ func TestScopeRules(t *testing.T) {
 	}
 }
 
+// A new season folder beside marked ones is pointed out; a folder of another
+// shape is not, and neither is one the user waved off or a rule covers.
+func TestScopeHints(t *testing.T) {
+	s, call := scopeServer(t)
+	for _, f := range []string{"/Server/2026-2 Spring", "/Server/2026-3 Summer", "/Server/2026-4 Fall",
+		"/Server/2027-1 Winter", "/Server/Anderes", "/Server/WEB"} {
+		addRemoteFiles(t, s, 1, f, nil)
+	}
+	s.DB.Exec(`INSERT INTO catalog_scopes (server_id, path, kind) VALUES
+		(1, '/Server/2026-2 Spring', 'anime'), (1, '/Server/2026-3 Summer', 'anime'), (1, '/Server/WEB', 'anime')`)
+	hints := func() (out []string) {
+		var hs []scopeHint
+		json.Unmarshal(call("GET", "/api/catalog/scope-hints", "").Body.Bytes(), &hs)
+		for _, h := range hs {
+			if h.Kind != "anime" || h.ServerName != "seedbox" || folderShape(h.Sibling) != folderShape(h.Name) {
+				t.Errorf("hint %+v", h)
+			}
+			out = append(out, h.Name)
+		}
+		return out
+	}
+	if got := hints(); strings.Join(got, "|") != "2026-4 Fall|2027-1 Winter" {
+		t.Fatalf("hints = %q", got)
+	}
+	call("PUT", "/api/servers/1/catalog/scope", `{"path":"/Server/2027-1 Winter","kind":"none"}`)
+	if got := hints(); strings.Join(got, "|") != "2026-4 Fall" {
+		t.Fatalf("after ignoring one: %q", got)
+	}
+	if got := s.scopeFor(1, "/Server/2027-1 Winter"); got != "" {
+		t.Errorf("ignored folder has scope %q", got)
+	}
+	call("PUT", "/api/servers/1/catalog/scope", `{"path":"/Server/2026-3 Summer","kind":"anime","rule":true}`)
+	if got := hints(); len(got) != 0 {
+		t.Fatalf("a rule covers them now, hints = %q", got)
+	}
+}
+
 // The sweep finds the folders a rule covers in the remote index: they hold no
 // stored mark, and their titles would never be matched otherwise.
 func TestRuleMarks(t *testing.T) {

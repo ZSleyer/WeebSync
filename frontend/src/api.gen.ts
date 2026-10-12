@@ -2109,6 +2109,20 @@ export interface Schemas {
   'api.reviewsResponse': {
     reviews: Schemas['anilist.Review'][]
   }
+  'api.scopeHint': {
+    /**
+     * the siblings' mark
+     */
+    kind: "anime" | "manga" | "tv" | "movie" | "tvdb"
+    name: string
+    path: string
+    serverId: number
+    serverName: string
+    /**
+     * a marked sibling's name, for the reason
+     */
+    sibling: string
+  }
   'api.scopeRequest': {
     /**
      * "" clears the mark; "none" stores "no mark", which keeps a scope rule
