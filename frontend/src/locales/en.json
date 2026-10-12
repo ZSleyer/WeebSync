@@ -1442,12 +1442,12 @@
             "desc": "Which folder belongs to which series, as far as the app decided that itself. Your own corrections are kept separately and are not touched. Working these out again costs a lot of provider requests."
           },
           "series": {
-            "name": "Series identity",
-            "desc": "The identity of a series folded together across providers and servers, with season titles and translations. This is where a series that was merged wrongly stays wrong. Rebuilt from the matches."
+            "name": "Title identity",
+            "desc": "One entry per title, shows and films alike, folded together across providers and servers, with season titles and translations. Whether a folder holds a film or a show is kept per folder in the quality features. This is where a title that was merged wrongly stays wrong. Rebuilt from the matches."
           },
           "catalog-variants": {
             "name": "Quality details",
-            "desc": "Resolution plus audio and subtitle languages per folder, the basis of the upgrade suggestions. Recomputed gradually in the background."
+            "desc": "Film or show, resolution plus audio and subtitle languages per folder, the basis of the upgrade suggestions and of the Sonarr/Radarr feed. Recomputed gradually in the background."
           },
           "probe-cache": {
             "name": "Measured file quality",
