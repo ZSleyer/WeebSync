@@ -234,3 +234,40 @@ export function useNow(stepMs = 60_000): number {
   }, [stepMs])
   return now
 }
+
+// fields that bring up the on-screen keyboard (pickers, toggles and sliders do not)
+const TYPED =
+  'textarea, input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"], [type="file"], [type="color"], [type="image"], [type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"])'
+
+/**
+ * Whether a touch screen's keyboard is up. On Android the viewport resizes
+ * with it (interactive-widget=resizes-content), so it is up while a text field
+ * has focus and the viewport has lost a good part of its tallest height. Focus
+ * alone is not enough: the back gesture closes the keyboard and leaves the
+ * field focused. iOS does not resize the layout viewport, so this stays false
+ * there.
+ */
+export function useKeyboardUp() {
+  const [up, setUp] = useState(false)
+  useEffect(() => {
+    if (typeof matchMedia !== 'function' || !matchMedia('(pointer: coarse)').matches) return
+    let tall = innerHeight
+    const check = () => {
+      tall = Math.max(tall, innerHeight)
+      setUp(innerHeight < tall * 0.8 && !!document.activeElement?.matches(TYPED))
+    }
+    // turning the phone changes what "tall" is
+    const turned = () => (tall = 0)
+    addEventListener('resize', check)
+    addEventListener('focusin', check)
+    addEventListener('focusout', check)
+    screen.orientation?.addEventListener('change', turned)
+    return () => {
+      removeEventListener('resize', check)
+      removeEventListener('focusin', check)
+      removeEventListener('focusout', check)
+      screen.orientation?.removeEventListener('change', turned)
+    }
+  }, [])
+  return up
+}
