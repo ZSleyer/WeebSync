@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 // WeebSync as a source for Sonarr and Radarr, entirely opt-in. Two standard
@@ -50,11 +51,13 @@ func (s *Server) arrGate(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // handleArrKeyCreate mints the key Sonarr/Radarr/Prowlarr use for both the
-// indexer and the download client. Only its sha256 is stored; the raw key is
-// returned exactly once. Minting a new one revokes the old.
+// indexer and the download client. The gate checks its sha256; the key itself
+// is kept encrypted so the settings page can show it again - it goes into
+// three apps, and a key that is gone after a reload got regenerated, which
+// cut all of them off. Minting a new one revokes the old.
 //
 // @Summary      Create Sonarr/Radarr key
-// @Description  Mints the API key Sonarr, Radarr and Prowlarr use for the WeebSync indexer and download client, admin only. Switches the source on. Only the hash is stored; the raw key is returned exactly once.
+// @Description  Mints the API key Sonarr, Radarr and Prowlarr use for the WeebSync indexer and download client, admin only. Switches the source on and revokes any previous key.
 // @Tags         Settings
 // @Produce      json
 // @Success      200  {object}  tokenResponse
@@ -72,8 +75,33 @@ func (s *Server) handleArrKeyCreate(w http.ResponseWriter, r *http.Request) {
 	// 32 hex characters: the length Sonarr/Radarr expect of an API key
 	key := hex.EncodeToString(raw)
 	sum := sha256.Sum256([]byte(key))
+	if err := secret.SetSetting(s.DB, "arr_key", key); err != nil {
+		writeErr(w, http.StatusInternalServerError, "could not store the key")
+		return
+	}
 	if err := db.SetSetting(s.DB, "arr_key_hash", hex.EncodeToString(sum[:])); err != nil {
 		dbErr(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, tokenResponse{Token: key})
+}
+
+// handleArrKeyGet shows the current key again.
+//
+// @Summary      Show Sonarr/Radarr key
+// @Description  Returns the current Sonarr/Radarr API key, admin only. 404 while the source is off, or for a key minted before keys were kept (only its hash exists; mint a new one to see it).
+// @Tags         Settings
+// @Produce      json
+// @Success      200  {object}  tokenResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/settings/arr-key [get]
+func (s *Server) handleArrKeyGet(w http.ResponseWriter, r *http.Request) {
+	key := secret.SettingOrEnv(s.DB, "arr_key", "")
+	if key == "" || db.Setting(s.DB, "arr_key_hash") == "" {
+		writeErr(w, http.StatusNotFound, "no key to show")
 		return
 	}
 	writeJSON(w, http.StatusOK, tokenResponse{Token: key})
@@ -96,6 +124,7 @@ func (s *Server) handleArrKeyDelete(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	db.SetSetting(s.DB, "arr_key", "")
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 

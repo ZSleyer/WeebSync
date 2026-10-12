@@ -13,7 +13,7 @@ const settingPrefix = "enc:v1:"
 
 var settingKeys = []string{
 	"anilist_client_secret", "tmdb_api_key", "tvdb_api_key", "animeschedule_token", "ai_api_key",
-	"plex_token", "oidc_client_secret", "smtp_password", "vapid_private",
+	"plex_token", "oidc_client_secret", "smtp_password", "vapid_private", "arr_key",
 }
 
 func encodeSetting(value string) (string, error) {
