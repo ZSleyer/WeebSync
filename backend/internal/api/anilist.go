@@ -119,10 +119,9 @@ func (s *Server) folderKind(serverID int64, folder, name string) string {
 		}
 	}
 	switch {
-	case vids == 1 && subdirs == 0 && episodeMarkRe.MatchString(video) && !filmWordRe.MatchString(video):
+	case vids == 1 && subdirs == 0 && isEpisodeFile(video):
 		// a show that has only just started: one file so far, and it says
-		// which episode it is ("Movie - 365 Days" and a film filed as S00E02
-		// carry the word that says otherwise)
+		// which episode it is
 		return "series"
 	case vids == 1 && subdirs == 0:
 		return "movie"
@@ -142,13 +141,23 @@ var (
 	filmWordRe    = regexp.MustCompile(`(?i)\b(?:movie|film|gekijouban)\b`)
 )
 
-// kindFromVideos classifies by the number of video files a folder holds - the
-// local catalog's fallback, where there is no remote index to read.
-func kindFromVideos(videos int) string {
+// isEpisodeFile reports whether a video's name says it is an episode. The
+// words movie, film and gekijouban keep a film a film even with a marker
+// ("... Movie - 365 Days", a film filed as S00E02).
+func isEpisodeFile(name string) bool {
+	return episodeMarkRe.MatchString(name) && !filmWordRe.MatchString(name)
+}
+
+// kindFromStat classifies by the video files a folder holds - the local
+// catalog's fallback, where there is no remote index to read. One video is a
+// film unless it names its episode.
+func kindFromStat(st LocalStat) string {
 	switch {
-	case videos == 1:
+	case st.Videos == 1 && st.episodes == 1:
+		return "series"
+	case st.Videos == 1:
 		return "movie"
-	case videos > 1:
+	case st.Videos > 1:
 		return "series"
 	}
 	return ""
@@ -160,7 +169,7 @@ func (s *Server) itemKind(serverID int64, folder, name string) string {
 	kind := s.folderKind(serverID, folder, name)
 	if kind == "" && serverID == localServerID {
 		if abs, err := s.safeLocal(folder); err == nil {
-			kind = kindFromVideos(s.localStat(abs).Videos)
+			kind = kindFromStat(s.localStat(abs))
 		}
 	}
 	return kind
@@ -621,7 +630,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 				item.Local = &st
 				// no remote index locally: the file counts classify instead
 				if item.Kind == "" {
-					item.Kind = kindFromVideos(st.Videos)
+					item.Kind = kindFromStat(st)
 				}
 			}
 		}

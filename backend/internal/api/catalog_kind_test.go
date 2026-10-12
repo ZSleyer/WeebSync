@@ -41,6 +41,19 @@ func TestFolderKind(t *testing.T) {
 	}
 }
 
+// The local library has no remote index; its walk tells the same apart.
+func TestItemKindLocalSingleEpisode(t *testing.T) {
+	s, root := sizeTestServer(t)
+	writeFiles(t, root+"/New Show", map[string]int64{"New Show E01 [1080p].mkv": 10})
+	writeFiles(t, root+"/A Film", map[string]int64{"A.Film.2.(2024).1080p.mkv": 10})
+	if got := s.itemKind(localServerID, "/New Show", "New Show"); got != "series" {
+		t.Errorf("one episode locally: %q, want series", got)
+	}
+	if got := s.itemKind(localServerID, "/A Film", "A Film"); got != "movie" {
+		t.Errorf("one film locally: %q, want movie", got)
+	}
+}
+
 // A show that has only just started holds one file, and that is no film when
 // the file names its episode. Film names with numbers in them stay films.
 func TestFolderKindSingleEpisode(t *testing.T) {
