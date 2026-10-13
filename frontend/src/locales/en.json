@@ -609,6 +609,7 @@
     "playlist": "Tracks in this folder"
   },
   "player": {
+    "more": "More settings",
     "pause": "Pause",
     "seen": "Episode {{n}} marked as watched on AniList",
     "pip": "Picture in picture",

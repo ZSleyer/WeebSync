@@ -202,6 +202,11 @@
    buttons carry their own. Touch overrides the values further down, so every
    rule can just reference the variable. */
 :root {
+  /* Material 3 Expressive's fast spatial spring (damping 0.9, stiffness
+     1400) as a curve: for things that move or grow, with the small overshoot
+     that makes a state change feel physical. Colour and opacity never use it */
+  --m3-spatial: linear(0, 0.21 4.5%, 0.53 10%, 0.79 16%, 0.95 22%, 1.03 29%, 1.05 35%, 1.04 43%, 1.015 57%, 1.002 75%, 1);
+  --m3-spatial-dur: 350ms;
   --ctl-h: 36px; /* input, select, button */
   --ctl-h-sm: 26px; /* small + icon buttons */
   --ctl-fs: 14px;
@@ -2487,9 +2492,18 @@ li.t-swiperow { border-radius: 0; }
   background: var(--color-accent);
   opacity: 0;
   scale: 0.4 1;
-  transition: opacity var(--dur-1) var(--ease-out), scale var(--dur-1) var(--ease-out);
+  transition: opacity var(--dur-1) var(--ease-out), scale var(--m3-spatial-dur) var(--m3-spatial);
 }
-.t-player-cc[aria-pressed='true']::after { opacity: 1; scale: 1; }
+.t-player-cc[data-on]::after { opacity: 1; scale: 1; }
+/* the icons of the bar's own buttons, sized like media-chrome's */
+.t-player-icon { display: inline-grid; place-items: center; }
+.t-player-icon svg { width: var(--media-button-icon-width); height: var(--media-button-icon-height); }
+/* a state change morphs the icon in on the spatial spring (Material 3
+   Expressive): it grows from a little smaller with a short overshoot */
+.t-player-icon--morph svg { animation: m3-icon-in var(--m3-spatial-dur) var(--m3-spatial); }
+@keyframes m3-icon-in { from { scale: 0.6; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .t-player-icon--morph svg { animation: none; } }
+:root[data-motion='off'] .t-player-icon--morph svg { animation: none; }
 
 /* middle: the big play button only while paused, the double-tap flashes */
 .t-player-center {

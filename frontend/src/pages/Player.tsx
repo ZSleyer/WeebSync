@@ -7,7 +7,17 @@ import JASSUB from 'jassub'
 // Vite turns the query into a URL string; the linter only sees the .ts file
 // eslint-disable-next-line import/default
 import jassubWorkerUrl from './jassubWorker?worker&url'
-import { ArrowLeft, Captions, PictureInPicture2, SkipBack, SkipForward, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  AudioLines,
+  Captions,
+  CaptionsOff,
+  PictureInPicture2,
+  SkipBack,
+  SkipForward,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react'
 import {
   MediaControlBar,
   MediaController,
@@ -24,6 +34,7 @@ import {
 } from 'media-chrome/react'
 import {
   MediaChromeMenu,
+  MediaChromeMenuButton,
   MediaChromeMenuItem,
   MediaSettingsMenu,
   MediaSettingsMenuButton,
@@ -681,6 +692,8 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     )
 
   const subLabel = subTrack ? trackLabel(subTrack, 0) : t('player.subOff')
+  const audioTrack = data?.audio.find((a) => a.index === audioIdx)
+  const audioLabel = audioTrack ? trackLabel(audioTrack, 0) : ''
   const v = data.video
   const facts = [
     v && `${CODEC_NAMES[v.codec] ?? v.codec.toUpperCase()}${v.pixFmt?.includes('10') ? ' 10-bit' : ''}`,
@@ -810,22 +823,34 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           </span>
         </div>
 
+        {/* subtitles and audio are a tap away, each its own menu; the rest
+            (speed, episodes) stays behind the sliders */}
+        <QuickMenu
+          id="pl-subs"
+          title={t('player.subtitles')}
+          value={subKey}
+          options={[
+            { value: 'none', label: t('player.subOff') },
+            ...data.subs.map((s, i) => ({ value: subValue(s), label: trackLabel(s, i) })),
+          ]}
+          onChange={(val) => {
+            resumeAt.current = videoRef.current?.currentTime ?? 0
+            setSub(val)
+          }}
+        />
+        {data.audio.length > 1 && (
+          <QuickMenu
+            id="pl-audio"
+            title={t('player.audio')}
+            value={String(audioIdx)}
+            options={data.audio.map((a, i) => ({ value: String(a.index), label: trackLabel(a, i) }))}
+            onChange={(val) => {
+              resumeAt.current = videoRef.current?.currentTime ?? 0
+              setAudio(Number(val))
+            }}
+          />
+        )}
         <MediaSettingsMenu hidden anchor="auto" className="t-player-menu">
-          <MediaSettingsMenuItem>
-            {t('player.subtitles')}
-            <TrackMenu
-              title={t('player.subtitles')}
-              value={subKey}
-              options={[
-                { value: 'none', label: t('player.subOff') },
-                ...data.subs.map((s, i) => ({ value: subValue(s), label: trackLabel(s, i) })),
-              ]}
-              onChange={(val) => {
-                resumeAt.current = videoRef.current?.currentTime ?? 0
-                setSub(val)
-              }}
-            />
-          </MediaSettingsMenuItem>
           {episodes.length > 1 && (
             <MediaSettingsMenuItem>
               {t('player.episodes')}
@@ -834,20 +859,6 @@ function PlayerView({ server, path }: { server: number; path: string }) {
                 value={at >= 0 ? episodes[at].path : ''}
                 options={episodes.map((e) => ({ value: e.path, label: e.name.replace(/\.[^.]+$/, '') }))}
                 onChange={(p) => goTo({ path: p })}
-              />
-            </MediaSettingsMenuItem>
-          )}
-          {data.audio.length > 1 && (
-            <MediaSettingsMenuItem>
-              {t('player.audio')}
-              <TrackMenu
-                title={t('player.audio')}
-                value={String(audioIdx)}
-                options={data.audio.map((a, i) => ({ value: String(a.index), label: trackLabel(a, i) }))}
-                onChange={(val) => {
-                  resumeAt.current = videoRef.current?.currentTime ?? 0
-                  setAudio(Number(val))
-                }}
               />
             </MediaSettingsMenuItem>
           )}
@@ -910,21 +921,36 @@ function PlayerView({ server, path }: { server: number; path: string }) {
                 </button>
               </>
             )}
-            <button
-              type="button"
-              className="t-player-btn t-player-cc"
-              aria-pressed={subKey !== 'none'}
-              aria-label={`${t('player.subtitles')}: ${subLabel}`}
-              title={`${t('player.subtitles')}: ${subLabel}`}
-              disabled={data.subs.length === 0}
-              onClick={() => {
-                const first = data.subs.find((s) => !s.forced) ?? data.subs[0]
-                setSub(subKey === 'none' && first ? subValue(first) : 'none')
-              }}
-            >
-              <Captions aria-hidden size={20} />
-            </button>
-            <MediaSettingsMenuButton />
+            {data.subs.length > 0 && (
+              <MediaChromeMenuButton
+                invokeTarget="pl-subs"
+                className="t-player-cc"
+                data-on={subKey !== 'none' || undefined}
+                aria-label={`${t('player.subtitles')}: ${subLabel}`}
+                title={`${t('player.subtitles')}: ${subLabel}`}
+              >
+                <span className="t-player-icon t-player-icon--morph" key={subKey === 'none' ? 'off' : 'on'}>
+                  {subKey === 'none' ? <CaptionsOff aria-hidden /> : <Captions aria-hidden />}
+                </span>
+              </MediaChromeMenuButton>
+            )}
+            {data.audio.length > 1 && (
+              <MediaChromeMenuButton
+                invokeTarget="pl-audio"
+                className="t-player-audio"
+                aria-label={`${t('player.audio')}: ${audioLabel}`}
+                title={`${t('player.audio')}: ${audioLabel}`}
+              >
+                <span className="t-player-icon">
+                  <AudioLines aria-hidden />
+                </span>
+              </MediaChromeMenuButton>
+            )}
+            <MediaSettingsMenuButton aria-label={t('player.more')} title={t('player.more')}>
+              <span slot="icon" className="t-player-icon">
+                <SlidersHorizontal aria-hidden />
+              </span>
+            </MediaSettingsMenuButton>
             {pipSupported && (
               <button
                 type="button"
@@ -981,6 +1007,44 @@ function TrackMenu({
   }, [])
   return (
     <MediaChromeMenu ref={ref} slot="submenu" hidden>
+      <div slot="title">{title}</div>
+      {options.map((o) => (
+        <MediaChromeMenuItem
+          key={o.value}
+          type="radio"
+          value={o.value}
+          aria-checked={o.value === value ? 'true' : 'false'}
+        >
+          {o.label}
+        </MediaChromeMenuItem>
+      ))}
+    </MediaChromeMenu>
+  )
+}
+
+// A menu of its own, opened straight from its button in the bar.
+function QuickMenu({
+  id,
+  title,
+  value,
+  options,
+  onChange,
+}: {
+  id: string
+  title: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (v: string) => void
+}) {
+  const ref = useRef<ChromeMenuElement>(null)
+  const pick = useEffectEvent(() => ref.current && onChange(ref.current.value))
+  useEffect(() => {
+    const el = ref.current
+    el?.addEventListener('change', pick)
+    return () => el?.removeEventListener('change', pick)
+  }, [])
+  return (
+    <MediaChromeMenu ref={ref} id={id} hidden anchor="auto" className="t-player-menu">
       <div slot="title">{title}</div>
       {options.map((o) => (
         <MediaChromeMenuItem
