@@ -32,6 +32,7 @@ import Logo from './components/Logo'
 import { useSpeedSampler } from './speedHistory'
 import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
+import Tips from './components/Tips'
 import ScrollMemory from './components/ScrollMemory'
 import PageScroll from './components/PageScroll'
 import CommandPalette from './components/CommandPalette'
@@ -561,6 +562,8 @@ function Shell({ email }: { email: string }) {
                 </>
               }
             >
+              {/* at most one one-time hint, above whatever page is open */}
+              <Tips />
               <RouteTransition cls={motion.page}>
                 <Outlet />
               </RouteTransition>

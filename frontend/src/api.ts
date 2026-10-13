@@ -161,6 +161,9 @@ export type UpgradeDims = Schemas['api.UpgradeDims']
 
 export type DismissedItem = Schemas['api.DismissedItem']
 
+// The one-time hints the user has closed, on any device.
+export type Tips = Schemas['api.TipsResponse']
+
 export type PlexAccount = Schemas['api.plexAccountResponse']
 
 export type PlexLinkStart = Schemas['api.plexLinkResponse']

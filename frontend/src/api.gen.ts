@@ -984,6 +984,12 @@ export interface Schemas {
      */
     template?: string
   }
+  'api.TipDismissRequest': {
+    key: string
+  }
+  'api.TipsResponse': {
+    dismissed: string[]
+  }
   'api.TotpSetupResponse': {
     otpauthUrl: string
     qr?: string

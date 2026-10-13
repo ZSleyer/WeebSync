@@ -68,6 +68,16 @@
     "reloadNow": "Jetzt neu laden",
     "later": "Später"
   },
+  "tips": {
+    "label": "Tipp",
+    "close": "Tipp ausblenden",
+    "install": "Installieren",
+    "mobileUi": "WeebSync hat eine eigene Oberfläche fürs Handy. Öffne es dort im Browser und installiere es als App.",
+    "installPrompt": "WeebSync lässt sich als App installieren: eigenes Symbol, volle Bildschirmhöhe, kein Browserrahmen.",
+    "installIos": "WeebSync lässt sich als App installieren: in Safari auf Teilen tippen, dann \"Zum Home-Bildschirm\".",
+    "installFirefox": "WeebSync lässt sich als App installieren: im Firefox-Menü auf \"Installieren\" oder \"Zum Startbildschirm hinzufügen\" tippen.",
+    "installOther": "WeebSync lässt sich als App installieren: im Browsermenü \"App installieren\" oder \"Zum Startbildschirm hinzufügen\" wählen."
+  },
   "palette": {
     "title": "Suchen",
     "ctrl": "Strg",

@@ -68,6 +68,16 @@
     "reloadNow": "Reload now",
     "later": "Later"
   },
+  "tips": {
+    "label": "Tip",
+    "close": "Hide tip",
+    "install": "Install",
+    "mobileUi": "WeebSync has its own interface for phones. Open it in your phone's browser and install it as an app.",
+    "installPrompt": "WeebSync can be installed as an app: its own icon, the full screen, no browser frame.",
+    "installIos": "WeebSync can be installed as an app: in Safari, tap Share, then \"Add to Home Screen\".",
+    "installFirefox": "WeebSync can be installed as an app: in the Firefox menu, tap \"Install\" or \"Add to Home screen\".",
+    "installOther": "WeebSync can be installed as an app: choose \"Install app\" or \"Add to Home screen\" in the browser menu."
+  },
   "palette": {
     "title": "Search",
     "ctrl": "Ctrl",
