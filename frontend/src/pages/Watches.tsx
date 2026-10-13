@@ -1,93 +1,72 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { flushSync } from 'react-dom'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal, flushSync } from 'react-dom'
 import {
   BookOpen,
   CalendarDays,
   CalendarRange,
-  GalleryHorizontal,
   Check,
-  Clock,
-  Download,
-  Ellipsis,
-  Eye,
-  FolderClock,
+  GalleryHorizontal,
   Languages,
   LayoutGrid,
   List,
   Pencil,
-  RefreshCw,
   Search,
   SlidersHorizontal,
   Trash2,
   TriangleAlert,
-  Upload,
-  type LucideIcon,
+  X,
 } from 'lucide-react'
-
-// icon per status group divider (attention / syncing / idle / waiting / complete)
-const GROUP_ICON: Record<string, LucideIcon> = {
-  attention: TriangleAlert,
-  syncing: Download,
-  idle: Eye,
-  waiting: Clock,
-  complete: Check,
-}
 import { useQuery } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 import {
-  Badge,
   Button,
-  Count,
-  localTransition,
-  CalendarDay,
-  DayTimeline,
-  CalendarEntry,
   DayScroller,
-  Cover,
-  Divider,
+  DayTimeline,
   EmptyState,
   IconButton,
-  Input,
-  MediaCard,
+  localTransition,
   Menu,
   MenuItem,
-  PageHeader,
-  Panel,
   PosterBand,
-  Progress,
-  Slot,
+  Rows,
+  SectionHeading,
   Segmented,
   SHEET_MQ,
+  Slot,
   SwipeDeck,
+  TextLink,
   useMediaQuery,
   useMenu,
+  useReveal,
 } from 'fluid-lycoris'
-import { api, epLabel, mediaTitle, type Watch } from '../api'
+import { api, mediaTitle, type Watch } from '../api'
 import ActionSheet from '../components/ActionSheet'
 import Press from '../components/Press'
-import {
-  attentionInfo,
-  behindLabel,
-  haveLabel,
-  dubOverdueLabel,
-  dubProgressLabel,
-  dubWaitingLabel,
-  langWaitingLabel,
-  missingLabel,
-  seasonLabel,
-} from '../attention'
 import { addDays, dayKey, episodeLabel, fileStatus, startOfDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
 import { nextVolume } from '../components/playLinks'
 import { useWatchActions, watchFields } from '../components/watchActions'
 import { useFailToast, useToast } from '../components/toast'
-import { useSeriesModal } from '../components/SeriesModal'
+import { useSeriesModal, type SeriesTarget } from '../components/SeriesModal'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
+import { CoverImg } from '../components/SmartImg'
+import { coverSet } from '../images'
 import { useNow } from '../hooks'
 import { usePersistedView } from '../hooks/usePersistedView'
-import { SkeletonCards } from '../components/Loading'
+import {
+  calDayHeading,
+  checkCell,
+  diskName,
+  matchesFilter,
+  nextCell,
+  normalizeFilter,
+  tileSub,
+  watchName,
+  WATCH_FILTERS,
+} from '../watchTiles'
+import './watches.css'
 
 type CalCategory = 'anime-series' | 'anime-movie' | 'series' | 'movie'
 const CAL_CATEGORIES: readonly CalCategory[] = ['anime-series', 'anime-movie', 'series', 'movie']
@@ -99,11 +78,23 @@ const fold = (s: string) =>
     .toLowerCase()
 
 const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
+const hm = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+// how long a search waits for the typing to pause before the tiles reflow
+const SEARCH_MS = 140
+// how long the grid keeps the page-entry rise out after a morph of its own
+const MORPH_MS = 1200
 
-// Watches: persistent auto-sync overview. Each watch re-checks its remote
-// folder on an interval; the list polls so check results appear live. The
-// same data drives the calendar, its own page at /calendar: what airs when
-// is a question of its own, not a way of looking at the list.
+interface RowAction {
+  key: string
+  icon: ReactNode
+  label: string
+  onClick: () => void
+  danger?: boolean
+}
+
+// Watches: the Auto-Sync page. Every watch as a bare cover tile (or a hairline
+// row), filtered by what it is doing, and the calendar of what airs when on
+// the same data. The list polls, so check results appear live.
 export default function Watches() {
   const { t } = useTranslation()
   const { data: watches = [], isLoading } = useQuery<Watch[]>({
@@ -112,55 +103,38 @@ export default function Watches() {
     refetchInterval: 10_000,
   })
   const [edit, setEdit] = useState<Watch | null>(null)
-  // on a phone a card shows Check now and one More button; the rest of its
-  // actions open in a dialog, so a card stays two lines instead of four
+  // a long press on a tile opens every action of it in a sheet
   const [more, setMore] = useState<Watch | null>(null)
   const narrow = useMediaQuery(SHEET_MQ)
-  // the same requests the title card runs, so both refresh the same list
-  const { check, checking, applyPlexStreams, del, save, error, notice } = useWatchActions()
+  const wide = useMediaQuery(WIDE_MQ)
+  const { applyPlexStreams, del, save, error, notice } = useWatchActions()
+  const toast = useToast()
+  const fail = useFailToast()
+  // what the actions report goes to the toast, as everywhere else
+  useEffect(() => {
+    if (error) toast({ message: error })
+  }, [error, toast])
+  useEffect(() => {
+    if (notice) toast({ message: notice })
+  }, [notice, toast])
 
-  // a check on its way spins its icon; the button stays enabled (and focused),
-  // the hook drops a second click
-  const spin = (id: number) => (checking.has(id) ? 'animate-spin motion-reduce:animate-none' : '')
-
-  // AniList airingAt is an absolute unix time; render in the viewer's zone
-  // (or a named zone like Asia/Tokyo for the JST hover)
-  const airFmt = (ts: number, tz?: string) =>
-    new Date(ts * 1000).toLocaleString([], {
-      weekday: 'short',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      ...(tz ? { timeZone: tz } : {}),
-    })
-  // the same date inside a chip, which shares its line with the episode number:
-  // the locale separators are what pushes it past the phone column, and a chip
-  // has no prose to hold together without them
-  const airFmtChip = (ts: number) => airFmt(ts).replace(/,/g, '')
-  // the backend owns the schedule (interval, smart sync, 12h stale re-check),
-  // so this only formats what it sends
-  const untilCheck = (ts: number) => (ts * 1000 <= now ? t('watch.checkDue') : countdown(t, ts, false, now))
-  // one page, three ways to look at it: the list, the grid of covers, and
-  // the calendar of what airs when (the old /calendar lands here)
+  // one page, three ways to look at it; the grid of covers first
   const [mode, setMode] = usePersistedView(
     'weebsync.watches.mode',
-    ['list', 'grid', 'calendar'] as const,
-    'list',
+    ['grid', 'list', 'calendar'] as const,
+    'grid',
     'view',
   )
-  const view = mode === 'calendar' ? 'calendar' : 'list'
-  const layout = mode === 'grid' ? 'grid' : 'list'
-  // the dashboard's "+N more" lands here with ?filter=attention; the chip
-  // below toggles it by hand
-  const [filter, setFilter] = usePersistedView(
+  const view = mode === 'calendar' ? 'calendar' : 'tiles'
+  // what the watches do: all, still airing, with gaps, finished. The old
+  // "attention" address (a dashboard link) lands on the gaps.
+  const [rawFilter, setRawFilter] = usePersistedView(
     'weebsync.watches.filter',
-    ['all', 'attention'] as const,
+    [...WATCH_FILTERS, 'attention'] as const,
     'all',
     'filter',
   )
-  // the calendar as a week, as the plain list by day it used to be, or as a
-  // band of posters, one release after the other
+  const filter = normalizeFilter(rawFilter)
   const [calMode, setCalMode] = usePersistedView(
     'weebsync.watches.calendar',
     ['week', 'agenda', 'poster'] as const,
@@ -168,46 +142,75 @@ export default function Watches() {
     'cal',
   )
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
-  // search: a field beside the view menu on a desktop, behind a magnifier in
-  // the app bar on a phone; "/" focuses it on a desktop, as on most sites
+  const [kind, setKind] = usePersistedView('weebsync.watches.kind', ['video', 'manga'] as const, 'video', 'kind')
+  const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
+
+  // search: a field in the title row on a desktop, a pill growing out of the
+  // magnifier over the phone's top bar. The tiles reflow once typing pauses.
   const [query, setQuery] = useState('')
+  const [needle, setNeedle] = useState('')
   const [searching, setSearching] = useState(false)
+  useEffect(() => {
+    const id = setTimeout(() => setNeedle(fold(query.trim())), SEARCH_MS)
+    return () => clearTimeout(id)
+  }, [query])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
       if (e.key !== '/' || e.ctrlKey || e.metaKey || el.closest('input, textarea, select, [contenteditable]')) return
       e.preventDefault()
       setSearching(true)
-      // the desktop field; on a phone the field that opens focuses itself
       requestAnimationFrame(() => document.getElementById('watch-search')?.focus())
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-  // manga sit apart from what is watched: their own list, their own counts
-  const [kind, setKind] = usePersistedView('weebsync.watches.kind', ['video', 'manga'] as const, 'video', 'kind')
-  // A sort, a filter, video or manga, list or grid: the rows and tiles move to
-  // their new places instead of jumping. Only those on screen get a name, so a
-  // long list does not freeze a phone (90 named covers held a Pixel 550 ms).
+  const closeSearch = () => {
+    setQuery('')
+    setSearching(false)
+  }
+  // the desktop title row is the shell's; the field joins it from here
+  const [titleRow, setTitleRow] = useState<HTMLElement | null>(null)
+  const findTitleRow = useCallback((el: HTMLElement | null) => {
+    if (el) setTitleRow(el.closest('main')?.querySelector<HTMLElement>(':scope > .ws-title') ?? null)
+  }, [])
+
+  // A filter, a sort, video or manga, grid or list: the tiles move to their
+  // new places instead of jumping. Only those on screen get a name, so a long
+  // list does not freeze a phone (90 named covers held a Pixel 550 ms), and
+  // every box is measured before any name is written, so the layout is read
+  // once. The grid holds data-morph meanwhile: the page-entry rise, which the
+  // address change would replay, stays out of the morph.
+  const grid = useRef<HTMLUListElement>(null)
+  const morphTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const reorder = (update: () => void) => {
-    const name = (on: boolean) =>
-      document.querySelectorAll<HTMLElement>('[data-wid]').forEach((el) => {
-        const r = el.getBoundingClientRect()
-        el.style.viewTransitionName = on && r.bottom > 0 && r.top < innerHeight ? `watch-${el.dataset.wid}` : ''
+    const g = grid.current
+    if (g) {
+      g.dataset.morph = ''
+      clearTimeout(morphTimer.current)
+      morphTimer.current = setTimeout(() => g.removeAttribute('data-morph'), MORPH_MS)
+    }
+    const name = (on: boolean) => {
+      const els = [...document.querySelectorAll<HTMLElement>('[data-wid]')]
+      const seen = on ? els.map((el) => el.getBoundingClientRect()).map((r) => r.bottom > 0 && r.top < innerHeight) : []
+      els.forEach((el, i) => {
+        el.style.viewTransitionName = seen[i] ? `watch-${el.dataset.wid}` : ''
       })
+    }
     name(true)
     void localTransition(null, () => {
       flushSync(update)
       name(true)
     }).finally(() => name(false))
   }
+  useEffect(() => () => clearTimeout(morphTimer.current), [])
+
   const hasManga = watches.some((w) => w.category === 'manga')
-  const ofKind = hasManga ? watches.filter((w) => (w.category === 'manga') === (kind === 'manga')) : watches
+  const manga = hasManga && kind === 'manga'
+  const ofKind = hasManga ? watches.filter((w) => (w.category === 'manga') === manga) : watches
   const navigate = useNavigate()
-  const toast = useToast()
-  const fail = useFailToast()
-  // nextVolume already treats an unreachable folder as empty, so the toast
-  // covers both: a click always answers, even when there is nothing to open
+  // nextVolume treats an unreachable folder as empty, so the toast covers
+  // both: a click always answers, even when there is nothing to open
   const read = async (w: Watch) => {
     try {
       const href = await nextVolume(w)
@@ -217,22 +220,20 @@ export default function Watches() {
       fail(err)
     }
   }
-  // a tap on a calendar entry opens the title's card
-  // the cover and a calendar entry open the app's one title card
   const { open: openSeries } = useSeriesModal()
-  const showSeries = (w: Watch, tab?: 'episodes') =>
-    w.media &&
-    openSeries({
-      source: w.mediaSource,
-      id: w.media.id,
-      media: w.media,
-      watchId: w.id,
-      title: w.titleOverride || undefined,
-      tab,
-    })
-  // the gap list is the card's episodes section; a watch without a record has no card
-  const showGaps = (w: Watch) => showSeries(w, 'episodes')
-  // everything but "check now", for the desktop menu and the phone sheet alike
+  const targetOf = (w: Watch): SeriesTarget => ({
+    source: w.mediaSource,
+    id: w.media!.id,
+    media: w.media,
+    watchId: w.id,
+    title: w.titleOverride || undefined,
+  })
+  const showSeries = (w: Watch) => w.media && openSeries(targetOf(w))
+  // editing lives in the series page ("Bearbeiten replaces the page"); a
+  // watch without a record has no page and keeps the dialog
+  const editWatch = (w: Watch) => (w.media ? openSeries(Object.assign(targetOf(w), { edit: true })) : setEdit(w))
+  const openTile = (w: Watch) => (w.category === 'manga' ? void read(w) : w.media ? showSeries(w) : setEdit(w))
+  // every action of a watch, for the long-press sheet
   const rowActions = (w: Watch): RowAction[] => [
     ...(w.category === 'manga'
       ? [
@@ -244,7 +245,7 @@ export default function Watches() {
           },
         ]
       : []),
-    { key: 'edit', icon: <Pencil aria-hidden size="1em" />, label: t('servers.edit'), onClick: () => setEdit(w) },
+    { key: 'edit', icon: <Pencil aria-hidden size="1em" />, label: t('servers.edit'), onClick: () => editWatch(w) },
     ...(w.plexAudioLang || w.plexSubLang
       ? [
           {
@@ -261,7 +262,7 @@ export default function Watches() {
             key: 'gaps',
             icon: <TriangleAlert aria-hidden size="1em" />,
             label: t('watch.gapsAction'),
-            onClick: () => showGaps(w),
+            onClick: () => openSeries({ ...targetOf(w), tab: 'episodes' }),
           },
         ]
       : []),
@@ -273,46 +274,67 @@ export default function Watches() {
       danger: true,
     },
   ]
+
   // the clock behind every countdown: a second while today's calendar
-  // entries show seconds, a minute otherwise, so no countdown waits for a reload
+  // entries count down, a minute otherwise
   const hasToday = watches.some((w) => (w.airings ?? []).some((a) => isToday(a.at) && a.at * 1000 > Date.now()))
   const now = useNow(view === 'calendar' && hasToday ? 1000 : 60_000)
-  // sqlite datetimes are UTC without zone suffix
-  const ago = (dt: string) => {
-    if (!dt) return t('watch.never')
-    const min = Math.max(0, Math.round((now - Date.parse(dt.replace(' ', 'T') + 'Z')) / 60_000))
-    return t('watch.minAgo', { count: min })
-  }
-  // calendar: every release the backend knows about - the week it recorded
-  // behind us and everything the providers have dated ahead
+
+  // ── the tiles ──
+  const nextTs = (w: Watch) => (w.nextAiringAt ? w.nextAiringAt * 1000 : w.nextCheck * 1000)
+  const nameKey = (w: Watch) => watchName(w).toLowerCase()
+  const seasonOf = (w: Watch) => Number(w.template.match(/S(\d+)E/i)?.[1] ?? 0)
+  const sorted = [...ofKind].sort((a, b) => {
+    switch (sort) {
+      case 'last':
+        return (
+          (Date.parse(b.lastCheck.replace(' ', 'T') + 'Z') || 0) -
+          (Date.parse(a.lastCheck.replace(' ', 'T') + 'Z') || 0)
+        )
+      case 'name':
+        return nameKey(a).localeCompare(nameKey(b))
+      case 'season':
+        return seasonOf(a) - seasonOf(b) || nameKey(a).localeCompare(nameKey(b))
+      default:
+        return nextTs(a) - nextTs(b)
+    }
+  })
+  // the search: title or folder, case and accents folded
+  const matches = (w: Watch) => !needle || fold(`${watchName(w)} ${w.remotePath}`).includes(needle)
+  const shown = sorted.filter((w) => (manga || matchesFilter(w, filter)) && matches(w))
+  const layout = mode === 'list' ? 'list' : 'grid'
+
+  // Tiles below the first screen rise as they scroll in (useReveal); those on
+  // it rise with the page. Every box is read first, then the marks written.
+  useLayoutEffect(() => {
+    const g = grid.current
+    if (!g) return
+    const items = [...g.children] as HTMLElement[]
+    const below = items.map((el) => el.getBoundingClientRect().top >= innerHeight)
+    items.forEach((el, i) => el.classList.toggle('t-reveal', below[i] || el.dataset.in !== undefined))
+  }, [shown.length, layout, view])
+  useReveal(grid, '.t-reveal', `${shown.length}-${layout}-${view}`)
+
+  // ── the calendar ──
   const calEvents = upcomingAirings(watches, now)
-  // the header's line counts today's releases, aired or still to come
-  const todayCount = calEvents.filter((e) => isToday(e.at)).length
   const calCats = CAL_CATEGORIES.filter((c) => calEvents.some((e) => e.watch.category === c))
   const calShown = calCat === 'all' ? calEvents : calEvents.filter((e) => e.watch.category === calCat)
   const today = startOfDay(new Date(now))
   // The calendar counts in days from now: day 0 is today, and the band, the
-  // panel and the desktop grid all read from that one number. An index is what
-  // a deck pages and what the band snaps to, and it keeps a neighbouring day or
-  // week a pure function of a number.
+  // panel and the desktop grid all read from that one number.
   const [dayIdx, setDayIdx] = useState(0)
   const selectedDate = addDays(today, dayIdx)
   const selectedDay = dayKey(selectedDate)
-  // every release by day, for any day the band or a deck asks about
   const byDay = new Map<string, Airing[]>()
   for (const e of calShown) {
     const k = dayKey(new Date(e.at * 1000))
     byDay.set(k, [...(byDay.get(k) ?? []), e])
   }
-  // the desktop grid: the picked day in the middle, three days either side,
-  // whatever weekday it is - the band above centres the same day
+  // the desktop grid: the picked day in the middle, three days either side
   const weekDays = (i: number) => Array.from({ length: 7 }, (_, d) => addDays(today, i - 3 + d))
   // The grid hides days by its own width (.t-week: 7 columns, 5 below 1892px,
-  // 3 below 1348px), so "nothing this week" has to be judged on the days it
-  // shows: a release three days out is in the 7-day window but off screen on
-  // a narrower grid, and the empty state with its jump would never come.
+  // 3 below 1348px), so "nothing this week" is judged on the days it shows.
   const [weekCols, setWeekCols] = useState(7)
-  // stable, or every render (the clock ticks) would make a new observer
   const weekBox = useCallback((el: HTMLDivElement | null) => {
     if (!el || typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(([e]) => {
@@ -326,48 +348,39 @@ export default function Watches() {
     weekDays(i)
       .slice((7 - weekCols) / 2, (7 + weekCols) / 2)
       .some((d) => byDay.has(dayKey(d)))
-  // the first release after the shown day, for the jump out of a quiet stretch
   const nextAfter = calShown.find((e) => e.at * 1000 >= addDays(selectedDate, 1).getTime())
-  const wide = useMediaQuery(WIDE_MQ)
-  // How far the band reaches: to the last release the providers date, four
-  // weeks at the least so there is always something to scrub through, and a
-  // year at the most. A week of the past leads in - without it the band opens
-  // against its own left edge with nothing beside today.
+  // A week of the past leads in, four weeks ahead at the least, a year at most
   const PAST_DAYS = 7
   const lastAt = calShown.length ? calShown[calShown.length - 1].at * 1000 : 0
   const span = Math.min(400, Math.max(28, Math.ceil((lastAt - today.getTime()) / 86_400_000) + 7))
   const bandDays = Array.from({ length: span + 1 + PAST_DAYS }, (_, i) => addDays(today, i - PAST_DAYS))
   const dayIdxOf = (d: Date) => Math.round((startOfDay(d).getTime() - today.getTime()) / 86_400_000)
-  // how long a folded-away stretch really was, in the roughest unit that still
-  // says something: a quiet day reads "14 Std.", not "840 Min."
   const gapLabel = (minutes: number) =>
     minutes >= 60
       ? t('watch.week.gapHours', { h: Math.round(minutes / 60) })
       : t('watch.week.gapMinutes', { m: Math.round(minutes) })
-  // the agenda: every release still ahead, grouped by day, as far as the
-  // providers date them - the week behind belongs to the calendar, not here
-  const calDayKey = (ts: number) =>
-    new Date(ts * 1000).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
-  const calGroups: { day: string; items: Airing[] }[] = []
+  // the agenda: every release still ahead, grouped by day
+  const calGroups: { day: Date; items: Airing[] }[] = []
   for (const e of calShown) {
-    if (e.at * 1000 <= now) continue // an agenda of what is coming, not a log
-    const day = calDayKey(e.at)
-    const g = calGroups.find((x) => x.day === day)
+    if (e.at * 1000 <= now) continue
+    const day = startOfDay(new Date(e.at * 1000))
+    const g = calGroups.find((x) => x.day.getTime() === day.getTime())
     if (g) g.items.push(e)
     else calGroups.push({ day, items: [e] })
   }
-  // one release, in the agenda, the phone's day or a desktop week column
-  const entryOf = (e: Airing, compact?: boolean) => <li key={entryKey(e)}>{entryBody(e, compact)}</li>
   const entryKey = (e: Airing) => `${e.watch.id}-${e.episode}-${e.at}-${e.dub ?? ''}`
-  // The file behind an entry, under its episode line: on disk, on the server,
-  // or when it should be there - the weekday too when that is not the slot's day.
+  const nowLabel = t('watch.week.now', {
+    time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  })
+  // The file behind an entry, under its episode line: on disk, on the
+  // server, or when it should be there.
   const fileLine = (e: Airing) => {
     const st = fileStatus(e, now)
     if (!st) return null
     if (st.kind === 'have')
       return (
-        <span className="mt-0.5 flex items-center gap-1 text-ctl-sm text-ok">
-          <Check aria-hidden size="1em" />
+        <span className="w-file" data-kind="have">
+          <Check aria-hidden size="0.9em" className="mr-1 inline align-[-0.1em]" />
           {t('watch.fileHave')}
         </span>
       )
@@ -375,213 +388,136 @@ export default function Watches() {
     const time =
       (startOfDay(d).getTime() === startOfDay(new Date(e.at * 1000)).getTime()
         ? ''
-        : `${d.toLocaleDateString([], { weekday: 'short' })} `) +
-      d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : `${d.toLocaleDateString([], { weekday: 'short' })} `) + hm(st.at ?? 0)
     const key = { onServer: 'watch.fileOnServer', expected: 'watch.fileExpected', late: 'watch.fileLate' }[st.kind]
-    const tone = { onServer: 'text-accent', expected: 'text-t-muted', late: 'text-warn' }[st.kind]
     return (
-      <span
-        className={`mt-0.5 block text-ctl-sm ${tone}`}
-        title={st.kind === 'onServer' ? undefined : t('watch.fileEstimate')}
-      >
+      <span className="w-file" data-kind={st.kind} title={st.kind === 'onServer' ? undefined : t('watch.fileEstimate')}>
         {t(key, { time })}
       </span>
     )
   }
-  const entryBody = (e: Airing, compact?: boolean) => {
-    const name = e.watch.titleOverride || mediaTitle(e.watch.media, e.watch.remotePath.split('/').pop() || '')
+  // one release as a row: time, title and episode, how far off it is
+  const entry = (e: Airing, withCover?: boolean) => {
+    const w = e.watch
+    const past = e.at * 1000 <= now
     return (
-      // a long press opens the series' actions, as on its tile
-      <Press onLongPress={() => setMore(e.watch)}>
-        <CalendarEntry
-          compact={compact}
-          cover={e.watch.media?.coverImage?.large}
-          title={name}
-          episode={
-            <>
-              <span title={e.est ? t('watch.dubEstimate') : undefined}>{episodeLabel(t, e)}</span>
-              {fileLine(e)}
-            </>
-          }
-          time={
-            // the JST hover lives on the text itself - CalendarEntry owns the <p> around it
-            <span title={e.watch.mediaSource?.startsWith('tmdb') ? undefined : `${airFmt(e.at, 'Asia/Tokyo')} JST`}>
-              {/* releases fall on the minute: seconds only ever read ":00" */}
-              {new Date(e.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          }
-          countdown={countdown(t, e.at, isToday(e.at), now)}
-          onClick={e.watch.media ? () => showSeries(e.watch) : undefined}
-        />
+      <Press onLongPress={() => setMore(w)}>
+        <button
+          type="button"
+          className={`w-ag ${withCover ? 'w-ag--cov' : ''}`}
+          disabled={!w.media}
+          onClick={() => showSeries(w)}
+        >
+          {withCover !== false && (
+            <CoverImg
+              className="w-ag-cov"
+              set={coverSet(w.media?.coverImage)}
+              tint={w.media?.coverImage?.color}
+              sizes="2.75rem"
+            />
+          )}
+          <time
+            dateTime={new Date(e.at * 1000).toISOString()}
+            title={w.mediaSource?.startsWith('tmdb') ? undefined : `${jst(e.at)} JST`}
+          >
+            {hm(e.at)}
+          </time>
+          <span className="w-ag-t">
+            <strong>{watchName(w)}</strong>
+            <span title={e.est ? t('watch.dubEstimate') : undefined}>{episodeLabel(t, e)}</span>
+            {fileLine(e)}
+          </span>
+          <span className="w-ag-state" data-tone={past && e.have ? 'ok' : undefined}>
+            {past ? t('watch.cal.aired') : countdown(t, e.at, isToday(e.at), now)}
+          </span>
+        </button>
       </Press>
     )
   }
+  const rows = (items: Airing[], withCover?: boolean) => (
+    <Rows dense>
+      {items.map((e) => (
+        <li key={entryKey(e)} className="t-row">
+          {entry(e, withCover)}
+        </li>
+      ))}
+    </Rows>
+  )
+  const timeline = (items: Airing[], isNow: boolean) => (
+    <DayTimeline
+      entries={items.map((e) => ({ key: entryKey(e), at: e.at, node: entry(e) }))}
+      now={isNow ? now : undefined}
+      nowLabel={nowLabel}
+      gapLabel={gapLabel}
+    />
+  )
+  const jumpNext = (show: boolean) =>
+    show &&
+    nextAfter && (
+      <TextLink tone="accent-2" onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}>
+        {t('watch.week.jump')}
+      </TextLink>
+    )
 
-  const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
-  // one menu for how the list looks: its order and list or grid. Outside
-  // click + Escape come from the design system's menu hook
-  const {
-    open: viewOpen,
-    setOpen: setViewOpen,
-    ref: viewRef,
-    anchor: viewAnchor,
-    anchorStyle: viewAnchorStyle,
-  } = useMenu()
+  // ── the tools row ──
+  const { open: sortOpen, setOpen: setSortOpen, ref: sortRef, anchor: sortAnchor, anchorStyle: sortStyle } = useMenu()
   const SORT_OPTS = [
     { v: 'next', k: 'watch.sortNext' },
     { v: 'last', k: 'watch.sortLast' },
     { v: 'name', k: 'watch.sortName' },
     { v: 'season', k: 'watch.sortSeason' },
   ] as const
-  const nextTs = (w: Watch) => (w.nextAiringAt ? w.nextAiringAt * 1000 : w.nextCheck * 1000)
-  const nameOf = (w: Watch) =>
-    (w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')).toLowerCase()
-  const seasonOf = (w: Watch) => Number(w.template.match(/S(\d+)E/i)?.[1] ?? 0)
-  const sorted = [...ofKind].sort((a, b) => {
-    switch (sort) {
-      case 'last':
-        return (
-          (Date.parse(b.lastCheck.replace(' ', 'T') + 'Z') || 0) -
-          (Date.parse(a.lastCheck.replace(' ', 'T') + 'Z') || 0)
-        )
-      case 'name':
-        return nameOf(a).localeCompare(nameOf(b))
-      case 'season':
-        return seasonOf(a) - seasonOf(b) || nameOf(a).localeCompare(nameOf(b))
-      default:
-        return nextTs(a) - nextTs(b)
-    }
-  })
-  // group by status: whatever needs a hand on top, then actively
-  // downloading, waiting in the middle, finished at the bottom (each keeps
-  // the chosen sort order within it)
-  const needsAttention = (w: Watch) => (w.attention?.length ?? 0) > 0
-  const attentionCount = ofKind.filter(needsAttention).length
-  const groupOf = (w: Watch): 'attention' | 'syncing' | 'waiting' | 'idle' | 'complete' =>
-    needsAttention(w)
-      ? 'attention'
-      : w.active > 0
-        ? 'syncing'
-        : w.complete
-          ? 'complete'
-          : w.waiting
-            ? 'waiting'
-            : 'idle'
-  const GROUP_ORDER = ['attention', 'syncing', 'idle', 'waiting', 'complete'] as const
-  // the search: title or folder, case and accents folded; the list just
-  // narrows, the groups and the order stay
-  const needle = fold(query.trim())
-  const matches = (w: Watch) => !needle || fold(`${nameOf(w)} ${w.remotePath}`).includes(needle)
-  const shownWatches = (filter === 'attention' ? sorted.filter(needsAttention) : sorted).filter(matches)
-  const grouped = GROUP_ORDER.map((g) => ({ g, items: shownWatches.filter((w) => groupOf(w) === g) })).filter(
-    (x) => x.items.length > 0,
+  const icon = (Icon: typeof List) => <Icon aria-hidden />
+
+  const searchField = (bar: boolean) => (
+    <label className={`w-search ${bar ? 'w-search--bar' : ''}`} style={bar ? undefined : { marginLeft: 'auto' }}>
+      <Search aria-hidden />
+      <span className="sr-only">{t('watch.search')}</span>
+      <input
+        id="watch-search"
+        type="search"
+        value={query}
+        autoComplete="off"
+        autoFocus={bar}
+        placeholder={t('watch.searchPlaceholder')}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') closeSearch()
+        }}
+      />
+      {bar && (
+        <button type="button" className="w-search-x" aria-label={t('watch.searchClose')} onClick={closeSearch}>
+          <X aria-hidden size="1.25em" />
+        </button>
+      )}
+    </label>
   )
 
   return (
-    <div>
-      <PageHeader
-        className="mb-4"
-        title={t('watch.title')}
-        sub={
-          watches.length === 0
-            ? t('watch.sub')
-            : view === 'calendar'
-              ? t('watch.sumToday', { count: todayCount })
-              : t('watch.sumSeries', { count: watches.length })
-        }
-      />
-      {/* the view menu is the list's secondary control: in the app bar on a
-          phone, in a row under the header on desktop */}
-      {view === 'list' && watches.length > 0 && (
-        <PageActions>
-          <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
-            <label className="hidden lg:block">
-              <span className="sr-only">{t('watch.search')}</span>
-              <Input
-                id="watch-search"
-                type="search"
-                size="sm"
-                value={query}
-                placeholder={t('watch.searchHint')}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-64"
-              />
-            </label>
-            <span className="lg:hidden">
-              <IconButton
-                aria-label={t('watch.search')}
-                aria-expanded={searching}
-                onClick={() => {
-                  setSearching((v) => !v)
-                  if (searching) setQuery('')
-                }}
-              >
-                <Search aria-hidden size="1.2em" />
+    <div ref={findTitleRow} className="w-page">
+      {view === 'tiles' &&
+        watches.length > 0 &&
+        (wide ? (
+          titleRow && createPortal(searchField(false), titleRow)
+        ) : (
+          <PageActions>
+            {searching ? (
+              searchField(true)
+            ) : (
+              <IconButton aria-label={t('watch.search')} onClick={() => setSearching(true)}>
+                <Search aria-hidden size="1.25em" />
               </IconButton>
-            </span>
-            <div className="relative" ref={viewRef} style={viewAnchorStyle}>
-              <Button
-                size="sm"
-                aria-haspopup="menu"
-                aria-expanded={viewOpen}
-                aria-label={t('watch.view')}
-                title={t('watch.view')}
-                onClick={() => setViewOpen((o) => !o)}
-              >
-                <SlidersHorizontal aria-hidden size="1.2em" />
-                <span className="ml-1 hidden lg:inline">{t('watch.view')}</span>
-              </Button>
-              {viewOpen && (
-                <Menu anchor={viewAnchor} placement="bottom-end" aria-label={t('watch.view')}>
-                  <MenuHeading>{t('watch.sortBy')}</MenuHeading>
-                  {SORT_OPTS.map((o) => (
-                    <MenuItem
-                      key={o.v}
-                      selected={sort === o.v}
-                      trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
-                      onClick={() => {
-                        reorder(() => setSort(o.v))
-                        setViewOpen(false)
-                      }}
-                    >
-                      {t(o.k)}
-                    </MenuItem>
-                  ))}
-                </Menu>
-              )}
-            </div>
-          </div>
-        </PageActions>
-      )}
+            )}
+          </PageActions>
+        ))}
 
       {watches.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Segmented
-            aria-label={t('watch.view')}
-            value={mode}
-            onChange={(m) => (m === 'calendar' || mode === 'calendar' ? setMode(m) : reorder(() => setMode(m)))}
-            options={(
-              [
-                ['list', List, 'watch.viewList'],
-                ['grid', LayoutGrid, 'watch.viewGrid'],
-                ['calendar', CalendarDays, 'watch.viewCalendar'],
-              ] as const
-            ).map(([v, Icon, k]) => ({
-              value: v,
-              // icons alone on a phone, so the filters share the row
-              'aria-label': t(k),
-              label: (
-                <span className="flex items-center gap-1.5">
-                  <Icon aria-hidden size="1.1em" />
-                  <span className="hidden sm:inline">{t(k)}</span>
-                </span>
-              ),
-            }))}
-          />
+        <div className="w-tools">
           {/* video or manga: only once there is a manga to tell apart */}
-          {view === 'list' && hasManga && (
+          {view === 'tiles' && hasManga && (
             <Segmented
               aria-label={t('watch.kind')}
+              className="w-kind"
               value={kind}
               onChange={(k) => reorder(() => setKind(k))}
               options={[
@@ -590,591 +526,231 @@ export default function Watches() {
               ]}
             />
           )}
-          {/* week, agenda or posters: the calendar's own way to look */}
-          {view === 'calendar' && calShown.length > 0 && (
+          {view === 'tiles' && !manga && (
             <Segmented
-              aria-label={t('watch.calMode')}
-              className="ml-auto"
-              value={calMode}
-              onChange={setCalMode}
-              options={[
-                {
-                  value: 'week',
-                  'aria-label': t('watch.calWeek'),
-                  label: (
-                    <>
-                      <CalendarRange aria-hidden size="1em" />
-                      <span className="ml-1 hidden sm:inline">{t('watch.calWeek')}</span>
-                    </>
-                  ),
-                },
-                {
-                  value: 'agenda',
-                  'aria-label': t('watch.calAgenda'),
-                  label: (
-                    <>
-                      <List aria-hidden size="1em" />
-                      <span className="ml-1 hidden sm:inline">{t('watch.calAgenda')}</span>
-                    </>
-                  ),
-                },
-                {
-                  value: 'poster',
-                  'aria-label': t('watch.calPoster'),
-                  label: (
-                    <>
-                      <GalleryHorizontal aria-hidden size="1em" />
-                      <span className="ml-1 hidden sm:inline">{t('watch.calPoster')}</span>
-                    </>
-                  ),
-                },
-              ]}
+              aria-label={t('watch.filter.label')}
+              className="w-filter"
+              value={filter}
+              onChange={(f) => reorder(() => setRawFilter(f))}
+              options={WATCH_FILTERS.map((f) => ({ value: f, label: t(`watch.filter.${f}`) }))}
             />
           )}
-          {/* the attention filter: only while something needs a hand, or it is on */}
-          {view === 'list' && (attentionCount > 0 || filter === 'attention') && (
-            <Button
-              size="sm"
-              aria-pressed={filter === 'attention'}
-              onClick={() => reorder(() => setFilter(filter === 'attention' ? 'all' : 'attention'))}
-              className={`ml-auto ${filter === 'attention' ? 'border-warn text-warn' : ''}`}
-            >
-              <TriangleAlert aria-hidden size="1em" />
-              <span className="ml-1">{t('watch.group.attention')}</span>
-              <Count className="ml-1">{attentionCount}</Count>
-            </Button>
-          )}
-        </div>
-      )}
-      {view === 'list' && searching && (
-        <label className="mb-4 block lg:hidden">
-          <span className="sr-only">{t('watch.search')}</span>
-          <Input
-            type="search"
-            autoFocus
-            value={query}
-            placeholder={t('watch.searchHint')}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setQuery('')
-                setSearching(false)
-              }
-            }}
-          />
-        </label>
-      )}
-      {view === 'list' && needle && shownWatches.length === 0 && (
-        <p className="mb-4 text-sm text-t-secondary">{t('watch.searchNone', { query: query.trim() })}</p>
-      )}
-      {view === 'calendar' && calShown.length > 0 && calCats.length > 1 ? (
-        <div className="mb-4">
-          {calCats.length > 1 && (
-            <div role="group" aria-label={t('watch.calFilter')} className="flex flex-wrap gap-1.5">
-              <Badge
-                as="button"
-                type="button"
-                tone={calCat === 'all' ? 'accent' : 'neutral'}
-                aria-pressed={calCat === 'all'}
-                onClick={() => setCalCat('all')}
-              >
-                {t('watch.calAll')}
-              </Badge>
-              {calCats.map((c) => (
-                <Badge
-                  key={c}
-                  as="button"
-                  type="button"
-                  tone={calCat === c ? 'accent' : 'neutral'}
-                  aria-pressed={calCat === c}
-                  onClick={() => setCalCat(c)}
+          <div className="w-end">
+            {view === 'calendar' && calShown.length > 0 && (
+              <Segmented
+                aria-label={t('watch.calMode')}
+                className="w-icons"
+                value={calMode}
+                onChange={setCalMode}
+                options={(
+                  [
+                    ['week', CalendarRange, 'watch.calWeek'],
+                    ['agenda', List, 'watch.calAgenda'],
+                    ['poster', GalleryHorizontal, 'watch.calPoster'],
+                  ] as const
+                ).map(([v, Icon, k]) => ({ value: v, 'aria-label': t(k), label: icon(Icon) }))}
+              />
+            )}
+            {view === 'tiles' && (
+              <div className="relative" ref={sortRef} style={sortStyle}>
+                <IconButton
+                  size="sm"
+                  aria-haspopup="listbox"
+                  aria-expanded={sortOpen}
+                  aria-label={t('watch.sortBy')}
+                  title={t('watch.sortBy')}
+                  onClick={() => setSortOpen((o) => !o)}
                 >
-                  {t(`watch.cat.${c}`)}
-                </Badge>
-              ))}
-            </div>
-          )}
+                  <SlidersHorizontal aria-hidden size="1.125rem" />
+                </IconButton>
+                {sortOpen && (
+                  <Menu anchor={sortAnchor} placement="bottom-end" aria-label={t('watch.sortBy')}>
+                    <li role="presentation" className="w-sort-cap">
+                      {t('watch.sortBy')}
+                    </li>
+                    {SORT_OPTS.map((o) => (
+                      <MenuItem
+                        key={o.v}
+                        selected={sort === o.v}
+                        trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
+                        onClick={() => {
+                          reorder(() => setSort(o.v))
+                          setSortOpen(false)
+                        }}
+                      >
+                        {t(o.k)}
+                      </MenuItem>
+                    ))}
+                  </Menu>
+                )}
+              </div>
+            )}
+            <Segmented
+              aria-label={t('watch.view')}
+              className="w-icons"
+              value={mode}
+              onChange={(m) => (m === 'calendar' || mode === 'calendar' ? setMode(m) : reorder(() => setMode(m)))}
+              options={(
+                [
+                  ['grid', LayoutGrid, 'watch.viewGrid'],
+                  ['list', List, 'watch.viewList'],
+                  ['calendar', CalendarDays, 'watch.viewCalendar'],
+                ] as const
+              ).map(([v, Icon, k]) => ({ value: v, 'aria-label': t(k), label: icon(Icon) }))}
+            />
+          </div>
         </div>
-      ) : null}
-
-      {error && (
-        <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-          {error}
-        </p>
       )}
-      {notice && (
-        <Badge tone="accent" className="mb-3" role="status">
-          {notice}
-        </Badge>
+
+      {/* the calendar's categories: plain links, the picked one in teal */}
+      {view === 'calendar' && calCats.length > 1 && (
+        <div role="group" aria-label={t('watch.calFilter')} className="w-cats">
+          {(['all', ...calCats] as const).map((c) => (
+            <TextLink key={c} aria-pressed={calCat === c} onClick={() => setCalCat(c)}>
+              {c === 'all' ? t('watch.calAll') : t(`watch.cat.${c}`)}
+            </TextLink>
+          ))}
+        </div>
       )}
 
       {isLoading ? (
-        <SkeletonCards />
+        // the tiles' real heights, so nothing below jumps when they arrive
+        <ul className="w-grid w-skel" aria-busy="true" aria-label={t('watch.title')}>
+          {Array.from({ length: 12 }, (_, i) => (
+            <li key={i} aria-hidden>
+              <span className="w-cover t-cover block" />
+              <span className="w-bar" />
+              <span className="w-bar" />
+            </li>
+          ))}
+        </ul>
       ) : watches.length === 0 ? (
         <EmptyState>
-          <Trans i18nKey="watch.empty" components={{ go: <Link to="/files" className="text-accent underline" /> }} />
+          <Trans i18nKey="watch.empty" components={{ go: <Link to="/files" className="t-link t-link--2" /> }} />
         </EmptyState>
       ) : view === 'calendar' ? (
-        <div className="flex flex-col gap-4">
-          {calShown.length === 0 ? (
-            <EmptyState>{t('watch.calEmpty')}</EmptyState>
-          ) : calMode === 'poster' ? (
-            <PosterCalendar key={calCat} events={calShown} now={now} onOpen={showSeries} />
-          ) : calMode === 'agenda' ? (
-            <div className="flex flex-col gap-5">
-              {calGroups.map((g) => (
-                <CalendarDay key={g.day} day={g.day}>
-                  {g.items.map((e) => entryOf(e))}
-                </CalendarDay>
-              ))}
-            </div>
-          ) : (
-            <>
-              {/* the band scrubs through the days; the row above it holds
-                  still - the arrows jump a whole week, the button between them
-                  returns to today, and the caption rolls when the day changes */}
-              <DayScroller
-                days={bandDays.map((d) => ({
-                  key: dayKey(d),
-                  weekday: d.toLocaleDateString([], { weekday: 'short' }),
-                  day: d.getDate(),
-                  count: byDay.get(dayKey(d))?.length,
-                  today: d.getTime() === today.getTime(),
-                  past: d.getTime() < today.getTime(),
-                  label: t('watch.week.dayLabel', {
-                    date: d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }),
-                    count: byDay.get(dayKey(d))?.length ?? 0,
-                  }),
-                }))}
-                selected={selectedDay}
-                onSelect={(k) => setDayIdx(dayIdxOf(new Date(k + 'T00:00')))}
-                step={dayIdx}
-                label={selectedDate.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })}
-                onPrev={dayIdx > -PAST_DAYS ? () => setDayIdx(Math.max(-PAST_DAYS, dayIdx - 7)) : undefined}
-                onNext={() => setDayIdx(dayIdx + 7)}
-                onToday={dayIdx !== 0 ? () => setDayIdx(0) : undefined}
-                labels={{
-                  prev: t('watch.week.prev'),
-                  next: t('watch.week.next'),
-                  today: t('watch.week.today'),
-                  strip: t('watch.week.strip'),
-                }}
-              />
-              {/* the phone shows one day and pages days; the desktop grid
-                  shows the picked day with three days either side and a drag
-                  moves it a week, as the arrows do */}
-              {!wide ? (
-                <SwipeDeck index={dayIdx} onIndex={setDayIdx} canPrev={dayIdx > -PAST_DAYS} mouse>
-                  {(i) => {
-                    const d = addDays(today, i)
-                    const items = byDay.get(dayKey(d)) ?? []
-                    const heading = d.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: '2-digit' })
-                    if (items.length === 0) {
-                      return (
-                        <CalendarDay quietHeading day={heading}>
-                          <li className="text-sm text-t-muted">
-                            {t('watch.week.free')}
-                            {i === dayIdx && nextAfter && (
-                              <Button
-                                size="sm"
-                                className="ml-3"
-                                onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}
-                              >
-                                {t('watch.week.jump')}
-                              </Button>
-                            )}
-                          </li>
-                        </CalendarDay>
-                      )
-                    }
-                    // the day as a time axis: the wait between two releases is
-                    // the height between them, cut short where it would be a
-                    // screenful of nothing, and on today a marker that drifts
-                    // down past them while the clock runs
-                    return (
-                      <section className="min-w-0">
-                        <h3 className="sr-only">{heading}</h3>
-                        <DayTimeline
-                          entries={items.map((e) => ({ key: entryKey(e), at: e.at, node: entryBody(e) }))}
-                          now={d.getTime() === today.getTime() ? now : undefined}
-                          nowLabel={t('watch.week.now', {
-                            time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                          })}
-                          gapLabel={gapLabel}
-                        />
-                      </section>
-                    )
-                  }}
-                </SwipeDeck>
-              ) : (
-                <div ref={weekBox}>
-                  <SwipeDeck index={dayIdx} onIndex={setDayIdx} step={7} canPrev={dayIdx - 7 >= -PAST_DAYS} mouse>
-                    {(i) =>
-                      !weekHasAny(i) ? (
-                        <EmptyState>
-                          <p>{t('watch.week.empty')}</p>
-                          {i === dayIdx && nextAfter && (
-                            <Button
-                              size="sm"
-                              className="mt-3"
-                              onClick={() => setDayIdx(dayIdxOf(new Date(nextAfter.at * 1000)))}
-                            >
-                              {t('watch.week.jump')}
-                            </Button>
-                          )}
-                        </EmptyState>
+        calShown.length === 0 ? (
+          <EmptyState>{t('watch.calEmpty')}</EmptyState>
+        ) : calMode === 'poster' ? (
+          <PosterCalendar key={calCat} events={calShown} now={now} onOpen={showSeries} />
+        ) : calMode === 'agenda' ? (
+          <div className="flex flex-col gap-6">
+            {calGroups.map((g) => (
+              <CalDay key={g.day.getTime()} heading={calDayHeading(t, g.day, today)}>
+                {rows(g.items, false)}
+              </CalDay>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {/* the band scrubs through the days; the arrows jump a week, the
+                button between them returns to today */}
+            <DayScroller
+              days={bandDays.map((d) => ({
+                key: dayKey(d),
+                weekday: d.toLocaleDateString([], { weekday: 'short' }),
+                day: d.getDate(),
+                count: byDay.get(dayKey(d))?.length,
+                today: d.getTime() === today.getTime(),
+                past: d.getTime() < today.getTime(),
+                label: t('watch.week.dayLabel', {
+                  date: d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }),
+                  count: byDay.get(dayKey(d))?.length ?? 0,
+                }),
+              }))}
+              selected={selectedDay}
+              onSelect={(k) => setDayIdx(dayIdxOf(new Date(k + 'T00:00')))}
+              step={dayIdx}
+              label={calDayHeading(t, selectedDate, today)}
+              onPrev={dayIdx > -PAST_DAYS ? () => setDayIdx(Math.max(-PAST_DAYS, dayIdx - 7)) : undefined}
+              onNext={() => setDayIdx(dayIdx + 7)}
+              onToday={dayIdx !== 0 ? () => setDayIdx(0) : undefined}
+              labels={{
+                prev: t('watch.week.prev'),
+                next: t('watch.week.next'),
+                today: t('watch.week.today'),
+                strip: t('watch.week.strip'),
+              }}
+            />
+            {!wide ? (
+              // the phone shows one day and pages days
+              <SwipeDeck index={dayIdx} onIndex={setDayIdx} canPrev={dayIdx > -PAST_DAYS} mouse>
+                {(i) => {
+                  const d = addDays(today, i)
+                  const items = byDay.get(dayKey(d)) ?? []
+                  return (
+                    <CalDay quiet heading={calDayHeading(t, d, today)} today={i === 0}>
+                      {items.length === 0 ? (
+                        <p className="w-free">
+                          {t('watch.cal.free')} {jumpNext(i === dayIdx)}
+                        </p>
                       ) : (
-                        // desktop: the days around the picked one, as many as fit
-                        // at a card's width - 3, 5 or 7, the picked one in the
-                        // middle (see .t-week); the band above holds the rest
-                        <div className="t-week">
-                          <div className="t-week__grid">
-                            {weekDays(i).map((d) => {
-                              const k = dayKey(d)
-                              const items = byDay.get(k) ?? []
-                              const isTodayCol = d.getTime() === today.getTime()
-                              return (
-                                <CalendarDay
-                                  key={k}
-                                  today={isTodayCol}
-                                  // days gone step back; today stands out by its
-                                  // filled chip and its axis, days to come stay full
-                                  className={!isTodayCol && d.getTime() < today.getTime() ? 'opacity-50' : undefined}
-                                  day={d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                                >
-                                  {items.length === 0 ? (
-                                    <li className="text-xs text-t-faint">{t('watch.week.free')}</li>
-                                  ) : isTodayCol ? (
-                                    // today: the phone's axis, with now at its time
-                                    <li>
-                                      <DayTimeline
-                                        entries={items.map((e) => ({
-                                          key: entryKey(e),
-                                          at: e.at,
-                                          node: entryBody(e),
-                                        }))}
-                                        now={now}
-                                        nowLabel={t('watch.week.now', {
-                                          time: new Date(now).toLocaleTimeString([], {
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                          }),
-                                        })}
-                                        gapLabel={gapLabel}
-                                      />
-                                    </li>
-                                  ) : (
-                                    items.map((e) => entryOf(e))
-                                  )}
-                                </CalendarDay>
-                              )
-                            })}
-                          </div>
+                        // the day as a time axis, with now drifting down it on today
+                        timeline(items, d.getTime() === today.getTime())
+                      )}
+                    </CalDay>
+                  )
+                }}
+              </SwipeDeck>
+            ) : (
+              <div ref={weekBox}>
+                <SwipeDeck index={dayIdx} onIndex={setDayIdx} step={7} canPrev={dayIdx - 7 >= -PAST_DAYS} mouse>
+                  {(i) =>
+                    !weekHasAny(i) ? (
+                      <EmptyState>
+                        <p>{t('watch.week.empty')}</p>
+                        {jumpNext(i === dayIdx)}
+                      </EmptyState>
+                    ) : (
+                      // the days around the picked one, as many as fit (.t-week)
+                      <div className="t-week w-week">
+                        <div className="t-week__grid">
+                          {weekDays(i).map((d) => {
+                            const items = byDay.get(dayKey(d)) ?? []
+                            const isTodayCol = d.getTime() === today.getTime()
+                            return (
+                              <CalDay
+                                key={dayKey(d)}
+                                heading={calDayHeading(t, d, today)}
+                                today={isTodayCol}
+                                past={!isTodayCol && d.getTime() < today.getTime()}
+                              >
+                                {items.length === 0 ? (
+                                  <p className="w-free">{t('watch.cal.free')}</p>
+                                ) : isTodayCol ? (
+                                  timeline(items, true)
+                                ) : (
+                                  rows(items)
+                                )}
+                              </CalDay>
+                            )
+                          })}
                         </div>
-                      )
-                    }
-                  </SwipeDeck>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      ) : (
-        <div className="grid gap-6">
-          {/* the filter is remembered, so it can outlive the last problem it
-              was switched on for; without this the page is a header and a
-              chip reading 0 */}
-          {grouped.length === 0 && filter === 'attention' && (
-            <EmptyState>
-              <p>{t('watch.attentionEmpty')}</p>
-              <Button size="sm" className="mt-3" onClick={() => reorder(() => setFilter('all'))}>
-                {t('watch.attentionShowAll')}
-              </Button>
-            </EmptyState>
-          )}
-          {grouped.map(({ g, items }) => {
-            const GroupIcon = GROUP_ICON[g]
-            return (
-              <section key={g}>
-                <Divider
-                  className="mb-3"
-                  label={
-                    <>
-                      <GroupIcon aria-hidden size="1em" />
-                      {t(`watch.group.${g}`)}
-                    </>
+                      </div>
+                    )
                   }
-                  count={items.length}
-                />
-                {layout === 'grid' ? (
-                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-                    {items.map((w) => (
-                      <Press
-                        as="li"
-                        key={w.id}
-                        data-wid={w.id}
-                        className="min-w-0"
-                        onLongPress={narrow ? () => setMore(w) : undefined}
-                      >
-                        <WatchTile
-                          watch={w}
-                          onOpen={() => showSeries(w)}
-                          actions={
-                            <>
-                              {/* the same two actions the list row carries, as far
-                                as 140px of tile allows: the label rides along as
-                                the accessible name */}
-                              <IconButton
-                                aria-label={t('watch.checkNow')}
-                                title={t('watch.checkNow')}
-                                className="min-w-0! flex-1 border border-border-subtle"
-                                aria-busy={checking.has(w.id)}
-                                onClick={() => check(w.id)}
-                              >
-                                <RefreshCw aria-hidden size="1.1em" className={spin(w.id)} />
-                              </IconButton>
-                              {narrow ? (
-                                <IconButton
-                                  aria-label={t('watch.moreActions', { title: nameOf(w) })}
-                                  aria-haspopup="dialog"
-                                  className="min-w-0! border border-border-subtle"
-                                  onClick={() => setMore(w)}
-                                >
-                                  <Ellipsis aria-hidden size="1.2em" />
-                                </IconButton>
-                              ) : (
-                                <RowMenu label={t('watch.moreActions', { title: nameOf(w) })} items={rowActions(w)} />
-                              )}
-                            </>
-                          }
-                        />
-                      </Press>
-                    ))}
-                  </ul>
-                ) : (
-                  <ul className="grid grid-cols-1 gap-3">
-                    {items.map((w) => (
-                      <Press as="li" key={w.id} data-wid={w.id} onLongPress={narrow ? () => setMore(w) : undefined}>
-                        <MediaCard
-                          cover={w.media?.coverImage?.large}
-                          coverTint={w.media?.coverImage?.color ?? undefined}
-                          onCover={w.media ? () => showSeries(w) : undefined}
-                          coverLabel={
-                            w.media
-                              ? t('remote.detailsFor', {
-                                  name: w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || ''),
-                                })
-                              : undefined
-                          }
-                          title={w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')}
-                          pathTitle={w.remotePath}
-                          path={
-                            <>
-                              {w.serverName}:{w.remotePath} → {w.localPath}
-                            </>
-                          }
-                          // the error text stays plain text rather than a chip
-                          // title: it is the one status that has to be readable in
-                          // full, and it can be a whole sentence long. Under it the
-                          // schedule and the counters as one caption: they are the
-                          // same on every watch, and a row of identical chips said
-                          // nothing a line of text does not
-                          meta={
-                            <>
-                              {w.lastResult && <span className="block text-err">{w.lastResult}</span>}
-                              <span className="block">
-                                {[
-                                  t('watch.chipLast', { when: ago(w.lastCheck) }) +
-                                    (!w.lastResult && w.lastQueued >= 0
-                                      ? ` (${t('watch.lastQueued', { count: w.lastQueued })})`
-                                      : ''),
-                                  w.checkAttempts
-                                    ? t('watch.chipRetry', { n: w.checkAttempts, when: untilCheck(w.nextCheck) })
-                                    : t('watch.chipNext', { when: untilCheck(w.nextCheck) }),
-                                  (w.seenEpisodes ?? 0) > 0 ? t('watch.seen', { count: w.seenEpisodes }) : null,
-                                  // a manga keeps its names unless a regex rule renames it
-                                  (w.category === 'manga' ? w.mode === 'regex' && w.pattern : w.template || w.pattern)
-                                    ? t('watch.renamed')
-                                    : null,
-                                ]
-                                  .filter(Boolean)
-                                  .join(' · ')}
-                              </span>
-                            </>
-                          }
-                          badges={
-                            <>
-                              {/* the upcoming episode leads the row: it is what the
-                              page is watched for. Number and date share one chip
-                              so they cannot end up on separate lines. */}
-                              {seasonLabel(t, w) && <Badge size="sm">{seasonLabel(t, w)}</Badge>}
-                              {!!w.nextAiringAt && (
-                                <Badge
-                                  tone={w.behindLate ? 'warn' : 'ok'}
-                                  size="sm"
-                                  title={
-                                    w.mediaSource?.startsWith('tmdb')
-                                      ? undefined
-                                      : `${airFmt(w.nextAiringAt, 'Asia/Tokyo')} JST`
-                                  }
-                                >
-                                  <CalendarDays aria-hidden size="1em" />
-                                  {t('watch.chipEp', { n: epLabel(w, w.nextEpisode!) })}
-                                  {` · ${airFmtChip(w.nextAiringAt)}`}
-                                </Badge>
-                              )}
-                              {(w.behind ?? 0) > 0 && (
-                                // warn only once it is late: a few hours behind
-                                // the broadcast is how the source works
-                                <Badge tone={w.behindLate ? 'warn' : undefined} size="sm" multiline>
-                                  <Clock aria-hidden size="1em" />
-                                  {behindLabel(t, w)}
-                                </Badge>
-                              )}
-                              {(w.missing?.length ?? 0) > 0 && (
-                                // the episode list is this badge's own detail view,
-                                // so the chip is the button that opens it - a span
-                                // with onClick would be unreachable by keyboard
-                                <Badge
-                                  as="button"
-                                  type="button"
-                                  tone="err"
-                                  size="sm"
-                                  multiline
-                                  title={w.missing!.map((r) => epLabel(w, r.e, r.s)).join(', ')}
-                                  onClick={() => showGaps(w)}
-                                >
-                                  <TriangleAlert aria-hidden size="1em" />
-                                  {missingLabel(t, w)}
-                                </Badge>
-                              )}
-                              {(w.unsorted ?? 0) > 0 && (
-                                // not an error: the file is here, only its place is
-                                // still open until the provider lists the number
-                                <Badge tone="warn" size="sm" title={t('watch.unsortedHint')}>
-                                  <FolderClock aria-hidden size="1em" />
-                                  {t('watch.unsorted', { count: w.unsorted })}
-                                </Badge>
-                              )}
-                              {w.dubOverdue ? (
-                                // the forecast plus a week of grace passed: this
-                                // is no longer expected waiting
-                                <Badge tone="err" size="sm" multiline>
-                                  <Clock aria-hidden size="1em" />
-                                  {dubOverdueLabel(t, w)}
-                                </Badge>
-                              ) : w.dubWaiting ? (
-                                // calm: the dub simply is not out yet, dated when
-                                // the forecast has a date
-                                <Badge size="sm" multiline>
-                                  <Clock aria-hidden size="1em" />
-                                  {dubWaitingLabel(t, w)}
-                                </Badge>
-                              ) : (
-                                (w.langWaiting ?? 0) > 0 && (
-                                  <Badge size="sm" multiline>
-                                    <Clock aria-hidden size="1em" />
-                                    {langWaitingLabel(t, w)}
-                                  </Badge>
-                                )
-                              )}
-                              {w.dubProgress && (
-                                // the older files are dubbed, the newer not yet
-                                <Badge size="sm" multiline>
-                                  <Languages aria-hidden size="1em" />
-                                  {dubProgressLabel(t, w)}
-                                </Badge>
-                              )}
-                              {w.plexStreamMiss && (
-                                // the one setting that used to fail in total silence:
-                                // a language the files do not carry left Plex on its
-                                // own default and said nothing
-                                <Badge tone="warn" size="sm" title={t('watch.plexMissHint')}>
-                                  <Languages aria-hidden size="1em" />
-                                  {t('watch.plexMiss', {
-                                    what: w.plexStreamMiss
-                                      .split(',')
-                                      .map((d) => t(d === 'audio' ? 'watch.plexAudio' : 'watch.plexSub'))
-                                      .join(', '),
-                                  })}
-                                </Badge>
-                              )}
-                              {w.lastUploading > 0 && (
-                                <Badge tone="warn" size="sm">
-                                  <Upload aria-hidden size="1em" />
-                                  {t('watch.uploading')}
-                                </Badge>
-                              )}
-                              {w.active > 0 && (
-                                <Badge tone="accent" size="sm">
-                                  <Download aria-hidden size="1em" />
-                                  {t('watch.active', { count: w.active })}
-                                </Badge>
-                              )}
-                            </>
-                          }
-                          status={
-                            <>
-                              <p className={w.complete ? 'text-ok' : 'text-t-secondary'}>
-                                {haveLabel(t, w, w.media?.episodes ?? 0)}
-                              </p>
-                              {w.complete && (
-                                <p className="mt-1 text-ok" role="status">
-                                  <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                                  {t('watch.complete')}
-                                </p>
-                              )}
-                            </>
-                          }
-                          actions={
-                            <>
-                              {w.category === 'manga' && (
-                                <Button
-                                  size="sm"
-                                  variant="primary"
-                                  className="flex-1 sm:flex-none"
-                                  onClick={() => void read(w)}
-                                >
-                                  <BookOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                                  {t('watch.read')}
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                className="flex-1 sm:flex-none"
-                                aria-busy={checking.has(w.id)}
-                                onClick={() => check(w.id)}
-                              >
-                                <RefreshCw
-                                  aria-hidden
-                                  size="1em"
-                                  className={`mr-1 inline align-[-0.125em] ${spin(w.id)}`}
-                                />
-                                {t('watch.checkNow')}
-                              </Button>
-                              {narrow ? (
-                                <IconButton
-                                  aria-label={t('watch.moreActions', { title: nameOf(w) })}
-                                  aria-haspopup="dialog"
-                                  className="min-w-0! border border-border-subtle"
-                                  onClick={() => setMore(w)}
-                                >
-                                  <Ellipsis aria-hidden size="1.2em" />
-                                </IconButton>
-                              ) : (
-                                <RowMenu label={t('watch.moreActions', { title: nameOf(w) })} items={rowActions(w)} />
-                              )}
-                            </>
-                          }
-                        />
-                      </Press>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )
-          })}
-        </div>
+                </SwipeDeck>
+              </div>
+            )}
+          </div>
+        )
+      ) : (
+        <>
+          <ul ref={grid} className={`w-grid ${layout === 'list' ? 'as-list' : ''}`} data-rise="">
+            {shown.map((w, i) => (
+              <WatchTile
+                key={w.id}
+                watch={w}
+                list={layout === 'list'}
+                eager={i < 12}
+                now={now}
+                onOpen={() => openTile(w)}
+                onMore={narrow ? () => setMore(w) : undefined}
+              />
+            ))}
+          </ul>
+          {shown.length === 0 && <p className="t-empty">{t('watch.searchEmpty')}</p>}
+        </>
       )}
 
       {edit && (
@@ -1187,23 +763,95 @@ export default function Watches() {
           onClose={() => setEdit(null)}
         />
       )}
-      {more && (
-        <ActionSheet
-          title={more.titleOverride || mediaTitle(more.media, more.remotePath.split('/').pop() || '')}
-          actions={rowActions(more)}
-          onClose={() => setMore(null)}
-        />
-      )}
+      {more && <ActionSheet title={watchName(more)} actions={rowActions(more)} onClose={() => setMore(null)} />}
     </div>
   )
 }
 
-interface RowAction {
-  key: string
-  icon: ReactNode
-  label: string
-  onClick: () => void
-  danger?: boolean
+// a release in Japan's time, for the hover on a time
+const jst = (ts: number) =>
+  new Date(ts * 1000).toLocaleString([], {
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Tokyo',
+  })
+
+// A calendar day: a section heading with the teal marker, its releases under it.
+function CalDay({
+  heading,
+  quiet,
+  today,
+  past,
+  children,
+}: {
+  heading: string
+  /** the phone's day under the band, which already names it */
+  quiet?: boolean
+  today?: boolean
+  past?: boolean
+  children: ReactNode
+}) {
+  return (
+    <section className="w-day" aria-current={today ? 'date' : undefined} data-past={past ? '' : undefined}>
+      {quiet ? <h2 className="sr-only">{heading}</h2> : <SectionHeading title={heading} tone="accent-2" />}
+      {children}
+    </section>
+  )
+}
+
+// A watch as a bare cover tile, the whole tile one button into the series
+// page; in the list the same markup lies as a hairline row with three more
+// columns on a desktop.
+function WatchTile({
+  watch: w,
+  list,
+  eager,
+  now,
+  onOpen,
+  onMore,
+}: {
+  watch: Watch
+  list: boolean
+  eager: boolean
+  now: number
+  onOpen: () => void
+  onMore?: () => void
+}) {
+  const { t } = useTranslation()
+  const name = watchName(w)
+  const sub = tileSub(t, w)
+  return (
+    <Press as="li" data-wid={w.id} onLongPress={onMore}>
+      <button type="button" className="w-tile" onClick={onOpen}>
+        <CoverImg
+          className="w-cover"
+          set={coverSet(w.media?.coverImage)}
+          tint={w.media?.coverImage?.color}
+          title={name}
+          sizes={list ? '3rem' : '(min-width: 64rem) 11rem, (min-width: 40rem) 10rem, 33vw'}
+          eager={eager}
+        />
+        <span className="w-name">{name}</span>
+        <span className="w-sub" data-tone={sub.tone}>
+          {sub.text}
+          {sub.loading && (
+            <>
+              {' · '}
+              <span className="w-acc">{t('watch.tile.loading')}</span>
+            </>
+          )}
+        </span>
+        {list && (
+          <>
+            <span className="w-col w-c-next">{nextCell(t, w, now)}</span>
+            <span className="w-col w-c-disk">{diskName(w.localPath)}</span>
+            <span className="w-col w-c-check">{checkCell(t, w)}</span>
+          </>
+        )}
+      </button>
+    </Press>
+  )
 }
 
 // The calendar as a band of posters: every release in order, opening on the
@@ -1219,22 +867,17 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
   const [at, setAt] = useState(first)
   const i = Math.min(at, events.length - 1)
   const e = events[i]
-  // "today" brings back the next release to air, the one the band opens on
   const onToday = i === first
   const nameOf = (x: Airing) =>
     x.watch.titleOverride || mediaTitle(x.watch.media, x.watch.remotePath.split('/').pop() || '')
-  // the poster carries only the time; the date goes in the line under the band
-  const time = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const when = (ts: number) => {
     const d = new Date(ts * 1000)
     const day =
       startOfDay(d).getTime() === dayStart
         ? t('watch.week.today')
         : d.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })
-    return `${day} ${time(ts)}`
+    return `${day} ${hm(ts)}`
   }
-  // a finger can flick the band, but stepping one poster at a time is the
-  // precise way, and the visible one: the arrows stay on touch too
   const arrow = (label: string, to: number, path: string) => (
     <IconButton
       aria-label={label}
@@ -1264,7 +907,7 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
           key: `${x.watch.id}-${x.episode}-${x.at}-${x.dub ?? ''}`,
           cover: x.watch.media?.coverImage?.extraLarge || x.watch.media?.coverImage?.large,
           tint: x.watch.media?.coverImage?.color ?? undefined,
-          chip: time(x.at),
+          chip: hm(x.at),
           label: `${nameOf(x)}, ${episodeLabel(t, x)}, ${when(x.at)}`,
           past: x.at * 1000 < now,
         }))}
@@ -1274,23 +917,21 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
       />
       {e && (
         <div className="flex flex-col items-center gap-0.5 text-center">
-          {/* what a screen reader hears as the band moves: the poster, never
-              the countdown ticking beside it */}
           <span aria-live="polite" className="sr-only">
             {`${nameOf(e)}, ${episodeLabel(t, e)}, ${when(e.at)}`}
           </span>
           <div className="flex max-w-full flex-col items-center gap-0.5">
             <Slot step={i} className="max-w-full">
-              <h3 className="truncate font-display text-base font-semibold tracking-wider lg:text-lg">{nameOf(e)}</h3>
+              <h2 className="truncate font-display text-base font-semibold lg:text-lg">{nameOf(e)}</h2>
             </Slot>
             <Slot step={i} className="max-w-full">
               <p className="font-mono text-xs text-balance text-t-secondary">
                 {episodeLabel(t, e)} ·{' '}
-                <span className="font-mono text-xs whitespace-nowrap text-t-primary">{when(e.at)}</span>
+                <span className="font-mono text-xs whitespace-nowrap text-accent-2">{when(e.at)}</span>
                 {e.at * 1000 >= now && (
                   <>
                     {' · '}
-                    <span className="font-mono text-xs whitespace-nowrap text-accent">
+                    <span className="font-mono text-xs whitespace-nowrap text-t-primary">
                       {countdown(t, e.at, isToday(e.at), now)}
                     </span>
                   </>
@@ -1298,7 +939,6 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
               </p>
             </Slot>
           </div>
-          {/* "today" is disabled rather than gone, so it holds its place */}
           <div className="mt-1.5 flex items-center gap-2">
             {arrow(t('watch.calPosterPrev'), i - 1, 'm15 6-6 6 6 6')}
             <Button
@@ -1314,135 +954,5 @@ function PosterCalendar({ events, now, onOpen }: { events: Airing[]; now: number
         </div>
       )}
     </section>
-  )
-}
-
-// The overflow of a watch row on desktop: the same entries the phone sheet
-// lists, as an anchored menu next to the one button that stays visible.
-function RowMenu({ label, items }: { label: string; items: RowAction[] }) {
-  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
-  return (
-    <div className="relative" ref={ref} style={anchorStyle}>
-      <IconButton
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="border border-border-subtle"
-        onClick={() => setOpen(!open)}
-      >
-        <Ellipsis aria-hidden size="1.2em" />
-      </IconButton>
-      {open && (
-        <Menu kind="menu" anchor={anchor} placement="bottom-end" aria-label={label}>
-          {items.map((a) => (
-            <MenuItem
-              key={a.key}
-              onClick={() => {
-                setOpen(false)
-                a.onClick()
-              }}
-            >
-              <span className={`flex items-center gap-2 ${a.danger ? 'text-err' : ''}`}>
-                {a.icon}
-                {a.label}
-              </span>
-            </MenuItem>
-          ))}
-        </Menu>
-      )}
-    </div>
-  )
-}
-
-// A watch as a poster tile: the poster is the button into the title card,
-// where the actions are; the tile itself only says what the list's chips say
-// - the next episode, how far the copy is, whether something needs a hand.
-function WatchTile({ watch: w, onOpen, actions }: { watch: Watch; onOpen: () => void; actions?: ReactNode }) {
-  const { t } = useTranslation()
-  const name = w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
-  const total = w.media?.episodes ?? 0
-  const attention = (w.attention?.length ?? 0) > 0
-  // what the warning chip stands for, as its tooltip and for a screen reader
-  const attentionText = attentionInfo(t, w)
-    .map((c) => c.text)
-    .join('. ')
-  // day and month only: with the weekday the chip ran past a 140px tile
-  const when = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { day: '2-digit', month: '2-digit' })
-  return (
-    // h-full down the whole stack: the grid stretches its cells, and without
-    // it a tile with a one-line title ended shorter than the one beside it
-    <Panel
-      as="article"
-      className="group relative flex h-full flex-col overflow-clip transition-colors hover:border-accent/50!"
-    >
-      {/* named by what it shows: a label of its own would hide the visible
-          text from the accessible name (WCAG 2.5.3) */}
-      <button type="button" className="flex flex-1 flex-col text-left" onClick={onOpen} disabled={!w.media}>
-        <Cover
-          size="fill"
-          src={w.media?.coverImage?.extraLarge || w.media?.coverImage?.large}
-          tint={w.media?.coverImage?.color ?? undefined}
-          loading="lazy"
-          className="opacity-90 transition-opacity group-hover:opacity-100"
-        >
-          {!w.media && <span className="p-2 text-center text-xs text-t-muted">{name}</span>}
-        </Cover>
-        <div className="flex flex-1 flex-col p-2">
-          <h3 className="line-clamp-2 text-sm font-medium text-t-primary" title={name}>
-            {name}
-          </h3>
-          {/* under the title, not over the poster: chips on a busy poster
-              were barely there, whatever their surface */}
-          {(!!w.nextAiringAt || w.active > 0 || attention) && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {!!w.nextAiringAt && (
-                <Badge size="sm" tone={w.behindLate ? 'warn' : 'ok'}>
-                  {t('watch.chipEp', { n: epLabel(w, w.nextEpisode!) })} · {when(w.nextAiringAt)}
-                </Badge>
-              )}
-              {w.active > 0 && (
-                <Badge size="sm" tone="accent">
-                  <Download aria-hidden size="1em" />
-                  {w.active}
-                </Badge>
-              )}
-              {attention && (
-                <Badge size="sm" tone="err" title={attentionText}>
-                  <TriangleAlert aria-hidden size="1em" />
-                  <span className="sr-only">{attentionText}</span>
-                </Badge>
-              )}
-            </div>
-          )}
-          {/* the count and the bar sit at the foot of the tile, so they line up
-              across a row however long the titles above them ran */}
-          <div className="mt-auto pt-1">
-            <p className={`text-ctl-sm ${w.complete ? 'text-ok' : 'text-t-muted'}`}>{haveLabel(t, w, total)}</p>
-            {total > 0 && (
-              <Progress
-                value={(w.localFiles / total) * 100}
-                size="sm"
-                tone={w.complete ? 'ok' : 'accent'}
-                active={w.active > 0}
-                label={t('series.progressLabel', { name })}
-                className="mt-1.5"
-              />
-            )}
-          </div>
-        </div>
-      </button>
-      {/* outside the button that opens the card - a button cannot hold buttons */}
-      {actions && <div className="flex items-center gap-1 border-t border-border-subtle p-1.5">{actions}</div>}
-    </Panel>
-  )
-}
-
-// A caption between the groups of one menu; not an option, so a screen reader
-// skips it in the list
-function MenuHeading({ children }: { children: ReactNode }) {
-  return (
-    <li role="presentation" className="px-3 pt-2 pb-1 font-mono text-ctl-sm tracking-wider text-t-muted uppercase">
-      {children}
-    </li>
   )
 }

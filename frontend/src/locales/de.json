@@ -1074,6 +1074,41 @@
       "path": "über den Bibliotheks-Ordner erkannt",
       "title": "über den Titel geraten",
       "none": "nicht auflösbar, es wird nichts geändert"
+    },
+    "filter": {
+      "label": "Filter",
+      "all": "Alle",
+      "airing": "Läuft",
+      "gaps": "Lücken",
+      "done": "Fertig"
+    },
+    "searchPlaceholder": "Serie suchen",
+    "searchClose": "Suche schließen",
+    "searchEmpty": "Keine Serie passt zu dieser Suche.",
+    "tile": {
+      "missing_one": "{{count}} fehlt",
+      "missing_other": "{{count}} fehlen",
+      "seasonComplete": "S{{n}} komplett",
+      "complete": "komplett",
+      "absolute": "Folge {{n}}",
+      "haveOf": "{{have}} von {{total}}",
+      "season": "S{{n}} · {{have}}",
+      "loading": "lädt"
+    },
+    "list": {
+      "today": "heute",
+      "tomorrow": "morgen",
+      "next": "F{{n}} {{day}}, {{time}}",
+      "finished": "abgeschlossen",
+      "noDate": "kein Termin",
+      "gap": "Lücke",
+      "waiting": "wartet",
+      "done": "fertig"
+    },
+    "cal": {
+      "tomorrow": "Morgen",
+      "free": "Keine Folge geplant.",
+      "aired": "gelaufen"
     }
   },
   "rename": {

@@ -1074,6 +1074,41 @@
       "path": "found via the library folder",
       "title": "guessed from the title",
       "none": "unresolved, nothing is changed"
+    },
+    "filter": {
+      "label": "Filter",
+      "all": "All",
+      "airing": "Airing",
+      "gaps": "Gaps",
+      "done": "Done"
+    },
+    "searchPlaceholder": "Search series",
+    "searchClose": "Close search",
+    "searchEmpty": "No series matches this search.",
+    "tile": {
+      "missing_one": "{{count}} missing",
+      "missing_other": "{{count}} missing",
+      "seasonComplete": "S{{n}} complete",
+      "complete": "complete",
+      "absolute": "Episode {{n}}",
+      "haveOf": "{{have}} of {{total}}",
+      "season": "S{{n}} · {{have}}",
+      "loading": "loading"
+    },
+    "list": {
+      "today": "today",
+      "tomorrow": "tomorrow",
+      "next": "E{{n}} {{day}}, {{time}}",
+      "finished": "finished",
+      "noDate": "no date",
+      "gap": "Gap",
+      "waiting": "waiting",
+      "done": "done"
+    },
+    "cal": {
+      "tomorrow": "Tomorrow",
+      "free": "No episode planned.",
+      "aired": "aired"
     }
   },
   "rename": {
