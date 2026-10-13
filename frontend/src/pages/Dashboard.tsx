@@ -98,6 +98,7 @@ import { scopeChanged } from '../components/useCatalogView'
 import PageActions, { PageFooter, WIDE_MQ } from '../components/PageActions'
 import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth, useNow, usePersistedQuery } from '../hooks'
+import { useTransfers } from '../components/transfers'
 import { ProviderBadges } from '../components/ProviderBadges'
 import { useSeriesModal } from '../components/SeriesModal'
 import { useWatchActions } from '../components/watchActions'
@@ -182,6 +183,7 @@ export default function Dashboard() {
   const { t } = useTranslation()
   const confirm = useConfirm()
   const qc = useQueryClient()
+  const transfers = useTransfers()
   const { data: user } = useAuth()
   const { data: downloads = [], isLoading } = useQuery<Download[]>({
     queryKey: ['downloads'],
@@ -640,6 +642,20 @@ export default function Dashboard() {
         count={activeAll.length}
         open={queueOpen}
         onToggle={toggleQueue}
+        trailing={
+          // the same transfers panel the sidebar's live block opens
+          wide &&
+          activeAll.length > 0 && (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              onClick={(e) => transfers.open(e.currentTarget)}
+              className="inline-flex min-h-6 items-center text-[11px] text-accent hover:underline"
+            >
+              {t('live.details')}
+            </button>
+          )
+        }
       />
       {queueOpen && (
         <>
@@ -1153,7 +1169,7 @@ const watchTitle = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remote
 // a pixel and the line's glide can't be seen.
 const SPEED_WINDOWS = ['60', '180', '300', '600'] as const
 
-function SpeedPanel({ downloads }: { downloads: Download[] }) {
+export function SpeedPanel({ downloads }: { downloads: Download[] }) {
   const { t } = useTranslation()
   const hist = useSpeedHistory()
   const [span, setSpan] = useState(180)

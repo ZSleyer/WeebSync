@@ -28,6 +28,7 @@ import PageScroll from './components/PageScroll'
 import CommandPalette from './components/CommandPalette'
 import { LiveActivity } from './components/LiveActivity'
 import PhoneHint from './components/PhoneHint'
+import { TransfersProvider } from './components/TransferSheet'
 import { AudioProvider, MiniPlayer } from './components/AudioPlayer'
 import { useBack } from './components/playLinks'
 import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
@@ -562,35 +563,37 @@ function Shell({ email }: { email: string }) {
         <AppBarActions.Provider value={actions}>
           <ShellFooter.Provider value={footer}>
             <SeriesModalProvider panel={aside}>
-              <AppShell
-                sidebar={sidebar}
-                bar={bar}
-                tabs={tabs}
-                mainKey={topPage(location.pathname)}
-                notice={
-                  <>
-                    <UpdateToast />
-                    <MiniPlayer variant="pill" />
-                    <LiveActivity variant="pill" hideOnDashboard />
-                  </>
-                }
-                footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
-                aside={<div ref={setAside} className="contents" />}
-                before={
-                  <>
-                    <RouteTitle />
-                    <ScrollMemory />
-                    <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />
-                  </>
-                }
-              >
-                {/* at most one one-time hint, above whatever page is open */}
-                <Tips />
-                <RouteTransition cls={motion.page}>
-                  <Outlet />
-                </RouteTransition>
-                <PageScroll stacked={!!back} />
-              </AppShell>
+              <TransfersProvider panel={aside}>
+                <AppShell
+                  sidebar={sidebar}
+                  bar={bar}
+                  tabs={tabs}
+                  mainKey={topPage(location.pathname)}
+                  notice={
+                    <>
+                      <UpdateToast />
+                      <MiniPlayer variant="pill" />
+                      <LiveActivity variant="pill" hideOnDashboard />
+                    </>
+                  }
+                  footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
+                  aside={<div ref={setAside} className="contents" />}
+                  before={
+                    <>
+                      <RouteTitle />
+                      <ScrollMemory />
+                      <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />
+                    </>
+                  }
+                >
+                  {/* at most one one-time hint, above whatever page is open */}
+                  <Tips />
+                  <RouteTransition cls={motion.page}>
+                    <Outlet />
+                  </RouteTransition>
+                  <PageScroll stacked={!!back} />
+                </AppShell>
+              </TransfersProvider>
             </SeriesModalProvider>
           </ShellFooter.Provider>
         </AppBarActions.Provider>

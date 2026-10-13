@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Check } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation } from 'react-router'
+import { useLocation } from 'react-router'
 import { api, fmtSpeed, type Download } from '../api'
 import { countdown } from '../countdown'
+import { useTransfers } from './transfers'
 
 // how long the finished state stays up before the activity folds away
 const DONE_MS = 4000
@@ -17,12 +18,14 @@ const C = 2 * Math.PI * R
  * bar on a phone, a block at the foot of the sidebar on a desktop. A ring
  * fills with the bytes of the whole queue, the line says how many and how
  * fast. When the queue runs dry the ring closes into a check for a moment,
- * then the activity leaves. Both lead to the dashboard, which has the queue.
+ * then the activity leaves. Both open the transfers: the pill grows into
+ * their sheet, the sidebar's block opens their panel.
  * Reads the shared ['downloads'] query, so it costs no request of its own.
  */
 export function LiveActivity({ variant, hideOnDashboard }: { variant: 'pill' | 'rail'; hideOnDashboard?: boolean }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
+  const transfers = useTransfers()
   const q = useQuery({ queryKey: ['downloads'], queryFn: () => api.get<Download[]>('/api/downloads') })
   const all = q.data ?? []
   const active = all.filter((d) => d.status === 'running' || d.status === 'queued' || d.status === 'paused')
@@ -96,9 +99,11 @@ export function LiveActivity({ variant, hideOnDashboard }: { variant: 'pill' | '
   )
   const label = `${line}, ${sub}`
   return variant === 'pill' ? (
-    <Link
-      to="/"
+    <button
+      type="button"
       aria-label={label}
+      aria-haspopup="dialog"
+      onClick={(e) => transfers.open(e.currentTarget)}
       className="t-live-pill mx-auto flex w-fit max-w-full items-center gap-3 rounded-full border border-border-subtle bg-bg-card py-1.5 pr-4 pl-1.5 lg:hidden"
     >
       {ring}
@@ -106,18 +111,20 @@ export function LiveActivity({ variant, hideOnDashboard }: { variant: 'pill' | '
         <span className="block truncate text-sm font-medium">{line}</span>
         <span className="block truncate text-ctl-sm text-t-secondary">{sub}</span>
       </span>
-    </Link>
+    </button>
   ) : (
-    <Link
-      to="/"
+    <button
+      type="button"
       aria-label={label}
-      className="mx-3 mb-2 flex items-center gap-3 rounded-md border border-border-subtle bg-bg-card p-2 hover:border-border-input"
+      aria-haspopup="dialog"
+      onClick={(e) => transfers.open(e.currentTarget)}
+      className="mx-3 mb-2 text-left flex items-center gap-3 rounded-md border border-border-subtle bg-bg-card p-2 hover:border-border-input"
     >
       {ring}
       <span className="min-w-0">
         <span className="block truncate text-sm font-medium">{line}</span>
         <span className="block truncate text-ctl-sm text-t-secondary">{sub}</span>
       </span>
-    </Link>
+    </button>
   )
 }

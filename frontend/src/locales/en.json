@@ -1912,6 +1912,10 @@
     "resume": "Resume"
   },
   "live": {
+    "details": "Details",
+    "title": "Transfers",
+    "none": "Nothing is running.",
+    "manage": "Manage the queue",
     "loading_one": "One episode downloading",
     "loading_other": "{{count}} episodes downloading",
     "waiting_one": "One episode waiting",

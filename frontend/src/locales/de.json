@@ -1912,6 +1912,10 @@
     "resume": "Fortsetzen"
   },
   "live": {
+    "details": "Details",
+    "title": "Übertragungen",
+    "none": "Gerade läuft nichts.",
+    "manage": "Warteschlange verwalten",
     "loading_one": "Eine Folge lädt",
     "loading_other": "{{count}} Folgen laden",
     "waiting_one": "Eine Folge wartet",
