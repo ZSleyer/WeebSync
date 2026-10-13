@@ -13,6 +13,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import {
+  AArrowDown,
+  AArrowUp,
   ArrowLeftRight,
   BookOpen,
   ChevronLeft,
@@ -649,6 +651,9 @@ async function loadEpub(base: string): Promise<EpubData> {
   return { title: book.title, chapters: book.chapters }
 }
 
+const EPUB_MIN = 70
+const EPUB_MAX = 200
+
 /**
  * An EPUB, one chapter at a time, each in a sandboxed frame: the book's
  * markup is someone else's, so it gets no script and no origin. The frame
@@ -660,6 +665,9 @@ function EpubView({ base, server, path }: { base: string; server: number; path: 
   const [at, setAt] = useStored<number>(`viewer.chapter:${server}:${path}`, 0)
   // most books are black on white; this turns the page around for the dark
   const [night, setNight] = useStored<string>('viewer.night', '0')
+  // the frame has no origin to style into, so the type grows by zooming it,
+  // which also narrows the column the chapter wraps in
+  const [size, setSize] = useStored<number>('viewer.epubSize', 100)
   // the last chapter reached: the book is read
   const chapters = data.data?.chapters.length ?? 0
   useEffect(() => {
@@ -706,7 +714,7 @@ function EpubView({ base, server, path }: { base: string; server: number; path: 
           sandbox=""
           referrerPolicy="no-referrer"
           className="min-h-0 w-full flex-1 border-0 bg-white"
-          style={night === '1' ? { filter: 'invert(1) hue-rotate(180deg)' } : undefined}
+          style={{ zoom: `${size}%`, filter: night === '1' ? 'invert(1) hue-rotate(180deg)' : undefined }}
         />
         <Toolbar className="border-t border-border-subtle p-2">
           <IconButton aria-label={t('viewer.prevChapter')} onClick={() => setAt(i - 1)} disabled={i === 0}>
@@ -731,6 +739,22 @@ function EpubView({ base, server, path }: { base: string; server: number; path: 
           </span>
           <IconButton aria-label={t('viewer.nextChapter')} onClick={() => setAt(i + 1)} disabled={i >= ch.length - 1}>
             <SkipForward aria-hidden />
+          </IconButton>
+          <IconButton
+            aria-label={t('viewer.smaller')}
+            title={t('viewer.smaller')}
+            onClick={() => setSize(size - 10)}
+            disabled={size <= EPUB_MIN}
+          >
+            <AArrowDown aria-hidden />
+          </IconButton>
+          <IconButton
+            aria-label={t('viewer.larger')}
+            title={t('viewer.larger')}
+            onClick={() => setSize(size + 10)}
+            disabled={size >= EPUB_MAX}
+          >
+            <AArrowUp aria-hidden />
           </IconButton>
           <IconButton
             aria-label={t('viewer.night')}

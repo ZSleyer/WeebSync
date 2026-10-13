@@ -550,6 +550,8 @@
     "endLast": "Im Ordner folgt kein weiterer Band.",
     "nextVolume": "Nächster Band",
     "fromStart": "Von vorn lesen",
+    "smaller": "Schrift kleiner",
+    "larger": "Schrift größer",
     "title": "Ansicht",
     "open": "Öffnen",
     "openItem": "{{name}} öffnen",

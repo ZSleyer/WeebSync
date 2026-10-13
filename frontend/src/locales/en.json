@@ -550,6 +550,8 @@
     "endLast": "No further volume in this folder.",
     "nextVolume": "Next volume",
     "fromStart": "Read from the start",
+    "smaller": "Smaller text",
+    "larger": "Larger text",
     "title": "Viewer",
     "open": "Open",
     "openItem": "Open {{name}}",
