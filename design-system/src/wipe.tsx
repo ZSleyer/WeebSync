@@ -101,15 +101,17 @@ export function riseDelay(left: number, viewportWidth: number): number {
  * every render.
  */
 export function enterPage(root: HTMLElement, extra: HTMLElement[] = []) {
+  // read every box before writing anything: a write between two reads forces
+  // a layout per item, which dropped frames on a phone with a full grid
+  const width = typeof innerWidth === 'number' ? innerWidth : 0
+  const items = [...root.querySelectorAll<HTMLElement>(RISE_SELECTOR)]
+  const lefts = items.map((el) => el.getBoundingClientRect().left)
   const lines = [...extra, ...root.querySelectorAll<HTMLElement>(WIPE_SELECTOR)]
   lines.forEach((el, i) => {
     el.classList.add('t-wipe')
     el.style.setProperty('--i', String(Math.min(i, MAX_STAGGER)))
   })
-  const width = typeof innerWidth === 'number' ? innerWidth : 0
-  for (const el of root.querySelectorAll<HTMLElement>(RISE_SELECTOR)) {
-    el.style.setProperty('--rd', `${riseDelay(el.getBoundingClientRect().left, width)}ms`)
-  }
+  items.forEach((el, i) => el.style.setProperty('--rd', `${riseDelay(lefts[i], width)}ms`))
   for (const el of new Set([root, ...extra])) {
     el.removeAttribute('data-wipe')
     // a reflow between, so the same value starts the animation again
