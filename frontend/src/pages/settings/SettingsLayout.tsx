@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowDownUp,
   Bell,
+  BookOpen,
   Database,
   Info,
   Link2,
@@ -27,6 +28,7 @@ const PERSONAL = [
   { to: 'general', key: 'settings.nav.general', icon: Settings2, hint: 'settings.hub.general' },
   { to: 'account', key: 'settings.nav.account', icon: UserRound, hint: 'settings.hub.account' },
   { to: 'sync', key: 'settings.nav.sync', icon: RefreshCw, hint: 'settings.hub.sync' },
+  { to: 'rules', key: 'settings.nav.rules', icon: BookOpen, hint: 'settings.hub.rules' },
   { to: 'notifications', key: 'settings.nav.notifications', icon: Bell, hint: 'settings.hub.notifications' },
 ]
 const SOURCES = [{ to: 'servers', key: 'nav.servers', icon: Server, hint: 'settings.hub.servers' }]

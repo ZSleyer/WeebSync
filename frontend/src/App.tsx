@@ -58,6 +58,7 @@ import Assistant from './pages/Assistant'
 import Rename from './pages/Rename'
 import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/SettingsLayout'
 import SyncDefaults from './pages/settings/SyncDefaults'
+import Rules from './pages/settings/Rules'
 import General from './pages/settings/General'
 import About from './pages/settings/About'
 import Servers from './pages/settings/Servers'
@@ -218,6 +219,7 @@ export const router = createBrowserRouter(
         <Route path="about" element={<About />} handle={inSettings('settings.nav.about')} />
         <Route path="account" element={<Account />} handle={inSettings('settings.nav.account')} />
         <Route path="sync" element={<SyncDefaults />} handle={inSettings('settings.nav.sync')} />
+        <Route path="rules" element={<Rules />} handle={inSettings('settings.nav.rules')} />
         <Route path="notifications" element={<Notifications />} handle={inSettings('settings.nav.notifications')} />
         <Route path="servers" element={<Servers />} handle={inSettings('nav.servers')} />
         <Route
