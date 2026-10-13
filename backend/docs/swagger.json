@@ -2400,6 +2400,33 @@
                 ],
                 "type": "object"
             },
+            "api.TipDismissRequest": {
+                "properties": {
+                    "key": {
+                        "example": "install-pwa",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "key"
+                ],
+                "type": "object"
+            },
+            "api.TipsResponse": {
+                "properties": {
+                    "dismissed": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "dismissed"
+                ],
+                "type": "object"
+            },
             "api.TotpSetupResponse": {
                 "properties": {
                     "otpauthUrl": {
@@ -9508,6 +9535,116 @@
                 "summary": "First-run OIDC setup",
                 "tags": [
                     "Auth"
+                ]
+            }
+        },
+        "/api/auth/tips": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.TipsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "List dismissed UI hints",
+                "tags": [
+                    "Tips"
+                ]
+            }
+        },
+        "/api/auth/tips/dismiss": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.TipDismissRequest",
+                                        "description": "Hint to dismiss",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Hint to dismiss",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Dismiss a UI hint",
+                "tags": [
+                    "Tips"
                 ]
             }
         },

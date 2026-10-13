@@ -179,6 +179,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("PUT /api/auth/watch-defaults", authed(http.HandlerFunc(s.handleWatchDefaultsPut)))
 	mux.Handle("GET /api/auth/notify-prefs", authed(http.HandlerFunc(s.handleNotifyPrefsGet)))
 	mux.Handle("PUT /api/auth/notify-prefs", authed(http.HandlerFunc(s.handleNotifyPrefsPut)))
+	// one-time hints the user closed, remembered per account
+	mux.Handle("GET /api/auth/tips", authed(http.HandlerFunc(s.handleTipsGet)))
+	mux.Handle("POST /api/auth/tips/dismiss", authed(http.HandlerFunc(s.handleTipDismiss)))
 
 	// servers
 	mux.Handle("GET /api/servers", authed(http.HandlerFunc(s.handleServersList)))
