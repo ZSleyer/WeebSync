@@ -2095,3 +2095,54 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
   background: color-mix(in oklab, var(--bg) 70%, transparent);
 }
 .t-cover-bar > i { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: var(--accent-2); }
+
+/* ── Rail: a horizontal shelf. It fades at an edge with more behind it and
+   offers a round button there (hover devices only); a mouse drags it. ── */
+.t-rail { position: relative; }
+.t-shelf {
+  --fade-l: 0px;
+  --fade-r: 0px;
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-block: 2px 6px;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+}
+.t-shelf::-webkit-scrollbar { display: none; }
+.t-shelf > * { flex: none; scroll-snap-align: start; }
+.t-rail[data-more-start] > .t-shelf { --fade-l: 3rem; }
+.t-rail[data-more-end] > .t-shelf { --fade-r: 3rem; }
+.t-shelf.dragging { cursor: grabbing; scroll-snap-type: none; user-select: none; }
+.t-shelf.dragging * { pointer-events: none; }
+.t-rail-btn {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--cover-h, 9.75rem) / 2 - 1.375rem);
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--fg);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+.t-rail-btn[hidden] { display: none; }
+.t-rail-btn--prev { left: -6px; }
+.t-rail-btn--next { right: -6px; }
+@media (hover: hover) {
+  .t-rail-btn:hover { background: var(--hover); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .t-rail-btn { transition: scale var(--dur-2) var(--spring), background-color var(--dur-1); }
+  .t-rail-btn:active { scale: 0.9; }
+}
+/* a finger scrolls the shelf itself: no paging buttons on touch */
+@media (hover: none) { .t-rail-btn { display: none; } }

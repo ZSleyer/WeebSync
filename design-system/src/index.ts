@@ -123,6 +123,8 @@ export type { CodeTone, GlyphTone, RowActionProps, RowProps, RowsProps, SectionH
 
 export { Art, CoverBar, CoverScore, coverShare, CoverStatus } from './media'
 export type { ArtProps, CoverBarProps, CoverScoreProps, CoverStatusKind, CoverStatusProps } from './media'
+export { Rail, railEdges } from './rail'
+export type { RailEdges, RailProps } from './rail'
 export { SettingsField, Switch } from './controls'
 export type { SettingsFieldProps, SwitchProps } from './controls'
 
