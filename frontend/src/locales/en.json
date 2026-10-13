@@ -555,6 +555,16 @@
     "total_other": "{{count}} entries · {{size}}"
   },
   "viewer": {
+    "nowPlaying": "Now playing",
+    "stop": "Stop playback",
+    "position": "Position",
+    "repeat_off": "No repeat",
+    "repeat_all": "Repeat folder",
+    "repeat_one": "Repeat track",
+    "sleep": "Sleep timer",
+    "sleepOff": "No sleep timer",
+    "sleepIn": "Stop in {{n}} min",
+    "sleepTrack": "Stop after this track",
     "layout": "Page layout",
     "layout_single": "Single page",
     "layout_double": "Two pages",
@@ -599,6 +609,7 @@
     "playlist": "Tracks in this folder"
   },
   "player": {
+    "pause": "Pause",
     "seen": "Episode {{n}} marked as watched on AniList",
     "pip": "Picture in picture",
     "local": "Local",

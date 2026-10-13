@@ -437,7 +437,7 @@ export default function Files() {
   // what a picked entry can do: the bar on a phone, the info panel on a
   // desktop and the sheet a long press opens read the same list, so they agree
   const actionsOf = (e: Entry): FileAction[] => [
-    ...(isVideo(e.name)
+    ...(isVideo(e.name) || viewKind(e.name) === 'audio'
       ? [{ key: 'play', icon: Play, label: t('player.play'), onClick: () => playFile(e) }]
       : !e.isDir && viewKind(e.name)
         ? [{ key: 'open', icon: BookOpen, label: t('viewer.open'), onClick: () => playFile(e) }]

@@ -352,18 +352,19 @@ export function FileBrowser({
 // look at - so a file opens from where it is listed instead of from an action bar.
 export function PlayIcon({ name, onPlay }: { name: string; onPlay: () => void }) {
   const { t } = useTranslation()
-  const video = isVideo(name)
   const kind = viewKind(name)
+  // a song plays like a video; everything else opens
+  const plays = isVideo(name) || kind === 'audio'
   return (
     <button
       type="button"
       className="t-play-icon"
-      aria-label={video ? t('player.playItem', { name }) : t('viewer.openItem', { name })}
-      title={video ? t('player.play') : t('viewer.open')}
+      aria-label={plays ? t('player.playItem', { name }) : t('viewer.openItem', { name })}
+      title={plays ? t('player.play') : t('viewer.open')}
       onClick={onPlay}
     >
       <FileIcon isDir={false} name={name} className="t-play-icon__file" />
-      {video || kind === 'audio' ? (
+      {plays ? (
         <Play aria-hidden size="1em" className="t-play-icon__play" fill="currentColor" strokeWidth={0} />
       ) : kind === 'comic' || kind === 'epub' || kind === 'pdf' ? (
         <BookOpen aria-hidden size="1em" className="t-play-icon__play" />

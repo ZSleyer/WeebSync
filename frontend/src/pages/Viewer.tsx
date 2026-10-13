@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import {
   AArrowDown,
   AArrowUp,
@@ -25,12 +25,17 @@ import {
   MoonStar,
   MoveHorizontal,
   MoveVertical,
+  Pause,
+  Play,
   RectangleVertical,
+  Repeat,
+  Repeat1,
   SkipBack,
   SkipForward,
   type LucideIcon,
 } from 'lucide-react'
 import {
+  Button,
   buttonClass,
   Cover,
   Dialog,
@@ -46,6 +51,7 @@ import {
 } from '@weebsync/design-system'
 import { api, type Entry } from '../api'
 import Loading from '../components/Loading'
+import { clock, useAudio, type Repeat as RepeatMode } from '../components/AudioPlayer'
 import { useStored } from '../hooks/useStored'
 import Markdown from '../components/Markdown'
 import FileIcon from '../components/FileIcon'
@@ -873,105 +879,116 @@ function TextView({ server, path }: { server: number; path: string }) {
 }
 
 /**
- * A track and the rest of its folder as the playlist: the next one starts
- * when one ends. A long file (an audiobook) resumes where it was left.
+ * A track and the rest of its folder as the queue: the next one starts when
+ * one ends. The sound itself plays in the app's one audio element, so it goes
+ * on when this page is left; the mini player keeps it in reach meanwhile.
  */
 function AudioView({ server, path }: { server: number; path: string }) {
   const { t } = useTranslation()
   const folder = useQuery(folderOf(server, path))
-  const ref = useRef<HTMLAudioElement>(null)
-  const [rate, setRate] = useStored<number>('viewer.rate', 1)
+  const audio = useAudio()
   const entries = folder.data ?? []
   const tracks = entries.filter((e) => !e.isDir && viewKind(e.name) === 'audio').sort(byName)
-  const cover =
+  const coverEntry =
     entries.find((e) => !e.isDir && /^(cover|folder|front)\.(jpe?g|png|webp)$/i.test(e.name)) ??
     entries.find((e) => !e.isDir && viewKind(e.name) === 'image')
-  const at = tracks.findIndex((e) => e.path === path)
+  const cover = coverEntry && streamUrl(server, coverEntry.path)
   const name = path.split('/').pop() ?? ''
-  const posKey = `viewer.pos:${server}:${path}`
 
-  useEffect(() => {
-    const a = ref.current
-    if (!a) return
-    a.playbackRate = rate
-  }, [rate])
-
-  // the lock screen and the headset buttons
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: name.replace(/\.[^.]+$/, ''),
+  // opening a track plays it, with its folder as the queue; the track already
+  // playing (back from the mini player) just carries on
+  const begin = useEffectEvent(() => {
+    const cur = audio.track
+    if (cur?.path === path && audio.queue?.server === server) return
+    const list = tracks.some((e) => e.path === path) ? tracks : [{ name, path, isDir: false, size: 0, modTime: '' }]
+    audio.start({
+      server,
+      tracks: list,
+      at: list.findIndex((e) => e.path === path),
       album: parentOf(path).split('/').pop() ?? '',
-      artwork: cover ? [{ src: streamUrl(server, cover.path) }] : [],
+      cover,
     })
-  }, [name, path, server, cover])
+  })
+  useEffect(() => {
+    if (!folder.isPending) begin()
+  }, [folder.isPending])
 
-  // the next track replaces this one in the history: back leaves the player
-  const navigate = useNavigate()
-  const goTrack = (e: Entry) => navigate(viewHref(server, e.path), { replace: true })
-  const restore = () => {
-    const a = ref.current
-    if (!a || a.duration < 20 * 60) return // a song starts at the start
-    try {
-      const s = Number(localStorage.getItem(posKey))
-      if (s > 0 && s < a.duration - 5) a.currentTime = s
-    } catch {
-      // from the start
-    }
-  }
-  const lastSave = useRef(0)
-  const save = () => {
-    const a = ref.current
-    if (!a || a.duration < 20 * 60 || Date.now() - lastSave.current < 5000) return
-    lastSave.current = Date.now()
-    try {
-      localStorage.setItem(posKey, String(Math.floor(a.currentTime)))
-    } catch {
-      // not remembered
-    }
-  }
+  const q = audio.queue
+  const at = q && audio.track?.path === path ? q.at : -1
+  const repeatNext: Record<RepeatMode, RepeatMode> = { off: 'all', all: 'one', one: 'off' }
+  const sleepValue = audio.sleep === null ? '' : String(audio.sleep)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
       <div className="flex flex-col gap-3 lg:w-80 lg:shrink-0">
-        {cover && (
-          <Cover
-            src={streamUrl(server, cover.path)}
-            size="fill"
-            className="aspect-square! w-full max-w-80 self-center"
-          />
-        )}
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- music and audiobooks carry no captions */}
-        <audio
-          ref={ref}
-          src={streamUrl(server, path)}
-          controls
-          autoPlay
-          preload="metadata"
-          className="w-full"
-          onLoadedMetadata={() => {
-            restore()
-            if (ref.current) ref.current.playbackRate = rate
-          }}
-          onTimeUpdate={save}
-          onEnded={() => tracks[at + 1] && goTrack(tracks[at + 1])}
+        {cover && <Cover src={cover} size="fill" className="aspect-square! w-full max-w-80 self-center" />}
+        <input
+          type="range"
+          min={0}
+          max={audio.duration || 0}
+          step={1}
+          value={Math.min(audio.time, audio.duration || 0)}
+          onChange={(e) => audio.seek(Number(e.target.value))}
+          aria-label={t('viewer.position')}
+          aria-valuetext={`${clock(audio.time)} / ${clock(audio.duration)}`}
+          className="t-reader-slider w-full"
         />
-        <div className="flex items-center gap-2">
-          <IconButton aria-label={t('viewer.prevTrack')} disabled={at <= 0} onClick={() => goTrack(tracks[at - 1])}>
+        <div className="flex justify-between font-mono text-xs tabular-nums text-t-muted">
+          <span>{clock(audio.time)}</span>
+          <span>{audio.duration > 0 ? clock(audio.duration) : ''}</span>
+        </div>
+        <div className="flex items-center justify-center gap-2">
+          <IconButton
+            aria-label={t(`viewer.repeat_${audio.repeat}`)}
+            title={t(`viewer.repeat_${audio.repeat}`)}
+            aria-pressed={audio.repeat !== 'off'}
+            onClick={() => audio.setRepeat(repeatNext[audio.repeat])}
+          >
+            {audio.repeat === 'one' ? <Repeat1 aria-hidden /> : <Repeat aria-hidden />}
+          </IconButton>
+          <IconButton aria-label={t('viewer.prevTrack')} disabled={at <= 0} onClick={() => audio.go(at - 1)}>
             <SkipBack aria-hidden />
           </IconButton>
+          <Button
+            variant="primary"
+            aria-label={audio.paused ? t('player.play') : t('player.pause')}
+            onClick={audio.toggle}
+            className="size-12 rounded-full! p-0!"
+          >
+            {audio.paused ? <Play aria-hidden fill="currentColor" /> : <Pause aria-hidden fill="currentColor" />}
+          </Button>
           <IconButton
             aria-label={t('viewer.nextTrack')}
-            disabled={at < 0 || at >= tracks.length - 1}
-            onClick={() => goTrack(tracks[at + 1])}
+            disabled={at < 0 || !q || at >= q.tracks.length - 1}
+            onClick={() => audio.go(at + 1)}
           >
             <SkipForward aria-hidden />
           </IconButton>
+          <span className="size-9" aria-hidden />
+        </div>
+        <div className="flex items-center gap-2">
+          <Select
+            size="sm"
+            aria-label={t('viewer.sleep')}
+            value={sleepValue}
+            onChange={(e) => {
+              const v = e.target.value
+              audio.setSleep(v === '' ? null : v === 'track' ? 'track' : Number(v))
+            }}
+          >
+            <option value="">{t('viewer.sleepOff')}</option>
+            {[15, 30, 60].map((m) => (
+              <option key={m} value={m}>
+                {t('viewer.sleepIn', { n: m })}
+              </option>
+            ))}
+            <option value="track">{t('viewer.sleepTrack')}</option>
+          </Select>
           <Select
             size="sm"
             aria-label={t('viewer.speed')}
-            value={rate}
-            onChange={(e) => setRate(Number(e.target.value))}
+            value={audio.rate}
+            onChange={(e) => audio.setRate(Number(e.target.value))}
             wrapperClassName="ml-auto"
           >
             {[0.75, 1, 1.25, 1.5, 1.75, 2].map((r) => (
@@ -990,7 +1007,7 @@ function AudioView({ server, path }: { server: number; path: string }) {
                 href={viewHref(server, e.path)}
                 onClick={(ev) => {
                   ev.preventDefault()
-                  goTrack(e)
+                  audio.go(n)
                 }}
                 aria-current={n === at ? 'true' : undefined}
                 className={`flex gap-3 rounded-md px-2 py-2 hover:bg-bg-hover ${n === at ? 'bg-bg-hover text-accent' : ''}`}
