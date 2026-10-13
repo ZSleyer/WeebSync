@@ -920,7 +920,7 @@ describe('TransferCard', () => {
     const bar = screen.getByRole('progressbar', { name: 'Fortschritt Frieren' })
     expect(bar).toHaveAttribute('aria-valuenow', '30')
     expect(bar).not.toHaveClass('t-progress--sm')
-    expect(bar.firstElementChild).toHaveClass('t-progress-running')
+    expect(bar).toHaveClass('t-progress--wave')
     expect(screen.getByText('1 / 4 GiB')).toHaveClass('font-mono')
   })
 

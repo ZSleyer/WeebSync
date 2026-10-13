@@ -1,6 +1,7 @@
 import type {
   AnchorHTMLAttributes,
   ButtonHTMLAttributes,
+  CSSProperties,
   HTMLAttributes,
   InputHTMLAttributes,
   KeyboardEvent,
@@ -11,6 +12,7 @@ import type {
   TextareaHTMLAttributes,
 } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { useWave } from './wave'
 
 // Presentational wrappers around the Tempest classes in styles.css. Deliberately
 // free of app concerns - no data fetching, no i18n, no router - so a component
@@ -277,6 +279,11 @@ export interface ProgressProps {
   size?: 'md' | 'sm'
   /** stripes move while data is flowing */
   active?: boolean
+  /**
+   * The fill as the wave of Material 3 Expressive instead of a bar: it
+   * travels while `active`, settles flat when not. For transfers, not meters.
+   */
+  wave?: boolean
   tone?: 'accent' | 'ok' | 'warn' | 'err'
   className?: string
 }
@@ -286,7 +293,7 @@ export interface ProgressProps {
  * whether it measures a download or a disk. Reads its own name, so a row of
  * them stays tellable apart to a screen reader.
  */
-export function Progress({ value, label, size = 'md', active, tone = 'accent', className }: ProgressProps) {
+export function Progress({ value, label, size = 'md', active, wave, tone = 'accent', className }: ProgressProps) {
   const pct = Math.max(0, Math.min(100, value))
   return (
     <div
@@ -295,10 +302,30 @@ export function Progress({ value, label, size = 'md', active, tone = 'accent', c
       aria-valuenow={Math.round(pct)}
       aria-valuemin={0}
       aria-valuemax={100}
-      className={cx('t-progress', size === 'sm' && 't-progress--sm', tone !== 'accent' && `t-progress--${tone}`, className)}
+      className={cx(
+        't-progress',
+        size === 'sm' && 't-progress--sm',
+        tone !== 'accent' && `t-progress--${tone}`,
+        wave && 't-progress--wave',
+        className,
+      )}
+      style={wave ? ({ '--p': pct / 100 } as CSSProperties) : undefined}
     >
-      <div className={cx('t-progress-bar', active && 't-progress-running')} style={{ width: `${pct}%` }} />
+      {wave ? (
+        <WaveFill pct={pct} active={!!active} small={size === 'sm'} />
+      ) : (
+        <div className={cx('t-progress-bar', active && 't-progress-running')} style={{ width: `${pct}%` }} />
+      )}
     </div>
+  )
+}
+
+function WaveFill({ pct, active, small }: { pct: number; active: boolean; small: boolean }) {
+  const ref = useWave(pct, active, small ? 20 : 24, small ? 2.2 : 3)
+  return (
+    <svg ref={ref} className="t-progress-wave" aria-hidden="true">
+      <path />
+    </svg>
   )
 }
 

@@ -607,7 +607,7 @@ export function TransferCard({
           {stats && <p className={cx('mt-1 font-mono text-xs text-t-secondary', hero && 'sm:text-sm')}>{stats}</p>}
         </div>
       </div>
-      <Progress value={percent} size={hero ? 'md' : 'sm'} active={active} tone={tone} label={progressLabel} className="mt-3" />
+      <Progress value={percent} size={hero ? 'md' : 'sm'} active={active} tone={tone} label={progressLabel} wave className="mt-3" />
       {children}
       {/* one row at every width: on a phone the buttons keep their icons and
           drop the captions, which is what leaves the limit control its place */}
