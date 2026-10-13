@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Bookmark,
   Bot,
@@ -42,7 +42,7 @@ const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useToast, useFailToast } from '../components/toast'
-import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import {
   Badge,
   Button,
@@ -81,7 +81,8 @@ import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../co
 import WatchDialog, { WatchForm, type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
 import { useAiStatus, usePersistedQuery, useAuth, useWholeSave } from '../hooks'
-import PageActions, { WIDE_MQ } from '../components/PageActions'
+import { WIDE_MQ } from '../components/PageActions'
+import { DISCOVER_BASE, rememberSection, sectionOf, slugOf, type DiscoverSection } from '../discoverRoutes'
 import { SectionOutlet } from '../components/RouteTransition'
 import { SectionNav, type SectionGroup } from '../components/SectionNav'
 import { SkeletonCards } from '../components/Loading'
@@ -90,11 +91,12 @@ import { SkeletonCards } from '../components/Loading'
 // Upgrades and Incomplete. Every item is deduplicated per series and carries
 // which integrations recognise it, links to each, a series-wide ignore, and a
 // rematch. Data comes unified from GET /api/suggestions (+ /api/upgrades).
-const BUCKETS = ['watchlist', 'recommended', 'trending', 'upgrades', 'incomplete', 'duplicates', 'ignored'] as const
-type Bucket = (typeof BUCKETS)[number]
+// Each section has its own address under /discover (discoverRoutes.ts).
+type Bucket = 'watchlist' | 'recommended' | 'trending' | 'upgrades' | 'incomplete' | 'duplicates' | 'ignored'
 
 // The sections in their groups, with the count each shows in the menu. The
 // blob is the same query every section reads, so the menu costs no request.
+// An entry's `to` is its slug, relative to /discover.
 export function useSuggestionGroups(): SectionGroup[] {
   const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
   const { data: dismissed } = usePersistedQuery<DismissedItem[]>('dismissed', () =>
@@ -102,17 +104,16 @@ export function useSuggestionGroups(): SectionGroup[] {
   )
   const { data: ai } = useAiStatus()
   const n = (k: Exclude<Bucket, 'ignored'>) => (data && !data.building ? (data[k]?.length ?? 0) : undefined)
-  const item = (to: Bucket | 'assistant', key: string, icon: LucideIcon, count?: number) => ({
-    to,
+  const item = (id: DiscoverSection, key: string, icon: LucideIcon, count?: number) => ({
+    to: slugOf(id),
     key,
     icon,
-    hint: `suggestions.hub.${to}`,
+    hint: `suggestions.hub.${id}`,
     count,
   })
   return [
-    // the assistant leads: it is what the section opens on, and it is optional
-    // - without a configured endpoint its entry stays out of the menu (the
-    // page itself explains when opened directly)
+    // the assistant is optional: without a configured endpoint its entry
+    // stays out of the menu (the page itself explains when opened directly)
     ...(ai?.configured
       ? [{ label: 'suggestions.groupAssistant', items: [item('assistant', 'nav.assistant', Bot)] }]
       : []),
@@ -136,14 +137,11 @@ export function useSuggestionGroups(): SectionGroup[] {
   ]
 }
 
-// the groups a phone shows as tabs: the lists, not the assistant or the
-// ignored items, which are screens of their own behind the app bar
-const TAB_GROUPS = ['suggestions.groupDiscover', 'suggestions.groupLibrary']
-
 // The frame around the sections: heading and side menu on desktop. A phone
-// gets the lists as a row of tabs under the heading, so the next list is one
-// tap to the side instead of back to a menu and in again; the assistant and
-// the ignored items sit in the app bar.
+// gets every section as a row of tabs under the heading, the assistant and
+// the ignored items included, so the next one is a tap to the side instead
+// of back to a menu and in again. The open section is remembered: the next
+// visit to Entdecken opens on it.
 export default function SuggestionsLayout() {
   const { t } = useTranslation()
   const groups = useSuggestionGroups()
@@ -151,13 +149,14 @@ export default function SuggestionsLayout() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const wide = useMediaQuery(WIDE_MQ)
+  const slug = pathname.split('/')[2]
+  const section = sectionOf(slug)
+  useEffect(() => {
+    if (section) rememberSection(section)
+  }, [section])
   // the note about the blob being built belongs to the lists it feeds, not
   // to the assistant, which answers from the catalog either way
-  const onList = !pathname.endsWith('/assistant')
-  const current = pathname.split('/')[2]
-  const tabGroups = groups.filter((g) => TAB_GROUPS.includes(g.label))
-  const onTab = tabGroups.some((g) => g.items.some((i) => i.to === current))
-  const extra = groups.flatMap((g) => (TAB_GROUPS.includes(g.label) ? [] : g.items))
+  const onList = section !== 'assistant'
   // the wrappers are flex columns down to the section, so a section that
   // fills the screen by design (the assistant's log and composer) can claim
   // the remaining height; a list section is unaffected
@@ -166,39 +165,24 @@ export default function SuggestionsLayout() {
       <PageHeader className="mb-4 lg:mb-6" title={t('suggestions.title')} sub={t('suggestions.sub')} />
       <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
         <SectionNav label={t('suggestions.navLabel')} groups={groups} />
-        {!wide && onTab && (
-          <>
-            <PageActions>
-              {extra.map((i) => (
-                <Link
+        {!wide && (
+          // a change of tab replaces the entry: the back gesture leaves the
+          // page, it does not walk back through the tabs
+          <Tabs scroll aria-label={t('suggestions.navLabel')} className="t-tabs--line -mt-2 -mx-4 px-4">
+            {groups.map((g, gi) => [
+              gi > 0 && <span key={g.label} aria-hidden className="mx-1 my-2 w-px shrink-0 bg-border-subtle" />,
+              ...g.items.map((i) => (
+                <Tab
                   key={i.to}
-                  to={i.to}
-                  aria-label={i.count ? `${t(i.key)} (${i.count})` : t(i.key)}
-                  title={t(i.key)}
-                  className="t-iconbtn text-t-secondary hover:text-t-primary"
+                  selected={i.to === slug}
+                  onClick={() => navigate(`${DISCOVER_BASE}/${i.to}`, { replace: true })}
                 >
-                  <i.icon aria-hidden size="1.25em" />
-                </Link>
-              ))}
-            </PageActions>
-            {/* a change of tab replaces the entry: the back gesture leaves the
-                page, it does not walk back through the tabs */}
-            <Tabs scroll aria-label={t('suggestions.navLabel')} className="t-tabs--line -mt-2 -mx-4 px-4">
-              {tabGroups.map((g, gi) => [
-                gi > 0 && <span key={g.label} aria-hidden className="mx-1 my-2 w-px shrink-0 bg-border-subtle" />,
-                ...g.items.map((i) => (
-                  <Tab
-                    key={i.to}
-                    selected={i.to === current}
-                    onClick={() => navigate(`/suggestions/${i.to}`, { replace: true })}
-                  >
-                    {t(i.key)}
-                    {i.count != null && <Count className="ml-1.5">{i.count}</Count>}
-                  </Tab>
-                )),
-              ])}
-            </Tabs>
-          </>
+                  {t(i.key)}
+                  {i.count != null && <Count className="ml-1.5">{i.count}</Count>}
+                </Tab>
+              )),
+            ])}
+          </Tabs>
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* the blob is assembled in the background every half hour; while it
@@ -214,24 +198,6 @@ export default function SuggestionsLayout() {
       </div>
     </div>
   )
-}
-
-// The index opens a section: the first list on a phone, whose tabs lead to
-// the rest. `?tab=` is the old single-page address and still lands on its
-// section.
-export function SuggestionsHub() {
-  const wide = useMediaQuery(WIDE_MQ)
-  const { data: ai, isPending: aiPending } = useAiStatus()
-  const [params] = useSearchParams()
-  const tab = params.get('tab') as Bucket | null
-  if (tab && BUCKETS.includes(tab)) return <Navigate to={`/suggestions/${tab}`} replace />
-  // A desktop opens on the assistant where one is configured: asking is the
-  // shorter way to the same lists, and the menu beside it stays in view the
-  // whole time. A phone opens on the first list: the assistant is a stacked
-  // screen there, and opening on it would put the tabs behind the back gesture.
-  if (!wide) return <Navigate to="/suggestions/watchlist" replace />
-  if (aiPending) return null // no flash of the watchlist before the answer is in
-  return <Navigate to={ai?.configured ? '/suggestions/assistant' : '/suggestions/watchlist'} replace />
 }
 
 // Content-category blocks, in reading order: Anime, then Western animation

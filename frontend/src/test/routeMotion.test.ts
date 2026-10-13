@@ -26,23 +26,25 @@ describe('routeMotion', () => {
   })
 
   it('only fades the content between sibling tabs', () => {
-    expect(phone('/suggestions/watchlist', '/suggestions/trending')).toEqual({ page: '', section: 'anim-route-swap' })
+    expect(phone('/discover/merkliste', '/discover/trending')).toEqual({ page: '', section: 'anim-route-swap' })
+    // the assistant and the ignored items are tabs too, not stacked screens
+    expect(phone('/discover/merkliste', '/discover/assistent').section).toBe('anim-route-swap')
+    // the rules page stacks on settings on a phone
+    expect(phone('/settings', '/rules', { to: '/settings' }).page).toBe('anim-route-push')
   })
 
   it('treats desktop sections as siblings', () => {
-    const m = routeMotion({ path: '/settings/general', back: '/settings' }, { path: '/suggestions/assistant' }, true)
+    const m = routeMotion({ path: '/settings/general', back: '/settings' }, { path: '/discover/assistent' }, true)
     // a sidebar tap from a stacked section is a change of page, not a pop
     expect(m.page).toBe('anim-route-page')
-    expect(
-      routeMotion({ path: '/suggestions/watchlist' }, { path: '/suggestions/assistant', back: '/suggestions' }, true),
-    ).toEqual({
+    expect(routeMotion({ path: '/discover/merkliste' }, { path: '/discover/assistent' }, true)).toEqual({
       page: '',
       section: 'anim-route-swap',
     })
   })
 
   it('does not move again when an index forwards to its first section', () => {
-    expect(routeMotion({ path: '/suggestions' }, { path: '/suggestions/watchlist' }, false, true)).toEqual({
+    expect(routeMotion({ path: '/discover' }, { path: '/discover/merkliste' }, false, true)).toEqual({
       page: '',
       section: '',
     })

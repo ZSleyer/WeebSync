@@ -10,6 +10,7 @@ import { useSeriesModal } from './SeriesModal'
 import { filesLink } from './playLinks'
 import { PANELS, useSettingsGroups } from '../pages/settings/SettingsLayout'
 import { useSuggestionGroups } from '../pages/Suggestions'
+import { DISCOVER_BASE, legacyDiscoverPath } from '../discoverRoutes'
 
 export interface PalettePage {
   to: string
@@ -35,7 +36,8 @@ interface Entry {
 const RECENT_KEY = 'weebsync.palette.recent'
 const readRecent = (): string[] => {
   try {
-    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')
+    // an entry from before Entdecken moved to /discover keeps its place
+    return (JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') as string[]).map(legacyDiscoverPath)
   } catch {
     return []
   }
@@ -112,20 +114,22 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
     navigate(to)
     onClose()
   }
+  // an entry's `to` is relative to its page, unless it leads elsewhere
+  const under = (base: string, to: string) => (to.startsWith('/') ? to : `${base}/${to}`)
   const sectionsOf = (base: string, groups: typeof settings, where: string): Entry[] =>
     groups.flatMap((g) =>
       g.items.map((i) => ({
-        id: `${base}/${i.to}`,
+        id: under(base, i.to),
         label: t(i.key),
         sub: where,
         icon: i.icon,
-        run: go(`${base}/${i.to}`),
+        run: go(under(base, i.to)),
       })),
     )
   const settingSections = sectionsOf('/settings', settings, t('nav.settings'))
   const entries: Entry[] = [
     ...pages.map((p) => ({ id: p.to, label: t(p.key), sub: t('palette.page'), icon: p.icon, run: go(p.to) })),
-    ...sectionsOf('/suggestions', suggestions, t('nav.suggestions')),
+    ...sectionsOf(DISCOVER_BASE, suggestions, t('nav.suggestions')),
     ...settingSections,
     // a panel only where its section is listed: no admin panel for a user
     ...PANELS.flatMap((p) => {
@@ -190,12 +194,12 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   const recent = recentIds.flatMap((id) => entries.filter((e) => e.id === id))
   const discover: Entry[] = suggestions.flatMap((g) =>
     g.items.map((i) => ({
-      id: `/suggestions/${i.to}`,
+      id: `${DISCOVER_BASE}/${i.to}`,
       label: t(i.key),
       sub: t(g.label),
       icon: i.icon,
       count: i.count,
-      run: go(`/suggestions/${i.to}`),
+      run: go(`${DISCOVER_BASE}/${i.to}`),
     })),
   )
   // a file opens the folder it lies in

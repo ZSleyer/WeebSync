@@ -45,9 +45,10 @@ import SuggestionsLayout, {
   BucketSection,
   DuplicatesSection,
   IgnoredSection,
-  SuggestionsHub,
   UpgradesSection,
 } from './pages/Suggestions'
+import { DiscoverIndex, LegacySuggestions } from './components/DiscoverRedirect'
+import { DISCOVER_BASE, discoverPath, slugOf } from './discoverRoutes'
 import Assistant from './pages/Assistant'
 import Rename from './pages/Rename'
 import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/SettingsLayout'
@@ -76,7 +77,7 @@ import Data, { StorePage } from './pages/settings/Data'
 const TABS = [
   { to: '/', key: 'nav.dashboard', icon: House, motion: 'hop' },
   { to: '/watches', key: 'nav.watches', icon: RefreshCw, motion: 'turn' },
-  { to: '/suggestions', key: 'nav.suggestions', icon: Compass, motion: 'needle' },
+  { to: DISCOVER_BASE, key: 'nav.suggestions', icon: Compass, motion: 'needle' },
   { to: '/files', key: 'nav.files', icon: FolderOpen, motion: 'open' },
 ]
 const PHONE_TABS = TABS
@@ -155,10 +156,8 @@ export interface RouteHandle {
 }
 const h = (title: string, back?: string, section?: string): RouteHandle => ({ title, back, section })
 const inSettings = (title: string) => h(title, '/settings', 'nav.settings')
-// the lists are tabs of one page; the assistant and the ignored list are
-// screens stacked on it, with a way back
-const inSuggestions = (title: string) => h(title, '/suggestions', 'nav.suggestions')
-const suggestionTab = (title: string) => h(title, undefined, 'nav.suggestions')
+// every section of Entdecken is a tab of one page, none stacked on another
+const discoverTab = (title: string) => h(title, undefined, 'nav.suggestions')
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -178,35 +177,48 @@ export const router = createBrowserRouter(
         element={<RedirectWithQuery to="/watches" rewrite={(p) => (p.set('view', 'calendar'), p)} />}
       />
       <Route path="/watches" element={<Watches />} handle={h('nav.watches')} />
-      <Route path="/suggestions" element={<SuggestionsLayout />} handle={h('nav.suggestions')}>
-        <Route index element={<SuggestionsHub />} />
+      {/* Entdecken: every section a tab of one page, the assistant and the
+          ignored items included; the index opens the last one used */}
+      <Route path={DISCOVER_BASE} element={<SuggestionsLayout />} handle={h('nav.suggestions')}>
+        <Route index element={<DiscoverIndex />} />
         <Route
-          path="watchlist"
+          path={slugOf('watchlist')}
           element={<BucketSection bucket="watchlist" />}
-          handle={suggestionTab('suggestions.tabWatchlist')}
+          handle={discoverTab('suggestions.tabWatchlist')}
         />
         <Route
-          path="recommended"
+          path={slugOf('recommended')}
           element={<BucketSection bucket="recommended" />}
-          handle={suggestionTab('suggestions.tabRecommended')}
+          handle={discoverTab('suggestions.tabRecommended')}
         />
         <Route
-          path="trending"
+          path={slugOf('trending')}
           element={<BucketSection bucket="trending" />}
-          handle={suggestionTab('suggestions.tabTrending')}
+          handle={discoverTab('suggestions.tabTrending')}
         />
-        <Route path="upgrades" element={<UpgradesSection />} handle={suggestionTab('suggestions.tabUpgrades')} />
         <Route
-          path="incomplete"
-          element={<BucketSection bucket="incomplete" />}
-          handle={suggestionTab('suggestions.tabIncomplete')}
+          path={slugOf('upgrades')}
+          element={<UpgradesSection />}
+          handle={discoverTab('suggestions.tabUpgrades')}
         />
-        <Route path="duplicates" element={<DuplicatesSection />} handle={suggestionTab('suggestions.tabDuplicates')} />
-        <Route path="ignored" element={<IgnoredSection />} handle={inSuggestions('suggestions.ignored')} />
-        <Route path="assistant" element={<Assistant />} handle={inSuggestions('nav.assistant')} />
+        <Route
+          path={slugOf('incomplete')}
+          element={<BucketSection bucket="incomplete" />}
+          handle={discoverTab('suggestions.tabIncomplete')}
+        />
+        <Route
+          path={slugOf('duplicates')}
+          element={<DuplicatesSection />}
+          handle={discoverTab('suggestions.tabDuplicates')}
+        />
+        <Route path={slugOf('ignored')} element={<IgnoredSection />} handle={discoverTab('suggestions.ignored')} />
+        <Route path={slugOf('assistant')} element={<Assistant />} handle={discoverTab('nav.assistant')} />
+        <Route path="*" element={<Navigate to={DISCOVER_BASE} replace />} />
       </Route>
-      <Route path="/assistant" element={<Navigate to="/suggestions/assistant" replace />} />
-      <Route path="/plex" element={<Navigate to="/suggestions" replace />} />
+      {/* the old addresses of the same screens */}
+      <Route path="/suggestions/*" element={<LegacySuggestions />} />
+      <Route path="/assistant" element={<Navigate to={discoverPath('assistant')} replace />} />
+      <Route path="/plex" element={<Navigate to={DISCOVER_BASE} replace />} />
       <Route path="/servers" element={<Navigate to="/settings/servers" replace />} />
       <Route path="/rename" element={<Rename />} handle={h('nav.rename', '/files', 'nav.files')} />
       <Route path="/files/trash" element={<Trash />} handle={h('trash.title', '/files', 'nav.files')} />
