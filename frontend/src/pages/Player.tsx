@@ -1044,7 +1044,9 @@ function QuickMenu({
     return () => el?.removeEventListener('change', pick)
   }, [])
   return (
-    <MediaChromeMenu ref={ref} id={id} hidden anchor="auto" className="t-player-menu">
+    // no anchor: the dock rules of .t-player-menu place it, as the settings
+    // menu sits, and not pinned over its button, which runs off a short player
+    <MediaChromeMenu ref={ref} id={id} hidden className="t-player-menu">
       <div slot="title">{title}</div>
       {options.map((o) => (
         <MediaChromeMenuItem

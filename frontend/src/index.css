@@ -2370,6 +2370,12 @@ li.t-swiperow { border-radius: 0; }
   --media-menu-item-description-max-width: 10rem;
 }
 .t-player:fullscreen .t-player-menu { right: max(1.5rem, env(safe-area-inset-right, 0px)); }
+/* the subtitle and audio menus are plain media-chrome menus: media-chrome
+   lifts only its own settings menu out of the flow, so these are placed over
+   the dock by hand */
+media-chrome-menu.t-player-menu { position: absolute; }
+/* opened straight from its button, there is no menu to go back to */
+media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
 /* never taller than the room between the top edge and the dock: a phone held
    sideways has little of it, and the menu scrolls inside instead of running
    off the picture. media-chrome's own cap reaches up to the very top edge.
@@ -2458,7 +2464,7 @@ li.t-swiperow { border-radius: 0; }
 .t-player-bar > *,
 .t-player-volume > * { border-radius: var(--r-ctl); }
 .t-player-bar :is(media-play-button, media-seek-backward-button, media-seek-forward-button, media-mute-button,
-  media-settings-menu-button, media-fullscreen-button, .t-player-btn) {
+  media-settings-menu-button, media-chrome-menu-button, media-fullscreen-button, .t-player-btn) {
   min-width: var(--pl-hit);
   min-height: var(--pl-hit);
   justify-content: center;
