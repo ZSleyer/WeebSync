@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient, type QueryKey } from '@tanstack/react-query'
+import { Toast, ToastRegion } from 'fluid-lycoris'
 
 declare module '@tanstack/react-query' {
   interface Register {
@@ -94,18 +95,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return () => removeEventListener('pagehide', flush)
   }, [flush])
 
-  // the region sits in the top layer, so a line raised from inside an open
-  // sheet is not hidden behind it. It stays open (empty, it takes no room)
-  // so the live region is there before its text; raised again per line, it
-  // lands on top of whatever opened since.
-  const region = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const el = region.current
-    if (!el?.showPopover) return
-    if (el.matches(':popover-open')) el.hidePopover()
-    el.showPopover()
-  }, [live, notice])
-
   const undo = () => {
     clearTimeout(timer.current)
     pending.current = null
@@ -116,25 +105,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={toast}>
       {children}
-      <div ref={region} popover="manual" role="status" aria-live="polite" className="t-toast-region">
-        {notice && (
-          <div key={notice.id} className="t-toast">
-            <span className="min-w-0 flex-1">{notice.message}</span>
-            <i aria-hidden className="t-toast__time" style={{ animationDuration: `${UNDO_MS}ms` }} />
-          </div>
-        )}
+      {/* the region sits in the top layer and is raised again per line, so a
+          line raised from inside an open sheet lands on top of it */}
+      <ToastRegion raise={`${live?.id}-${notice?.id}`}>
+        {notice && <Toast key={notice.id} message={notice.message} duration={UNDO_MS} />}
         {live && (
-          <div key={live.id} className="t-toast">
-            <span className="min-w-0 flex-1">{live.message}</span>
-            {live.undo && (
-              <button type="button" className="t-toast__undo" onClick={undo}>
-                {t('common.undo')}
-              </button>
-            )}
-            <i aria-hidden className="t-toast__time" style={{ animationDuration: `${UNDO_MS}ms` }} />
-          </div>
+          <Toast
+            key={live.id}
+            message={live.message}
+            action={live.undo ? { label: t('common.undo'), onClick: undo } : undefined}
+            duration={UNDO_MS}
+          />
         )}
-      </div>
+      </ToastRegion>
     </ToastCtx.Provider>
   )
 }

@@ -41,6 +41,21 @@ export function SidePanel({ children, onRequestClose, returnFocus, className, ..
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  // the panel's width on the root while it is mounted, so what floats over
+  // the page (the toasts) can stand clear of it
+  useEffect(() => {
+    const el = ref.current
+    const root = document.documentElement
+    if (!el) return
+    const write = () => root.style.setProperty('--sidepanel-w', `${el.offsetWidth}px`)
+    write()
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(write) : undefined
+    ro?.observe(el)
+    return () => {
+      ro?.disconnect()
+      root.style.removeProperty('--sidepanel-w')
+    }
+  }, [])
   return (
     <section
       ref={ref}

@@ -231,15 +231,15 @@ export function Dialog({
       {isSheet && (
         // The sheet's grabber: the drag affordance, and a plain button so the
         // pull has a single-tap alternative (WCAG 2.2 SC 2.5.1 / 2.5.7). The
-        // pill is M3's 32x4; the hit area around it is 44px tall, because a
-        // 4px target fails SC 2.5.8.
+        // pill is 36x4 in the strong line colour; the hit area around it is
+        // 44px tall, because a 4px target fails SC 2.5.8.
         <button
           type="button"
           aria-label={closeLabel}
           onClick={() => void guarded()}
           className="grid h-11 w-full shrink-0 place-items-center"
         >
-          <span aria-hidden="true" className="h-1 w-8 rounded-full bg-t-muted/60" />
+          <span aria-hidden="true" className="h-1 w-9 rounded-full bg-border-input" />
         </button>
       )}
       {/* The dialog element itself must not scroll (fractional border height

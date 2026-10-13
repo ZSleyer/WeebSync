@@ -1134,7 +1134,8 @@ input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  background: var(--card);
+  --surface: var(--bg-2);
+  background: var(--bg-2);
   border-left: 1px solid var(--line);
 }
 .t-sidepanel .dialog-body {
@@ -1248,8 +1249,10 @@ dialog .overflow-y-auto {
        float it in the middle of the screen */
     margin: 0;
     inset: auto 0 0 0;
-    border-radius: var(--r-dialog) var(--r-dialog) 0 0;
-    border-bottom: 0;
+    border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+    border: 0;
+    --surface: var(--bg-2);
+    background: var(--bg-2);
     box-shadow: 0 -8px 32px rgb(0 0 0 / 0.16);
   }
   /* The second height. The first scroll inside the sheet is the content
@@ -1308,7 +1311,7 @@ dialog .overflow-y-auto {
        opaque, above it, and covering the stretch below it down to the edge */
     position: relative;
     z-index: 1;
-    background: var(--card);
+    background: var(--bg-2);
   }
   dialog.dialog-sheet .dialog-body > footer::after {
     content: "";
@@ -1325,7 +1328,7 @@ dialog .overflow-y-auto {
    blur makes the boundary the shape, not the line). The box lifts with a
    shadow for the same reason. */
 dialog::backdrop {
-  background: color-mix(in srgb, #000 70%, transparent);
+  background: var(--scrim);
   backdrop-filter: blur(6px);
   transition: opacity var(--dur-3) var(--ease-out);
   opacity: 1;
@@ -2281,3 +2284,73 @@ input[type='search']::-webkit-search-results-decoration { -webkit-appearance: no
   .t-art[data-duo] > img { transition: filter 420ms var(--spring-calm); }
   .t-art[data-duo]::before { transition: opacity 420ms var(--spring-calm); }
 }
+
+/* ── Toast: inverted (the text colour as ground), a line and one action. The
+   region is a popover in the top layer, open even while empty (it takes no
+   room and lets clicks through). A phone shows it above the tab bar, a
+   desktop at the bottom right, left of an open side panel (--sidepanel-w,
+   written by SidePanel while it is mounted). ── */
+.t-toast-region {
+  position: fixed;
+  inset: auto 0.75rem calc(var(--nav-h) + var(--safe-b) + 0.75rem);
+  margin: 0 auto;
+  width: auto;
+  max-width: 28rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow: visible;
+  pointer-events: none;
+}
+@media (width >= 64rem) {
+  .t-toast-region {
+    inset: auto calc(var(--sidepanel-w, 0px) + 2rem) 1.5rem auto;
+    width: 23.75rem;
+    margin: 0;
+  }
+}
+.t-toast {
+  pointer-events: auto;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.5rem 0.75rem 1rem;
+  border-radius: var(--r-panel);
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 0.875rem;
+  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.5);
+  animation: t-toast-in var(--dur-2) var(--spring-calm) both;
+}
+.t-toast + .t-toast { margin-top: 0.5rem; }
+.t-toast__text { flex: 1; min-width: 0; }
+.t-toast__action {
+  flex: none;
+  min-height: 2.75rem;
+  padding: 0 0.625rem;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  font: 600 0.875rem/1 var(--f-sans);
+  color: inherit;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .t-toast__action:hover { background: color-mix(in srgb, var(--bg) 14%, transparent); }
+}
+.kbd .t-toast__action:focus-visible { outline-color: var(--bg); outline-offset: -2px; }
+.t-toast__time {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--bg);
+  opacity: 0.6;
+  transform-origin: left;
+  animation: t-toast-time linear both;
+}
+@keyframes t-toast-in { from { opacity: 0; translate: 0 1rem; } }
+@keyframes t-toast-time { to { transform: scaleX(0); } }
