@@ -890,6 +890,7 @@
       "count_other": "{{count}} Folgen",
       "missingCount_one": "{{count}} von {{total}} fehlt",
       "missingCount_other": "{{count}} von {{total}} fehlen",
+      "loading": "lädt gerade",
       "have": "vorhanden",
       "gone": "fehlt",
       "upcoming": "noch nicht ausgestrahlt",

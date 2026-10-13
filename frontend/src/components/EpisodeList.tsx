@@ -1,9 +1,9 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { BookOpen, Check, Clock, ExternalLink, Play, X } from 'lucide-react'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, ButtonLink, Divider, useReveal } from '@weebsync/design-system'
-import { api, fmtBytes, type Entry, type Watch, type WatchEpisode, type WatchEpisodes } from '../api'
+import { api, fmtBytes, type Download, type Entry, type Watch, type WatchEpisode, type WatchEpisodes } from '../api'
 import Loading from './Loading'
 import { isVideo, listFolder, titleFilesIn } from './playLinks'
 
@@ -67,6 +67,25 @@ function episodeOf(eps: WatchEpisode[], name: string): WatchEpisode | undefined 
  * last standalone number against the absolute and then the episode number.
  * The first file per episode wins; a second copy stays in `rest`, still playable.
  */
+/**
+ * The episodes of a watch on their way in, keyed "season-episode", each with
+ * how much of it has arrived: its running or queued downloads from the
+ * watch's folder whose target names the episode as SxxEyy.
+ */
+export function incoming(
+  downloads: Pick<Download, 'status' | 'serverId' | 'remotePath' | 'localPath' | 'size' | 'transferred'>[],
+  w: Pick<Watch, 'serverId' | 'remotePath'>,
+) {
+  const m = new Map<string, number>()
+  for (const d of downloads) {
+    if (d.status !== 'running' && d.status !== 'queued') continue
+    if (d.serverId !== w.serverId || !d.remotePath.startsWith(w.remotePath)) continue
+    const se = /S(\d+)E(\d+)/i.exec(d.localPath.slice(d.localPath.lastIndexOf('/') + 1))
+    if (se) m.set(`${Number(se[1])}-${Number(se[2])}`, d.size > 0 ? d.transferred / d.size : 0)
+  }
+  return m
+}
+
 export function matchFiles<F extends { name: string }>(
   episodes: WatchEpisode[],
   files: F[],
@@ -132,6 +151,12 @@ export default function EpisodeList({
       staleTime: 5 * 60_000,
       retry: false,
     })),
+  })
+  // episodes on their way in: a download of this watch whose target names
+  // its SxxEyy. The shared downloads query, patched live by the event stream
+  const { data: downloads = [] } = useQuery({
+    queryKey: ['downloads'],
+    queryFn: () => api.get<Download[]>('/api/downloads'),
   })
   const filesIn = listed.every((q) => !q.isLoading)
   const epsIn = known.every((q) => !q.isLoading)
@@ -240,6 +265,7 @@ export default function EpisodeList({
       {watches.map((w, i) => {
         const q = known[i]
         const eps = q.data?.episodes ?? []
+        const coming = incoming(downloads, w)
         const seasons = [...new Set(eps.map((e) => e.season))]
         // counted here, not taken from the server: a file matched by its
         // absolute number is not missing
@@ -294,15 +320,16 @@ export default function EpisodeList({
                       // number is just as much there
                       const e = f && !raw.have ? { ...raw, have: true } : raw
                       const body = <EpisodeCells ep={e} play={!!f} />
+                      const loading = coming.get(`${e.season}-${e.episode}`)
                       return f ? (
-                        fileRow(f, <StateIcon ep={e} />, body, e)
+                        fileRow(f, <StateIcon ep={e} loading={loading} />, body, e)
                       ) : (
                         <li
                           key={`${e.season}-${e.episode}`}
                           data-state={stateOf(e)}
                           className="t-ep flex items-center gap-1"
                         >
-                          <StateIcon ep={e} />
+                          <StateIcon ep={e} loading={loading} />
                           <span className="flex min-h-9 min-w-0 flex-1 items-center gap-2.5 px-2 py-1 text-sm">
                             {body}
                           </span>
@@ -338,8 +365,32 @@ const stateOf = (ep: WatchEpisode) => (ep.have ? 'have' : ep.upcoming ? 'upcomin
 // The check/cross carries the state as a shape, not only as a colour (WCAG
 // 1.4.1), with the word behind it for screen readers. It is the row's first
 // child: the rail runs through it.
-function StateIcon({ ep }: { ep: WatchEpisode }) {
+// a small ring for an episode on its way in, filled with its bytes; px for
+// Firefox, which ignores a unitless stroke-dashoffset
+const RING = 2 * Math.PI * 6
+
+function StateIcon({ ep, loading }: { ep: WatchEpisode; loading?: number }) {
   const { t } = useTranslation()
+  if (loading !== undefined) {
+    return (
+      <>
+        <svg aria-hidden viewBox="0 0 16 16" className="size-[1em] shrink-0 -rotate-90">
+          <circle cx="8" cy="8" r="6" fill="none" strokeWidth="2.5" className="stroke-border-subtle" />
+          <circle
+            cx="8"
+            cy="8"
+            r="6"
+            fill="none"
+            strokeWidth="2.5"
+            strokeDasharray={`${RING}px`}
+            strokeDashoffset={`${RING * (1 - loading)}px`}
+            className="t-live-ring stroke-accent"
+          />
+        </svg>
+        <span className="sr-only">{t('watch.gaps.loading')}</span>
+      </>
+    )
+  }
   return (
     <>
       {/* an episode that has not aired yet is absent, not missing - marking it

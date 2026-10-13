@@ -1,6 +1,33 @@
 import { describe, expect, it } from 'vitest'
 import type { WatchEpisode } from '../api'
-import { matchFiles } from '../components/EpisodeList'
+import { incoming, matchFiles } from '../components/EpisodeList'
+
+describe('incoming', () => {
+  const w = { serverId: 1, remotePath: '/x/Show' }
+  const d = (localPath: string, more: Record<string, unknown> = {}) => ({
+    status: 'running' as const,
+    serverId: 1,
+    remotePath: '/x/Show/a.mkv',
+    localPath,
+    size: 200,
+    transferred: 50,
+    ...more,
+  })
+  it('keys a running or queued download of the watch by the episode its target names', () => {
+    const got = incoming(
+      [
+        d('/lib/Show/Show - S01E02.mkv'),
+        d('/lib/Show/Show - S01E03.mkv', { status: 'queued', transferred: 0 }),
+        d('/lib/Show/Show - S01E04.mkv', { status: 'done' }),
+        d('/lib/Other/Other - S01E05.mkv', { remotePath: '/x/Other/b.mkv' }),
+        d('/lib/Show/Show - S01E06.mkv', { serverId: 2 }),
+        d('/lib/Show/raw name.mkv'),
+      ] as Parameters<typeof incoming>[0],
+      w,
+    )
+    expect(Object.fromEntries(got)).toEqual({ '1-2': 0.25, '1-3': 0 })
+  })
+})
 
 const ep = (season: number, episode: number, more: Partial<WatchEpisode> = {}): WatchEpisode => ({
   season,

@@ -890,6 +890,7 @@
       "count_other": "{{count}} episodes",
       "missingCount_one": "{{count}} of {{total}} missing",
       "missingCount_other": "{{count}} of {{total}} missing",
+      "loading": "downloading now",
       "have": "present",
       "gone": "missing",
       "upcoming": "not aired yet",
