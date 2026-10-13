@@ -32,6 +32,11 @@ describe('RedirectWithQuery', () => {
     expect(screen.getByText('/files?path=x&source=local#top')).toBeInTheDocument()
   })
 
+  it("keeps the link's own hash when the target names none", () => {
+    mount('/old#match', '/rules')
+    expect(screen.getByText('/rules#match')).toBeInTheDocument()
+  })
+
   it('emits no stray question mark without a query', () => {
     mount('/old', '/settings/general#about')
     expect(screen.getByText('/settings/general#about')).toBeInTheDocument()

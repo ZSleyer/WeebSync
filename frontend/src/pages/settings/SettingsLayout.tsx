@@ -33,7 +33,8 @@ const YOU = [
 ]
 const LIBRARY = [
   { to: 'sync', key: 'settings.nav.sync', icon: RefreshCw, hint: 'settings.hub.sync' },
-  { to: 'rules', key: 'settings.nav.rules', icon: BookOpen, hint: 'settings.hub.rules' },
+  // a page of its own, linked from here and from the sidebar
+  { to: '/rules', key: 'settings.nav.rules', icon: BookOpen, hint: 'settings.hub.rules' },
 ]
 // the library's admin half: the index, the matches and the data stores
 const LIBRARY_ADMIN = [

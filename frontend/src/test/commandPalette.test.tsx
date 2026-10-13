@@ -28,6 +28,11 @@ function FilesProbe() {
   return <p>files {search}</p>
 }
 
+function PathProbe() {
+  const { pathname } = useLocation()
+  return <p>at {pathname}</p>
+}
+
 function Harness() {
   const [open, setOpen] = useState(false)
   return <CommandPalette pages={PAGES} open={open} onOpenChange={setOpen} />
@@ -58,6 +63,8 @@ const app = (isAdmin = false) => {
             <Route path="/calendar" element={<p>calendar page</p>} />
             <Route path="/settings/*" element={<p>settings page</p>} />
             <Route path="/files" element={<FilesProbe />} />
+            <Route path="/discover/*" element={<PathProbe />} />
+            <Route path="/rules" element={<PathProbe />} />
           </Routes>
         </SeriesModalProvider>
       </MemoryRouter>
@@ -116,6 +123,25 @@ describe('CommandPalette', () => {
     expect(screen.getByText('palette.discover')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('option', { name: /suggestions\.tabWatchlist/ }))
     expect(screen.queryByRole('combobox')).toBeNull()
+    expect(await screen.findByText('at /discover/merkliste')).toBeInTheDocument()
+  })
+
+  it('keeps a recent section from before Entdecken moved to /discover', async () => {
+    localStorage.setItem('weebsync.palette.recent', JSON.stringify(['/suggestions/upgrades']))
+    app()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    await screen.findByRole('combobox')
+    expect(screen.getByText('palette.recent')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('option', { name: /suggestions\.tabUpgrades/ })[0])
+    expect(await screen.findByText('at /discover/upgrades')).toBeInTheDocument()
+  })
+
+  it('leads to the rules page of their own', async () => {
+    app()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'settings.nav.rules' } })
+    fireEvent.click(await screen.findByRole('option', { name: /settings\.nav\.rules/ }))
+    expect(await screen.findByText('at /rules')).toBeInTheDocument()
   })
 
   it('forgets a recent entry, by its button or by Delete', async () => {

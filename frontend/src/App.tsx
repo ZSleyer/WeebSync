@@ -14,7 +14,7 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppBar, AppShell, Button, navItemClass, TabBar, useMediaQuery } from 'fluid-lycoris'
+import { AppBar, AppShell, Button, navItemClass, PageHeader, TabBar, useMediaQuery } from 'fluid-lycoris'
 import { api, type Download } from './api'
 import { updateText, useAuth, useEvents, useKeyboardUp, useUpdateHint } from './hooks'
 import Brand from './components/Brand'
@@ -82,11 +82,22 @@ const TABS = [
 ]
 const PHONE_TABS = TABS
 // the rules sit beside settings on a desktop: read more often than the rest
-const RULES = { to: '/settings/rules', key: 'nav.rules', icon: BookOpen, motion: 'open' }
+const RULES = { to: '/rules', key: 'nav.rules', icon: BookOpen, motion: 'open' }
 const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings, motion: 'turn' }
 const NAV = [...TABS, SETTINGS]
 type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
+
+// The rules outside the settings frame: their own heading over the page
+function RulesPage() {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col">
+      <PageHeader className="mb-6" title={t('settings.nav.rules')} />
+      <Rules />
+    </div>
+  )
+}
 
 // Files keeps its folder in state and writes it to the URL itself, so a link
 // into it from the search would be written over. A jump (navigation state
@@ -235,6 +246,13 @@ export const router = createBrowserRouter(
         lazy={() => import('./pages/Viewer').then((m) => ({ Component: m.default }))}
         handle={{ ...h('viewer.title', '/files', 'nav.files'), backHistory: true }}
       />
+      {/* the rules have a page of their own, reached from the sidebar and
+          from settings; on a phone it stacks on settings */}
+      <Route
+        path={RULES.to}
+        element={<RulesPage />}
+        handle={{ title: 'settings.nav.rules', back: '/settings', backHistory: true }}
+      />
       <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
         <Route index element={<SettingsHub />} />
         <Route path="general" element={<General />} handle={inSettings('settings.nav.general')} />
@@ -242,7 +260,7 @@ export const router = createBrowserRouter(
         <Route path="about" element={<About />} handle={inSettings('settings.nav.about')} />
         <Route path="account" element={<Account />} handle={inSettings('settings.nav.account')} />
         <Route path="sync" element={<SyncDefaults />} handle={inSettings('settings.nav.sync')} />
-        <Route path="rules" element={<Rules />} handle={inSettings('settings.nav.rules')} />
+        <Route path="rules" element={<RedirectWithQuery to="/rules" />} />
         <Route path="notifications" element={<Notifications />} handle={inSettings('settings.nav.notifications')} />
         <Route path="servers" element={<Servers />} handle={inSettings('nav.servers')} />
         <Route
