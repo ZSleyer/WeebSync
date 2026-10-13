@@ -2664,6 +2664,34 @@ export interface Schemas {
     trending: Schemas['api.tmdbSuggestion'][]
     watchlist: Schemas['api.tmdbSuggestion'][]
   }
+  'api.todayBanner': {
+    id: number
+    /**
+     * Source is the metadata source of the title, for opening its card
+     */
+    source: string
+    /**
+     * Tier says where the title came from: one of the caller's auto-syncs,
+     * a matched catalog folder, or the default set
+     */
+    tier: "watch" | "match" | "default"
+    /**
+     * Title names the panel for a screen reader; never drawn on the banner
+     */
+    title: string
+    /**
+     * URL is AniList's banner, full width
+     */
+    url: string
+  }
+  'api.todayBannersResponse': {
+    banners: Schemas['api.todayBanner'][]
+    /**
+     * Watches is how many auto-syncs the caller has; with none the page
+     * offers to create the first
+     */
+    watches: number
+  }
   'api.tokenResponse': {
     token: string
   }

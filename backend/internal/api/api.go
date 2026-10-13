@@ -222,6 +222,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/downloads", authed(http.HandlerFunc(s.handleDownloadsList)))
 	mux.Handle("GET /api/downloads/speed", authed(http.HandlerFunc(s.handleSpeedHistory)))
 	mux.Handle("GET /api/downloads/meta", authed(http.HandlerFunc(s.handleDownloadsMeta)))
+	mux.Handle("GET /api/today/banners", authed(http.HandlerFunc(s.handleTodayBanners)))
 	mux.Handle("POST /api/downloads", authed(http.HandlerFunc(s.handleDownloadCreate)))
 	mux.Handle("POST /api/downloads/cancel", authed(http.HandlerFunc(s.handleDownloadsCancel)))
 	mux.Handle("POST /api/downloads/bulk", authed(http.HandlerFunc(s.handleDownloadsBulk)))

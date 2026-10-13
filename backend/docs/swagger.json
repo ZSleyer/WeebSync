@@ -6237,6 +6237,62 @@
                 ],
                 "type": "object"
             },
+            "api.todayBanner": {
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "source": {
+                        "description": "Source is the metadata source of the title, for opening its card",
+                        "type": "string"
+                    },
+                    "tier": {
+                        "description": "Tier says where the title came from: one of the caller's auto-syncs,\na matched catalog folder, or the default set",
+                        "enum": [
+                            "watch",
+                            "match",
+                            "default"
+                        ],
+                        "type": "string"
+                    },
+                    "title": {
+                        "description": "Title names the panel for a screen reader; never drawn on the banner",
+                        "type": "string"
+                    },
+                    "url": {
+                        "description": "URL is AniList's banner, full width",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "source",
+                    "id",
+                    "url",
+                    "title",
+                    "tier"
+                ],
+                "type": "object"
+            },
+            "api.todayBannersResponse": {
+                "properties": {
+                    "banners": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.todayBanner"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "watches": {
+                        "description": "Watches is how many auto-syncs the caller has; with none the page\noffers to create the first",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "banners",
+                    "watches"
+                ],
+                "type": "object"
+            },
             "api.tokenResponse": {
                 "properties": {
                     "token": {
@@ -17449,6 +17505,52 @@
                 "summary": "TMDB suggestions",
                 "tags": [
                     "Suggestions"
+                ]
+            }
+        },
+        "/api/today/banners": {
+            "get": {
+                "description": "A random draw of at most five AniList banners for the Today page: the caller's auto-syncs first, then matched catalog folders, then a default set. Only cached media is read; a default title not cached yet is fetched in the background and shows up on a later visit. An empty list means no picture is reachable.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.todayBannersResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Today banners",
+                "tags": [
+                    "Downloads"
                 ]
             }
         },
