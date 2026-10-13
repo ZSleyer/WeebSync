@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Skeleton } from '@weebsync/design-system'
+import { Skeleton } from 'fluid-lycoris'
 import { useTranslation } from 'react-i18next'
 import { api, type NameExplain, type NamePiece } from '../api'
 

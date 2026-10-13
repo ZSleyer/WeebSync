@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@weebsync/design-system'
+import { Button } from 'fluid-lycoris'
 import { assetRefs } from './assetRefs'
 
 // A deploy swaps the hashed bundles under a tab that is still open: lazy

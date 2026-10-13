@@ -28,7 +28,7 @@ import {
   TransferCard,
   TrendChart,
   SuggestionCard,
-} from '@weebsync/design-system'
+} from 'fluid-lycoris'
 
 describe('Cover', () => {
   it('renders the hatched placeholder and its children when there is no src', () => {

@@ -2,18 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { KeyRound, Lock, LockOpen, Pencil, Plus, PlugZap, Save, Trash2, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import {
-  ActionBar,
-  Badge,
-  Button,
-  Dialog,
-  EmptyState,
-  Field,
-  Input,
-  Panel,
-  Segmented,
-  Select,
-} from '@weebsync/design-system'
+import { ActionBar, Badge, Button, Dialog, EmptyState, Field, Input, Panel, Segmented, Select } from 'fluid-lycoris'
 import { api, keyConflictOf, type KeyConflict, type ServerInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import HostKeyPrompt from '../../components/HostKeyPrompt'

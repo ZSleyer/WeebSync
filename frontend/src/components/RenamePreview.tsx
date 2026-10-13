@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@weebsync/design-system'
+import { Badge } from 'fluid-lycoris'
 import type { Entry, RenamePair } from '../api'
 import Loading from './Loading'
 import { TARGET_LABEL, classifyTargets, type TargetStatus } from './useTargetFolder'

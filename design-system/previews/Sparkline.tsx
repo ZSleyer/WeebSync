@@ -1,4 +1,4 @@
-import { Sparkline } from '@weebsync/design-system'
+import { Sparkline } from 'fluid-lycoris'
 
 const rising = [2, 3, 3, 5, 4, 6, 8, 7, 9, 12, 11, 14]
 const flat = [5, 5, 5, 5, 5, 5, 5, 5]

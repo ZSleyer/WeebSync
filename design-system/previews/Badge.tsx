@@ -1,4 +1,4 @@
-import { Badge, Checkbox, Input } from '@weebsync/design-system'
+import { Badge, Checkbox, Input } from 'fluid-lycoris'
 
 export const Tones = () => (
   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

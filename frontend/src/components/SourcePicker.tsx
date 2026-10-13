@@ -1,7 +1,7 @@
 import { ChevronDown, HardDrive, Plus, Server } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
-import { Menu, MenuItem, useMenu } from '@weebsync/design-system'
+import { Menu, MenuItem, useMenu } from 'fluid-lycoris'
 import type { ServerInfo } from '../api'
 import { ServerIcon } from './serverIcon'
 

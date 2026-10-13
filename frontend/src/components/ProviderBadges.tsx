@@ -1,5 +1,5 @@
 import { ExternalLink } from 'lucide-react'
-import { Badge } from '@weebsync/design-system'
+import { Badge } from 'fluid-lycoris'
 import type { ProviderLinks } from '../api'
 
 const PROVIDER_LABEL: Record<string, string> = {

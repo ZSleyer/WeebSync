@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { SwipeDeck } from '@weebsync/design-system'
+import { SwipeDeck } from 'fluid-lycoris'
 
 // jsdom runs no transitions, so the landing is driven by a transitionEnd fired
 // by hand here - in a browser the same event arrives on its own, and the deck's

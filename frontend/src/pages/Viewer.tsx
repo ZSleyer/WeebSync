@@ -48,7 +48,7 @@ import {
   Tabs,
   Toolbar,
   useSwipe,
-} from '@weebsync/design-system'
+} from 'fluid-lycoris'
 import { api, type Entry } from '../api'
 import Loading from '../components/Loading'
 import { clock, useAudio, type Repeat as RepeatMode } from '../components/AudioPlayer'

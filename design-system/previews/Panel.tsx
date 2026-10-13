@@ -1,4 +1,4 @@
-import { Badge, Panel } from '@weebsync/design-system'
+import { Badge, Panel } from 'fluid-lycoris'
 
 export const Standard = () => (
   <div style={{ display: 'grid', gap: 12, maxWidth: 420 }}>

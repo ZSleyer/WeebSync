@@ -1,4 +1,4 @@
-import { Menu, MenuItem } from '@weebsync/design-system'
+import { Menu, MenuItem } from 'fluid-lycoris'
 
 export const States = () => (
   <div style={{ maxWidth: 260 }}>

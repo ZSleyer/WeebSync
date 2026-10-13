@@ -48,7 +48,7 @@ import {
   SidePanel,
   useBackEntry,
   useMediaQuery,
-} from '@weebsync/design-system'
+} from 'fluid-lycoris'
 import { api, epLabel, mediaTitle, watchTitle, type Media, type MediaExtras, type Review, type Watch } from '../api'
 import {
   behindLabel,

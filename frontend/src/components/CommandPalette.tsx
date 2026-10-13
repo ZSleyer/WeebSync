@@ -3,7 +3,7 @@ import { File, Folder, Search, Sparkles, Settings, Tv, X, type LucideIcon } from
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Count, Dialog } from '@weebsync/design-system'
+import { Count, Dialog } from 'fluid-lycoris'
 import { api, mediaTitle, type ServerInfo, type Watch } from '../api'
 import { localColor, serverColor, tint, type SourceColorName } from './sourceColor'
 import { useSeriesModal } from './SeriesModal'

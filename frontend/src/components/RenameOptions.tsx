@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Select } from '@weebsync/design-system'
+import { Badge, Button, Input, Select } from 'fluid-lycoris'
 import { api, type Media } from '../api'
 
 // Every two-column row of the watch dialog - here and in WatchDialog itself -

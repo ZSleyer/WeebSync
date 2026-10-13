@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Checkbox, Panel } from '@weebsync/design-system'
+import { Badge, Checkbox, Panel } from 'fluid-lycoris'
 import { api } from '../../api'
 import { updateText, useAuth, useVersion } from '../../hooks'
 import Brand from '../../components/Brand'

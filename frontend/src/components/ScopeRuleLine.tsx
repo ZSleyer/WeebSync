@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, Checkbox } from '@weebsync/design-system'
+import { Button, Checkbox } from 'fluid-lycoris'
 import { api } from '../api'
 import { scopeChanged, useScopeInfo } from './useCatalogView'
 

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Dialog, Skeleton } from '@weebsync/design-system'
+import { Badge, Button, Dialog, Skeleton } from 'fluid-lycoris'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, type CatalogExplain } from '../api'

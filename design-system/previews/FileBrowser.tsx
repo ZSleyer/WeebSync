@@ -1,4 +1,4 @@
-import { Breadcrumb, FileBrowser, FileRow } from '@weebsync/design-system'
+import { Breadcrumb, FileBrowser, FileRow } from 'fluid-lycoris'
 
 export const Listing = () => (
   <div style={{ maxWidth: 520 }}>

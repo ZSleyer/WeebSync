@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, ButtonLink, Input, Panel } from '@weebsync/design-system'
+import { Badge, Button, ButtonLink, Input, Panel } from 'fluid-lycoris'
 import { api } from '../api'
 import SetupSteps from '../components/SetupSteps'
 import { EnvBadge } from './settings/useSettingsForm'

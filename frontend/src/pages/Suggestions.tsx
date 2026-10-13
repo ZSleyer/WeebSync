@@ -57,7 +57,7 @@ import {
   Tab,
   Tabs,
   useMediaQuery,
-} from '@weebsync/design-system'
+} from 'fluid-lycoris'
 import {
   api,
   type SuggestionItem,

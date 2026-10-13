@@ -1,4 +1,4 @@
-import { Breadcrumb, Button } from '@weebsync/design-system'
+import { Breadcrumb, Button } from 'fluid-lycoris'
 
 export const RemotePath = () => (
   <div style={{ maxWidth: 520 }}>

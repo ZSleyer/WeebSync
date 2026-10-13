@@ -1,4 +1,4 @@
-import { Field, Textarea } from '@weebsync/design-system'
+import { Field, Textarea } from 'fluid-lycoris'
 
 // Same box as Input - border, focus ring, padding and the disabled look all
 // come from .t-input, only the height grows with `rows`.

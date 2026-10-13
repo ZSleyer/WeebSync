@@ -1,6 +1,6 @@
 import { ChevronDown } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Menu, MenuItem, useMenu } from '@weebsync/design-system'
+import { Menu, MenuItem, useMenu } from 'fluid-lycoris'
 
 export interface PillOption<T extends string> {
   value: T

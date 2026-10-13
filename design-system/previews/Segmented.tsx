@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Segmented } from '@weebsync/design-system'
+import { Segmented } from 'fluid-lycoris'
 
 // One of a few views: the pressed option is the primary button. Icon-only
 // options carry an aria-label.

@@ -1,4 +1,4 @@
-import { AppBar, AppShell, Button, IconButton, NavItem, Panel, TabBar } from '@weebsync/design-system'
+import { AppBar, AppShell, Button, IconButton, NavItem, Panel, TabBar } from 'fluid-lycoris'
 
 // A phone-sized frame around the shell: the point of the component is that the
 // bars are rows of a box exactly one viewport tall, so it only shows anything

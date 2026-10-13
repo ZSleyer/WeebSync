@@ -3,16 +3,7 @@ import { Link } from 'react-router'
 import { File, Folder, Trash2, Undo2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import {
-  ActionBar,
-  Button,
-  buttonClass,
-  Count,
-  IconButton,
-  PageHeader,
-  Panel,
-  useMediaQuery,
-} from '@weebsync/design-system'
+import { ActionBar, Button, buttonClass, Count, IconButton, PageHeader, Panel, useMediaQuery } from 'fluid-lycoris'
 import { api, fmtBytes, type TrashEntry } from '../api'
 import { useAuth } from '../hooks'
 import { useConfirm } from '../components/confirm'

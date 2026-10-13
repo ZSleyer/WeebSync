@@ -1,4 +1,4 @@
-import { EmptyState } from '@weebsync/design-system'
+import { EmptyState } from 'fluid-lycoris'
 
 export const NoWatches = () => (
   <div style={{ maxWidth: 520 }}>

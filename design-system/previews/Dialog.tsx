@@ -1,4 +1,4 @@
-import { Button, Dialog } from '@weebsync/design-system'
+import { Button, Dialog } from 'fluid-lycoris'
 
 // Dialog opens as a real modal on mount, so this card shows the native
 // <dialog> itself: top layer, backdrop, Escape. One card on purpose - two

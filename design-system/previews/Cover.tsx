@@ -1,4 +1,4 @@
-import { Cover } from '@weebsync/design-system'
+import { Cover } from 'fluid-lycoris'
 
 // Data-URI posters in deliberately mismatched aspect ratios: the frame is fixed
 // and object-cover crops, so none of them may change the layout.

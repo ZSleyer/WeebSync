@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Field, Segmented, Select } from '@weebsync/design-system'
+import { Field, Segmented, Select } from 'fluid-lycoris'
 import type { SubfolderMode } from '../api'
 import { titleFolder } from './useTargetFolder'
 

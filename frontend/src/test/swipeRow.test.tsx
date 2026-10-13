@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { SwipeRow } from '@weebsync/design-system'
+import { SwipeRow } from 'fluid-lycoris'
 
 // jsdom lays nothing out: the buttons measure 0 wide, so any swipe past the
 // slop towards a side with buttons opens the row on them

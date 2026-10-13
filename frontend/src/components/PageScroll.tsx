@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowUp, Check, RefreshCw } from 'lucide-react'
-import { haptic, useMediaQuery } from '@weebsync/design-system'
+import { haptic, useMediaQuery } from 'fluid-lycoris'
 import { WIDE_MQ } from './PageActions'
 
 // How far a phone page has to scroll before the large title has gone and the

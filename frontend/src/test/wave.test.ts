@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { wavePath, waveRamp } from '@weebsync/design-system'
+import { wavePath, waveRamp } from 'fluid-lycoris'
 
 const ys = (d: string) =>
   d

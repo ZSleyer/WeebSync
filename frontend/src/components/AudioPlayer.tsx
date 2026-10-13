@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useEffectEvent, useRef, useState,
 import { Link, useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Music, Pause, Play, SkipForward, X } from 'lucide-react'
-import { IconButton } from '@weebsync/design-system'
+import { IconButton } from 'fluid-lycoris'
 import type { Entry } from '../api'
 import { useStored } from '../hooks/useStored'
 import { streamUrl, viewHref } from './playLinks'

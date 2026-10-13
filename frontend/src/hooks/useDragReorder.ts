@@ -1,5 +1,5 @@
 import { useRef, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
-import { EASE_THROW } from '@weebsync/design-system'
+import { EASE_THROW } from 'fluid-lycoris'
 
 // Drag a row by its handle to a new place in a list. Pointer events, so a mouse
 // and a finger drag alike; the handle carries `touch-action: none`, the rest of

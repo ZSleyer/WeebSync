@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
 import { ExternalLink, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge, ButtonLink } from '@weebsync/design-system'
+import { Badge, ButtonLink } from 'fluid-lycoris'
 import type { Airing, Media, MediaExtras } from '../api'
 import { countdown } from '../countdown'
 

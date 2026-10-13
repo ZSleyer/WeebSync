@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useMediaQuery } from '@weebsync/design-system'
+import { useMediaQuery } from 'fluid-lycoris'
 
 /** The app bar's actions slot: the element the shell holds in state. */
 export const AppBarActions = createContext<HTMLElement | null>(null)

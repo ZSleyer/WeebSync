@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react'
-import { useLongPress } from '@weebsync/design-system'
+import { useLongPress } from 'fluid-lycoris'
 
 /**
  * A list item or wrapper that opens its item's menu on a long press with a

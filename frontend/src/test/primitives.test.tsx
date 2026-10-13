@@ -25,7 +25,7 @@ import {
   Tabs,
   Textarea,
   Toolbar,
-} from '@weebsync/design-system'
+} from 'fluid-lycoris'
 
 // The design system is imported through the same alias the app uses, so these
 // tests exercise the source the bundler actually ships.

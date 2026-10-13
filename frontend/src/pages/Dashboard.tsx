@@ -73,7 +73,7 @@ import {
   useMediaQuery,
   type BadgeTone,
   type SwipeAction,
-} from '@weebsync/design-system'
+} from 'fluid-lycoris'
 import {
   api,
   downloadLabel,

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Panel } from '@weebsync/design-system'
+import { Badge, Panel } from 'fluid-lycoris'
 
-// Tempest-style loading indicator: three staggered pulsing bars + label.
+// Loading indicator: three staggered pulsing bars + label.
 // Motion is globally gated via [data-motion="off"] / prefers-reduced-motion.
 export default function Loading({ label, className = '' }: { label?: ReactNode; className?: string }) {
   const { t } = useTranslation()

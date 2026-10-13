@@ -1,7 +1,7 @@
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { Files as FilesIcon } from 'lucide-react'
-import { Badge, Button, Cover, Panel } from '@weebsync/design-system'
+import { Badge, Button, Cover, Panel } from 'fluid-lycoris'
 import { mediaTitle, type Media } from '../api'
 import { countdown } from '../countdown'
 import { useSeriesModal } from './SeriesModal'

@@ -32,7 +32,7 @@ import {
   Panel,
   useMediaQuery,
   useMenu,
-} from '@weebsync/design-system'
+} from 'fluid-lycoris'
 import {
   api,
   mediaTitle,

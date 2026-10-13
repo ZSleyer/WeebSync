@@ -1,4 +1,4 @@
-import { Count } from '@weebsync/design-system'
+import { Count } from 'fluid-lycoris'
 
 export const Numbers = () => (
   <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { Navigate, NavLink } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Button, Input, navItemClass, Panel, useMediaQuery } from '@weebsync/design-system'
+import { Button, Input, navItemClass, Panel, useMediaQuery } from 'fluid-lycoris'
 import { api } from '../../api'
 import { useAuth, useUpdateHint } from '../../hooks'
 import { WIDE_MQ } from '../../components/PageActions'

@@ -1,4 +1,4 @@
-import { Select } from '@weebsync/design-system'
+import { Select } from 'fluid-lycoris'
 
 export const Protocol = () => (
   <div style={{ maxWidth: 280 }}>

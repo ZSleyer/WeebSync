@@ -1,4 +1,4 @@
-import { Badge, Button, TransferCard } from '@weebsync/design-system'
+import { Badge, Button, TransferCard } from 'fluid-lycoris'
 
 const poster = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="460" height="650"><rect width="460" height="650" fill="hsl(265 45% 32%)"/></svg>',

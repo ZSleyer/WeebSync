@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { SidePanel } from '@weebsync/design-system'
+import { SidePanel } from 'fluid-lycoris'
 
 describe('SidePanel', () => {
   it('is a non-modal named dialog that takes focus and gives it back', () => {

@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Input } from '@weebsync/design-system'
+import { Input } from 'fluid-lycoris'
 import { api, type Entry } from '../api'
 
 // Split a root-relative partial path into its parent dir and the last segment,

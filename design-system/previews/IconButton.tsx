@@ -1,4 +1,4 @@
-import { IconButton } from '@weebsync/design-system'
+import { IconButton } from 'fluid-lycoris'
 
 const Question = () => (
   <span

@@ -11,7 +11,7 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "paths": {
-      "@weebsync/design-system": ["../design-system/src/index.ts"]
+      "fluid-lycoris": ["../design-system/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

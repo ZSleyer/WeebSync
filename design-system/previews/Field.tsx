@@ -1,4 +1,4 @@
-import { Field, FieldRow, Input, Select } from '@weebsync/design-system'
+import { Field, FieldRow, Input, Select } from 'fluid-lycoris'
 
 export const Row = () => (
   <FieldRow>

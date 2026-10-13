@@ -1,4 +1,4 @@
-import { Tab, Tabs } from '@weebsync/design-system'
+import { Tab, Tabs } from 'fluid-lycoris'
 
 export const Sections = () => (
   <div style={{ maxWidth: 480 }}>

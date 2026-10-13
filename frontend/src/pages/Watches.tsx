@@ -62,7 +62,7 @@ import {
   SwipeDeck,
   useMediaQuery,
   useMenu,
-} from '@weebsync/design-system'
+} from 'fluid-lycoris'
 import { api, epLabel, mediaTitle, type Watch } from '../api'
 import ActionSheet from '../components/ActionSheet'
 import Press from '../components/Press'

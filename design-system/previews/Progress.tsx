@@ -1,4 +1,4 @@
-import { Progress } from '@weebsync/design-system'
+import { Progress } from 'fluid-lycoris'
 
 /** The download queue's bar: a full-height one for the transfer in progress, the thin one for the rows behind it. */
 export const Sizes = () => (

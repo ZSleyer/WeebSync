@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ActionBar, Badge, Button } from '@weebsync/design-system'
+import { ActionBar, Badge, Button } from 'fluid-lycoris'
 import { PageFooter } from '../../components/PageActions'
 import { api } from '../../api'
 

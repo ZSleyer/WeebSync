@@ -1,4 +1,4 @@
-import { Button } from '@weebsync/design-system'
+import { Button } from 'fluid-lycoris'
 
 export const Variants = () => (
   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

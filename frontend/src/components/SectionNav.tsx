@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { ChevronRight, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Badge, Count, navItemClass } from '@weebsync/design-system'
+import { Badge, Count, navItemClass } from 'fluid-lycoris'
 
 // One entry of a section menu: a relative route, its label and icon, an
 // optional hint under the label (hub rows), an optional count and an

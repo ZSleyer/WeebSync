@@ -1,6 +1,6 @@
 import { ArrowRight, Clapperboard, Download, ExternalLink, EyeOff, FolderOpen, Info, ListVideo, Tv } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, ButtonLink, Cover, Disclosure, Panel, Radio } from '@weebsync/design-system'
+import { Badge, Button, ButtonLink, Cover, Disclosure, Panel, Radio } from 'fluid-lycoris'
 import type { LocalSeason, UpgradeDims, UpgradeSuggestion, UpgradeVariant } from '../api'
 import { ProviderBadges } from './ProviderBadges'
 import type { WatchFields } from './WatchDialog'

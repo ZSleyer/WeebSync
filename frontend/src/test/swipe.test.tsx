@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { useSwipe, type SwipeOptions } from '@weebsync/design-system'
+import { useSwipe, type SwipeOptions } from 'fluid-lycoris'
 
 // jsdom reports clientWidth 0, so the commit distance is the 60px floor and a
 // 100px drag pages while a 30px one settles back. Pointer capture is absent

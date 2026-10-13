@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, Cover } from '@weebsync/design-system'
+import { Button, Cover } from 'fluid-lycoris'
 import { api, fmtBytes, mediaTitle, type Entry, type Watch, type WatchEpisode, type WatchEpisodes } from '../api'
 import { matchFiles } from '../components/EpisodeList'
 import { catalogTitle, watchOf } from '../components/playLinks'

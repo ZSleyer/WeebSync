@@ -1,4 +1,4 @@
-import { Panel, Skeleton } from '@weebsync/design-system'
+import { Panel, Skeleton } from 'fluid-lycoris'
 
 export const Shapes = () => (
   <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>

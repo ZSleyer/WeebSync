@@ -1,4 +1,4 @@
-import { Checkbox } from '@weebsync/design-system'
+import { Checkbox } from 'fluid-lycoris'
 
 export const WithLabels = () => (
   <div style={{ display: 'grid', gap: 8 }}>

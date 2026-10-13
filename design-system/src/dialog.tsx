@@ -3,7 +3,7 @@ import { SHEET_MQ, useMediaQuery } from './useMediaQuery'
 import { useSheetDrag } from './useSheetDrag'
 import { useBackEntry } from './useBackEntry'
 
-// The native <dialog> mechanics WeebSync repeats in every modal: open it as a
+// The native <dialog> mechanics every modal repeats: open it as a
 // modal on mount, close on a backdrop click but not on a drag that merely ended
 // there, and report the outcome once through the dialog's own close event so
 // every exit path behaves the same.

@@ -13,7 +13,7 @@ import type {
 import { useEffect, useRef, useState } from 'react'
 import { useWave } from './wave'
 
-// Presentational wrappers around the Tempest classes in styles.css. Deliberately
+// Presentational wrappers around the t-* classes in fluid-lycoris.css. Deliberately
 // free of app concerns - no data fetching, no i18n, no router - so a component
 // renders identically here, in the app and in a design tool. Every size comes
 // from the --ctl-* variables; nothing here sets a height of its own.
@@ -31,7 +31,7 @@ export interface SurfaceProps {
 
 /**
  * The page surface every other component expects underneath it: the base
- * background plus its matching text colour. WeebSync is dark-first, so a
+ * background plus its matching text colour. Fluid Lycoris is dark-first, so a
  * component dropped onto a white page loses its contrast - wrap a screen, a
  * section, or a preview in this and the palette is right by construction.
  */

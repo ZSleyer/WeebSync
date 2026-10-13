@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useReveal } from '@weebsync/design-system'
+import { useReveal } from 'fluid-lycoris'
 
 function List({ k = 2 }: { k?: number }) {
   const box = useRef<HTMLUListElement>(null)

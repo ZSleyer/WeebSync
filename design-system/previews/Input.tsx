@@ -1,4 +1,4 @@
-import { Input } from '@weebsync/design-system'
+import { Input } from 'fluid-lycoris'
 
 export const Text = () => (
   <div style={{ display: 'grid', gap: 8, maxWidth: 360 }}>

@@ -1,10 +1,10 @@
-import { Badge, Button, Panel, Surface } from '@weebsync/design-system'
+import { Badge, Button, Panel, Surface } from 'fluid-lycoris'
 
 export const Dark = () => (
   <Surface>
     <Panel className="p-4">
       <Badge tone="accent">Dunkel</Badge>
-      <p className="mt-2 text-sm text-t-secondary">Die Grundfläche, auf der WeebSync gebaut ist.</p>
+      <p className="mt-2 text-sm text-t-secondary">Die Grundfläche, auf der alles andere liegt.</p>
       <div className="mt-3 flex gap-2">
         <Button size="sm">Abbrechen</Button>
         <Button size="sm" variant="primary">Speichern</Button>

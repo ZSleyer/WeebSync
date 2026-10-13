@@ -18,7 +18,7 @@ import { VELOCITY_MS } from './gesture'
 import { haptic } from './haptics'
 import { Badge, buttonClass, COVER_BOX, markOverflow, Panel, Progress, Slot } from './primitives'
 
-// The composed surfaces WeebSync reuses across pages: media tiles, the file
+// The composed surfaces a media app reuses across pages: media tiles, the file
 // browser, calendar entries, menus and modals. Same markup the app renders,
 // with every piece of data arriving as a prop - no fetching, no router, no i18n.
 
@@ -1549,7 +1549,7 @@ export interface ModalProps {
 }
 
 /**
- * The one anatomy every WeebSync modal shares, inside a `Dialog`: the header
+ * The one anatomy every modal shares, inside a `Dialog`: the header
  * (title, a line of context, close at the right), the body that scrolls on
  * its own so header and footer stay put, and the footer with side actions at
  * the left and cancel plus the main action at the right.

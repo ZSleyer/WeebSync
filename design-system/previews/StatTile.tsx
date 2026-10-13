@@ -1,4 +1,4 @@
-import { Progress, Sparkline, StatTile } from '@weebsync/design-system'
+import { Progress, Sparkline, StatTile } from 'fluid-lycoris'
 
 const samples = [0, 0, 1, 2, 2, 3, 3, 2, 4, 5, 4, 6]
 

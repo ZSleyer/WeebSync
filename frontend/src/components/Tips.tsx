@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Lightbulb, X } from 'lucide-react'
-import { Button, IconButton, Panel, useMediaQuery } from '@weebsync/design-system'
+import { Button, IconButton, Panel, useMediaQuery } from 'fluid-lycoris'
 import { api, type Tips as TipsState } from '../api'
 import { WIDE_MQ } from './PageActions'
 

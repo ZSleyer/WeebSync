@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { Menu, MenuItem, useMenu } from '@weebsync/design-system'
+import { Menu, MenuItem, useMenu } from 'fluid-lycoris'
 
 // The wrapper ref decides what counts as "inside", so the hook is exercised
 // through the markup it is documented with: one element holding both the

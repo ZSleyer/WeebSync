@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { moveVelocity, project, releaseVelocity, startVelocity, throwMs } from '@weebsync/design-system'
+import { moveVelocity, project, releaseVelocity, startVelocity, throwMs } from 'fluid-lycoris'
 
 describe('gesture', () => {
   it('reads the speed over the last window, not the whole gesture', () => {

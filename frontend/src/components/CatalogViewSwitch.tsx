@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { LayoutGrid, List, Pin } from 'lucide-react'
-import { Button, Segmented } from '@weebsync/design-system'
+import { Button, Segmented } from 'fluid-lycoris'
 import type { CatalogViewValue } from './useCatalogView'
 
 // Classic or catalog as one pressed-button group, the same control the

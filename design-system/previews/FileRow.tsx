@@ -1,4 +1,4 @@
-import { FileRow } from '@weebsync/design-system'
+import { FileRow } from 'fluid-lycoris'
 
 export const Entries = () => (
   <div style={{ maxWidth: 480, border: '1px solid var(--border-subtle)' }}>

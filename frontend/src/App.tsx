@@ -14,7 +14,7 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppBar, AppShell, Button, navItemClass, TabBar, useMediaQuery } from '@weebsync/design-system'
+import { AppBar, AppShell, Button, navItemClass, TabBar, useMediaQuery } from 'fluid-lycoris'
 import { api, type Download } from './api'
 import { updateText, useAuth, useEvents, useKeyboardUp, useUpdateHint } from './hooks'
 import Brand from './components/Brand'

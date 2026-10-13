@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Field, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Field, Input, Panel, Select } from 'fluid-lycoris'
 import { api, keyConflictOf, type KeyConflict } from '../api'
 import HostKeyPrompt from './HostKeyPrompt'
 import { useSettingsForm, EnvBadge } from '../pages/settings/useSettingsForm'

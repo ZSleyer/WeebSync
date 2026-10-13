@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Badge, Input, Panel } from '@weebsync/design-system'
+import { Badge, Input, Panel } from 'fluid-lycoris'
 import { EnvBadge, SaveBar, useSettingsForm } from './useSettingsForm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 

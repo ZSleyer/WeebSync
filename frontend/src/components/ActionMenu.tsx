@@ -1,5 +1,5 @@
 import { Ellipsis } from 'lucide-react'
-import { IconButton, Menu, MenuItem, SHEET_MQ, useMediaQuery, useMenu } from '@weebsync/design-system'
+import { IconButton, Menu, MenuItem, SHEET_MQ, useMediaQuery, useMenu } from 'fluid-lycoris'
 import ActionSheet, { type SheetAction } from './ActionSheet'
 
 /**

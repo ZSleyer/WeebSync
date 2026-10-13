@@ -1,7 +1,7 @@
 import { Check, Trash2, X } from 'lucide-react'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Dialog } from '@weebsync/design-system'
+import { Button, Dialog } from 'fluid-lycoris'
 
 export interface ConfirmOptions {
   title?: string

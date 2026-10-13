@@ -1,7 +1,7 @@
 {
-  "name": "@weebsync/design-system",
+  "name": "fluid-lycoris",
   "version": "0.1.0",
-  "description": "WeebSync Tempest design system: presentational React components over the app's Tempest stylesheet",
+  "description": "Fluid Lycoris: Material 3 Expressive motion with a red/teal colour code. Theme tokens, component styles and presentational React components",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

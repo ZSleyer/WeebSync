@@ -1,4 +1,4 @@
-import { CalendarEntry } from '@weebsync/design-system'
+import { CalendarEntry } from 'fluid-lycoris'
 
 export const Upcoming = () => (
   <div style={{ display: 'grid', gap: 8, maxWidth: 480 }}>

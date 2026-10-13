@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the design-system package from the app's own toolchain: no separate
 # dependency tree, and styles.css is a byte copy of what the app ships, so a
-# component can never render differently here than in WeebSync.
+# component can never render differently here than in the host app.
 set -euo pipefail
 SRC="$(cd "$(dirname "$0")" && pwd)"
 FE="$SRC/../frontend"

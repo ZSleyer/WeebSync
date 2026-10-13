@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { haptic } from '@weebsync/design-system'
+import { haptic } from 'fluid-lycoris'
 
 const patch = (v: unknown, activation?: { hasBeenActive: boolean }) => {
   Object.defineProperty(navigator, 'vibrate', { value: v, configurable: true })

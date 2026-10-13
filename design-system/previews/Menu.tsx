@@ -1,4 +1,4 @@
-import { Button, Menu, MenuItem, useMenu } from '@weebsync/design-system'
+import { Button, Menu, MenuItem, useMenu } from 'fluid-lycoris'
 
 export const SortPicker = () => (
   <div style={{ maxWidth: 260 }}>

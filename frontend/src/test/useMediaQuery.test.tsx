@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { SHEET_MQ, useMediaQuery } from '@weebsync/design-system'
+import { SHEET_MQ, useMediaQuery } from 'fluid-lycoris'
 
 // jsdom's matchMedia always reports `matches: false` and never fires; the stub
 // below keeps the listeners so a test can flip the query.

@@ -1,7 +1,7 @@
 import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Dialog, Input, Panel } from '@weebsync/design-system'
+import { Badge, Button, Dialog, Input, Panel } from 'fluid-lycoris'
 import { api, type UserAccount } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { useAuth } from '../../hooks'

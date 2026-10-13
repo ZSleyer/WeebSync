@@ -1,4 +1,4 @@
-import { Divider } from '@weebsync/design-system'
+import { Divider } from 'fluid-lycoris'
 
 export const WithCount = () => (
   <div style={{ display: 'grid', gap: 12, maxWidth: 520 }}>

@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@weebsync/design-system': fileURLToPath(new URL('../design-system/src/index.ts', import.meta.url)),
+      'fluid-lycoris': fileURLToPath(new URL('../design-system/src/index.ts', import.meta.url)),
     },
   },
   test: {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@weebsync/design-system'
+import { Button } from 'fluid-lycoris'
 import { api, type KeyConflict } from '../api'
 
 // HostKeyPrompt is the review a server's SSH host key gets before it is

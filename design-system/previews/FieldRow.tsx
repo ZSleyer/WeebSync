@@ -1,4 +1,4 @@
-import { Field, FieldRow, Input, Select } from '@weebsync/design-system'
+import { Field, FieldRow, Input, Select } from 'fluid-lycoris'
 
 export const TwoColumns = () => (
   <div style={{ maxWidth: 560, display: 'grid', gap: 12 }}>

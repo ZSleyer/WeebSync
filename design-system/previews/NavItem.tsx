@@ -1,4 +1,4 @@
-import { NavItem } from '@weebsync/design-system'
+import { NavItem } from 'fluid-lycoris'
 
 export const Sidebar = () => (
   <nav style={{ maxWidth: 220, background: 'var(--bg-secondary)', paddingBlock: 8 }}>

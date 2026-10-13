@@ -1,6 +1,6 @@
 import { useDeferredValue, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Input, Panel } from '@weebsync/design-system'
+import { Input, Panel } from 'fluid-lycoris'
 import { NameTrace } from '../../components/NameTrace'
 
 // ponytail: mirrors the points in internal/match PickExplain by hand. A test

@@ -1,4 +1,4 @@
-import { Badge, Button, Checkbox, Input, Select, Toolbar } from '@weebsync/design-system'
+import { Badge, Button, Checkbox, Input, Select, Toolbar } from 'fluid-lycoris'
 
 export const FilterRow = () => (
   <Toolbar style={{ maxWidth: 720 }}>

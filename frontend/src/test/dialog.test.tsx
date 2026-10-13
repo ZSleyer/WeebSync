@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { CloseLabelContext, Dialog } from '@weebsync/design-system'
+import { CloseLabelContext, Dialog } from 'fluid-lycoris'
 
 // HTMLDialogElement is shimmed in src/test/setup.ts because jsdom 29 ships no
 // dialog behaviour. What the shim covers is exactly what these tests assert on:

@@ -1,4 +1,4 @@
-import { CalendarDay, CalendarEntry } from '@weebsync/design-system'
+import { CalendarDay, CalendarEntry } from 'fluid-lycoris'
 
 export const Day = () => (
   <div style={{ maxWidth: 480 }}>

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useLongPress } from '@weebsync/design-system'
+import { useLongPress } from 'fluid-lycoris'
 
 function Item({ onLongPress, onClick }: { onLongPress?: () => void; onClick?: () => void }) {
   return (

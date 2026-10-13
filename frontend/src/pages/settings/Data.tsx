@@ -15,7 +15,7 @@ import {
   Modal,
   PageHeader,
   Panel,
-} from '@weebsync/design-system'
+} from 'fluid-lycoris'
 import { api, fmtBytes } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { useToast } from '../../components/toast'

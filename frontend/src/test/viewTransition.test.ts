@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { localTransition, morphTransition } from '@weebsync/design-system'
+import { localTransition, morphTransition } from 'fluid-lycoris'
 
 // loose on purpose: the stand-in only has what the helpers read
 const doc = document as unknown as { startViewTransition?: unknown }

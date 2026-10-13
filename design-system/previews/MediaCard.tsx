@@ -1,4 +1,4 @@
-import { Badge, Button, MediaCard } from '@weebsync/design-system'
+import { Badge, Button, MediaCard } from 'fluid-lycoris'
 
 // Data-URI poster in an arbitrary ratio - the frame crops it, the layout must not move.
 const poster = (w: number, h: number, label: string, hue: number) =>

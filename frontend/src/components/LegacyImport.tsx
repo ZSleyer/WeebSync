@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { AlertTriangle, Check, FileJson, Upload } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, ButtonLabel, Field, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, ButtonLabel, Field, Input, Panel, Select } from 'fluid-lycoris'
 import { api, type ServerInfo } from '../api'
 import PathInput from './PathInput'
 

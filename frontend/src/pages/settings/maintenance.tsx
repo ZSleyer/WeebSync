@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useEffectEvent, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, Input } from '@weebsync/design-system'
+import { Button, Input } from 'fluid-lycoris'
 import { api } from '../../api'
 import i18n from '../../locales'
 

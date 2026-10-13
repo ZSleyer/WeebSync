@@ -1,4 +1,4 @@
-import { ActionBar, AppBar, AppShell, Badge, Button, NavItem, Panel, TabBar } from '@weebsync/design-system'
+import { ActionBar, AppBar, AppShell, Badge, Button, NavItem, Panel, TabBar } from 'fluid-lycoris'
 
 // The shell's footer row: the bar sits on the tab bar whether the page is
 // shorter or longer than the frame. The app portals a page's bar in there

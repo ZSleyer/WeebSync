@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Button, Dialog } from '@weebsync/design-system'
+import { Button, Dialog } from 'fluid-lycoris'
 
 export interface SheetAction {
   key: string

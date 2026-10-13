@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Checkbox, Input, Panel, Select } from '@weebsync/design-system'
+import { Badge, Button, Checkbox, Input, Panel, Select } from 'fluid-lycoris'
 import { api } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'

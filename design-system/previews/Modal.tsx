@@ -1,4 +1,4 @@
-import { Button, Field, FieldRow, Input, Modal, Select } from '@weebsync/design-system'
+import { Button, Field, FieldRow, Input, Modal, Select } from 'fluid-lycoris'
 
 export const EditDialog = () => (
   <Modal

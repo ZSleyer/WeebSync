@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Button, Slot } from '@weebsync/design-system'
+import { Button, Slot } from 'fluid-lycoris'
 import { RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'

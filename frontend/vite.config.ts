@@ -9,7 +9,7 @@ export default defineConfig({
     alias: {
       // the design system resolves to its SOURCE, not its dist: no build step
       // before `yarn dev`, and HMR still works while editing a component
-      '@weebsync/design-system': fileURLToPath(new URL('../design-system/src/index.ts', import.meta.url)),
+      'fluid-lycoris': fileURLToPath(new URL('../design-system/src/index.ts', import.meta.url)),
     },
   },
   build: {

@@ -1,4 +1,4 @@
-import { Disclosure, Panel } from '@weebsync/design-system'
+import { Disclosure, Panel } from 'fluid-lycoris'
 
 // A group heading that folds its block, and the chip-sized variant for a
 // sub-group inside it. Native details: Enter and Space toggle, no script.

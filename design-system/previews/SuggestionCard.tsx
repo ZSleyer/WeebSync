@@ -1,4 +1,4 @@
-import { Badge, Button, SuggestionCard } from '@weebsync/design-system'
+import { Badge, Button, SuggestionCard } from 'fluid-lycoris'
 
 export const FromWatchlist = () => (
   <SuggestionCard

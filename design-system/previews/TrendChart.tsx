@@ -1,4 +1,4 @@
-import { Badge, Panel, TrendChart } from '@weebsync/design-system'
+import { Badge, Panel, TrendChart } from 'fluid-lycoris'
 
 // ten minutes of a download at one sample a second: a slow start, a plateau, a dip
 const samples = Array.from({ length: 600 }, (_, i) => {
