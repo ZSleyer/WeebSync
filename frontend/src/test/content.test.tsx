@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { Row, RowAction, Rows, SectionHeading, TextLink } from 'fluid-lycoris'
+import { Kbd, Row, RowAction, Rows, SectionHeading, TextLink } from 'fluid-lycoris'
 
 describe('SectionHeading', () => {
   it('is a sentence-case h2 with a red marker and the action at the right', () => {
@@ -69,5 +69,14 @@ describe('Rows and Row', () => {
     )
     expect(container.querySelector('.t-row-t')).toBeNull()
     expect(screen.getByText('eigen')).toBeInTheDocument()
+  })
+})
+
+describe('Kbd', () => {
+  it('is a kbd element with the cap class', () => {
+    render(<Kbd>Ctrl</Kbd>)
+    const k = screen.getByText('Ctrl')
+    expect(k.tagName).toBe('KBD')
+    expect(k).toHaveClass('t-kbd')
   })
 })

@@ -114,3 +114,8 @@ export interface RowActionProps extends ButtonHTMLAttributes<HTMLButtonElement> 
 export function RowAction({ tone = 'accent', className, ...rest }: RowActionProps) {
   return <button type="button" {...rest} className={cx('t-row-act', tone === 'accent-2' && 't-row-act--2', className)} />
 }
+
+/** A key of the keyboard, as in a shortcut hint: an outlined cap in the mono face. */
+export function Kbd({ className, ...rest }: HTMLAttributes<HTMLElement>) {
+  return <kbd {...rest} className={cx('t-kbd', className)} />
+}

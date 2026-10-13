@@ -116,7 +116,7 @@ export type {
   DayTimelineProps,
 } from './composites'
 
-export { Row, RowAction, Rows, SectionHeading, TextLink } from './content'
+export { Kbd, Row, RowAction, Rows, SectionHeading, TextLink } from './content'
 export type { CodeTone, GlyphTone, RowActionProps, RowProps, RowsProps, SectionHeadingProps, TextLinkProps } from './content'
 
 export { Art, CoverBar, CoverScore, coverShare, CoverStatus } from './media'

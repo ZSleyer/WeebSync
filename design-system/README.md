@@ -79,15 +79,17 @@ The **Recoil** scheme (`data-scheme="recoil"`) swaps the two values: the main
 action turns teal and sync turns red. The pairing stays intact, which is why
 the package offers this switch instead of free accent colours.
 
+A host stores the choice and sets `data-scheme`; a `[data-scheme]` on any
+element (a settings preview) paints that subtree in the named scheme.
+
 ### Shape and type
 
-- Radii: `--r-xs` 4, `--r-chip` 4, `--r-ctl-sm` 4 (6 on touch), `--r-ctl` 6
-  (8 on touch), `--r-menu` 8, `--r-panel` 10, `--r-dialog` 12, `--r-cover` 6,
-  `--r-sheet` 20. Nested boxes follow the concentric rule: inner radius =
+- Radii: `--r-xs` 4, `--r-chip` 4, `--r-ctl-sm` 8, `--r-ctl` 8, `--r-item` 7,
+  `--r-menu` 10, `--r-panel` 12, `--r-dialog` 14, `--r-cover` 6, `--r-sheet` 20. Nested boxes follow the concentric rule: inner radius =
   outer radius minus the padding between them, never below `--r-xs`.
 - Covers are rounded and carry no ring, border or inset shadow.
-- Control metrics: `--ctl-h`, `--ctl-h-sm`, `--ctl-fs*`, `--ctl-lh*`; touch
-  (`pointer: coarse`) raises them. A new control takes its height and radius
+- Control metrics: `--ctl-h` 44px, `--ctl-h-sm` 34px (in rem), `--ctl-fs*`,
+  `--ctl-lh*`; touch (`pointer: coarse`) adjusts them. A new control takes its height and radius
   from these variables, never from padding plus inherited text.
 - Fonts: `--f-display` (Chakra Petch), `--f-sans` (IBM Plex Sans), `--f-mono`
   (IBM Plex Mono). Type scale: `--fs-tab`, `--fs-caption`, `--fs-meta`,
@@ -113,3 +115,39 @@ the package offers this switch instead of free accent colours.
   transition to an instant change; state still changes.
 - View transitions are progressive: without `document.startViewTransition`
   the state changes without the animation.
+
+## Components
+
+Besides the controls (`Button` with `primary`, `danger`, `danger-fill`;
+`IconButton` 44 or 36 round; `Input`; `Checkbox`; `Radio`; `Badge`), the
+package has:
+
+- `SectionHeading`: a sentence-case h2 after a slanted marker (red, or teal
+  with `tone="accent-2"`) and an optional `TextLink` at the right.
+- `Rows`, `Row`, `RowAction`: hairline lists, no panel around them.
+- `TextLink`, `Kbd`, `EmptyState` (a quiet line, or `inline` as a list item).
+- `Segmented` (gliding thumb), `Switch` (a checkbox with the switch role),
+  `SettingsField` (label, chip, control, hint).
+- `Select`: the select-only combobox pattern. No native popup: a glass
+  listbox in the top layer, the picked option in the accent with a check,
+  arrows, Home, End, Page keys, Enter, Escape and type-ahead. It takes
+  `<option>` children and a native-style change handler, and submits through
+  a hidden field.
+- `Cover` (rounded, no ring, hover zoom and press sink inside a button or
+  link, a title fallback), `Art` (a banner as one layer with its dot screen,
+  5px past its frame, optionally duotone), `CoverStatus`, `CoverScore`,
+  `CoverBar`.
+- `Rail`: a horizontal shelf with edge fades, paging buttons on hover devices
+  and mouse drag.
+- `Wipe` and `useWipe`: show or hide a line of text with the credits wipe.
+  `enterPage` / `useEnterPage`: on entering a page or switching its content,
+  titles and section headings wipe in, meters fill, and rows, shelf items and
+  `[data-rise]` children rise in one wave from left to right.
+- `Toast` and `ToastRegion`: inverted toasts in the top layer, left of an
+  open `SidePanel`.
+- `Dialog`, `Modal`, `SidePanel`, `Menu`, `Tabs` and the rest of the
+  composites.
+
+Native controls never show their browser look: checkboxes, radios, ranges and
+search fields are drawn by the theme, scrollbars are thin and in the theme's
+colours.
