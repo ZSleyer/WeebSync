@@ -573,8 +573,9 @@ small step is 36px. Hover and press show a round ground. */
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  /* the control height, so a toolbar's narrower --ctl-h reaches it too */
+  width: var(--ctl-h);
+  height: var(--ctl-h);
   flex-shrink: 0;
   border-radius: 50%;
   font-size: 1.375rem;
@@ -2211,7 +2212,7 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
    14px with a fade in one left-to-right wave (--rd, 0..260ms from its place
    across the screen). Once per entry. */
 @media (prefers-reduced-motion: no-preference) {
-  [data-wipe="in"] .t-progress:not(.t-progress--wave) > .t-progress-bar {
+  [data-wipe="in"] .t-progress:not(.t-progress--wave) > .t-progress-bar:not(.t-progress-running) {
     transform-origin: left;
     animation: t-fill 900ms var(--spring-calm) 200ms both;
   }

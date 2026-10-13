@@ -82,11 +82,32 @@ export function typeAhead(options: SelectOption[], from: number, query: string):
   return -1
 }
 
-const canAnchor = () =>
-  typeof HTMLElement !== 'undefined' &&
-  'showPopover' in HTMLElement.prototype &&
-  typeof CSS !== 'undefined' &&
-  CSS.supports('anchor-name: --a')
+// How the listbox is placed. anchor: in the top layer, attached by anchor
+// positioning. fixed: in the top layer, placed from the trigger's box (an
+// engine with popovers but without anchor positioning, e.g. Firefox).
+// inline: under the trigger in the page (no popover support at all, jsdom).
+type Placement = 'anchor' | 'fixed' | 'inline'
+function placement(): Placement {
+  if (typeof HTMLElement === 'undefined' || !('showPopover' in HTMLElement.prototype)) return 'inline'
+  return typeof CSS !== 'undefined' && CSS.supports('anchor-name: --a') ? 'anchor' : 'fixed'
+}
+
+/** Where a fixed list goes: under the trigger, or above it when it would leave the viewport and there is more room above. */
+export function listPosition(
+  trigger: { left: number; top: number; bottom: number; width: number },
+  listHeight: number,
+  viewportHeight: number,
+  gap = 4,
+): { left: number; top: number; minWidth: number } {
+  const below = viewportHeight - trigger.bottom - gap
+  const above = trigger.top - gap
+  const up = listHeight > below && above > below
+  return {
+    left: trigger.left,
+    top: up ? Math.max(gap, trigger.top - gap - listHeight) : trigger.bottom + gap,
+    minWidth: trigger.width,
+  }
+}
 
 export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
   children: ReactNode
@@ -128,21 +149,24 @@ export function Select({
   const trigger = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLUListElement>(null)
   const typed = useRef({ q: '', at: 0 })
-  const anchored = canAnchor()
+  const mode = placement()
+  const [fixedAt, setFixedAt] = useState<{ left: number; top: number; minWidth: number } | null>(null)
 
   // only the forwarded aria-* and data-* attributes reach the trigger
   const passthrough = Object.fromEntries(Object.entries(rest).filter(([k]) => k.startsWith('aria-') || k.startsWith('data-') || k === 'title'))
 
   useEffect(() => {
     if (!open) return
-    if (anchored) {
-      try {
-        list.current?.showPopover?.()
-      } catch {
-        /* already shown */
-      }
+    if (mode === 'inline') return
+    try {
+      list.current?.showPopover?.()
+    } catch {
+      /* already shown */
     }
-  }, [open, anchored])
+    if (mode === 'fixed' && trigger.current && list.current) {
+      setFixedAt(listPosition(trigger.current.getBoundingClientRect(), list.current.offsetHeight, innerHeight))
+    }
+  }, [open, mode])
 
   // the active option stays in view while the keys walk the list
   useEffect(() => {
@@ -152,6 +176,7 @@ export function Select({
 
   const show = (at: number) => {
     setActive(at)
+    setFixedAt(null)
     setOpen(true)
   }
   const pick = (i: number) => {
@@ -233,12 +258,19 @@ export function Select({
           id={listId}
           role="listbox"
           aria-labelledby={id}
+          aria-label={id ? undefined : (rest['aria-label'] as string | undefined)}
           tabIndex={-1}
-          {...(anchored ? { popover: 'manual' } : {})}
-          style={anchored ? { positionAnchor: anchor } : undefined}
+          {...(mode !== 'inline' ? { popover: 'manual' } : {})}
+          style={
+            mode === 'anchor'
+              ? { positionAnchor: anchor, minWidth: 'anchor-size(width)' }
+              : mode === 'fixed'
+                ? { position: 'fixed', margin: 0, inset: 'auto', ...(fixedAt ?? { visibility: 'hidden' }) }
+                : undefined
+          }
           className={cx(
-            't-pop t-glass t-listbox max-h-[min(60dvh,20rem)] min-w-full overflow-x-clip overflow-y-auto rounded-lg border py-1',
-            anchored ? 't-menu' : 'absolute top-full left-0 z-20 mt-1',
+            't-pop t-glass t-listbox max-h-[min(60dvh,20rem)] overflow-x-clip overflow-y-auto rounded-lg border py-1',
+            mode === 'anchor' ? 't-menu' : mode === 'inline' && 'absolute top-full left-0 z-20 mt-1 min-w-full',
           )}
         >
           {options.map((o, i) => (

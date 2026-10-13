@@ -58,8 +58,10 @@
    DEFINED, so `--color-t-primary: var(--text-primary)` in :root freezes to the
    root theme - a `[data-theme="light"]` section nested inside a dark page kept
    handing its text the dark value (white on white, 1.12:1). Re-declaring the
-   bridge here re-resolves it against whatever theme the element carries. */
-[data-theme] {
+   bridge here re-resolves it against whatever theme the element carries
+   (and whatever scheme: a scheme preview inside a page wears its own pair). */
+[data-theme],
+[data-scheme] {
   --color-bg-primary: var(--bg);
   --color-bg-secondary: var(--bg-2);
   --color-bg-card: var(--card);

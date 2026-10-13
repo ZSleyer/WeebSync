@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { Select, selectOptions, stepOption, typeAhead } from 'fluid-lycoris'
+import { listPosition, Select, selectOptions, stepOption, typeAhead } from 'fluid-lycoris'
 
 const OPTS = selectOptions(
   <>
@@ -118,5 +118,27 @@ describe('Select', () => {
   it('stays shut when disabled', () => {
     const { trigger } = setup({ disabled: true })
     expect(trigger).toBeDisabled()
+  })
+})
+
+describe('listPosition', () => {
+  const trigger = { left: 20, top: 500, bottom: 544, width: 200 }
+  it('hangs under the trigger when it fits', () => {
+    expect(listPosition(trigger, 150, 900)).toEqual({ left: 20, top: 548, minWidth: 200 })
+  })
+  it('opens upward when there is no room below but more above', () => {
+    expect(listPosition(trigger, 400, 700)).toEqual({ left: 20, top: 96, minWidth: 200 })
+  })
+})
+
+describe('Select names its list', () => {
+  it('mirrors the trigger label onto the listbox when there is no id', () => {
+    render(
+      <Select aria-label="Sprache" value="de" onChange={() => {}}>
+        <option value="de">Deutsch</option>
+      </Select>,
+    )
+    fireEvent.click(screen.getByRole('combobox'))
+    expect(screen.getByRole('listbox', { name: 'Sprache' })).toBeInTheDocument()
   })
 })
