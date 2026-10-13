@@ -1037,7 +1037,7 @@ export default function Dashboard() {
           )}
         </PageActions>
       </PageHeader>
-
+      <NewShelf downloads={downloads} meta={meta} watches={watches} />
       {wide ? (
         /* desktop: the queue and the history on the left, what is coming and
           what needs a hand in the right column beside both (a main pane and
@@ -1086,6 +1086,59 @@ export default function Dashboard() {
         </div>
       )}
     </div>
+  )
+}
+
+// "New here": what landed in the last week, newest first, one poster per
+// series (its latest episode). The download list knows when a done row landed
+// (finishedAt), the download metadata which series it belongs to.
+const NEW_DAYS = 7
+const landedAt = (d: Download) => (d.finishedAt ? Date.parse(d.finishedAt.replace(' ', 'T') + 'Z') : 0)
+
+function NewShelf({ downloads, meta, watches }: { downloads: Download[]; meta?: DownloadMeta; watches: Watch[] }) {
+  const { t, i18n } = useTranslation()
+  const now = useNow()
+  const { open: openSeries } = useSeriesModal()
+  const seen = new Set<string>()
+  const shelf: { d: Download; label: ReturnType<typeof downloadLabel> }[] = []
+  for (const d of downloads
+    .filter((x) => x.status === 'done' && now - landedAt(x) < NEW_DAYS * 86_400_000)
+    .sort((a, b) => landedAt(b) - landedAt(a))) {
+    const label = downloadLabel(d, meta)
+    const key = label.item?.g ?? d.remotePath
+    if (seen.has(key)) continue
+    seen.add(key)
+    shelf.push({ d, label })
+  }
+  if (shelf.length === 0) return null
+  const day = (ms: number) => new Date(ms).toLocaleDateString(i18n.language, { weekday: 'short' })
+  return (
+    <section aria-label={t('dash.newHere')} className="mb-6">
+      <h2 className="mb-2 text-ctl-sm font-semibold tracking-[0.18em] text-t-muted uppercase">{t('dash.newHere')}</h2>
+      <ul className="flex snap-x gap-3 overflow-x-auto pb-1">
+        {shelf.slice(0, 10).map(({ d, label }) => {
+          const watch = label.group?.watchId ? watches.find((w) => w.id === label.group?.watchId) : undefined
+          const title = label.group?.title || label.name
+          return (
+            <li key={d.id} className="w-28 shrink-0 snap-start">
+              <button
+                type="button"
+                disabled={!watch?.media}
+                onClick={() => watch?.media && openSeries(seriesTarget(watch))}
+                className="grid w-full gap-1 rounded-md text-left enabled:hover:text-t-primary"
+                aria-label={`${title} ${label.ep}`.trim()}
+              >
+                <Cover src={label.group?.cover} size="fill" loading="lazy" />
+                <span className="truncate text-sm text-t-secondary">{title}</span>
+                <span className="text-ctl-sm text-t-muted tabular-nums">
+                  {[label.ep, t('dash.landed', { day: day(landedAt(d)) })].filter(Boolean).join(' · ')}
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
