@@ -445,6 +445,11 @@ var bookMime = map[string]string{
 // @Produce  octet-stream
 // @Param    token path string true "Book token from /api/read/open"
 // @Param    entry path string true "Path inside the book"
+// @Param    look  query string false "1: write the reader's look into an XHTML/HTML chapter"
+// @Param    size  query int    false "With look: font size in px (15-26)"
+// @Param    lead  query number false "With look: line height (1.3-1.9)"
+// @Param    theme query string false "With look: background" Enums(dark, sepia, light)
+// @Param    font  query string false "With look: typeface" Enums(serif, sans)
 // @Success  200 {file} binary
 // @Failure  404 {object} ErrorResponse
 // @Router   /api/read/b/{token}/{entry} [get]
@@ -492,5 +497,17 @@ func (s *Server) handleReadEntry(w http.ResponseWriter, r *http.Request) {
 	h.Set("X-Frame-Options", "SAMEORIGIN")
 	// the token changes with every unpack, so what it names never does
 	h.Set("Cache-Control", "private, max-age=3600")
+	// a chapter asked for with the reader's look gets its stylesheet written
+	// into the head; pictures, styles and fonts pass through untouched
+	ext := strings.ToLower(path.Ext(name))
+	if l, ok := lookOf(r.URL.Query()); ok && (ext == ".xhtml" || ext == ".html" || ext == ".htm") && fi.Size() <= maxLookChapter {
+		doc, err := io.ReadAll(f)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "unreadable chapter")
+			return
+		}
+		http.ServeContent(w, r, "", fi.ModTime(), bytes.NewReader(injectLook(doc, l)))
+		return
+	}
 	http.ServeContent(w, r, "", fi.ModTime(), f)
 }

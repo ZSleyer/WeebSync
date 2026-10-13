@@ -14771,6 +14771,55 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "description": "1: write the reader's look into an XHTML/HTML chapter",
+                        "in": "query",
+                        "name": "look",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "With look: font size in px (15-26)",
+                        "in": "query",
+                        "name": "size",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "With look: line height (1.3-1.9)",
+                        "in": "query",
+                        "name": "lead",
+                        "schema": {
+                            "type": "number"
+                        }
+                    },
+                    {
+                        "description": "With look: background",
+                        "in": "query",
+                        "name": "theme",
+                        "schema": {
+                            "enum": [
+                                "dark",
+                                "sepia",
+                                "light"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "With look: typeface",
+                        "in": "query",
+                        "name": "font",
+                        "schema": {
+                            "enum": [
+                                "serif",
+                                "sans"
+                            ],
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
