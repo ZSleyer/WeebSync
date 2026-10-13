@@ -37,6 +37,7 @@ import { api, keyConflictOf, type ServerInfo } from '../api'
 import HostKeyPrompt from '../components/HostKeyPrompt'
 import { filesLink, listFolder, playHref, useBack, videosIn } from '../components/playLinks'
 import Loading from '../components/Loading'
+import Logo from '../components/Logo'
 import PlayerInfo, { CODEC_NAMES, trackLabel, type PlayInfo, type PlayTrack } from './PlayerInfo'
 import { renameFamilies, scriptFamilies } from './assFonts'
 
@@ -764,7 +765,15 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           <span className="t-player-flash" data-side="back" data-on={flash?.side === 'back' || undefined} aria-hidden>
             {flash?.side === 'back' && `- ${flash.secs} s`}
           </span>
-          {!loadError && <MediaLoadingIndicator noAutohide className="t-player-spinner" />}
+          {/* the mark with its sheen instead of a spinner: the app's own sign
+              for "working on it", drawn in CSS, so nothing runs while hidden */}
+          {!loadError && (
+            <MediaLoadingIndicator noAutohide className="t-player-spinner">
+              <span slot="icon" className="t-player-logo">
+                <Logo play={false} active />
+              </span>
+            </MediaLoadingIndicator>
+          )}
           {(loadError || loadStep) && (
             <span
               className={`t-player-chip t-player-step${loadError ? ' t-player-chip--err' : ''}`}

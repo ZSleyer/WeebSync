@@ -2421,7 +2421,15 @@ li.t-swiperow { border-radius: 0; }
 .t-player-scrub media-time-range:focus-visible {
   --media-range-track-height: 6px;
   --media-range-thumb-opacity: 1;
-  --media-range-thumb-transform: none;
+  --media-range-thumb-transform: skewX(-9deg);
+}
+/* the handle as a slanted bar with a glow of the accent, the cut of the S in
+   the mark, rather than a round dot */
+.t-player-scrub media-time-range {
+  --media-range-thumb-width: 7px;
+  --media-range-thumb-height: 18px;
+  --media-range-thumb-border-radius: 2px;
+  --media-range-thumb-box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent) 70%, transparent), 0 0 0 2px rgb(0 0 0 / 0.35);
 }
 .t-player-bar > *,
 .t-player-volume > * { border-radius: var(--r-ctl); }
@@ -2519,6 +2527,8 @@ li.t-swiperow { border-radius: 0; }
   transition: opacity var(--dur-2) var(--ease-out), scale var(--dur-2) var(--ease-out);
 }
 .t-player-spinner { grid-column: 2; grid-row: 1; --media-loading-icon-width: 56px; }
+.t-player-logo { display: block; width: 72px; color: #fff; filter: drop-shadow(0 1px 6px rgb(0 0 0 / 0.6)); }
+.t-player-logo svg { display: block; width: 100%; height: auto; }
 .t-player-step {
   grid-column: 1 / -1;
   grid-row: 2;
