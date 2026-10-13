@@ -218,6 +218,7 @@ export default function Dashboard() {
   const [query, setQuery] = useState('')
   const [historyQuery, setHistoryQuery] = useState('')
   const [showAllHistory, setShowAllHistory] = useState(false)
+  const [showAllQueue, setShowAllQueue] = useState(false)
   const [statusFilter, setStatusFilter] = useState<Set<Download['status']>>(new Set())
   const filtering = query.trim() !== ''
   const historyFiltering = historyQuery.trim() !== '' || statusFilter.size > 0
@@ -246,7 +247,14 @@ export default function Dashboard() {
   useEffect(() => {
     const done = downloads.filter((d) => d.status === 'done' && wasActive.current.has(d.id) && !leavingIds.has(d.id))
     if (done.length > 0) {
-      setLeaving((l) => [...l, ...done.map((d) => ({ d, hero: wasActive.current.get(d.id)!, gone: false }))])
+      setLeaving((l) => [
+        ...l,
+        ...done.map((d) => ({
+          d,
+          hero: wasActive.current.get(d.id)!,
+          gone: false,
+        })),
+      ])
       const ids = new Set(done.map((d) => d.id))
       setTimeout(() => setLeaving((l) => l.map((x) => (ids.has(x.d.id) ? { ...x, gone: true } : x))), LEAVE_MS)
       setTimeout(() => setLeaving((l) => l.filter((x) => !ids.has(x.d.id))), LEAVE_MS + FOLD_MS)
@@ -273,7 +281,22 @@ export default function Dashboard() {
   const finished = finishedAll.filter(
     (d) => (statusFilter.size === 0 || statusFilter.has(d.status)) && nameMatch(d, historyQuery),
   )
-  const finishedShown = finished.slice(0, historyFiltering || showAllHistory ? finished.length : 20)
+  // desktop and phone compose the page separately (see the end of the render)
+  const wide = useMediaQuery(WIDE_MQ)
+  // A phone previews the first three cards of the queue: a card is a screen's
+  // third there, and five of them put what needs a hand three screens down.
+  // Their actions are on the swipe and the long press as much as inline.
+  const queueShown = wide || filtering || showAllQueue ? shown : shown.slice(0, 3)
+  // A phone previews six rows, the failed ones first: twenty rows were two
+  // screens of finished episodes in front of everything below, and a failure
+  // is the one thing in the list anyone acts on. "Show all" is the plain
+  // newest-first list.
+  const finishedShown =
+    historyFiltering || showAllHistory
+      ? finished
+      : wide
+        ? finished.slice(0, 20)
+        : [...finished.filter((d) => d.status === 'error'), ...finished.filter((d) => d.status !== 'error')].slice(0, 6)
   const anyActive = downloads.some((d) => d.status === 'running' || d.status === 'queued')
   const anyPaused = downloads.some((d) => d.status === 'paused')
   // 1s tick so the retry countdowns stay live, gated on there being one: an
@@ -345,9 +368,6 @@ export default function Dashboard() {
   // clear. The search keeps what is left, which is too little for the full
   // placeholder - a short one there, the aria-label stays the full sentence
   const phone = useMediaQuery('(width < 40rem)')
-  // the speed tiles are the desktop aside's; on a phone the hero carries the
-  // rate itself, and the tiles' every-second render would be for nothing
-  const wide = useMediaQuery(WIDE_MQ)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setSelected(new Set())
@@ -398,7 +418,11 @@ export default function Dashboard() {
     else void localTransition(queueList.current, write)
     reorder.mutate(ids)
   }
-  const handle = useDragReorder({ list: queueList, ids: queuedIds, onMove: moveQueued })
+  const handle = useDragReorder({
+    list: queueList,
+    ids: queuedIds,
+    onMove: moveQueued,
+  })
 
   // Swipe a row (touch) and it rests open on its buttons, a tap runs one:
   // to the left the row's own actions - cancel at the edge, pause or resume
@@ -466,7 +490,10 @@ export default function Dashboard() {
 
   // A long press on a row (touch) opens all its actions as a sheet - the
   // queue row's buttons and the history row's, plus the series it belongs to.
-  const [sheet, setSheet] = useState<{ title: string; actions: SheetAction[] } | null>(null)
+  const [sheet, setSheet] = useState<{
+    title: string
+    actions: SheetAction[]
+  } | null>(null)
   const rowActions = (d: Download): { title: string; actions: SheetAction[] } => {
     const { name, group } = downloadLabel(d, meta)
     const watch = group?.watchId ? watches.find((w) => w.id === group.watchId) : undefined
@@ -520,6 +547,460 @@ export default function Dashboard() {
     })
   }
 
+  // the page's blocks, composed per layout below: desktop and phone are
+  // laid out separately, not one squeezed into the other
+  const watchState = watchesLoading ? (
+    <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-2">
+      {[0, 1, 2].map((i) => (
+        <Panel key={i} className="flex items-center gap-3 p-2">
+          <Skeleton shape="cover" size="sm" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="w-2/3" />
+            <Skeleton className="w-1/3" />
+          </div>
+        </Panel>
+      ))}
+    </div>
+  ) : watches.length === 0 ? (
+    <EmptyState>
+      <Trans
+        i18nKey="dash.noWatches"
+        components={{
+          go: <Link to="/files" className="text-accent underline" />,
+        }}
+      />
+    </EmptyState>
+  ) : null
+  // the bulk controls earn their row from the second download on: select-all,
+  // search and cancel-everything over a single card are chrome in front of the
+  // one thing on screen. The global limit is the one control that is about the
+  // next transfer as much as the current one, so an admin has it here - except
+  // on an idle phone, where the queue is one quiet line and the limit lives in
+  // the settings
+  const queueTools = (many || (!!user?.isAdmin && (wide || activeAll.length > 0))) && (
+    <Toolbar className={wide ? 'mb-3' : 'mt-3'}>
+      {many && (
+        <>
+          <input
+            ref={activeAllRef}
+            type="checkbox"
+            title={t('dash.selectAll')}
+            aria-label={t('dash.selectAll')}
+            checked={allActiveSelected}
+            onChange={() => toggleSection(activeIds, allActiveSelected)}
+          />
+          {/* the checkbox and the search share the first row on a phone,
+          the bulk controls take the second */}
+          <Input
+            className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
+            type="search"
+            placeholder={t('dash.search')}
+            aria-label={t('dash.search')}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </>
+      )}
+      <Toolbar className="ml-auto basis-full sm:basis-auto">
+        {many && (
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={bulk.isPending}
+            onClick={async () => {
+              if (
+                await confirm({
+                  message: t('dash.cancelAllConfirm'),
+                  destructive: true,
+                })
+              )
+                bulk.mutate({ a: 'cancel' })
+            }}
+          >
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('dash.cancelAll')}
+          </Button>
+        )}
+        {!!user?.isAdmin && <GlobalLimitInput caption={!many} />}
+      </Toolbar>
+    </Toolbar>
+  )
+  const transfer = (
+    <section
+      aria-label={t('dash.transferSection')}
+      className={wide ? 'order-1 min-w-0 lg:col-start-1 lg:row-start-1' : 'min-w-0'}
+    >
+      <FoldHeader
+        icon={<DownloadIcon aria-hidden size="1em" />}
+        label={t('dash.transferSection')}
+        count={activeAll.length}
+        open={queueOpen}
+        onToggle={toggleQueue}
+      />
+      {queueOpen && (
+        <>
+          {wide && queueTools}
+
+          {/* the first answer is still out: a card in the hero's shape and
+                two rows, so the page does not jump when it lands. Only then -
+                a refetch never shows this */}
+          {isLoading && (
+            <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-3">
+              <Panel className="flex gap-4 p-4">
+                <Skeleton shape="cover" />
+                <div className="min-w-0 flex-1 space-y-2.5 py-1">
+                  <Skeleton className="w-2/3" />
+                  <Skeleton className="w-1/3" />
+                  <Skeleton shape="block" className="mt-4 h-2 w-full" />
+                </div>
+              </Panel>
+              {[0, 1].map((i) => (
+                <Panel key={i} className="flex gap-3 p-3">
+                  <Skeleton shape="cover" size="sm" />
+                  <div className="min-w-0 flex-1 space-y-2 py-1">
+                    <Skeleton className="w-1/2" />
+                    <Skeleton shape="block" className="h-1 w-full" />
+                  </div>
+                </Panel>
+              ))}
+            </div>
+          )}
+          {!isLoading &&
+            shown.length === 0 &&
+            (filtering ? (
+              <EmptyState>{t('dash.noMatches')}</EmptyState>
+            ) : (
+              // idle is the normal state, not a thing to look at: no card,
+              // one quiet centred line and the way to the next download
+              <p className="py-6 text-center text-sm text-t-muted">
+                <Trans
+                  i18nKey="dash.idle"
+                  components={{
+                    go: <Link to="/files" className="text-accent underline" />,
+                  }}
+                />
+              </p>
+            ))}
+          <div ref={queueList} className="flex flex-col gap-3">
+            {queueShown.map((d) => (
+              <Press
+                key={d.id}
+                data-reorder-id={d.id}
+                data-gone={leaving.some((l) => l.d.id === d.id && l.gone) || undefined}
+                className="t-collapse"
+                style={{ '--vt': `dl-${d.id}` } as CSSProperties}
+                onLongPress={d.status === 'done' ? undefined : () => openRowSheet(d)}
+              >
+                <SwipeRow start={swipeStart(d)} end={swipeEnd(d)}>
+                  <DownloadRow
+                    d={d}
+                    meta={meta}
+                    watches={watches}
+                    variant={d === (leavingHero ?? hero) ? 'hero' : 'row'}
+                    selected={selected.has(d.id)}
+                    onSelect={(shift) => selectRow(d.id, shift)}
+                    onAction={(verb) => action.mutate({ id: d.id, verb })}
+                    menu={d.status === 'done' ? undefined : rowActions(d)}
+                    // a search shows a slice of the queue; reordering a slice
+                    // would move rows the reader cannot see
+                    reorder={
+                      d.status === 'queued' && queued.length > 1 && !filtering
+                        ? {
+                            handle: handle(d.id),
+                            toFront: queuedIds[0] === d.id ? undefined : () => moveQueued(d.id, 0, false),
+                          }
+                        : undefined
+                    }
+                  />
+                </SwipeRow>
+              </Press>
+            ))}
+          </div>
+          {queueShown.length < shown.length && (
+            <Button size="sm" className="mt-3" onClick={() => setShowAllQueue(true)}>
+              {t('dash.attentionMore', { count: shown.length - queueShown.length })}
+            </Button>
+          )}
+          {/* a phone shows the cards first - the rate is already in the
+              header's line - and the rate's chart and the bulk controls
+              under them; the desktop keeps the chart in the column beside */}
+          {!wide && transferring && (
+            <div className="mt-3">
+              <SpeedPanel downloads={activeAll} />
+            </div>
+          )}
+          {!wide && queueTools}
+        </>
+      )}
+    </section>
+  )
+  const history = finishedAll.length > 0 && (
+    <section
+      aria-label={t('dash.finishedSection')}
+      className={wide ? 'order-3 min-w-0 lg:col-start-1 lg:row-start-2' : 'min-w-0'}
+    >
+      <FoldHeader
+        icon={null}
+        label={t('dash.history')}
+        count={finished.length}
+        open={historyOpen}
+        onToggle={toggleHistory}
+      />
+      {historyOpen && (
+        <>
+          <Toolbar className="mb-2">
+            <input
+              ref={historyAllRef}
+              type="checkbox"
+              title={t('dash.selectAll')}
+              aria-label={t('dash.selectAll')}
+              checked={allHistorySelected}
+              onChange={() => toggleSection(historyIds, allHistorySelected)}
+            />
+            <Input
+              className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
+              type="search"
+              placeholder={phone ? t('dash.searchShort') : t('dash.search')}
+              aria-label={t('dash.search')}
+              value={historyQuery}
+              onChange={(e) => setHistoryQuery(e.target.value)}
+            />
+            {/* one select on a phone, so the filter shares the row
+                        with the search instead of taking a second one as
+                        three chips. Single choice there: the chips' multi
+                        select is a desktop nicety, not something the phone
+                        row has room for */}
+            <Select
+              size="sm"
+              // important: .t-select-wrap sets display outside the
+              // utilities layer and would win over a plain sm:hidden
+              wrapperClassName="sm:hidden!"
+              aria-label={t('dash.filterStatus')}
+              value={statusFilter.size === 1 ? [...statusFilter][0] : ''}
+              onChange={(e) =>
+                setStatusFilter(e.target.value ? new Set([e.target.value as Download['status']]) : new Set())
+              }
+            >
+              <option value="">{t('dash.filterAll')}</option>
+              {HISTORY_STATUSES.map((st) => (
+                <option key={st} value={st}>
+                  {t(`status.${st}`)}
+                </option>
+              ))}
+            </Select>
+            {/* toggle chips: <Badge> renders a span, these have to stay
+                        buttons with aria-pressed - kept hand-written */}
+            <div
+              role="group"
+              aria-label={t('dash.filterStatus')}
+              className="hidden flex-wrap items-center gap-1 sm:flex"
+            >
+              {HISTORY_STATUSES.map((st) => {
+                const Icon = STATUS_ICON[st]
+                return (
+                  <button
+                    key={st}
+                    aria-pressed={statusFilter.has(st)}
+                    className={`t-label cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
+                    onClick={() => toggleStatus(st)}
+                  >
+                    <Icon aria-hidden size="1em" />
+                    {t(`status.${st}`)}
+                  </button>
+                )
+              })}
+              {historyFiltering && (
+                <button
+                  className="t-label cursor-pointer hover:text-accent"
+                  onClick={() => {
+                    setHistoryQuery('')
+                    setStatusFilter(new Set())
+                  }}
+                >
+                  <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('dash.filterClear')}
+                </button>
+              )}
+            </div>
+            {/* clears what the search and status filter currently
+                        match, so one button covers "everything" and "only the
+                        failed ones". Disabled on an empty match: the bulk
+                        endpoint reads an empty id list as "all of it" */}
+            <Toolbar className="ml-auto">
+              <Button
+                size="sm"
+                variant="danger"
+                aria-label={t('dash.clearHistory')}
+                title={t('dash.clearHistory')}
+                disabled={bulk.isPending || historyIds.length === 0}
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      message: t('dash.clearHistoryConfirm', {
+                        count: historyIds.length,
+                      }),
+                      destructive: true,
+                    })
+                  )
+                    bulk.mutate({ a: 'delete', ids: historyIds })
+                }}
+              >
+                <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="hidden sm:inline">{t('dash.clearHistory')}</span>
+              </Button>
+            </Toolbar>
+          </Toolbar>
+          {/* not <EmptyState>: this one is the compact p-6/text-sm
+                      variant, and its padding must not be overridden */}
+          {finished.length === 0 && historyFiltering && (
+            <Panel className="p-6 text-center text-sm text-t-muted">{t('dash.noMatches')}</Panel>
+          )}
+          {/* one bracketed block with hairlines between the rows,
+                      the sync summary's recipe: twenty bordered cards under
+                      each other read as twenty boxes, not as a list */}
+          <Panel className="mt-2">
+            <ul className="divide-y divide-border-subtle">
+              {(() => {
+                // One unwritable directory fails every episode of a
+                // season, so the same explanation would repeat down the
+                // whole list - hundreds of pixels saying one thing. Spell
+                // a cause out on its first row and let the rest keep the
+                // short error text they had before.
+                const explained = new Set<string>()
+                return finishedShown.map((d) => {
+                  const key = `${d.errorCode} ${dirOf(d.localPath)}`
+                  const first = isFsErrorCode(d.errorCode) && !explained.has(key)
+                  if (first) explained.add(key)
+                  // the cover opens the title's card where the download
+                  // belongs to a watch that carries one
+                  const watchId = downloadLabel(d, meta).group?.watchId
+                  const watch = watchId ? watches.find((w) => w.id === watchId) : undefined
+                  return (
+                    <Press as="li" key={d.id} onLongPress={() => openRowSheet(d)}>
+                      <SwipeRow end={swipeHistory(d)}>
+                        <HistoryRow
+                          d={d}
+                          meta={meta}
+                          explain={first}
+                          selected={selected.has(d.id)}
+                          onSelect={(shift) => selectRow(d.id, shift)}
+                          onAction={(verb) => action.mutate({ id: d.id, verb })}
+                          menu={rowActions(d)}
+                          onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
+                          coverLabel={
+                            watch
+                              ? t('remote.detailsFor', {
+                                  name: watchTitle(watch),
+                                })
+                              : undefined
+                          }
+                        />
+                      </SwipeRow>
+                    </Press>
+                  )
+                })
+              })()}
+            </ul>
+          </Panel>
+          {finished.length > finishedShown.length && (
+            <Button size="sm" className="mt-3" onClick={() => setShowAllHistory(true)}>
+              {t('dash.showAllHistory', { count: finished.length })}
+            </Button>
+          )}
+        </>
+      )}
+    </section>
+  )
+  /* the selection's actions while rows are selected: the shell's footer
+              row above the tab bar on a phone, a floating toolbar at the foot
+              of the viewport on desktop. Inside the queue column, not under the
+              whole grid: the summary column is usually the taller one, and the
+              bar sat at its foot with a screen's worth of nothing between it
+              and the rows */
+  const selectionFooter = selected.size > 0 && (
+    <div className={wide ? 'order-4 lg:col-start-1' : undefined}>
+      <PageFooter>
+        {/* one row on a phone, as a selection bar there: leave first,
+                  then the count, the actions at the right end with their
+                  icons alone (named for screen readers); words from sm on */}
+        <ActionBar aria-label={t('dash.selectionActions')} floating className="max-sm:flex-nowrap">
+          <Button
+            size="sm"
+            aria-label={t('dash.clearSelection')}
+            title={t('dash.clearSelection')}
+            onClick={() => setSelected(new Set())}
+          >
+            <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+            <span className="max-sm:sr-only">{t('dash.clearSelection')}</span>
+          </Button>
+          <Badge tone="accent" className="max-sm:mr-auto">
+            {t('dash.selectedCount', { count: selected.size })}
+          </Badge>
+          {activeSelected.length > 0 && (
+            <>
+              <Button
+                aria-label={t('dash.pause')}
+                title={t('dash.pause')}
+                size="sm"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}
+              >
+                <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.pause')}</span>
+              </Button>
+              <Button
+                aria-label={t('dash.resume')}
+                title={t('dash.resume')}
+                size="sm"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}
+              >
+                <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.resume')}</span>
+              </Button>
+              <Button
+                aria-label={t('dash.cancel')}
+                title={t('dash.cancel')}
+                size="sm"
+                variant="danger"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}
+              >
+                <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.cancel')}</span>
+              </Button>
+            </>
+          )}
+          {historySelected.length > 0 && (
+            <>
+              <Button
+                aria-label={t('dash.retry')}
+                title={t('dash.retry')}
+                size="sm"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}
+              >
+                <RotateCcw aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.retry')}</span>
+              </Button>
+              <Button
+                aria-label={t('dash.removeSelected')}
+                title={t('dash.removeSelected')}
+                size="sm"
+                variant="danger"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}
+              >
+                <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.removeSelected')}</span>
+              </Button>
+            </>
+          )}
+        </ActionBar>
+      </PageFooter>
+    </div>
+  )
+
   return (
     <div>
       {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
@@ -553,447 +1034,53 @@ export default function Dashboard() {
         </PageActions>
       </PageHeader>
 
-      {/* a phone reads top to bottom: the queue, then what is coming and what
-          needs a hand, then the history. From lg the middle part is the
-          right column beside both (a main pane and a supporting pane), so
-          the three are grid siblings placed by breakpoint rather than one
-          column nested in another. The second row is the flexible one: the
-          aside spans both, and a grid hands a spanning item's height to the
-          flexible track, so the queue's row stays as tall as the queue and
-          the history does not move when the storage tile folds */}
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_1fr] lg:items-start">
-        <aside className="order-2 flex min-w-0 flex-col gap-5 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          {wide && transferring && <SpeedPanel downloads={activeAll} />}
-          {watchesLoading ? (
-            <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-2">
-              {[0, 1, 2].map((i) => (
-                <Panel key={i} className="flex items-center gap-3 p-2">
-                  <Skeleton shape="cover" size="sm" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="w-2/3" />
-                    <Skeleton className="w-1/3" />
-                  </div>
-                </Panel>
-              ))}
-            </div>
-          ) : watches.length === 0 ? (
-            <EmptyState>
-              <Trans
-                i18nKey="dash.noWatches"
-                components={{ go: <Link to="/files" className="text-accent underline" /> }}
-              />
-            </EmptyState>
-          ) : (
-            <>
-              <UpNext watches={watches} />
-              <Attention watches={watches} />
-            </>
-          )}
-          <FolderHints />
-          <StorageTile />
-          <BackgroundWork />
-        </aside>
-
-        <section aria-label={t('dash.transferSection')} className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
-          <FoldHeader
-            icon={<DownloadIcon aria-hidden size="1em" />}
-            label={t('dash.transferSection')}
-            count={activeAll.length}
-            open={queueOpen}
-            onToggle={toggleQueue}
-          />
-          {queueOpen && (
-            <>
-              {/* the bulk controls earn their row from the second download on:
-                select-all, search and cancel-everything over a single card
-                are chrome in front of the one thing on screen. The global
-                limit is the one control that is about the next transfer as
-                much as the current one, so an admin always has it here */}
-              {(many || !!user?.isAdmin) && (
-                <Toolbar className="mb-3">
-                  {many && (
-                    <>
-                      <input
-                        ref={activeAllRef}
-                        type="checkbox"
-                        title={t('dash.selectAll')}
-                        aria-label={t('dash.selectAll')}
-                        checked={allActiveSelected}
-                        onChange={() => toggleSection(activeIds, allActiveSelected)}
-                      />
-                      {/* the checkbox and the search share the first row on a phone,
-                  the bulk controls take the second */}
-                      <Input
-                        className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
-                        type="search"
-                        placeholder={t('dash.search')}
-                        aria-label={t('dash.search')}
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                      />
-                    </>
-                  )}
-                  <Toolbar className="ml-auto basis-full sm:basis-auto">
-                    {many && (
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={bulk.isPending}
-                        onClick={async () => {
-                          if (await confirm({ message: t('dash.cancelAllConfirm'), destructive: true }))
-                            bulk.mutate({ a: 'cancel' })
-                        }}
-                      >
-                        <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                        {t('dash.cancelAll')}
-                      </Button>
-                    )}
-                    {!!user?.isAdmin && <GlobalLimitInput caption={!many} />}
-                  </Toolbar>
-                </Toolbar>
-              )}
-
-              {/* a phone reads the rate here, above the card it belongs to; the
-                desktop keeps it in the column beside the queue */}
-              {!wide && transferring && (
-                <div className="mb-3">
-                  <SpeedPanel downloads={activeAll} />
-                </div>
-              )}
-
-              {/* the first answer is still out: a card in the hero's shape and
-                two rows, so the page does not jump when it lands. Only then -
-                a refetch never shows this */}
-              {isLoading && (
-                <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-3">
-                  <Panel className="flex gap-4 p-4">
-                    <Skeleton shape="cover" />
-                    <div className="min-w-0 flex-1 space-y-2.5 py-1">
-                      <Skeleton className="w-2/3" />
-                      <Skeleton className="w-1/3" />
-                      <Skeleton shape="block" className="mt-4 h-2 w-full" />
-                    </div>
-                  </Panel>
-                  {[0, 1].map((i) => (
-                    <Panel key={i} className="flex gap-3 p-3">
-                      <Skeleton shape="cover" size="sm" />
-                      <div className="min-w-0 flex-1 space-y-2 py-1">
-                        <Skeleton className="w-1/2" />
-                        <Skeleton shape="block" className="h-1 w-full" />
-                      </div>
-                    </Panel>
-                  ))}
-                </div>
-              )}
-              {!isLoading &&
-                shown.length === 0 &&
-                (filtering ? (
-                  <EmptyState>{t('dash.noMatches')}</EmptyState>
-                ) : (
-                  // idle is the normal state, not a thing to look at: no card,
-                  // one quiet centred line and the way to the next download
-                  <p className="py-6 text-center text-sm text-t-muted">
-                    <Trans
-                      i18nKey="dash.idle"
-                      components={{ go: <Link to="/files" className="text-accent underline" /> }}
-                    />
-                  </p>
-                ))}
-              <div ref={queueList} className="flex flex-col gap-3">
-                {shown.map((d) => (
-                  <Press
-                    key={d.id}
-                    data-reorder-id={d.id}
-                    data-gone={leaving.some((l) => l.d.id === d.id && l.gone) || undefined}
-                    className="t-collapse"
-                    style={{ '--vt': `dl-${d.id}` } as CSSProperties}
-                    onLongPress={d.status === 'done' ? undefined : () => openRowSheet(d)}
-                  >
-                    <SwipeRow start={swipeStart(d)} end={swipeEnd(d)}>
-                      <DownloadRow
-                        d={d}
-                        meta={meta}
-                        watches={watches}
-                        variant={d === (leavingHero ?? hero) ? 'hero' : 'row'}
-                        selected={selected.has(d.id)}
-                        onSelect={(shift) => selectRow(d.id, shift)}
-                        onAction={(verb) => action.mutate({ id: d.id, verb })}
-                        menu={d.status === 'done' ? undefined : rowActions(d)}
-                        // a search shows a slice of the queue; reordering a slice
-                        // would move rows the reader cannot see
-                        reorder={
-                          d.status === 'queued' && queued.length > 1 && !filtering
-                            ? {
-                                handle: handle(d.id),
-                                toFront: queuedIds[0] === d.id ? undefined : () => moveQueued(d.id, 0, false),
-                              }
-                            : undefined
-                        }
-                      />
-                    </SwipeRow>
-                  </Press>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-
-        {finishedAll.length > 0 && (
-          <section aria-label={t('dash.finishedSection')} className="order-3 min-w-0 lg:col-start-1 lg:row-start-2">
-            <FoldHeader
-              icon={null}
-              label={t('dash.history')}
-              count={finished.length}
-              open={historyOpen}
-              onToggle={toggleHistory}
-            />
-            {historyOpen && (
+      {wide ? (
+        /* desktop: the queue and the history on the left, what is coming and
+          what needs a hand in the right column beside both (a main pane and
+          a supporting pane), as grid siblings placed by row and column. The
+          second row is the flexible one: the aside spans both, and a grid
+          hands a spanning item's height to the flexible track, so the
+          queue's row stays as tall as the queue and the history does not
+          move when the storage tile folds */
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_1fr] lg:items-start">
+          <aside className="order-2 flex min-w-0 flex-col gap-5 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+            {wide && transferring && <SpeedPanel downloads={activeAll} />}
+            {watchState ?? (
               <>
-                <Toolbar className="mb-2">
-                  <input
-                    ref={historyAllRef}
-                    type="checkbox"
-                    title={t('dash.selectAll')}
-                    aria-label={t('dash.selectAll')}
-                    checked={allHistorySelected}
-                    onChange={() => toggleSection(historyIds, allHistorySelected)}
-                  />
-                  <Input
-                    className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
-                    type="search"
-                    placeholder={phone ? t('dash.searchShort') : t('dash.search')}
-                    aria-label={t('dash.search')}
-                    value={historyQuery}
-                    onChange={(e) => setHistoryQuery(e.target.value)}
-                  />
-                  {/* one select on a phone, so the filter shares the row
-                        with the search instead of taking a second one as
-                        three chips. Single choice there: the chips' multi
-                        select is a desktop nicety, not something the phone
-                        row has room for */}
-                  <Select
-                    size="sm"
-                    // important: .t-select-wrap sets display outside the
-                    // utilities layer and would win over a plain sm:hidden
-                    wrapperClassName="sm:hidden!"
-                    aria-label={t('dash.filterStatus')}
-                    value={statusFilter.size === 1 ? [...statusFilter][0] : ''}
-                    onChange={(e) =>
-                      setStatusFilter(e.target.value ? new Set([e.target.value as Download['status']]) : new Set())
-                    }
-                  >
-                    <option value="">{t('dash.filterAll')}</option>
-                    {HISTORY_STATUSES.map((st) => (
-                      <option key={st} value={st}>
-                        {t(`status.${st}`)}
-                      </option>
-                    ))}
-                  </Select>
-                  {/* toggle chips: <Badge> renders a span, these have to stay
-                        buttons with aria-pressed - kept hand-written */}
-                  <div
-                    role="group"
-                    aria-label={t('dash.filterStatus')}
-                    className="hidden flex-wrap items-center gap-1 sm:flex"
-                  >
-                    {HISTORY_STATUSES.map((st) => {
-                      const Icon = STATUS_ICON[st]
-                      return (
-                        <button
-                          key={st}
-                          aria-pressed={statusFilter.has(st)}
-                          className={`t-label cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
-                          onClick={() => toggleStatus(st)}
-                        >
-                          <Icon aria-hidden size="1em" />
-                          {t(`status.${st}`)}
-                        </button>
-                      )
-                    })}
-                    {historyFiltering && (
-                      <button
-                        className="t-label cursor-pointer hover:text-accent"
-                        onClick={() => {
-                          setHistoryQuery('')
-                          setStatusFilter(new Set())
-                        }}
-                      >
-                        <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                        {t('dash.filterClear')}
-                      </button>
-                    )}
-                  </div>
-                  {/* clears what the search and status filter currently
-                        match, so one button covers "everything" and "only the
-                        failed ones". Disabled on an empty match: the bulk
-                        endpoint reads an empty id list as "all of it" */}
-                  <Toolbar className="ml-auto">
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      aria-label={t('dash.clearHistory')}
-                      title={t('dash.clearHistory')}
-                      disabled={bulk.isPending || historyIds.length === 0}
-                      onClick={async () => {
-                        if (
-                          await confirm({
-                            message: t('dash.clearHistoryConfirm', { count: historyIds.length }),
-                            destructive: true,
-                          })
-                        )
-                          bulk.mutate({ a: 'delete', ids: historyIds })
-                      }}
-                    >
-                      <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                      <span className="hidden sm:inline">{t('dash.clearHistory')}</span>
-                    </Button>
-                  </Toolbar>
-                </Toolbar>
-                {/* not <EmptyState>: this one is the compact p-6/text-sm
-                      variant, and its padding must not be overridden */}
-                {finished.length === 0 && historyFiltering && (
-                  <Panel className="p-6 text-center text-sm text-t-muted">{t('dash.noMatches')}</Panel>
-                )}
-                {/* one bracketed block with hairlines between the rows,
-                      the sync summary's recipe: twenty bordered cards under
-                      each other read as twenty boxes, not as a list */}
-                <Panel className="mt-2">
-                  <ul className="divide-y divide-border-subtle">
-                    {(() => {
-                      // One unwritable directory fails every episode of a
-                      // season, so the same explanation would repeat down the
-                      // whole list - hundreds of pixels saying one thing. Spell
-                      // a cause out on its first row and let the rest keep the
-                      // short error text they had before.
-                      const explained = new Set<string>()
-                      return finishedShown.map((d) => {
-                        const key = `${d.errorCode} ${dirOf(d.localPath)}`
-                        const first = isFsErrorCode(d.errorCode) && !explained.has(key)
-                        if (first) explained.add(key)
-                        // the cover opens the title's card where the download
-                        // belongs to a watch that carries one
-                        const watchId = downloadLabel(d, meta).group?.watchId
-                        const watch = watchId ? watches.find((w) => w.id === watchId) : undefined
-                        return (
-                          <Press as="li" key={d.id} onLongPress={() => openRowSheet(d)}>
-                            <SwipeRow end={swipeHistory(d)}>
-                              <HistoryRow
-                                d={d}
-                                meta={meta}
-                                explain={first}
-                                selected={selected.has(d.id)}
-                                onSelect={(shift) => selectRow(d.id, shift)}
-                                onAction={(verb) => action.mutate({ id: d.id, verb })}
-                                menu={rowActions(d)}
-                                onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
-                                coverLabel={watch ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
-                              />
-                            </SwipeRow>
-                          </Press>
-                        )
-                      })
-                    })()}
-                  </ul>
-                </Panel>
-                {finished.length > finishedShown.length && (
-                  <Button size="sm" className="mt-3" onClick={() => setShowAllHistory(true)}>
-                    {t('dash.showAllHistory', { count: finished.length })}
-                  </Button>
-                )}
+                <UpNext watches={watches} />
+                <Attention watches={watches} />
               </>
             )}
-          </section>
-        )}
-        {/* the selection's actions while rows are selected: the shell's footer
-              row above the tab bar on a phone, a floating toolbar at the foot
-              of the viewport on desktop. Inside the queue column, not under the
-              whole grid: the summary column is usually the taller one, and the
-              bar sat at its foot with a screen's worth of nothing between it
-              and the rows */}
-        {selected.size > 0 && (
-          <div className="order-4 lg:col-start-1">
-            <PageFooter>
-              {/* one row on a phone, as a selection bar there: leave first,
-                  then the count, the actions at the right end with their
-                  icons alone (named for screen readers); words from sm on */}
-              <ActionBar aria-label={t('dash.selectionActions')} floating className="max-sm:flex-nowrap">
-                <Button
-                  size="sm"
-                  aria-label={t('dash.clearSelection')}
-                  title={t('dash.clearSelection')}
-                  onClick={() => setSelected(new Set())}
-                >
-                  <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                  <span className="max-sm:sr-only">{t('dash.clearSelection')}</span>
-                </Button>
-                <Badge tone="accent" className="max-sm:mr-auto">
-                  {t('dash.selectedCount', { count: selected.size })}
-                </Badge>
-                {activeSelected.length > 0 && (
-                  <>
-                    <Button
-                      aria-label={t('dash.pause')}
-                      title={t('dash.pause')}
-                      size="sm"
-                      disabled={bulk.isPending}
-                      onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}
-                    >
-                      <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                      <span className="max-sm:sr-only">{t('dash.pause')}</span>
-                    </Button>
-                    <Button
-                      aria-label={t('dash.resume')}
-                      title={t('dash.resume')}
-                      size="sm"
-                      disabled={bulk.isPending}
-                      onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}
-                    >
-                      <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                      <span className="max-sm:sr-only">{t('dash.resume')}</span>
-                    </Button>
-                    <Button
-                      aria-label={t('dash.cancel')}
-                      title={t('dash.cancel')}
-                      size="sm"
-                      variant="danger"
-                      disabled={bulk.isPending}
-                      onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}
-                    >
-                      <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                      <span className="max-sm:sr-only">{t('dash.cancel')}</span>
-                    </Button>
-                  </>
-                )}
-                {historySelected.length > 0 && (
-                  <>
-                    <Button
-                      aria-label={t('dash.retry')}
-                      title={t('dash.retry')}
-                      size="sm"
-                      disabled={bulk.isPending}
-                      onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}
-                    >
-                      <RotateCcw aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                      <span className="max-sm:sr-only">{t('dash.retry')}</span>
-                    </Button>
-                    <Button
-                      aria-label={t('dash.removeSelected')}
-                      title={t('dash.removeSelected')}
-                      size="sm"
-                      variant="danger"
-                      disabled={bulk.isPending}
-                      onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}
-                    >
-                      <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                      <span className="max-sm:sr-only">{t('dash.removeSelected')}</span>
-                    </Button>
-                  </>
-                )}
-              </ActionBar>
-            </PageFooter>
-          </div>
-        )}
-      </div>
+            <FolderHints />
+            <StorageTile />
+            <BackgroundWork />
+          </aside>
+
+          {transfer}
+          {history}
+          {selectionFooter}
+        </div>
+      ) : (
+        // a phone reads top to bottom, so the order is by what needs the
+        // reader: a running transfer first, then what needs a hand, what is
+        // coming and what went wrong; the quiet idle queue, the hints and
+        // the disks after that
+        <div className="flex flex-col gap-6">
+          {activeAll.length > 0 && transfer}
+          {watchState ?? (
+            <>
+              <Attention watches={watches} />
+              <UpNext watches={watches} />
+            </>
+          )}
+          {activeAll.length === 0 && transfer}
+          {history}
+          <FolderHints />
+          <BackgroundWork />
+          <StorageTile />
+          {selectionFooter}
+        </div>
+      )}
     </div>
   )
 }
@@ -1019,7 +1106,10 @@ function SpeedPanel({ downloads }: { downloads: Download[] }) {
   // the mean of the last ten seconds, not the instant: a burst would swing
   // the arrival by hours. Nothing while it is still zero
   const avg = avgSpeed(10)
-  const mmss = (s: number) => ({ m: Math.floor(s / 60), s: String(s % 60).padStart(2, '0') })
+  const mmss = (s: number) => ({
+    m: Math.floor(s / 60),
+    s: String(s % 60).padStart(2, '0'),
+  })
   const age = (s: number) => (s === 0 ? t('dash.chartEnd') : t('dash.chartAgo', mmss(s)))
   return (
     <div className="flex flex-col gap-3">
@@ -1049,7 +1139,10 @@ function SpeedPanel({ downloads }: { downloads: Download[] }) {
           className="mt-2"
           value={String(span) as (typeof SPEED_WINDOWS)[number]}
           onChange={(v) => setSpan(Number(v))}
-          options={SPEED_WINDOWS.map((v) => ({ value: v, label: t('dash.speedWindowMin', { count: Number(v) / 60 }) }))}
+          options={SPEED_WINDOWS.map((v) => ({
+            value: v,
+            label: t('dash.speedWindowMin', { count: Number(v) / 60 }),
+          }))}
         />
       </Panel>
       {avg > 0 && (
@@ -1085,7 +1178,11 @@ function UpNext({ watches }: { watches: Watch[] }) {
   const firstAhead = all.findIndex((e) => e.at * 1000 > now)
   const events = firstAhead < 0 ? all : all.slice(0, firstAhead + 5)
   const when = (ts: number) =>
-    new Date(ts * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+    new Date(ts * 1000).toLocaleString([], {
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
   const [open, toggle] = useFold('upnext')
   // a tap on an entry opens the title's card, the same one the catalog shows
   const { open: openSeries } = useSeriesModal()
@@ -1163,7 +1260,9 @@ function Attention({ watches }: { watches: Watch[] }) {
                   {w.media?.coverImage?.large && (
                     <button
                       type="button"
-                      aria-label={t('remote.detailsFor', { name: watchTitle(w) })}
+                      aria-label={t('remote.detailsFor', {
+                        name: watchTitle(w),
+                      })}
                       onClick={() => openSeries({ ...seriesTarget(w), tab: 'episodes' })}
                       className="shrink-0 cursor-pointer rounded-xs"
                     >
@@ -1214,6 +1313,8 @@ function FolderHints() {
   const qc = useQueryClient()
   const fail = useFailToast()
   const [open, toggle] = useFold('folder-hints')
+  // three buttons a hint: five of them were a screen and a half on a phone
+  const wide = useMediaQuery(WIDE_MQ)
   const { data: hints = [] } = useQuery<ScopeHint[]>({
     queryKey: ['scope-hints'],
     queryFn: () => api.get('/api/catalog/scope-hints'),
@@ -1221,7 +1322,11 @@ function FolderHints() {
   })
   const mark = useMutation({
     mutationFn: ({ h, kind, rule }: { h: ScopeHint; kind: string; rule?: boolean }) =>
-      api.put(`/api/servers/${h.serverId}/catalog/scope`, { path: h.path, kind, rule }),
+      api.put(`/api/servers/${h.serverId}/catalog/scope`, {
+        path: h.path,
+        kind,
+        rule,
+      }),
     onSuccess: (_, { h }) => scopeChanged(qc, h.serverId),
     onError: fail,
   })
@@ -1234,7 +1339,7 @@ function FolderHints() {
       movie: t('remote.scopeMovie'),
       tvdb: t('remote.scopeTvdb'),
     })[kind] ?? kind
-  const shown = hints.slice(0, 5)
+  const shown = hints.slice(0, wide ? 5 : 2)
   return (
     <section aria-label={t('dash.folderHints')}>
       <FoldHeader
@@ -1254,7 +1359,11 @@ function FolderHints() {
                   {h.name}
                 </span>
                 <span className="mt-1 block text-xs text-t-muted">
-                  {t('dash.folderHintWhy', { server: h.serverName, sibling: h.sibling, kind: kindLabel(h.kind) })}
+                  {t('dash.folderHintWhy', {
+                    server: h.serverName,
+                    sibling: h.sibling,
+                    kind: kindLabel(h.kind),
+                  })}
                 </span>
                 <span className="mt-2 flex flex-wrap gap-2">
                   <Button
@@ -1345,18 +1454,26 @@ function StorageTile() {
                   ))}
                   <div className="flex items-end gap-3">
                     <p className="min-w-0 flex-1 truncate font-mono text-lg text-t-primary tabular-nums">
-                      {t('dash.storageFree', { size: fmtBytes(disk.freeBytes) })}
+                      {t('dash.storageFree', {
+                        size: fmtBytes(disk.freeBytes),
+                      })}
                     </p>
                     <Progress
                       value={pct}
                       tone={pct >= 95 ? 'err' : pct >= 85 ? 'warn' : 'ok'}
                       size="sm"
-                      label={t('dash.storageUsed', { path: disk.path, pct: Math.round(pct) })}
+                      label={t('dash.storageUsed', {
+                        path: disk.path,
+                        pct: Math.round(pct),
+                      })}
                       className="mb-2 w-20"
                     />
                   </div>
                   <p className="text-[11px] text-t-muted">
-                    {t('dash.storageOf', { used: fmtBytes(disk.usedBytes), total: fmtBytes(disk.totalBytes) })}
+                    {t('dash.storageOf', {
+                      used: fmtBytes(disk.usedBytes),
+                      total: fmtBytes(disk.totalBytes),
+                    })}
                   </p>
                 </li>
               )
@@ -1615,7 +1732,10 @@ function DownloadRow({
   onSelect: (shift: boolean) => void
   onAction: (verb: string) => void
   /** a queued row among others: the drag handle, and the jump to the front */
-  reorder?: { handle: ReturnType<ReturnType<typeof useDragReorder>>; toFront?: () => void }
+  reorder?: {
+    handle: ReturnType<ReturnType<typeof useDragReorder>>
+    toFront?: () => void
+  }
   /** every action of the row, behind its ⋯ button */
   menu?: { title: string; actions: SheetAction[] }
 }) {
@@ -1693,7 +1813,10 @@ function DownloadRow({
           {isRetrying(d) ? (
             <Badge tone="warn">
               <RefreshCw aria-hidden size="1em" />
-              {t('dash.retryIn', { n: d.attempts ?? 1, when: countdown(t, d.retryAt!, true) })}
+              {t('dash.retryIn', {
+                n: d.attempts ?? 1,
+                when: countdown(t, d.retryAt!, true),
+              })}
             </Badge>
           ) : (
             // the status rolls over rather than swapping: queued, then
