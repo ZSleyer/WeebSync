@@ -208,6 +208,8 @@
     "target": "Ziel"
   },
   "login": {
+    "showPassword": "Zeigen",
+    "hidePassword": "Verbergen",
     "tagline": "かしら",
     "login": "Login",
     "register": "Registrieren",

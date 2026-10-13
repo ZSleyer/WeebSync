@@ -208,6 +208,8 @@
     "target": "Target"
   },
   "login": {
+    "showPassword": "Show",
+    "hidePassword": "Hide",
     "tagline": "かしら",
     "login": "Login",
     "register": "Register",

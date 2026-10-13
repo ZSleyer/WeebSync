@@ -37,6 +37,7 @@ export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -117,10 +118,13 @@ export default function Login() {
 
   const submitTotp = async (e: FormEvent) => {
     e.preventDefault()
+    // from the form, not the state: the sixth digit submits in the same
+    // change event that sets it, before the state has caught up
+    const typed = new FormData(e.currentTarget as HTMLFormElement).get('code')
     setBusy(true)
     setError('')
     try {
-      await api.post('/api/auth/login/totp', { token: twoFA?.token, code: code.trim() })
+      await api.post('/api/auth/login/totp', { token: twoFA?.token, code: String(typed ?? code).trim() })
       await afterAuth()
     } catch (err) {
       twoFactorFailed(err instanceof Error ? err.message : t('app.error'))
@@ -194,183 +198,218 @@ export default function Login() {
   const oidcLabel = cfg.oidcName ? t('login.oidcNamed', { name: cfg.oidcName }) : t('login.oidc')
 
   return (
-    <main className="grid min-h-dvh content-start justify-items-center p-4 pt-[max(2rem,var(--safe-t))] pb-[calc(1rem+var(--safe-b))] sm:content-center sm:pt-4 sm:pb-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
+    // a desktop splits the screen: the mark on its own half, the form on the
+    // other; a phone stacks them as before
+    <main className="grid min-h-dvh lg:grid-cols-2">
+      <div className="hidden place-items-center border-r border-border-subtle bg-bg-secondary p-10 lg:grid">
+        <div className="text-center">
+          <p className="font-display text-3xl font-bold tracking-[0.25em]" aria-hidden>
             <Brand variant="hero" slogan={t('login.tagline')} className="mb-2" />
-          </h1>
+          </p>
         </div>
+      </div>
+      <div className="grid content-start justify-items-center p-4 pt-[max(2rem,var(--safe-t))] pb-[calc(1rem+var(--safe-b))] sm:content-center sm:pt-4 sm:pb-4">
+        <div className="w-full max-w-sm">
+          <div className="mb-6 text-center">
+            <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
+              <span className="lg:hidden">
+                <Brand variant="hero" slogan={t('login.tagline')} className="mb-2" />
+              </span>
+              <span className="hidden text-2xl tracking-wider lg:inline">{t('login.login')}</span>
+            </h1>
+          </div>
 
-        {oidcOnly ? (
-          <Panel className="animate-fadeIn p-6 text-center">
-            {cfg.authMode === 'oidc-auto' && !holdRedirect ? (
-              <p className="mb-4 text-sm text-t-secondary" role="status">
-                {t('login.redirecting')}
-              </p>
-            ) : null}
-            {notice && (
-              <p className="mb-4 text-sm text-ok" role="status">
-                {notice}
-              </p>
-            )}
-            {error && (
-              <p className="mb-4 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-                {error}
-              </p>
-            )}
-            <ButtonLink variant="primary" className="block w-full" href="/api/auth/oidc/login">
-              <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {oidcLabel}
-            </ButtonLink>
-          </Panel>
-        ) : detour ? (
-          <PasswordDetour
-            kind={detour}
-            email={email}
-            onDone={(msg) => {
-              setDetour(null)
-              setError('')
-              setNotice(msg)
-            }}
-          />
-        ) : twoFA ? (
-          <Panel as="form" className="animate-fadeIn p-6" onSubmit={submitTotp}>
-            <h2 className="mb-1 font-display font-semibold tracking-wider">{t('login.totpTitle')}</h2>
-            {/* with only a security key there is no code field to point at */}
-            <p className="mb-4 text-xs text-t-muted">{twoFA.totp ? t('login.totpHint') : t('login.securityKeyHint')}</p>
-            {twoFA.webauthn && (
-              <Button className="mb-4 block w-full" disabled={busy} onClick={securityKey2FA}>
-                <KeyRound aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('login.useSecurityKey')}
-              </Button>
-            )}
-            {twoFA.totp && (
-              <>
-                <Badge as="label" htmlFor="totp-code" className="mb-1 block w-fit">
-                  {t('login.totpCode')}
-                </Badge>
-                <Input
-                  id="totp-code"
-                  className="mb-4 font-mono tracking-[0.3em]"
-                  autoComplete="one-time-code"
-                  autoFocus
-                  required
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                />
-              </>
-            )}
-            {error && (
-              <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-                {error}
-              </p>
-            )}
-            {twoFA.totp && (
-              <Button type="submit" variant="primary" className="w-full" disabled={busy}>
-                {t('login.submitLogin')}
-              </Button>
-            )}
-            <Button
-              className="mt-3 block w-full text-center"
-              onClick={() => {
-                setTwoFA(null)
-                setCode('')
-                setError('')
-              }}
-            >
-              {t('servers.cancel')}
-            </Button>
-          </Panel>
-        ) : (
-          <Panel as="form" className="animate-fadeIn p-6" onSubmit={submit}>
-            {/* tab bar only when there's a real choice (registration open) */}
-            {cfg.registrationOpen && (
-              <div className="mb-4 flex gap-1" role="group" aria-label={t('login.tabs')}>
-                <Button
-                  aria-pressed={mode === 'login'}
-                  size="sm"
-                  variant={mode === 'login' ? 'primary' : 'default'}
-                  className="flex-1"
-                  onClick={() => setMode('login')}
-                >
-                  {t('login.login')}
-                </Button>
-                <Button
-                  aria-pressed={mode === 'register'}
-                  size="sm"
-                  variant={mode === 'register' ? 'primary' : 'default'}
-                  className="flex-1"
-                  onClick={() => setMode('register')}
-                >
-                  {t('login.register')}
-                </Button>
-              </div>
-            )}
-            <Badge as="label" htmlFor="email" className="mb-1 block w-fit">
-              {t('login.email')}
-            </Badge>
-            <Input
-              id="email"
-              className="mb-4"
-              type="email"
-              // "webauthn" arms passkey autofill on this field (conditional UI)
-              autoComplete="username webauthn"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Badge as="label" htmlFor="password" className="mb-1 block w-fit">
-              {t('login.password')}
-            </Badge>
-            <Input
-              id="password"
-              className="mb-4"
-              type="password"
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              required
-              minLength={mode === 'register' ? 10 : undefined}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            {notice && (
-              <p className="mb-3 rounded-md border border-ok/40 px-3 py-2 text-sm text-ok" role="status">
-                {notice}
-              </p>
-            )}
-            {error && (
-              <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-                {error}
-              </p>
-            )}
-            <Button type="submit" variant="primary" className="w-full" disabled={busy}>
-              {mode === 'login' ? t('login.submitLogin') : t('login.submitRegister')}
-            </Button>
-            {mode === 'login' && cfg.passwordReset && (
-              <Button
-                className="mt-3 block w-full text-center"
-                onClick={() => {
-                  setNotice('')
-                  setDetour('forgot')
-                }}
-              >
-                {t('login.forgot')}
-              </Button>
-            )}
-            {mode === 'login' && !autofill && (
-              <Button className="mt-3 block w-full text-center" disabled={busy} onClick={passkeyLogin}>
-                <Fingerprint aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('login.passkey')}
-              </Button>
-            )}
-            {cfg.oidc && (
-              <ButtonLink className="mt-3 block w-full text-center" href="/api/auth/oidc/login">
+          {oidcOnly ? (
+            <Panel className="animate-fadeIn p-6 text-center">
+              {cfg.authMode === 'oidc-auto' && !holdRedirect ? (
+                <p className="mb-4 text-sm text-t-secondary" role="status">
+                  {t('login.redirecting')}
+                </p>
+              ) : null}
+              {notice && (
+                <p className="mb-4 text-sm text-ok" role="status">
+                  {notice}
+                </p>
+              )}
+              {error && (
+                <p className="mb-4 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+                  {error}
+                </p>
+              )}
+              <ButtonLink variant="primary" className="block w-full" href="/api/auth/oidc/login">
                 <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {oidcLabel}
               </ButtonLink>
-            )}
-          </Panel>
-        )}
+            </Panel>
+          ) : detour ? (
+            <PasswordDetour
+              kind={detour}
+              email={email}
+              onDone={(msg) => {
+                setDetour(null)
+                setError('')
+                setNotice(msg)
+              }}
+            />
+          ) : twoFA ? (
+            <Panel as="form" className="animate-fadeIn p-6" onSubmit={submitTotp}>
+              <h2 className="mb-1 font-display font-semibold tracking-wider">{t('login.totpTitle')}</h2>
+              {/* with only a security key there is no code field to point at */}
+              <p className="mb-4 text-xs text-t-muted">
+                {twoFA.totp ? t('login.totpHint') : t('login.securityKeyHint')}
+              </p>
+              {twoFA.webauthn && (
+                <Button className="mb-4 block w-full" disabled={busy} onClick={securityKey2FA}>
+                  <KeyRound aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('login.useSecurityKey')}
+                </Button>
+              )}
+              {twoFA.totp && (
+                <>
+                  <Badge as="label" htmlFor="totp-code" className="mb-1 block w-fit">
+                    {t('login.totpCode')}
+                  </Badge>
+                  <Input
+                    id="totp-code"
+                    name="code"
+                    className="mb-4 text-center font-mono text-lg tracking-[0.5em]"
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoFocus
+                    required
+                    value={code}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 6)
+                      setCode(v)
+                      // the sixth digit is the submit: nothing else to decide
+                      if (v.length === 6 && !busy) e.target.form?.requestSubmit()
+                    }}
+                  />
+                </>
+              )}
+              {error && (
+                <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+                  {error}
+                </p>
+              )}
+              {twoFA.totp && (
+                <Button type="submit" variant="primary" className="w-full" disabled={busy}>
+                  {t('login.submitLogin')}
+                </Button>
+              )}
+              <Button
+                className="mt-3 block w-full text-center"
+                onClick={() => {
+                  setTwoFA(null)
+                  setCode('')
+                  setError('')
+                }}
+              >
+                {t('servers.cancel')}
+              </Button>
+            </Panel>
+          ) : (
+            <Panel as="form" className="animate-fadeIn p-6" onSubmit={submit}>
+              {/* tab bar only when there's a real choice (registration open) */}
+              {cfg.registrationOpen && (
+                <div className="mb-4 flex gap-1" role="group" aria-label={t('login.tabs')}>
+                  <Button
+                    aria-pressed={mode === 'login'}
+                    size="sm"
+                    variant={mode === 'login' ? 'primary' : 'default'}
+                    className="flex-1"
+                    onClick={() => setMode('login')}
+                  >
+                    {t('login.login')}
+                  </Button>
+                  <Button
+                    aria-pressed={mode === 'register'}
+                    size="sm"
+                    variant={mode === 'register' ? 'primary' : 'default'}
+                    className="flex-1"
+                    onClick={() => setMode('register')}
+                  >
+                    {t('login.register')}
+                  </Button>
+                </div>
+              )}
+              <Badge as="label" htmlFor="email" className="mb-1 block w-fit">
+                {t('login.email')}
+              </Badge>
+              <Input
+                id="email"
+                className="mb-4"
+                type="email"
+                // "webauthn" arms passkey autofill on this field (conditional UI)
+                autoComplete="username webauthn"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <Badge as="label" htmlFor="password" className="mb-1 block w-fit">
+                {t('login.password')}
+              </Badge>
+              <div className="relative mb-4">
+                <Input
+                  id="password"
+                  className="pr-20"
+                  type={showPw ? 'text' : 'password'}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  required
+                  minLength={mode === 'register' ? 10 : undefined}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 min-w-16 px-3 text-ctl-sm text-accent hover:underline"
+                  aria-pressed={showPw}
+                  aria-controls="password"
+                  onClick={() => setShowPw((v) => !v)}
+                >
+                  {t(showPw ? 'login.hidePassword' : 'login.showPassword')}
+                </button>
+              </div>
+              {notice && (
+                <p className="mb-3 rounded-md border border-ok/40 px-3 py-2 text-sm text-ok" role="status">
+                  {notice}
+                </p>
+              )}
+              {error && (
+                <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" variant="primary" className="w-full" disabled={busy}>
+                {mode === 'login' ? t('login.submitLogin') : t('login.submitRegister')}
+              </Button>
+              {mode === 'login' && cfg.passwordReset && (
+                <Button
+                  className="mt-3 block w-full text-center"
+                  onClick={() => {
+                    setNotice('')
+                    setDetour('forgot')
+                  }}
+                >
+                  {t('login.forgot')}
+                </Button>
+              )}
+              {mode === 'login' && !autofill && (
+                <Button className="mt-3 block w-full text-center" disabled={busy} onClick={passkeyLogin}>
+                  <Fingerprint aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('login.passkey')}
+                </Button>
+              )}
+              {cfg.oidc && (
+                <ButtonLink className="mt-3 block w-full text-center" href="/api/auth/oidc/login">
+                  <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {oidcLabel}
+                </ButtonLink>
+              )}
+            </Panel>
+          )}
+        </div>
       </div>
     </main>
   )
