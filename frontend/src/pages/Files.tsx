@@ -10,7 +10,9 @@ import {
   Files as FilesIcon,
   Folder,
   Info,
+  ListChecks,
   MoreHorizontal,
+  Music,
   PenLine,
   Pencil,
   Play,
@@ -18,7 +20,6 @@ import {
   Replace,
   Search,
   Trash2,
-  Undo2,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -47,7 +48,6 @@ import {
   Input,
   Menu,
   MenuItem,
-  Panel,
   Row,
   RowAction,
   Rows,
@@ -87,7 +87,8 @@ import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
 import { scopeChanged, useCatalogView } from '../components/useCatalogView'
 import ScopeRuleLine from '../components/ScopeRuleLine'
-import { FileBrowser, LocalPicker, PathCrumbs, PlayIcon } from '../components/FileBrowser'
+import { FileBrowser, LocalPicker, openKind, PathCrumbs, PHONE_SORTS } from '../components/FileBrowser'
+import { useStored } from '../hooks/useStored'
 import { catalogTitle, firstVideo, isVideo, playHref, viewHref, viewKind } from '../components/playLinks'
 import PathInput from '../components/PathInput'
 import FileIcon from '../components/FileIcon'
@@ -113,6 +114,7 @@ import { useAuth, useProviders } from '../hooks'
 import Loading from '../components/Loading'
 import { CatalogWhy } from '../components/CatalogWhy'
 import { InlineRename, type Renaming } from '../components/InlineRename'
+import './files.css'
 
 // Where the browser is looking: the local library or one of the servers. An
 // explicit union, never a bare 0 - the catalog API addresses the local library
@@ -200,7 +202,6 @@ export default function Files() {
   const [selection, setSelection] = useState<Entry | null>(null)
   // a finger held on a row: its actions as a sheet
   const [sheet, setSheet] = useState<Entry | null>(null)
-  const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   // the dialogs carry their own entry: a catalog card acts on itself without
   // going through the selection, which would pop the action bar open as a
@@ -291,16 +292,14 @@ export default function Files() {
   // (server-side scope mark); "once"/"saved" switch and persist per folder
   const { view, value: viewValue, set: setView } = useCatalogView(active, path)
 
-  const [lastIds, setLastIds] = useState<number[]>([])
-  // the sync notice and its Undo speak about the folder they were given in:
-  // another folder or source clears them (adjusted while rendering, the
-  // React way to reset state on a changed value)
-  const place = `${source}:${path}`
-  const [noticePlace, setNoticePlace] = useState(place)
-  if (noticePlace !== place) {
-    setNoticePlace(place)
-    setNotice('')
-    setLastIds([])
+  // undo for an accidental sync click: cancel the just-queued batch
+  const cancelQueued = async (ids: number[]) => {
+    try {
+      const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids })
+      toast({ message: t('remote.syncCanceled', { count: out.canceled }) })
+    } catch (err) {
+      toast({ message: err instanceof Error ? err.message : t('app.error') })
+    }
   }
   const enqueue = useMutation({
     // with a rename rule the one-off sync endpoint applies the full watch
@@ -323,26 +322,16 @@ export default function Files() {
             localPath: syncRequestPath(syncMode, syncLocal, syncTarget),
             flat: !(syncMode === 'remote' && entry.isDir),
           }),
+    // what was queued, with the way back while the toast stands
     onSuccess: (r) => {
-      setNotice(t('remote.queued', { count: r.queued }))
-      if (inCard) toast({ message: t('remote.queued', { count: r.queued }) })
-      setLastIds(r.ids ?? [])
+      const ids = r.ids ?? []
+      toast({
+        message: t('remote.queued', { count: r.queued }),
+        undo: ids.length > 0 ? () => void cancelQueued(ids) : undefined,
+      })
     },
-    onError: (e) => {
-      setNotice(e instanceof Error ? e.message : t('app.error'))
-      setLastIds([])
-    },
+    onError: (e) => toast({ message: e instanceof Error ? e.message : t('app.error') }),
   })
-  // undo for an accidental sync click: cancel the just-queued batch
-  const cancelLast = async () => {
-    try {
-      const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids: lastIds })
-      setNotice(t('remote.syncCanceled', { count: out.canceled }))
-      setLastIds([])
-    } catch (err) {
-      setNotice(err instanceof Error ? err.message : t('app.error'))
-    }
-  }
 
   const syncProps = (entry: Entry, seed: WatchFields) => ({
     entry,
@@ -369,11 +358,10 @@ export default function Files() {
     initial: applyDefaults(blankWatch(entry.path, localPath ?? ''), watchKind?.kind, defaults, watchKind),
     onSave: async (f: WatchFields) => {
       await api.post('/api/watches', { serverId: active, ...f })
-      setNotice(t('watch.created'))
       // the auto-sync page, and the card's auto-sync section on the way back,
       // show the new watch
       await qc.invalidateQueries({ queryKey: ['watches'] })
-      if (inCard) toast({ message: t('watch.created') })
+      toast({ message: t('watch.created') })
     },
     onClose: () => setWatchEntry(null),
   })
@@ -406,8 +394,9 @@ export default function Files() {
     : undefined
   const removeLocal = async (e: Entry) => {
     const ok = await confirm({
+      title: t('files.deleteTitle', { name: e.name }),
       message: e.isDir ? t('local.deleteDirConfirm', { name: e.name }) : t('local.deleteConfirm', { name: e.name }),
-      confirmLabel: t('local.delete'),
+      confirmLabel: t('files.deleteForever'),
       destructive: true,
     })
     if (!ok) return
@@ -417,14 +406,64 @@ export default function Files() {
       // completely, a file needs no flag
       await api.del('/api/browse/local', { path: e.path, recursive: e.isDir })
       refreshLocal()
+      toast({ message: t('files.deleted') })
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
     }
   }
-  // the catalog cards keep their own edit buttons: a card acts on itself
-  // descriptors rather than markup: the tile decides how many of its actions
-  // fit on the row and puts the rest in a menu, which it cannot do with a
-  // finished pair of buttons
+
+  // selection mode (local library, admins): rows get a check, a tap toggles,
+  // and the bar acts on all of them. A local delete skips the trash, so it
+  // asks first; no undo pretends otherwise.
+  const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set())
+  const [checkedPlace, setCheckedPlace] = useState(`${source}:${path}`)
+  if (checkedPlace !== `${source}:${path}`) {
+    setCheckedPlace(`${source}:${path}`)
+    setChecked(new Set())
+  }
+  const toggle = (e: Entry) =>
+    setChecked((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(e.path)) next.add(e.path)
+      return next
+    })
+  const startSelecting = (e: Entry) => {
+    setSelection(null)
+    setChecked(new Set([e.path]))
+  }
+  const removeChecked = async () => {
+    const paths = [...checked]
+    const ok = await confirm({
+      title: t('files.deleteManyTitle', { count: paths.length }),
+      message: t('files.deleteManyConfirm', { count: paths.length }),
+      confirmLabel: t('files.deleteForever'),
+      destructive: true,
+    })
+    if (!ok) return
+    setError('')
+    let done = 0
+    for (const p of paths) {
+      try {
+        // a folder in the selection goes with its content, like a single delete
+        await api.del('/api/browse/local', { path: p, recursive: true })
+        done++
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('app.error'))
+        break
+      }
+    }
+    setChecked(new Set())
+    refreshLocal()
+    if (done > 0) toast({ message: t('files.deletedMany', { count: done }) })
+  }
+
+  const copyPath = (e: Entry) =>
+    navigator.clipboard.writeText(e.path).then(
+      () => toast({ message: t('files.pathCopied') }),
+      () => toast({ message: `${t('files.copyFailed')} ${e.path}` }),
+    )
+
+  // the catalog tiles' long-press sheet: rename and delete on the local library
   const cardActions = (e: Entry): TileAction[] =>
     canEdit
       ? [
@@ -437,7 +476,7 @@ export default function Files() {
           },
           {
             key: 'delete',
-            icon: <X aria-hidden size="1.2em" />,
+            icon: <Trash2 aria-hidden size="1.2em" />,
             label: t('local.delete'),
             aria: t('local.deleteItem', { name: e.name }),
             onClick: () => removeLocal(e),
@@ -447,93 +486,102 @@ export default function Files() {
       : []
 
   // what a picked entry can do: the bar on a phone, the info panel on a
-  // desktop and the sheet a long press opens read the same list, so they agree
-  const actionsOf = (e: Entry): FileAction[] => [
-    ...(isVideo(e.name) || viewKind(e.name) === 'audio'
-      ? [{ key: 'play', icon: Play, label: t('player.play'), onClick: () => playFile(e) }]
-      : !e.isDir && viewKind(e.name)
-        ? [{ key: 'open', icon: BookOpen, label: t('viewer.open'), onClick: () => playFile(e) }]
+  // desktop and the sheet a long press opens read the same list, so they
+  // agree. Opening first, then fetching (remote) or editing (local), the
+  // path last.
+  const actionsOf = (e: Entry): FileAction[] => {
+    const kind = e.isDir ? null : openKind(e.name)
+    return [
+      ...(kind
+        ? [
+            {
+              key: 'open',
+              icon: kind === 'play' ? Play : kind === 'listen' ? Music : BookOpen,
+              label: t(kind === 'play' ? 'player.play' : kind === 'listen' ? 'files.listen' : 'viewer.open'),
+              primary: isLocal,
+              onClick: () => playFile(e),
+            },
+          ]
         : []),
-    ...(canEdit
-      ? [
-          {
-            key: 'rename',
-            icon: Pencil,
-            label: t('local.rename'),
-            aria: t('local.renameItem', { name: e.name }),
-            onClick: () => renameLocal(e),
-          },
-          // the batch renamer works on a folder's episodes; it opens with
-          // this folder already chosen
-          ...(e.isDir
-            ? [
-                {
-                  key: 'episodes',
-                  icon: PenLine,
-                  label: t('local.renameEpisodes'),
-                  onClick: () => goTo(`/rename?path=${encodeURIComponent(e.path.replace(/^\//, ''))}`),
-                },
-              ]
-            : []),
-          {
-            key: 'delete',
-            icon: Trash2,
-            label: t('local.delete'),
-            aria: t('local.deleteItem', { name: e.name }),
-            variant: 'danger' as const,
-            onClick: () => removeLocal(e),
-          },
-        ]
-      : []),
-    ...(!isLocal
-      ? [
-          {
-            key: 'watch',
-            icon: Eye,
-            label: t('watch.add'),
-            disabled: !e.isDir,
-            onClick: () => {
-              setWatchEntry(e)
-              setInCard(false)
+      ...(!isLocal
+        ? [
+            {
+              key: 'sync',
+              icon: Download,
+              label: t(e.isDir ? 'files.syncFolder' : 'files.loadFile'),
+              primary: true,
+              onClick: () => {
+                setSyncEntry(e)
+                setInCard(false)
+              },
             },
-          },
-          {
-            key: 'sync',
-            icon: Download,
-            label: t('remote.syncOpen'),
-            variant: 'primary' as const,
-            onClick: () => {
-              setSyncEntry(e)
-              setInCard(false)
+            ...(e.isDir
+              ? [
+                  {
+                    key: 'watch',
+                    icon: Eye,
+                    label: t('watch.add'),
+                    onClick: () => {
+                      setWatchEntry(e)
+                      setInCard(false)
+                    },
+                  },
+                ]
+              : []),
+          ]
+        : []),
+      ...(canEdit
+        ? [
+            {
+              key: 'rename',
+              icon: Pencil,
+              label: t('local.rename'),
+              aria: t('local.renameItem', { name: e.name }),
+              onClick: () => renameLocal(e),
             },
-          },
-        ]
-      : []),
-  ]
+            // the batch renamer works on a folder's episodes; it opens with
+            // this folder already chosen
+            ...(e.isDir
+              ? [
+                  {
+                    key: 'episodes',
+                    icon: PenLine,
+                    label: t('local.renameEpisodes'),
+                    onClick: () => goTo(`/rename?path=${encodeURIComponent(e.path.replace(/^\//, ''))}`),
+                  },
+                ]
+              : []),
+            {
+              key: 'select',
+              icon: ListChecks,
+              label: t('files.selectMany'),
+              onClick: () => startSelecting(e),
+            },
+            {
+              key: 'delete',
+              icon: Trash2,
+              label: t('local.delete'),
+              aria: t('local.deleteItem', { name: e.name }),
+              variant: 'danger' as const,
+              onClick: () => removeLocal(e),
+            },
+          ]
+        : []),
+      { key: 'copy', icon: Copy, label: t('files.copyPath'), onClick: () => void copyPath(e) },
+    ]
+  }
   const actionButton = (a: FileAction, className = '') => (
     <Button
       key={a.key}
-      size="sm"
-      variant={a.variant}
+      variant={a.variant ?? (a.primary ? 'primary' : undefined)}
       disabled={a.disabled}
       aria-label={a.aria}
       onClick={a.onClick}
       className={className}
     >
-      <a.icon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+      <a.icon aria-hidden size={18} className="mr-1.5 inline shrink-0 align-[-0.2em]" />
       {a.label}
     </Button>
-  )
-  const undo = notice && (
-    <span className="flex items-center gap-2 text-xs text-t-secondary" role="status">
-      {notice}
-      {lastIds.length > 0 && (
-        <Button size="sm" variant="danger" onClick={cancelLast}>
-          <Undo2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('remote.undoSync')}
-        </Button>
-      )}
-    </span>
   )
 
   const navigate = (p: string) => {
@@ -544,26 +592,19 @@ export default function Files() {
     isLocal
       ? `/api/browse/local?path=${encodeURIComponent(p)}`
       : `/api/servers/${active}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`
+  const [sort, setSort] = useStored<string>('weebsync.files.sort', 'name')
+  const selecting = checked.size > 0
+  // the phone's bar for a picked entry: up to two actions, the rest in the sheet
+  const barActions = selection ? actionsOf(selection).filter((a) => a.key !== 'copy') : []
+  const barMain = barActions.slice(0, 2)
 
   return (
     <div className="page-fill flex min-h-0 flex-1 flex-col">
-      {/* the in-page heading is the desktop's; on a phone the app bar carries
-          the title and the view switch. The source itself lives in the panel
-          below, on the row it labels - it used to be a button group here, a
-          select there and an add-server icon beside them, and the group wrapped
-          into two rows as soon as a third server existed */}
-      <header className="mb-4 hidden flex-wrap items-center gap-x-3 gap-y-2 lg:flex">
-        <div className="mr-auto">
-          <h2 className="font-display text-xl font-semibold tracking-wider">{t('files.title')}</h2>
-          <Badge className="mt-1">{t('files.sub')}</Badge>
-        </div>
-        <PageActions>
-          {/* first, so the view switch and the pin keep their place in the
-              app bar on a phone */}
-          <TrashButton />
-          <CatalogViewSwitch value={viewValue} onChange={setView} />
-        </PageActions>
-      </header>
+      {/* the shell carries the page title (app bar on a phone, title row on
+          a desktop); the trash rides with it */}
+      <PageActions>
+        <TrashButton />
+      </PageActions>
 
       {!isLocal && servers.length === 0 ? (
         <EmptyState>
@@ -573,23 +614,16 @@ export default function Files() {
           />
         </EmptyState>
       ) : (
-        <div className="flex min-h-0 flex-1 gap-4">
-          <Panel
-            as="section"
-            className="flex min-h-64 min-w-0 flex-1 flex-col lg:min-h-0"
-            aria-label={t('files.title')}
-          >
-            <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+        <div className="flex min-h-0 flex-1 gap-8">
+          <section className="flex min-h-64 min-w-0 flex-1 flex-col lg:min-h-0" aria-label={t('files.title')}>
+            <CatalogViewSwitch value={viewValue} onChange={setView} />
+            <div className="ws-cl-bar">
               {/* names the source, switches it, and holds the way to a new one */}
-              <SourcePicker value={source} servers={servers} onChange={pickSource} className="shrink-0" />
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">
-                {selection ? selection.path : path ? `/${path}` : t('remote.noSelection')}
-              </span>
+              <SourcePicker value={source} servers={servers} onChange={pickSource} className="ws-src" />
               {!isLocal && (
-                <>
-                  <Input
-                    className="w-40 sm:w-56"
-                    size="sm"
+                <label className="ws-cl-search">
+                  <Search aria-hidden size={18} />
+                  <input
                     type="search"
                     placeholder={
                       path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')
@@ -603,7 +637,21 @@ export default function Files() {
                       rememberSearch(query)
                     }}
                   />
-                </>
+                </label>
+              )}
+              {view === 'classic' && !query.trim() && (
+                <Select
+                  wrapperClassName="ws-cl-sort"
+                  aria-label={t('files.sortBy')}
+                  value={(PHONE_SORTS as readonly string[]).includes(sort) ? sort : 'name'}
+                  onChange={(e) => setSort(e.target.value)}
+                >
+                  {PHONE_SORTS.map((s) => (
+                    <option key={s} value={s}>
+                      {t(`files.sort_${s.replace('-', '')}`)}
+                    </option>
+                  ))}
+                </Select>
               )}
             </div>
             {/* Recent searches only while the field is focused and still empty,
@@ -613,38 +661,31 @@ export default function Files() {
               keep them there while typing. */}
             {!isLocal && searchFocus && !query && recentSearches.length > 0 && (
               <div
-                className="flex flex-wrap items-center gap-1.5 border-b border-border-subtle px-3 py-2"
+                className="ws-cl-recent"
                 aria-label={t('remote.recentSearches')}
                 // keep focus in the input, so a tap here does not close the row first
                 onMouseDown={(e) => e.preventDefault()}
               >
-                <span className="text-xs text-t-muted">{t('remote.recentSearches')}</span>
+                <span>{t('remote.recentSearches')}</span>
                 {recentSearches.map((q) => (
-                  <span
-                    key={q}
-                    className="flex min-h-8 max-w-full items-center rounded-full border border-border-input text-sm text-t-primary"
-                  >
-                    <button
-                      type="button"
-                      className="min-w-0 truncate py-1 pr-1 pl-3 hover:text-accent"
-                      onClick={() => setQuery(q)}
-                    >
+                  <span key={q} className="ws-rq">
+                    <button type="button" className="t-link t-link--2" onClick={() => setQuery(q)}>
                       {q}
                     </button>
                     <button
                       type="button"
-                      className="grid size-8 shrink-0 place-items-center text-t-muted hover:text-err"
+                      className="ws-rq-x"
                       aria-label={t('remote.forgetSearch', { q })}
                       onClick={() => forgetSearch(q)}
                     >
-                      <X size={14} />
+                      <X aria-hidden size={14} />
                     </button>
                   </span>
                 ))}
               </div>
             )}
             {error && (
-              <p className="border-b border-border-subtle px-3 py-2 text-xs text-err" role="alert">
+              <p className="py-2 text-sm text-err" role="alert">
                 {error}
               </p>
             )}
@@ -657,9 +698,12 @@ export default function Files() {
                   navigate(p)
                   setQuery('')
                 }}
-                onSelect={setSelection}
-                onPlay={playFile}
-                selected={selection?.path}
+                onShow={(e) => {
+                  // a found file: its folder, the file picked in it
+                  navigate(e.path.slice(0, e.path.lastIndexOf('/')))
+                  setQuery('')
+                  setSelection(e)
+                }}
               />
             ) : view === 'classic' ? (
               <FileBrowser
@@ -669,14 +713,19 @@ export default function Files() {
                 onNavigate={navigate}
                 onSelect={setSelection}
                 selected={selection?.path}
-                emptyHint={isLocal ? t('remote.emptyLocal') : undefined}
+                emptyHint={isLocal ? t('files.emptyLocalHint') : undefined}
                 serverId={isLocal ? undefined : active}
                 renaming={inPlace}
                 onPlay={playFile}
                 sortable
+                sort={sort}
+                onSort={setSort}
+                checked={canEdit ? checked : undefined}
+                onToggle={canEdit ? toggle : undefined}
+                onContextSelect={setSelection}
                 onLongPress={(e) => {
                   setSelection(e)
-                  if (actionsOf(e).some((a) => !a.disabled)) setSheet(e)
+                  setSheet(e)
                 }}
               />
             ) : (
@@ -713,34 +762,56 @@ export default function Files() {
                 }}
               />
             )}
-          </Panel>
-          {selection && (
-            <FileInfo entry={selection} actions={actionsOf(selection).map((a) => actionButton(a, 'justify-start'))}>
-              {undo}
-            </FileInfo>
+
+            {/* a picked entry on a phone: a card that sticks to the bottom of
+                the list, the main actions in reach of the thumb */}
+            {selection && !selecting && (
+              <div className="ws-cl-actions" role="region" aria-label={t('remote.selectionBar')}>
+                <span className="ws-cl-glyph" data-dir={selection.isDir || undefined}>
+                  <FileIcon isDir={selection.isDir} name={selection.name} />
+                </span>
+                <strong title={selection.path}>{selection.name}</strong>
+                {barMain.map((a) => actionButton(a))}
+                <IconButton
+                  aria-label={t('catalog.more')}
+                  title={t('catalog.more')}
+                  onClick={() => setSheet(selection)}
+                >
+                  <MoreHorizontal aria-hidden size={20} />
+                </IconButton>
+              </div>
+            )}
+          </section>
+          {selection && !selecting && (
+            <FileInfo
+              entry={selection}
+              source={isLocal ? t('files.local') : (servers.find((s) => s.id === active)?.name ?? '')}
+              actions={actionsOf(selection).map((a) => actionButton(a, 'justify-start'))}
+              onClose={() => setSelection(null)}
+            />
           )}
         </div>
       )}
 
-      {/* action bar: the last row of the page-fill column, directly above the
-          phone's tab bar, so the primary action sits under the thumb. It
-          appears with a selection (or a pending notice) so the list keeps
-          the full height otherwise. */}
-      {(selection || notice) && (
-        <Panel
-          role="region"
-          aria-label={t('remote.selectionBar')}
-          className={`mt-4 flex flex-wrap items-center gap-2 p-3 ${selection ? 'lg:hidden' : ''}`}
-        >
-          {selection && (
-            <span className="min-w-28 flex-1 truncate text-sm text-t-secondary" title={selection.path}>
-              <FileIcon isDir={selection.isDir} name={selection.name} className="mr-1.5 inline align-[-2px]" />
-              {selection.name}
-            </span>
-          )}
-          {undo}
-          {selection && actionsOf(selection).map((x) => actionButton(x))}
-        </Panel>
+      {selecting && (
+        <div className="ws-sel-bar" role="toolbar" aria-label={t('files.selection')}>
+          <button type="button" className="ws-sel-done" onClick={() => setChecked(new Set())}>
+            <X aria-hidden size={20} />
+            <span>{t('files.checkedCount', { count: checked.size })}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => goTo(`/rename?path=${encodeURIComponent(path)}`)}
+            aria-label={t('local.renameEpisodes')}
+          >
+            <PenLine aria-hidden size={20} />
+            <span>{t('local.rename')}</span>
+          </button>
+          <button type="button" className="ws-sel-danger" onClick={() => void removeChecked()}>
+            <Trash2 aria-hidden size={20} />
+            <span>{t('local.delete')}</span>
+          </button>
+        </div>
       )}
 
       {sheet && (
@@ -786,61 +857,65 @@ interface FileAction {
   label: string
   aria?: string
   variant?: 'primary' | 'danger'
+  /** the entry's main action: filled in the bar and the panel */
+  primary?: boolean
   disabled?: boolean
   onClick: () => void
 }
 
 // The selection on a desktop: what it is, where it lies and what it can do,
-// beside the list instead of a bar under it
-function FileInfo({ entry, actions, children }: { entry: Entry; actions: ReactNode; children?: ReactNode }) {
+// beside the list instead of a bar under it. The list reflows beside it.
+function FileInfo({
+  entry,
+  source,
+  actions,
+  onClose,
+}: {
+  entry: Entry
+  source: string
+  actions: ReactNode
+  onClose: () => void
+}) {
   const { t, i18n } = useTranslation()
-  const toast = useToast()
   const ext = entry.name.includes('.') ? (entry.name.split('.').pop() ?? '').toUpperCase() : ''
   const time = Date.parse(entry.modTime) || 0
-  const copy = () =>
-    navigator.clipboard.writeText(entry.path).then(
-      () => toast({ message: t('files.pathCopied') }),
-      () => toast({ message: t('files.copyFailed') }),
-    )
   return (
-    <Panel
-      as="aside"
-      aria-label={t('files.info')}
-      className="hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto p-4 lg:flex"
-    >
-      <div className="flex items-start gap-3">
-        <FileIcon isDir={entry.isDir} name={entry.name} className="mt-0.5 size-6" />
-        <h3 className="min-w-0 font-semibold break-words text-t-primary">{entry.name}</h3>
+    <aside aria-labelledby="file-info-title" className="ws-fi">
+      <div className="ws-fi-hd">
+        <h2 id="file-info-title">{t('files.info')}</h2>
+        <IconButton aria-label={t('common.close')} title={t('common.close')} onClick={onClose}>
+          <X aria-hidden size={20} />
+        </IconButton>
       </div>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
-        <dt className="text-t-muted">{t('files.kind')}</dt>
-        <dd className="text-t-secondary">{entry.isDir ? t('files.kindFolder') : ext || t('files.kindFile')}</dd>
+      <div className="ws-fi-top">
+        <span className="ws-fi-ic">
+          <FileIcon isDir={entry.isDir} name={entry.name} />
+        </span>
+        <div className="min-w-0">
+          <h3>{entry.name}</h3>
+          <p>
+            {source} · {entry.isDir ? t('files.kindFolder') : ext || t('files.kindFile')}
+          </p>
+        </div>
+      </div>
+      <dl className="ws-fi-dl">
+        <dt>{t('files.where')}</dt>
+        <dd className="font-mono">{entry.path}</dd>
         {!entry.isDir && (
           <>
-            <dt className="text-t-muted">{t('files.colSize')}</dt>
-            <dd className="font-mono text-t-secondary">{fmtBytes(entry.size)}</dd>
+            <dt>{t('files.colSize')}</dt>
+            <dd>{fmtBytes(entry.size)}</dd>
           </>
         )}
         {time > 0 && (
           <>
-            <dt className="text-t-muted">{t('files.colDate')}</dt>
-            <dd className="text-t-secondary">
-              {new Date(time).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })}
-            </dd>
+            <dt>{t('files.colDate')}</dt>
+            <dd>{new Date(time).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })}</dd>
           </>
         )}
       </dl>
-      <div className="grid gap-1.5">
-        <span className="text-xs text-t-muted">{t('files.where')}</span>
-        <code className="font-mono text-xs break-all text-t-secondary">{entry.path}</code>
-        <Button size="sm" className="justify-self-start" onClick={copy}>
-          <Copy aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('files.copyPath')}
-        </Button>
-      </div>
-      <div className="mt-auto grid gap-2">{actions}</div>
-      {children}
-    </Panel>
+      <div className="ws-fi-acts">{actions}</div>
+    </aside>
   )
 }
 
@@ -851,17 +926,14 @@ function SearchResults({
   path,
   query,
   onOpenDir,
-  onSelect,
-  onPlay,
-  selected,
+  onShow,
 }: {
   serverId: number
   path: string
   query: string
   onOpenDir: (path: string) => void
-  onSelect: (e: Entry) => void
-  onPlay: (e: Entry) => void
-  selected?: string
+  /** a found file: go to its folder and pick it there */
+  onShow: (e: Entry) => void
 }) {
   const { t } = useTranslation()
   const [q, setQ] = useState(query)
@@ -879,53 +951,43 @@ function SearchResults({
   })
 
   return (
-    // the horizontal axis stays with the page's swipe zone, see the browser below
+    // the horizontal axis stays with the page's swipe zone, see the browser
     <div className="min-h-0 flex-1 overflow-y-auto" style={{ touchAction: 'pan-y pinch-zoom' }}>
-      {isLoading && <Loading className="p-4" />}
+      {isLoading && <Loading className="py-4" />}
       {data && data.results.length === 0 && (
-        <p className="p-4 text-sm text-t-muted">
-          {t('remote.noResults')}
-          {data.indexed < 100 && <span className="mt-1 block text-xs">{t('remote.indexBuilding')}</span>}
-        </p>
+        <div className="ws-empty">
+          <b>{t('files.noHits', { q: q.trim() })}</b>
+          {data.indexed < 100 && <span>{t('remote.indexBuilding')}</span>}
+        </div>
       )}
-      <ul>
+      <ul className="ws-cl-rows">
         {data?.results.map((e) => {
-          const playable = !e.isDir && (isVideo(e.name) || !!viewKind(e.name))
+          const dir = e.path.slice(0, e.path.lastIndexOf('/')) || '/'
           return (
-            <li key={e.path} className="flex items-stretch border-b border-border-subtle/50">
-              {playable && <PlayIcon name={e.name} onPlay={() => onPlay(e)} />}
-              <button
-                type="button"
-                className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-3 text-left text-sm transition-colors hover:bg-bg-hover ${
-                  playable ? 'pl-1' : 'pl-3'
-                } ${selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'}`}
-                onClick={() => (e.isDir ? onOpenDir(e.path) : onSelect(e))}
-                onDoubleClick={() => playable && onPlay(e)}
-              >
-                {!playable && <FileIcon isDir={e.isDir} name={e.name} />}
-                <span className="min-w-0 flex-1 truncate">
-                  {e.name}
-                  <span className="mt-0.5 block truncate font-mono text-ctl-xs text-t-faint">{e.path}</span>
+            <li key={e.path} className="ws-cl-row">
+              <div className="ws-cl-in">
+                <span className="ws-cl-glyph" data-dir={e.isDir || undefined}>
+                  <FileIcon isDir={e.isDir} name={e.name} />
                 </span>
-                {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>}
-              </button>
-              {/* a found folder can be picked where it stands, same as in the
-                folder list - the row itself still opens it */}
-              {e.isDir && (
-                <Button
-                  size="sm"
-                  className="my-1 mr-2 shrink-0 self-center"
-                  aria-label={t('remote.selectItem', { name: e.name })}
-                  onClick={() => onSelect(e)}
+                <div className="ws-cl-main cursor-default!">
+                  <strong>{e.name}</strong>
+                  <span className="ws-cl-meta font-mono">{dir}</span>
+                </div>
+                {!e.isDir && <span className="ws-cl-size">{fmtBytes(e.size)}</span>}
+                <button
+                  type="button"
+                  className="ws-cl-pick"
+                  aria-label={t(e.isDir ? 'files.openItem' : 'files.showItem', { name: e.name })}
+                  onClick={() => (e.isDir ? onOpenDir(e.path) : onShow(e))}
                 >
-                  {t('remote.select')}
-                </Button>
-              )}
+                  {t(e.isDir ? 'files.openPath' : 'files.show')}
+                </button>
+              </div>
             </li>
           )
         })}
       </ul>
-      {data && <p className="px-3 py-2 text-ctl-xs text-t-faint">{t('remote.indexCount', { count: data.indexed })}</p>}
+      {data && <p className="mt-2.5 text-sm text-t-muted">{t('remote.indexCount', { count: data.indexed })}</p>}
     </div>
   )
 }

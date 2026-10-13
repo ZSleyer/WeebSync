@@ -1,8 +1,8 @@
-import { useState, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, BookOpen, Eye, FolderOpen, FolderPlus, Pencil, Play } from 'lucide-react'
+import { useState, type MouseEvent, type ReactNode } from 'react'
+import { ArrowDown, ArrowUp, BookOpen, Check, FolderPlus, Music, Pencil, Play } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, Input } from 'fluid-lycoris'
+import { Button, IconButton, Input } from 'fluid-lycoris'
 import { api, ApiError, fmtBytes, keyConflictOf, type Entry } from '../api'
 import FileIcon from './FileIcon'
 import { useStored } from '../hooks/useStored'
@@ -12,11 +12,13 @@ import Loading from './Loading'
 import PathInput from './PathInput'
 import { InlineRename, type Renaming } from './InlineRename'
 import { isVideo, viewKind } from './playLinks'
+import './fileBrowser.css'
 
-// Path breadcrumb: root button plus one button per segment. Shared by the
+// Path breadcrumb: root button plus one button per segment, on one line that
+// scrolls sideways, the folder you are in last and bold. Shared by the
 // classic file list and the catalog grid, so both navigate the same way. Given
-// fetchPath/queryKey, an edit button swaps the crumbs for a PathInput so a deep
-// path can be typed with autocomplete instead of clicked level by level.
+// fetchPath/queryKey, the pen swaps the crumbs for a PathInput so a deep path
+// can be typed with autocomplete instead of clicked level by level.
 export function PathCrumbs({
   path,
   onNavigate,
@@ -34,79 +36,69 @@ export function PathCrumbs({
   const crumbs = path.split('/').filter(Boolean)
 
   if (editing && fetchPath && queryKey) {
+    const open = (p: string) => {
+      onNavigate(p.replace(/^\//, ''))
+      setEditing(false)
+    }
     return (
-      <div className="flex items-center gap-1 border-b border-border-subtle px-2 py-1">
+      <form
+        className="ws-path-in"
+        onSubmit={(e) => {
+          e.preventDefault()
+          open(draft)
+        }}
+      >
         <PathInput
           value={draft}
           onChange={setDraft}
-          onCommit={(p) => {
-            onNavigate(p.replace(/^\//, ''))
-            setEditing(false)
-          }}
+          onCommit={open}
           onCancel={() => setEditing(false)}
           fetchPath={fetchPath}
           queryKey={queryKey}
           ariaLabel={t('remote.editPath')}
           autoFocus
         />
-      </div>
+        <Button type="submit">{t('files.openPath')}</Button>
+      </form>
     )
   }
 
   const canEdit = !!(fetchPath && queryKey)
-  const startEdit = () => {
-    setDraft(path)
-    setEditing(true)
-  }
   return (
-    // clicking the empty path area (not a crumb) opens the editor; crumb
-    // buttons stop propagation so they still navigate
-    <nav
-      className={`flex flex-wrap items-center border-b border-border-subtle px-2 py-1 font-mono text-xs ${canEdit ? 'cursor-text' : ''}`}
-      aria-label={t('remote.path')}
-      onClick={canEdit ? startEdit : undefined}
-    >
-      {/* min 24x24 target (WCAG 2.5.8) */}
-      <button
-        type="button"
-        className="min-h-6 min-w-6 px-1.5 text-accent hover:underline"
-        onClick={(e) => {
-          e.stopPropagation()
-          onNavigate('')
-        }}
-      >
-        /
-      </button>
-      {crumbs.map((c, i) => (
-        <span key={i} className="flex items-center">
-          <button
-            type="button"
-            className="min-h-6 min-w-6 max-w-40 truncate px-1.5 text-accent hover:underline"
-            onClick={(e) => {
-              e.stopPropagation()
-              onNavigate(crumbs.slice(0, i + 1).join('/'))
-            }}
-          >
-            {c}
-          </button>
-          {i < crumbs.length - 1 && <span className="text-t-faint">/</span>}
-        </span>
-      ))}
+    <div className="ws-crumbs-row">
+      <nav className="ws-crumbs" aria-label={t('remote.path')}>
+        <button type="button" aria-label={t('files.root')} onClick={() => onNavigate('')}>
+          /
+        </button>
+        {crumbs.map((c, i) =>
+          i === crumbs.length - 1 ? (
+            <b key={i} aria-current="location">
+              {c}
+            </b>
+          ) : (
+            <span key={i} className="contents">
+              <button type="button" onClick={() => onNavigate(crumbs.slice(0, i + 1).join('/'))}>
+                {c}
+              </button>
+              <span aria-hidden>/</span>
+            </span>
+          ),
+        )}
+      </nav>
       {canEdit && (
-        <button
-          type="button"
-          className="ml-auto flex min-h-6 min-w-6 items-center justify-center px-1.5 text-t-muted hover:text-accent"
+        <IconButton
+          className="ws-icon-sm"
           aria-label={t('remote.editPath')}
           title={t('remote.editPath')}
-          onClick={(e) => {
-            e.stopPropagation()
-            startEdit()
+          onClick={() => {
+            setDraft(path)
+            setEditing(true)
           }}
         >
-          <Pencil aria-hidden size="0.9em" />
-        </button>
+          <Pencil aria-hidden size={18} />
+        </IconButton>
       )}
-    </nav>
+    </div>
   )
 }
 
@@ -126,8 +118,42 @@ export function sortEntries(entries: Entry[], sort: string) {
   return entries.slice().sort((a, b) => Number(b.isDir) - Number(a.isDir) || (desc ? -1 : 1) * by(a, b) || byName(a, b))
 }
 
+/** The orders a phone offers in its sort menu (the desktop has the column heads). */
+export const PHONE_SORTS = ['name', '-date', '-size'] as const
+
+/** What opening a file does, by kind: plays a video or a song, opens a book or a document. */
+export function openKind(name: string): 'play' | 'listen' | 'read' | null {
+  if (isVideo(name)) return 'play'
+  const kind = viewKind(name)
+  if (!kind) return null
+  return kind === 'audio' ? 'listen' : 'read'
+}
+
+/** The open button at a file row's end: play, the note, or the book. */
+export function OpenButton({ entry, onOpen }: { entry: Entry; onOpen: () => void }) {
+  const { t } = useTranslation()
+  const kind = openKind(entry.name)
+  if (!kind) return null
+  const Icon = kind === 'play' ? Play : kind === 'listen' ? Music : BookOpen
+  const plays = kind !== 'read'
+  return (
+    <IconButton
+      className="ws-icon-sm ws-cl-open"
+      aria-label={plays ? t('player.playItem', { name: entry.name }) : t('viewer.openItem', { name: entry.name })}
+      title={plays ? t('player.play') : t('viewer.open')}
+      onClick={(ev) => {
+        ev.stopPropagation()
+        onOpen()
+      }}
+    >
+      <Icon aria-hidden size={20} {...(kind === 'play' ? { fill: 'currentColor', strokeWidth: 0 } : {})} />
+    </IconButton>
+  )
+}
+
 // Breadcrumb + list view over a browse endpoint. Works for the local
-// picker (/api/browse/local) and the classic remote view.
+// picker (/api/browse/local) and the classic file manager (`sortable`), where
+// rows carry their open button, a check in selection mode and the columns.
 export function FileBrowser({
   queryKey,
   fetchPath,
@@ -143,6 +169,11 @@ export function FileBrowser({
   onPlay,
   sortable,
   onLongPress,
+  sort: sortProp,
+  onSort,
+  checked,
+  onToggle,
+  onContextSelect,
 }: {
   queryKey: unknown[]
   fetchPath: (path: string) => string
@@ -158,31 +189,38 @@ export function FileBrowser({
   serverId?: number
   /** the row whose name is being edited in place */
   renaming?: Renaming
-  /** opens a video in the player: its row's icon becomes the play button */
+  /** opens a file in the player or viewer: its row gets an open button */
   onPlay?: (e: Entry) => void
   /** the file manager's columns: name, size and date to sort by */
   sortable?: boolean
   /** a finger held on a row: the row's actions */
   onLongPress?: (e: Entry) => void
+  /** the order, when the page holds it (the phone's sort menu lives in its bar) */
+  sort?: string
+  onSort?: (sort: string) => void
+  /** selection mode: the checked paths; a row tap toggles while any is checked */
+  checked?: ReadonlySet<string>
+  /** given, rows carry a check that starts or extends a multi-selection */
+  onToggle?: (e: Entry) => void
+  /** a right click on a row (desktop): selects it */
+  onContextSelect?: (e: Entry) => void
 }) {
   const { t, i18n } = useTranslation()
   // '-date' is newest first; kept across folders and visits
-  const [sort, setSort] = useStored<string>('weebsync.files.sort', 'name')
+  const [ownSort, setOwnSort] = useStored<string>('weebsync.files.sort', 'name')
+  const sort = sortProp ?? ownSort
+  const setSort = onSort ?? setOwnSort
   const by = sort.replace('-', '') as SortKey
   const desc = sort.startsWith('-')
-  // a column clicked again turns round; dates start with the newest
-  const pick = (k: SortKey) => setSort(by === k ? (desc ? k : `-${k}`) : k === 'date' ? '-date' : k)
+  const selecting = !!checked && checked.size > 0
+  // a column clicked again turns round; dates and sizes start with the largest
+  const pick = (k: SortKey) => setSort(by === k ? (desc ? k : `-${k}`) : k === 'name' ? 'name' : `-${k}`)
   const day = (e: Entry) =>
     time(e) > 0
-      ? new Date(e.modTime).toLocaleDateString(i18n.language, { day: '2-digit', month: '2-digit', year: '2-digit' })
+      ? new Date(e.modTime).toLocaleDateString(i18n.language, { day: 'numeric', month: 'numeric', year: '2-digit' })
       : ''
   const head = (k: SortKey, label: string, className: string) => (
-    <button
-      type="button"
-      aria-pressed={by === k}
-      onClick={() => pick(k)}
-      className={`flex min-h-6 items-center gap-1 hover:text-t-primary ${by === k ? 'text-t-primary' : ''} ${className}`}
-    >
+    <button type="button" aria-pressed={by === k} onClick={() => pick(k)} className={className}>
       {label}
       {by === k && (desc ? <ArrowDown aria-hidden size="1em" /> : <ArrowUp aria-hidden size="1em" />)}
       {by === k && <span className="sr-only">{t(desc ? 'files.sortDesc' : 'files.sortAsc')}</span>}
@@ -201,9 +239,6 @@ export function FileBrowser({
   const listing = `${serverId}:${path}`
   const [rejectedFor, setRejectedFor] = useState<string | null>(null)
   const conflict = serverId !== undefined && rejectedFor !== listing ? keyConflictOf(error) : null
-  // the folders' select button gets a column of its own, kept empty on the
-  // files, so the size and date line up down the list
-  const selCol = !!sortable && !!onSelect && !selectDirsOnly && entries.some((e) => e.isDir)
 
   const crumbs = path.split('/').filter(Boolean)
 
@@ -221,14 +256,21 @@ export function FileBrowser({
         }
       : null
 
+  const empty = (bold: string, hint?: string) => (
+    <div className="ws-empty">
+      <b>{bold}</b>
+      {hint && <span>{hint}</span>}
+    </div>
+  )
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PathCrumbs path={path} onNavigate={onNavigate} fetchPath={fetchPath} queryKey={queryKey} />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {isLoading && <Loading className="p-4" />}
+        {isLoading && <Loading className="py-4" />}
         {conflict ? (
           <HostKeyPrompt
-            className="m-4"
+            className="my-4"
             serverId={serverId!}
             conflict={conflict}
             onAccepted={() => qc.invalidateQueries({ queryKey })}
@@ -239,139 +281,129 @@ export function FileBrowser({
           // a folder that is not there (deleted, renamed, an old link) is said
           // so in words; the breadcrumbs above lead back up
           (error instanceof ApiError && error.status === 404 ? (
-            <p className="p-4 text-sm text-t-muted">{t('remote.dirNotFound')}</p>
+            empty(t('remote.dirNotFound'))
           ) : (
-            <p className="wrap-break-word p-4 text-sm text-err">
+            <p className="wrap-break-word py-4 text-sm text-err">
               {error instanceof Error ? error.message : t('app.error')}
             </p>
           ))
         )}
-        {!isLoading && !error && entries.length === 0 && (
-          <p className="p-4 text-sm text-t-muted">{emptyHint ?? t('remote.emptyDir')}</p>
-        )}
+        {!isLoading && !error && entries.length === 0 && empty(t('files.emptyDir'), emptyHint)}
         {leafDir && (
-          <div className="flex items-stretch border-b border-border-subtle bg-bg-secondary/50">
-            <span className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-sm text-t-muted">
-              <FolderOpen aria-hidden size="1em" className="shrink-0 text-accent" />
-              <span className="truncate">{t('remote.thisFolder', { name: leafDir.name })}</span>
-            </span>
-            <Button
-              size="sm"
-              className="my-1 mr-2 shrink-0"
+          <div className="ws-leaf">
+            <span>{t('files.thisFolder')}</span>
+            <b>{leafDir.name}</b>
+            <button
+              type="button"
+              className="t-link t-link--2"
               aria-label={t('remote.selectItem', { name: leafDir.name })}
               onClick={() => onSelect!(leafDir)}
             >
-              {t('remote.select')}
-            </Button>
+              {t('files.pick')}
+            </button>
           </div>
         )}
         {sortable && entries.length > 0 && (
-          <div
-            role="group"
-            aria-label={t('files.sortBy')}
-            className="flex items-center gap-2 border-b border-border-subtle px-3 py-1 text-xs text-t-muted"
-          >
-            {head('name', t('files.colName'), 'mr-auto')}
-            {head('size', t('files.colSize'), 'w-20 justify-end')}
-            {head('date', t('files.colDate'), 'hidden w-20 justify-end sm:flex')}
-            {selCol && <span aria-hidden className="w-20 shrink-0" />}
+          <div role="group" aria-label={t('files.sortBy')} className="ws-cl-head">
+            {head('name', t('files.colName'), 'ws-cl-h-name')}
+            {head('date', t('files.colDate'), 'ws-cl-h-date')}
+            {head('size', t('files.colSize'), 'ws-cl-h-size')}
           </div>
         )}
-        <ul>
+        <ul className={`ws-cl-rows ${sortable ? 'ws-cl-rows--full' : ''}`} data-selecting={selecting || undefined}>
           {sortEntries(entries, sortable ? sort : 'name').map((e) => {
             const selectable = onSelect && (!selectDirsOnly || e.isDir)
+            const isChecked = !!checked?.has(e.path)
             if (renaming?.path === e.path)
               return (
-                <li key={e.path} className="flex items-center gap-2 border-b border-border-subtle/50 px-3 py-1">
-                  <FileIcon isDir={e.isDir} name={e.name} />
-                  <InlineRename name={e.name} onDone={renaming.onDone} />
+                <li key={e.path} className="ws-cl-row">
+                  <div className="ws-cl-in">
+                    <span className="ws-cl-glyph" data-dir={e.isDir || undefined}>
+                      <FileIcon isDir={e.isDir} name={e.name} />
+                    </span>
+                    <InlineRename name={e.name} onDone={renaming.onDone} className="ws-cl-rename" />
+                  </div>
                 </li>
               )
-            const playable = !!onPlay && !e.isDir && (isVideo(e.name) || !!viewKind(e.name))
+            const openable = !!onPlay && !e.isDir && !!openKind(e.name)
+            const tap = () => {
+              if (selecting && onToggle) onToggle(e)
+              else if (e.isDir) onNavigate(e.path.replace(/^\//, ''))
+              else if (selectable) onSelect(e)
+            }
+            const context = (ev: MouseEvent) => {
+              if (!onContextSelect || !matchMedia('(pointer: fine)').matches) return
+              ev.preventDefault()
+              onContextSelect(e)
+            }
             return (
               <Press
                 as="li"
                 key={e.path}
-                onLongPress={onLongPress && (() => onLongPress(e))}
-                className="group/row flex items-stretch border-b border-border-subtle/50"
+                onLongPress={onLongPress && !selecting ? () => onLongPress(e) : undefined}
+                className="ws-cl-row"
+                data-kind={e.isDir ? 'dir' : 'file'}
               >
-                {playable && <PlayIcon name={e.name} onPlay={() => onPlay(e)} />}
-                <button
-                  type="button"
-                  className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-3 text-left text-sm transition-colors hover:bg-bg-hover ${
-                    playable ? 'pl-1' : 'pl-3'
-                  } ${selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'}`}
-                  onClick={() => {
-                    if (e.isDir) onNavigate(e.path.replace(/^\//, ''))
-                    else if (selectable) onSelect(e)
-                  }}
-                  // a video plays and a book opens on a double click; anything else is picked
-                  onDoubleClick={() => (playable ? onPlay(e) : selectable && onSelect(e))}
+                <div
+                  className="ws-cl-in"
+                  data-sel={selected === e.path || undefined}
+                  data-checked={isChecked || undefined}
+                  onContextMenu={context}
                 >
-                  {!playable && <FileIcon isDir={e.isDir} name={e.name} />}
-                  <span className="min-w-0 flex-1 truncate" title={e.name}>
-                    {e.name}
-                  </span>
-                  {sortable ? (
-                    <>
-                      <span className="w-20 shrink-0 text-right font-mono text-xs text-t-muted">
-                        {!e.isDir && fmtBytes(e.size)}
-                      </span>
-                      <span className="hidden w-20 shrink-0 text-right font-mono text-xs text-t-muted sm:block">
-                        {day(e)}
-                      </span>
-                    </>
-                  ) : (
-                    !e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>
+                  {onToggle && (
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={isChecked}
+                      aria-label={t('files.checkItem', { name: e.name })}
+                      className="ws-cl-check"
+                      onClick={() => onToggle(e)}
+                    >
+                      <Check aria-hidden size={14} strokeWidth={3} />
+                    </button>
                   )}
-                </button>
-                {selectable && e.isDir && (
-                  <Button
-                    size="sm"
-                    className={`my-1 mr-2 shrink-0 ${selCol ? 'w-18' : ''}`}
-                    aria-label={t('remote.selectItem', { name: e.name })}
-                    onClick={() => onSelect(e)}
+                  <span className="ws-cl-glyph" data-dir={e.isDir || undefined}>
+                    <FileIcon isDir={e.isDir} name={e.name} />
+                  </span>
+                  <button
+                    type="button"
+                    className="ws-cl-main"
+                    onClick={tap}
+                    // a video plays and a book opens on a double click; anything else is picked
+                    onDoubleClick={() => !selecting && (openable ? onPlay(e) : selectable && onSelect(e))}
                   >
-                    {t('remote.select')}
-                  </Button>
-                )}
-                {selCol && !e.isDir && <span aria-hidden className="mr-2 w-18 shrink-0" />}
-                {actions?.(e)}
+                    <strong>{e.name}</strong>
+                    {sortable && !e.isDir && <span className="ws-cl-meta">{day(e)}</span>}
+                    {!sortable && !e.isDir && <span className="ws-cl-meta">{fmtBytes(e.size)}</span>}
+                  </button>
+                  {sortable && (
+                    <>
+                      <span className="ws-cl-date">{day(e)}</span>
+                      <span className="ws-cl-size">{!e.isDir && fmtBytes(e.size)}</span>
+                    </>
+                  )}
+                  {selectable && e.isDir && !selecting ? (
+                    <button
+                      type="button"
+                      className="ws-cl-pick"
+                      aria-label={t('remote.selectItem', { name: e.name })}
+                      onClick={() => onSelect(e)}
+                    >
+                      {t('files.pick')}
+                    </button>
+                  ) : openable && !selecting ? (
+                    <OpenButton entry={e} onOpen={() => onPlay(e)} />
+                  ) : (
+                    sortable && <span aria-hidden className="ws-cl-sp" />
+                  )}
+                  {actions?.(e)}
+                </div>
               </Press>
             )
           })}
         </ul>
       </div>
     </div>
-  )
-}
-
-// PlayIcon is a row's file icon that is also its play button: the file's
-// glyph turns into what opening it does under the pointer or focus - play for
-// a video or a song, the book for a volume or a PDF, the eye for anything to
-// look at - so a file opens from where it is listed instead of from an action bar.
-export function PlayIcon({ name, onPlay }: { name: string; onPlay: () => void }) {
-  const { t } = useTranslation()
-  const kind = viewKind(name)
-  // a song plays like a video; everything else opens
-  const plays = isVideo(name) || kind === 'audio'
-  return (
-    <button
-      type="button"
-      className="t-play-icon"
-      aria-label={plays ? t('player.playItem', { name }) : t('viewer.openItem', { name })}
-      title={plays ? t('player.play') : t('viewer.open')}
-      onClick={onPlay}
-    >
-      <FileIcon isDir={false} name={name} className="t-play-icon__file" />
-      {plays ? (
-        <Play aria-hidden size="1em" className="t-play-icon__play" fill="currentColor" strokeWidth={0} />
-      ) : kind === 'comic' || kind === 'epub' || kind === 'pdf' ? (
-        <BookOpen aria-hidden size="1em" className="t-play-icon__play" />
-      ) : (
-        <Eye aria-hidden size="1em" className="t-play-icon__play" />
-      )}
-    </button>
   )
 }
 

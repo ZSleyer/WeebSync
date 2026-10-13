@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Button, Dialog } from 'fluid-lycoris'
+import { Dialog } from 'fluid-lycoris'
 
 export interface SheetAction {
   key: string
@@ -12,7 +12,8 @@ export interface SheetAction {
 /**
  * Every action of one item as a list in a dialog - a bottom sheet on a phone.
  * What a long press on a row or tile opens (useLongPress), and what the
- * overflow button opens where there is no room for an anchored menu.
+ * overflow button opens where there is no room for an anchored menu. The
+ * title is the item's name, the actions 52px rows between hairlines.
  */
 export default function ActionSheet({
   title,
@@ -25,27 +26,30 @@ export default function ActionSheet({
 }) {
   return (
     <Dialog width="max-w-sm" onClose={onClose} aria-labelledby="action-sheet-title">
-      <header className="border-b border-border-subtle px-5 py-4">
-        <h3 id="action-sheet-title" className="truncate font-display font-semibold tracking-wider">
+      <header className="px-5 pt-4 pb-2">
+        <h2 id="action-sheet-title" className="font-display text-lg font-semibold break-words">
           {title}
-        </h3>
+        </h2>
       </header>
-      <div className="flex flex-col gap-1 p-2">
+      <ul className="grid px-4 pb-3">
         {actions.map((a) => (
-          <Button
-            key={a.key}
-            variant={a.danger ? 'danger' : 'default'}
-            className="justify-start gap-2"
-            onClick={() => {
-              onClose()
-              a.onClick()
-            }}
-          >
-            {a.icon}
-            {a.label}
-          </Button>
+          <li key={a.key} className="border-b border-border-subtle last:border-b-0">
+            <button
+              type="button"
+              className={`flex min-h-13 w-full items-center gap-3.5 px-1 text-left text-[0.9375rem] hover:bg-bg-hover focus-visible:outline-2 focus-visible:outline-accent ${
+                a.danger ? 'text-err' : 'text-t-primary'
+              } [&_svg]:size-5 [&_svg]:shrink-0`}
+              onClick={() => {
+                onClose()
+                a.onClick()
+              }}
+            >
+              {a.icon}
+              {a.label}
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
     </Dialog>
   )
 }

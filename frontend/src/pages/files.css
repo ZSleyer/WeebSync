@@ -1,0 +1,139 @@
+/* ═══ Dateien: the view switch, the source and search bar, the bars for a
+   picked entry and a multi-selection, and the desktop details panel ═══ */
+
+.ws-fseg { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+.ws-fseg > .t-seg { flex: 1; }
+.ws-fseg [data-on] { color: var(--accent-2); }
+
+.ws-cl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+@media (width >= 64rem) { .ws-cl-bar { flex-wrap: nowrap; } }
+.ws-src { flex: none; }
+.ws-src .t-pill { height: 2.5rem; padding: 0 0.625rem 0 0.75rem; gap: 0.5rem; border-radius: 1.25rem; border: 1px solid var(--line-strong); font-weight: 500; }
+.ws-src .t-pill svg:first-child { width: 18px; height: 18px; }
+
+.ws-cl-search {
+  display: flex;
+  flex: 1 1 12.5rem;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl, 8px);
+  background: var(--bg);
+  color: var(--fg-3);
+}
+.ws-cl-search:focus-within { border-color: var(--accent); }
+.ws-cl-search input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; outline: 0; color: var(--fg); font-size: 1rem; }
+.ws-cl-search input::-webkit-search-cancel-button { appearance: none; display: none; }
+.ws-cl-sort { flex: 0 1 11rem; min-width: 0; }
+@media (width >= 64rem) { .ws-cl-sort { display: none !important; } }
+
+.ws-cl-recent { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.875rem; margin-bottom: 0.5rem; font-size: 0.875rem; }
+.ws-cl-recent > span:first-child { color: var(--fg-3); }
+.ws-rq { display: inline-flex; align-items: center; }
+.ws-rq-x { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border: 0; background: none; color: var(--fg-3); cursor: pointer; border-radius: 50%; }
+.ws-rq-x:hover { color: var(--err); background: var(--hover); }
+
+/* the picked entry on a phone: a card that sticks to the list's foot */
+.ws-cl-actions {
+  position: sticky;
+  bottom: 0.5rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+}
+.ws-cl-actions > strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; font-weight: 500; }
+.ws-cl-actions .t-btn { height: 2.5rem; padding: 0 0.75rem; font-size: 0.875rem; flex: none; }
+@media (width < 30rem) { .ws-cl-actions .t-btn > svg { display: none; } }
+@media (width >= 64rem) { .ws-cl-actions { display: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="off"]) .ws-cl-actions { animation: ws-bar-in 200ms var(--ease-out); }
+}
+@keyframes ws-bar-in { from { opacity: 0; translate: 0 12px; } }
+
+/* the selection bar: over the tab bar on a phone, floating on a desktop */
+.ws-sel-bar {
+  position: fixed;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  height: calc(var(--nav-h, 60px) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--card);
+  border-top: 1px solid var(--line-strong);
+}
+.ws-sel-bar > button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-height: 2.75rem;
+  border: 0;
+  background: none;
+  color: var(--fg-2);
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+.ws-sel-bar > button:hover { background: var(--hover); color: var(--fg); }
+.ws-sel-bar > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ws-sel-bar > .ws-sel-done { color: var(--fg); font-weight: 600; }
+.ws-sel-bar > .ws-sel-danger { color: var(--err); }
+@media (width >= 64rem) {
+  .ws-sel-bar {
+    left: calc(50% + var(--side-w, 0px) / 2);
+    right: auto;
+    bottom: 1.5rem;
+    translate: -50% 0;
+    grid-auto-columns: auto;
+    gap: 0.25rem;
+    height: 3.25rem;
+    padding: 0 0.375rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 0.75rem;
+  }
+  .ws-sel-bar > button { flex-direction: row; gap: 0.5rem; padding: 0 0.875rem; border-radius: var(--r-ctl, 8px); font-size: 0.875rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="off"]) .ws-sel-bar { animation: ws-bar-in 220ms var(--ease-out); }
+}
+
+/* the details panel beside the list on a desktop */
+.ws-fi { display: none; }
+@media (width >= 64rem) {
+  .ws-fi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    width: clamp(18rem, 24vw, 26.25rem);
+    flex: none;
+    padding-left: 1.5rem;
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+  }
+}
+.ws-fi-hd { display: flex; align-items: center; justify-content: space-between; }
+.ws-fi-hd h2 { font: 600 1.0625rem/1.2 var(--f-display); margin: 0; }
+.ws-fi-top { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: 0.875rem; align-items: start; }
+.ws-fi-ic { display: grid; place-items: center; width: 4rem; height: 4rem; border-radius: 0.625rem; background: var(--hover); font-size: 1.875rem; }
+.ws-fi-ic svg { color: var(--fg-2); }
+.ws-fi-top h3 { margin: 0; font: 600 1rem/1.3 var(--f-display); overflow-wrap: anywhere; }
+.ws-fi-top p { margin: 0.25rem 0 0; font-size: 0.8125rem; color: var(--fg-3); }
+.ws-fi-dl { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: 0.5rem 0.75rem; margin: 0; font-size: 0.875rem; }
+.ws-fi-dl dt { color: var(--fg-3); }
+.ws-fi-dl dd { margin: 0; overflow-wrap: anywhere; }
+.ws-fi-dl dd.font-mono { font-size: 0.78125rem; }
+.ws-fi-acts { display: grid; gap: 0.5rem; }
+.ws-fi-acts .t-btn { justify-content: flex-start; }
