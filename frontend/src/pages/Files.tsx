@@ -53,6 +53,7 @@ import {
   Rows,
   SectionHeading,
   Select,
+  Switch,
   enterPage,
   localTransition,
   useMenu,
@@ -2001,10 +2002,12 @@ function SyncForm({
         <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
           <div className="flex items-center justify-between">
             <Badge tone="accent">{t('watch.sectionRename')}</Badge>
-            <label className="flex items-center gap-2 text-sm text-t-secondary">
-              <input type="checkbox" checked={renameOn} onChange={(e) => setRenameOn(e.target.checked)} />
-              {t('watch.renameToggle')}
-            </label>
+            <Switch
+              label={t('watch.renameToggle')}
+              labelClassName="text-sm text-t-secondary"
+              checked={renameOn}
+              onChange={(e) => setRenameOn(e.target.checked)}
+            />
           </div>
           {renameOn && (
             <RenameOptions

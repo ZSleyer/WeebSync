@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Select } from 'fluid-lycoris'
+import { Badge, Button, Input, Select, Switch } from 'fluid-lycoris'
 import { api, type Media } from '../api'
 
 // Every two-column row of the watch dialog - here and in WatchDialog itself -
@@ -296,11 +296,11 @@ export function FromEpisodeField({
       </label>
       <Input
         id={`${idPrefix}-fromep`}
-        type="number"
+        inputMode="numeric"
         className="font-mono"
         value={rule.fromEpisode || ''}
         placeholder={t('common.example', { value: '26 (Dr. Stone S4E26)' })}
-        onChange={(e) => onChange({ fromEpisode: Number(e.target.value) || 0 })}
+        onChange={(e) => onChange({ fromEpisode: Number(e.target.value.replace(/\D/g, '')) || 0 })}
       />
     </div>
   )
@@ -447,24 +447,21 @@ export default function RenameOptions({
 
           {/* endless series: resolve aired-order season/episode */}
           <div>
-            <label className="flex items-center gap-2 text-sm text-t-secondary">
-              <input
-                type="checkbox"
-                checked={rule.airedMapping}
-                onChange={(e) => {
-                  const on = e.target.checked
-                  // aired mapping wants season subfolders: prepend
-                  // "Season NN/" automatically when the template lacks it
-                  let template = rule.template
-                  if (on && template && !/season\s*\{season/i.test(template)) {
-                    template = `Season {season:02}/${template}`
-                  }
-                  onChange({ airedMapping: on, template })
-                }}
-              />
-              {t('watch.airedMapping')}
-              <Hint text={t('watch.airedMappingHint')} />
-            </label>
+            <Switch
+              label={t('watch.airedMapping')}
+              labelClassName="text-sm text-t-secondary"
+              checked={rule.airedMapping}
+              onChange={(e) => {
+                const on = e.target.checked
+                // aired mapping wants season subfolders: prepend
+                // "Season NN/" automatically when the template lacks it
+                let template = rule.template
+                if (on && template && !/season\s*\{season/i.test(template)) {
+                  template = `Season {season:02}/${template}`
+                }
+                onChange({ airedMapping: on, template })
+              }}
+            />
             {rule.airedMapping && (
               <div className="mt-4 space-y-4">
                 {detected?.detected && (
