@@ -1783,6 +1783,38 @@ export interface Schemas {
     connected: boolean
     error?: string
   }
+  'api.catalogExplainResponse': {
+    /**
+     * other folders in the same directory with the same series: one card
+     */
+    bundle: string[]
+    /**
+     * best first, at most 3
+     */
+    candidates: Schemas['api.explainCandidate'][]
+    /**
+     * nil: never matched
+     */
+    chosen: Schemas['api.explainChosen'] | null
+    confident: boolean
+    folder: string
+    minScore: number
+    parse: Schemas['api.explainParse']
+    /**
+     * the pick replayed now; 0 when nothing reached the bar
+     */
+    pick: number
+    scope: Schemas['api.explainScope']
+    /**
+     * false for TMDB and TVDB: they take the first hit, there are no points
+     */
+    scored: boolean
+    /**
+     * set when the SEQUEL chain moved the pick to the season the folder names
+     */
+    sequelFrom?: number
+    tried: Schemas['api.searchStep'][]
+  }
   'api.catalogItem': {
     entry: Schemas['remote.Entry']
     /**
@@ -1888,6 +1920,68 @@ export interface Schemas {
      */
     refKey: string
   }
+  'api.explainCandidate': {
+    cover?: string
+    english?: string
+    format?: string
+    id: number
+    score: number
+    /**
+     * season marker in the title, -1 final
+     */
+    season: number
+    signals: Schemas['match.Signal'][]
+    title: string
+    vetoed?: boolean
+    year?: number
+  }
+  /**
+   * nil: never matched
+   */
+  'api.explainChosen': {
+    manual: boolean
+    /**
+     * 0: searched, nothing found
+     */
+    mediaId: number
+    source: string
+  }
+  'api.explainParse': {
+    alt?: string
+    final?: boolean
+    /**
+     * name without bracket tags and paren groups
+     */
+    full: string
+    movie?: boolean
+    ova?: boolean
+    season?: number
+    /**
+     * the search query
+     */
+    title: string
+    year?: number
+  }
+  'api.explainScope': {
+    /**
+     * "" | anime | manga | tv | movie | tvdb
+     */
+    kind: string
+    /**
+     * marked: a mark on the folder itself; shelf: the mark of the folder
+     * above an alphabet shelf; rule: a rule on the parent; none: no source
+     */
+    origin: "marked" | "shelf" | "rule" | "none"
+    /**
+     * the parent the rule sits on
+     */
+    ruleFrom?: string
+    ruleId?: number
+    /**
+     * the name shape the rule covers
+     */
+    shape?: string
+  }
   'api.ipStatus': {
     /**
      * no tokens left right now
@@ -1938,6 +2032,19 @@ export interface Schemas {
     recommendations: Schemas['anilist.Media'][]
     relations: Schemas['anilist.Relation'][]
     threads: Schemas['anilist.Thread'][]
+  }
+  'api.nameExplainRequest': {
+    name: string
+  }
+  'api.nameExplainResponse': {
+    parse: Schemas['api.explainParse']
+    pieces: Schemas['api.namePiece'][]
+  }
+  'api.namePiece': {
+    end: number
+    kind: "title" | "alt" | "season" | "final" | "movie" | "ova" | "year" | "episode" | "version" | "group" | "dub" | "sub" | "resolution" | "tag" | "extension"
+    start: number
+    value: string
   }
   'api.passwordChange': {
     current: string
@@ -2172,6 +2279,13 @@ export interface Schemas {
      * name with {n} and {season} placeholders
      */
     shape: string
+  }
+  'api.searchStep': {
+    hits: number
+    query: string
+    season?: string
+    stage: "search" | "unfiltered" | "alt-title" | "normalized" | "stripped-markers"
+    year?: number
   }
   'api.seriesCandidate': {
     id: number
@@ -2544,6 +2658,53 @@ export interface Schemas {
     url: string
     version: string
   }
+  'api.watchExplainResponse': {
+    last: Schemas['api.watchLastFile'] | null
+    lastCheck: string
+    skips: Schemas['transfer.Skip'][]
+    template: string
+    wait: Schemas['api.watchWait']
+  }
+  'api.watchLastFile': {
+    at: string
+    local: string
+    remote: string
+    size: number
+  }
+  'api.watchWait': {
+    /**
+     * unix seconds of the next check
+     */
+    at: number
+    attempts?: number
+    /**
+     * until_slot: the local episode number
+     */
+    episode?: number
+    filtered?: number
+    intervalMin: number
+    /**
+     * retry_backoff: the last check failed, the next one comes early
+     * lang_backlog: files wait for their language, checks stay on the interval
+     * until_slot: every aired episode is here, nothing happens before the slot
+     * finished_idle: finished and complete, only the stale re-check remains
+     * interval: the plain interval
+     */
+    reason: "retry_backoff" | "lang_backlog" | "until_slot" | "finished_idle" | "interval"
+    /**
+     * until_slot: the airing time
+     */
+    slot?: number
+    /**
+     * the 12-hour re-check for upgrades
+     */
+    stale: number
+  }
+  'match.Signal': {
+    arg?: string
+    code: string
+    points: number
+  }
   'plex.Section': {
     /**
      * e.g. tv.plex.agents.series | tv.plex.agents.movie
@@ -2610,5 +2771,13 @@ export interface Schemas {
     status: "queued" | "running" | "paused" | "done" | "error" | "canceled"
     transferred: number
     userId: number
+  }
+  'transfer.Skip': {
+    /**
+     * worse_variant: the release kept instead
+     */
+    detail?: string
+    path: string
+    reason: "outside_roots" | "language" | "worse_variant" | "owned" | "uploading" | "queued" | "blocked"
   }
 }
