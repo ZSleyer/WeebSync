@@ -70,6 +70,7 @@ import Loading from './Loading'
 import { isVideo, playHref, viewHref, watchFolder } from './playLinks'
 import { WatchForm } from './WatchDialog'
 import { useWatchActions, watchFields } from './watchActions'
+import { WatchExplain } from './WatchExplain'
 
 /** What a caller hands the title card: which title, and what it already knows. */
 export interface SeriesTarget {
@@ -1422,6 +1423,7 @@ function WatchBlock({
           </span>
         )}
       </div>
+      <WatchExplain watch={w} />
       <div className="mt-4">{children}</div>
     </section>
   )
