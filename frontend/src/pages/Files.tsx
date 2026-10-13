@@ -1367,7 +1367,7 @@ export function CatalogGrid({
       for (const c of cells()) {
         const r = c.getBoundingClientRect()
         // only the tiles on screen morph: every named tile is a snapshot
-        c.style.setProperty('--vt', r.bottom > 0 && r.top < h && c.dataset.vt ? c.dataset.vt : 'none')
+        c.style.setProperty('--vt', r.bottom > 0 && r.top < h && c.dataset.vtKey ? c.dataset.vtKey : 'none')
       }
     }
     name()
@@ -1622,15 +1622,8 @@ export function CatalogGrid({
               <Press
                 key={g.key}
                 onLongPress={() => setSheet(g)}
-                onContextMenu={(e) => {
-                  // a right click lists the tile's actions, like a long press
-                  if (matchMedia('(pointer: fine)').matches) {
-                    e.preventDefault()
-                    setSheet(g)
-                  }
-                }}
                 className="ws-cat-cell t-reveal"
-                data-vt={vtName(g.key)}
+                data-vt-key={vtName(g.key)}
                 data-fresh={fresh.has(it.entry.path) || undefined}
               >
                 {g.media ? (
@@ -1641,6 +1634,7 @@ export function CatalogGrid({
                     have={haveOf(g)}
                     selected={g.items.some((v) => v.entry.path === selected)}
                     onOpen={() => showDetail(g)}
+                    onMenu={() => setSheet(g)}
                     eager={i < 9}
                     priority={i === 0}
                   />

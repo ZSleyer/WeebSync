@@ -60,13 +60,25 @@ export interface CatalogTileProps {
   /** episodes on disk, of the provider's count; no bar without both */
   have?: number
   onOpen: () => void
+  /** a right click with a mouse: the tile's actions, as a long press lists them */
+  onMenu?: () => void
   selected?: boolean
   /** on the first screen: load at once, the first one with high priority */
   eager?: boolean
   priority?: boolean
 }
 
-export function CatalogTile({ media, name, sub, have = 0, onOpen, selected, eager, priority }: CatalogTileProps) {
+export function CatalogTile({
+  media,
+  name,
+  sub,
+  have = 0,
+  onOpen,
+  onMenu,
+  selected,
+  eager,
+  priority,
+}: CatalogTileProps) {
   const { t, i18n } = useTranslation()
   const status = coverStatusOf(media.status)
   const share = coverShare(have, media.episodes)
@@ -88,7 +100,19 @@ export function CatalogTile({ media, name, sub, have = 0, onOpen, selected, eage
       : '',
   ].filter(Boolean)
   return (
-    <button type="button" className="ws-cat-tile" onClick={onOpen} data-sel={selected || undefined}>
+    <button
+      type="button"
+      className="ws-cat-tile"
+      onClick={onOpen}
+      onContextMenu={(e) => {
+        if (!onMenu || !matchMedia('(pointer: fine)').matches) return
+        // the long-press wrapper's handler only keeps the touch menu away
+        e.preventDefault()
+        e.stopPropagation()
+        onMenu()
+      }}
+      data-sel={selected || undefined}
+    >
       <span className="ws-cat-cover">
         <CoverImg
           set={coverSet(media.coverImage)}

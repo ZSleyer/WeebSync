@@ -62,7 +62,8 @@
 /* the selection bar: over the tab bar on a phone, floating on a desktop */
 .ws-sel-bar {
   position: fixed;
-  z-index: 40;
+  /* over the tab bar (z 50), under the full-screen media views (z 60) */
+  z-index: 55;
   left: 0;
   right: 0;
   bottom: 0;
