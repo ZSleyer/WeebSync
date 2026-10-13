@@ -47,7 +47,7 @@ export function Surface({ children, theme, flush, className }: SurfaceProps) {
   )
 }
 
-export type ButtonVariant = 'default' | 'primary' | 'danger'
+export type ButtonVariant = 'default' | 'primary' | 'danger' | 'danger-fill'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** visual weight; primary is the one call to action per view */
@@ -74,6 +74,7 @@ export function buttonClass(opts: Pick<ButtonProps, 'variant' | 'size'> & { clas
     size === 'xs' && 't-btn--sm t-btn--xs',
     variant === 'primary' && 't-btn--primary',
     variant === 'danger' && 't-btn--danger',
+    variant === 'danger-fill' && 't-btn--danger-fill',
     className,
   )
 }
@@ -116,20 +117,7 @@ export function ButtonLabel({ variant, size, className, ...rest }: ButtonLabelPr
 }
 
 export function Button({ variant = 'default', size = 'md', className, ...rest }: ButtonProps) {
-  return (
-    <button
-      type="button"
-      {...rest}
-      className={cx(
-        't-btn',
-        size === 'sm' && 't-btn--sm',
-        size === 'xs' && 't-btn--sm t-btn--xs',
-        variant === 'primary' && 't-btn--primary',
-        variant === 'danger' && 't-btn--danger',
-        className,
-      )}
-    />
-  )
+  return <button type="button" {...rest} className={buttonClass({ variant, size, className })} />
 }
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -137,11 +125,13 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   children: ReactNode
   /** icon-only buttons carry no text, so a label is mandatory */
   'aria-label': string
+  /** md is the 44px target, sm a 36px one for dense rows (still above 24px) */
+  size?: 'md' | 'sm'
 }
 
-/** Square icon-only button, exactly the box of a small Button. */
-export function IconButton({ className, ...rest }: IconButtonProps) {
-  return <button type="button" {...rest} className={cx('t-iconbtn', className)} />
+/** Round icon-only button: 44px, or 36px at the small step. */
+export function IconButton({ size = 'md', className, ...rest }: IconButtonProps) {
+  return <button type="button" {...rest} className={cx('t-iconbtn', size === 'sm' && 't-iconbtn--sm', className)} />
 }
 
 // the native `size` attribute (character width / visible rows) is dropped in
@@ -369,7 +359,7 @@ export function Skeleton({ shape = 'line', size = 'md', className }: SkeletonPro
   )
 }
 
-export type BadgeTone = 'neutral' | 'accent' | 'ok' | 'warn' | 'err'
+export type BadgeTone = 'neutral' | 'accent' | 'accent-2' | 'ok' | 'warn' | 'err'
 
 export interface BadgeProps extends HTMLAttributes<HTMLElement> {
   tone?: BadgeTone
@@ -401,7 +391,7 @@ export interface BadgeProps extends HTMLAttributes<HTMLElement> {
   type?: 'button'
 }
 
-/** Uppercase micro-label chip. Height is fixed, so chips match across sections. */
+/** A chip: sentence case as typed, no tracking. Height is fixed, so chips match across sections. */
 export function Badge({ tone = 'neutral', size = 'md', multiline, as: Tag = 'span', className, ...rest }: BadgeProps) {
   return (
     <Tag
@@ -411,6 +401,7 @@ export function Badge({ tone = 'neutral', size = 'md', multiline, as: Tag = 'spa
         size === 'sm' && 't-label--sm',
         multiline && 't-label--multiline',
         tone === 'accent' && 't-label--accent',
+        tone === 'accent-2' && 't-label--accent-2',
         tone === 'ok' && 't-label--ok',
         tone === 'warn' && 't-label--warn',
         tone === 'err' && 't-label--err',

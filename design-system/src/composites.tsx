@@ -210,7 +210,7 @@ export function SuggestionCard({
 }: SuggestionCardProps) {
   const heading =
     titleStyle === 'display'
-      ? 'truncate font-display text-sm font-semibold tracking-wider text-t-primary'
+      ? 'truncate font-display text-sm font-semibold text-t-primary'
       : 'truncate text-sm font-medium text-t-primary'
   return (
     <Panel className={cx('flex flex-wrap items-start gap-4 p-3', className)}>
@@ -1097,7 +1097,7 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
           arrow would otherwise push it off centre */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         {arrow('prev', onPrev)}
-        <Slot step={step} className="min-w-0 text-center font-display text-sm font-semibold tracking-wider text-t-secondary">
+        <Slot step={step} className="min-w-0 text-center font-display text-sm font-semibold text-t-secondary">
           <span className="truncate">{label}</span>
         </Slot>
         <div className="flex items-center justify-end gap-2">
@@ -1150,7 +1150,7 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
                     : 'border-border-subtle bg-bg-secondary text-t-secondary hover:bg-bg-hover',
               )}
             >
-              <span className={cx('text-ctl-xs uppercase tracking-wider', pressed ? 'text-t-secondary' : 'text-t-muted')}>{d.weekday}</span>
+              <span className={cx('text-ctl-xs', pressed ? 'text-t-secondary' : 'text-t-muted')}>{d.weekday}</span>
               <span className={cx('flex size-6 items-center justify-center text-base leading-none', d.today && 'rounded-full bg-accent font-semibold')}>{d.day}</span>
               {/* the count is a real chip, and every day carries one: a day
                   without releases shows a quiet zero rather than nothing, so
@@ -1561,7 +1561,7 @@ export function Modal({ title, info, children, footer, secondary, onClose, close
     <div className={cx('dialog-body w-full max-w-lg bg-bg-card', className)}>
       <header className="flex items-start gap-3 border-b border-border-subtle px-5 py-4">
         <div className="min-w-0 flex-1">
-          <h3 className="font-display font-semibold tracking-wider">{title}</h3>
+          <h3 className="font-display text-[length:var(--fs-sheet)] leading-tight font-semibold">{title}</h3>
           {info && <p className="mt-1 text-ctl-sm text-t-secondary">{info}</p>}
         </div>
         {onClose && (
@@ -1718,7 +1718,7 @@ export function AppBar({ leading, title, actions, children, className, ...rest }
       {children ?? (
         <>
           {leading && <div className="flex min-h-(--ctl-h) shrink-0 items-center">{leading}</div>}
-          <h1 className="t-appbar-title min-w-0 flex-1 truncate font-display text-base font-bold tracking-wider text-t-primary">
+          <h1 className="t-appbar-title min-w-0 flex-1 truncate font-display text-[length:var(--fs-title)] leading-tight font-semibold text-t-primary">
             {title}
           </h1>
           {actions && <div className="flex min-h-(--ctl-h) shrink-0 items-center gap-1">{actions}</div>}
@@ -1750,7 +1750,7 @@ export function PageHeader({ title, sub, children, className }: PageHeaderProps)
   return (
     <header className={cx('t-page-header flex flex-wrap items-start justify-between gap-x-4 gap-y-2', className)}>
       <div className="t-page-heading min-w-0">
-        <h2 className="t-page-title font-display font-semibold tracking-wider">{title}</h2>
+        <h2 className="t-page-title font-display font-semibold">{title}</h2>
         {sub && (
           <Badge multiline className="mt-1">
             {sub}
@@ -1908,7 +1908,7 @@ export function Disclosure({ title, count, defaultOpen = true, open, onToggle, s
       <summary
         className={cx(
           'flex min-h-(--ctl-h-sm) cursor-pointer items-center',
-          small ? 'mb-1' : 'mb-2 gap-1.5 font-display text-sm font-semibold tracking-wider text-t-secondary',
+          small ? 'mb-1' : 'mb-2 gap-1.5 font-display text-sm font-semibold text-t-secondary',
         )}
       >
         {small ? <span className="t-label t-label--accent">{label}</span> : label}

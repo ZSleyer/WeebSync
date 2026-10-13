@@ -202,13 +202,15 @@
   --fs-title: 1.375rem; /* page title on a phone */
   --fs-title-lg: 1.75rem; /* page title on a desktop */
   --fs-big: 2rem; /* a big figure */
-  --ctl-h: 36px; /* input, select, button */
-  --ctl-h-sm: 26px; /* small + icon buttons */
-  --ctl-fs: 14px;
-  --ctl-fs-sm: 11px;
-  --ctl-fs-xs: 11px; /* dense chips (.t-label--sm); 11px is the legibility floor */
-  --ctl-lh: 20px;
-  --ctl-lh-sm: 16px;
+  /* 44px controls, 34px small ones; written in rem (px / 16) so they ride
+     the host's root scale with everything else */
+  --ctl-h: 2.75rem; /* input, select, button, icon button */
+  --ctl-h-sm: 2.125rem; /* small buttons and fields */
+  --ctl-fs: 0.9375rem;
+  --ctl-fs-sm: 0.8125rem;
+  --ctl-fs-xs: 0.6875rem; /* chips; 11px is the legibility floor */
+  --ctl-lh: 1.375rem;
+  --ctl-lh-sm: 1.125rem;
   /* Radius per host height, roughly a sixth of the box: 24px chips 4, 26px
      small controls 4, 36px controls 6; surfaces step up from there. Touch
      raises the control steps with the control heights below. Explicit
@@ -216,11 +218,12 @@
      and .t-toolbar's element-level --ctl-h override would not reach it. */
   --r-xs: 4px; /* the concentric floor: a cover inside a padded panel */
   --r-chip: 4px; /* .t-label, checkbox */
-  --r-ctl-sm: 4px; /* .t-btn--sm, .t-iconbtn, --sm inputs */
-  --r-ctl: 6px; /* .t-btn, .t-input, .t-select, .t-tabs, notes */
-  --r-menu: 8px; /* menus, dropdown lists, sub-boxes, chat bubbles */
-  --r-panel: 10px; /* .t-panel, composer, file browser */
-  --r-dialog: 12px; /* dialog, and the phone sheet's top corners */
+  --r-ctl-sm: 8px; /* .t-btn--sm, --sm inputs */
+  --r-ctl: 8px; /* .t-btn, .t-input, .t-select, .t-tabs, notes */
+  --r-menu: 10px; /* menus, dropdown lists, sub-boxes, chat bubbles */
+  --r-item: 7px; /* an item inside a menu, the thumb of a segmented control */
+  --r-panel: 12px; /* .t-panel, toast, composer, file browser */
+  --r-dialog: 14px; /* a centred dialog */
   --r-cover: 6px; /* covers: rounded, never ringed */
   --r-sheet: 20px; /* the phone sheet's top corners, the hero banner */
   /* Motion: enter eases out, exit eases in and is shorter; nothing over
@@ -386,22 +389,21 @@ dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--err) 65%
   );
 }
 
-/* Micro label chip: uppercase, letterspaced, hairline border. */
+/* Chip (badge): sentence case as typed, no tracking, a 3:1 hairline. */
 .t-label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: var(--ctl-fs-sm);
+  font-family: var(--f-sans);
+  font-size: var(--ctl-fs-xs);
   /* fixed line box: without it a chip is taller inside text-sm than inside
      text-xs, and chips in different sections stop matching */
-  line-height: var(--ctl-lh-sm);
-  font-weight: 600;
-  border: 1px solid var(--line);
+  line-height: 1.4;
+  font-weight: 500;
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-chip);
-  padding: 0 6px;
-  color: var(--fg-3);
+  padding: 0 7px;
+  color: var(--fg-2);
   /* one box for every chip: decorative ones then match the interactive ones,
      which need 24px to clear the target-size floor of WCAG 2.5.8 */
   min-height: 1.5rem;
@@ -422,8 +424,7 @@ dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--err) 65%
    1.5rem box stays - that is the WCAG 2.5.8 floor, not a style choice. */
 .t-label--sm {
   font-size: var(--ctl-fs-xs);
-  letter-spacing: 0.1em;
-  padding-inline: 4px;
+  padding-inline: 5px;
   gap: 3px;
 }
 /* Prose in a chip - a page subtitle, a status line with a server name. The
@@ -437,6 +438,10 @@ dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--err) 65%
 .t-label--accent {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   color: var(--accent);
+}
+.t-label--accent-2 {
+  border-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
+  color: var(--accent-2);
 }
 .t-label--ok    { border-color: color-mix(in srgb, var(--ok) 55%, transparent); color: var(--ok); }
 .t-label--warn  { border-color: color-mix(in srgb, var(--warn) 55%, transparent); color: var(--warn); }
@@ -494,39 +499,43 @@ a.t-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--f-display);
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  gap: 0.5rem;
+  font-family: var(--f-sans);
+  font-weight: 500;
   font-size: var(--ctl-fs);
   line-height: var(--ctl-lh);
   min-height: var(--ctl-h);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-ctl);
-  background: var(--bg-2);
+  background: transparent;
   color: var(--fg);
-  padding: 7px 14px;
+  padding: 0 1.125rem;
   cursor: pointer;
-  transition: border-color var(--dur-1), background-color var(--dur-1), transform 80ms var(--ease-out);
+  transition: border-color var(--dur-1), background-color var(--dur-1), scale var(--dur-2) var(--spring);
 }
-/* press feedback on the weighted buttons; no transform on hover */
-.t-btn--primary:active:not(:disabled),
-.t-btn--danger:active:not(:disabled) { transform: scale(0.98); }
+/* the press sinks every button a little, on the spring */
+@media (prefers-reduced-motion: no-preference) {
+  .t-btn:active:not(:disabled, [aria-disabled='true']) { scale: 0.98; transition-duration: 90ms; }
+}
 .t-btn:is(:disabled, [aria-disabled='true']) { opacity: 0.45; cursor: not-allowed; }
 .t-btn--primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
 }
-.t-btn--danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, transparent); }
+.t-btn--danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 60%, transparent); }
+/* the destructive confirm: the error colour as a fill */
+.t-btn--danger-fill { background: var(--err); border-color: var(--err); color: var(--bg); }
 @media (hover: hover) {
   .t-btn:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--hover); }
   .t-btn--primary:hover { background: color-mix(in srgb, var(--accent) 85%, var(--bg)); }
   .t-btn--danger:hover { border-color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
+  .t-btn--danger-fill:hover { background: color-mix(in srgb, var(--err) 85%, var(--bg)); }
 }
 /* WCAG 2.5.8 target size; the shared variable keeps it level with every other
    small control in the same row */
 .t-btn--sm {
-  padding: 4px 10px;
+  padding: 0 0.75rem;
   font-size: var(--ctl-fs-sm);
   line-height: var(--ctl-lh-sm);
   min-height: var(--ctl-h-sm);
@@ -539,19 +548,45 @@ a.t-label {
    height, so the touch target stays where WCAG 2.5.8 wants it. */
 .t-btn--xs {
   font-size: var(--ctl-fs-xs);
-  letter-spacing: 0;
   padding-inline: 0.4rem;
 }
 
-/* Square icon-only button (help "?", inline actions): same box as t-btn--sm. */
+/* Round icon-only button: 44px, the icon in the secondary text colour; the
+small step is 36px. Hover and press show a round ground. */
 .t-iconbtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--ctl-h-sm);
-  height: var(--ctl-h-sm);
+  width: 2.75rem;
+  height: 2.75rem;
   flex-shrink: 0;
-  border-radius: var(--r-ctl-sm);
+  border-radius: 50%;
+  font-size: 1.375rem;
+  transition: background-color var(--dur-1), color var(--dur-1), scale var(--dur-2) var(--spring);
+}
+.t-iconbtn--sm { width: 2.25rem; height: 2.25rem; font-size: 1.125rem; }
+/* colour and ground in the components layer: a caller's text-* or bg-*
+   utility still wins */
+@layer components {
+  .t-iconbtn { color: var(--fg-2); }
+  .t-iconbtn:active:not(:disabled) { background: var(--hover); }
+  @media (hover: hover) {
+    .t-iconbtn:hover:not(:disabled) { background: var(--hover); color: var(--fg); }
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .t-iconbtn:active:not(:disabled) { scale: 0.92; transition-duration: 90ms; }
+}
+.t-iconbtn:disabled { opacity: 0.45; }
+
+/* Keyboard keys: a quiet outlined cap in the mono face */
+kbd, .t-kbd {
+  display: inline-block;
+  font: 400 0.6875rem/1 var(--f-mono);
+  color: var(--fg-3);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 5px;
 }
 
 /* Tabs: segmented bar - display font, accent
@@ -577,10 +612,9 @@ a.t-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--f-display);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  font-size: 14px;
+  font-family: var(--f-sans);
+  font-weight: 500;
+  font-size: 0.875rem;
   color: var(--fg-3);
   padding: 8px 14px;
   border: 0;
@@ -664,7 +698,6 @@ a.t-label {
   pointer-events: none;
   background: color-mix(in srgb, var(--card) calc(var(--q, 0) * 100%), transparent);
   font: 600 0.9375rem/1.2 var(--f-display);
-  letter-spacing: 0.04em;
 }
 .t-dock > span { min-width: 0; opacity: var(--q, 0); }
 /* the bar's hairline arrives with its fill */
@@ -844,32 +877,14 @@ option { background-color: var(--bg-2); color: var(--fg); }
     --ctl-h: 2.667rem;
     --ctl-h-sm: 2.222rem;
     --ctl-fs: 0.889rem;
-    --ctl-fs-sm: 0.722rem;
+    --ctl-fs-sm: 0.75rem;
     --ctl-fs-xs: 0.639rem;
     --ctl-lh: 1.333rem;
     --ctl-lh-sm: 1.111rem;
-    /* 48/40px boxes take the next radius step */
-    --r-ctl: 8px;
-    --r-ctl-sm: 6px;
   }
-  .t-btn { padding: 0.556rem 0.889rem; }
-  .t-btn--sm { padding: 0.333rem 0.667rem; }
+  .t-btn { padding-inline: 1rem; }
+  .t-btn--sm { padding-inline: 0.667rem; }
   .t-tab { font-size: var(--ctl-fs); min-height: var(--ctl-h); padding: 0.556rem 0.889rem; }
-}
-
-/* ── Narrow viewports: tracking is the first thing to give ──
-   The chip carries 0.18em of letterspacing, which makes it ~15% wider
-   than its text. On a 393px phone that alone is the difference between a chip
-   on one line and a chip on three, so the tracking shrinks before anything
-   else does. Keyed on width, not on pointer type, so a narrow desktop window
-   and the WCAG 1.4.10 reflow case get the same treatment. 40rem, not 30rem:
-   Firefox for Android reports a Pixel 8 Pro as ~540 CSS px where Chrome says
-   448, and a 480px boundary put the two browsers on the same phone in
-   different buckets. Every phone-relevant breakpoint sits at 40rem or 64rem. */
-@media (max-width: 40rem) {
-  .t-label { letter-spacing: 0.06em; }
-  .t-label--sm { letter-spacing: 0.04em; }
-  .t-btn { letter-spacing: 0; }
 }
 
 /* ── Toolbar: one control row with a single normalized height ── */
@@ -1086,7 +1101,7 @@ input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
    it while the app bar's own title fades in once it has gone (`--dock` 0..1
    and `data-docked`, both set by PageScroll). A stacked screen has a back link
    and its title in the bar, so the large title stays out of the way. */
-.t-page-title { font-size: 1.25rem; line-height: 1.75rem; }
+.t-page-title { font-size: var(--fs-title-lg); line-height: 1.15; letter-spacing: 0.01em; }
 .t-scroll-line {
   position: absolute;
   left: 0;
@@ -1099,7 +1114,7 @@ input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
   pointer-events: none;
 }
 @media (width < 64rem) {
-  .t-page-title { font-size: 1.75rem; line-height: 2.25rem; }
+  .t-page-title { font-size: var(--fs-title); line-height: 1.1; }
   .t-page-heading {
     transform-origin: left bottom;
     transform: scale(calc(1 - var(--dock, 0) * 0.12));
@@ -1529,7 +1544,6 @@ li.t-swiperow { border-radius: 0; }
   border: 0;
   cursor: pointer;
   font: 600 0.6875rem/1.2 var(--f-display);
-  letter-spacing: 0.03em;
   text-align: center;
   color: var(--on-accent);
   background: var(--tone, var(--accent));

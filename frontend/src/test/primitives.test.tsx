@@ -39,6 +39,7 @@ describe('buttonClass', () => {
     expect(buttonClass({ variant: 'default' })).toBe('t-btn')
     expect(buttonClass({ variant: 'primary' })).toBe('t-btn t-btn--primary')
     expect(buttonClass({ variant: 'danger' })).toBe('t-btn t-btn--danger')
+    expect(buttonClass({ variant: 'danger-fill' })).toBe('t-btn t-btn--danger-fill')
   })
 
   it('adds the size modifier only for sm', () => {
@@ -120,6 +121,16 @@ describe('IconButton', () => {
     const btn = screen.getByRole('button', { name: 'Schließen' })
     expect(btn).toHaveAttribute('type', 'button')
     expect(btn).toHaveClass('t-iconbtn')
+    expect(btn).not.toHaveClass('t-iconbtn--sm')
+  })
+
+  it('takes the 36px step on request', () => {
+    render(
+      <IconButton aria-label="Mehr" size="sm">
+        <svg />
+      </IconButton>,
+    )
+    expect(screen.getByRole('button', { name: 'Mehr' })).toHaveClass('t-iconbtn', 't-iconbtn--sm')
   })
 })
 
