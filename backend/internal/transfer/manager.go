@@ -58,6 +58,9 @@ type Download struct {
 	// QueuePos orders the queue: the scheduler starts the lowest first.
 	QueuePos  int64  `json:"queuePos"`
 	CreatedAt string `json:"createdAt"`
+	// FinishedAt is when a done row landed (UTC, as SQLite writes it), for
+	// "new here"; empty while it is not done. Only the list fills it.
+	FinishedAt string `json:"finishedAt,omitempty"`
 }
 
 type running struct {

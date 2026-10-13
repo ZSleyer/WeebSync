@@ -6549,6 +6549,10 @@
                         "description": "ErrorCode classifies Error into a stable machine-readable reason\n(see classifyError); empty when the failure is not one we recognize.",
                         "type": "string"
                     },
+                    "finishedAt": {
+                        "description": "FinishedAt is when a done row landed (UTC, as SQLite writes it), for\n\"new here\"; empty while it is not done. Only the list fills it.",
+                        "type": "string"
+                    },
                     "id": {
                         "type": "integer"
                     },

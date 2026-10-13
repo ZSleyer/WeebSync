@@ -2791,6 +2791,11 @@ export interface Schemas {
      * (see classifyError); empty when the failure is not one we recognize.
      */
     errorCode?: string
+    /**
+     * FinishedAt is when a done row landed (UTC, as SQLite writes it), for
+     * "new here"; empty while it is not done. Only the list fills it.
+     */
+    finishedAt?: string
     id: number
     localPath: string
     /**

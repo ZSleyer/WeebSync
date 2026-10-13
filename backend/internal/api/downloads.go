@@ -23,7 +23,10 @@ import (
 // @Router   /api/downloads [get]
 func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, replace_old, queue_pos, created_at
+	// a done row's last update is the moment it landed: the status change
+	// is its last write
+	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, replace_old, queue_pos, created_at,
+		CASE WHEN status = 'done' THEN COALESCE(updated_at, '') ELSE '' END
 		FROM downloads WHERE user_id = ? ORDER BY id DESC LIMIT 500`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -38,7 +41,7 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var d transfer.Download
 		if err := rows.Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size,
-			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.QueuePos, &d.CreatedAt); err != nil {
+			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.QueuePos, &d.CreatedAt, &d.FinishedAt); err != nil {
 			dbErr(w)
 			return
 		}
