@@ -582,6 +582,7 @@
     "expires_zero": "wird heute gelöscht",
     "expires_one": "noch {{count}} Tag",
     "expires_other": "noch {{count}} Tage",
+    "restored": "„{{name}}“ wiederhergestellt",
     "restore": "Wiederherstellen",
     "delete": "Endgültig löschen",
     "deleteItem": "{{name}} endgültig löschen",

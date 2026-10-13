@@ -582,6 +582,7 @@
     "expires_zero": "deleted today",
     "expires_one": "{{count}} day left",
     "expires_other": "{{count}} days left",
+    "restored": "“{{name}}” restored",
     "restore": "Restore",
     "delete": "Delete for good",
     "deleteItem": "Delete {{name}} for good",

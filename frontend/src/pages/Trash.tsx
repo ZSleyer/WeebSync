@@ -3,12 +3,13 @@ import { Link } from 'react-router'
 import { File, Folder, Trash2, Undo2 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ActionBar, Button, buttonClass, Count, IconButton, PageHeader, Panel, useMediaQuery } from 'fluid-lycoris'
+import { Button, IconButton, Row, Rows } from 'fluid-lycoris'
 import { api, fmtBytes, type TrashEntry } from '../api'
 import { useAuth } from '../hooks'
 import { useConfirm } from '../components/confirm'
 import Loading from '../components/Loading'
-import { PageFooter, WIDE_MQ } from '../components/PageActions'
+import { useToast } from '../components/toast'
+import './trash.css'
 
 const trashQuery = { queryKey: ['trash'], queryFn: () => api.get<TrashEntry[]>('/api/trash'), staleTime: 60_000 }
 
@@ -17,21 +18,15 @@ export function TrashButton() {
   const { t } = useTranslation()
   const { data: entries = [] } = useQuery(trashQuery)
   return (
-    // the same small button as the pin beside the view switch: icon alone in
-    // the app bar on a phone, icon and label on desktop, the count on both
+    // a round icon button in the bar, the count as a small red badge on it
     <Link
       to="/files/trash"
       aria-label={t('trash.open', { count: entries.length })}
       title={t('trash.label')}
-      className={buttonClass({ size: 'sm' })}
+      className="ws-trash-btn"
+      data-count={entries.length > 0 ? entries.length : undefined}
     >
-      <Trash2 aria-hidden size="1em" />
-      <span className="ml-1 hidden lg:inline">{t('trash.label')}</span>
-      {entries.length > 0 && (
-        <Count aria-hidden className="ml-1">
-          {entries.length}
-        </Count>
-      )}
+      <Trash2 aria-hidden size={22} />
     </Link>
   )
 }
@@ -57,9 +52,13 @@ export default function TrashPage() {
     void qc.invalidateQueries({ queryKey: ['local'] })
   }
   const fail = (e: unknown) => setActionError(e instanceof Error ? e.message : String(e))
+  const toast = useToast()
   const restore = useMutation({
-    mutationFn: (path: string) => api.post('/api/trash/restore', { path }),
-    onSuccess: done,
+    mutationFn: (e: TrashEntry) => api.post('/api/trash/restore', { path: e.path }),
+    onSuccess: (_, e) => {
+      done()
+      toast({ message: t('trash.restored', { name: e.name }) })
+    },
     onError: fail,
   })
   const remove = useMutation({
@@ -76,6 +75,7 @@ export default function TrashPage() {
   const del = async (e: TrashEntry) => {
     if (
       await confirm({
+        title: t('files.deleteTitle', { name: e.name }),
         message: t('trash.deleteConfirm', { name: e.name }),
         confirmLabel: t('trash.delete'),
         destructive: true,
@@ -94,80 +94,71 @@ export default function TrashPage() {
       empty.mutate()
   }
 
-  const wide = useMediaQuery(WIDE_MQ)
-  const emptyButton = (
-    <Button size="sm" variant="danger" disabled={busy} onClick={() => void emptyAll()}>
-      <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-      {t('trash.empty')}
-    </Button>
-  )
   return (
-    <div>
-      <PageHeader title={t('trash.title')} sub={t('trash.hint')}>
-        {/* on a phone this page is stacked on Files, which hides the in-page
-            header: the button goes to the footer row above the tab bar, like
-            the other primary actions; destructive ones stay out of the app bar */}
-        {admin && entries && entries.length > 0 && (
-          <PageFooter>
-            {wide ? emptyButton : <ActionBar aria-label={t('trash.empty')}>{emptyButton}</ActionBar>}
-          </PageFooter>
-        )}
-      </PageHeader>
-      <Panel className="mt-4 overflow-hidden">
-        {isPending ? (
-          <Loading />
-        ) : error ? (
-          <p className="px-5 py-4 text-sm text-err">{error.message}</p>
-        ) : entries!.length === 0 ? (
-          <p className="px-5 py-6 text-center text-sm text-t-muted">{t('trash.empty0')}</p>
-        ) : (
-          <ul className="divide-y divide-border-subtle">
-            {entries!.map((e) => (
-              <li key={e.path} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2">
-                {e.isDir ? (
-                  <Folder aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
-                ) : (
-                  <File aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium wrap-anywhere text-t-primary">{e.name}</p>
-                  <p className="font-mono text-ctl-sm wrap-anywhere text-t-muted">{e.dir}</p>
-                  <p className="text-ctl-sm text-t-muted">
+    <div className="ws-trash">
+      <p className="ws-trash-hint">{t('trash.hint')}</p>
+      {isPending ? (
+        <Loading />
+      ) : error ? (
+        <p className="py-4 text-sm text-err">{error.message}</p>
+      ) : entries!.length === 0 ? (
+        <div className="ws-empty">
+          <b>{t('trash.empty0')}</b>
+        </div>
+      ) : (
+        <Rows>
+          {entries!.map((e) => (
+            <Row
+              key={e.path}
+              leading={e.isDir || e.files > 1 ? <Folder size={20} /> : <File size={20} />}
+              title={<span className="wrap-anywhere">{e.name}</span>}
+              sub={
+                <>
+                  <span className="block font-mono text-xs wrap-anywhere">{e.dir}</span>
+                  <span className="block">
                     {fmtBytes(e.size)}
                     {e.files > 1 && ` · ${t('trash.files', { count: e.files })}`}
                     {' · '}
                     {t('trash.expires', { count: daysLeft(e) })}
-                  </p>
-                </div>
-                {admin && (
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button size="sm" disabled={busy} onClick={() => restore.mutate(e.path)}>
-                      <Undo2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                      {t('trash.restore')}
+                  </span>
+                </>
+              }
+              trailing={
+                admin && (
+                  <span className="flex shrink-0 items-center gap-1">
+                    <Button size="sm" disabled={busy} onClick={() => restore.mutate(e)}>
+                      <Undo2 aria-hidden size={18} className="mr-1.5 inline align-[-0.2em]" />
+                      <span className="max-sm:sr-only">{t('trash.restore')}</span>
                     </Button>
                     <IconButton
                       aria-label={t('trash.deleteItem', { name: e.name })}
+                      title={t('trash.delete')}
                       disabled={busy}
                       onClick={() => void del(e)}
                     >
-                      <Trash2 aria-hidden size="1.1em" />
+                      <Trash2 aria-hidden size={20} />
                     </IconButton>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {actionError && (
-          <p className="px-5 py-2 text-sm text-err" role="alert">
-            {actionError}
-          </p>
-        )}
-      </Panel>
-      {entries && entries.length > 0 && (
-        <p className="mt-2 text-xs text-t-muted">
-          {t('trash.total', { count: entries.length, size: fmtBytes(total) })}
+                  </span>
+                )
+              }
+            />
+          ))}
+        </Rows>
+      )}
+      {actionError && (
+        <p className="py-2 text-sm text-err" role="alert">
+          {actionError}
         </p>
+      )}
+      {entries && (
+        <div className="ws-trash-foot">
+          <span>{t('trash.total', { count: entries.length, size: fmtBytes(total) })}</span>
+          {admin && (
+            <Button variant="danger" disabled={busy || entries.length === 0} onClick={() => void emptyAll()}>
+              {t('trash.empty')}
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )

@@ -75,8 +75,9 @@ describe('TrashButton', () => {
   it('counts what waits and opens its page', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(entries)
     app()
-    expect(await screen.findByText('2')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('link', { name: 'trash.open' }))
+    const button = await screen.findByRole('link', { name: 'trash.open' })
+    await waitFor(() => expect(button.getAttribute('data-count')).toBe('2'))
+    fireEvent.click(button)
     expect(await screen.findByText('ep1.mkv')).toBeInTheDocument()
     expect(screen.getByText('/m/Show/S1')).toBeInTheDocument()
     expect(screen.getByText('old')).toBeInTheDocument()
