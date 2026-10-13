@@ -8,6 +8,7 @@ export const CATALOG_SORTS = [
   'nextAiring',
   'popularity',
   'score',
+  'year',
   'studio',
   'startDate',
   'endDate',
@@ -39,6 +40,7 @@ const keys: Record<Exclude<CatalogSort, 'title' | 'studio'>, (g: SortableGroup) 
   nextAiring: (g) => asc(g.media?.nextAiringEpisode?.airingAt),
   popularity: (g) => g.media?.popularity || null,
   score: (g) => g.media?.averageScore || null,
+  year: (g) => g.media?.seasonYear || null, // newest first
   startDate: (g) => asc(g.media?.startDate), // chronological, like a timeline
   endDate: (g) => asc(g.media?.endDate),
   added: (g) => added(g) || null, // newest folder first
@@ -81,3 +83,48 @@ export function useCatalogSort() {
 }
 
 const SORT_KEY = 'catalogSort'
+
+// The airing states the catalog filters by. AniList's own words; a paused or
+// cancelled title counts as finished, it will not air on.
+export const CATALOG_STATUSES = ['RELEASING', 'NOT_YET_RELEASED', 'FINISHED'] as const
+export type CatalogStatus = (typeof CATALOG_STATUSES)[number]
+
+/** The filter state a provider status falls under, '' when it has none. */
+export function statusGroup(status: string | undefined): CatalogStatus | '' {
+  switch (status) {
+    case 'RELEASING':
+    case 'NOT_YET_RELEASED':
+      return status
+    case 'FINISHED':
+    case 'HIATUS':
+    case 'CANCELLED':
+      return 'FINISHED'
+    default:
+      return ''
+  }
+}
+
+// filterByStatus keeps the matched groups in one airing state; '' keeps all.
+// Unmatched and pending folders have no state and leave with any filter.
+export function filterByStatus<T extends SortableGroup>(groups: T[], status: CatalogStatus | ''): T[] {
+  if (!status) return groups
+  return groups.filter((g) => statusGroup(g.media?.status) === status)
+}
+
+// useCatalogStatus keeps the status filter like the sort: a viewing preference.
+export function useCatalogStatus() {
+  const [status, setStatus] = useState<CatalogStatus | ''>(() => {
+    const saved = localStorage.getItem(STATUS_KEY)
+    return CATALOG_STATUSES.includes(saved as CatalogStatus) ? (saved as CatalogStatus) : ''
+  })
+  return [
+    status,
+    (next: CatalogStatus | '') => {
+      if (next) localStorage.setItem(STATUS_KEY, next)
+      else localStorage.removeItem(STATUS_KEY)
+      setStatus(next)
+    },
+  ] as const
+}
+
+const STATUS_KEY = 'catalogStatus'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sortGroups, type SortableGroup } from '../components/catalogSort'
+import { filterByStatus, sortGroups, statusGroup, type SortableGroup } from '../components/catalogSort'
 import type { Media } from '../api'
 
 const group = (name: string, media?: Partial<Media>, modTime = '2026-01-01T00:00:00Z'): SortableGroup => ({
@@ -44,5 +44,39 @@ describe('sortGroups', () => {
     const gs = [group('b', { studios: ['Ufotable'] }), group('a', { studios: [] }), group('c', { studios: ['Bones'] })]
     expect(names(sortGroups(gs, 'studio'))).toEqual(['c', 'b', 'a'])
     expect(names(gs)).toEqual(['b', 'a', 'c'])
+  })
+})
+
+describe('year sort', () => {
+  it('puts the newest year first, ties by title, no year last', () => {
+    const gs = [
+      group('b old', { seasonYear: 2019 }),
+      group('none', {}),
+      group('b new', { seasonYear: 2026 }),
+      group('a new', { seasonYear: 2026 }),
+    ]
+    expect(names(sortGroups(gs, 'year'))).toEqual(['a new', 'b new', 'b old', 'none'])
+  })
+})
+
+describe('filterByStatus', () => {
+  const gs = [
+    group('live', { status: 'RELEASING' }),
+    group('soon', { status: 'NOT_YET_RELEASED' }),
+    group('done', { status: 'FINISHED' }),
+    group('paused', { status: 'HIATUS' }),
+    group('unmatched'),
+  ]
+  it('keeps everything without a filter', () => {
+    expect(filterByStatus(gs, '')).toHaveLength(5)
+  })
+  it('keeps one airing state, paused and cancelled count as finished', () => {
+    expect(names(filterByStatus(gs, 'RELEASING'))).toEqual(['live'])
+    expect(names(filterByStatus(gs, 'FINISHED'))).toEqual(['done', 'paused'])
+  })
+  it('maps provider states to filter states', () => {
+    expect(statusGroup('CANCELLED')).toBe('FINISHED')
+    expect(statusGroup('NOT_YET_RELEASED')).toBe('NOT_YET_RELEASED')
+    expect(statusGroup(undefined)).toBe('')
   })
 })
