@@ -102,6 +102,43 @@ func seasonMarker(s string) int {
 	return 0
 }
 
+// Mark is a marker ParseName reads, with its byte span in the name.
+type Mark struct {
+	Kind  string // season | final | movie | ova | year
+	Value string // the season number or year, else the matched text
+	Start int
+	End   int
+}
+
+// Marks finds the season, format and year markers in a name with their
+// positions, from the same patterns ParseName reads. For the name tester:
+// what it highlights is what matching saw.
+func Marks(name string) []Mark {
+	var out []Mark
+	add := func(kind string, re *regexp.Regexp, value func(sub []string) string) {
+		for _, ix := range re.FindAllStringSubmatchIndex(name, -1) {
+			sub := make([]string, len(ix)/2)
+			for k := range sub {
+				if ix[2*k] >= 0 {
+					sub[k] = name[ix[2*k]:ix[2*k+1]]
+				}
+			}
+			out = append(out, Mark{Kind: kind, Value: value(sub), Start: ix[0], End: ix[1]})
+		}
+	}
+	num := func(sub []string) string { n, _ := strconv.Atoi(sub[1]); return strconv.Itoa(n) }
+	add("season", sSeasonRe, num)
+	add("season", ordSeasonRe, num)
+	add("season", wordSeasonRe, num)
+	add("season", spelledOrdRe, func(sub []string) string { return strconv.Itoa(spelledNum[strings.ToLower(sub[1])]) })
+	add("season", romanTailRe, func(sub []string) string { return strconv.Itoa(romanNum[sub[1]]) })
+	add("final", folderFinal, func(sub []string) string { return sub[0] })
+	add("movie", movieRe, func(sub []string) string { return sub[0] })
+	add("ova", ovaRe, func(sub []string) string { return sub[0] })
+	add("year", yearRe, func(sub []string) string { return sub[0] })
+	return out
+}
+
 // ParseName extracts matching hints from a raw folder name plus the already
 // guessed titles. Bare trailing digits are deliberately NOT read as a season
 // ("Yami Shibai 10" is a title - exact-title scoring handles those).
