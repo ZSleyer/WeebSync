@@ -26,6 +26,8 @@ export interface PlayInfo {
   subs: PlayTrack[]
   // names: what libass may ask for the font by; none for one it cannot name
   fonts: { index: number; names?: string[] }[]
+  // the AniList entry behind the file, when it is on the user's list
+  anilist?: { mediaId: number; episode: number; progress: number }
 }
 
 // ffmpeg's codec names, as people know the formats

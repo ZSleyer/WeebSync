@@ -572,6 +572,7 @@
     "playlist": "Tracks in this folder"
   },
   "player": {
+    "seen": "Episode {{n}} marked as watched on AniList",
     "pip": "Picture in picture",
     "local": "Local",
     "remote": "Remote",

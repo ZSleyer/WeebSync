@@ -1612,6 +1612,26 @@
                 ],
                 "type": "object"
             },
+            "api.PlayAnilist": {
+                "description": "Anilist is per user, set on the answer, never on the cached info",
+                "properties": {
+                    "episode": {
+                        "type": "integer"
+                    },
+                    "mediaId": {
+                        "type": "integer"
+                    },
+                    "progress": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "mediaId",
+                    "episode",
+                    "progress"
+                ],
+                "type": "object"
+            },
             "api.PlayFont": {
                 "properties": {
                     "index": {
@@ -1632,6 +1652,10 @@
             },
             "api.PlayInfo": {
                 "properties": {
+                    "anilist": {
+                        "$ref": "#/components/schemas/api.PlayAnilist",
+                        "description": "Anilist is per user, set on the answer, never on the cached info"
+                    },
                     "audio": {
                         "items": {
                             "$ref": "#/components/schemas/api.PlayTrack"

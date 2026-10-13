@@ -38,6 +38,7 @@ import HostKeyPrompt from '../components/HostKeyPrompt'
 import { filesLink, listFolder, playHref, useBack, videosIn } from '../components/playLinks'
 import Loading from '../components/Loading'
 import Logo from '../components/Logo'
+import { useToast } from '../components/toast'
 import PlayerInfo, { CODEC_NAMES, trackLabel, type PlayInfo, type PlayTrack } from './PlayerInfo'
 import { renameFamilies, scriptFamilies } from './assFonts'
 
@@ -387,6 +388,27 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     v.addEventListener('ended', ended)
     return () => v.removeEventListener('ended', ended)
   }, [next, data])
+  // 90 % of an episode counts as watched: the AniList list moves on by one,
+  // never back and never past a gap. The write waits out the toast, whose
+  // undo drops it before AniList hears of it
+  const toast = useToast()
+  const tracked = data?.anilist
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !tracked || tracked.episode !== tracked.progress + 1) return
+    let done = false
+    const tick = () => {
+      if (done || !v.duration || v.currentTime / v.duration < 0.9) return
+      done = true
+      toast({
+        message: t('player.seen', { n: tracked.episode }),
+        undo: () => {},
+        commit: () => api.post('/api/anilist/progress', { mediaId: tracked.mediaId, progress: tracked.episode }),
+      })
+    }
+    v.addEventListener('timeupdate', tick)
+    return () => v.removeEventListener('timeupdate', tick)
+  }, [tracked, toast, t])
   const goNext = useEffectEvent(() => next && goTo(next))
   useEffect(() => {
     if (nextIn === null) return

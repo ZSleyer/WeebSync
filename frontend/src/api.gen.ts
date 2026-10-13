@@ -685,11 +685,23 @@ export interface Schemas {
   'api.OkResponse': {
     status: string
   }
+  /**
+   * Anilist is per user, set on the answer, never on the cached info
+   */
+  'api.PlayAnilist': {
+    episode: number
+    mediaId: number
+    progress: number
+  }
   'api.PlayFont': {
     index: number
     names?: string[]
   }
   'api.PlayInfo': {
+    /**
+     * Anilist is per user, set on the answer, never on the cached info
+     */
+    anilist?: Schemas['api.PlayAnilist']
     audio: Schemas['api.PlayTrack'][]
     duration: number
     /**

@@ -572,6 +572,7 @@
     "playlist": "Titel im Ordner"
   },
   "player": {
+    "seen": "Folge {{n}} bei AniList als gesehen eingetragen",
     "pip": "Bild im Bild",
     "local": "Lokal",
     "remote": "Remote",

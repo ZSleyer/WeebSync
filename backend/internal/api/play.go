@@ -513,6 +513,8 @@ type PlayInfo struct {
 	// fontData is where each font's bytes lie, when the file was walked for
 	// them: /api/play/font then reads just the one asked for
 	fontData map[int]fontFile
+	// Anilist is per user, set on the answer, never on the cached info
+	Anilist *PlayAnilist `json:"anilist,omitempty"`
 }
 
 var imageSubCodecs = map[string]bool{"hdmv_pgs_subtitle": true, "dvd_subtitle": true, "dvb_subtitle": true, "xsub": true}
@@ -547,6 +549,7 @@ func (s *Server) handlePlayInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	// clipped: the job's info must not grow the sidecars
 	info.Subs = append(slices.Clip(info.Subs), s.sidecarTracks(src)...)
+	info.Anilist = s.playAnilist(src)
 	writeJSON(w, http.StatusOK, info)
 }
 
