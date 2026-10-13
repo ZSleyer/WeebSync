@@ -1614,7 +1614,7 @@ export function CatalogGrid({
         )}
         {status && tiles.length === 0 && items.length > 0 && <p className="ws-cat-note">{t('catalog.noneInStatus')}</p>}
         <div ref={grid} className="ws-cat-grid">
-          {tiles.map((g) => {
+          {tiles.map((g, i) => {
             const it = g.items[0]
             const name = mediaTitle(g.media, it.entry.name)
             return (
@@ -1640,6 +1640,8 @@ export function CatalogGrid({
                     have={haveOf(g)}
                     selected={g.items.some((v) => v.entry.path === selected)}
                     onOpen={() => showDetail(g)}
+                    eager={i < 9}
+                    priority={i === 0}
                   />
                 ) : (
                   <CatalogPendingTile name={folderName(it.entry.name)} />

@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, type ReactNode, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Cover, CoverBar, CoverScore, CoverStatus, coverShare, riseDelay, type CoverStatusKind } from 'fluid-lycoris'
+import { CoverBar, CoverScore, CoverStatus, coverShare, riseDelay, type CoverStatusKind } from 'fluid-lycoris'
 import type { Media } from '../api'
+import { coverSet } from '../images'
+import { CoverImg } from './SmartImg'
 import './catalog.css'
 
 // A title of the catalog grid: the cover with its status, score and the
@@ -59,9 +61,12 @@ export interface CatalogTileProps {
   have?: number
   onOpen: () => void
   selected?: boolean
+  /** on the first screen: load at once, the first one with high priority */
+  eager?: boolean
+  priority?: boolean
 }
 
-export function CatalogTile({ media, name, sub, have = 0, onOpen, selected }: CatalogTileProps) {
+export function CatalogTile({ media, name, sub, have = 0, onOpen, selected, eager, priority }: CatalogTileProps) {
   const { t, i18n } = useTranslation()
   const status = coverStatusOf(media.status)
   const share = coverShare(have, media.episodes)
@@ -82,11 +87,18 @@ export function CatalogTile({ media, name, sub, have = 0, onOpen, selected }: Ca
         })
       : '',
   ].filter(Boolean)
-  const cover = media.coverImage?.extraLarge || media.coverImage?.large
   return (
     <button type="button" className="ws-cat-tile" onClick={onOpen} data-sel={selected || undefined}>
       <span className="ws-cat-cover">
-        <Cover size="fill" src={cover} tint={media.coverImage?.color} title={name} loading="lazy" />
+        <CoverImg
+          set={coverSet(media.coverImage)}
+          sizes="(width >= 40rem) 11rem, 33vw"
+          tint={media.coverImage?.color}
+          title={name}
+          className="ws-cat-art"
+          eager={eager}
+          priority={priority}
+        />
         {status && <CoverStatus status={status}>{t(`catalog.status_${status}`)}</CoverStatus>}
         {media.averageScore > 0 && <CoverScore value={media.averageScore} label={t('catalog.score')} />}
         {share > 0 && <CoverBar value={share} />}
