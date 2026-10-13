@@ -111,7 +111,12 @@ type Media struct {
 		Preferred string `json:"preferred,omitempty"`
 	} `json:"title"`
 	CoverImage struct {
-		Large string `json:"large"`
+		// Medium is the 100px-wide artwork, for list rows and thumbnails
+		// where Large would be downloaded only to be shrunk. Empty on cache
+		// entries written before the field existed; consumers fall back to
+		// Large.
+		Medium string `json:"medium,omitempty"`
+		Large  string `json:"large"`
 		// ExtraLarge is the same artwork at twice the edge (460px rather than
 		// 230px). A poster tile on a phone is around 200 CSS px wide, which a
 		// 230px file has to stretch two to three times over at the device
@@ -213,7 +218,7 @@ func (m *Media) Airings() []AiringSlot {
 	return nil
 }
 
-const mediaFields = `id title { romaji english native } coverImage { large extraLarge color } bannerImage
+const mediaFields = `id title { romaji english native } coverImage { medium large extraLarge color } bannerImage
 	trailer { id site thumbnail }
 	nextAiringEpisode { airingAt episode }
 	airingSchedule(notYetAired: true, perPage: 25) { nodes { airingAt episode } }
@@ -509,7 +514,7 @@ func (c *Client) RelationsBatch(ctx context.Context, ids []int) (map[int][]Relat
 		for n, id := range chunk {
 			decls = append(decls, fmt.Sprintf("$id%d: Int", n))
 			parts = append(parts, fmt.Sprintf(
-				`r%d: Media(id: $id%d, type: ANIME) { relations { edges { relationType(version: 2) node { id title { romaji english } format status episodes coverImage { large } seasonYear averageScore } } } }`, n, n))
+				`r%d: Media(id: $id%d, type: ANIME) { relations { edges { relationType(version: 2) node { id title { romaji english } format status episodes coverImage { medium large extraLarge color } seasonYear averageScore } } } }`, n, n))
 			variables[fmt.Sprintf("id%d", n)] = id
 		}
 		gql := fmt.Sprintf("query (%s) { %s }", strings.Join(decls, ", "), strings.Join(parts, " "))
@@ -544,7 +549,7 @@ type Recommendation struct {
 // recFields is the trimmed field set for recommended media: enough for a
 // suggestion card, without description/trailer/schedule. Those would multiply
 // the size of every cached batch and the detail dialog fetches them anyway.
-const recFields = `id title { romaji english native } coverImage { large color }
+const recFields = `id title { romaji english native } coverImage { medium large extraLarge color }
 	episodes seasonYear format status averageScore popularity genres siteUrl`
 
 // RecommendationsBatch resolves the recommendation lists of several media,
@@ -667,8 +672,12 @@ func (c *Client) Reviews(ctx context.Context, id int) ([]Review, error) {
 // Character is one cast entry of a media: the character, its role and the
 // Japanese voice actor. Image and voice actor are optional in the data.
 type Character struct {
-	Name       string `json:"name"`
+	Name string `json:"name"`
+	// Image is AniList's medium portrait, about 100px wide; ImageLarge the
+	// same at about 230px for cards that show it bigger than a thumbnail
+	// (empty on cache entries written before it existed).
 	Image      string `json:"image,omitempty"`
+	ImageLarge string `json:"imageLarge,omitempty"`
 	Role       string `json:"role,omitempty"`
 	VoiceActor string `json:"voiceActor,omitempty"`
 }
@@ -704,12 +713,13 @@ type Extras struct {
 }
 
 // Extras fetches a media's cast, external links and forum threads in one
-// request, cached under extras1:<id>. Relations and recommendations are not
+// request, cached under extras2:<id> (bumped when the cast portraits gained
+// their large size). Relations and recommendations are not
 // here: RelationsBatch and RecommendationsBatch already cache those. Every
 // field of the response is optional in the decoder, so a renamed field on
 // AniList's side degrades to an empty list rather than an error.
 func (c *Client) Extras(ctx context.Context, id int) (*Extras, error) {
-	key := fmt.Sprintf("extras1:%d", id)
+	key := fmt.Sprintf("extras2:%d", id)
 	if payload, ok := c.cached(key); ok {
 		var x Extras
 		if json.Unmarshal([]byte(payload), &x) == nil {
@@ -723,8 +733,8 @@ func (c *Client) Extras(ctx context.Context, id int) (*Extras, error) {
 					Edges []struct {
 						Role string `json:"role"`
 						Node struct {
-							Name  struct{ Full string }   `json:"name"`
-							Image struct{ Medium string } `json:"image"`
+							Name  struct{ Full string }          `json:"name"`
+							Image struct{ Medium, Large string } `json:"image"`
 						} `json:"node"`
 						VoiceActors []struct {
 							Name struct{ Full string } `json:"name"`
@@ -749,7 +759,7 @@ func (c *Client) Extras(ctx context.Context, id int) (*Extras, error) {
 	}
 	gql := `query ($id: Int) {
 		Media(id: $id, type: ANIME) {
-			characters(sort: [ROLE, RELEVANCE], perPage: 12) { edges { role node { name { full } image { medium } } voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } } } }
+			characters(sort: [ROLE, RELEVANCE], perPage: 12) { edges { role node { name { full } image { medium large } } voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } } } }
 			externalLinks { site url type icon color language }
 		}
 		Page(perPage: 10) { threads(mediaCategoryId: $id, sort: REPLIED_AT_DESC) { id title replyCount viewCount repliedAt siteUrl user { name } categories { name } } }
@@ -759,7 +769,7 @@ func (c *Client) Extras(ctx context.Context, id int) (*Extras, error) {
 	}
 	x := Extras{Characters: []Character{}, Links: []ExternalLink{}, Threads: []Thread{}}
 	for _, e := range resp.Data.Media.Characters.Edges {
-		ch := Character{Name: e.Node.Name.Full, Image: e.Node.Image.Medium, Role: e.Role}
+		ch := Character{Name: e.Node.Name.Full, Image: e.Node.Image.Medium, ImageLarge: e.Node.Image.Large, Role: e.Role}
 		if len(e.VoiceActors) > 0 {
 			ch.VoiceActor = e.VoiceActors[0].Name.Full
 		}

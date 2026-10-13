@@ -7,7 +7,13 @@ export interface Schemas {
     episode: number
   }
   'anilist.Character': {
+    /**
+     * Image is AniList's medium portrait, about 100px wide; ImageLarge the
+     * same at about 230px for cards that show it bigger than a thumbnail
+     * (empty on cache entries written before it existed).
+     */
     image?: string
+    imageLarge?: string
     name: string
     role?: string
     voiceActor?: string
@@ -50,6 +56,13 @@ export interface Schemas {
        */
       extraLarge?: string
       large: string
+      /**
+       * Medium is the 100px-wide artwork, for list rows and thumbnails
+       * where Large would be downloaded only to be shrunk. Empty on cache
+       * entries written before the field existed; consumers fall back to
+       * Large.
+       */
+      medium?: string
     }
     description: string
     endDate?: number

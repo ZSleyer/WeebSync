@@ -19,6 +19,10 @@
             "anilist.Character": {
                 "properties": {
                     "image": {
+                        "description": "Image is AniList's medium portrait, about 100px wide; ImageLarge the\nsame at about 230px for cards that show it bigger than a thumbnail\n(empty on cache entries written before it existed).",
+                        "type": "string"
+                    },
+                    "imageLarge": {
                         "type": "string"
                     },
                     "name": {
@@ -102,6 +106,10 @@
                                 "type": "string"
                             },
                             "large": {
+                                "type": "string"
+                            },
+                            "medium": {
+                                "description": "Medium is the 100px-wide artwork, for list rows and thumbnails\nwhere Large would be downloaded only to be shrunk. Empty on cache\nentries written before the field existed; consumers fall back to\nLarge.",
                                 "type": "string"
                             }
                         },
