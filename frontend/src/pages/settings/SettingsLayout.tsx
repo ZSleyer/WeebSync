@@ -24,28 +24,33 @@ import { WIDE_MQ } from '../../components/PageActions'
 import { SectionOutlet } from '../../components/RouteTransition'
 import { SectionHub, SectionNav, type SectionGroup } from '../../components/SectionNav'
 
-const PERSONAL = [
+// Four groups, by what a section is about: the user, the library and how it
+// is filled, the places data comes from, and the instance itself.
+const YOU = [
   { to: 'general', key: 'settings.nav.general', icon: Settings2, hint: 'settings.hub.general' },
   { to: 'account', key: 'settings.nav.account', icon: UserRound, hint: 'settings.hub.account' },
-  { to: 'sync', key: 'settings.nav.sync', icon: RefreshCw, hint: 'settings.hub.sync' },
-  { to: 'rules', key: 'settings.nav.rules', icon: BookOpen, hint: 'settings.hub.rules' },
   { to: 'notifications', key: 'settings.nav.notifications', icon: Bell, hint: 'settings.hub.notifications' },
 ]
-const SOURCES = [{ to: 'servers', key: 'nav.servers', icon: Server, hint: 'settings.hub.servers' }]
+const LIBRARY = [
+  { to: 'sync', key: 'settings.nav.sync', icon: RefreshCw, hint: 'settings.hub.sync' },
+  { to: 'rules', key: 'settings.nav.rules', icon: BookOpen, hint: 'settings.hub.rules' },
+]
+// the library's admin half: the index, the matches and the data stores
+const LIBRARY_ADMIN = [
+  { to: 'matching', key: 'settings.nav.matching', icon: Link2, hint: 'settings.hub.matching' },
+  { to: 'data', key: 'settings.nav.data', icon: Database, hint: 'settings.hub.data' },
+]
+const CONNECTIONS = [{ to: 'servers', key: 'nav.servers', icon: Server, hint: 'settings.hub.servers' }]
 // where the data comes from besides the servers: admin only
 const INTEGRATIONS = [
   { to: 'integrations', key: 'settings.nav.integrations', icon: Plug, hint: 'settings.hub.integrations' },
 ]
-const OPERATIONS = [
+const SYSTEM = [
   { to: 'transfers', key: 'settings.nav.transfers', icon: ArrowDownUp, hint: 'settings.hub.transfers' },
   { to: 'security', key: 'settings.nav.security', icon: Shield, hint: 'settings.hub.security' },
+  { to: 'jobs', key: 'settings.nav.jobs', icon: Activity, hint: 'settings.hub.jobs' },
 ]
 const ABOUT = [{ to: 'about', key: 'settings.nav.about', icon: Info, hint: 'settings.hub.about' }]
-const MAINTENANCE = [
-  { to: 'jobs', key: 'settings.nav.jobs', icon: Activity, hint: 'settings.hub.jobs' },
-  { to: 'matching', key: 'settings.nav.matching', icon: Link2, hint: 'settings.hub.matching' },
-  { to: 'data', key: 'settings.nav.data', icon: Database, hint: 'settings.hub.data' },
-]
 
 // Panels inside a section that a search lands on directly. Each shows only
 // while its section is in the menu, so a user never finds an admin panel.
@@ -134,16 +139,12 @@ export function useSettingsGroups(): SectionGroup[] {
   const admin = !!user?.isAdmin
   // a newer build out marks the About entry, where the details are
   const update = useUpdateHint()
+  const about = ABOUT.map((i) => ({ ...i, alert: !!update }))
   return [
-    { label: 'settings.groupPersonal', items: PERSONAL },
-    { label: 'settings.groupSources', items: admin ? [...SOURCES, ...INTEGRATIONS] : SOURCES },
-    ...(admin
-      ? [
-          { label: 'settings.groupOperations', items: OPERATIONS },
-          { label: 'settings.groupMaintenance', items: MAINTENANCE },
-        ]
-      : []),
-    { label: 'settings.groupAbout', items: ABOUT.map((i) => ({ ...i, alert: !!update })) },
+    { label: 'settings.groupYou', items: YOU },
+    { label: 'settings.groupLibrary', items: admin ? [...LIBRARY, ...LIBRARY_ADMIN] : LIBRARY },
+    { label: 'settings.groupConnections', items: admin ? [...CONNECTIONS, ...INTEGRATIONS] : CONNECTIONS },
+    { label: 'settings.groupSystem', items: admin ? [...SYSTEM, ...about] : about },
   ]
 }
 

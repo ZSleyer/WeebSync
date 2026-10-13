@@ -1010,6 +1010,10 @@
     "presetGroup": "Mit Gruppe: [Group] Series - 01"
   },
   "settings": {
+    "groupYou": "Du",
+    "groupLibrary": "Bibliothek",
+    "groupConnections": "Verbindungen",
+    "groupSystem": "System",
     "title": "EINSTELLUNGEN",
     "transfers": "transfers",
     "maxConcurrent": "Parallele Downloads (1–20)",
@@ -1199,11 +1203,6 @@
       "results": "Suchergebnisse",
       "users": "Benutzer"
     },
-    "groupPersonal": "Persönlich",
-    "groupOperations": "Betrieb",
-    "groupSources": "Quellen",
-    "groupAbout": "WeebSync",
-    "groupMaintenance": "Wartung",
     "sync": {
       "targets": "Zielordner je Medienart",
       "targetsHint": "Wohin ein neuer Auto-Sync oder Einmal-Sync dieser Art schreibt und wie die Dateien heißen. Liegt die Serie schon in der Bibliothek, gewinnt ihr Ordner.",

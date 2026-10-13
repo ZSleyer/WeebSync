@@ -1010,6 +1010,10 @@
     "presetGroup": "With group: [Group] Series - 01"
   },
   "settings": {
+    "groupYou": "You",
+    "groupLibrary": "Library",
+    "groupConnections": "Connections",
+    "groupSystem": "System",
     "title": "SETTINGS",
     "transfers": "transfers",
     "maxConcurrent": "Concurrent downloads (1–20)",
@@ -1199,11 +1203,6 @@
       "results": "Search results",
       "users": "Users"
     },
-    "groupPersonal": "Personal",
-    "groupOperations": "Operations",
-    "groupSources": "Sources",
-    "groupAbout": "WeebSync",
-    "groupMaintenance": "Maintenance",
     "sync": {
       "targets": "Target folder per media kind",
       "targetsHint": "Where a new auto-sync or one-off sync of this kind writes and how its files are named. A series already in the library keeps its folder.",
