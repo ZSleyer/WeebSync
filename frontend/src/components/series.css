@@ -1,0 +1,1063 @@
+/* ═══ The series detail: a full-page overlay over the content column. The
+   sidebar (desktop) and the tab bar (phone) stay standing; the page under it
+   is hidden while it is open, so nothing bleeds through. Sync parts carry
+   the teal half of the colour code. ═══ */
+
+html[data-overlay] .app-shell > main {
+  visibility: hidden;
+}
+
+.ws-detail {
+  position: fixed;
+  z-index: 25;
+  inset: 0 0 calc(var(--nav-h) + var(--safe-b, 0px)) 0;
+  background: var(--bg);
+  overflow-y: auto;
+  overflow-x: clip;
+  overscroll-behavior: contain;
+  container-type: inline-size;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+  --d-bar-h: 3.25rem;
+  --d-pad: 1rem;
+}
+@media (width >= 64rem) {
+  .ws-detail {
+    inset: 0 var(--ws-aside-w, 0px) 0 var(--side-w);
+    --d-bar-h: 3.75rem;
+    --d-pad: clamp(2.5rem, 3vw, 4.5rem);
+  }
+}
+.ws-detail:focus {
+  outline: none;
+}
+
+/* ── the bar: back only, the title slides in once the big one is gone ── */
+.ws-d-bar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: var(--d-bar-h);
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0 0.5rem 0 0.25rem;
+  transition:
+    background var(--dur-2),
+    box-shadow var(--dur-2);
+}
+@media (width >= 64rem) {
+  .ws-d-bar {
+    padding: 0 1.5rem;
+  }
+}
+.ws-d-bar-t {
+  min-width: 0;
+  font: 600 1rem/1.2 var(--f-display);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity var(--dur-2),
+    transform var(--dur-2) var(--ease-out);
+}
+.ws-detail[data-docked] .ws-d-bar,
+.ws-detail[data-editing] .ws-d-bar {
+  background: var(--bg);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.ws-detail[data-docked] .ws-d-bar-t,
+.ws-detail[data-editing] .ws-d-bar-t {
+  opacity: 1;
+  transform: none;
+}
+.ws-d-bar .t-iconbtn {
+  background: color-mix(in oklab, var(--bg) 60%, transparent);
+}
+
+/* ── the banner: 5px past its frame on every side, faded into the page ── */
+.ws-d-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 15rem;
+  overflow: hidden;
+  pointer-events: none;
+  contain: paint;
+}
+@media (width >= 64rem) {
+  .ws-d-banner {
+    height: 20rem;
+  }
+}
+.ws-d-banner-art {
+  position: absolute;
+  inset: 0;
+  will-change: transform, opacity;
+  opacity: 0.5;
+  -webkit-mask-image: linear-gradient(#000 30%, transparent);
+  mask-image: linear-gradient(#000 30%, transparent);
+}
+.ws-d-banner-art img {
+  position: absolute;
+  inset: -5px;
+  width: calc(100% + 10px);
+  height: calc(100% + 10px);
+  max-width: none;
+  object-fit: cover;
+}
+
+/* ── hero: cover, title, meta, actions ── */
+.ws-d-hero {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: end;
+  padding: 0.75rem var(--d-pad) 1.25rem;
+}
+.ws-detail:not(:has(.ws-d-banner img)) .ws-d-hero {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--d-tint, var(--hover)) 40%, transparent), transparent 92%);
+}
+.ws-d-cover {
+  margin-top: 0.5rem;
+  aspect-ratio: 2 / 3;
+  width: 100%;
+  border-radius: var(--r-cover);
+}
+.ws-d-head {
+  min-width: 0;
+}
+.ws-d-crumb {
+  margin: 0 0 0.25rem;
+  color: var(--fg-3);
+  font-size: 0.8125rem;
+}
+.ws-d-title {
+  margin: 0 0 0.375rem;
+  font: 700 1.5rem/1.08 var(--f-display);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.ws-d-meta {
+  margin: 0;
+  color: var(--fg-3);
+  font-size: 0.8125rem;
+}
+.ws-d-acts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.125rem;
+}
+.ws-d-acts > .t-btn {
+  flex: 1;
+  background: color-mix(in oklab, var(--bg) 70%, transparent);
+}
+.ws-d-acts > .t-btn--primary {
+  background: var(--accent);
+}
+@media (width >= 64rem) {
+  .ws-d-hero {
+    grid-template-columns: 10.5rem minmax(0, 1fr);
+    grid-template-rows: 1fr auto;
+    gap: 1.75rem;
+    padding-block: 2.5rem 1.75rem;
+  }
+  .ws-d-cover {
+    margin-top: 0;
+    grid-row: 1 / 3;
+  }
+  .ws-d-head {
+    align-self: end;
+  }
+  .ws-d-title {
+    font-size: 2.125rem;
+  }
+  .ws-d-acts {
+    grid-column: 2;
+    align-self: start;
+    margin-top: 0;
+  }
+  .ws-d-acts > .t-btn {
+    flex: none;
+  }
+}
+
+/* ── the section row under the bar ── */
+.ws-d-jump {
+  position: sticky;
+  top: var(--d-bar-h);
+  z-index: 3;
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 calc(var(--d-pad) - 0.625rem);
+  background: var(--bg);
+  box-shadow: inset 0 -1px 0 var(--line);
+  margin-bottom: 1.25rem;
+}
+.ws-d-jump a {
+  flex: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 2.75rem;
+  padding: 0 0.625rem;
+  font-size: 0.875rem;
+  color: var(--fg-3);
+  text-decoration: none;
+}
+.ws-d-jump a[aria-current='true'] {
+  color: var(--fg);
+  font-weight: 500;
+}
+.ws-d-jump a::after {
+  content: '';
+  position: absolute;
+  left: 0.625rem;
+  right: 0.625rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.ws-d-jump a[aria-current='true']::after {
+  transform: none;
+}
+.ws-d-jump a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--r-ctl);
+}
+
+/* ── body: one column on a phone (aside parts woven in by order), two
+   columns with a sticky aside where the column has the room ── */
+.ws-d-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--d-pad) 6rem;
+}
+.ws-d-aside,
+.ws-d-main {
+  display: contents;
+}
+.ws-d-aside > .ws-syncbtn {
+  order: 1;
+}
+.ws-d-aside > .ws-d-sync {
+  order: 2;
+}
+.ws-d-main > * {
+  order: 3;
+}
+.ws-d-aside > .ws-d-match,
+.ws-d-aside > .ws-d-more-watches {
+  order: 4;
+}
+@media (width >= 64rem) {
+  .ws-d-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    column-gap: 3rem;
+    align-items: start;
+    padding-bottom: 4rem;
+  }
+  .ws-d-main {
+    display: block;
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .ws-d-aside {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: calc(var(--d-bar-h) + 3.5rem);
+  }
+  @container (width < 60rem) {
+    .ws-d-body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ws-d-aside {
+      grid-column: 1;
+      grid-row: 1;
+      position: static;
+      margin-bottom: 1.5rem;
+    }
+    .ws-d-main {
+      grid-row: 2;
+    }
+  }
+}
+
+.ws-d-sec {
+  margin-bottom: 2.25rem;
+  scroll-margin-top: calc(var(--d-bar-h) + 3.5rem);
+  outline: none;
+}
+/* sections far down render only near the screen */
+.ws-d-sec + .ws-d-sec {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 30rem;
+}
+.ws-d-sec .t-sec-h {
+  margin-bottom: 0.75rem;
+}
+.ws-d-count {
+  color: var(--fg-3);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.ws-d-h3 {
+  font: 600 0.875rem/1.3 var(--f-sans);
+  color: var(--fg-2);
+  margin: 1.25rem 0 0.5rem;
+}
+.ws-d-quiet {
+  color: var(--fg-3);
+  font-size: 0.875rem;
+}
+.ws-d-err {
+  color: var(--err);
+  font-size: 0.875rem;
+}
+
+/* staged rendering: what arrives after the morph rises in */
+.ws-d-late {
+  animation: ws-d-rise 360ms var(--spring-calm) both;
+}
+@keyframes ws-d-rise {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+
+/* ── overview ── */
+.ws-d-desc {
+  max-width: 68ch;
+  color: var(--fg-2);
+  line-height: 1.55;
+  white-space: pre-line;
+  margin: 0;
+}
+.ws-d-desc[data-long='true']:not([data-open]) {
+  max-height: 7.75em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent);
+  mask-image: linear-gradient(#000 55%, transparent);
+}
+.ws-d-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.375rem 1rem;
+  margin: 1rem 0 0;
+  font-size: 0.875rem;
+}
+.ws-d-facts dt {
+  color: var(--fg-3);
+}
+.ws-d-facts dd {
+  margin: 0;
+}
+.ws-d-sched {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+}
+.ws-d-sched li {
+  display: grid;
+  grid-template-columns: 3.5rem max-content max-content;
+  gap: 1rem;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.ws-d-sched time {
+  color: var(--accent-2);
+}
+.ws-d-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0 1rem;
+}
+.ws-d-links a {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+  font-size: 0.875rem;
+  color: var(--fg);
+  text-decoration: none;
+}
+.ws-d-links a:hover > span:nth-of-type(2) {
+  text-decoration: underline;
+}
+.ws-d-links .ws-d-quiet {
+  font-size: 0.75rem;
+}
+.ws-d-links svg {
+  color: var(--fg-3);
+  flex: none;
+}
+.ws-d-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--lc, var(--fg-3));
+  margin: 0 3px;
+  flex: none;
+}
+.ws-d-trailer {
+  margin-top: 1rem;
+  max-width: 40rem;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  border: 0;
+  border-radius: var(--r-panel);
+}
+
+/* ── cast and posters: a snap row on a phone, a wrapping grid on desktop ── */
+.ws-d-cast,
+.ws-d-posters {
+  list-style: none;
+  margin: 0 calc(-1 * var(--d-pad));
+  padding: 2px var(--d-pad) 6px;
+  display: grid;
+  grid-auto-flow: column;
+  gap: 0.875rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding: var(--d-pad);
+  scrollbar-width: thin;
+}
+.ws-d-cast {
+  grid-auto-columns: 5.75rem;
+}
+.ws-d-posters {
+  grid-auto-columns: 7rem;
+}
+.ws-d-cast li,
+.ws-d-posters li {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+.ws-d-cast li {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  font-size: 0.8125rem;
+}
+.ws-d-portrait {
+  display: block;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 92 / 122;
+  border-radius: var(--r-cover);
+  overflow: hidden;
+  background: var(--hover);
+  margin-bottom: 0.25rem;
+}
+.ws-d-portrait > img {
+  opacity: 0;
+  transition: opacity var(--dur-3) var(--ease-out);
+}
+.ws-d-portrait > img[data-loaded] {
+  opacity: 1;
+}
+.ws-d-cast b {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.ws-d-cast span {
+  color: var(--fg-3);
+  font-size: 0.75rem;
+}
+.ws-d-cast .ws-d-va {
+  color: var(--fg-2);
+}
+.ws-d-poster {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  font-size: 0.8125rem;
+  border-radius: var(--r-cover);
+}
+.ws-d-poster .t-cover {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--r-cover);
+  margin-bottom: 0.375rem;
+}
+.ws-d-poster b {
+  font-weight: 500;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ws-d-poster span {
+  color: var(--fg-3);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.ws-d-poster .ws-d-own {
+  color: var(--accent-2);
+}
+.ws-d-poster:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (width >= 64rem) {
+  .ws-d-cast,
+  .ws-d-posters {
+    margin: 0;
+    padding-inline: 0;
+    grid-auto-flow: row;
+    overflow: visible;
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  }
+  .ws-d-cast {
+    grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr));
+  }
+}
+
+/* ── community ── */
+.ws-d-reviews {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+  max-width: 68ch;
+}
+.ws-d-reviews p {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.ws-d-reviews .ws-d-quiet {
+  font-size: 0.8125rem;
+}
+.ws-d-threads a {
+  color: var(--fg);
+  text-decoration: none;
+}
+.ws-d-threads a:hover strong {
+  text-decoration: underline;
+}
+
+/* ── the sync button: teal, full width; fills while it loads ── */
+.ws-syncbtn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 3rem;
+  margin-bottom: 1.25rem;
+  border-radius: var(--r-ctl);
+  background: var(--accent-2);
+  color: var(--on-accent-2);
+  font-weight: 600;
+  overflow: hidden;
+  transition:
+    background var(--dur-3),
+    color var(--dur-3);
+}
+.ws-syncbtn:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+.ws-syncbtn > .ws-syncbtn-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-2);
+  opacity: 0;
+  transform-origin: left;
+  transform: scaleX(var(--p, 0));
+  transition:
+    transform 500ms var(--ease-out),
+    opacity var(--dur-2);
+}
+.ws-syncbtn > .t-slot,
+.ws-syncbtn > span:last-child {
+  position: relative;
+}
+.ws-syncbtn[data-state='run'] {
+  background: color-mix(in oklab, var(--accent-2) 22%, var(--bg));
+  color: var(--fg);
+}
+.ws-syncbtn[data-state='run'] > .ws-syncbtn-fill {
+  opacity: 0.35;
+}
+.ws-syncbtn[data-state='done'] {
+  background: transparent;
+  color: var(--ok);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* ── the sync explanation ── */
+.ws-d-sync {
+  margin: 0.25rem 0 1.5rem;
+}
+.ws-d-sync .t-sec-h {
+  margin-bottom: 0.5rem;
+}
+.ws-ex-line {
+  font: 600 1rem/1.35 var(--f-sans);
+  margin: 0 0 0.25rem;
+}
+.ws-ex-sub {
+  color: var(--fg-3);
+  font-size: 0.875rem;
+  margin: 0 0 0.5rem;
+}
+.ws-ex-notes {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--fg-2);
+}
+.ws-ex-notes [data-tone='warn'] {
+  color: var(--warn);
+}
+.ws-ex-notes [data-tone='err'] {
+  color: var(--err);
+}
+.ws-ex-notes [data-tone='acc'] {
+  color: var(--accent-2);
+}
+.ws-ex-path {
+  font: 400 0.75rem/1.4 var(--f-mono);
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+  margin: 0 0 0.75rem;
+}
+details.ws-ex {
+  border-top: 1px solid var(--line);
+}
+details.ws-ex:last-of-type {
+  border-bottom: 1px solid var(--line);
+}
+details.ws-ex > summary {
+  list-style: none;
+  min-height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--accent-2);
+}
+details.ws-ex > summary::-webkit-details-marker {
+  display: none;
+}
+details.ws-ex > summary::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 1.8px solid currentColor;
+  border-bottom: 1.8px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform var(--dur-2) var(--ease-out);
+  margin-right: 0.25rem;
+  flex: none;
+}
+details.ws-ex[open] > summary::after {
+  transform: rotate(-135deg);
+}
+details.ws-ex > summary:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+  border-radius: var(--r-ctl);
+}
+@media (prefers-reduced-motion: no-preference) {
+  details.ws-ex[open] > :not(summary) {
+    animation: ws-d-rise 320ms var(--spring-calm) both;
+  }
+}
+ol.ws-steps,
+ol.ws-skips {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.75rem;
+}
+ol.ws-steps li {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 0 0 0.875rem 1.625rem;
+  min-width: 0;
+}
+ol.ws-steps li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  background: var(--bg);
+  z-index: 1;
+}
+ol.ws-steps li::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 15px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--line);
+}
+ol.ws-steps li:last-child::after {
+  display: none;
+}
+ol.ws-steps li[data-st='ok']::before {
+  border-color: var(--ok);
+  background: var(--ok);
+}
+ol.ws-steps li[data-st='wait']::before {
+  border-color: var(--warn);
+}
+ol.ws-steps b,
+ol.ws-skips b {
+  font-weight: 500;
+}
+ol.ws-steps span,
+ol.ws-skips span {
+  color: var(--fg-3);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+ol.ws-skips {
+  counter-reset: k;
+}
+ol.ws-skips li {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 0.5rem 0 0.5rem 1.875rem;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+ol.ws-skips li:last-child {
+  border-bottom: 0;
+}
+ol.ws-skips li::before {
+  counter-increment: k;
+  content: counter(k);
+  position: absolute;
+  left: 0;
+  top: 0.5625rem;
+  font: 500 0.8125rem/1.4 var(--f-mono);
+  color: var(--fg-3);
+}
+.ws-mono {
+  font-family: var(--f-mono);
+  font-size: 0.8125rem;
+}
+
+/* ── the match ── */
+.ws-d-match {
+  margin-bottom: 1.5rem;
+}
+.ws-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 3rem;
+  color: var(--accent-2);
+  font-weight: 500;
+  border-top: 1px solid var(--line);
+  margin-top: 0.5rem;
+  text-align: left;
+}
+.ws-link-row::after {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 1.8px solid currentColor;
+  border-top: 1.8px solid currentColor;
+  transform: rotate(45deg);
+  margin-right: 0.25rem;
+}
+.ws-link-row:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+  border-radius: var(--r-ctl);
+}
+.ws-d-why {
+  margin-top: 0.5rem;
+}
+
+/* ── episodes: hairline rows that open to their facts ── */
+.ws-eps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ws-eps-long {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 40rem;
+}
+.ws-ep {
+  border-bottom: 1px solid var(--line);
+}
+.ws-ep-in {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.25rem 0;
+}
+.ws-ep-tog {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .ws-ep-tog:hover {
+    background: var(--hover);
+  }
+}
+.ws-ep-tog:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.ws-ep-in > :not(.ws-ep-tog) {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+.ws-ep-in > .ws-ep-play {
+  pointer-events: auto;
+}
+.ws-ep-no {
+  flex: none;
+  min-width: 2.125rem;
+  font: 400 0.8125rem/1.3 var(--f-mono);
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.ws-ep-t {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.ws-ep-t strong {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-ep-t span {
+  color: var(--fg-3);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-ep-t span[data-tone='warn'] {
+  color: var(--warn);
+}
+.ws-ep-t span[data-tone='acc'] {
+  color: var(--accent-2);
+}
+.ws-ep-st {
+  flex: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  display: grid;
+  place-items: center;
+}
+.ws-ep-st .ws-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--warn);
+}
+.ws-ep-st .ws-prog {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent-2) calc(var(--p, 0) * 1turn), var(--line) 0);
+  -webkit-mask: radial-gradient(circle, transparent 5.5px, #000 6px);
+  mask: radial-gradient(circle, transparent 5.5px, #000 6px);
+}
+.ws-ep-st svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--ok);
+  stroke-width: 2.4;
+  fill: none;
+}
+.ws-ep-st svg.ws-up {
+  stroke: var(--fg-3);
+  stroke-width: 2;
+}
+.ws-ep-play {
+  flex: none;
+}
+.ws-ep-play-sp {
+  flex: none;
+  width: 2.25rem;
+}
+.ws-ep-facts {
+  padding: 2px 0 1rem 2.875rem;
+}
+.ws-ep-facts dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25rem 1.125rem;
+  margin: 0;
+  font-size: 0.84375rem;
+}
+.ws-ep-facts dt {
+  color: var(--fg-3);
+}
+.ws-ep-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ws-ep-facts:not([hidden]) {
+    animation: ws-d-rise 320ms var(--spring-calm);
+  }
+}
+/* the episode a tile pointed at: one teal wipe across the row */
+.ws-ep[data-hit] .ws-ep-in::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: var(--r-ctl);
+  background: color-mix(in oklab, var(--accent-2) 30%, transparent);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ws-ep[data-hit] .ws-ep-in::after {
+    animation: ws-hit 900ms cubic-bezier(0.7, 0, 0.3, 1) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-ep[data-hit] .ws-ep-in {
+    box-shadow: inset 3px 0 0 var(--accent-2);
+  }
+}
+@keyframes ws-hit {
+  0% {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  45% {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+  55% {
+    transform: scaleX(1);
+    transform-origin: right;
+  }
+  100% {
+    transform: scaleX(0);
+    transform-origin: right;
+  }
+}
+.ws-ep-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.25rem;
+}
+.ws-ep-head .ws-d-count {
+  margin-right: auto;
+}
+.ws-ep-group + .ws-ep-group {
+  margin-top: 1.25rem;
+}
+
+/* ── edit mode: the form replaces the page ── */
+.ws-detail[data-editing] .ws-d-banner,
+.ws-detail[data-editing] .ws-d-hero,
+.ws-detail[data-editing] .ws-d-jump,
+.ws-detail[data-editing] .ws-d-body {
+  display: none;
+}
+.ws-d-edit {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0.5rem var(--d-pad) 0;
+}
+@media (width >= 64rem) {
+  .ws-d-edit {
+    padding-inline: 0;
+  }
+}
+
+/* ── morphs: a cover into the detail cover, a Heute banner panel into the
+   detail banner, the rest of the page fading in around them ── */
+::view-transition-group(ws-hero) {
+  animation-duration: 420ms;
+  animation-timing-function: var(--m3-spatial, var(--spring));
+  overflow: clip;
+  border-radius: var(--r-cover);
+}
+::view-transition-group(band) {
+  animation-duration: 460ms;
+  animation-timing-function: var(--spring-calm);
+  overflow: clip;
+}
+::view-transition-old(ws-hero),
+::view-transition-new(ws-hero),
+::view-transition-old(band),
+::view-transition-new(band) {
+  height: 100%;
+  object-fit: cover;
+}
+::view-transition-new(ws-detail) {
+  animation: ws-d-in var(--dur-3) var(--ease-out) both;
+}
+::view-transition-old(ws-detail) {
+  animation: ws-d-out var(--dur-2) var(--ease-in) both;
+}
+@keyframes ws-d-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ws-d-out {
+  to {
+    opacity: 0;
+  }
+}

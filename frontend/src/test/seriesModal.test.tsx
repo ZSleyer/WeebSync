@@ -114,8 +114,18 @@ function app(at = '/') {
 
 // routes the card's requests: the watch list, the extras, the reviews, a
 // related record
-function serve({ watches = [] as Watch[], extras = undefined as unknown, reviews = { reviews: [] } } = {}) {
+function serve({
+  watches = [] as Watch[],
+  extras = undefined as unknown,
+  reviews = { reviews: [] },
+  episodes = [] as unknown[],
+  files = [] as unknown[],
+  probe = undefined as unknown,
+} = {}) {
   return vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+    if (url.startsWith('/api/watches/') && url.endsWith('/episodes')) return { episodes }
+    if (url.startsWith('/api/browse/local')) return url.includes('Season') ? [] : files
+    if (url.startsWith('/api/play/info') && probe) return probe
     if (url === '/api/watches') return watches
     if (url.startsWith('/api/media/extras')) {
       if (extras === undefined) throw new Error('502 down')
@@ -164,22 +174,26 @@ class FakeIO {
 const observers = () => {
   const live = FakeIO.all.filter((o) => o.els.size > 0)
   return {
-    spy: live.find((o) => !o.opts.rootMargin?.endsWith('100% 0px'))!,
+    spy: live.find((o) => o.opts.rootMargin?.includes('-55%'))!,
     ahead: live.find((o) => o.opts.rootMargin?.endsWith('100% 0px'))!,
   }
 }
 
+// the series page's section by its jump link: the section ids come from useId
+const sectionOf = (name: string) =>
+  document.getElementById(screen.getByRole('link', { name }).getAttribute('href')!.slice(1))!
+
 describe('SeriesModalProvider', () => {
-  it('opens the one title card with the record and the caller rows', () => {
+  it('opens the one series page with the record and the caller rows', () => {
     serve()
     target = { id: 7, media, extra: <p>Versionen: 2</p> }
     app()
     expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.click(screen.getByText('öffnen'))
-    const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('Frieren')
-    expect(dialog).toHaveTextContent('Eine Elfe.')
-    expect(dialog).toHaveTextContent('Versionen: 2')
+    const page = screen.getByRole('dialog', { name: 'Frieren' })
+    expect(page).toHaveTextContent('Frieren')
+    expect(page).toHaveTextContent('Eine Elfe.')
+    expect(page).toHaveTextContent('Versionen: 2')
   })
 
   it('closes when the route changes', () => {
@@ -192,22 +206,54 @@ describe('SeriesModalProvider', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('shows the episodes section only for a title that has watches, one block each', async () => {
+  it('covers the content column, non-modal, hides the page under it and gives focus back', async () => {
+    serve()
+    app()
+    const opener = screen.getByText('öffnen')
+    opener.focus()
+    fireEvent.click(opener)
+    const page = screen.getByRole('dialog', { name: 'Frieren' })
+    // no modal: no <dialog>, no scrim; the sidebar and tab bar stay usable
+    expect(document.querySelector('dialog')).toBeNull()
+    expect(page).toHaveAttribute('aria-modal', 'false')
+    expect(page).toHaveFocus()
+    // the shell hides <main> while this is set
+    expect(document.documentElement.dataset.overlay).toBe('series')
+
+    // the next cover swaps what the page holds
+    target = { id: 8, media: { ...sequel, description: 'Teil zwei.' } }
+    opener.focus()
+    fireEvent.click(opener)
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Teil zwei.'))
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+
+    // Escape from inside goes back, out of the page, and focus returns
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(document.documentElement.dataset.overlay).toBeUndefined()
+    await waitFor(() => expect(opener).toHaveFocus())
+  })
+
+  it('lists the episodes of every watch, the lead first, the others in the aside', async () => {
     serve({ watches: [watch(1), watch(2), { ...watch(3), media: { ...media, id: 99 } }] })
     target = { id: 7, media, watchId: 2, tab: 'episodes' }
     app()
     fireEvent.click(screen.getByText('öffnen'))
     const link = await screen.findByRole('link', { name: /series.tab.episodes/ })
-    // opened on the episodes section: the jump row says so
     await waitFor(() => expect(link).toHaveAttribute('aria-current', 'true'))
-    const section = screen.getByRole('region', { name: 'series.tab.episodes' })
-    const blocks = within(section).getAllByRole('region')
-    expect(blocks).toHaveLength(2)
+    const section = sectionOf('series.tab.episodes')
     // the watch the caller came from leads
-    expect(blocks[0]).toHaveTextContent('/x/Frieren2')
+    await waitFor(() =>
+      expect(
+        within(section)
+          .getAllByRole('heading', { level: 2 })
+          .map((h) => h.textContent),
+      ).toEqual(['Frieren2', 'Frieren1']),
+    )
+    expect(screen.getByRole('region', { name: 'series.moreWatches' })).toHaveTextContent('/x/Frieren1')
   })
 
-  it('says what the user has of the title in one line under its name', async () => {
+  it('says where the auto-sync stands in one sentence and offers the missing episodes', async () => {
     serve({
       watches: [
         {
@@ -223,10 +269,9 @@ describe('SeriesModalProvider', () => {
     })
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    const heading = screen.getByRole('heading', { name: 'Frieren', level: 3 })
-    const line = await within(heading.parentElement!).findByText(/series.state.local/)
-    expect(line).toHaveTextContent('series.state.missing')
-    expect(line).toHaveTextContent('series.state.next')
+    const sync = await screen.findByRole('region', { name: 'series.sync.label' })
+    expect(within(sync).getByText('series.sync.gaps')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'series.sync.load' })).toHaveClass('ws-syncbtn')
   })
 
   it('has no episodes section without a watch or files and says so when the source is down', async () => {
@@ -235,9 +280,7 @@ describe('SeriesModalProvider', () => {
     fireEvent.click(screen.getByText('öffnen'))
     expect(screen.queryByRole('link', { name: /series.tab.episodes/ })).toBeNull()
     // one page: cast, similar and community stand under the overview
-    const cast = screen.getByRole('region', { name: 'series.tab.cast' })
-    // while the extras are on their way the section says so, not a bare heading
-    expect(within(cast).getByRole('status')).toHaveTextContent('app.loading')
+    const cast = sectionOf('series.tab.cast')
     await waitFor(() => expect(within(cast).getByRole('status')).toHaveTextContent('series.unavailable'))
     expect(within(cast).queryByText('app.loading')).toBeNull()
   })
@@ -248,7 +291,7 @@ describe('SeriesModalProvider', () => {
       extras: {
         relations: [],
         recommendations: [],
-        characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose' }],
+        characters: [{ name: 'Fern', voiceActor: 'Kana Ichinose', role: 'MAIN' }],
         links: [],
         threads: [],
       },
@@ -261,31 +304,29 @@ describe('SeriesModalProvider', () => {
     const extrasAsked = () => get.mock.calls.some(([u]) => u.startsWith('/api/media/extras'))
     expect(extrasAsked()).toBe(false)
     const { spy, ahead } = observers()
-    ahead.fire(screen.getByRole('region', { name: 'series.tab.cast' }), true)
+    ahead.fire(sectionOf('series.tab.cast'), true)
     expect(await screen.findByText('Fern')).toBeInTheDocument()
+    expect(screen.getByText('series.role.MAIN')).toBeInTheDocument()
     expect(extrasAsked()).toBe(true)
 
-    // scrolled: the observer reports the cast section as the first in the band.
-    // jsdom never scrolls, and at the very top the first section wins, so the
-    // scroller is put somewhere in the middle
     vi.spyOn(Element.prototype, 'scrollTop', 'get').mockReturnValue(400)
     vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(5000)
-    spy.fire(screen.getByRole('region', { name: 'series.tab.overview' }), false)
-    spy.fire(screen.getByRole('region', { name: 'series.tab.cast' }), true)
+    spy.fire(sectionOf('series.tab.overview'), false)
+    spy.fire(sectionOf('series.tab.cast'), true)
     expect(link('series.tab.cast')).toHaveAttribute('aria-current', 'true')
     expect(link('series.tab.overview')).not.toHaveAttribute('aria-current')
 
     // a jump marks its target and takes the focus there
     fireEvent.click(link('series.tab.community'))
     expect(link('series.tab.community')).toHaveAttribute('aria-current', 'true')
-    expect(screen.getByRole('region', { name: 'series.tab.community' })).toHaveFocus()
+    expect(sectionOf('series.tab.community')).toHaveFocus()
   })
 
-  it('opens a related title inside the card and finds its way back', async () => {
+  it('opens a related title on top, says where it came from and finds its way back', async () => {
     serve({
       extras: {
         relations: [{ relationType: 'SEQUEL', node: sequel }],
-        recommendations: [],
+        recommendations: [{ ...sequel, id: 9, title: { romaji: 'Dungeon Meshi' }, rating: 412 }],
         characters: [],
         links: [],
         threads: [],
@@ -293,16 +334,19 @@ describe('SeriesModalProvider', () => {
     })
     app()
     fireEvent.click(screen.getByText('öffnen'))
+    // the vote count of a recommendation
+    expect(await screen.findByText(/\+412/)).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /Frieren 2/ }))
-    const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('Frieren 2')
+    const page = screen.getByRole('dialog')
+    expect(page).toHaveTextContent('Frieren 2')
+    expect(page).toHaveTextContent('series.from')
     // the trimmed node is completed by a fetch of the record
-    await waitFor(() => expect(dialog).toHaveTextContent('Teil zwei.'))
-    fireEvent.click(screen.getByRole('button', { name: 'series.back' }))
-    expect(screen.getByRole('dialog')).toHaveTextContent('Eine Elfe.')
+    await waitFor(() => expect(page).toHaveTextContent('Teil zwei.'))
+    fireEvent.click(screen.getByRole('button', { name: 'series.backLabel' }))
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Eine Elfe.'))
   })
 
-  it('puts the caller actions in the bar, the rare ones behind the menu, and no close button', () => {
+  it('puts the caller actions in the hero, the rare ones behind the menu, and no close button', () => {
     serve()
     const sync = vi.fn()
     const files = vi.fn()
@@ -317,62 +361,62 @@ describe('SeriesModalProvider', () => {
     }
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    const bar = screen.getByRole('dialog').querySelector('footer')!
-    const buttons = within(bar).getAllByRole('button')
-    // secondary first, the primary at the end, then the overflow
-    expect(buttons.map((b) => b.textContent)).toEqual(['Auto-Sync', 'Jetzt syncen', ''])
-    expect(within(bar).queryByRole('button', { name: 'common.close' })).toBeNull()
-    fireEvent.click(within(bar).getByRole('button', { name: 'Jetzt syncen' }))
+    const acts = screen.getByRole('dialog').querySelector<HTMLElement>('.ws-d-acts')!
+    const buttons = within(acts).getAllByRole('button')
+    expect(buttons.map((b) => b.textContent)).toEqual(['Jetzt syncen', 'Auto-Sync', ''])
+    expect(screen.queryByRole('button', { name: 'common.close' })).toBeNull()
+    fireEvent.click(within(acts).getByRole('button', { name: 'Jetzt syncen' }))
     expect(sync).toHaveBeenCalledTimes(1)
-    fireEvent.click(within(bar).getByRole('button', { name: 'series.moreActions:Frieren' }))
+    fireEvent.click(within(acts).getByRole('button', { name: 'series.moreActions:Frieren' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dateien zeigen' }))
     expect(files).toHaveBeenCalledTimes(1)
   })
 
-  it('offers checking and editing a watch the card was opened from', async () => {
+  it('offers checking and editing a watch of the title, back leaves', async () => {
     serve({ watches: [{ ...watch(1), serverId: 1 } as Watch] })
     const post = vi.spyOn(api, 'post').mockResolvedValue({})
     target = { id: 7, media, watchId: 1 }
     app()
     fireEvent.click(screen.getByText('öffnen'))
-    await screen.findByRole('region', { name: 'series.tab.episodes' })
-    const bar = screen.getByRole('dialog').querySelector('footer')!
-    expect(within(bar).getByRole('button', { name: /servers.edit/ })).toBeInTheDocument()
-    fireEvent.click(within(bar).getByRole('button', { name: /watch.checkNow/ }))
+    const acts = await waitFor(() => {
+      const a = screen.getByRole('dialog').querySelector<HTMLElement>('.ws-d-acts')!
+      expect(within(a).getByRole('button', { name: /servers.edit/ })).toBeInTheDocument()
+      return a
+    })
+    fireEvent.click(within(acts).getByRole('button', { name: /watch.checkNow/ }))
     expect(post).toHaveBeenCalledWith('/api/watches/1/check?wait=1')
-    // the header's X closes the card
-    fireEvent.click(screen.getByRole('button', { name: 'common.close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'series.backLabel' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('slides a page form in inside the card and comes back to the card', async () => {
+  it('slides a page form in inside the page and comes back to it', async () => {
     serve()
     formClosed = 0
     app()
     fireEvent.click(screen.getByText('mit Formular'))
-    // a click focuses the button in a browser; fireEvent does not
     screen.getByRole('button', { name: 'Jetzt syncen' }).focus()
     fireEvent.click(screen.getByRole('button', { name: 'Jetzt syncen' }))
-    // one dialog, now holding the form instead of the card
-    expect(document.querySelectorAll('dialog')).toHaveLength(1)
-    const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('heading', { name: 'Sync-Formular' })).toBeInTheDocument()
-    expect(within(dialog).queryByRole('navigation', { name: 'series.sectionsLabel' })).toBeNull()
+    // one page, now holding the form instead of the sections
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    const page = screen.getByRole('dialog')
+    expect(within(page).getByRole('heading', { name: 'Sync-Formular' })).toBeInTheDocument()
+    expect(within(page).queryByRole('navigation', { name: 'series.sectionsLabel' })).toBeNull()
     expect(screen.getByRole('button', { name: 'watch.backToCard' })).toHaveFocus()
 
-    // back: the card again, focus on the action that asked
+    // back: the page again, focus on the action that asked
     fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Sync-Formular' })).toBeNull())
     expect(screen.getByRole('navigation', { name: 'series.sectionsLabel' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Jetzt syncen' })).toHaveFocus()
     expect(formClosed).toBe(1)
 
-    // the card closing under the form takes the form with it
+    // Escape leaves the form first, then the page
     fireEvent.click(screen.getByRole('button', { name: 'Jetzt syncen' }))
-    // Escape on the native dialog surfaces as its cancel event
-    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    await waitFor(() => expect(formClosed).toBe(2))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(formClosed).toBe(2)
   })
 
   it('opens on a history entry of its own: back closes it, a related title is one more step', async () => {
@@ -401,8 +445,78 @@ describe('SeriesModalProvider', () => {
     app('/title/anilist/7')
     // nothing handed over: the record comes from the provider
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Eine Elfe.'))
-    fireEvent.click(screen.getByRole('button', { name: 'common.close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'series.backLabel' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('lands on an episode: scrolled to, its facts open, marked once', async () => {
+    const scrolled = vi.fn()
+    Element.prototype.scrollIntoView = scrolled
+    serve({
+      watches: [{ ...watch(1), serverId: 1 } as Watch],
+      episodes: [
+        { season: 1, episode: 2, have: true, title: 'Zwei' },
+        { season: 1, episode: 3, have: true, title: 'Drei' },
+      ],
+      files: [
+        { name: 'Frieren S01E02.mkv', path: '/media/Frieren S01E02.mkv', isDir: false, size: 1e9, modTime: '' },
+        { name: 'Frieren S01E03.mkv', path: '/media/Frieren S01E03.mkv', isDir: false, size: 2e9, modTime: '' },
+      ],
+      probe: { video: { height: 1080, width: 1920, codec: 'hevc' }, audio: [{ lang: 'ja' }], subs: [{ lang: 'de' }] },
+    })
+    app('/title/anilist/7?ep=3')
+    const toggle = await screen.findByRole('button', { name: 'series.ep.facts:Drei' })
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'))
+    expect(toggle.closest('li')).toHaveAttribute('data-hit')
+    expect(scrolled).toHaveBeenCalled()
+    // the facts: the file and, from the probe, the picture
+    const facts = document.getElementById(toggle.getAttribute('aria-controls')!)!
+    expect(facts).toHaveTextContent('Frieren S01E03.mkv')
+    await waitFor(() => expect(facts).toHaveTextContent('1080p'))
+    // the other episode stays closed; play stays a button of its own
+    expect(screen.getByRole('button', { name: 'series.ep.facts:Zwei' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'series.ep.play:Drei' })).toBeInTheDocument()
+  })
+
+  it('opens straight into the watch editor when asked and comes back to the page', async () => {
+    serve({ watches: [{ ...watch(1), serverId: 1, template: '', pattern: '' } as Watch] })
+    target = { id: 7, media, edit: true }
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    expect(await screen.findByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'series.sectionsLabel' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
+    expect(await screen.findByRole('navigation', { name: 'series.sectionsLabel' })).toBeInTheDocument()
+  })
+
+  it('swaps the page for the watch editor in place and comes back to it', async () => {
+    serve({ watches: [{ ...watch(1), serverId: 1, template: '', pattern: '' } as Watch] })
+    target = { id: 7, media, tab: 'episodes' }
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    const openEditor = async () => {
+      const edit = await screen.findByRole('button', { name: /servers.edit/ })
+      edit.focus()
+      fireEvent.click(edit)
+    }
+    await openEditor()
+
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'series.sectionsLabel' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'watch.backToCard' })).toHaveFocus()
+
+    // nothing changed: the back arrow goes straight to the page, focus on edit
+    fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
+    expect(await screen.findByRole('navigation', { name: 'series.sectionsLabel' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /servers.edit/ })).toHaveFocus()
+
+    // unsaved changes: the guard asks, and a declined confirm keeps the editor
+    await openEditor()
+    fireEvent.change(screen.getByLabelText('watch.mediaId'), { target: { value: '42' } })
+    fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.getByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()
   })
 
   it('shows its own URL in the address bar while the page stays the location', async () => {
@@ -430,71 +544,5 @@ describe('SeriesModalProvider', () => {
     await waitFor(() => expect(router.state.location.mask?.pathname).toBe('/title/anilist/7'))
     expect(router.state.location.pathname).toBe('/')
     expect(screen.getByRole('dialog')).toHaveTextContent('Frieren')
-  })
-
-  it('docks beside the page on a desktop, non-modal, and swaps its content for the next title', async () => {
-    serve()
-    vi.stubGlobal(
-      'matchMedia',
-      (q: string) =>
-        ({
-          matches: q === '(width >= 64rem)',
-          addEventListener() {},
-          removeEventListener() {},
-        }) as unknown as MediaQueryList,
-    )
-    app()
-    const opener = screen.getByText('öffnen')
-    opener.focus()
-    fireEvent.click(opener)
-    const panel = screen.getByRole('dialog', { name: 'remote.detailsFor:Frieren' })
-    // no modal: no <dialog>, no scrim, the page stays usable
-    expect(document.querySelector('dialog')).toBeNull()
-    expect(panel).toHaveAttribute('aria-modal', 'false')
-    expect(panel).toHaveFocus()
-
-    // the next poster swaps what the panel holds, the panel stays
-    target = { id: 8, media: { ...sequel, description: 'Teil zwei.' } }
-    opener.focus()
-    fireEvent.click(opener)
-    await waitFor(() => expect(panel).toHaveTextContent('Teil zwei.'))
-    expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(screen.getByRole('dialog')).toBe(panel)
-
-    // Escape from inside closes it, and focus goes back to the opener
-    fireEvent.keyDown(within(panel).getByRole('button', { name: 'common.close' }), { key: 'Escape' })
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(opener).toHaveFocus()
-  })
-
-  it('swaps the card for the watch editor in place and comes back to it', async () => {
-    serve({ watches: [{ ...watch(1), serverId: 1, template: '', pattern: '' } as Watch] })
-    target = { id: 7, media, tab: 'episodes' }
-    app()
-    fireEvent.click(screen.getByText('öffnen'))
-    const openEditor = async () => {
-      fireEvent.click(await screen.findByRole('button', { name: 'watch.moreActions' }))
-      fireEvent.click(screen.getByRole('menuitem', { name: /servers.edit/ }))
-    }
-    await openEditor()
-
-    // one dialog, now holding the editor instead of the card
-    expect(document.querySelectorAll('dialog')).toHaveLength(1)
-    expect(screen.getByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: 'series.sectionsLabel' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'watch.backToCard' })).toHaveFocus()
-
-    // nothing changed: the back arrow goes straight to the card, focus on the
-    // menu the edit came from
-    fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
-    expect(await screen.findByRole('navigation', { name: 'series.sectionsLabel' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'watch.moreActions' })).toHaveFocus()
-
-    // unsaved changes: the guard asks, and a declined confirm keeps the editor
-    await openEditor()
-    fireEvent.change(screen.getByLabelText('watch.mediaId'), { target: { value: '42' } })
-    fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
-    await new Promise((r) => setTimeout(r, 0))
-    expect(screen.getByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()
   })
 })

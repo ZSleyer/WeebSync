@@ -49,3 +49,32 @@ describe('CheckButton', () => {
     expect(screen.getByRole('button').textContent).toContain('watch.checkNothing')
   })
 })
+
+describe('CheckButton as the sync button', () => {
+  it('fills while the missing episodes load and settles on all here', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    qc.setQueryData(['downloads'], [dl(7, 'queued'), dl(8, 'queued')])
+    const check = vi.fn(async () => ({ status: 'checked', queued: [7, 8] }) as WatchCheck)
+    render(
+      <QueryClientProvider client={qc}>
+        <CheckButton
+          watchId={1}
+          act={{ check } as unknown as ReturnType<typeof useWatchActions>}
+          variant="sync"
+          label="2 laden"
+        />
+      </QueryClientProvider>,
+    )
+    const b = screen.getByRole('button')
+    expect(b).toHaveClass('ws-syncbtn')
+    expect(b).toHaveAttribute('data-state', 'idle')
+    expect(b.textContent).toContain('2 laden')
+    await act(async () => fireEvent.click(b))
+    expect(b).toHaveAttribute('data-state', 'run')
+    await act(async () => qc.setQueryData(['downloads'], [dl(7, 'done', 100), dl(8, 'running', 50)]))
+    await waitFor(() => expect(b.style.getPropertyValue('--p')).toBe('0.75'))
+    await act(async () => qc.setQueryData(['downloads'], [dl(7, 'done', 100), dl(8, 'done', 100)]))
+    await waitFor(() => expect(b).toHaveAttribute('data-state', 'done'))
+    expect(b.textContent).toContain('series.sync.allHere')
+  })
+})

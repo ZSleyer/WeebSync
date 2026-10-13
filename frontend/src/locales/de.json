@@ -512,13 +512,13 @@
       "overview": "Übersicht",
       "cast": "Besetzung",
       "community": "Community",
-      "similar": "Ähnliches"
+      "similar": "Ähnlich"
     },
     "studios": "Studio",
     "aired": "Ausstrahlung",
-    "upcoming": "Nächste Folgen",
+    "upcoming": "Kommende Folgen",
     "links": "Links",
-    "threads": "Forum-Threads",
+    "threads": "Diskussionen",
     "noThreads": "Noch keine Threads zu dieser Serie.",
     "replies_one": "{{count}} Antwort",
     "replies_other": "{{count}} Antworten",
@@ -528,8 +528,8 @@
     "thisFolder": "Dieser Ordner",
     "otherFiles": "Weitere Dateien",
     "noSimilar": "Keine verwandten Titel bekannt.",
-    "relations": "Verwandte Titel",
-    "recommendations": "Empfehlungen",
+    "relations": "Gehört dazu",
+    "recommendations": "Empfehlungen der Community",
     "unavailable": "{{source}} antwortet gerade nicht. Dieser Bereich bleibt leer, bis der Dienst wieder da ist.",
     "back": "Zurück zum vorigen Titel",
     "state": {
@@ -551,7 +551,8 @@
     "progressLabel": "Fortschritt {{name}}",
     "role": {
       "SUPPORTING": "Nebenrolle",
-      "BACKGROUND": "Hintergrund"
+      "BACKGROUND": "Hintergrund",
+      "MAIN": "Hauptrolle"
     },
     "relation": {
       "SEQUEL": "Fortsetzung",
@@ -567,7 +568,103 @@
       "OTHER": "Sonstiges",
       "COMPILATION": "Zusammenschnitt",
       "CONTAINS": "Enthält"
-    }
+    },
+    "backLabel": "Zurück",
+    "castNote": "japanische Sprecher",
+    "day": {
+      "today": "heute",
+      "tomorrow": "morgen"
+    },
+    "deleteWatch": "Auto-Sync löschen",
+    "desc": {
+      "more": "Mehr lesen",
+      "less": "Weniger"
+    },
+    "ep": {
+      "aired": "Lief",
+      "airs": "erscheint {{day}} um {{time}}",
+      "count": "{{have}} von {{total}}",
+      "facts": "Infos zu {{name}}",
+      "file": "Datei",
+      "loaded": "Geladen",
+      "local": "Lokal",
+      "missing": "fehlt auf der Platte",
+      "noDate": "noch kein Termin",
+      "none": "keine",
+      "picture": "Bild",
+      "play": "{{name}} abspielen",
+      "probing": "wird gelesen",
+      "read": "{{name}} lesen",
+      "size": "Größe",
+      "sound": "Ton",
+      "source": "Quelle",
+      "subs": "Untertitel",
+      "title": "Folge {{n}}"
+    },
+    "fact": {
+      "studio": "Studio",
+      "period": "Zeitraum",
+      "format": "Format",
+      "score": "Wertung",
+      "genres": "Genres"
+    },
+    "fillGaps": "Lücken füllen",
+    "format": {
+      "TV": "Serie",
+      "TV_SHORT": "Kurzserie",
+      "MOVIE": "Film",
+      "SPECIAL": "Special",
+      "OVA": "OVA",
+      "ONA": "ONA",
+      "MUSIC": "Musikvideo"
+    },
+    "formatEps_one": "{{format}}, {{count}} Folge",
+    "formatEps_other": "{{format}}, {{count}} Folgen",
+    "from": "aus {{title}}",
+    "helpful_one": "{{count}} fand das hilfreich",
+    "helpful_other": "{{count}} fanden das hilfreich",
+    "inAutoSync": "in Auto-Sync",
+    "lastReply": "zuletzt {{date}}",
+    "link": {
+      "info": "Info",
+      "social": "Social",
+      "stream": "Stream",
+      "trailer": "Trailer"
+    },
+    "match": {
+      "title": "Zuordnung",
+      "folder": "Ordner",
+      "auto": "automatisch bei {{src}} zugeordnet.",
+      "manual": "von Hand bei {{src}} zugeordnet."
+    },
+    "moreWatches": "Weitere Auto-Syncs",
+    "noDesc": "{{source}} hat für diesen Titel keine Beschreibung.",
+    "noReviews": "Noch keine Reviews auf {{source}}.",
+    "openAt": "Auf {{site}} öffnen",
+    "period": {
+      "range": "{{a}} bis {{b}}",
+      "running": "{{a}}, läuft noch"
+    },
+    "reviewScore": "{{s}} von 100",
+    "scoreLine": "{{s}} von 100, {{n}} auf {{source}}",
+    "scoreOnly": "{{s}} von 100",
+    "showInFiles": "In Dateien zeigen",
+    "sync": {
+      "label": "Auto-Sync",
+      "allHere": "Alles da",
+      "done": "Fertig. Alle Folgen sind da.",
+      "gaps_one": "Folge {{eps}} fehlt zwischen vorhandenen Folgen.",
+      "gaps_other": "Folgen {{eps}} fehlen zwischen vorhandenen Folgen.",
+      "idle": "Prüft regelmäßig auf neue Folgen.",
+      "load_one": "{{count}} fehlende Folge laden",
+      "load_other": "{{count}} fehlende Folgen laden",
+      "loading_one": "Lädt gerade eine Folge.",
+      "loading_other": "Lädt gerade {{count}} Folgen.",
+      "waiting": "Wartet auf Folge {{n}}, {{day}} um {{time}}."
+    },
+    "views_one": "{{count}} Aufruf",
+    "views_other": "{{count}} Aufrufe",
+    "watchMore": "Ansehen und mehr"
   },
   "trash": {
     "open_zero": "Papierkorb",
@@ -2124,7 +2221,16 @@
       "part": "Erst vollständig, dann sichtbar",
       "partText": "Die Datei lädt als .part und bekommt ihren Namen erst, wenn sie komplett ist.",
       "at": "Geladen {{when}}",
-      "none": "Diese Auto-Sync hat noch keine Datei geladen."
+      "none": "Diese Auto-Sync hat noch keine Datei geladen.",
+      "aired": "Folge {{n}} lief {{day}} um {{time}}",
+      "titleEp": "So kam Folge {{n}} auf die Platte",
+      "lang": "Sprache",
+      "dub": "Ton {{langs}}",
+      "sub": "Untertitel {{langs}}",
+      "fromProbe": "aus der Datei gelesen",
+      "want": "Gewünscht: {{want}}",
+      "version": "Fassung",
+      "replaced": "Ersetzt die ältere Datei {{name}}"
     },
     "skips": {
       "title": "Was die letzte Prüfung liegen ließ",
@@ -2136,7 +2242,9 @@
       "owned": "Die Folge liegt schon unter anderem Namen in der Bibliothek.",
       "uploading": "Die Datei wird auf dem Server noch hochgeladen.",
       "queued": "Steht schon in der Warteschlange.",
-      "blocked": "Der Zielordner hat beim letzten Versuch nichts angenommen."
+      "blocked": "Der Zielordner hat beim letzten Versuch nichts angenommen.",
+      "rules": "Wann eine Datei nicht geladen wird",
+      "present": "Die Folge liegt schon vollständig am Ziel."
     },
     "piece": {
       "title": "Titel",

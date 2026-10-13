@@ -8,77 +8,38 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { matchPath, useLocation, useNavigate, type Location } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import {
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  Clock,
-  Download,
-  ExternalLink,
-  FolderClock,
-  Languages,
-  Library,
-  MessageSquare,
-  Pause,
-  Pencil,
-  Radio,
-  RefreshCw,
-  Star,
-  Trash2,
-  TriangleAlert,
-  Upload,
-  X,
-  type LucideIcon,
-} from 'lucide-react'
-import {
-  Badge,
-  Button,
-  Cover,
-  Dialog,
-  IconButton,
-  markOverflow,
-  morphTransition,
-  Progress,
-  SidePanel,
-  useBackEntry,
-  useMediaQuery,
-} from 'fluid-lycoris'
-import { api, epLabel, mediaTitle, watchTitle, type Media, type MediaExtras, type Review, type Watch } from '../api'
-import {
-  behindLabel,
-  haveLabel,
-  dubOverdueLabel,
-  dubProgressLabel,
-  dubWaitingLabel,
-  langWaitingLabel,
-  missingLabel,
-  seasonLabel,
-} from '../attention'
+import { ArrowLeft, ExternalLink, FolderOpen, Languages, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { Button, ButtonLink, IconButton, localTransition, markOverflow, useBackEntry } from 'fluid-lycoris'
+import { api, mediaTitle, type Media, type MediaExtras, type Watch } from '../api'
+import { coverSet } from '../images'
 import { useNow } from '../hooks'
 import ActionMenu from './ActionMenu'
-import { WIDE_MQ } from './PageActions'
 import type { SheetAction } from './ActionSheet'
-import MediaDetail, { GenreChips } from './MediaDetail'
-import EpisodeList, { type EpisodeFolder } from './EpisodeList'
+import MediaDetail, { mediaLink } from './MediaDetail'
+import EpisodeList, { type EpisodeFolder, type EpisodeLanding } from './EpisodeList'
 import Loading from './Loading'
-import { isVideo, playHref, viewHref, watchFolder } from './playLinks'
+import { filesLink, isVideo, playHref, viewHref, watchFolder } from './playLinks'
 import { WatchForm } from './WatchDialog'
 import { useWatchActions, watchFields } from './watchActions'
 import { WatchExplain } from './WatchExplain'
 import { CheckButton } from './CheckButton'
+import { CoverImg } from './SmartImg'
+import { Cast, Community, MatchSection, MoreWatches, Similar } from './SeriesSections'
+import './series.css'
 
-/** What a caller hands the title card: which title, and what it already knows. */
+/** What a caller hands the series page: which title, and what it already knows. */
 export interface SeriesTarget {
   /** anilist (default) | tmdb:tv | tmdb:movie */
   source?: string
   id: number
-  /** the record the caller holds; the card fetches what is missing */
+  /** the record the caller holds; the page fetches what is missing */
   media?: Media
   /** the watch the caller came from, listed first among the title's watches */
   watchId?: number
@@ -91,22 +52,28 @@ export interface SeriesTarget {
   /**
    * Folders the title's episodes lie in, for the episodes section: the
    * catalog's folder, a file's title folder. The title's own auto-sync
-   * folders are added by the card.
+   * folders are added by the page.
    */
   folders?: EpisodeFolder[]
-  /** a file to mark in the episodes section; the card opens there */
+  /** a file to mark in the episodes section; the page opens there */
   playPath?: string
+  /** an episode to land on (Neu da): scrolled to, its facts open, marked once */
+  episode?: number
+  season?: number
+  /** open straight into the editor of the lead watch */
+  edit?: boolean
+  /** the title this one was opened from, for the "aus …" line */
+  from?: string
   /**
-   * What can be done with the title where the card was opened, for its action
-   * bar. Without any, a card opened from a watch offers checking and editing
-   * that watch.
+   * What can be done with the title where the page was opened, for its
+   * action row. Without any, a page with a watch offers checking and editing it.
    */
   actions?: SeriesAction[]
 }
 
-/** One action of the card's bar. */
+/** One action of the page's action row. */
 export interface SeriesAction extends SheetAction {
-  /** the one filled button, at the end of the bar */
+  /** the one filled button */
   primary?: boolean
   /** a rare one, behind the ⋯ menu */
   more?: boolean
@@ -121,21 +88,21 @@ interface SeriesModalApi {
 
 const Ctx = createContext<SeriesModalApi | null>(null)
 
-/** A form swapped into the card, as the provider knows it. */
+/** A form swapped into the page, as the provider knows it. */
 interface View {
   close: () => void
   guard: () => Promise<boolean>
 }
 interface ViewApi {
-  /** where a view renders: inside the card, in place of its content */
+  /** where a view renders: inside the page, in place of its content */
   host: HTMLElement | null
   attach: (v: View) => () => void
 }
 const ViewCtx = createContext<ViewApi | null>(null)
 
-/** What a form shown in the card gets from it, to spread onto the form. */
+/** What a form shown in the page gets from it, to spread onto the form. */
 export interface CardViewProps {
-  /** the back arrow: asks the form's guard, then goes back to the card */
+  /** the back arrow: asks the form's guard, then goes back to the page */
   onBack: () => void
   /** hands over the form's unsaved-changes check */
   onGuard: (check: () => Promise<boolean>) => void
@@ -144,11 +111,11 @@ export interface CardViewProps {
 }
 
 /**
- * Shows a form inside the open title card instead of stacking a dialog on
- * it: the card's content steps aside for it and comes back when this
+ * Shows a form inside the open series page instead of stacking a dialog on
+ * it: the page's content steps aside for it and comes back when this
  * unmounts. The caller owns the form and its state, as with a dialog - it
  * renders this where it would have rendered the dialog, and drops it in
- * `onClose`, which the card also calls when it closes underneath. The back
+ * `onClose`, which the page also calls when it closes underneath. The back
  * gesture leaves the form first, past its guard.
  */
 export function SeriesCardView({
@@ -184,7 +151,7 @@ function ViewBody({ render, ...v }: Omit<CardViewProps, 'className'> & { render:
   return render({ ...v, className: 'anim-route-push' })
 }
 
-/** The back arrow at the head of a form shown in the card; focus starts there. */
+/** The back arrow at the head of a form shown in the page; focus starts there. */
 export function BackToCard({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation()
   return (
@@ -194,7 +161,7 @@ export function BackToCard({ onClick }: { onClick: () => void }) {
   )
 }
 
-/** The one way to open the title card, from any cover in the app. */
+/** The one way to open the series page, from any cover in the app. */
 export function useSeriesModal(): SeriesModalApi {
   const api = useContext(Ctx)
   if (!api) throw new Error('useSeriesModal outside SeriesModalProvider')
@@ -202,13 +169,13 @@ export function useSeriesModal(): SeriesModalApi {
 }
 
 /**
- * Where an open card lives in history: the card has a URL of its own
+ * Where an open page lives in history: it has a URL of its own
  * (/title/anilist/154587), shown in the address bar as a mask over the page
  * it was opened on, which stays the router's location underneath - so the
- * page keeps running behind the card, and back closes it. The entry itself
- * carries only this; whatever the caller handed over that history cannot
- * store (the record, the extra rows, the actions) waits in `targets` under
- * `k`, and a reload, which loses that, makes the card fetch the record.
+ * page keeps running behind it, and back closes it. The entry itself carries
+ * only this; whatever the caller handed over that history cannot store (the
+ * record, the extra rows, the actions) waits in `targets` under `k`, and a
+ * reload, which loses that, makes the page fetch the record.
  */
 interface TitleEntry {
   source: string
@@ -218,21 +185,29 @@ interface TitleEntry {
   k?: number
   /** the section to scroll to */
   tab?: SeriesTab
-  /** history index of the page under the card, for closing in one step */
+  /** an episode to land on (?ep=N, &s=S on a link) */
+  ep?: number
+  s?: number
+  /** history index of the page under the series page, for closing in one step */
   bg?: number
   /** opened from a link: no page of its own underneath */
   direct?: boolean
 }
 export const TITLE_PATH = '/title/:source/:id'
-const titleUrl = (e: TitleEntry) => `/title/${e.source}/${e.id}`
+const titleUrl = (e: TitleEntry) =>
+  `/title/${e.source}/${e.id}${e.ep ? `?ep=${e.ep}${e.s !== undefined ? `&s=${e.s}` : ''}` : ''}`
 
 function entryOf(loc: Location): TitleEntry | null {
   const e = (loc.state as { wsTitle?: TitleEntry } | null)?.wsTitle
   if (e) return e
-  // a link straight to a card, or a reload of one: the dashboard stands behind
+  // a link straight to a page, or a reload of one: the dashboard stands behind
   const m = matchPath(TITLE_PATH, loc.pathname)
   const id = Number(m?.params.id)
-  return m && id > 0 ? { source: m.params.source || 'anilist', id, n: 0, direct: true } : null
+  if (!m || !(id > 0)) return null
+  const q = new URLSearchParams(loc.search)
+  const ep = Number(q.get('ep')) || undefined
+  const s = q.get('s') !== null ? Number(q.get('s')) : undefined
+  return { source: m.params.source || 'anilist', id, n: 0, direct: true, ep, s, tab: ep ? 'episodes' : undefined }
 }
 
 // what open() was handed, by entry; a few dozen at most per session
@@ -244,14 +219,66 @@ const remember = (t: SeriesTarget) => {
   return seq
 }
 
+const reducedMotion = () =>
+  document.documentElement.dataset.motion === 'off' ||
+  (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+
+/** What the page grew out of: a cover (into the page's cover) or a Heute banner panel (into the banner). */
+interface Origin {
+  el: HTMLElement
+  kind: 'hero' | 'band'
+}
+const VT_NAME = { hero: 'ws-hero', band: 'band' } as const
+const VT_TARGET = { hero: '.ws-d-cover', band: '.ws-d-banner' } as const
+
+// Decode the pictures the first frame of the page shows before the morph
+// starts, so its snapshot is not taken half painted; never longer than 180ms.
+function decodeFirst(srcs: (string | undefined)[]) {
+  const all = srcs
+    .filter((s): s is string => !!s)
+    .map((s) => {
+      const img = new Image()
+      img.src = s
+      return img.decode ? img.decode().catch(() => {}) : Promise.resolve()
+    })
+  return Promise.race([Promise.all(all), new Promise((r) => setTimeout(r, 180))])
+}
+
 /**
- * Holds the title card the whole app shares. One card instead of one per
- * page: a cover opens the same thing everywhere, and the card can grow
- * sections without every caller learning about them. A dialog (a bottom
- * sheet on a phone), or on a desktop a panel docked in the shell's `panel`
- * slot beside the page. A route change closes
- * it - the card belongs to its history entry, and a page's own navigation
- * leaves that entry behind.
+ * The morph between an origin on the page and its counterpart in the series
+ * page: the two share a name for the transition, the rest of the series page
+ * fades. No-op without view transitions (Firefox): the state still changes.
+ */
+function pairMorph(o: Origin, update: () => void, back = false) {
+  const name = VT_NAME[o.kind]
+  const named: HTMLElement[] = []
+  const nameIt = (el: HTMLElement | null | undefined, n: string) => {
+    if (!el) return
+    el.style.viewTransitionName = n
+    named.push(el)
+  }
+  const detailSide = () => {
+    const d = document.querySelector<HTMLElement>('.ws-detail')
+    nameIt(d, 'ws-detail')
+    nameIt(d?.querySelector<HTMLElement>(VT_TARGET[o.kind]), name)
+  }
+  if (back) detailSide()
+  else nameIt(o.el, name)
+  return localTransition(null, () => {
+    named.splice(0).forEach((el) => (el.style.viewTransitionName = ''))
+    update()
+    if (back) nameIt(o.el.isConnected ? o.el : null, name)
+    else detailSide()
+  }).finally(() => named.forEach((el) => (el.style.viewTransitionName = '')))
+}
+
+/**
+ * Holds the series page the whole app shares. One page instead of one per
+ * caller: a cover opens the same thing everywhere, and the page can grow
+ * sections without every caller learning about them. A full-page overlay
+ * over the content column; the sidebar and the tab bar stay, the page under
+ * it is hidden while it is open. A route change closes it - the page belongs
+ * to its history entry, and a page's own navigation leaves that entry behind.
  */
 export function SeriesModalProvider({ children, panel }: { children: ReactNode; panel?: HTMLElement | null }) {
   const loc = useLocation()
@@ -268,24 +295,25 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     at.current = loc
   })
 
-  // The dialog grows out of the poster that was clicked and shrinks back into
-  // it on close (morphTransition) - on a desktop; on a phone the sheet rises
-  // from the bottom edge. The poster is the one under the click that opened
-  // the card: a capture listener notes it just before the click reaches the
-  // page's own handler.
-  const lastCover = useRef<{ el: HTMLElement; at: number } | null>(null)
+  // The page grows out of what was clicked: a capture listener notes the
+  // cover or Heute banner panel under the click just before the click
+  // reaches the page's own handler.
+  const lastOrigin = useRef<(Origin & { at: number }) | null>(null)
   useEffect(() => {
     const note = (e: Event) => {
-      const el = (e.target as HTMLElement | null)?.closest?.<HTMLElement>('.t-cover')
-      lastCover.current = el ? { el, at: performance.now() } : null
+      const t = e.target as HTMLElement | null
+      const band = t?.closest?.<HTMLElement>('[data-band]')
+      const cover = band ? null : t?.closest?.<HTMLElement>('.t-cover')
+      const el = band ?? cover
+      lastOrigin.current = el ? { el, kind: band ? 'band' : 'hero', at: performance.now() } : null
     }
     document.addEventListener('click', note, true)
     return () => document.removeEventListener('click', note, true)
   }, [])
-  const [origin, setOrigin] = useState<HTMLElement | null>(null)
+  const [origin, setOrigin] = useState<Origin | null>(null)
   const opener = useRef<HTMLElement | null>(null)
 
-  // a step in history that keeps the page and changes only the card
+  // a step in history that keeps the page and changes only the series page
   const go = useCallback(
     (e: TitleEntry, replace: boolean) => {
       const l = at.current
@@ -299,11 +327,11 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
   const view = useRef<View | null>(null)
   const open = useCallback(
     async (t: SeriesTarget) => {
-      const from = lastCover.current
-      lastCover.current = null
+      const from = lastOrigin.current
+      lastOrigin.current = null
       const was = entryOf(at.current)
-      // another title while the card is open swaps it in place, past the
-      // guard of a form it may hold; back still closes the card
+      // another title while the page is open swaps it in place, past the
+      // guard of a form it may hold; back still closes the page
       if (was && view.current) {
         if (!(await view.current.guard())) return
         view.current.close()
@@ -314,22 +342,24 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
         id: t.id,
         n: 0,
         k,
-        tab: t.tab,
+        tab: t.tab ?? (t.episode ? 'episodes' : undefined),
+        ep: t.episode,
+        s: t.season,
         bg: was ? was.bg : history.state?.idx,
         direct: was?.direct,
       }
-      const fresh = from && from.el.isConnected && performance.now() - from.at < 500 ? from.el : null
-      // the control that asked, unless that was inside the card itself
+      const fresh = from && from.el.isConnected && performance.now() - from.at < 500 ? from : null
+      // the control that asked, unless that was inside the page itself
       const active = document.activeElement as HTMLElement | null
       opener.current =
-        fresh?.closest<HTMLElement>('button, a, [tabindex]') ??
-        (active?.closest('.t-sidepanel, dialog') ? opener.current : active)
-      // the morph pairs the poster with a <dialog>; the desktop panel has none
-      const wide = typeof matchMedia === 'function' && matchMedia(WIDE_MQ).matches
-      const el = !was && !wide ? fresh : null
-      setOrigin(el)
-      if (el) void morphTransition(el, () => go(e, false))
-      else go(e, !!was)
+        fresh?.el.closest<HTMLElement>('button, a, [tabindex]') ??
+        (active?.closest('.ws-detail') ? opener.current : active)
+      const o = !was ? fresh : null
+      setOrigin(o ? { el: o.el, kind: o.kind } : null)
+      if (o && typeof document.startViewTransition === 'function' && !reducedMotion()) {
+        await decodeFirst([o.kind === 'band' ? t.media?.bannerImage : undefined, t.media?.coverImage?.large])
+        void pairMorph(o, () => go(e, false))
+      } else go(e, !!was)
     },
     [go],
   )
@@ -347,7 +377,7 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
       setClosing(l.key)
       view.current?.close()
     })
-    // a link's card has nothing under it to go back to: the dashboard takes
+    // a link's page has nothing under it to go back to: the dashboard takes
     // its place. Otherwise back to the page, past every related title and
     // the entry of a form that was open - after that form took its own back
     // (useBackEntry), which is queued the same way.
@@ -360,11 +390,11 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
   }, [nav])
   const api = useMemo(() => ({ open: (t: SeriesTarget) => void open(t), close }), [open, close])
 
-  // The form shown in the card, if any. One at a time: a second replaces the
-  // first. The card asks its guard before it closes, and closes it with it.
+  // The form shown in the page, if any. One at a time: a second replaces the
+  // first. The page asks its guard before it closes, and closes it with it.
   const [viewOn, setViewOn] = useState(false)
   const [host, setHost] = useState<HTMLElement | null>(null)
-  // the card notes its scroll and focus here before its content steps aside
+  // the page notes its scroll and focus here before its content steps aside
   const away = useRef<() => void>(() => {})
   const attach = useCallback((v: View) => {
     away.current()
@@ -377,16 +407,56 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     }
   }, [])
   const views = useMemo(() => ({ host, attach }), [host, attach])
-  // the card went (back gesture, a route change): its form goes with it
+  // the page went (back gesture, a route change): its form goes with it
   useEffect(() => {
     if (!shown) view.current?.close()
   }, [shown])
 
-  // an entry from before the auto-sync section went into the episodes still says 'sync'
+  // While the page is open the view under it is hidden (shell rule on
+  // html[data-overlay]); focus goes back to what opened it on the way out.
+  const isOpen = !!shown
+  useEffect(() => {
+    if (!isOpen) return
+    const root = document.documentElement
+    root.dataset.overlay = 'series'
+    return () => {
+      delete root.dataset.overlay
+      const back = opener.current
+      if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }))
+    }
+  }, [isOpen])
+
+  // a docked panel beside <main> (the transfers) narrows the page: its width
+  // as a variable the overlay's right edge reads
+  useEffect(() => {
+    if (!panel || typeof ResizeObserver === 'undefined') return
+    const root = document.documentElement
+    const set = () => {
+      let w = 0
+      for (const c of panel.children) w += (c as HTMLElement).getBoundingClientRect().width
+      root.style.setProperty('--ws-aside-w', `${w}px`)
+    }
+    const ro = new ResizeObserver(set)
+    const watch = () => {
+      ro.disconnect()
+      for (const c of panel.children) ro.observe(c)
+      set()
+    }
+    const mo = new MutationObserver(watch)
+    mo.observe(panel, { childList: true })
+    watch()
+    return () => {
+      ro.disconnect()
+      mo.disconnect()
+      root.style.removeProperty('--ws-aside-w')
+    }
+  }, [panel])
+
   const target: SeriesTarget | null = shown
     ? {
         ...((shown.k && targets.get(shown.k)) || {
           id: shown.id,
+          // an entry from before the auto-sync section went into the episodes still says 'sync'
           tab: (shown.tab as string) === 'sync' ? 'episodes' : shown.tab,
         }),
         source: shown.source,
@@ -397,55 +467,38 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     <Ctx.Provider value={api}>
       <ViewCtx.Provider value={views}>
         {children}
-        {shown && target && (
-          <SeriesDialog
-            entry={shown}
-            target={target}
-            panel={panel}
-            opener={opener}
-            origin={origin}
-            onClose={close}
-            onRelated={related}
-            onBack={() => nav(-1)}
-            viewOn={viewOn}
-            viewHost={setHost}
-            viewGuard={() => view.current?.guard() ?? Promise.resolve(true)}
-            away={away}
-          />
-        )}
+        {shown &&
+          target &&
+          createPortal(
+            <SeriesCard
+              key={`${shown.k}:${shown.source}:${shown.id}`}
+              entry={shown}
+              target={target}
+              origin={origin}
+              onClose={close}
+              onRelated={related}
+              onBack={() => nav(-1)}
+              viewOn={viewOn}
+              viewHost={setHost}
+              viewGuard={() => view.current?.guard() ?? Promise.resolve(true)}
+              viewClose={() => view.current?.close()}
+              away={away}
+            />,
+            document.body,
+          )}
       </ViewCtx.Provider>
     </Ctx.Provider>
   )
 }
 
-// icon per AniList airing status, shown inside the chip
-const MEDIA_STATUS_ICON: Record<string, LucideIcon> = {
-  RELEASING: Radio,
-  FINISHED: Check,
-  NOT_YET_RELEASED: Clock,
-  CANCELLED: X,
-  HIATUS: Pause,
-}
-
 // the order the sections stand in on the one scrolling page
 const SECTIONS: SeriesTab[] = ['overview', 'episodes', 'cast', 'similar', 'community']
-// the docked title bar's height (h-11), and the scroll over which it fades in
-const DOCK_PX = 44
-const DOCK_FADE = 40
-// how far the banner's big title travels before it is gone
-const HERO_GONE = 110
-// the docked title plus the jump row: where a section's top lands after a jump
-const STICKY_PX = 88
-
-const reducedMotion = () =>
-  document.documentElement.dataset.motion === 'off' ||
-  (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
 interface CardProps {
   entry: TitleEntry
   target: SeriesTarget
-  /** the poster the dialog grew out of, to shrink back into */
-  origin: HTMLElement | null
+  /** what the page grew out of, to shrink back into */
+  origin: Origin | null
   onClose: () => void
   onRelated: (t: SeriesTarget) => void
   /** to the related title before this one */
@@ -454,68 +507,8 @@ interface CardProps {
   viewOn: boolean
   viewHost: (el: HTMLElement | null) => void
   viewGuard: () => Promise<boolean>
+  viewClose: () => void
   away: { current: () => void }
-}
-
-// The card's frame: it stays while the title in it changes, and each title
-// gets a fresh body - its own scroll, sections and forms.
-function SeriesDialog({
-  panel,
-  opener,
-  ...props
-}: CardProps & {
-  /** where the desktop panel docks (the shell's aside); inline without */
-  panel?: HTMLElement | null
-  /** the poster that opened the card last, for the panel's focus return */
-  opener: { current: HTMLElement | null }
-}) {
-  const { t } = useTranslation()
-  const { entry, origin, onClose, viewOn, viewGuard } = props
-  const [name, setName] = useState('')
-  // another title in the frame fades in; the first one arrives with it
-  const [first] = useState(entry.k)
-  const body = (
-    <SeriesCard
-      key={`${entry.k}:${entry.source}:${entry.id}`}
-      {...props}
-      swapped={entry.k !== first}
-      onName={setName}
-    />
-  )
-  // On a desktop the card docks beside the page instead of covering it: the
-  // list stays usable, and the next poster swaps the card's content rather
-  // than closing one card and opening another.
-  const wide = useMediaQuery(WIDE_MQ)
-  if (wide) {
-    const side = (
-      <SidePanel
-        aria-label={t('remote.detailsFor', { name })}
-        returnFocus={opener}
-        onRequestClose={async () => {
-          if (!viewOn || (await viewGuard())) onClose()
-        }}
-        className="anim-route-push w-[clamp(26rem,32vw,32rem)] shrink-0"
-      >
-        {body}
-      </SidePanel>
-    )
-    return panel ? createPortal(side, panel) : side
-  }
-  return (
-    <Dialog
-      width="max-w-3xl"
-      // the card's history entry is its route (see TitleEntry)
-      history={false}
-      aria-label={t('remote.detailsFor', { name })}
-      onClose={onClose}
-      // Escape, the backdrop, the grabber and the back gesture still close the
-      // whole card from a form, but not past its unsaved changes
-      onRequestClose={() => (viewOn ? viewGuard() : true)}
-      closeTransition={origin ? (close) => void morphTransition(origin, close, true) : undefined}
-    >
-      {body}
-    </Dialog>
-  )
 }
 
 function SeriesCard({
@@ -527,22 +520,32 @@ function SeriesCard({
   onBack,
   viewOn,
   viewHost,
+  viewGuard,
+  viewClose,
   away: noteAway,
-  onName,
-  swapped,
-}: CardProps & { onName: (name: string) => void; swapped: boolean }) {
+}: CardProps) {
   const { t } = useTranslation()
-  const target = cur
   const source = cur.source || 'anilist'
+  const goTo = useNavigate()
 
-  // AniList's banner is a wide strip that a phone's taller hero blows up; the
-  // same title's TMDB backdrop, when the id mapping knows one, is sharper
-  const { data: backdrop } = useQuery<{ url: string; large: string }>({
-    queryKey: ['backdrop', cur.id],
-    queryFn: () => api.get(`/api/media/backdrop?id=${cur.id}`),
-    enabled: source === 'anilist',
-    staleTime: 24 * 60 * 60_000,
-  })
+  // Rendered in steps, so the first frame (the one a morph snapshots) is the
+  // head alone: the episodes and the sync explanation follow a frame later
+  // and rise in, cast, similar titles and the community once the morph is over.
+  const [stage, setStage] = useState(0)
+  useEffect(() => {
+    let a = 0
+    const t1 = { id: 0 as ReturnType<typeof setTimeout> | 0 }
+    const t2 = { id: 0 as ReturnType<typeof setTimeout> | 0 }
+    a = requestAnimationFrame(() => {
+      t1.id = setTimeout(() => setStage(1), 60)
+      t2.id = setTimeout(() => setStage(2), 540)
+    })
+    return () => {
+      cancelAnimationFrame(a)
+      if (t1.id) clearTimeout(t1.id)
+      if (t2.id) clearTimeout(t2.id)
+    }
+  }, [])
 
   // a related title arrives as its trimmed node: fetch the record behind it
   const thin = !cur.media || cur.media.description === undefined
@@ -557,9 +560,16 @@ function SeriesCard({
     retry: false,
   })
   const media = fetched ?? cur.media
-  const art = backdrop?.url || media?.bannerImage
-  // TMDB pictures come in sizes: the full one for screens that need it
-  const big = backdrop?.large || (art?.includes('/w1280/') ? art.replace('/w1280/', '/original/') : '')
+  // The banner: AniList's own (the picture a Heute panel morphs from), else
+  // the TMDB backdrop the id mapping knows.
+  const { data: backdrop } = useQuery<{ url: string; large: string }>({
+    queryKey: ['backdrop', cur.id],
+    queryFn: () => api.get(`/api/media/backdrop?id=${cur.id}`),
+    enabled: source === 'anilist' && !!media && !media.bannerImage && stage > 0,
+    staleTime: 24 * 60 * 60_000,
+  })
+  const art = media?.bannerImage || backdrop?.url
+  const big = !media?.bannerImage && backdrop?.large ? backdrop.large : ''
   const artSet = big ? `${art} 1280w, ${big} 3840w` : undefined
 
   // the watches behind the title: several are normal (a split season, two
@@ -572,6 +582,8 @@ function SeriesCard({
   const mine = watches
     .filter((w) => w.media?.id === cur.id && (w.mediaSource || 'anilist') === source)
     .sort((a, b) => (a.id === cur.watchId ? -1 : b.id === cur.watchId ? 1 : a.id - b.id))
+  const lead = mine[0]
+  const ownedIds = useMemo(() => new Set(watches.map((w) => w.media?.id ?? 0)), [watches])
 
   // where the title's episodes lie: what the caller knows (the catalog's
   // folder) and the local folder of every watch, once each
@@ -579,38 +591,24 @@ function SeriesCard({
   for (const f of [...(cur.folders ?? []), ...mine.map((w) => ({ server: 0, path: watchFolder(w) }))]) {
     if (f.path && !folders.some((g) => g.server === f.server && g.path === f.path)) folders.push(f)
   }
-  // a play button opens the player; the card stays in history behind it, so
-  // back from the player returns here
-  const goTo = useNavigate()
-  // a manga's volumes open in the reader
+  // a play button opens the player; the page stays in history behind it, so
+  // back from the player returns here. A manga's volumes open in the reader.
   const play = (server: number, path: string) => goTo(isVideo(path) ? playHref(server, path) : viewHref(server, path))
 
-  // One page instead of tabs: every section stands under the last, the
-  // episodes (with each watch's sync state) only where a watch or a folder
-  // is. The tabs hid four of five parts behind a tap, and their swipe fought
-  // the sheet's own.
   const sections = SECTIONS.filter((k) => k !== 'episodes' || mine.length > 0 || folders.length > 0)
   const ids = useId()
+  const hid = (k: string) => `${ids}-${k}-h`
   const name = cur.title || (media ? mediaTitle(media) : '')
-  // the English title as a second line, unless it repeats the name or is in kana
-  const english = media?.title.english
-  const englishTitle = english && english !== name && !/[぀-ヿ㐀-鿿]/.test(english) ? english : ''
-  const MediaStatusIcon = media?.status ? MEDIA_STATUS_ICON[media.status] : undefined
   const now = useNow()
 
   // A form - editing a watch here, syncing or matching from the caller -
-  // swaps the card's content for itself, in the same dialog, rather than
-  // stacking a second modal on it: in from the right, and the card back in
-  // from the left (shared axis, the route motion's classes, which the
-  // reduced-motion gate already stills). The card unmounts while it is away,
-  // so where it was scrolled to and which control asked are kept for the way
-  // back.
+  // replaces the page's content rather than stacking a dialog on it. The
+  // content unmounts while it is away, so where it was scrolled to and which
+  // control asked are kept for the way back.
   const act = useWatchActions()
   const [editing, setEditing] = useState<Watch | null>(null)
-  const [returned, setReturned] = useState(false)
   const away = useRef<{ top: number; focus: string } | null>(null)
-  // `focus` is where focus goes on the way back: an action bar button, or the
-  // menu of a watch's block, since the menu item that had it is gone
+  const scroller = useRef<HTMLDivElement>(null)
   const note = (focus: string) => {
     away.current ??= { top: scroller.current?.scrollTop ?? 0, focus }
   }
@@ -618,107 +616,138 @@ function SeriesCard({
     const key = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('[data-action]')?.dataset.action
     note(key ? `[data-action="${key}"]` : '')
   }
-  const edit = (w: Watch, focus = `[data-watch="${w.id}"] [aria-haspopup]`) => {
+  const edit = (w: Watch, focus = '[data-action="edit"]') => {
     note(focus)
     setEditing(w)
   }
-  const [wasOn, setWasOn] = useState(viewOn)
-  if (wasOn !== viewOn) {
-    setWasOn(viewOn)
-    if (!viewOn) setReturned(true)
-  }
-  const from = mine.find((w) => w.id === cur.watchId)
-  const actions: SeriesAction[] =
-    cur.actions ??
-    (from
-      ? [
-          {
-            key: 'check',
-            label: t('watch.checkNow'),
-            icon: <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />,
-            primary: true,
-            onClick: () => void act.check(from.id),
-          },
-          {
-            key: 'edit',
-            label: t('servers.edit'),
-            icon: <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />,
-            onClick: () => edit(from, '[data-action="edit"]'),
-          },
-        ]
-      : [])
+  // opened straight into the editor (the watch list's "edit")
+  const editAsked = useRef(!!cur.edit)
+  useEffect(() => {
+    if (!editAsked.current || !lead) return
+    editAsked.current = false
+    setEditing(lead)
+  }, [lead])
 
-  // Cast, similar titles and the community load once their sections come
-  // near the viewport, as the tabs loaded on first sight: a card opened for
-  // its auto-sync block never asks the provider for them. Without an
-  // observer (an old engine, the tests) they load at once.
-  const [near, setNear] = useState(() => typeof IntersectionObserver === 'undefined' || !!target.tab)
+  const [near, setNear] = useState(() => typeof IntersectionObserver === 'undefined' || !!cur.tab)
   const { data: extras, isError: extrasFailed } = useQuery<MediaExtras>({
     queryKey: ['media-extras', source, cur.id],
     queryFn: () => api.get(`/api/media/extras?source=${source}&id=${cur.id}`),
-    enabled: near,
+    enabled: near && stage > 1,
     staleTime: 5 * 60_000,
     retry: false,
   })
 
-  // The banner's lag: it moves down at half the scroll, so the head slides
-  // up over it. A transform only, written straight to the element - a state
-  // update per scroll frame would re-render the whole dialog.
-  const scroller = useRef<HTMLDivElement>(null)
-  const banner = useRef<HTMLImageElement>(null)
-  // Once the head has scrolled away, a slim bar holds the title above the
-  // tabs: it fades in over the last stretch before the tabs stick (--q, 0..1),
-  // so the reader never loses which series this is.
-  const head = useRef<HTMLElement>(null)
-  const dock = useRef<HTMLDivElement>(null)
-  const pinned = useRef(false)
-  const stick = () => (head.current?.offsetHeight ?? 0) - DOCK_PX
-  const heroTitle = useRef<HTMLDivElement>(null)
-  const lag = () => {
-    // before the dialog has laid out there is no head to measure
-    if (!head.current?.offsetHeight) return
-    const top = scroller.current?.scrollTop ?? 0
-    const still = reducedMotion()
-    const s = stick()
-    pinned.current = top >= s - 1
-    const b = banner.current
-    // With a banner the big title on it hands over to the bar: it is gone by
-    // 110px and the bar fills in from 104 to 134. Without one the bar comes
-    // in over the last stretch before the tabs stick. Information, not
-    // decoration: without motion it is there or not.
-    const q = b
-      ? still
-        ? Number(top >= HERO_GONE)
-        : Math.min(1, Math.max(0, (top - HERO_GONE + 6) / 30))
-      : still
-        ? Number(pinned.current)
-        : Math.min(1, Math.max(0, (top - s + DOCK_FADE) / DOCK_FADE))
-    // on the body, so the bar and the round buttons over the picture read it
-    dock.current?.parentElement?.style.setProperty('--q', q.toFixed(3))
-    if (!b) return
-    // the picture lags at 0.45 of the scroll, the title sinks at 0.25 and fades
-    const y = Math.min(Math.max(top, 0), 220)
-    b.style.transform = still || !y ? '' : `translateY(${y * 0.45}px)`
-    const h = heroTitle.current
-    if (h) {
-      h.style.transform = still || !y ? '' : `translateY(${y * 0.25}px)`
-      h.style.opacity = still ? String(Number(top < HERO_GONE)) : String(Math.max(0, 1 - y / HERO_GONE))
-    }
-  }
+  // the menu of a watch: everything but check now and edit, which are buttons
+  const watchMenu = (w: Watch): SheetAction[] => [
+    ...(w.plexAudioLang || w.plexSubLang
+      ? [
+          {
+            key: 'plex',
+            label: t('watch.plexApplyAll'),
+            icon: <Languages aria-hidden size="1em" />,
+            onClick: () => void act.applyPlexStreams(w.id),
+          },
+        ]
+      : []),
+    ...((w.missing?.length ?? 0) > 0
+      ? [
+          {
+            key: 'gaps',
+            label: t('series.fillGaps'),
+            icon: <RefreshCw aria-hidden size="1em" />,
+            onClick: () => void act.check(w.id),
+          },
+        ]
+      : []),
+    {
+      key: 'files',
+      label: t('series.showInFiles'),
+      icon: <FolderOpen aria-hidden size="1em" />,
+      onClick: () => goTo(filesLink(0, watchFolder(w))),
+    },
+    ...(w !== lead
+      ? [
+          {
+            key: 'edit',
+            label: t('servers.edit'),
+            icon: <Pencil aria-hidden size="1em" />,
+            onClick: () => edit(w, `[data-watch="${w.id}"] [aria-haspopup]`),
+          },
+        ]
+      : []),
+    {
+      key: 'delete',
+      label: t('series.deleteWatch'),
+      icon: <Trash2 aria-hidden size="1em" />,
+      danger: true,
+      onClick: () => void act.del(w).then((gone) => gone && mine.length === 1 && onClose()),
+    },
+  ]
+  const own = media ? mediaLink(source, media.id) : null
+  const callerActions = cur.actions ?? []
+  const menu: SheetAction[] = [
+    ...(lead ? watchMenu(lead) : []),
+    ...callerActions.filter((a) => a.more),
+    ...(own && lead
+      ? [
+          {
+            key: 'provider',
+            label: t('series.openAt', { site: own.label }),
+            icon: <ExternalLink aria-hidden size="1em" />,
+            onClick: () => window.open(own.href, '_blank', 'noreferrer'),
+          },
+        ]
+      : []),
+  ]
 
-  // again once the record is in: before it the head is short and bannerless,
-  // and the bar would keep a value worked out for that head
+  // the banner's lag and the docked title, written straight to the elements:
+  // a state update per scroll frame would re-render the whole page
+  const bannerArt = useRef<HTMLSpanElement>(null)
+  const title = useRef<HTMLHeadingElement>(null)
+  const frame = useRef(0)
+  const onScroll = () => {
+    if (frame.current) return
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0
+      const b = bannerArt.current
+      if (!b || reducedMotion()) return
+      const y = Math.min(Math.max(scroller.current?.scrollTop ?? 0, 0), 320)
+      b.style.transform = y ? `translateY(${y * 0.34}px) scale(${1 + y * 0.0002})` : ''
+      b.style.opacity = y ? String(0.5 - (y / 320) * 0.3) : ''
+    })
+  }
+  useEffect(() => () => cancelAnimationFrame(frame.current), [])
+  useEffect(() => {
+    const root = scroller.current
+    const h = title.current
+    if (!root || !h || typeof IntersectionObserver === 'undefined') return
+    const bar = root.querySelector<HTMLElement>('.ws-d-bar')?.offsetHeight ?? 52
+    const io = new IntersectionObserver(
+      ([e]) => root.toggleAttribute('data-docked', !e.isIntersecting && (e.boundingClientRect?.top ?? 0) < bar + 30),
+      { root, rootMargin: `-${bar}px 0px 0px 0px` },
+    )
+    io.observe(h)
+    return () => io.disconnect()
+  }, [viewOn])
+
+  // focus moves into the page as it opens: the page under it is hidden
   useLayoutEffect(() => {
-    lag()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [art, !!media])
-  useEffect(() => onName(name), [name, onName])
+    scroller.current?.focus({ preventScroll: true })
+  }, [])
 
   // The jump row marks the section being read (aria-current): the first one
-  // inside a band from under the sticky rows to the middle of the scroller.
-  // A second observer watches the first lazy section come within a screen.
+  // inside a band from under the sticky rows to the middle of the page. A
+  // second observer watches the first lazy section come within a screen.
   const sec = useRef<Partial<Record<SeriesTab, HTMLElement | null>>>({})
   const [current, setCurrent] = useState<SeriesTab>('overview')
+  const sticky = () => {
+    const root = scroller.current
+    return (
+      (root?.querySelector<HTMLElement>('.ws-d-bar')?.offsetHeight ?? 52) +
+      (root?.querySelector<HTMLElement>('.ws-d-jump')?.offsetHeight ?? 44) +
+      8
+    )
+  }
   useEffect(() => {
     const root = scroller.current
     if (!root || viewOn || typeof IntersectionObserver === 'undefined') return
@@ -729,8 +758,6 @@ function SeriesCard({
         // scrolled to the end, the last section is the one being read even
         // though a short one never reaches the top of the band
         const end = root.scrollTop > 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2
-        // and back at the top only the header is in the band, no section at
-        // all: the first one is, or a jump up from the end kept the last
         const first = end
           ? sections[sections.length - 1]
           : root.scrollTop < 2
@@ -738,7 +765,7 @@ function SeriesCard({
             : sections.find((k) => seen.get(sec.current[k]!))
         if (first) setCurrent(first)
       },
-      { root, rootMargin: `-${STICKY_PX}px 0px -50% 0px` },
+      { root, rootMargin: `-${sticky()}px 0px -55% 0px` },
     )
     const ahead = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setNear(true), {
       root,
@@ -753,11 +780,9 @@ function SeriesCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sections.join(), viewOn, cur.id])
 
-  // On a phone the jump row is wider than the sheet: it follows the section
-  // being read, the marked tab slides to the middle so its underline is never
-  // cut off at the edge. Sideways only - scrollIntoView would also move the
-  // page under it. The cut edges fade (data-overflow) as in the DS Tabs.
-  const tabRow = useRef<HTMLDivElement>(null)
+  // On a phone the jump row is wider than the screen: the marked entry slides
+  // to the middle, sideways only (scrollIntoView would move the page too)
+  const tabRow = useRef<HTMLElement>(null)
   useEffect(() => {
     const row = tabRow.current
     const a = row?.querySelector<HTMLElement>('[aria-current="true"]')
@@ -774,14 +799,15 @@ function SeriesCard({
     const sc = scroller.current
     if (!el || !sc) return
     setCurrent(k)
-    sc.scrollTo?.({ top: el.offsetTop - STICKY_PX, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
+    const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - sticky()
+    sc.scrollTo?.({ top, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
     // a keyboard user lands in the section, not back at the top of the row
     el.focus({ preventScroll: true })
   }
-  // The caller's section (the watch list opens on the episodes): jumped to
-  // once it exists - a watch's episodes appear with the watch list - and
-  // dropped if the list arrives without it.
-  const pending = useRef<SeriesTab | null>(target.tab && target.tab !== 'overview' ? target.tab : null)
+  // The caller's section: jumped to once it exists - a watch's episodes
+  // appear with the watch list - and dropped if the list arrives without it.
+  // A landing on an episode scrolls the episode itself (EpisodeList).
+  const pending = useRef<SeriesTab | null>(cur.tab && cur.tab !== 'overview' && !entry.ep ? cur.tab : null)
   useLayoutEffect(() => {
     const k = pending.current
     if (!k || (!sec.current[k] && !watchesIn)) return
@@ -795,10 +821,33 @@ function SeriesCard({
     if (viewOn || !was) return
     away.current = null
     if (scroller.current) scroller.current.scrollTop = was.top
-    lag()
-    if (was.focus) scroller.current?.parentElement?.querySelector<HTMLElement>(was.focus)?.focus()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (was.focus) scroller.current?.querySelector<HTMLElement>(was.focus)?.focus()
   }, [viewOn])
+
+  // back: out of the editor (past its guard), to the title before, or out
+  const leave = () => (origin?.el.isConnected ? void pairMorph(origin, onClose, true) : onClose())
+  const back = async () => {
+    if (viewOn) {
+      if (await viewGuard()) viewClose()
+      return
+    }
+    if (entry.n > 0) onBack()
+    else leave()
+  }
+
+  const land: EpisodeLanding | undefined = entry.ep
+    ? { ep: entry.ep, season: entry.s }
+    : cur.episode
+      ? { ep: cur.episode, season: cur.season }
+      : undefined
+  const streamSite = (extras?.links ?? media?.externalLinks ?? []).find((l) => l.type === 'STREAMING')?.site
+  const english = media?.title.english
+  const meta = [
+    english && english !== name && !/[぀-ヿ㐀-鿿]/.test(english) ? english : '',
+    media?.seasonYear ? String(media.seasonYear) : '',
+    media?.studios?.[0] ?? '',
+    streamSite ?? '',
+  ].filter(Boolean)
 
   return (
     <>
@@ -817,632 +866,246 @@ function SeriesCard({
           )}
         </SeriesCardView>
       )}
-      {viewOn ? (
-        // layout-neutral: the form's own box is the dialog's content
-        <div ref={viewHost} className="contents" />
-      ) : (
-        <div className={`dialog-body relative ${returned ? 'anim-route-pop' : swapped ? 'anim-route-swap' : ''}`}>
-          <div ref={dock} aria-hidden className="t-dock">
-            <span className="truncate">{name}</span>
-          </div>
-          {/* outside the scroller, so it stays at hand once the head is gone */}
-          <IconButton
-            aria-label={t('common.close')}
-            title={t('common.close')}
-            onClick={() => (origin ? void morphTransition(origin, onClose, true) : onClose())}
-            className={`absolute top-1 right-2 z-30 bg-bg-card/90 ${art ? 't-hero-btn rounded-full!' : ''}`}
-          >
-            <X aria-hidden size="1.2em" />
+      <div
+        ref={scroller}
+        className="ws-detail"
+        role="dialog"
+        aria-modal="false"
+        aria-label={name}
+        tabIndex={-1}
+        data-editing={viewOn || undefined}
+        onScroll={onScroll}
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape' || e.defaultPrevented) return
+          e.preventDefault()
+          void back()
+        }}
+      >
+        <div className="ws-d-bar">
+          <IconButton aria-label={t('series.backLabel')} title={t('series.backLabel')} onClick={() => void back()}>
+            <ArrowLeft aria-hidden size="1.25rem" />
           </IconButton>
-          {/* One scroller for the head and the panel: the banner and the title
-            scroll away and leave the room to the content, the tabs stay at the
-            top. The banner lags behind the scroll, so it reads as further back
-            than the page sliding over it. */}
-          <div ref={scroller} onScroll={lag} className="min-h-0 flex-1 overflow-y-auto">
-            <header ref={head} className="relative">
+          <span className="ws-d-bar-t" aria-hidden>
+            {viewOn ? t('watch.editTitle') : name}
+          </span>
+        </div>
+        {viewOn ? (
+          <div ref={viewHost} className="ws-d-edit" />
+        ) : (
+          <>
+            <div className="ws-d-banner" aria-hidden>
               {art && (
-                <div className="t-hero">
+                <span ref={bannerArt} className="ws-d-banner-art">
                   <img
-                    ref={banner}
                     src={art}
                     srcSet={artSet}
-                    sizes="(min-width: 64rem) 32rem, 100vw"
+                    sizes={artSet ? '100vw' : undefined}
                     alt=""
-                    className="t-hero__art"
+                    fetchPriority="high"
+                    decoding="async"
                   />
-                  <div ref={heroTitle} className="t-hero__title">
-                    <h3 className="line-clamp-2 font-display text-2xl font-semibold tracking-wider">{name}</h3>
-                    {englishTitle && <p className="truncate font-mono text-xs text-t-secondary">{englishTitle}</p>}
-                  </div>
-                </div>
+                </span>
               )}
-              {entry.n > 0 && (
-                <IconButton
-                  aria-label={t('series.back')}
-                  title={t('series.back')}
-                  onClick={onBack}
-                  className={`absolute top-1 left-2 z-10 bg-bg-card/90 ${art ? 't-hero-btn rounded-full!' : ''}`}
-                >
-                  <ArrowLeft aria-hidden size="1.2em" />
-                </IconButton>
-              )}
-              <div className={`flex gap-4 px-5 pt-4 pb-3 ${art ? '' : 'pr-12'}`}>
-                {media?.coverImage?.large && (
-                  <div className="shrink-0">
-                    <Cover
-                      src={media.coverImage.extraLarge || media.coverImage.large}
-                      tint={media.coverImage.color ?? undefined}
-                      size="md"
-                    />
-                  </div>
+            </div>
+            <header
+              className="ws-d-hero"
+              style={media?.coverImage?.color ? ({ '--d-tint': media.coverImage.color } as CSSProperties) : undefined}
+            >
+              <CoverImg
+                className="ws-d-cover"
+                set={coverSet(media?.coverImage)}
+                tint={media?.coverImage?.color}
+                title={name}
+                sizes="(min-width: 64rem) 10.5rem, 7rem"
+                eager
+                priority
+              />
+              <div className="ws-d-head">
+                {entry.n > 0 && cur.from && <p className="ws-d-crumb">{t('series.from', { title: cur.from })}</p>}
+                <h1 ref={title} className="ws-d-title">
+                  {name}
+                </h1>
+                {meta.length > 0 && <p className="ws-d-meta">{meta.join(' · ')}</p>}
+              </div>
+              <div className="ws-d-acts">
+                {lead && (
+                  <span data-action="check" className="contents">
+                    <CheckButton watchId={lead.id} act={act} />
+                  </span>
                 )}
-                <div className="min-w-0 flex-1">
-                  {/* with a banner the title stands on the picture above */}
-                  {!art && (
-                    <>
-                      <h3 className="font-display font-semibold tracking-wider">{name}</h3>
-                      {englishTitle && <p className="text-sm text-t-muted">{englishTitle}</p>}
-                    </>
-                  )}
-                  {mine[0] && <StateLine watch={mine[0]} />}
-                  {media && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {media.seasonYear > 0 && <Badge>{media.seasonYear}</Badge>}
-                      {media.format && <Badge>{media.format}</Badge>}
-                      {media.episodes > 0 && <Badge>{media.episodes} EP</Badge>}
-                      {media.status && (
-                        <Badge>
-                          {MediaStatusIcon && <MediaStatusIcon aria-hidden size="1em" />}
-                          {t(`remote.status.${media.status}`, media.status)}
-                        </Badge>
-                      )}
-                      {media.averageScore > 0 && (
-                        <Badge tone="accent">
-                          <Star
-                            aria-hidden
-                            size="1em"
-                            className="mr-0.5 inline align-[-0.125em]"
-                            fill="currentColor"
-                            strokeWidth={0}
-                          />
-                          {media.averageScore}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                  <GenreChips genres={media?.genres} />
-                </div>
+                {lead && (
+                  <Button size="sm" data-action="edit" onClick={() => edit(lead)}>
+                    <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                    {t('servers.edit')}
+                  </Button>
+                )}
+                {callerActions
+                  .filter((a) => !a.more)
+                  .map((a) => (
+                    <Button
+                      key={a.key}
+                      size="sm"
+                      variant={a.primary ? 'primary' : a.danger ? 'danger' : 'default'}
+                      data-action={a.key}
+                      onClick={a.onClick}
+                    >
+                      {a.icon}
+                      {a.label}
+                    </Button>
+                  ))}
+                {!lead && !callerActions.some((a) => !a.more) && own && (
+                  <ButtonLink size="sm" href={own.href} target="_blank" rel="noreferrer">
+                    {own.label}
+                    <ExternalLink aria-hidden size="1em" className="ml-1 inline align-[-0.125em]" />
+                  </ButtonLink>
+                )}
+                <ActionMenu label={t('series.moreActions', { name })} title={name} actions={menu} />
+                {act.error && (
+                  <p className="ws-d-err basis-full" role="status">
+                    {act.error}
+                  </p>
+                )}
               </div>
             </header>
             <nav
+              ref={tabRow}
+              className="ws-d-jump"
               aria-label={t('series.sectionsLabel')}
-              className="sticky top-11 z-10 border-b border-border-subtle bg-bg-card"
+              onScroll={(e) => markOverflow(e.currentTarget)}
             >
-              <div
-                ref={tabRow}
-                className="t-tabs t-tabs--line t-tabs--scroll px-3"
-                onScroll={(e) => markOverflow(e.currentTarget)}
-              >
-                {sections.map((k) => (
-                  <a
-                    key={k}
-                    href={`#${ids}-${k}`}
-                    className="t-tab"
-                    aria-current={current === k ? 'true' : undefined}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      jump(k)
-                    }}
-                  >
-                    {t(`series.tab.${k}`)}
-                  </a>
-                ))}
-              </div>
-            </nav>
-
-            {sections.map((k) => (
-              <section
-                key={k}
-                id={`${ids}-${k}`}
-                ref={(el) => {
-                  sec.current[k] = el
-                }}
-                tabIndex={-1}
-                aria-labelledby={`${ids}-${k}-h`}
-                className="outline-none"
-              >
-                {/* the overview needs no visible heading right under the title.
-                    The inset sits on a box around the chip: on the chip itself
-                    it padded the chip and left it flush with the edge, out of
-                    line with the section's content */}
-                {k === 'overview' ? (
-                  <h4 id={`${ids}-${k}-h`} className="sr-only">
-                    {t(`series.tab.${k}`)}
-                  </h4>
-                ) : (
-                  <div className="px-5 pt-5">
-                    <h4 id={`${ids}-${k}-h`} className="t-label">
-                      {t(`series.tab.${k}`)}
-                    </h4>
-                  </div>
-                )}
-                {k === 'overview' && media && (
-                  <MediaDetail media={media} source={source} airings={mine[0]?.airings} links={extras?.links} now={now}>
-                    {cur.extra}
-                  </MediaDetail>
-                )}
-                {k === 'episodes' && (
-                  <div className="p-5 pt-3">
-                    <EpisodeList
-                      folders={folders}
-                      watches={mine}
-                      highlight={cur.playPath}
-                      onPlay={play}
-                      renderWatch={(w, list) => (
-                        <WatchBlock
-                          key={w.id}
-                          watch={w}
-                          onEdit={() => edit(w)}
-                          onGone={mine.length === 1 ? onClose : undefined}
-                        >
-                          {list}
-                        </WatchBlock>
-                      )}
-                    />
-                  </div>
-                )}
-                {k === 'cast' && (
-                  <div className="p-5 pt-3">
-                    <Unavailable when={extrasFailed} source={source} />
-                    {/* not asked yet (still out of view) or on its way: a
-                        heading alone would read as an empty section */}
-                    {!extras && !extrasFailed && <Loading />}
-                    {extras && extras.characters.length === 0 && (
-                      <p className="text-sm text-t-muted">{t('series.noCast')}</p>
-                    )}
-                    <ul className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
-                      {extras?.characters.map((c) => (
-                        <li key={`${c.name}-${c.voiceActor}`} className="flex items-center gap-2">
-                          {c.image ? (
-                            <img
-                              src={c.image}
-                              alt=""
-                              loading="lazy"
-                              className="h-12 w-12 shrink-0 rounded-full object-cover"
-                            />
-                          ) : (
-                            <span aria-hidden className="t-hatch h-12 w-12 shrink-0 rounded-full" />
-                          )}
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm text-t-primary">{c.name}</span>
-                            {c.voiceActor && (
-                              <span className="block truncate text-ctl-sm text-t-muted">{c.voiceActor}</span>
-                            )}
-                            {c.role && c.role !== 'MAIN' && (
-                              <span className="block text-ctl-xs uppercase text-t-faint">
-                                {t(`series.role.${c.role}`, c.role)}
-                              </span>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {k === 'similar' && (
-                  <div className="p-5 pt-3">
-                    <Unavailable when={extrasFailed} source={source} />
-                    {!extras && !extrasFailed && <Loading />}
-                    {extras && extras.relations.length === 0 && extras.recommendations.length === 0 && (
-                      <p className="text-sm text-t-muted">{t('series.noSimilar')}</p>
-                    )}
-                    {!!extras?.relations.length && (
-                      <section>
-                        <h5 className="t-label mb-2">{t('series.relations')}</h5>
-                        <PosterRow
-                          items={extras.relations.map((r) => ({
-                            media: r.node,
-                            caption: t(`series.relation.${r.relationType}`, r.relationType),
-                          }))}
-                          onPick={(m) => onRelated({ id: m.id, media: m })}
-                        />
-                      </section>
-                    )}
-                    {!!extras?.recommendations.length && (
-                      <section className="mt-4">
-                        <h5 className="t-label mb-2">{t('series.recommendations')}</h5>
-                        <PosterRow
-                          items={extras.recommendations.map((m) => ({ media: m }))}
-                          onPick={(m) => onRelated({ source, id: m.id, media: m })}
-                        />
-                      </section>
-                    )}
-                  </div>
-                )}
-                {/* the reviews are a request of their own: not before the
-                    section is near */}
-                {k === 'community' &&
-                  (near ? (
-                    <Community source={source} id={cur.id} threads={extras?.threads} failed={extrasFailed} />
-                  ) : (
-                    <Loading className="p-5 pt-3" />
-                  ))}
-              </section>
-            ))}
-          </div>
-
-          {/* What can be done with the title from here. No close button:
-              the grabber, Escape, the back gesture and the header's X all
-              close the card already, and the room is worth more to the
-              thing the user came to do. */}
-          {actions.length > 0 && (
-            <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
-              {act.error && (
-                <p className="mr-auto min-w-0 flex-1 text-ctl-sm text-err" role="status">
-                  {act.error}
-                </p>
-              )}
-              {actions
-                .filter((a) => !a.more)
-                .sort((a, b) => Number(!!a.primary) - Number(!!b.primary))
-                .map((a) => (
-                  <Button
-                    key={a.key}
-                    size="sm"
-                    variant={a.primary ? 'primary' : a.danger ? 'danger' : 'default'}
-                    data-action={a.key}
-                    onClick={a.onClick}
-                  >
-                    {a.icon}
-                    {a.label}
-                  </Button>
-                ))}
-              <ActionMenu
-                label={t('series.moreActions', { name })}
-                title={name}
-                actions={actions.filter((a) => a.more)}
-              />
-            </footer>
-          )}
-        </div>
-      )}
-    </>
-  )
-}
-
-/**
- * What the user has of the title, in one line under its name: the first
- * question on opening the card, answered without scrolling to the auto-sync
- * block. From the lead watch: episodes on disk, the first hole, the next
- * airing.
- */
-function StateLine({ watch: w }: { watch: Watch }) {
-  const { t } = useTranslation()
-  const total = w.media?.episodes ?? 0
-  const parts = [
-    total > 0
-      ? t('series.state.local', { have: w.localFiles, total })
-      : t('series.state.files', { count: w.localFiles }),
-    w.missing?.length ? t('series.state.missing', { ep: epLabel(w, w.missing[0].e, w.missing[0].s) }) : '',
-    w.nextAiringAt
-      ? t('series.state.next', {
-          n: w.nextEpisode,
-          when: new Date(w.nextAiringAt * 1000).toLocaleString([], {
-            weekday: 'short',
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        })
-      : '',
-  ]
-  return <p className="mt-1 text-xs text-t-secondary">{parts.filter(Boolean).join(' · ')}</p>
-}
-
-// one line, where the source is down: the tab is not broken, the provider is
-function Unavailable({ when, source }: { when: boolean; source: string }) {
-  const { t } = useTranslation()
-  if (!when) return null
-  return (
-    <p className="mb-3 text-sm text-err" role="status">
-      {t('series.unavailable', { source: source.startsWith('tmdb') ? 'TMDB' : 'AniList' })}
-    </p>
-  )
-}
-
-function PosterRow({ items, onPick }: { items: { media: Media; caption?: string }[]; onPick: (m: Media) => void }) {
-  return (
-    <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-3">
-      {items.map(({ media: m, caption }) => (
-        <li key={`${m.id}-${caption ?? ''}`} className="min-w-0">
-          <button type="button" onClick={() => onPick(m)} className="w-full cursor-pointer text-left">
-            <Cover
-              src={m.coverImage?.large}
-              tint={m.coverImage?.color ?? undefined}
-              size="fill"
-              loading="lazy"
-              className="rounded-xs"
-            />
-            {caption && <span className="mt-1 block text-ctl-xs uppercase tracking-wider text-accent">{caption}</span>}
-            <span className="line-clamp-2 text-xs text-t-primary">{mediaTitle(m)}</span>
-            {m.seasonYear > 0 && <span className="block text-ctl-sm text-t-muted">{m.seasonYear}</span>}
-          </button>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function Community({
-  source,
-  id,
-  threads,
-  failed,
-}: {
-  source: string
-  id: number
-  threads?: MediaExtras['threads']
-  failed: boolean
-}) {
-  const { t } = useTranslation()
-  const [allReviews, setAllReviews] = useState(false)
-  const { data: rev, isError: reviewsFailed } = useQuery<{ reviews: Review[] }>({
-    queryKey: ['reviews', source, id],
-    queryFn: () => api.get(`/api/media/reviews?source=${source}&id=${id}`),
-    staleTime: 5 * 60_000,
-    retry: false,
-  })
-  const when = (ts?: number) => (ts ? new Date(ts * 1000).toLocaleDateString() : '')
-  return (
-    <div className="p-5 pt-3">
-      <Unavailable when={failed || reviewsFailed} source={source} />
-      {!source.startsWith('tmdb') && (
-        <section className="mb-4">
-          <h5 className="t-label mb-2">{t('series.threads')}</h5>
-          {!threads && !failed && <Loading />}
-          {threads && threads.length === 0 && <p className="text-sm text-t-muted">{t('series.noThreads')}</p>}
-          <ul className="grid grid-cols-[minmax(0,1fr)] divide-y divide-border-subtle">
-            {threads?.map((th) => (
-              <li key={th.id}>
+              {sections.map((k) => (
                 <a
-                  href={th.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-3 rounded-sm px-1 py-2.5 text-sm hover:bg-bg-hover"
+                  key={k}
+                  href={`#${ids}-${k}`}
+                  aria-current={current === k ? 'true' : undefined}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    jump(k)
+                  }}
                 >
-                  <MessageSquare aria-hidden size="1em" className="shrink-0 text-t-muted" />
-                  <span className="min-w-0 flex-1">
-                    <span className="line-clamp-2 text-t-primary">{th.title}</span>
-                    <span className="line-clamp-2 text-ctl-sm text-t-muted">
-                      {[t('series.replies', { count: th.replies }), th.user, th.category, when(th.repliedAt)]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </span>
-                  </span>
-                  <ExternalLink aria-hidden size="1em" className="shrink-0 text-t-muted" />
+                  {t(`series.tab.${k}`)}
                 </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <section>
-        <h5 className="t-label mb-2">
-          {t('remote.reviews')}
-          {rev ? ` (${rev.reviews.length})` : ''}
-        </h5>
-        {!rev && !reviewsFailed && <Loading />}
-        {rev && rev.reviews.length === 0 && <p className="text-sm text-t-muted">{t('remote.noReviews')}</p>}
-        {/* chat-bubble layout: avatar beside a bordered bubble per review */}
-        <ul className="grid grid-cols-[minmax(0,1fr)] gap-3">
-          {(allReviews ? rev?.reviews : rev?.reviews.slice(0, 5))?.map((r, i) => (
-            <li key={i} className="flex items-start gap-3">
-              {r.user.avatar?.medium ? (
-                <img src={r.user.avatar.medium} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-              ) : (
-                <div
-                  aria-hidden
-                  className="t-hatch flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-display text-xs text-t-muted"
-                >
-                  {r.user.name.slice(0, 1).toUpperCase()}
+              ))}
+            </nav>
+            <div className="ws-d-body">
+              {lead && stage > 0 && (
+                <div className="ws-d-aside ws-d-late">
+                  {(lead.missing?.length ?? 0) > 0 && (
+                    <CheckButton
+                      watchId={lead.id}
+                      act={act}
+                      variant="sync"
+                      label={t('series.sync.load', { count: lead.missing!.length })}
+                    />
+                  )}
+                  <WatchExplain watch={lead} now={now} />
+                  <MatchSection watch={lead} />
+                  <MoreWatches watches={mine.slice(1)} menu={watchMenu} />
                 </div>
               )}
-              <div className="min-w-0 flex-1 rounded-lg border border-border-subtle bg-bg-secondary p-3 text-sm text-t-secondary">
-                <p className="mb-1 flex flex-wrap items-center gap-2">
-                  <Badge>{r.user.name}</Badge>
-                  {r.score > 0 && (
-                    <Badge tone="accent">
-                      <Star
-                        aria-hidden
-                        size="1em"
-                        className="mr-0.5 inline align-[-0.125em]"
-                        fill="currentColor"
-                        strokeWidth={0}
-                      />
-                      {r.score}
-                    </Badge>
-                  )}
-                </p>
-                <p className="whitespace-pre-line">{r.summary}</p>
+              <div className="ws-d-main">
+                {sections.map((k) => (
+                  <section
+                    key={k}
+                    id={`${ids}-${k}`}
+                    ref={(el) => {
+                      sec.current[k] = el
+                    }}
+                    tabIndex={-1}
+                    aria-labelledby={hid(k)}
+                    className="ws-d-sec"
+                  >
+                    {k === 'overview' && (
+                      <>
+                        <h2 id={hid(k)} className="sr-only">
+                          {t('series.tab.overview')}
+                        </h2>
+                        {media && (
+                          <MediaDetail
+                            media={media}
+                            source={source}
+                            airings={lead?.airings}
+                            links={extras?.links}
+                            now={now}
+                          >
+                            {cur.extra}
+                          </MediaDetail>
+                        )}
+                      </>
+                    )}
+                    {k === 'episodes' &&
+                      (stage > 0 ? (
+                        <div className="ws-d-late">
+                          <EpisodeList
+                            folders={folders}
+                            watches={mine}
+                            highlight={cur.playPath}
+                            land={land}
+                            onPlay={play}
+                            now={now}
+                            headingId={hid(k)}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <h2 id={hid(k)} className="sr-only">
+                            {t('series.tab.episodes')}
+                          </h2>
+                          <Loading />
+                        </>
+                      ))}
+                    {k === 'cast' &&
+                      (stage > 1 ? (
+                        <div className="ws-d-late">
+                          <Cast extras={extras} failed={extrasFailed} source={source} headingId={hid(k)} />
+                        </div>
+                      ) : (
+                        <h2 id={hid(k)} className="sr-only">
+                          {t('series.tab.cast')}
+                        </h2>
+                      ))}
+                    {k === 'similar' &&
+                      (stage > 1 ? (
+                        <div className="ws-d-late">
+                          <Similar
+                            extras={extras}
+                            failed={extrasFailed}
+                            source={source}
+                            owned={ownedIds}
+                            headingId={hid(k)}
+                            onPick={(m, _label, same) =>
+                              onRelated({ source: same ? source : 'anilist', id: m.id, media: m, from: name })
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <h2 id={hid(k)} className="sr-only">
+                          {t('series.tab.similar')}
+                        </h2>
+                      ))}
+                    {k === 'community' &&
+                      (stage > 1 && near ? (
+                        <div className="ws-d-late">
+                          <Community
+                            source={source}
+                            id={cur.id}
+                            threads={extras?.threads}
+                            failed={extrasFailed}
+                            headingId={hid(k)}
+                          />
+                        </div>
+                      ) : (
+                        <h2 id={hid(k)} className="sr-only">
+                          {t('series.tab.community')}
+                        </h2>
+                      ))}
+                  </section>
+                ))}
               </div>
-            </li>
-          ))}
-        </ul>
-        {!allReviews && rev && rev.reviews.length > 5 && (
-          <Button size="sm" className="mt-3" onClick={() => setAllReviews(true)}>
-            <ChevronDown aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('remote.moreReviews', { count: rev.reviews.length - 5 })}
-          </Button>
-        )}
-      </section>
-    </div>
-  )
-}
-
-/**
- * One watch of the title: where it syncs, what needs a hand, how far it is,
- * and everything that can be done to it - check now up front, the rest
- * behind the overflow menu. Its episodes (`children`) follow under it.
- */
-function WatchBlock({
-  watch: w,
-  onEdit,
-  onGone,
-  children,
-}: {
-  watch: Watch
-  onEdit: () => void
-  onGone?: () => void
-  children: ReactNode
-}) {
-  const { t } = useTranslation()
-  const act = useWatchActions()
-  const total = w.media?.episodes ?? 0
-  const pct = total > 0 ? (w.localFiles / total) * 100 : w.complete ? 100 : 0
-  const canPlex = !!(w.plexAudioLang || w.plexSubLang)
-  const menu: SheetAction[] = [
-    { key: 'edit', label: t('servers.edit'), icon: <Pencil aria-hidden size="1em" />, onClick: onEdit },
-    ...(canPlex
-      ? [
-          {
-            key: 'plex',
-            label: t('watch.plexApplyAll'),
-            icon: <Languages aria-hidden size="1em" />,
-            onClick: () => void act.applyPlexStreams(w.id),
-          },
-        ]
-      : []),
-    {
-      key: 'delete',
-      label: t('servers.delete'),
-      icon: <Trash2 aria-hidden size="1em" />,
-      danger: true,
-      onClick: () => void act.del(w).then((gone) => gone && onGone?.()),
-    },
-  ]
-  return (
-    // min-w-0: a grid item's automatic minimum is its content's min-content
-    // width, and the mono path would otherwise widen the sheet past a phone
-    <section className="min-w-0" aria-label={watchTitle(w)} data-watch={w.id}>
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="min-w-0 flex-1 truncate font-mono text-ctl-sm text-t-muted" title={w.remotePath}>
-          {w.serverName}:{w.remotePath} → {w.localPath}
-        </p>
-        <CheckButton watchId={w.id} act={act} />
-        <ActionMenu label={t('watch.moreActions', { title: watchTitle(w) })} title={watchTitle(w)} actions={menu} />
-      </div>
-      {(act.error || w.lastResult) && <p className="mt-2 text-ctl-sm text-err">{act.error || w.lastResult}</p>}
-      {act.notice && (
-        <p className="mt-2 text-ctl-sm text-accent" role="status">
-          {act.notice}
-        </p>
-      )}
-      <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-ctl-sm">
-        {seasonLabel(t, w) && <Badge size="sm">{seasonLabel(t, w)}</Badge>}
-        {!!w.nextAiringAt && (
-          <Badge tone={w.behindLate ? 'warn' : 'ok'} size="sm">
-            {t('watch.chipEp', { n: epLabel(w, w.nextEpisode!) })}
-            {' · '}
-            {new Date(w.nextAiringAt * 1000).toLocaleString([], {
-              weekday: 'short',
-              day: '2-digit',
-              month: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Badge>
-        )}
-        {(w.behind ?? 0) > 0 && (
-          <Badge tone={w.behindLate ? 'warn' : undefined} size="sm" multiline>
-            <Clock aria-hidden size="1em" />
-            {behindLabel(t, w)}
-          </Badge>
-        )}
-        {(w.missing?.length ?? 0) > 0 && (
-          <Badge tone="err" size="sm" multiline title={w.missing!.map((r) => epLabel(w, r.e, r.s)).join(', ')}>
-            <TriangleAlert aria-hidden size="1em" />
-            {missingLabel(t, w)}
-          </Badge>
-        )}
-        {(w.unsorted ?? 0) > 0 && (
-          <Badge tone="warn" size="sm" title={t('watch.unsortedHint')}>
-            <FolderClock aria-hidden size="1em" />
-            {t('watch.unsorted', { count: w.unsorted })}
-          </Badge>
-        )}
-        {w.dubOverdue ? (
-          <Badge tone="err" size="sm" multiline>
-            <Clock aria-hidden size="1em" />
-            {dubOverdueLabel(t, w)}
-          </Badge>
-        ) : w.dubWaiting ? (
-          <Badge size="sm" multiline>
-            <Clock aria-hidden size="1em" />
-            {dubWaitingLabel(t, w)}
-          </Badge>
-        ) : (
-          (w.langWaiting ?? 0) > 0 && (
-            <Badge size="sm" multiline>
-              <Clock aria-hidden size="1em" />
-              {langWaitingLabel(t, w)}
-            </Badge>
-          )
-        )}
-        {w.dubProgress && (
-          <Badge size="sm" multiline>
-            <Languages aria-hidden size="1em" />
-            {dubProgressLabel(t, w)}
-          </Badge>
-        )}
-        {w.plexStreamMiss && (
-          <Badge tone="warn" size="sm" title={t('watch.plexMissHint')}>
-            <Languages aria-hidden size="1em" />
-            {t('watch.plexMiss', {
-              what: w.plexStreamMiss
-                .split(',')
-                .map((d) => t(d === 'audio' ? 'watch.plexAudio' : 'watch.plexSub'))
-                .join(', '),
-            })}
-          </Badge>
-        )}
-        {w.lastUploading > 0 && (
-          <Badge tone="warn" size="sm">
-            <Upload aria-hidden size="1em" />
-            {t('watch.uploading')}
-          </Badge>
-        )}
-        {w.active > 0 && (
-          <Badge tone="accent" size="sm">
-            <Download aria-hidden size="1em" />
-            {t('watch.active', { count: w.active })}
-          </Badge>
-        )}
-        {w.lastOwned > 0 && (
-          <Badge size="sm" title={t('watch.ownedHint')}>
-            <Library aria-hidden size="1em" />
-            {t('watch.owned', { count: w.lastOwned })}
-          </Badge>
+            </div>
+          </>
         )}
       </div>
-      <div className="mt-2 flex items-center gap-3 text-xs">
-        <Progress
-          value={pct}
-          size="sm"
-          tone={w.complete ? 'ok' : 'accent'}
-          label={t('series.progressLabel', { name: watchTitle(w) })}
-          className="w-32"
-        />
-        <span className={w.complete ? 'text-ok' : 'text-t-secondary'}>{haveLabel(t, w, total)}</span>
-        {w.complete && (
-          <span className="text-ok">
-            <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('watch.complete')}
-          </span>
-        )}
-      </div>
-      <WatchExplain watch={w} />
-      <div className="mt-4">{children}</div>
-    </section>
+    </>
   )
 }

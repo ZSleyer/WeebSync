@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Button, Slot } from 'fluid-lycoris'
 import { RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, type Download } from '../api'
 import type { useWatchActions } from './watchActions'
@@ -19,7 +19,19 @@ type Phase = { k: 'idle' } | { k: 'checking' } | { k: 'none' } | { k: 'follow'; 
  * nothing says so for a moment. The downloads come from the shared query the
  * event stream patches, so following costs no request.
  */
-export function CheckButton({ watchId, act }: { watchId: number; act: ReturnType<typeof useWatchActions> }) {
+export function CheckButton({
+  watchId,
+  act,
+  variant,
+  label: idleLabel,
+}: {
+  watchId: number
+  act: ReturnType<typeof useWatchActions>
+  /** the series page's full-width teal "load the missing episodes" button */
+  variant?: 'sync'
+  /** what the button says at rest, instead of "Check now" */
+  label?: string
+}) {
   const { t } = useTranslation()
   const [phase, setPhase] = useState<Phase>({ k: 'idle' })
   const { data: downloads = [] } = useQuery({
@@ -63,10 +75,28 @@ export function CheckButton({ watchId, act }: { watchId: number; act: ReturnType
           ? all
             ? t('watch.checkDone', { count: mine.length })
             : t('watch.checkLoading', { k: Math.min(finished + 1, phase.ids.length), n: phase.ids.length })
-          : t('watch.checkNow')
+          : (idleLabel ?? t('watch.checkNow'))
   // the roll steps with every change of what the button says
   const step =
     phase.k === 'idle' ? 0 : phase.k === 'checking' ? 1 : phase.k === 'none' ? 2 : 3 + finished + (all ? 1 : 0)
+  if (variant === 'sync') {
+    const state = all ? 'done' : phase.k === 'checking' || phase.k === 'follow' ? 'run' : 'idle'
+    return (
+      <button
+        type="button"
+        className="ws-syncbtn"
+        data-state={state}
+        onClick={run}
+        aria-busy={state === 'run'}
+        style={{ '--p': frac } as CSSProperties}
+      >
+        <span aria-hidden className="ws-syncbtn-fill" />
+        <span role="status">
+          <Slot step={step}>{all ? t('series.sync.allHere') : label}</Slot>
+        </span>
+      </button>
+    )
+  }
   return (
     <Button
       size="sm"

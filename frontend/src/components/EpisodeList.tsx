@@ -1,16 +1,24 @@
-import { useEffect, useRef, type ReactNode } from 'react'
-import { BookOpen, Check, Clock, ExternalLink, Play, X } from 'lucide-react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { BookOpen, Clock, Play } from 'lucide-react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, ButtonLink, Divider, useReveal } from 'fluid-lycoris'
+import { IconButton, SectionHeading, TextLink } from 'fluid-lycoris'
 import { api, fmtBytes, type Download, type Entry, type Watch, type WatchEpisode, type WatchEpisodes } from '../api'
+import type { Schemas } from '../api.gen'
 import Loading from './Loading'
+import { dayWord } from './MediaDetail'
 import { isVideo, listFolder, titleFilesIn } from './playLinks'
 
 /** A folder a title's episodes lie in: the local library (server 0) or a server. */
 export interface EpisodeFolder {
   server: number
   path: string
+}
+
+/** The episode a caller lands on: scrolled to, opened, marked once. */
+export interface EpisodeLanding {
+  ep: number
+  season?: number
 }
 
 interface Group {
@@ -20,6 +28,7 @@ interface Group {
 
 /** A video and the server its folder is on. */
 type File = Entry & { server: number }
+type PlayInfo = Schemas['api.PlayInfo']
 
 const PROVIDER_LABEL: Record<string, string> = { tvdb: 'TVDB', tmdb: 'TMDB' }
 
@@ -30,6 +39,10 @@ const SXE = /S(\d{1,2})\s*E(\d{1,4})/i
 const NUM = /(?<![\p{L}\d.])(\d{1,4})(?:v\d)?(?![\p{L}\d]|\.\d)/gu
 const pad = (n: number | string) => String(n).padStart(2, '0')
 const fileKey = (f: File) => `${f.server}:${f.path}`
+const bare = (name: string) => name.replace(/\.[^.]+$/, '')
+const hm = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+// rows past this many render only near the screen
+const LONG_LIST = 40
 
 /**
  * The last standalone number of a file name, tags in brackets and parentheses
@@ -63,11 +76,6 @@ function episodeOf(eps: WatchEpisode[], name: string): WatchEpisode | undefined 
 }
 
 /**
- * Pairs files with the provider's episodes: by SxxEyy in the name, else by its
- * last standalone number against the absolute and then the episode number.
- * The first file per episode wins; a second copy stays in `rest`, still playable.
- */
-/**
  * The episodes of a watch on their way in, keyed "season-episode", each with
  * how much of it has arrived: its running or queued downloads from the
  * watch's folder whose target names the episode as SxxEyy.
@@ -86,6 +94,11 @@ export function incoming(
   return m
 }
 
+/**
+ * Pairs files with the provider's episodes: by SxxEyy in the name, else by its
+ * last standalone number against the absolute and then the episode number.
+ * The first file per episode wins; a second copy stays in `rest`, still playable.
+ */
 export function matchFiles<F extends { name: string }>(
   episodes: WatchEpisode[],
   files: F[],
@@ -98,6 +111,15 @@ export function matchFiles<F extends { name: string }>(
     else rest.push(f)
   }
   return { hits, rest }
+}
+
+/**
+ * The episode a landing points at: the season's when given, else the first
+ * episode or absolute number that matches.
+ */
+export function landingEpisode(eps: WatchEpisode[], land: EpisodeLanding): WatchEpisode | undefined {
+  if (land.season !== undefined) return eps.find((e) => e.season === land.season && e.episode === land.ep)
+  return eps.find((e) => e.episode === land.ep) ?? eps.find((e) => e.absolute === land.ep)
 }
 
 /** A folder's videos (or volumes) and those of its season folders, one level down. */
@@ -116,25 +138,40 @@ async function episodeGroups(f: EpisodeFolder): Promise<Group[]> {
   return groups
 }
 
+/** A language tag as a word in the reader's language ("jpn" is "Japanisch"). */
+export function langName(tag: string | undefined, locale: string): string {
+  if (!tag || tag === 'und') return '?'
+  try {
+    return new Intl.DisplayNames([locale], { type: 'language' }).of(tag) ?? tag
+  } catch {
+    return tag
+  }
+}
+
 /**
- * The title card's "Episodes" section: per watch its sync header (`renderWatch`
- * wraps the list in it) and the provider's episodes, each with its state and,
- * where a file matched, a play button; then every file no episode claimed.
- * Without a watch it is the plain file list. The file the card was opened for
- * is marked and scrolled to.
+ * The series page's "Folgen": per watch its episodes in hairline rows, each
+ * with its state and, where a file matched, a play button; a row with a file
+ * opens to its facts. Then every file no episode claimed. Without a watch it
+ * is the plain file list. A landing (Neu da, ?ep=N) or the file the page was
+ * opened for is scrolled to, opened and marked once.
  */
 export default function EpisodeList({
   folders,
   watches,
-  renderWatch,
   highlight,
+  land,
   onPlay,
+  now,
+  headingId,
 }: {
   folders: EpisodeFolder[]
   watches: Watch[]
-  renderWatch: (w: Watch, list: ReactNode) => ReactNode
   highlight?: string
+  land?: EpisodeLanding
   onPlay: (server: number, path: string) => void
+  now: number
+  /** the id of the section's first heading, for the section's label */
+  headingId?: string
 }) {
   const { t } = useTranslation()
   const listed = useQueries({
@@ -161,7 +198,7 @@ export default function EpisodeList({
   const filesIn = listed.every((q) => !q.isLoading)
   const epsIn = known.every((q) => !q.isLoading)
 
-  // Each watch claims its files in turn, the one the card came from first;
+  // Each watch claims its files in turn, the one the page came from first;
   // local copies go ahead of a server's so the play button stays at home.
   let pool: File[] = listed
     .flatMap((q, i) => (q.data ?? []).flatMap((g) => g.files.map((e) => ({ ...e, server: folders[i].server }))))
@@ -174,45 +211,105 @@ export default function EpisodeList({
   }
   const left = new Set(pool.map(fileKey))
 
-  const marked = useRef<HTMLLIElement>(null)
+  // rows open to their facts; the landing opens one by itself
+  const [open, setOpen] = useState<Set<string>>(() => new Set())
+  const [hit, setHit] = useState<string | null>(null)
+  const rows = useRef(new Map<string, HTMLLIElement>())
+  const landed = useRef(false)
   useEffect(() => {
-    // the card jumps to this section itself; a long list still brings the
-    // marked file into view
-    marked.current?.scrollIntoView({ block: 'nearest' })
-  }, [filesIn, epsIn, highlight])
+    if (landed.current || !filesIn || !epsIn) return
+    let key: string | null = null
+    if (land) {
+      for (let i = 0; i < watches.length && !key; i++) {
+        const e = landingEpisode(known[i].data?.episodes ?? [], land)
+        if (e) key = `${watches[i].id}:${e.season}-${e.episode}`
+      }
+    }
+    if (!key && highlight) {
+      for (let i = 0; i < watches.length && !key; i++)
+        for (const [e, f] of hits[i]) if (f.path === highlight) key = `${watches[i].id}:${e.season}-${e.episode}`
+      key ??= [...rows.current.keys()].find((k) => k.endsWith(`|${highlight}`)) ?? null
+    }
+    landed.current = true
+    if (!key) return
+    const k = key
+    setOpen((s) => new Set(s).add(k))
+    setHit(k)
+    const el = rows.current.get(k)
+    const still = matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    el?.scrollIntoView?.({ block: 'center', behavior: still ? 'auto' : 'smooth' })
+    const id = setTimeout(() => el?.querySelector<HTMLElement>('.ws-ep-tog')?.focus({ preventScroll: true }), 500)
+    return () => clearTimeout(id)
+    // the landing runs once, when both lists are in
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filesIn, epsIn])
 
-  // Rows slide in as they come into view: tied to the scroll by the
-  // stylesheet where the browser can, marked once as they enter elsewhere.
-  const box = useRef<HTMLDivElement>(null)
-  useReveal(
-    box,
-    '.t-ep',
-    known.reduce((n, q) => n + (q.data?.episodes.length ?? 0), 0),
-  )
+  const toggle = (k: string) =>
+    setOpen((s) => {
+      const n = new Set(s)
+      if (n.has(k)) n.delete(k)
+      else n.add(k)
+      return n
+    })
+  const rowRef = (k: string) => (el: HTMLLIElement | null) => {
+    if (el) rows.current.set(k, el)
+    else rows.current.delete(k)
+  }
 
-  const fileRow = (f: File, lead: ReactNode, rest: ReactNode, state?: WatchEpisode) => {
-    const here = f.path === highlight
+  // one row: number, title and its quiet line, the state, play; with a file
+  // the whole row is the toggle of its facts (play stays a button of its own)
+  const row = (
+    k: string,
+    no: string,
+    title: string,
+    sub: ReactNode,
+    state: ReactNode,
+    file?: File,
+    w?: Watch,
+    aired?: string,
+  ) => {
+    const isOpen = open.has(k)
+    const factsId = `ws-epf-${k.replace(/[^\w-]/g, '_')}`
     return (
-      <li
-        key={fileKey(f)}
-        ref={here ? marked : undefined}
-        data-state={state && stateOf(state)}
-        className={`t-ep-file ${state ? 't-ep flex items-center gap-1' : ''} ${here ? 't-ep-file--here' : ''}`}
-        aria-current={here ? 'true' : undefined}
-      >
-        {lead}
-        {/* named by what it shows (number, title, date or file name) plus
-            "play", so speech control can say what it sees (WCAG 2.5.3); the
-            full file name stays on hover */}
-        <button
-          type="button"
-          className="t-ep-file__play min-w-0 flex-1"
-          title={f.name}
-          onClick={() => onPlay(f.server, f.path)}
-        >
-          {rest}
-          <span className="sr-only">{isVideo(f.name) ? t('player.play') : t('viewer.open')}</span>
-        </button>
+      <li key={k} ref={rowRef(k)} className="ws-ep" data-hit={hit === k || undefined}>
+        <div className="ws-ep-in">
+          {file && (
+            <button
+              type="button"
+              className="ws-ep-tog"
+              aria-expanded={isOpen}
+              aria-controls={factsId}
+              aria-label={t('series.ep.facts', { name: title })}
+              onClick={() => toggle(k)}
+            />
+          )}
+          <span className="ws-ep-no">{no}</span>
+          <span className="ws-ep-t">
+            <strong>{title}</strong>
+            {sub}
+          </span>
+          <span className="ws-ep-st">{state}</span>
+          {file ? (
+            <IconButton
+              size="sm"
+              className="ws-ep-play"
+              aria-label={
+                isVideo(file.name) ? t('series.ep.play', { name: title }) : t('series.ep.read', { name: title })
+              }
+              title={file.name}
+              onClick={() => onPlay(file.server, file.path)}
+            >
+              {isVideo(file.name) ? (
+                <Play aria-hidden size="1rem" fill="currentColor" strokeWidth={0} />
+              ) : (
+                <BookOpen aria-hidden size="1rem" />
+              )}
+            </IconButton>
+          ) : (
+            <span aria-hidden className="ws-ep-play-sp" />
+          )}
+        </div>
+        {file && <EpisodeFacts id={factsId} open={isOpen} file={file} watch={w} aired={aired} />}
       </li>
     )
   }
@@ -221,36 +318,22 @@ export default function EpisodeList({
   const files = listed.map((q, i) => {
     const f = folders[i]
     const groups = (q.data ?? [])
-      .map((g) => ({
-        ...g,
-        files: g.files.filter((e) => left.has(`${f.server}:${e.path}`)),
-      }))
+      .map((g) => ({ ...g, files: g.files.filter((e) => left.has(`${f.server}:${e.path}`)) }))
       .filter((g) => g.files.length)
     return groups.map((g) => (
-      <div key={`${f.server}:${f.path}:${g.label}`}>
-        {(groups.length > 1 || g.label) && <Divider label={g.label || t('series.thisFolder')} />}
-        <ul className="-mx-2">
+      <div key={`${f.server}:${f.path}:${g.label}`} className="ws-ep-group">
+        {(groups.length > 1 || g.label) && <h3 className="ws-d-h3">{g.label || t('series.thisFolder')}</h3>}
+        <ul className={`ws-eps ${g.files.length > LONG_LIST ? 'ws-eps-long' : ''}`}>
           {g.files.map((e) => {
             const m = SXE.exec(e.name)
-            return fileRow(
-              { ...e, server: f.server },
+            const file = { ...e, server: f.server }
+            return row(
+              `f|${fileKey(file)}|${e.path}`,
+              m ? `S${pad(m[1])}E${pad(m[2])}` : '',
+              bare(e.name),
+              <span>{fmtBytes(e.size)}</span>,
               null,
-              <>
-                <span className="t-ep-file__icon" aria-hidden>
-                  {isVideo(e.name) ? (
-                    <Play size="0.9em" fill="currentColor" strokeWidth={0} />
-                  ) : (
-                    <BookOpen size="0.9em" />
-                  )}
-                </span>
-                {m && (
-                  <span className="shrink-0 font-mono text-xs tabular-nums text-t-secondary">
-                    S{pad(m[1])}E{pad(m[2])}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1 truncate">{e.name.replace(/\.[^.]+$/, '')}</span>
-                <span className="hidden shrink-0 font-mono text-ctl-sm text-t-faint sm:inline">{fmtBytes(e.size)}</span>
-              </>,
+              file,
             )
           })}
         </ul>
@@ -261,146 +344,135 @@ export default function EpisodeList({
   const anyLeft = files.some((g) => g.length)
 
   return (
-    <div ref={box} className="grid grid-cols-[minmax(0,1fr)] gap-6">
+    <>
       {watches.map((w, i) => {
         const q = known[i]
         const eps = q.data?.episodes ?? []
         const coming = incoming(downloads, w)
         const seasons = [...new Set(eps.map((e) => e.season))]
-        // counted here, not taken from the server: a file matched by its
-        // absolute number is not missing
-        const missing = eps.filter((e) => !e.have && !e.upcoming && !hits[i].has(e)).length
+        const have = eps.filter((e) => e.have || hits[i].has(e)).length
         const provider = q.data?.provider ? PROVIDER_LABEL[q.data.provider] : ''
-        return renderWatch(
-          w,
-          <div key={w.id}>
-            <p className="mb-2 flex flex-wrap items-center gap-1.5 text-ctl-sm text-t-secondary">
-              {provider && <Badge>{provider}</Badge>}
-              {seasons.length === 1 && <Badge>{t('watch.gaps.season', { n: seasons[0] })}</Badge>}
-              {!!eps.length && <span>{t('watch.gaps.count', { count: eps.length })}</span>}
-              {!!missing && (
-                <Badge tone="err">
-                  {t('watch.gaps.missingCount', {
-                    count: missing,
-                    total: eps.length,
-                  })}
-                </Badge>
-              )}
-              {q.data?.url && (
-                <ButtonLink
-                  size="xs"
-                  className="ml-auto inline-flex items-center gap-1"
-                  href={q.data.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t('watch.gaps.viewAt', { provider })}
-                  <ExternalLink aria-hidden size="1em" />
-                </ButtonLink>
-              )}
-            </p>
+        const airings = (w.airings ?? []).filter((a) => !a.dub)
+        return (
+          <div key={w.id} className="ws-ep-group">
+            <SectionHeading
+              id={i === 0 ? headingId : undefined}
+              tone="accent-2"
+              title={
+                seasons.length === 1
+                  ? t('watch.gaps.season', { n: seasons[0] })
+                  : watches.length > 1
+                    ? w.titleOverride || w.remotePath.split('/').pop()
+                    : t('series.tab.episodes')
+              }
+              action={
+                <span className="ws-ep-head">
+                  {!!eps.length && (
+                    <span className="ws-d-count">{t('series.ep.count', { have, total: eps.length })}</span>
+                  )}
+                  {q.data?.url && (
+                    <TextLink tone="accent-2" href={q.data.url} target="_blank" rel="noreferrer">
+                      {t('watch.gaps.viewAt', { provider })}
+                    </TextLink>
+                  )}
+                </span>
+              }
+            />
             {q.isLoading && <Loading />}
-            {q.isError && <p className="text-sm text-err">{t('watch.gaps.error')}</p>}
-            {/* the reason sits above the list, not under it: a list without
-                titles otherwise reads as a broken feature rather than a
-                missing provider */}
-            {q.data?.reason && <p className="mb-3 text-ctl-sm text-warn">{t(`watch.gaps.${q.data.reason}`)}</p>}
-            {seasons.map((se) => (
-              <div key={se} className="mb-3 last:mb-0">
-                {seasons.length > 1 && <Divider label={t('watch.gaps.season', { n: se })} />}
-                {/* rows slide in from 8px to the right; clipped, so a row on
-                    its way in never widens the sheet */}
-                <ul className="overflow-x-clip">
-                  {eps
-                    .filter((e) => e.season === se)
-                    .map((raw) => {
+            {q.isError && <p className="ws-d-err">{t('watch.gaps.error')}</p>}
+            {/* the reason sits above the list: a list without titles
+                otherwise reads as a broken feature, not a missing provider */}
+            {q.data?.reason && <p className="ws-ex-sub">{t(`watch.gaps.${q.data.reason}`)}</p>}
+            {seasons.map((se) => {
+              const inSeason = eps.filter((e) => e.season === se)
+              return (
+                <div key={se} className="ws-ep-group">
+                  {seasons.length > 1 && <h3 className="ws-d-h3">{t('watch.gaps.season', { n: se })}</h3>}
+                  <ul className={`ws-eps ${inSeason.length > LONG_LIST ? 'ws-eps-long' : ''}`}>
+                    {inSeason.map((raw) => {
                       const f = hits[i].get(raw)
                       // the server marks an episode present only by SxxEyy in
                       // a name; a file this list matched by its absolute
                       // number is just as much there
                       const e = f && !raw.have ? { ...raw, have: true } : raw
-                      const body = <EpisodeCells ep={e} play={!!f} />
                       const loading = coming.get(`${e.season}-${e.episode}`)
-                      return f ? (
-                        fileRow(f, <StateIcon ep={e} loading={loading} />, body, e)
-                      ) : (
-                        <li
-                          key={`${e.season}-${e.episode}`}
-                          data-state={stateOf(e)}
-                          className="t-ep flex items-center gap-1"
-                        >
-                          <StateIcon ep={e} loading={loading} />
-                          <span className="flex min-h-9 min-w-0 flex-1 items-center gap-2.5 px-2 py-1 text-sm">
-                            {body}
+                      const no = seasons.length > 1 ? `S${pad(e.season)}E${pad(e.episode)}` : `F${e.episode}`
+                      const title = e.title || t('series.ep.title', { n: e.episode })
+                      const air = airings.find(
+                        (a) => a.episode === (e.absolute ?? e.episode) || a.episode === e.episode,
+                      )
+                      const sub = f ? (
+                        <span>{bare(f.name)}</span>
+                      ) : e.upcoming ? (
+                        air && air.at * 1000 > now ? (
+                          <span data-tone="acc">
+                            {t('series.ep.airs', { day: dayWord(t, air.at * 1000, now), time: hm(air.at * 1000) })}
                           </span>
-                        </li>
+                        ) : (
+                          <span>{t('series.ep.noDate')}</span>
+                        )
+                      ) : e.have ? (
+                        <span>{e.aired ?? ''}</span>
+                      ) : (
+                        <span data-tone="warn">{t('series.ep.missing')}</span>
+                      )
+                      return row(
+                        `${w.id}:${e.season}-${e.episode}`,
+                        no,
+                        title,
+                        sub,
+                        <StateIcon ep={e} loading={loading} />,
+                        f,
+                        w,
+                        e.aired,
                       )
                     })}
-                </ul>
-              </div>
-            ))}
-          </div>,
+                  </ul>
+                </div>
+              )
+            })}
+          </div>
         )
       })}
       {!filesIn ? (
         <Loading />
       ) : (
         epsIn && (
-          // the column has to be capped: an auto track grows to the longest
-          // file name and the card scrolls sideways
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-            {watches.length > 0 && anyLeft && <h5 className="t-label">{t('series.otherFiles')}</h5>}
+          <>
+            {watches.length > 0 && anyLeft && <h3 className="ws-d-h3">{t('series.otherFiles')}</h3>}
             {files}
-            {failed && <p className="text-sm text-err">{t('series.episodesError')}</p>}
-            {!watches.length && !anyLeft && !failed && <p className="text-sm text-t-muted">{t('series.noEpisodes')}</p>}
-          </div>
+            {failed && <p className="ws-d-err">{t('series.episodesError')}</p>}
+            {!watches.length && !anyLeft && !failed && <p className="ws-d-quiet">{t('series.noEpisodes')}</p>}
+          </>
         )
       )}
-    </div>
+    </>
   )
 }
 
-const stateOf = (ep: WatchEpisode) => (ep.have ? 'have' : ep.upcoming ? 'upcoming' : 'gone')
-
-// The check/cross carries the state as a shape, not only as a colour (WCAG
-// 1.4.1), with the word behind it for screen readers. It is the row's first
-// child: the rail runs through it.
-// a small ring for an episode on its way in, filled with its bytes; px for
-// Firefox, which ignores a unitless stroke-dashoffset
-const RING = 2 * Math.PI * 6
-
+// The state as a shape, not only as a colour (WCAG 1.4.1), with the word for
+// screen readers: a check (here), a warn ring (missing), a ring that fills
+// (on its way in), a clock (not aired yet).
 function StateIcon({ ep, loading }: { ep: WatchEpisode; loading?: number }) {
   const { t } = useTranslation()
   if (loading !== undefined) {
     return (
       <>
-        <svg aria-hidden viewBox="0 0 16 16" className="size-[1em] shrink-0 -rotate-90">
-          <circle cx="8" cy="8" r="6" fill="none" strokeWidth="2.5" className="stroke-border-subtle" />
-          <circle
-            cx="8"
-            cy="8"
-            r="6"
-            fill="none"
-            strokeWidth="2.5"
-            strokeDasharray={`${RING}px`}
-            strokeDashoffset={`${RING * (1 - loading)}px`}
-            className="t-live-ring stroke-accent"
-          />
-        </svg>
+        <span aria-hidden className="ws-prog" style={{ '--p': loading } as CSSProperties} />
         <span className="sr-only">{t('watch.gaps.loading')}</span>
       </>
     )
   }
   return (
     <>
-      {/* an episode that has not aired yet is absent, not missing - marking it
-          red would paint every running series as half broken */}
       {ep.have ? (
-        <Check aria-hidden size="1em" className="shrink-0 text-ok" />
+        <svg aria-hidden viewBox="0 0 24 24">
+          <path d="m5 12.5 4.5 4.5L19 7.5" />
+        </svg>
       ) : ep.upcoming ? (
-        <Clock aria-hidden size="1em" className="shrink-0 text-t-faint" />
+        <Clock aria-hidden size="1rem" className="text-t-muted" />
       ) : (
-        <X aria-hidden size="1em" className="shrink-0 text-err" />
+        <span aria-hidden className="ws-dot" />
       )}
       <span className="sr-only">
         {ep.have ? t('watch.gaps.have') : ep.upcoming ? t('watch.gaps.upcoming') : t('watch.gaps.gone')}
@@ -409,26 +481,68 @@ function StateIcon({ ep, loading }: { ep: WatchEpisode; loading?: number }) {
   )
 }
 
-function EpisodeCells({ ep, play }: { ep: WatchEpisode; play: boolean }) {
-  const { t } = useTranslation()
+/**
+ * What a file on disk is: name, size, picture, sound, subtitles, where it
+ * came from and when it arrived. The streams come from the player's probe,
+ * asked only once the row is open.
+ */
+function EpisodeFacts({
+  id,
+  open,
+  file,
+  watch,
+  aired,
+}: {
+  id: string
+  open: boolean
+  file: File
+  watch?: Watch
+  aired?: string
+}) {
+  const { t, i18n } = useTranslation()
+  const video = isVideo(file.name)
+  const probe = useQuery({
+    queryKey: ['play-info', file.server, file.path],
+    queryFn: () => api.get<PlayInfo>(`/api/play/info?server=${file.server}&path=${encodeURIComponent(file.path)}`),
+    enabled: open && video,
+    staleTime: 10 * 60_000,
+    retry: false,
+  })
+  const p = probe.data
+  const langs = (tracks?: PlayInfo['audio']) =>
+    [...new Set((tracks ?? []).map((x) => langName(x.lang, i18n?.language ?? 'en')))].join(', ') || t('series.ep.none')
+  const pending = probe.isPending && video ? t('series.ep.probing') : ''
+  const facts: [string, string][] = [
+    [t('series.ep.file'), file.name],
+    [t('series.ep.size'), fmtBytes(file.size)],
+    ...(video
+      ? ([
+          [t('series.ep.picture'), p?.video ? `${p.video.height}p · ${p.video.codec.toUpperCase()}` : pending || '?'],
+          [t('series.ep.sound'), p ? langs(p.audio) : pending || '?'],
+          [t('series.ep.subs'), p ? langs(p.subs) : pending || '?'],
+        ] as [string, string][])
+      : []),
+    [t('series.ep.source'), watch?.serverName || (file.server === 0 ? t('series.ep.local') : '')],
+    [
+      t('series.ep.loaded'),
+      file.modTime ? new Date(file.modTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '',
+    ],
+    [t('series.ep.aired'), aired ?? ''],
+  ]
   return (
-    <>
-      <span className="shrink-0 font-mono text-xs tabular-nums text-t-secondary">
-        S{pad(ep.season)}E{pad(ep.episode)}
-      </span>
-      {ep.absolute && ep.absolute !== ep.episode ? (
-        <span className="shrink-0 font-mono text-ctl-sm tabular-nums text-t-faint">{ep.absolute}</span>
-      ) : null}
-      <span className={`min-w-0 flex-1 truncate ${ep.have || ep.upcoming ? '' : 'text-err'}`}>
-        {ep.title || t('watch.gaps.untitled')}
-      </span>
-      {/* the date is the first thing to go when the row gets tight */}
-      {ep.aired && <span className="hidden shrink-0 tabular-nums text-ctl-sm text-t-faint sm:inline">{ep.aired}</span>}
-      {play && (
-        <span className="t-ep-file__icon" aria-hidden>
-          <Play size="0.9em" fill="currentColor" strokeWidth={0} />
-        </span>
+    <div className="ws-ep-facts" id={id} hidden={!open}>
+      {open && (
+        <dl>
+          {facts
+            .filter(([, v]) => v)
+            .map(([k, v]) => (
+              <div key={k} className="contents">
+                <dt>{k}</dt>
+                <dd className={k === t('series.ep.file') ? 'ws-mono' : undefined}>{v}</dd>
+              </div>
+            ))}
+        </dl>
       )}
-    </>
+    </div>
   )
 }

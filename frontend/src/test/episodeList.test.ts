@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WatchEpisode } from '../api'
-import { incoming, matchFiles } from '../components/EpisodeList'
+import { incoming, landingEpisode, langName, matchFiles } from '../components/EpisodeList'
 
 describe('incoming', () => {
   const w = { serverId: 1, remotePath: '/x/Show' }
@@ -90,5 +90,26 @@ describe('matchFiles', () => {
     const { got, rest } = pairs([ep(1, 1)], ['Show - S01E01.mkv', 'Show - S01E01 v2.mkv', 'Show - NCOP.mkv'])
     expect(got['Show - S01E01.mkv']).toBe('S1E1')
     expect(rest).toEqual(['Show - S01E01 v2.mkv', 'Show - NCOP.mkv'])
+  })
+})
+
+describe('landingEpisode', () => {
+  const eps = [
+    { season: 1, episode: 3, have: true },
+    { season: 2, episode: 3, have: true, absolute: 15 },
+  ] as WatchEpisode[]
+  it('takes the season when given, else the first episode or absolute number', () => {
+    expect(landingEpisode(eps, { ep: 3, season: 2 })).toBe(eps[1])
+    expect(landingEpisode(eps, { ep: 3 })).toBe(eps[0])
+    expect(landingEpisode(eps, { ep: 15 })).toBe(eps[1])
+    expect(landingEpisode(eps, { ep: 9 })).toBeUndefined()
+  })
+})
+
+describe('langName', () => {
+  it('names a language tag in the reader language and marks unknown ones', () => {
+    expect(langName('ja', 'de')).toBe('Japanisch')
+    expect(langName(undefined, 'de')).toBe('?')
+    expect(langName('und', 'en')).toBe('?')
   })
 })

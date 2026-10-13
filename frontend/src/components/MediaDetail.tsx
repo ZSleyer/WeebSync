@@ -1,7 +1,6 @@
-import { type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ExternalLink, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge, ButtonLink } from 'fluid-lycoris'
 import type { Airing, Media, MediaExtras } from '../api'
 import { countdown } from '../countdown'
 
@@ -11,8 +10,8 @@ export const mediaLink = (source: string | undefined, id: number) =>
     ? { href: `https://www.themoviedb.org/${source.slice(5)}/${id}`, label: 'TMDB' }
     : { href: `https://anilist.co/anime/${id}`, label: 'AniList' }
 
-// AniList's YYYYMMDD, rendered in the reader's locale; 0 or a bare year stay short
-const fuzzyDate = (d?: number) => {
+// AniList's YYYYMMDD as "12. Oktober 2026"; a month or a bare year stay short
+export const fuzzyDate = (d?: number) => {
   if (!d) return ''
   const y = Math.floor(d / 10000)
   const m = Math.floor((d % 10000) / 100)
@@ -20,23 +19,34 @@ const fuzzyDate = (d?: number) => {
   if (!m) return String(y)
   return new Date(y, m - 1, day || 1).toLocaleDateString(
     [],
-    day ? { year: 'numeric', month: '2-digit', day: '2-digit' } : { year: 'numeric', month: 'long' },
+    day ? { year: 'numeric', month: 'long', day: 'numeric' } : { year: 'numeric', month: 'long' },
   )
 }
 
-function Section({ title, children }: { title: ReactNode; children: ReactNode }) {
-  return (
-    <section className="mt-4 border-t border-border-subtle pt-4 first:mt-0 first:border-0 first:pt-0">
-      <h4 className="t-label mb-2">{title}</h4>
-      {children}
-    </section>
-  )
+// a description longer than this folds to a few lines behind "read more"
+const LONG = 320
+
+/** AniList descriptions still carry some inline HTML: the browser's parser makes it text. */
+export const plainText = (html: string) =>
+  new DOMParser()
+    .parseFromString(html.replace(/<br\s*\/?>/gi, '\n'), 'text/html')
+    .body.textContent?.replace(/\n\s*\n(\s*\n)+/g, '\n\n')
+    .trim() ?? ''
+
+/** "heute", "morgen" or the weekday with the date, for a release time. */
+export function dayWord(t: (k: string) => string, ms: number, now: number) {
+  const day = (x: number) => new Date(x).setHours(0, 0, 0, 0)
+  const diff = Math.round((day(ms) - day(now)) / 86_400_000)
+  if (diff === 0) return t('series.day.today')
+  if (diff === 1) return t('series.day.tomorrow')
+  return new Date(ms).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'numeric' })
 }
 
 /**
- * The overview of a title: description, studios and dates, the next
- * releases, the outbound links, the trailer, then whatever the caller adds
- * (the catalog's folder versions). The head of the card lives in the dialog.
+ * The overview of a title: the description (folded when long), the facts,
+ * the next releases, the outbound links and the trailer, then whatever the
+ * caller adds (the catalog's folder versions). The head of the page lives in
+ * the detail itself.
  */
 export default function MediaDetail({
   media: m,
@@ -56,163 +66,158 @@ export default function MediaDetail({
   children?: ReactNode
 }) {
   const { t } = useTranslation()
-  const l = mediaLink(source, m.id)
+  const [open, setOpen] = useState(false)
+  const src = source?.startsWith('tmdb') ? 'TMDB' : 'AniList'
+  const desc = m.description ? plainText(m.description) : ''
+  const long = desc.length > LONG
   // the title's own schedule: the dub slots a watch adds belong to the calendar
-  const upcoming = (airings ?? []).filter((a) => a.at * 1000 > now && !a.dub).slice(0, 5)
+  const upcoming = (airings ?? []).filter((a) => a.at * 1000 > now && !a.dub).slice(0, 3)
   const next =
     upcoming.length === 0 && m.nextAiringEpisode
       ? [{ at: m.nextAiringEpisode.airingAt, episode: m.nextAiringEpisode.episode }]
       : upcoming
-  const facts = [
-    m.studios?.length ? [t('series.studios'), m.studios.join(', ')] : null,
-    m.startDate
-      ? [t('series.aired'), [fuzzyDate(m.startDate), fuzzyDate(m.endDate)].filter(Boolean).join(' bis ')]
-      : null,
-  ].filter((f): f is string[] => !!f)
-  // streaming first: that is the link a reader is after; the rest stays a
-  // muted second row
+  const start = fuzzyDate(m.startDate)
+  const end = fuzzyDate(m.endDate)
+  const format = m.format ? t(`series.format.${m.format}`, m.format) : ''
+  const facts: [string, string][] = (
+    [
+      [t('series.fact.studio'), m.studios?.join(', ') ?? ''],
+      [
+        t('series.fact.period'),
+        start
+          ? end
+            ? t('series.period.range', { a: start, b: end })
+            : m.status === 'RELEASING'
+              ? t('series.period.running', { a: start })
+              : start
+          : '',
+      ],
+      [
+        t('series.fact.format'),
+        format && m.episodes > 1 ? t('series.formatEps', { format, count: m.episodes }) : format,
+      ],
+      [
+        t('series.fact.score'),
+        m.averageScore > 0
+          ? m.popularity
+            ? t('series.scoreLine', { s: m.averageScore, n: m.popularity.toLocaleString(), source: src })
+            : t('series.scoreOnly', { s: m.averageScore })
+          : '',
+      ],
+      [t('series.fact.genres'), m.genres?.join(', ') ?? ''],
+    ] as [string, string][]
+  ).filter(([, v]) => v)
+  // streaming first: that is the link a reader is after
   const streaming = (links ?? []).filter((x) => x.type === 'STREAMING')
   const other = (links ?? []).filter((x) => x.type !== 'STREAMING')
+  const own = mediaLink(source, m.id)
   return (
-    <div className="p-5">
-      {m.description && (
-        <Section title={t('remote.description')}>
-          <p className="text-sm whitespace-pre-line text-t-secondary">
-            {/* AniList descriptions still carry some inline HTML; strip via
-                the browser's own parser (rendered as a text node, never HTML) */}
-            {new DOMParser()
-              .parseFromString(m.description.replace(/<br\s*\/?>/gi, '\n'), 'text/html')
-              .body.textContent?.replace(/\n\s*\n(\s*\n)+/g, '\n\n')
-              .trim()}
-          </p>
-        </Section>
+    <>
+      <p className="ws-d-desc" data-long={long} data-open={open || undefined} id={`ws-desc-${m.id}`}>
+        {desc || t('series.noDesc', { source: src })}
+      </p>
+      {long && (
+        <button
+          type="button"
+          className="t-link"
+          aria-expanded={open}
+          aria-controls={`ws-desc-${m.id}`}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? t('series.desc.less') : t('series.desc.more')}
+        </button>
       )}
       {facts.length > 0 && (
-        <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-border-subtle pt-4 text-sm">
+        <dl className="ws-d-facts">
           {facts.map(([k, v]) => (
             <div key={k} className="contents">
-              <dt className="text-t-muted">{k}</dt>
-              <dd className="min-w-0 text-t-secondary">{v}</dd>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
             </div>
           ))}
         </dl>
       )}
       {next.length > 0 && (
-        <Section title={t('series.upcoming')}>
-          <ul className="grid gap-1 text-sm">
+        <>
+          <h3 className="ws-d-h3">{t('series.upcoming')}</h3>
+          <ul className="ws-d-sched">
             {next.map((a) => (
-              <li key={`${a.episode}-${a.at}`} className="flex flex-wrap items-baseline gap-x-3">
-                <span className="text-t-primary">{t('watch.chipEp', { n: a.episode })}</span>
-                <span className="font-mono text-xs text-t-secondary">
-                  {new Date(a.at * 1000).toLocaleString([], {
-                    weekday: 'short',
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-                <span className="text-xs text-accent">{countdown(t, a.at, false, now)}</span>
+              <li key={`${a.episode}-${a.at}`}>
+                <span className="ws-mono">F{a.episode}</span>
+                <time dateTime={new Date(a.at * 1000).toISOString()}>
+                  {dayWord(t, a.at * 1000, now)},{' '}
+                  {new Date(a.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </time>
+                <span className="ws-d-quiet">{countdown(t, a.at, false, now)}</span>
               </li>
             ))}
           </ul>
-        </Section>
+        </>
       )}
-      <Section title={t('series.links')}>
-        <div className="flex flex-wrap gap-1.5">
-          <ButtonLink
-            size="sm"
-            className="inline-flex items-center gap-1.5"
-            href={l.href}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {l.label} #{m.id}
-            <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
-          </ButtonLink>
-          {streaming.map((x) => (
-            <ButtonLink
-              key={x.url}
-              size="sm"
-              className="inline-flex items-center gap-1.5"
-              href={x.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Play aria-hidden size="1em" fill="currentColor" strokeWidth={0} />
-              {x.site}
-              {x.language && <span className="text-t-muted">{x.language}</span>}
-            </ButtonLink>
-          ))}
-        </div>
-        {other.length > 0 && (
-          <p className="mt-2 flex flex-wrap gap-x-3 text-xs">
-            {/* min-h-6: a text link is 18px tall, the target floor is 24 (WCAG 2.5.8) */}
-            {other.map((x) => (
-              <a
-                key={x.url}
-                href={x.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex min-h-6 items-center text-t-secondary underline decoration-border-input hover:text-t-primary"
-              >
-                {x.site}
-              </a>
-            ))}
-          </p>
+      <h3 className="ws-d-h3">{t('series.watchMore')}</h3>
+      <ul className="ws-d-links">
+        {m.trailer?.site === 'dailymotion' && (
+          <li>
+            <a href={`https://www.dailymotion.com/video/${m.trailer.id}`} target="_blank" rel="noreferrer">
+              <Play aria-hidden size="1rem" />
+              <span>{t('series.link.trailer')}</span>
+              <span className="ws-d-quiet">Dailymotion</span>
+            </a>
+          </li>
         )}
-      </Section>
-      {(m.trailer?.site === 'youtube' || m.trailer?.site === 'dailymotion') && (
-        <Section title={t('remote.trailer')}>
-          {m.trailer?.site === 'youtube' && (
-            <iframe
-              className="aspect-video w-full"
-              title={t('remote.trailer')}
-              src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}`}
-              // the page sends no referrer at all, which the player rejects
-              // with "error 153"; this hands it the bare origin, no path
-              referrerPolicy="strict-origin"
-              // the player needs its scripts and its own origin (without the
-              // latter it is a black box); popups are the "watch on YouTube"
-              // link, which opens a normal tab, not a sandboxed one. Forms,
-              // downloads and navigating the page stay blocked. The rule
-              // objects to scripts plus origin together, which for a
-              // cross-origin frame is still a sandbox
-              // eslint-disable-next-line react/iframe-missing-sandbox
-              sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
-              allow="encrypted-media; fullscreen"
-              allowFullScreen
-            />
-          )}
-          {m.trailer?.site === 'dailymotion' && (
-            <ButtonLink
-              size="sm"
-              className="inline-flex items-center gap-2"
-              href={`https://www.dailymotion.com/video/${m.trailer.id}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Play aria-hidden size="1em" className="inline align-[-0.125em]" fill="currentColor" strokeWidth={0} />{' '}
-              {t('remote.trailer')}
-              {m.trailer.thumbnail && <img src={m.trailer.thumbnail} alt="" className="h-6 object-cover" />}
-              <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
-            </ButtonLink>
-          )}
-        </Section>
+        {streaming.map((x) => (
+          <li key={x.url}>
+            <a href={x.url} target="_blank" rel="noreferrer">
+              <span aria-hidden className="ws-d-dot" style={{ '--lc': x.color || undefined } as CSSProperties} />
+              <span>{x.site}</span>
+              <span className="ws-d-quiet">
+                {t('series.link.stream')}
+                {x.language ? ` · ${x.language}` : ''}
+              </span>
+            </a>
+          </li>
+        ))}
+        {other.map((x) => (
+          <li key={x.url}>
+            <a href={x.url} target="_blank" rel="noreferrer">
+              <ExternalLink aria-hidden size="1rem" />
+              <span>{x.site}</span>
+              <span className="ws-d-quiet">
+                {x.type === 'SOCIAL' ? t('series.link.social') : t('series.link.info')}
+              </span>
+            </a>
+          </li>
+        ))}
+        <li>
+          <a href={own.href} target="_blank" rel="noreferrer">
+            <ExternalLink aria-hidden size="1rem" />
+            <span>{own.label}</span>
+            <span className="ws-d-quiet">{t('series.link.info')}</span>
+          </a>
+        </li>
+      </ul>
+      {m.trailer?.site === 'youtube' && (
+        <iframe
+          className="ws-d-trailer"
+          title={t('remote.trailer')}
+          loading="lazy"
+          src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}`}
+          // the page sends no referrer at all, which the player rejects
+          // with "error 153"; this hands it the bare origin, no path
+          referrerPolicy="strict-origin"
+          // the player needs its scripts and its own origin (without the
+          // latter it is a black box); popups are the "watch on YouTube"
+          // link, which opens a normal tab, not a sandboxed one. Forms,
+          // downloads and navigating the page stay blocked. The rule
+          // objects to scripts plus origin together, which for a
+          // cross-origin frame is still a sandbox
+          // eslint-disable-next-line react/iframe-missing-sandbox
+          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
+          allow="encrypted-media; fullscreen"
+          allowFullScreen
+        />
       )}
       {children}
-    </div>
-  )
-}
-
-/** The genre chips, for the card head. */
-export function GenreChips({ genres }: { genres?: string[] }) {
-  if (!genres?.length) return null
-  return (
-    <div className="mt-2 flex flex-wrap gap-1">
-      {genres.map((g) => (
-        <Badge key={g}>{g}</Badge>
-      ))}
-    </div>
+    </>
   )
 }

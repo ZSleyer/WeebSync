@@ -516,9 +516,9 @@
     },
     "studios": "Studio",
     "aired": "Aired",
-    "upcoming": "Next episodes",
+    "upcoming": "Upcoming episodes",
     "links": "Links",
-    "threads": "Forum threads",
+    "threads": "Discussions",
     "noThreads": "No threads about this title yet.",
     "replies_one": "{{count}} reply",
     "replies_other": "{{count}} replies",
@@ -528,8 +528,8 @@
     "thisFolder": "This folder",
     "otherFiles": "Other files",
     "noSimilar": "No related titles known.",
-    "relations": "Related titles",
-    "recommendations": "Recommendations",
+    "relations": "Belongs to it",
+    "recommendations": "Community recommendations",
     "unavailable": "{{source}} is not answering right now. This section stays empty until the service is back.",
     "back": "Back to the previous title",
     "state": {
@@ -551,7 +551,8 @@
     "progressLabel": "Progress {{name}}",
     "role": {
       "SUPPORTING": "Supporting",
-      "BACKGROUND": "Background"
+      "BACKGROUND": "Background",
+      "MAIN": "Main role"
     },
     "relation": {
       "SEQUEL": "Sequel",
@@ -567,7 +568,103 @@
       "OTHER": "Other",
       "COMPILATION": "Compilation",
       "CONTAINS": "Contains"
-    }
+    },
+    "backLabel": "Back",
+    "castNote": "Japanese voices",
+    "day": {
+      "today": "today",
+      "tomorrow": "tomorrow"
+    },
+    "deleteWatch": "Delete auto-sync",
+    "desc": {
+      "more": "Read more",
+      "less": "Less"
+    },
+    "ep": {
+      "aired": "Aired",
+      "airs": "airs {{day}} at {{time}}",
+      "count": "{{have}} of {{total}}",
+      "facts": "Details of {{name}}",
+      "file": "File",
+      "loaded": "Loaded",
+      "local": "Local",
+      "missing": "missing on disk",
+      "noDate": "no date yet",
+      "none": "none",
+      "picture": "Picture",
+      "play": "Play {{name}}",
+      "probing": "reading",
+      "read": "Read {{name}}",
+      "size": "Size",
+      "sound": "Audio",
+      "source": "Source",
+      "subs": "Subtitles",
+      "title": "Episode {{n}}"
+    },
+    "fact": {
+      "studio": "Studio",
+      "period": "Aired",
+      "format": "Format",
+      "score": "Score",
+      "genres": "Genres"
+    },
+    "fillGaps": "Fill gaps",
+    "format": {
+      "TV": "Series",
+      "TV_SHORT": "Short series",
+      "MOVIE": "Movie",
+      "SPECIAL": "Special",
+      "OVA": "OVA",
+      "ONA": "ONA",
+      "MUSIC": "Music video"
+    },
+    "formatEps_one": "{{format}}, {{count}} episode",
+    "formatEps_other": "{{format}}, {{count}} episodes",
+    "from": "from {{title}}",
+    "helpful_one": "{{count}} found this helpful",
+    "helpful_other": "{{count}} found this helpful",
+    "inAutoSync": "in auto-sync",
+    "lastReply": "last {{date}}",
+    "link": {
+      "info": "Info",
+      "social": "Social",
+      "stream": "Stream",
+      "trailer": "Trailer"
+    },
+    "match": {
+      "title": "Match",
+      "folder": "Folder",
+      "auto": "matched automatically on {{src}}.",
+      "manual": "matched by hand on {{src}}."
+    },
+    "moreWatches": "More auto-syncs",
+    "noDesc": "{{source}} has no description for this title.",
+    "noReviews": "No reviews on {{source}} yet.",
+    "openAt": "Open on {{site}}",
+    "period": {
+      "range": "{{a}} to {{b}}",
+      "running": "{{a}}, still airing"
+    },
+    "reviewScore": "{{s}} of 100",
+    "scoreLine": "{{s}} of 100, {{n}} on {{source}}",
+    "scoreOnly": "{{s}} of 100",
+    "showInFiles": "Show in files",
+    "sync": {
+      "label": "Auto-sync",
+      "allHere": "All here",
+      "done": "Done. Every episode is here.",
+      "gaps_one": "Episode {{eps}} is missing between episodes you have.",
+      "gaps_other": "Episodes {{eps}} are missing between episodes you have.",
+      "idle": "Checks for new episodes on a schedule.",
+      "load_one": "Load {{count}} missing episode",
+      "load_other": "Load {{count}} missing episodes",
+      "loading_one": "Loading one episode.",
+      "loading_other": "Loading {{count}} episodes.",
+      "waiting": "Waiting for episode {{n}}, {{day}} at {{time}}."
+    },
+    "views_one": "{{count}} view",
+    "views_other": "{{count}} views",
+    "watchMore": "Watch and more"
   },
   "trash": {
     "open_zero": "Trash",
@@ -2124,7 +2221,16 @@
       "part": "Complete first, then visible",
       "partText": "The file downloads as .part and only gets its name once it is complete.",
       "at": "Downloaded {{when}}",
-      "none": "This auto-sync has not downloaded a file yet."
+      "none": "This auto-sync has not downloaded a file yet.",
+      "aired": "Episode {{n}} aired {{day}} at {{time}}",
+      "titleEp": "How episode {{n}} got to the disk",
+      "lang": "Language",
+      "dub": "audio {{langs}}",
+      "sub": "subtitles {{langs}}",
+      "fromProbe": "read from the file",
+      "want": "Wanted: {{want}}",
+      "version": "Version",
+      "replaced": "Replaces the older file {{name}}"
     },
     "skips": {
       "title": "What the last check left behind",
@@ -2136,7 +2242,9 @@
       "owned": "The episode is already in the library under another name.",
       "uploading": "The file is still being uploaded to the server.",
       "queued": "Already in the queue.",
-      "blocked": "The target folder accepted nothing on the last attempt."
+      "blocked": "The target folder accepted nothing on the last attempt.",
+      "rules": "When a file is not loaded",
+      "present": "The episode is already complete at the target."
     },
     "piece": {
       "title": "Title",
