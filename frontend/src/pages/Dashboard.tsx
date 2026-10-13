@@ -97,6 +97,7 @@ import { FsErrorNote, isFsErrorCode } from '../components/FsErrorNote'
 import { useAuth, useNow, usePersistedQuery } from '../hooks'
 import { ProviderBadges } from '../components/ProviderBadges'
 import { useSeriesModal } from '../components/SeriesModal'
+import { useWatchActions } from '../components/watchActions'
 import { useDragReorder } from '../hooks/useDragReorder'
 import ActionSheet, { type SheetAction } from '../components/ActionSheet'
 import ActionMenu from '../components/ActionMenu'
@@ -1236,6 +1237,7 @@ function Attention({ watches }: { watches: Watch[] }) {
   const needy = watches.filter((w) => (w.attention?.length ?? 0) > 0)
   const [open, toggle] = useFold('attention')
   const { open: openSeries } = useSeriesModal()
+  const act = useWatchActions()
   if (needy.length === 0) return null
   const shown = needy.slice(0, 5)
   return (
@@ -1256,36 +1258,60 @@ function Attention({ watches }: { watches: Watch[] }) {
                 // the cover is its own button beside the link, not inside it: a
                 // button in an anchor is not HTML, and the two lead to different
                 // places - the card here, the list there
-                <li key={w.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-                  {w.media?.coverImage?.large && (
-                    <button
-                      type="button"
-                      aria-label={t('remote.detailsFor', {
-                        name: watchTitle(w),
-                      })}
-                      onClick={() => openSeries({ ...seriesTarget(w), tab: 'episodes' })}
-                      className="shrink-0 cursor-pointer rounded-xs"
-                    >
-                      <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />
-                    </button>
-                  )}
-                  {/* title above, chips below and wrapping: side by side the
+                // a swipe answers every reason: check again to the right, the
+                // card with its explanation and gaps to the left
+                <SwipeRow
+                  as="li"
+                  key={w.id}
+                  start={[
+                    {
+                      key: 'check',
+                      label: t('watch.checkNow'),
+                      icon: <RefreshCw aria-hidden size="1.2em" />,
+                      tone: 'accent',
+                      run: () => void act.check(w.id),
+                    },
+                  ]}
+                  end={[
+                    {
+                      key: 'episodes',
+                      label: t('series.tab.episodes'),
+                      icon: <Eye aria-hidden size="1.2em" />,
+                      run: () => openSeries({ ...seriesTarget(w), tab: 'episodes' }),
+                    },
+                  ]}
+                >
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm">
+                    {w.media?.coverImage?.large && (
+                      <button
+                        type="button"
+                        aria-label={t('remote.detailsFor', {
+                          name: watchTitle(w),
+                        })}
+                        onClick={() => openSeries({ ...seriesTarget(w), tab: 'episodes' })}
+                        className="shrink-0 cursor-pointer rounded-xs"
+                      >
+                        <Cover src={w.media.coverImage.large} size="sm" loading="lazy" />
+                      </button>
+                    )}
+                    {/* title above, chips below and wrapping: side by side the
                     failed-check chip alone is wider than the aside column and
                     left the title no room at all */}
-                  <Link to="/watches?filter=attention" className="min-w-0 flex-1 hover:underline">
-                    <span className="block truncate text-t-secondary" title={w.remotePath}>
-                      {watchTitle(w)}
-                    </span>
-                    <span className="mt-1 flex flex-wrap gap-1">
-                      {/* the reasons in words: tooltips don't exist on touch */}
-                      {attentionInfo(t, w).map((c) => (
-                        <Badge key={c.key} tone={c.tone} title={c.key === 'checkFailed' ? w.lastResult : undefined}>
-                          {c.text}
-                        </Badge>
-                      ))}
-                    </span>
-                  </Link>
-                </li>
+                    <Link to="/watches?filter=attention" className="min-w-0 flex-1 hover:underline">
+                      <span className="block truncate text-t-secondary" title={w.remotePath}>
+                        {watchTitle(w)}
+                      </span>
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {/* the reasons in words: tooltips don't exist on touch */}
+                        {attentionInfo(t, w).map((c) => (
+                          <Badge key={c.key} tone={c.tone} title={c.key === 'checkFailed' ? w.lastResult : undefined}>
+                            {c.text}
+                          </Badge>
+                        ))}
+                      </span>
+                    </Link>
+                  </div>
+                </SwipeRow>
               ))}
             </ul>
           </Panel>
