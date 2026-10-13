@@ -1,0 +1,116 @@
+/* ═══ Audio: the mini player (a card above the tabs on a phone, in the
+   sidebar's foot on a desktop) and the playback panel with its folder. ═══ */
+
+.ws-mini {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 56px;
+  padding: 0 4px 0 6px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  overflow: hidden;
+}
+.ws-mini-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  text-align: left;
+  border-radius: 8px;
+}
+.ws-mini-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ws-mini-art { flex: none; width: 42px; height: 42px; border-radius: 6px; object-fit: cover; background: var(--hover); display: grid; place-items: center; color: var(--fg-3); }
+.ws-mini .t { min-width: 0; }
+.ws-mini .t strong { display: block; font-size: 0.875rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-mini .t span { display: block; font-size: 0.75rem; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-mini-prog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  transform-origin: left;
+  transform: scaleX(var(--p, 0));
+}
+/* the sidebar's foot: narrower, the next button goes */
+.ws-mini[data-variant='rail'] { height: 64px; margin: 0 12px 8px; padding: 0 6px 0 12px; gap: 6px; }
+.ws-mini[data-variant='rail'] .ws-mini-art { width: 40px; height: 40px; }
+.ws-mini[data-variant='rail'] .ws-mini-next { display: none; }
+/* the full-screen player and reader cover the phone: the card steps aside */
+@media (width < 64rem) {
+  :is(html.playing, html.reading) .ws-mini { visibility: hidden; }
+}
+
+/* the playback panel: on the /view page of a track and in the sheet the mini player opens */
+.ws-au-page { width: 100%; max-width: 40rem; margin-inline: auto; }
+.ws-au { display: grid; justify-items: stretch; }
+.ws-au-cover { width: min(280px, 72vw); aspect-ratio: 1; object-fit: cover; border-radius: 14px; justify-self: center; margin: 4px 0 16px; background: var(--hover); }
+.ws-au-cover--none { display: grid; place-items: center; color: var(--fg-3); }
+.ws-au-cover--none svg { width: 30%; height: 30%; }
+@media (width >= 64rem) {
+  .ws-au-cover { width: 220px; }
+}
+.ws-au-meta h3 { font: 600 1.1875rem/1.25 var(--f-display); margin: 0 0 2px; overflow-wrap: anywhere; }
+.ws-au-meta p { margin: 0 0 14px; color: var(--fg-3); font-size: 0.875rem; }
+
+/* the scrub: the theme's range with the skewed knob of the player */
+.ws-au-scrub { width: 100%; }
+.ws-au-scrub::-webkit-slider-runnable-track {
+  background: linear-gradient(var(--accent), var(--accent)) 0 / calc(var(--p, 0) * 100%) 100% no-repeat, var(--line);
+}
+.ws-au-scrub::-moz-range-track { background: var(--line); }
+.ws-au-scrub::-webkit-slider-thumb { width: 7px; height: 16px; margin-top: -6px; border-radius: 2px; transform: skewX(-9deg); transition: transform 260ms var(--spring); }
+.ws-au-scrub::-moz-range-thumb { width: 7px; height: 16px; border-radius: 2px; transform: skewX(-9deg); transition: transform 260ms var(--spring); }
+.ws-au-scrub:active::-webkit-slider-thumb { transform: skewX(-9deg) scale(1.2); }
+.ws-au-scrub:active::-moz-range-thumb { transform: skewX(-9deg) scale(1.2); }
+.ws-au-times { display: flex; justify-content: space-between; font: 0.75rem var(--f-mono); color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.ws-au-ctl { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 16px; }
+.ws-au-sk { font: 600 0.8125rem/1 var(--f-sans); }
+.ws-au-play {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ws-au-play svg { width: 28px; height: 28px; }
+.ws-au-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) {
+  .ws-au-play { transition: scale 160ms var(--spring); }
+  .ws-au-play:active { scale: 0.96; }
+}
+.ws-au-opts { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.ws-au-opts > div { display: grid; gap: 4px; }
+.ws-au-opts label { font-size: 0.8125rem; color: var(--fg-3); }
+.ws-au-h { font: 600 1rem/1.3 var(--f-display); margin: 16px 0 6px; }
+.ws-au-list { list-style: none; margin: 0; padding: 0; }
+.ws-au-list button {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.ws-au-list li:last-child button { border-bottom: 0; }
+.ws-au-list .n { font: 0.75rem var(--f-mono); color: var(--fg-3); text-align: right; font-variant-numeric: tabular-nums; }
+.ws-au-list strong { display: block; font-weight: 500; font-size: 0.875rem; overflow-wrap: anywhere; }
+.ws-au-list [aria-current] strong { color: var(--accent); }
+.ws-au-list button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) {
+  .ws-au-list button:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+}
+.ws-au-hd { display: flex; align-items: center; gap: 8px; padding: 12px 12px 4px 20px; }
+.ws-au-hd h2 { flex: 1; min-width: 0; margin: 0; font: 600 var(--fs-sheet, 1.25rem)/1.2 var(--f-display); }
+.ws-au-sheet { padding: 0 20px 20px; }

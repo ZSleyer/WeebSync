@@ -1789,6 +1789,20 @@
     "hostKeyReject": "Ablehnen",
     "hostKeyRejected": "Host-Key abgelehnt - es wurde nichts gespeichert."
   },
+  "audio": {
+    "title": "Wiedergabe",
+    "open": "Audio-Player öffnen",
+    "back15": "15 Sekunden zurück",
+    "fwd30": "30 Sekunden vor",
+    "repeat": "Wiederholen: {{mode}}",
+    "repeat_off": "aus",
+    "repeat_all": "Ordner",
+    "repeat_one": "Titel",
+    "inFolder": "Im Ordner",
+    "sleepOff": "Aus",
+    "minutes": "{{n}} min",
+    "sleepEnd": "Ende des Titels"
+  },
   "plex": {
     "openBrowser": "Im Browser öffnen",
     "syncOnce": "Syncen",

@@ -1,11 +1,21 @@
-import { createContext, useContext, useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Music, Pause, Play, SkipForward, X } from 'lucide-react'
-import { IconButton } from 'fluid-lycoris'
+import { Music, Pause, Play, SkipBack, SkipForward, Square, X } from 'lucide-react'
+import { Dialog, IconButton, Select } from 'fluid-lycoris'
 import type { Entry } from '../api'
 import { useStored } from '../hooks/useStored'
 import { streamUrl, viewHref } from './playLinks'
+import './audio.css'
 
 /** What plays: a folder's tracks in order, one of them now. */
 export interface Queue {
@@ -36,6 +46,9 @@ interface Audio {
   setRate: (r: number) => void
   setRepeat: (r: Repeat) => void
   setSleep: (s: Sleep) => void
+  /** the playback panel the mini player opens */
+  panel: boolean
+  setPanel: (open: boolean) => void
 }
 
 const Ctx = createContext<Audio | null>(null)
@@ -76,6 +89,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [rate, setRate] = useStored<number>('viewer.rate', 1)
   const [repeat, setRepeat] = useStored<Repeat>('viewer.repeat', 'off')
   const [sleep, setSleep] = useState<Sleep>(null)
+  const [panel, setPanel] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const track = queue ? queue.tracks[queue.at] : null
@@ -97,7 +111,17 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     el.current?.pause()
     setQueue(null)
     setSleep(null)
+    setPanel(false)
   }
+
+  // the root knows a track is loaded: the shell makes room for the mini player
+  const loaded = !!queue
+  useEffect(() => {
+    if (!loaded) return
+    const root = document.documentElement
+    root.classList.add('has-audio')
+    return () => root.classList.remove('has-audio')
+  }, [loaded])
 
   // the sleep timer: a while from now, or when the track ends (onEnded)
   useEffect(() => {
@@ -205,6 +229,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     setRate,
     setRepeat,
     setSleep,
+    panel,
+    setPanel,
   }
   return (
     // the value moves with the clock several times a second anyway, so a memo
@@ -226,13 +252,18 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         onPause={() => setPaused(true)}
         onEnded={onEnded}
       />
+      {panel && queue && <AudioSheet onClose={() => setPanel(false)} />}
     </Ctx.Provider>
   )
 }
 
+const trackTitle = (e: Entry) => e.name.replace(/\.[^.]+$/, '')
+
 /**
- * What plays, in reach from every page: in the sidebar on a desktop, above
- * the tabs on a phone. Gone on the track's own page, which has it all.
+ * What plays, in reach from every page: a card above the tabs on a phone, in
+ * the sidebar's foot on a desktop. Tapping it opens the playback panel; the
+ * track's own page has it all and shows none. A thin line along its foot
+ * runs with the track.
  */
 export function MiniPlayer({ variant }: { variant: 'rail' | 'pill' }) {
   const { t } = useTranslation()
@@ -240,62 +271,217 @@ export function MiniPlayer({ variant }: { variant: 'rail' | 'pill' }) {
   const { pathname, search } = useLocation()
   if (!a.queue || !a.track || onPageOf(pathname, search, a.track.path)) return null
   const q = a.queue
-  const title = a.track.name.replace(/\.[^.]+$/, '')
-  const pill = variant === 'pill'
-  const link = (
-    <Link
-      to={viewHref(q.server, a.track.path)}
-      className={`flex min-w-0 flex-1 items-center gap-2 ${pill ? 'rounded-full' : 'rounded-sm'}`}
+  const share = a.duration > 0 ? Math.min(1, a.time / a.duration) : 0
+  return (
+    <div
+      role="region"
+      aria-label={t('viewer.nowPlaying')}
+      className={`ws-mini ${variant === 'pill' ? 'lg:hidden' : ''}`}
+      data-variant={variant}
     >
-      {q.cover ? (
-        <img src={q.cover} alt="" className={`size-9 shrink-0 object-cover ${pill ? 'rounded-full' : 'rounded-sm'}`} />
-      ) : (
-        <span className="grid size-9 shrink-0 place-items-center text-t-muted" aria-hidden>
-          <Music size="1.1em" />
+      <button type="button" className="ws-mini-open" aria-label={t('audio.open')} onClick={() => a.setPanel(true)}>
+        {q.cover ? (
+          <img src={q.cover} alt="" className="ws-mini-art" />
+        ) : (
+          <span className="ws-mini-art" aria-hidden>
+            <Music size="1.1em" />
+          </span>
+        )}
+        <span className="t">
+          <strong>{trackTitle(a.track)}</strong>
+          {q.album && <span>{q.album}</span>}
         </span>
-      )}
-      <span className="min-w-0">
-        <span className="block max-w-48 truncate text-sm font-medium">{title}</span>
-        <span className="block max-w-48 truncate text-ctl-sm tabular-nums text-t-secondary">
-          {clock(a.time)}
-          {a.duration > 0 && ` / ${clock(a.duration)}`}
-        </span>
-      </span>
-    </Link>
-  )
-  const controls = (
-    <>
+      </button>
       <IconButton aria-label={a.paused ? t('player.play') : t('player.pause')} onClick={a.toggle}>
-        {a.paused ? <Play aria-hidden /> : <Pause aria-hidden />}
+        {a.paused ? <Play aria-hidden fill="currentColor" /> : <Pause aria-hidden fill="currentColor" />}
       </IconButton>
-      {!pill && q.at + 1 < q.tracks.length && (
-        <IconButton aria-label={t('viewer.nextTrack')} onClick={() => a.go(q.at + 1)}>
+      {q.at + 1 < q.tracks.length && (
+        <IconButton className="ws-mini-next" aria-label={t('viewer.nextTrack')} onClick={() => a.go(q.at + 1)}>
           <SkipForward aria-hidden />
         </IconButton>
       )}
-      <IconButton aria-label={t('viewer.stop')} onClick={a.stop}>
-        <X aria-hidden />
-      </IconButton>
-    </>
-  )
-  // the sidebar is narrow: the title gets the row, the buttons the one below
-  return pill ? (
-    <div
-      role="region"
-      aria-label={t('viewer.nowPlaying')}
-      className="mx-auto flex w-fit max-w-full items-center gap-2 rounded-full border border-border-subtle bg-bg-card p-1 lg:hidden"
-    >
-      {link}
-      {controls}
+      <span aria-hidden className="ws-mini-prog" style={{ '--p': share } as CSSProperties} />
     </div>
-  ) : (
-    <div
-      role="region"
-      aria-label={t('viewer.nowPlaying')}
-      className="mx-3 mb-2 grid gap-1 rounded-md border border-border-subtle bg-bg-card p-2"
-    >
-      {link}
-      <div className="flex justify-end gap-1">{controls}</div>
+  )
+}
+
+/** The panel the mini player opens: a bottom sheet on a phone, a dialog on a desktop. */
+function AudioSheet({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
+  const a = useAudio()
+  return (
+    <Dialog width="max-w-lg" sheet aria-labelledby="ws-au-h" onClose={onClose}>
+      <div className="dialog-body w-full bg-bg-card">
+        <div className="ws-au-hd">
+          <h2 id="ws-au-h">{t('audio.title')}</h2>
+          <IconButton
+            aria-label={t('viewer.stop')}
+            title={t('viewer.stop')}
+            onClick={() => {
+              a.stop()
+              onClose()
+            }}
+          >
+            <Square aria-hidden size="1em" />
+          </IconButton>
+          <IconButton aria-label={t('common.close')} title={t('common.close')} onClick={onClose}>
+            <X aria-hidden size="1.1em" />
+          </IconButton>
+        </div>
+        <div className="ws-au-sheet min-h-0 overflow-y-auto">
+          <AudioPanel />
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
+const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2]
+const REPEAT_NEXT: Record<Repeat, Repeat> = { off: 'all', all: 'one', one: 'off' }
+
+/**
+ * Playback of the queue: cover, title, position, the controls (back to the
+ * start or the track before, 15 s back, play, 30 s on, the next track),
+ * tempo, sleep timer, repeat, and the folder's tracks.
+ */
+export function AudioPanel({ heading }: { heading?: boolean }) {
+  const { t, i18n } = useTranslation()
+  const a = useAudio()
+  const q = a.queue
+  if (!q || !a.track) return null
+  const at = q.at
+  const num = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 })
+  const sleepValue = a.sleep === null ? '' : String(a.sleep)
+  const max = a.duration || 0
+  const share = max > 0 ? Math.min(1, a.time / max) : 0
+  const Title = heading ? 'h2' : 'h3'
+  return (
+    <div className="ws-au">
+      {q.cover ? (
+        <img className="ws-au-cover" src={q.cover} alt="" />
+      ) : (
+        <span className="ws-au-cover ws-au-cover--none" aria-hidden>
+          <Music />
+        </span>
+      )}
+      <div className="ws-au-meta">
+        <Title>{trackTitle(a.track)}</Title>
+        {q.album && <p>{q.album}</p>}
+      </div>
+      <input
+        type="range"
+        className="ws-au-scrub"
+        min={0}
+        max={max}
+        step={1}
+        value={Math.min(a.time, max)}
+        style={{ '--p': share } as CSSProperties}
+        onChange={(e) => a.seek(Number(e.target.value))}
+        onKeyDown={(e) => {
+          // the arrows step five seconds, as in the video player
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+          e.preventDefault()
+          a.seek(Math.min(max, Math.max(0, a.time + (e.key === 'ArrowRight' ? 5 : -5))))
+        }}
+        aria-label={t('viewer.position')}
+        aria-valuetext={`${clock(a.time)} / ${clock(a.duration)}`}
+      />
+      <div className="ws-au-times" aria-hidden>
+        <span>{clock(a.time)}</span>
+        <span>{a.duration > 0 ? clock(a.duration) : ''}</span>
+      </div>
+      <div className="ws-au-ctl">
+        <IconButton
+          aria-label={t('viewer.prevTrack')}
+          disabled={at <= 0 && a.time <= 3}
+          // a few seconds in, back means the start of this one
+          onClick={() => (a.time > 3 || at <= 0 ? a.seek(0) : a.go(at - 1))}
+        >
+          <SkipBack aria-hidden />
+        </IconButton>
+        <IconButton aria-label={t('audio.back15')} onClick={() => a.seek(Math.max(0, a.time - 15))}>
+          <span className="ws-au-sk" aria-hidden>
+            −15
+          </span>
+        </IconButton>
+        <button
+          type="button"
+          className="ws-au-play"
+          aria-label={a.paused ? t('player.play') : t('player.pause')}
+          onClick={a.toggle}
+        >
+          {a.paused ? <Play aria-hidden fill="currentColor" /> : <Pause aria-hidden fill="currentColor" />}
+        </button>
+        <IconButton aria-label={t('audio.fwd30')} onClick={() => a.seek(Math.min(max, a.time + 30))}>
+          <span className="ws-au-sk" aria-hidden>
+            +30
+          </span>
+        </IconButton>
+        <IconButton
+          aria-label={t('viewer.nextTrack')}
+          disabled={at >= q.tracks.length - 1}
+          onClick={() => a.go(at + 1)}
+        >
+          <SkipForward aria-hidden />
+        </IconButton>
+      </div>
+      <div className="ws-au-opts">
+        <div>
+          <label htmlFor="ws-au-rate">{t('viewer.speed')}</label>
+          <Select id="ws-au-rate" size="sm" value={a.rate} onChange={(e) => a.setRate(Number(e.target.value))}>
+            {RATES.map((r) => (
+              <option key={r} value={r}>
+                {num.format(r)}×
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <label htmlFor="ws-au-sleep">{t('viewer.sleep')}</label>
+          <Select
+            id="ws-au-sleep"
+            size="sm"
+            value={sleepValue}
+            onChange={(e) => {
+              const v = e.target.value
+              a.setSleep(v === '' ? null : v === 'track' ? 'track' : Number(v))
+            }}
+          >
+            <option value="">{t('audio.sleepOff')}</option>
+            {[15, 30, 60].map((m) => (
+              <option key={m} value={m}>
+                {t('audio.minutes', { n: m })}
+              </option>
+            ))}
+            <option value="track">{t('audio.sleepEnd')}</option>
+          </Select>
+        </div>
+        <button
+          type="button"
+          className="t-link"
+          aria-pressed={a.repeat !== 'off'}
+          onClick={() => a.setRepeat(REPEAT_NEXT[a.repeat])}
+        >
+          {t('audio.repeat', { mode: t(`audio.repeat_${a.repeat}`) })}
+        </button>
+      </div>
+      {q.tracks.length > 1 && (
+        <>
+          <h3 className="ws-au-h" id="ws-au-list">
+            {t('audio.inFolder')}
+          </h3>
+          <ol className="ws-au-list" aria-labelledby="ws-au-list">
+            {q.tracks.map((e, n) => (
+              <li key={e.path}>
+                <button type="button" aria-current={n === at ? 'true' : undefined} onClick={() => a.go(n)}>
+                  <span className="n">{n + 1}</span>
+                  <strong>{trackTitle(e)}</strong>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
     </div>
   )
 }

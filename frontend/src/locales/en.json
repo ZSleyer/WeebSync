@@ -1789,6 +1789,20 @@
     "hostKeyReject": "Reject",
     "hostKeyRejected": "Host key rejected - nothing was saved."
   },
+  "audio": {
+    "title": "Playback",
+    "open": "Open the audio player",
+    "back15": "Back 15 seconds",
+    "fwd30": "Forward 30 seconds",
+    "repeat": "Repeat: {{mode}}",
+    "repeat_off": "off",
+    "repeat_all": "folder",
+    "repeat_one": "track",
+    "inFolder": "In this folder",
+    "sleepOff": "Off",
+    "minutes": "{{n}} min",
+    "sleepEnd": "End of track"
+  },
   "plex": {
     "openBrowser": "Open in browser",
     "syncOnce": "Sync",
