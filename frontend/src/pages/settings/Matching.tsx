@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Menu, MenuItem, PageHeader, Panel, useMenu } from '@weebsync/design-system'
-import { api, type Media } from '../../api'
+import { api, type Media, type ScopeRule } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { useToast } from '../../components/toast'
 import Loading from '../../components/Loading'
@@ -119,6 +119,9 @@ export default function Matching() {
           />
         ))
       )}
+
+      {/* which new folders get a catalog mark on their own: decided here, next to what they feed */}
+      <ScopeRules />
 
       <Panel danger as="section" className="mb-4 p-5" aria-label={t('settings.jobs.rematchAllServers')}>
         <Badge tone="err">{t('settings.jobs.rematchAllServers')}</Badge>
@@ -532,5 +535,69 @@ function MatchesView({ stat }: { stat: MatchStat }) {
         )}
       </Panel>
     </div>
+  )
+}
+
+// The folder rules: which new folders get a catalog mark on their own. They
+// are made in the catalog view of a marked folder or from a dashboard hint,
+// and this is where they are seen together and ended.
+export function ScopeRules() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const confirm = useConfirm()
+  const { data: rules = [] } = useQuery<ScopeRule[]>({
+    queryKey: ['scope-rules'],
+    queryFn: () => api.get('/api/catalog/scope-rules'),
+  })
+  const del = useMutation({
+    mutationFn: (id: number) => api.del(`/api/catalog/scope-rules/${id}`),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['scope-rules'] })
+      qc.invalidateQueries({ queryKey: ['catalog-scope'] })
+      qc.invalidateQueries({ queryKey: ['scope-hints'] })
+    },
+  })
+  if (rules.length === 0) return null
+  const kindLabel = (kind: string) =>
+    ({
+      anime: t('remote.scopeAnime'),
+      manga: t('remote.scopeManga'),
+      tv: t('remote.scopeTv'),
+      movie: t('remote.scopeMovie'),
+      tvdb: t('remote.scopeTvdb'),
+    })[kind] ?? kind
+  // the placeholders in words: "{n}-{n} {season}" reads as "#-# Jahreszeit"
+  const shape = (s: string) => s.replaceAll('{n}', '#').replaceAll('{season}', t('servers.ruleSeason'))
+  return (
+    <Panel as="section" className="mt-4 p-4" aria-label={t('servers.rules')}>
+      <Badge tone="accent">{t('servers.rules')}</Badge>
+      <p className="mt-2 text-xs text-t-muted">{t('servers.rulesHint')}</p>
+      <ul className="mt-3 divide-y divide-border-subtle text-sm">
+        {rules.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center gap-2 py-2">
+            <span className="min-w-0 flex-1">
+              <span className="block break-all font-mono text-xs text-t-muted">
+                {r.serverName || t('servers.local')}: {r.parent}
+              </span>
+              <span className="block">
+                <span className="font-mono">{shape(r.shape)}</span> {'->'} {kindLabel(r.kind)}
+              </span>
+            </span>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={del.isPending}
+              aria-label={`${t('servers.ruleDelete')}: ${r.parent}/${shape(r.shape)}`}
+              onClick={async () => {
+                if (await confirm({ message: t('servers.ruleConfirmDelete'), destructive: true })) del.mutate(r.id)
+              }}
+            >
+              <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('servers.ruleDelete')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Panel>
   )
 }
