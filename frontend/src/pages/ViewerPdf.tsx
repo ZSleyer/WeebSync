@@ -8,7 +8,7 @@ import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-d
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import Loading from '../components/Loading'
 import { doneKey, streamUrl } from '../components/playLinks'
-import { Paged, useNextBook } from './Viewer'
+import { Paged, useBookEnd } from './Viewer'
 
 GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -24,7 +24,7 @@ GlobalWorkerOptions.workerSrc = workerUrl
  */
 export default function ViewerPdf({ server, path }: { server: number; path: string }) {
   const { t } = useTranslation()
-  const nextHref = useNextBook(server, path)
+  const end = useBookEnd(server, path)
   const doc = useQuery({
     queryKey: ['pdf', server, path],
     queryFn: () => getDocument({ url: streamUrl(server, path), disableAutoFetch: true, enableXfa: false }).promise,
@@ -33,12 +33,19 @@ export default function ViewerPdf({ server, path }: { server: number; path: stri
     retry: false,
   })
   useEffect(() => () => void doc.data?.loadingTask.destroy(), [doc.data])
-  if (doc.isPending) return <Loading />
+  if (doc.isPending)
+    return (
+      <div className="ws-rd-state">
+        <Loading />
+      </div>
+    )
   if (doc.error)
     return (
-      <p role="alert" className="text-err">
-        {t('viewer.loadError')} {doc.error.message}
-      </p>
+      <div className="ws-rd-state">
+        <p role="alert">
+          {t('viewer.loadError')} {doc.error.message}
+        </p>
+      </div>
     )
   const pdf = doc.data
   return (
@@ -47,8 +54,9 @@ export default function ViewerPdf({ server, path }: { server: number; path: stri
       page={`viewer.page:${server}:${path}`}
       done={doneKey(server, path)}
       direction="western"
+      kind="pdf"
       label={path.split('/').pop() ?? ''}
-      nextHref={nextHref}
+      end={end}
       render={(i, fit) => (
         <PdfPage key={i} pdf={pdf} n={i + 1} fit={fit} alt={t('viewer.pageOf', { page: i + 1, count: pdf.numPages })} />
       )}

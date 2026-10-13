@@ -1,66 +1,53 @@
 import {
+  createContext,
   lazy,
   Suspense,
+  useContext,
   useEffect,
   useEffectEvent,
   useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent,
   type ReactNode,
 } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { createPortal } from 'react-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import {
-  AArrowDown,
-  AArrowUp,
+  ArrowLeft,
   ArrowLeftRight,
   BookOpen,
   ChevronLeft,
   ChevronRight,
   GalleryVertical,
   LayoutGrid,
+  List,
   Maximize,
-  MoonStar,
+  Minimize,
   MoveHorizontal,
   MoveVertical,
-  Pause,
-  Play,
-  RectangleVertical,
-  Repeat,
-  Repeat1,
   SkipBack,
   SkipForward,
-  type LucideIcon,
+  X,
 } from 'lucide-react'
-import {
-  Button,
-  buttonClass,
-  Cover,
-  Dialog,
-  EmptyState,
-  IconButton,
-  Modal,
-  Panel,
-  Select,
-  Tab,
-  Tabs,
-  Toolbar,
-  useSwipe,
-} from 'fluid-lycoris'
+import { buttonClass, Dialog, EmptyState, Segmented } from 'fluid-lycoris'
 import { api, type Entry } from '../api'
 import Loading from '../components/Loading'
-import { clock, useAudio, type Repeat as RepeatMode } from '../components/AudioPlayer'
+import { AudioPanel, useAudio } from '../components/AudioPlayer'
+import { useImmersive } from '../components/useImmersive'
 import { useStored } from '../hooks/useStored'
 import Markdown from '../components/Markdown'
-import FileIcon from '../components/FileIcon'
 import {
+  catalogTitle,
   doneKey,
   filesLink,
   isBook,
   listFolder,
   streamUrl,
+  useBack,
   viewHref,
   viewKind,
   type ViewKind,
@@ -77,6 +64,8 @@ import {
   type EpubChapter,
   type Sheet,
 } from '../components/bookParse'
+import { clampTo, dragOutcome, lookedUrl, READER_THEMES, volumeOf, type BookLook, type ReaderTheme } from './readerUtil'
+import './reader.css'
 
 // pdf.js is a megabyte nobody but a PDF needs
 const PdfView = lazy(() => import('./ViewerPdf'))
@@ -90,6 +79,7 @@ export interface ReaderBook {
 
 const byName = (a: Entry, b: Entry) => a.name.localeCompare(b.name, undefined, { numeric: true })
 const parentOf = (p: string) => p.slice(0, p.lastIndexOf('/')) || '/'
+const stem = (name: string) => name.replace(/\.[^.]+$/, '')
 // a piece of an unpacked book; every segment escaped, the slashes kept
 export const bookUrl = (base: string, p: string) => base + p.split('/').map(encodeURIComponent).join('/')
 
@@ -106,23 +96,16 @@ function ViewerView({ server, path }: { server: number; path: string }) {
   const name = path.split('/').pop() || path
   const kind = viewKind(name)
   if (!path || !kind) return <EmptyState>{t('viewer.unsupported')}</EmptyState>
+  // a song plays in the app's one audio element and keeps the shell around it
+  if (kind === 'audio') return <AudioView server={server} path={path} />
   return (
-    <div className="page-fill flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <FileIcon isDir={false} name={name} />
-        <h2 className="min-w-0 flex-1 truncate font-display text-base" title={path}>
-          {name}
-        </h2>
-        <Link className={buttonClass({ size: 'sm', className: 'shrink-0' })} to={filesLink(server, parentOf(path))}>
-          {t('viewer.inFolder')}
-        </Link>
-      </div>
+    <ReaderFrame server={server} path={path} title={stem(name)} themed={kind === 'epub'}>
       <Body kind={kind} server={server} path={path} />
-    </div>
+    </ReaderFrame>
   )
 }
 
-function Body({ kind, server, path }: { kind: ViewKind; server: number; path: string }) {
+function Body({ kind, server, path }: { kind: Exclude<ViewKind, 'audio'>; server: number; path: string }) {
   switch (kind) {
     case 'comic':
     case 'epub':
@@ -130,12 +113,10 @@ function Body({ kind, server, path }: { kind: ViewKind; server: number; path: st
       return <BookView server={server} path={path} />
     case 'pdf':
       return (
-        <Suspense fallback={<Loading />}>
+        <Suspense fallback={<ReaderState loading />}>
           <PdfView server={server} path={path} />
         </Suspense>
       )
-    case 'audio':
-      return <AudioView server={server} path={path} />
     case 'image':
       return <ImageView server={server} path={path} />
     case 'text':
@@ -143,12 +124,232 @@ function Body({ kind, server, path }: { kind: ViewKind; server: number; path: st
   }
 }
 
-function Failed({ error }: { error: unknown }) {
+// ---- the frame: full screen, floating bars that step aside ----
+
+interface Frame {
+  /** the bars are showing */
+  chrome: boolean
+  /** the middle tap: show or hide the bars */
+  toggle: () => void
+  /** a tool was used: the bars stay a while longer */
+  poke: () => void
+  /** keep the bars this long without stepping aside, or never (for views without tap zones) */
+  setAutohide: (on: boolean) => void
+  /** the line under the title and the right end of the top bar, filled by the view inside */
+  sub: HTMLElement | null
+  slot: HTMLElement | null
+  theme: ReaderTheme
+  setTheme: (t: ReaderTheme) => void
+  /** back to where the reader came from */
+  close: () => void
+}
+const FrameCtx = createContext<Frame | null>(null)
+const useFrame = () => {
+  const f = useContext(FrameCtx)
+  if (!f) throw new Error('useFrame outside ReaderFrame')
+  return f
+}
+
+/** How long the bars stay after the last touch. */
+const AUTOHIDE_MS = 3500
+
+/**
+ * The reader's frame: an overlay over the whole app on a phone (the shell's
+ * bars step aside under html.reading), beside the sidebar on a desktop. The
+ * top bar holds the way back, the title and what the view adds; the bars
+ * fade out after a while and a tap in the middle of the page brings them
+ * back. Keyboard focus moving into a bar shows it too.
+ */
+function ReaderFrame({
+  server,
+  path,
+  title,
+  themed,
+  children,
+}: {
+  server: number
+  path: string
+  title: string
+  /** an EPUB takes the chosen background; everything else reads on black */
+  themed: boolean
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
+  useImmersive('reading')
+  const close = useBack(filesLink(server, parentOf(path)))
+  const root = useRef<HTMLDivElement>(null)
+  const bars = useRef<HTMLDivElement>(null)
+  const [chrome, setChrome] = useState(true)
+  const [autohide, setAutohide] = useState(true)
+  const [poked, setPoked] = useState(0)
+  const [sub, setSub] = useState<HTMLElement | null>(null)
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  const [stored, setStored] = useStored<string>('viewer.rdtheme', 'dark')
+  const theme: ReaderTheme = (READER_THEMES as readonly string[]).includes(stored) ? (stored as ReaderTheme) : 'dark'
+  const [full, setFull] = useState(false)
+
+  // the bars step aside after a while, unless something in them is in use:
+  // a keyboard focus, the pointer over them, an open sheet
+  useEffect(() => {
+    if (!chrome || !autohide) return
+    const id = setTimeout(() => {
+      const busy =
+        bars.current?.matches(':hover') ||
+        (bars.current?.contains(document.activeElement) && document.activeElement?.matches(':focus-visible')) ||
+        document.querySelector('dialog[open]')
+      if (busy) setPoked((n) => n + 1)
+      else setChrome(false)
+    }, AUTOHIDE_MS)
+    return () => clearTimeout(id)
+  }, [chrome, autohide, poked])
+
+  useEffect(() => {
+    const on = () => setFull(document.fullscreenElement === root.current)
+    document.addEventListener('fullscreenchange', on)
+    return () => document.removeEventListener('fullscreenchange', on)
+  }, [])
+  const fullscreen = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    else root.current?.requestFullscreen?.().catch(() => {})
+  }
+
+  const frame: Frame = {
+    chrome,
+    toggle: () => {
+      setChrome((c) => !c)
+      setPoked((n) => n + 1)
+    },
+    poke: () => setPoked((n) => n + 1),
+    setAutohide: (on) => {
+      setAutohide(on)
+      if (!on) setChrome(true)
+    },
+    sub,
+    slot,
+    theme,
+    setTheme: setStored,
+    close,
+  }
+  return (
+    // the value carries the bars' state, which changes with every tap anyway
+    // eslint-disable-next-line react/jsx-no-constructed-context-values
+    <FrameCtx.Provider value={frame}>
+      <div
+        ref={root}
+        className="ws-rd"
+        data-rdtheme={themed ? theme : undefined}
+        data-chrome={chrome ? '' : undefined}
+        onFocus={(e) => {
+          // a Tab into a hidden bar shows it
+          if (bars.current?.contains(e.target) || (e.target as HTMLElement).closest?.('.ws-rd-bottom')) {
+            setChrome(true)
+            setPoked((n) => n + 1)
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape' || e.defaultPrevented || document.fullscreenElement) return
+          e.preventDefault()
+          close()
+        }}
+      >
+        {children}
+        <div ref={bars} className="ws-rd-top">
+          <button
+            type="button"
+            className="ws-rd-ic"
+            aria-label={t('reader.back')}
+            title={t('reader.back')}
+            onClick={close}
+          >
+            <ArrowLeft aria-hidden />
+          </button>
+          <div className="ws-rd-title">
+            <b title={path}>{title}</b>
+            <span ref={setSub} />
+          </div>
+          <span ref={setSlot} className="ws-rd-slot" />
+          {document.fullscreenEnabled && (
+            <button
+              type="button"
+              className="ws-rd-ic"
+              aria-label={t('viewer.fullscreen')}
+              title={t('viewer.fullscreen')}
+              aria-pressed={full}
+              onClick={fullscreen}
+            >
+              {full ? <Minimize aria-hidden /> : <Maximize aria-hidden />}
+            </button>
+          )}
+        </div>
+      </div>
+    </FrameCtx.Provider>
+  )
+}
+
+/** The line under the reader's title ("Band 5 · Seite 3 von 14"). */
+function FrameSub({ children }: { children: ReactNode }) {
+  const { sub } = useFrame()
+  return sub ? createPortal(children, sub) : null
+}
+
+/** Buttons for the right end of the reader's top bar. */
+function FrameTools({ children }: { children: ReactNode }) {
+  const { slot } = useFrame()
+  return slot ? createPortal(children, slot) : null
+}
+
+/** A loading line or an error in the middle of the reader. */
+function ReaderState({ loading, error, label }: { loading?: boolean; error?: unknown; label?: string }) {
   const { t } = useTranslation()
   return (
-    <p className="rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-      {t('viewer.loadError')} {error instanceof Error ? error.message : ''}
-    </p>
+    <div className="ws-rd-state">
+      {loading ? (
+        <Loading label={label} />
+      ) : (
+        <p role="alert">
+          {t('viewer.loadError')} {error instanceof Error ? error.message : ''}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A bottom sheet on a phone, a dialog on a desktop: the reader's page
+ * thumbnails, contents and type settings. Rendered at the body, so it takes
+ * the app's colours rather than the reader's.
+ */
+function ReaderSheet({
+  title,
+  onClose,
+  wide,
+  children,
+}: {
+  title: string
+  onClose: () => void
+  wide?: boolean
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
+  return createPortal(
+    <Dialog width={wide ? 'max-w-3xl' : 'max-w-lg'} sheet aria-label={title} onClose={onClose}>
+      <div className="dialog-body w-full bg-bg-card">
+        <div className="ws-rd-sh-hd">
+          <h2>{title}</h2>
+          <button
+            type="button"
+            className="t-iconbtn"
+            aria-label={t('common.close')}
+            title={t('common.close')}
+            onClick={onClose}
+          >
+            <X aria-hidden size="1.1em" />
+          </button>
+        </div>
+        <div className="ws-rd-sh min-h-0 overflow-y-auto">{children}</div>
+      </div>
+    </Dialog>,
+    document.body,
   )
 }
 
@@ -159,24 +360,45 @@ export type PageLayout = 'single' | 'double' | 'scroll'
 // a spread opens on an odd page: the cover stands alone, then 1+2, 3+4 …
 export const spreadOf = (p: number) => (p === 0 ? 0 : p - ((p - 1) % 2))
 
+const HINT_KEY = 'viewer.hinted'
+/** the first open on this device explains the taps, once */
+const firstOpen = () => {
+  try {
+    if (localStorage.getItem(HINT_KEY)) return false
+    localStorage.setItem(HINT_KEY, '1')
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** What follows the last page: the next volume of the folder, the cover of the title. */
+export interface PagedEnd {
+  /** this volume's number, from its file name */
+  volume?: number | null
+  next?: NextBook
+  cover?: string
+}
+
 /**
  * One page at a time, two side by side, or the whole book as one long strip
- * the way a webtoon reads. Pages turn by swipe, tap on the outer thirds, the
- * arrow keys or the slider; right to left reverses all of it, the way a
- * manga reads. The page shown is remembered per file; past the last one the
- * end of the volume offers the next.
+ * the way a webtoon reads. Pages turn by a drag that follows the finger, a
+ * tap on the outer edges, the arrow keys or the slider; right to left
+ * reverses all of it, the way a manga reads. The page shown is remembered
+ * per file; past the last one the end of the volume offers the next.
  */
 export function Paged({
   count,
   page: pageKey,
   initial = 0,
   direction,
+  kind,
   render,
   preload,
   thumb,
   label,
   done,
-  nextHref,
+  end,
 }: {
   count: number
   /** storage key for the reading position; empty = not remembered */
@@ -188,6 +410,8 @@ export function Paged({
    * setting, so a manga read backwards never turns the next PDF around.
    */
   direction: 'manga' | 'western'
+  /** a PDF's pages get a shadow and open fitted to the width */
+  kind?: 'pdf'
   render: (i: number, fit: 'width' | 'height') => ReactNode
   preload?: (i: number) => void
   /** a small picture of a page for the overview; without it the overview lists numbers */
@@ -195,24 +419,30 @@ export function Paged({
   label: string
   /** storage key set once the last page was shown: the volume is read */
   done?: string
-  /** the next volume of the folder, offered once this one is through */
-  nextHref?: string
+  end?: PagedEnd
 }) {
   const { t } = useTranslation()
+  const frame = useFrame()
   const [stored, setStored] = useStored<number>(pageKey || 'viewer.none', initial)
   const [local, setLocal] = useState(initial)
   const page = Math.min(Math.max(pageKey ? stored : local, 0), Math.max(count - 1, 0))
   const setPage = (i: number) => (pageKey ? setStored(i) : setLocal(i))
   const [rtl, setRtl] = useStored<string>(`viewer.rtl.${direction}`, direction === 'manga' ? '1' : '0')
-  const [fit, setFit] = useStored<'width' | 'height'>('viewer.fit', 'height')
+  // kept per kind: a PDF reads fitted to the width, a comic page to the height
+  const [fit, setFit] = useStored<'width' | 'height'>(
+    `viewer.fit.${kind ?? direction}`,
+    kind === 'pdf' ? 'width' : 'height',
+  )
   // kept per direction like the reading way: a manga in spreads leaves the PDFs alone
   const [layout, setLayout] = useStored<PageLayout>(`viewer.layout.${direction}`, 'single')
   const [overview, setOverview] = useState(false)
   // past the last page: the end of the volume stands in for a page
   const [ended, setEnded] = useState(false)
+  const [hint] = useState(firstOpen)
   const isRtl = rtl === '1'
   const scroll = layout === 'scroll'
   const box = useRef<HTMLDivElement>(null)
+  const track = useRef<HTMLDivElement>(null)
 
   // the pages shown together: a spread in double, else the one page
   const start = layout === 'double' ? spreadOf(page) : page
@@ -223,13 +453,14 @@ export function Paged({
   // above the reader shrinks under it
   const [near, setNear] = useState<[number, number]>([page - 1, page + 2])
   const widen = (i: number) => setNear(([lo, hi]) => [Math.min(lo, i - 1), Math.max(hi, i + 2)])
+  const strip = useRef<HTMLDivElement>(null)
   const toPage = (i: number) => {
     setEnded(false)
     setPage(i)
     if (scroll) {
       widen(i)
-      requestAnimationFrame(() => box.current?.querySelector(`[data-page="${i}"]`)?.scrollIntoView())
-    } else box.current?.scrollTo({ top: 0 })
+      requestAnimationFrame(() => strip.current?.querySelector(`[data-page="${i}"]`)?.scrollIntoView())
+    } else box.current?.querySelector('[data-fit="width"]')?.scrollTo({ top: 0 })
   }
   const go = (d: number) => {
     if (ended) {
@@ -239,7 +470,7 @@ export function Paged({
     const n = layout === 'double' ? (d > 0 ? (start === 0 ? 1 : start + 2) : start <= 1 ? 0 : start - 2) : page + d
     if (n >= 0 && n < count) toPage(n)
     else if (n >= count && d > 0) {
-      if (scroll) box.current?.scrollTo({ top: box.current.scrollHeight })
+      if (scroll) strip.current?.scrollTo({ top: strip.current.scrollHeight })
       else setEnded(true)
     }
   }
@@ -248,6 +479,8 @@ export function Paged({
   // the physical directions: on a right-to-left book "left" is forward
   const left = isRtl ? next : prev
   const right = isRtl ? prev : next
+  const canNext = !ended && count > 0
+  const canPrev = ended || page > 0
 
   useEffect(() => {
     for (let i = last + 1; i <= last + 2 && i < count; i++) preload?.(i)
@@ -264,6 +497,9 @@ export function Paged({
   // the page takes focus on opening, so the arrow keys turn pages without a
   // click into it first
   useEffect(() => box.current?.focus({ preventScroll: true }), [])
+  // a strip has no tap zones to bring the bars back, so they stay
+  const setAutohide = useEffectEvent((on: boolean) => frame.setAutohide(on))
+  useEffect(() => setAutohide(!scroll), [scroll])
 
   // the strip: the page across the middle of the reader is the page read
   const onCentre = useEffectEvent((i: number) => {
@@ -271,9 +507,9 @@ export function Paged({
     setPage(i)
     widen(i)
   })
-  const toRead = useEffectEvent(() => box.current?.querySelector(`[data-page="${page}"]`)?.scrollIntoView())
+  const toRead = useEffectEvent(() => strip.current?.querySelector(`[data-page="${page}"]`)?.scrollIntoView())
   useEffect(() => {
-    const root = box.current
+    const root = strip.current
     if (!scroll || !root) return
     toRead()
     const io = new IntersectionObserver(
@@ -295,8 +531,60 @@ export function Paged({
     vv.addEventListener('resize', on)
     return () => vv.removeEventListener('resize', on)
   }, [])
-  // the hook's onNext is a swipe to the left, which is "left" here too
-  const swipe = useSwipe({ onNext: right, onPrev: left, disabled: zoomed || scroll, mouse: false })
+
+  // the drag: the page follows the finger sideways and turns, or springs
+  // back, when it is let go
+  const drag = useRef<{ x: number; y: number; at: number; id: number; axis?: 'x' | 'y'; dx: number } | null>(null)
+  const dragged = useRef(false)
+  const place = (dx: number, moving: boolean) => {
+    const el = track.current
+    if (!el) return
+    el.toggleAttribute('data-moving', moving)
+    el.style.transform = dx ? `translateX(${dx}px)` : ''
+  }
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    dragged.current = false
+    if (e.pointerType === 'mouse' || scroll || ended || zoomed) return
+    drag.current = { x: e.clientX, y: e.clientY, at: e.timeStamp, id: e.pointerId, dx: 0 }
+  }
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    if (!d || e.pointerId !== d.id) return
+    const dx = e.clientX - d.x
+    const dy = e.clientY - d.y
+    if (!d.axis) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return
+      d.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+      if (d.axis === 'x') e.currentTarget.setPointerCapture?.(e.pointerId)
+    }
+    if (d.axis !== 'x') return
+    dragged.current = true
+    // at the first page there is nothing behind: the page gives way only a little
+    const blocked = (dx > 0 && !(isRtl ? canNext : canPrev)) || (dx < 0 && !(isRtl ? canPrev : canNext))
+    d.dx = blocked ? dx / 4 : dx
+    place(d.dx, false)
+  }
+  const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    drag.current = null
+    if (!d || e.pointerId !== d.id || d.axis !== 'x') return
+    const w = box.current?.clientWidth ?? 0
+    const out = dragOutcome(d.dx, e.timeStamp - d.at, w)
+    const can = out === 'right' ? (isRtl ? canPrev : canNext) : out === 'left' ? (isRtl ? canNext : canPrev) : false
+    const still =
+      matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'off'
+    if (!out || !can) return place(0, !still)
+    if (still) {
+      place(0, false)
+      return out === 'right' ? right() : left()
+    }
+    place(out === 'right' ? -w : w, true)
+    setTimeout(() => {
+      if (out === 'right') right()
+      else left()
+      place(0, false)
+    }, 300)
+  }
 
   const onKey = (e: KeyboardEvent) => {
     const k = e.key
@@ -311,83 +599,132 @@ export function Paged({
     else return
     e.preventDefault()
   }
+  // the outer 30 % turn, the middle shows or hides the bars
   const onTap = (e: MouseEvent<HTMLDivElement>) => {
-    if (scroll || ended) return
+    if (dragged.current) {
+      dragged.current = false
+      return
+    }
+    if (ended) return
     const r = e.currentTarget.getBoundingClientRect()
     const x = (e.clientX - r.left) / r.width
-    if (x < 1 / 3) left()
-    else if (x > 2 / 3) right()
-  }
-  const fullscreen = () => {
-    const el = box.current?.parentElement
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-    else el?.requestFullscreen?.().catch(() => {})
+    if (scroll || (x >= 0.3 && x <= 0.7)) frame.toggle()
+    else if (x < 0.3) left()
+    else right()
   }
 
-  const end = (
-    <div className="grid max-w-sm justify-items-center gap-3 p-6 text-center text-white">
-      <p className="font-display text-lg font-semibold text-balance">{t('viewer.endTitle')}</p>
-      <p className="text-sm text-pretty text-white/70">{nextHref ? t('viewer.endNext') : t('viewer.endLast')}</p>
-      <div className="flex flex-wrap justify-center gap-2">
-        {nextHref && (
-          <Link to={nextHref} replace className={buttonClass({ variant: 'primary' })}>
-            {t('viewer.nextVolume')}
-          </Link>
+  const nextVol = end?.next ? volumeOf(end.next.name) : null
+  const endView = (
+    <div className="ws-rd-end">
+      {end?.cover && <img src={end.cover} alt="" />}
+      <h3>
+        {done
+          ? end?.volume != null
+            ? t('reader.volumeRead', { n: end.volume })
+            : t('reader.bookRead')
+          : t('reader.endReached')}
+      </h3>
+      {done && (
+        <p>
+          {end?.next
+            ? nextVol != null
+              ? t('reader.nextOnDisk', { n: nextVol })
+              : t('reader.nextOnDiskPlain')
+            : t('reader.newest')}
+        </p>
+      )}
+      <div className="ws-rd-end-acts">
+        {end?.next && (
+          <ReplaceLink to={end.next.href} className={buttonClass({ variant: 'primary' })}>
+            {nextVol != null ? t('reader.readNext', { n: nextVol }) : t('viewer.nextVolume')}
+          </ReplaceLink>
         )}
         <button type="button" className={buttonClass()} onClick={() => toPage(0)}>
           {t('viewer.fromStart')}
+        </button>
+        <button type="button" className={buttonClass()} onClick={frame.close}>
+          {t('reader.overview')}
         </button>
       </div>
     </div>
   )
 
-  let body: ReactNode = null
-  if (count > 0 && scroll)
-    body = (
-      <div className="mx-auto flex w-full max-w-3xl flex-col">
-        {Array.from({ length: count }, (_, i) => (
-          <div key={i} data-page={i} className="w-full">
-            {i >= near[0] && i <= near[1] ? render(i, 'width') : <div className="aspect-[2/3] w-full" />}
-          </div>
-        ))}
-        {/* past the strip counts as its last page, so the volume reads as done */}
-        <div data-page={count - 1} className="grid min-h-[60dvh] place-items-center">
-          {end}
-        </div>
-      </div>
-    )
-  else if (count > 0 && ended) body = end
-  else if (count > 0 && shown.length === 2)
-    // the spread meets in the middle: the first page hugs the gutter from its side
-    body = (
-      <div className={`absolute inset-0 flex ${isRtl ? 'flex-row-reverse' : ''}`}>
-        {shown.map((i) => (
-          <div
-            key={i}
-            className={`flex h-full w-1/2 items-center ${(i === shown[0]) !== isRtl ? 'justify-end' : 'justify-start'}`}
-          >
-            {render(i, 'height')}
-          </div>
-        ))}
-      </div>
-    )
-  else if (count > 0) body = render(start, layout === 'double' ? 'height' : fit)
-
-  const centred = !scroll && (ended || layout === 'double' || fit === 'height')
   const pageText = t('viewer.pageOf', {
     page: shown.length === 2 ? `${shown[0] + 1}–${shown[1] + 1}` : page + 1,
     count,
   })
-  const layouts: [PageLayout, LucideIcon][] = [
-    ['single', RectangleVertical],
-    ['double', BookOpen],
-    ['scroll', GalleryVertical],
-  ]
+  const count2 = shown.length === 2 ? `${shown[0] + 1}–${shown[1] + 1}` : String(page + 1)
+
+  let body: ReactNode = null
+  if (count > 0 && scroll)
+    body = (
+      <div ref={strip} className="ws-rd-scroll">
+        {Array.from({ length: count }, (_, i) => (
+          <div key={i} data-page={i}>
+            {i >= near[0] && i <= near[1] ? render(i, 'width') : <div className="aspect-[2/3] w-full" />}
+          </div>
+        ))}
+        {/* past the strip counts as its last page, so the volume reads as done */}
+        <div data-page={count - 1}>{endView}</div>
+      </div>
+    )
+  else if (count > 0)
+    body = (
+      <div ref={track} className="ws-rd-track">
+        {shown.length === 2 ? (
+          // the spread meets in the middle: the first page hugs the gutter from its side
+          <div className="ws-rd-unit">
+            <div className="ws-rd-spread" data-rtl={isRtl ? '' : undefined}>
+              {shown.map((i) => (
+                <div key={i} className={(i === shown[0]) !== isRtl ? 'justify-end' : 'justify-start'}>
+                  {render(i, 'height')}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="ws-rd-unit" data-fit={layout === 'double' ? 'height' : fit} data-kind={kind}>
+            {render(start, layout === 'double' ? 'height' : fit)}
+          </div>
+        )}
+      </div>
+    )
+
+  const tool = (
+    on: boolean | undefined,
+    onClick: () => void,
+    icon: ReactNode,
+    text: string,
+    aria?: string,
+    cls = '',
+  ) => (
+    <button
+      type="button"
+      className={`ws-rd-tool ${cls}`}
+      aria-pressed={on}
+      aria-label={aria}
+      onClick={() => {
+        onClick()
+        frame.poke()
+      }}
+    >
+      {icon}
+      <span>{text}</span>
+    </button>
+  )
+  const setLayoutTo = (l: PageLayout) => {
+    setLayout(l)
+    setEnded(false)
+    setNear([page - 1, page + 2])
+  }
+  const dirText = isRtl ? t('reader.dirRtl') : t('reader.dirLtr')
+  const fitText = fit === 'height' ? t('reader.fitHeight') : t('reader.fitWidth')
 
   return (
-    <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* the page: focusable so the keys work right away; the taps and swipes
-        are the pointer's shortcut for the buttons below, not the only way */}
+    <>
+      <FrameSub>{end?.volume != null ? t('reader.volumeSub', { n: end.volume, page: pageText }) : pageText}</FrameSub>
+      {/* the page: focusable so the keys work right away; the taps and drags
+        are the pointer's shortcut for the slider and keys, not the only way */}
       <div
         ref={box}
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region has to take focus to scroll by keyboard (and here to turn pages)
@@ -397,94 +734,107 @@ export function Paged({
         aria-label={label}
         onKeyDown={onKey}
         onClick={onTap}
-        {...swipe}
-        className={`t-reader-page relative min-h-0 flex-1 overflow-auto bg-black ${centred ? 'grid place-items-center' : ''}`}
-        style={{ touchAction: 'pan-y pinch-zoom' }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => {
+          drag.current = null
+          place(0, true)
+        }}
+        className="ws-rd-stage"
       >
         {body}
+        {ended && !scroll && endView}
       </div>
-      <Toolbar className="border-t border-border-subtle p-2">
-        <IconButton aria-label={t('viewer.pageLeft')} onClick={left} disabled={isRtl ? ended : page <= 0 && !ended}>
-          <ChevronLeft aria-hidden />
-        </IconButton>
-        <input
-          type="range"
-          min={1}
-          max={Math.max(count, 1)}
-          value={page + 1}
-          dir={isRtl ? 'rtl' : 'ltr'}
-          onChange={(e) => toPage(Number(e.target.value) - 1)}
-          aria-label={t('viewer.page')}
-          aria-valuetext={pageText}
-          className="t-reader-slider min-w-24 flex-1"
-        />
-        <IconButton aria-label={t('viewer.pageRight')} onClick={right} disabled={isRtl ? page <= 0 && !ended : ended}>
-          <ChevronRight aria-hidden />
-        </IconButton>
-        <span className="min-w-16 text-center font-mono text-xs tabular-nums text-t-muted" aria-live="polite">
-          {pageText}
-        </span>
-        {/* the reading options keep to the right edge: on a phone they wrap into a
-          second row under the page controls instead of trailing them */}
-        <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <span role="group" aria-label={t('viewer.layout')} className="flex items-center gap-1">
-            {layouts.map(([l, Icon]) => (
-              <IconButton
-                key={l}
-                aria-label={t(`viewer.layout_${l}`)}
-                title={t(`viewer.layout_${l}`)}
-                aria-pressed={layout === l}
-                onClick={() => {
-                  setLayout(l)
-                  setEnded(false)
-                  setNear([page - 1, page + 2])
-                }}
-              >
-                <Icon aria-hidden />
-              </IconButton>
-            ))}
-          </span>
-          <IconButton aria-label={t('viewer.overview')} title={t('viewer.overview')} onClick={() => setOverview(true)}>
-            <LayoutGrid aria-hidden />
-          </IconButton>
-          <IconButton
-            aria-label={t('viewer.rtl')}
-            aria-pressed={isRtl}
-            onClick={() => setRtl(isRtl ? '0' : '1')}
-            title={t('viewer.rtl')}
-          >
-            <ArrowLeftRight aria-hidden />
-          </IconButton>
-          {layout === 'single' && (
-            <IconButton
-              aria-label={fit === 'height' ? t('viewer.fitWidth') : t('viewer.fitHeight')}
-              title={fit === 'height' ? t('viewer.fitWidth') : t('viewer.fitHeight')}
-              onClick={() => setFit(fit === 'height' ? 'width' : 'height')}
-            >
-              {fit === 'height' ? <MoveHorizontal aria-hidden /> : <MoveVertical aria-hidden />}
-            </IconButton>
-          )}
-          {document.fullscreenEnabled && (
-            <IconButton aria-label={t('viewer.fullscreen')} title={t('viewer.fullscreen')} onClick={fullscreen}>
-              <Maximize aria-hidden />
-            </IconButton>
-          )}
-        </span>
-      </Toolbar>
-      {overview && (
-        <Overview
-          count={count}
-          at={page}
-          thumb={thumb}
-          rtl={isRtl}
-          onPick={(i) => {
-            setOverview(false)
-            toPage(layout === 'double' ? spreadOf(i) : i)
-          }}
-          onClose={() => setOverview(false)}
-        />
+      {hint && !scroll && (
+        <div className="ws-rd-hint" aria-hidden>
+          <ChevronLeft />
+          <span>{t('reader.hint')}</span>
+          <ChevronRight />
+        </div>
       )}
-    </Panel>
+      <div className="ws-rd-bottom">
+        <div className="ws-rd-sl">
+          <input
+            type="range"
+            min={1}
+            max={Math.max(count, 1)}
+            value={page + 1}
+            dir={isRtl ? 'rtl' : 'ltr'}
+            onChange={(e) => toPage(Number(e.target.value) - 1)}
+            aria-label={t('viewer.page')}
+            aria-valuetext={pageText}
+          />
+          <span className="ws-rd-count" aria-hidden>
+            {count2} / {count}
+          </span>
+        </div>
+        <div className="ws-rd-tools" role="group" aria-label={t('viewer.layout')}>
+          {tool(undefined, () => setOverview(true), <LayoutGrid aria-hidden />, t('reader.pages'))}
+          {tool(
+            undefined,
+            () => setRtl(isRtl ? '0' : '1'),
+            <ArrowLeftRight aria-hidden />,
+            dirText,
+            t('reader.dirIs', { dir: dirText }),
+          )}
+          {layout === 'single' &&
+            tool(
+              undefined,
+              () => setFit(fit === 'height' ? 'width' : 'height'),
+              fit === 'height' ? <MoveVertical aria-hidden /> : <MoveHorizontal aria-hidden />,
+              fitText,
+              t('reader.fitIs', { fit: fitText }),
+            )}
+          {tool(
+            layout === 'double',
+            () => setLayoutTo(layout === 'double' ? 'single' : 'double'),
+            <BookOpen aria-hidden />,
+            t('viewer.layout_double'),
+            undefined,
+            'ws-rd-desk',
+          )}
+          {tool(
+            scroll,
+            () => setLayoutTo(scroll ? 'single' : 'scroll'),
+            <GalleryVertical aria-hidden />,
+            t('reader.scroll'),
+          )}
+        </div>
+      </div>
+      {overview && (
+        <ReaderSheet title={t('reader.pages')} wide onClose={() => setOverview(false)}>
+          <Overview
+            count={count}
+            at={page}
+            thumb={thumb}
+            rtl={isRtl}
+            onPick={(i) => {
+              setOverview(false)
+              toPage(layout === 'double' ? spreadOf(i) : i)
+            }}
+          />
+        </ReaderSheet>
+      )}
+    </>
+  )
+}
+
+/** A link that takes the reader's place in the history (the next volume after this one). */
+function ReplaceLink({ to, className, children }: { to: string; className: string; children: ReactNode }) {
+  const nav = useNavigate()
+  return (
+    <a
+      href={to}
+      className={className}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+        e.preventDefault()
+        nav(to, { replace: true })
+      }}
+    >
+      {children}
+    </a>
   )
 }
 
@@ -495,52 +845,38 @@ function Overview({
   thumb,
   rtl,
   onPick,
-  onClose,
 }: {
   count: number
   at: number
   thumb?: (i: number) => string
   rtl: boolean
   onPick: (i: number) => void
-  onClose: () => void
 }) {
   const { t } = useTranslation()
   // the overview opens on the page being read
   const cur = useRef<HTMLButtonElement>(null)
-  useEffect(() => cur.current?.scrollIntoView({ block: 'center' }), [])
+  useEffect(() => cur.current?.scrollIntoView?.({ block: 'center' }), [])
   return (
-    <Dialog width="max-w-3xl" aria-label={t('viewer.overview')} onClose={onClose}>
-      <Modal className="max-w-none" title={t('viewer.overview')} onClose={onClose} closeLabel={t('common.close')}>
-        <ol
-          dir={rtl ? 'rtl' : 'ltr'}
-          className={`grid gap-2 ${thumb ? 'grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))]' : 'grid-cols-[repeat(auto-fill,minmax(3rem,1fr))]'}`}
-        >
-          {Array.from({ length: count }, (_, i) => (
-            <li key={i}>
-              <button
-                ref={i === at ? cur : undefined}
-                type="button"
-                aria-current={i === at ? 'page' : undefined}
-                aria-label={t('viewer.pageOf', { page: i + 1, count })}
-                onClick={() => onPick(i)}
-                className={`grid w-full gap-1 rounded-md p-1 text-center text-xs tabular-nums hover:bg-bg-hover ${i === at ? 'bg-bg-hover text-accent ring-2 ring-accent' : 'text-t-muted'}`}
-              >
-                {thumb && (
-                  <img
-                    src={thumb(i)}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    className="aspect-[2/3] w-full rounded-sm bg-black object-cover"
-                  />
-                )}
-                {i + 1}
-              </button>
-            </li>
-          ))}
-        </ol>
-      </Modal>
-    </Dialog>
+    <ol
+      dir={rtl ? 'rtl' : 'ltr'}
+      className="ws-rd-thgrid"
+      style={thumb ? undefined : { gridTemplateColumns: 'repeat(auto-fill, minmax(3rem, 1fr))' }}
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <li key={i}>
+          <button
+            ref={i === at ? cur : undefined}
+            type="button"
+            aria-current={i === at ? 'page' : undefined}
+            aria-label={t('viewer.pageOf', { page: i + 1, count })}
+            onClick={() => onPick(i)}
+          >
+            {thumb && <img src={thumb(i)} alt="" loading="lazy" decoding="async" />}
+            <span aria-hidden>{i + 1}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
   )
 }
 
@@ -565,25 +901,51 @@ const warm = (src: string) => {
 
 // ---- unpacked books ----
 
+/** The book after this one in its folder. */
+export interface NextBook {
+  href: string
+  name: string
+}
+
 /** The book after this one in its folder, for the end of a volume. */
-export function useNextBook(server: number, path: string) {
+export function useNextBook(server: number, path: string): NextBook | undefined {
   const folder = useQuery(folderOf(server, path))
   const books = (folder.data ?? []).filter((e) => !e.isDir && isBook(e.name)).sort(byName)
   const i = books.findIndex((e) => e.path === path)
-  return i >= 0 && i + 1 < books.length ? viewHref(server, books[i + 1].path) : undefined
+  return i >= 0 && i + 1 < books.length
+    ? { href: viewHref(server, books[i + 1].path), name: books[i + 1].name }
+    : undefined
+}
+
+/** The end of a volume: its number, the next one in the folder, and the title's cover from the catalog match. */
+export function useBookEnd(server: number, path: string): PagedEnd {
+  const qc = useQueryClient()
+  const next = useNextBook(server, path)
+  const title = useQuery({
+    queryKey: ['reader-title', server, path],
+    queryFn: () => catalogTitle(qc, server, path),
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+  const media = title.data?.media
+  return {
+    volume: volumeOf(path.split('/').pop() ?? ''),
+    next,
+    cover: media?.coverImage?.extraLarge || media?.coverImage?.large || undefined,
+  }
 }
 
 function BookView({ server, path }: { server: number; path: string }) {
   const { t } = useTranslation()
-  const nextHref = useNextBook(server, path)
+  const end = useBookEnd(server, path)
   const book = useQuery({
     queryKey: ['read-open', server, path],
     queryFn: () => api.get<ReaderBook>(`/api/read/open?server=${server}&path=${encodeURIComponent(path)}`),
     staleTime: 30 * 60_000,
     retry: false,
   })
-  if (book.isPending) return <Loading label={t('viewer.unpacking')} />
-  if (book.error) return <Failed error={book.error} />
+  if (book.isPending) return <ReaderState loading label={t('viewer.unpacking')} />
+  if (book.error) return <ReaderState error={book.error} />
   const b = book.data
   if (b.kind === 'epub') return <EpubView base={b.base} server={server} path={path} />
   if (b.kind === 'sheet') return <SheetView base={b.base} path={path} />
@@ -595,7 +957,7 @@ function BookView({ server, path }: { server: number; path: string }) {
       done={doneKey(server, path)}
       direction="manga"
       label={path.split('/').pop() ?? ''}
-      nextHref={nextHref}
+      end={end}
       preload={(i) => warm(bookUrl(b.base, pages[i]))}
       thumb={(i) => bookUrl(b.base, pages[i])}
       render={(i, fit) => (
@@ -635,23 +997,27 @@ async function loadEpub(base: string): Promise<EpubData> {
   return { title: book.title, chapters: book.chapters }
 }
 
-const EPUB_MIN = 70
-const EPUB_MAX = 200
-
 /**
  * An EPUB, one chapter at a time, each in a sandboxed frame: the book's
- * markup is someone else's, so it gets no script and no origin. The frame
- * scrolls the chapter itself; the bar turns chapters.
+ * markup is someone else's, so it gets no script and no origin. The type and
+ * the background go in as a stylesheet the server writes into the chapter
+ * (the frame cannot be reached from here); the frame scrolls the chapter
+ * itself, the bar turns chapters. A position inside a chapter cannot be read
+ * from a frame without scripts, so progress counts in chapters.
  */
 function EpubView({ base, server, path }: { base: string; server: number; path: string }) {
   const { t } = useTranslation()
+  const frame = useFrame()
   const data = useQuery({ queryKey: ['epub', base], queryFn: () => loadEpub(base), staleTime: Infinity })
   const [at, setAt] = useStored<number>(`viewer.chapter:${server}:${path}`, 0)
-  // most books are black on white; this turns the page around for the dark
-  const [night, setNight] = useStored<string>('viewer.night', '0')
-  // the frame has no origin to style into, so the type grows by zooming it,
-  // which also narrows the column the chapter wraps in
-  const [size, setSize] = useStored<number>('viewer.epubSize', 100)
+  const [size, setSize] = useStored<number>('viewer.bkSize', 19)
+  const [lead, setLead] = useStored<number>('viewer.bkLead', 1.6)
+  const [font, setFont] = useStored<string>('viewer.bkFont', 'serif')
+  const [toc, setToc] = useState(false)
+  const [typo, setTypo] = useState(false)
+  // taps land in the chapter's frame, out of reach: the bars stay
+  const setAutohide = useEffectEvent((on: boolean) => frame.setAutohide(on))
+  useEffect(() => setAutohide(false), [])
   // the last chapter reached: the book is read
   const chapters = data.data?.chapters.length ?? 0
   useEffect(() => {
@@ -662,95 +1028,192 @@ function EpubView({ base, server, path }: { base: string; server: number; path: 
       // not remembered
     }
   }, [chapters, at, server, path])
-  if (data.isPending) return <Loading />
-  if (data.error) return <Failed error={data.error} />
+  if (data.isPending) return <ReaderState loading />
+  if (data.error) return <ReaderState error={data.error} />
   const ch = data.data.chapters
-  if (!ch.length) return <Failed error={new Error(t('viewer.noChapters'))} />
-  const i = Math.min(at, ch.length - 1)
+  if (!ch.length) return <ReaderState error={new Error(t('viewer.noChapters'))} />
+  const i = Math.min(Math.max(at, 0), ch.length - 1)
   const labelOf = (c: EpubChapter, n: number) => c.label || t('viewer.chapterN', { n: n + 1 })
-  const contents = (
-    <ol className="grid gap-0.5 text-sm">
-      {ch.map((c, n) => (
-        <li key={c.href}>
-          <button
-            type="button"
-            aria-current={n === i ? 'page' : undefined}
-            onClick={() => setAt(n)}
-            className={`w-full rounded-md px-2 py-1.5 text-left hover:bg-bg-hover ${n === i ? 'bg-bg-hover text-accent' : ''}`}
-          >
-            {labelOf(c, n)}
-          </button>
-        </li>
-      ))}
-    </ol>
-  )
+  const look: BookLook = {
+    size: Math.round(clampTo(size, 15, 26, 19)),
+    lead: clampTo(lead, 1.3, 1.9, 1.6),
+    theme: frame.theme,
+    font: font === 'sans' ? 'sans' : 'serif',
+  }
+  const sub = t('reader.chapterSub', { n: i + 1, count: ch.length })
   return (
-    <div className="flex min-h-0 flex-1 gap-3">
-      {/* the contents beside the page on a wide screen; a picker on a phone */}
-      <nav aria-label={t('viewer.contents')} className="hidden w-64 shrink-0 overflow-y-auto lg:block">
-        {contents}
-      </nav>
-      <Panel className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <>
+      <FrameSub>{sub}</FrameSub>
+      <FrameTools>
+        <button
+          type="button"
+          className="ws-rd-ic"
+          aria-label={t('viewer.contents')}
+          title={t('viewer.contents')}
+          onClick={() => setToc(true)}
+        >
+          <List aria-hidden />
+        </button>
+        <button
+          type="button"
+          className="ws-rd-ic"
+          aria-label={t('reader.typo')}
+          title={t('reader.typo')}
+          onClick={() => setTypo(true)}
+        >
+          <span className="ws-rd-aa" aria-hidden>
+            Aa
+          </span>
+        </button>
+      </FrameTools>
+      <div className="ws-rd-book">
         <iframe
           key={ch[i].href}
           title={labelOf(ch[i], i)}
-          src={bookUrl(base, ch[i].href)}
+          src={lookedUrl(bookUrl(base, ch[i].href), look)}
           sandbox=""
           referrerPolicy="no-referrer"
-          className="min-h-0 w-full flex-1 border-0 bg-white"
-          style={{ zoom: `${size}%`, filter: night === '1' ? 'invert(1) hue-rotate(180deg)' : undefined }}
         />
-        <Toolbar className="border-t border-border-subtle p-2">
-          <IconButton aria-label={t('viewer.prevChapter')} onClick={() => setAt(i - 1)} disabled={i === 0}>
+      </div>
+      <div className="ws-rd-bottom">
+        <div className="ws-rd-sl">
+          <button
+            type="button"
+            className="ws-rd-ic"
+            aria-label={t('viewer.prevChapter')}
+            onClick={() => setAt(i - 1)}
+            disabled={i === 0}
+          >
             <SkipBack aria-hidden />
-          </IconButton>
-          <Select
-            size="sm"
-            wrapperClassName="min-w-0 flex-1 lg:hidden!"
-            aria-label={t('viewer.contents')}
-            value={i}
-            onChange={(e) => setAt(Number(e.target.value))}
-          >
-            {ch.map((c, n) => (
-              <option key={c.href} value={n}>
-                {labelOf(c, n)}
-              </option>
-            ))}
-          </Select>
-          <span className="hidden min-w-0 flex-1 truncate text-sm lg:block">{labelOf(ch[i], i)}</span>
-          <span className="font-mono text-xs tabular-nums text-t-muted">
-            {i + 1}/{ch.length}
+          </button>
+          <input
+            type="range"
+            min={1}
+            max={ch.length}
+            value={i + 1}
+            onChange={(e) => setAt(Number(e.target.value) - 1)}
+            aria-label={t('reader.chapter')}
+            aria-valuetext={`${labelOf(ch[i], i)}, ${sub}`}
+          />
+          <span className="ws-rd-count" aria-hidden>
+            {i + 1} / {ch.length}
           </span>
-          <IconButton aria-label={t('viewer.nextChapter')} onClick={() => setAt(i + 1)} disabled={i >= ch.length - 1}>
+          <button
+            type="button"
+            className="ws-rd-ic"
+            aria-label={t('viewer.nextChapter')}
+            onClick={() => setAt(i + 1)}
+            disabled={i >= ch.length - 1}
+          >
             <SkipForward aria-hidden />
-          </IconButton>
-          <IconButton
-            aria-label={t('viewer.smaller')}
-            title={t('viewer.smaller')}
-            onClick={() => setSize(size - 10)}
-            disabled={size <= EPUB_MIN}
-          >
-            <AArrowDown aria-hidden />
-          </IconButton>
-          <IconButton
-            aria-label={t('viewer.larger')}
-            title={t('viewer.larger')}
-            onClick={() => setSize(size + 10)}
-            disabled={size >= EPUB_MAX}
-          >
-            <AArrowUp aria-hidden />
-          </IconButton>
-          <IconButton
-            aria-label={t('viewer.night')}
-            title={t('viewer.night')}
-            aria-pressed={night === '1'}
-            onClick={() => setNight(night === '1' ? '0' : '1')}
-          >
-            <MoonStar aria-hidden />
-          </IconButton>
-        </Toolbar>
-      </Panel>
-    </div>
+          </button>
+        </div>
+      </div>
+      {toc && (
+        <ReaderSheet title={t('viewer.contents')} onClose={() => setToc(false)}>
+          <ol className="ws-rd-toc">
+            {ch.map((c, n) => (
+              <li key={c.href}>
+                <button
+                  type="button"
+                  aria-current={n === i ? 'page' : undefined}
+                  onClick={() => {
+                    setAt(n)
+                    setToc(false)
+                  }}
+                >
+                  <span>{labelOf(c, n)}</span>
+                  {n < i && <span>{t('reader.read')}</span>}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </ReaderSheet>
+      )}
+      {typo && (
+        <ReaderSheet title={t('reader.typo')} onClose={() => setTypo(false)}>
+          <TypoSettings look={look} onSize={setSize} onLead={setLead} onTheme={frame.setTheme} onFont={setFont} />
+        </ReaderSheet>
+      )}
+    </>
+  )
+}
+
+/** Type and colours of an EPUB: size, line height, background and typeface. */
+function TypoSettings({
+  look,
+  onSize,
+  onLead,
+  onTheme,
+  onFont,
+}: {
+  look: BookLook
+  onSize: (n: number) => void
+  onLead: (n: number) => void
+  onTheme: (t: ReaderTheme) => void
+  onFont: (f: string) => void
+}) {
+  const { t, i18n } = useTranslation()
+  const num = new Intl.NumberFormat(i18n.language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return (
+    <>
+      <label className="grid gap-1">
+        <span className="ws-rd-lbl">{t('reader.size')}</span>
+        <span className="ws-rd-range">
+          <span className="sm" aria-hidden>
+            A
+          </span>
+          <input
+            type="range"
+            min={15}
+            max={26}
+            value={look.size}
+            onChange={(e) => onSize(Number(e.target.value))}
+            aria-valuetext={`${look.size} px`}
+          />
+          <span className="lg" aria-hidden>
+            A
+          </span>
+        </span>
+      </label>
+      <label className="grid gap-1">
+        <span className="ws-rd-lbl">{t('reader.lead')}</span>
+        <input
+          type="range"
+          min={13}
+          max={19}
+          value={Math.round(look.lead * 10)}
+          onChange={(e) => onLead(Number(e.target.value) / 10)}
+          aria-valuetext={num.format(look.lead)}
+        />
+      </label>
+      <div className="grid gap-1" role="group" aria-labelledby="ws-rd-bg">
+        <span id="ws-rd-bg" className="ws-rd-lbl">
+          {t('reader.background')}
+        </span>
+        <div className="ws-rd-themes">
+          {READER_THEMES.map((th) => (
+            <button key={th} type="button" data-th={th} aria-pressed={look.theme === th} onClick={() => onTheme(th)}>
+              {t(`reader.theme_${th}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-1">
+        <span className="ws-rd-lbl" aria-hidden>
+          {t('reader.font')}
+        </span>
+        <Segmented
+          aria-label={t('reader.font')}
+          value={look.font}
+          onChange={onFont}
+          options={[
+            { value: 'serif', label: t('reader.serif') },
+            { value: 'sans', label: t('reader.sans') },
+          ]}
+        />
+      </div>
+    </>
   )
 }
 
@@ -766,30 +1229,52 @@ async function loadSheets(base: string, path: string): Promise<Sheet[]> {
   )
 }
 
+/** A view that has no tap zones: the bars stay. */
+function useBarsStay() {
+  const frame = useFrame()
+  const set = useEffectEvent(() => frame.setAutohide(false))
+  useEffect(() => set(), [])
+}
+
 /** A spreadsheet's values, one sheet at a time. Formulas show their last result. */
 function SheetView({ base, path }: { base: string; path: string }) {
   const { t } = useTranslation()
+  useBarsStay()
   const data = useQuery({ queryKey: ['sheets', base], queryFn: () => loadSheets(base, path), staleTime: Infinity })
   const [at, setAt] = useState(0)
-  if (data.isPending) return <Loading />
-  if (data.error) return <Failed error={data.error} />
+  if (data.isPending) return <ReaderState loading />
+  if (data.error) return <ReaderState error={data.error} />
   const sheets = data.data
   const sheet = sheets[Math.min(at, sheets.length - 1)]
-  if (!sheet) return <Failed error={new Error(t('viewer.emptySheet'))} />
+  if (!sheet) return <ReaderState error={new Error(t('viewer.emptySheet'))} />
   const width = Math.max(0, ...sheet.rows.map((r) => r.length))
+  const nameOf = (s: Sheet, n: number) => s.name || t('viewer.sheetN', { n: n + 1 })
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div className="ws-rd-sheet">
+      <FrameSub>{nameOf(sheet, at)}</FrameSub>
       {sheets.length > 1 && (
-        <Tabs scroll aria-label={t('viewer.sheets')}>
+        <div className="ws-rd-tools" role="group" aria-label={t('viewer.sheets')}>
           {sheets.map((s, n) => (
-            <Tab key={s.name + n} selected={n === at} onClick={() => setAt(n)}>
-              {s.name || t('viewer.sheetN', { n: n + 1 })}
-            </Tab>
+            <button
+              key={s.name + n}
+              type="button"
+              className="ws-rd-tool"
+              aria-pressed={n === at}
+              onClick={() => setAt(n)}
+            >
+              {nameOf(s, n)}
+            </button>
           ))}
-        </Tabs>
+        </div>
       )}
-      <Panel className="min-h-0 flex-1 overflow-auto">
-        <table className="t-sheet text-sm">
+      <div
+        className="ws-rd-sheet-box"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region has to take focus to scroll by keyboard
+        tabIndex={0}
+        role="region"
+        aria-label={nameOf(sheet, at)}
+      >
+        <table className="t-sheet ws-rd-table text-sm">
           <tbody>
             {sheet.rows.map((r, y) => (
               <tr key={y}>
@@ -801,7 +1286,7 @@ function SheetView({ base, path }: { base: string; path: string }) {
             ))}
           </tbody>
         </table>
-      </Panel>
+      </div>
     </div>
   )
 }
@@ -817,7 +1302,7 @@ const folderOf = (server: number, path: string) => ({
 /** A picture, with the other pictures of its folder a swipe away. */
 function ImageView({ server, path }: { server: number; path: string }) {
   const folder = useQuery(folderOf(server, path))
-  if (folder.isPending) return <Loading />
+  if (folder.isPending) return <ReaderState loading />
   const images = (folder.data ?? [])
     .filter((e) => !e.isDir && viewKind(e.name) === 'image')
     .sort(byName)
@@ -842,6 +1327,7 @@ const TEXT_LIMIT = 4 << 20
 
 function TextView({ server, path }: { server: number; path: string }) {
   const { t } = useTranslation()
+  useBarsStay()
   const name = path.split('/').pop() ?? ''
   const text = useQuery({
     queryKey: ['view-text', server, path],
@@ -853,28 +1339,29 @@ function TextView({ server, path }: { server: number; path: string }) {
       return { text: decodeText(new Uint8Array(await res.arrayBuffer()), name, cut), cut }
     },
   })
-  if (text.isPending) return <Loading />
-  if (text.error) return <Failed error={text.error} />
-  const art = /\.(nfo|diz)$/i.test(name)
+  if (text.isPending) return <ReaderState loading />
+  if (text.error) return <ReaderState error={text.error} />
+  const ext = (name.split('.').pop() ?? '').toUpperCase()
   return (
-    <Panel
-      className="min-h-0 flex-1 overflow-auto p-4"
+    <div
+      className="ws-rd-text"
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region has to take focus to scroll by keyboard
       tabIndex={0}
       role="region"
       aria-label={name}
     >
-      {text.data.cut && <p className="mb-3 text-sm text-t-muted">{t('viewer.cut')}</p>}
+      <FrameSub>{t('reader.textSub', { ext })}</FrameSub>
+      {text.data.cut && <p className="ws-rd-note">{t('viewer.cut')}</p>}
       {/\.md$/i.test(name) ? (
-        <div className="max-w-prose">
+        <div className="ws-rd-prose">
           <Markdown text={text.data.text} />
         </div>
       ) : (
-        <pre className={`font-mono text-sm ${art ? 't-nfo whitespace-pre' : 'whitespace-pre-wrap wrap-break-word'}`}>
+        <pre className={/\.(nfo|diz)$/i.test(name) ? 't-nfo whitespace-pre' : 'whitespace-pre-wrap wrap-break-word'}>
           {text.data.text}
         </pre>
       )}
-    </Panel>
+    </div>
   )
 }
 
@@ -884,7 +1371,6 @@ function TextView({ server, path }: { server: number; path: string }) {
  * on when this page is left; the mini player keeps it in reach meanwhile.
  */
 function AudioView({ server, path }: { server: number; path: string }) {
-  const { t } = useTranslation()
   const folder = useQuery(folderOf(server, path))
   const audio = useAudio()
   const entries = folder.data ?? []
@@ -913,112 +1399,9 @@ function AudioView({ server, path }: { server: number; path: string }) {
     if (!folder.isPending) begin()
   }, [folder.isPending])
 
-  const q = audio.queue
-  const at = q && audio.track?.path === path ? q.at : -1
-  const repeatNext: Record<RepeatMode, RepeatMode> = { off: 'all', all: 'one', one: 'off' }
-  const sleepValue = audio.sleep === null ? '' : String(audio.sleep)
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-      <div className="flex flex-col gap-3 lg:w-80 lg:shrink-0">
-        {cover && <Cover src={cover} size="fill" className="aspect-square! w-full max-w-80 self-center" />}
-        <input
-          type="range"
-          min={0}
-          max={audio.duration || 0}
-          step={1}
-          value={Math.min(audio.time, audio.duration || 0)}
-          onChange={(e) => audio.seek(Number(e.target.value))}
-          aria-label={t('viewer.position')}
-          aria-valuetext={`${clock(audio.time)} / ${clock(audio.duration)}`}
-          className="t-reader-slider w-full"
-        />
-        <div className="flex justify-between font-mono text-xs tabular-nums text-t-muted">
-          <span>{clock(audio.time)}</span>
-          <span>{audio.duration > 0 ? clock(audio.duration) : ''}</span>
-        </div>
-        <div className="flex items-center justify-center gap-2">
-          <IconButton
-            aria-label={t(`viewer.repeat_${audio.repeat}`)}
-            title={t(`viewer.repeat_${audio.repeat}`)}
-            aria-pressed={audio.repeat !== 'off'}
-            onClick={() => audio.setRepeat(repeatNext[audio.repeat])}
-          >
-            {audio.repeat === 'one' ? <Repeat1 aria-hidden /> : <Repeat aria-hidden />}
-          </IconButton>
-          <IconButton aria-label={t('viewer.prevTrack')} disabled={at <= 0} onClick={() => audio.go(at - 1)}>
-            <SkipBack aria-hidden />
-          </IconButton>
-          <Button
-            variant="primary"
-            aria-label={audio.paused ? t('player.play') : t('player.pause')}
-            onClick={audio.toggle}
-            className="size-12 rounded-full! p-0!"
-          >
-            {audio.paused ? <Play aria-hidden fill="currentColor" /> : <Pause aria-hidden fill="currentColor" />}
-          </Button>
-          <IconButton
-            aria-label={t('viewer.nextTrack')}
-            disabled={at < 0 || !q || at >= q.tracks.length - 1}
-            onClick={() => audio.go(at + 1)}
-          >
-            <SkipForward aria-hidden />
-          </IconButton>
-          <span className="size-9" aria-hidden />
-        </div>
-        <div className="flex items-center gap-2">
-          <Select
-            size="sm"
-            aria-label={t('viewer.sleep')}
-            value={sleepValue}
-            onChange={(e) => {
-              const v = e.target.value
-              audio.setSleep(v === '' ? null : v === 'track' ? 'track' : Number(v))
-            }}
-          >
-            <option value="">{t('viewer.sleepOff')}</option>
-            {[15, 30, 60].map((m) => (
-              <option key={m} value={m}>
-                {t('viewer.sleepIn', { n: m })}
-              </option>
-            ))}
-            <option value="track">{t('viewer.sleepTrack')}</option>
-          </Select>
-          <Select
-            size="sm"
-            aria-label={t('viewer.speed')}
-            value={audio.rate}
-            onChange={(e) => audio.setRate(Number(e.target.value))}
-            wrapperClassName="ml-auto"
-          >
-            {[0.75, 1, 1.25, 1.5, 1.75, 2].map((r) => (
-              <option key={r} value={r}>
-                {r}×
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
-      {tracks.length > 1 && (
-        <ol aria-label={t('viewer.playlist')} className="min-h-0 flex-1 overflow-y-auto text-sm">
-          {tracks.map((e, n) => (
-            <li key={e.path}>
-              <a
-                href={viewHref(server, e.path)}
-                onClick={(ev) => {
-                  ev.preventDefault()
-                  audio.go(n)
-                }}
-                aria-current={n === at ? 'true' : undefined}
-                className={`flex gap-3 rounded-md px-2 py-2 hover:bg-bg-hover ${n === at ? 'bg-bg-hover text-accent' : ''}`}
-              >
-                <span className="w-6 shrink-0 text-right font-mono tabular-nums text-t-muted">{n + 1}</span>
-                <span className="min-w-0 truncate">{e.name}</span>
-              </a>
-            </li>
-          ))}
-        </ol>
-      )}
+    <div className="ws-au-page">
+      <AudioPanel heading />
     </div>
   )
 }
