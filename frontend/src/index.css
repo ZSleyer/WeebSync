@@ -2784,3 +2784,8 @@ li.t-swiperow { border-radius: 0; }
 .t-check-fill { transition: transform var(--dur-3) var(--ease-out); }
 :root[data-motion="off"] .t-check-fill { transition: none; }
 @media (prefers-reduced-motion: reduce) { .t-check-fill { transition: none; } }
+
+/* the setup's progress bar grows with each step */
+.t-setup-bar { transition: transform var(--dur-3) var(--ease-out); }
+:root[data-motion="off"] .t-setup-bar { transition: none; }
+@media (prefers-reduced-motion: reduce) { .t-setup-bar { transition: none; } }

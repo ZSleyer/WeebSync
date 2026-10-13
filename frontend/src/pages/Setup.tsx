@@ -26,9 +26,16 @@ const STEPS: Step[] = ['account', 'oidc', 'import', 'server', 'storage', 'meta']
 // comes back at step 03. Signed out (initialStep "account") there is no
 // account yet, so nothing past step 01 can be resumed.
 const STEP_KEY = 'weebsync.setup.step'
+// Set from the last save to the click on "start": the save reports onboarding
+// done, and the gate would swap the app in before the closing step showed.
+// While it is set, the gate keeps the wizard on screen.
+export const FINISHING_KEY = 'weebsync.setup.finishing'
 const storedStep = (initial: Step): Step => {
   if (initial === 'account') return initial
   const s = sessionStorage.getItem(STEP_KEY) as Step | null
+  // the save before the closing step can remount the wizard; it comes back
+  // on that step, not at the start of the list
+  if (s === 'done' && sessionStorage.getItem(FINISHING_KEY)) return 'done'
   return s && s !== 'account' && STEPS.includes(s) ? s : initial
 }
 
@@ -45,8 +52,7 @@ export default function Setup({
   const qc = useQueryClient()
   const [step, setStep] = useState<Step>(() => storedStep(initialStep))
   useEffect(() => {
-    if (step === 'done') sessionStorage.removeItem(STEP_KEY)
-    else sessionStorage.setItem(STEP_KEY, step)
+    sessionStorage.setItem(STEP_KEY, step)
   }, [step])
   // no local account: step 02 becomes mandatory and the first OIDC login is admin
   const [oidcOnly, setOidcOnly] = useState(false)
@@ -165,7 +171,11 @@ export default function Setup({
       setDiscovered(out.issuer)
     })
 
-  const finish = () => (onDone ? onDone() : qc.invalidateQueries({ queryKey: ['me'] }))
+  const finish = () => {
+    sessionStorage.removeItem(FINISHING_KEY)
+    sessionStorage.removeItem(STEP_KEY)
+    return onDone ? onDone() : qc.invalidateQueries({ queryKey: ['me'] })
+  }
 
   const heading = (text: string) => (
     <h2 ref={headingRef} tabIndex={-1} className="mb-1 font-display text-sm font-bold">
@@ -206,227 +216,269 @@ export default function Setup({
   // and two-column grids and need the room
   const wide = step === 'import' || step === 'server' || step === 'storage' || step === 'meta'
 
+  // "done" is the last of the steps the wizard counts, as the user sees it
+  const all = [...STEPS, 'done'] as const
+  const at = all.indexOf(step)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const label = (s: (typeof all)[number]) => (s === 'done' ? t('setup.stepDone') : t(`setup.step.${s}`))
+
   return (
-    <main className="grid min-h-dvh content-start justify-items-center p-4 pt-[max(2rem,var(--safe-t))] pb-[calc(1rem+var(--safe-b))] sm:content-center sm:pt-4 sm:pb-4">
-      {/* min-w-0: a grid item grows to its content's min width, and the step
-          row's is ~480px - wider than a phone, so the whole wizard overflowed */}
-      <div className={`w-full min-w-0 ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
-        <div className="mb-6 text-center">
-          <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
-            <Brand variant="hero" />
-          </h1>
-          <Badge className="mt-3">{t('setup.title')}</Badge>
-        </div>
-
-        {step !== 'done' && (
-          <>
-            <p className="mb-1 font-mono text-xs text-t-muted">
-              {t('setup.stepOf', { n: STEPS.indexOf(step) + 1, total: STEPS.length })}
-            </p>
-            {/* one row that scrolls on a phone instead of two ragged wrapped lines */}
-            <ol className="mb-5 flex gap-1 overflow-x-auto [scrollbar-width:none]" aria-label={t('setup.title')}>
-              {STEPS.map((s, i) => (
-                <li
-                  key={s}
-                  aria-current={s === step ? 'step' : undefined}
-                  className={`min-w-16 flex-1 shrink-0 whitespace-nowrap border-t-2 pt-1.5 font-display text-xs ${
-                    s === step ? 'border-accent text-accent' : 'border-border-subtle text-t-muted'
-                  }`}
-                >
-                  <span className="font-mono">0{i + 1}</span> {t(`setup.step.${s}`)}
-                </li>
-              ))}
-            </ol>
-          </>
-        )}
-
-        {step === 'account' && (
-          <Panel as="form" className="animate-fadeIn p-6" onSubmit={createAccount}>
-            {heading(t('setup.step.account'))}
-            <p className="mb-4 text-sm text-t-secondary">{t('setup.accountHint')}</p>
-            <Badge as="label" htmlFor="setup-email" className="mb-1 block w-fit">
-              {t('login.email')}
-            </Badge>
-            <Input
-              id="setup-email"
-              className="mb-4"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Badge as="label" htmlFor="setup-password" className="mb-1 block w-fit">
-              {t('login.password')}
-            </Badge>
-            <Input
-              id="setup-password"
-              className="mb-4"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={10}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <Badge as="label" htmlFor="setup-password-again" className="mb-1 block w-fit">
-              {t('login.passwordAgain')}
-            </Badge>
-            <Input
-              id="setup-password-again"
-              className="mb-4"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={10}
-              value={again}
-              onChange={(e) => setAgain(e.target.value)}
-            />
-            {errorBox}
-            <Button type="submit" variant="primary" className="w-full" disabled={busy}>
-              {t('login.submitRegister')}
-            </Button>
-            <div className="mt-4 border-t border-border-subtle pt-4">
-              <Button
-                className="w-full"
-                disabled={busy}
-                onClick={() => {
-                  setOidcOnly(true)
-                  setStep('oidc')
-                }}
-              >
-                {t('setup.noLocalAccount')}
-              </Button>
-              <p className="mt-1 text-xs text-t-muted">{t('setup.noLocalAccountHint')}</p>
-            </div>
-          </Panel>
-        )}
-
-        {/* OIDC config stored and the provider answered: the first login through
-            it creates the admin account, and the wizard resumes afterwards */}
-        {step === 'oidc' && oidcReady && (
-          <Panel className="animate-fadeIn p-6 text-center">
-            {heading(t('setup.step.oidc'))}
-            <p className="mb-4 text-sm text-t-secondary" role="status">
-              {t('setup.oidcReady')}
-            </p>
-            <ButtonLink
-              variant="primary"
-              className="block w-full"
-              href="/api/auth/oidc/login"
-              onClick={() => sessionStorage.setItem(STEP_KEY, 'import')}
+    // a desktop keeps the steps in a rail on the left, a phone counts them
+    // above the form
+    <main className="grid min-h-dvh lg:grid-cols-[17rem_minmax(0,1fr)]">
+      <aside className="hidden border-r border-border-subtle bg-bg-secondary px-4 py-6 lg:block">
+        <p className="mb-8 px-2 font-display text-lg font-bold tracking-[0.2em]" aria-hidden>
+          <Brand variant="rail" />
+        </p>
+        <ol className="grid gap-0.5" aria-label={t('setup.title')}>
+          {all.map((s, i) => (
+            <li
+              key={s}
+              aria-current={s === step ? 'step' : undefined}
+              className={`flex items-baseline gap-3 rounded-md px-3 py-2 text-sm ${
+                s === step ? 'bg-accent/12 font-medium text-t-primary' : i < at ? 'text-t-secondary' : 'text-t-muted'
+              }`}
             >
-              {oidc.oidcProviderName ? t('login.oidcNamed', { name: oidc.oidcProviderName }) : t('login.oidc')}
-            </ButtonLink>
-          </Panel>
-        )}
-
-        {step === 'oidc' && !oidcReady && (
-          <Panel as="form" className="animate-fadeIn p-6" onSubmit={saveOidc}>
-            {heading(t('setup.step.oidc'))}
-            <p className="mb-4 text-sm text-t-secondary">{t(oidcOnly ? 'setup.oidcOnlyHint' : 'setup.oidcHint')}</p>
-            {field(
-              'oidcProviderName',
-              t('settings.oidcProviderName'),
-              'text',
-              false,
-              t('settings.oidcProviderNameHint'),
-            )}
-            <div className="mb-3">
-              <span className="mb-1 flex w-fit items-center">
-                <Badge as="label" htmlFor="setup-oidcIssuer" className="block w-fit">
-                  {t('settings.oidcIssuer')}
-                </Badge>
-                <EnvBadge show={envLocked('oidcIssuer')} />
+              <span className={`font-mono text-ctl-sm ${s === step ? 'text-accent' : ''}`}>{pad(i + 1)}</span>
+              {label(s)}
+            </li>
+          ))}
+        </ol>
+      </aside>
+      <div className="grid content-start justify-items-center p-4 pt-[max(2rem,var(--safe-t))] pb-[calc(1rem+var(--safe-b))] sm:content-center sm:pt-4 sm:pb-4">
+        {/* min-w-0: a grid item grows to its content's min width, and the step
+          row's is ~480px - wider than a phone, so the whole wizard overflowed */}
+        <div className={`w-full min-w-0 ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
+          <div className="mb-6 text-center lg:text-left">
+            <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
+              <span className="lg:hidden">
+                <Brand variant="hero" />
               </span>
-              <div className="flex gap-2">
-                <Input
-                  id="setup-oidcIssuer"
-                  type="text"
-                  required={oidcOnly && !envLocked('oidcIssuer')}
-                  disabled={envLocked('oidcIssuer')}
-                  value={oidc.oidcIssuer}
-                  onChange={(e) => setOidc({ ...oidc, oidcIssuer: e.target.value })}
-                />
+              <span className="hidden text-2xl tracking-wider lg:inline">{t('setup.title')}</span>
+            </h1>
+            <span className="lg:hidden">
+              <Badge className="mt-3">{t('setup.title')}</Badge>
+            </span>
+          </div>
+
+          {/* where the wizard stands: "04 / 07" and a bar, on every width */}
+          <div className="mb-5 flex items-center gap-3" aria-hidden>
+            <span className="font-mono text-xs text-t-muted">
+              {pad(at + 1)} / {pad(all.length)}
+            </span>
+            <span className="h-1 flex-1 overflow-hidden rounded-full bg-border-subtle">
+              <span
+                className="t-setup-bar block h-full origin-left bg-accent"
+                style={{ transform: `scaleX(${(at + 1) / all.length})` }}
+              />
+            </span>
+          </div>
+          <p className="sr-only" aria-live="polite">
+            {t('setup.stepOf', { n: at + 1, total: all.length })}: {label(step)}
+          </p>
+
+          {step === 'account' && (
+            <Panel as="form" className="animate-fadeIn p-6" onSubmit={createAccount}>
+              {heading(t('setup.step.account'))}
+              <p className="mb-4 text-sm text-t-secondary">{t('setup.accountHint')}</p>
+              <Badge as="label" htmlFor="setup-email" className="mb-1 block w-fit">
+                {t('login.email')}
+              </Badge>
+              <Input
+                id="setup-email"
+                className="mb-4"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <Badge as="label" htmlFor="setup-password" className="mb-1 block w-fit">
+                {t('login.password')}
+              </Badge>
+              <Input
+                id="setup-password"
+                className="mb-4"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={10}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <Badge as="label" htmlFor="setup-password-again" className="mb-1 block w-fit">
+                {t('login.passwordAgain')}
+              </Badge>
+              <Input
+                id="setup-password-again"
+                className="mb-4"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={10}
+                value={again}
+                onChange={(e) => setAgain(e.target.value)}
+              />
+              {errorBox}
+              <Button type="submit" variant="primary" className="w-full" disabled={busy}>
+                {t('login.submitRegister')}
+              </Button>
+              <div className="mt-4 border-t border-border-subtle pt-4">
                 <Button
-                  className="shrink-0"
-                  disabled={busy || !oidc.oidcIssuer || envLocked('oidcIssuer')}
-                  onClick={discover}
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() => {
+                    setOidcOnly(true)
+                    setStep('oidc')
+                  }}
                 >
-                  {t('settings.oidcDiscover')}
+                  {t('setup.noLocalAccount')}
+                </Button>
+                <p className="mt-1 text-xs text-t-muted">{t('setup.noLocalAccountHint')}</p>
+              </div>
+            </Panel>
+          )}
+
+          {/* OIDC config stored and the provider answered: the first login through
+            it creates the admin account, and the wizard resumes afterwards */}
+          {step === 'oidc' && oidcReady && (
+            <Panel className="animate-fadeIn p-6 text-center">
+              {heading(t('setup.step.oidc'))}
+              <p className="mb-4 text-sm text-t-secondary" role="status">
+                {t('setup.oidcReady')}
+              </p>
+              <ButtonLink
+                variant="primary"
+                className="block w-full"
+                href="/api/auth/oidc/login"
+                onClick={() => sessionStorage.setItem(STEP_KEY, 'import')}
+              >
+                {oidc.oidcProviderName ? t('login.oidcNamed', { name: oidc.oidcProviderName }) : t('login.oidc')}
+              </ButtonLink>
+            </Panel>
+          )}
+
+          {step === 'oidc' && !oidcReady && (
+            <Panel as="form" className="animate-fadeIn p-6" onSubmit={saveOidc}>
+              {heading(t('setup.step.oidc'))}
+              <p className="mb-4 text-sm text-t-secondary">{t(oidcOnly ? 'setup.oidcOnlyHint' : 'setup.oidcHint')}</p>
+              {field(
+                'oidcProviderName',
+                t('settings.oidcProviderName'),
+                'text',
+                false,
+                t('settings.oidcProviderNameHint'),
+              )}
+              <div className="mb-3">
+                <span className="mb-1 flex w-fit items-center">
+                  <Badge as="label" htmlFor="setup-oidcIssuer" className="block w-fit">
+                    {t('settings.oidcIssuer')}
+                  </Badge>
+                  <EnvBadge show={envLocked('oidcIssuer')} />
+                </span>
+                <div className="flex gap-2">
+                  <Input
+                    id="setup-oidcIssuer"
+                    type="text"
+                    required={oidcOnly && !envLocked('oidcIssuer')}
+                    disabled={envLocked('oidcIssuer')}
+                    value={oidc.oidcIssuer}
+                    onChange={(e) => setOidc({ ...oidc, oidcIssuer: e.target.value })}
+                  />
+                  <Button
+                    className="shrink-0"
+                    disabled={busy || !oidc.oidcIssuer || envLocked('oidcIssuer')}
+                    onClick={discover}
+                  >
+                    {t('settings.oidcDiscover')}
+                  </Button>
+                </div>
+                {discovered && (
+                  <p className="mt-1 text-xs text-t-muted" role="status">
+                    {t('settings.oidcDiscoverFound', { issuer: discovered })}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-t-muted">{t('settings.oidcIssuerHint')}</p>
+              </div>
+              {field('oidcClientId', t('settings.oidcClientId'), 'text', oidcOnly, t('settings.oidcClientIdHint'))}
+              {field(
+                'oidcClientSecret',
+                t('settings.oidcClientSecret'),
+                'password',
+                false,
+                t('settings.oidcClientSecretHint'),
+              )}
+              {field(
+                'oidcRedirectUrl',
+                t('settings.oidcRedirectUrl'),
+                'url',
+                oidcOnly,
+                t('settings.oidcRedirectUrlHint'),
+              )}
+              {field('oidcClaim', t('settings.oidcClaim'), 'text', false, t('settings.oidcClaimHint'))}
+              {field(
+                'oidcAdminValues',
+                t('settings.oidcAdminValues'),
+                'text',
+                false,
+                t('settings.oidcAdminValuesHint'),
+              )}
+              {field('oidcUserValues', t('settings.oidcUserValues'), 'text', false, t('settings.oidcUserValuesHint'))}
+              {/* only meaningful with a password account: OIDC-only has no
+                password registration to close (and it is off by default) */}
+              {!oidcOnly && (
+                <>
+                  <label className="mb-1 flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={registrationDisabled}
+                      onChange={(e) => setRegistrationDisabled(e.target.checked)}
+                    />
+                    {t('setup.closeRegistration')}
+                  </label>
+                  <p className="mb-4 text-xs text-t-muted">{t('setup.closeRegistrationHint')}</p>
+                </>
+              )}
+              {errorBox}
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  disabled={busy}
+                  onClick={() => (oidcOnly ? (setOidcOnly(false), setStep('account')) : saveAuth(false))}
+                >
+                  {t(oidcOnly ? 'setup.back' : 'setup.skip')}
+                </Button>
+                <Button type="submit" variant="primary" className="flex-1" disabled={busy}>
+                  {t('settings.save')}
                 </Button>
               </div>
-              {discovered && (
-                <p className="mt-1 text-xs text-t-muted" role="status">
-                  {t('settings.oidcDiscoverFound', { issuer: discovered })}
-                </p>
-              )}
-              <p className="mt-1 text-xs text-t-muted">{t('settings.oidcIssuerHint')}</p>
-            </div>
-            {field('oidcClientId', t('settings.oidcClientId'), 'text', oidcOnly, t('settings.oidcClientIdHint'))}
-            {field(
-              'oidcClientSecret',
-              t('settings.oidcClientSecret'),
-              'password',
-              false,
-              t('settings.oidcClientSecretHint'),
-            )}
-            {field(
-              'oidcRedirectUrl',
-              t('settings.oidcRedirectUrl'),
-              'url',
-              oidcOnly,
-              t('settings.oidcRedirectUrlHint'),
-            )}
-            {field('oidcClaim', t('settings.oidcClaim'), 'text', false, t('settings.oidcClaimHint'))}
-            {field('oidcAdminValues', t('settings.oidcAdminValues'), 'text', false, t('settings.oidcAdminValuesHint'))}
-            {field('oidcUserValues', t('settings.oidcUserValues'), 'text', false, t('settings.oidcUserValuesHint'))}
-            {/* only meaningful with a password account: OIDC-only has no
-                password registration to close (and it is off by default) */}
-            {!oidcOnly && (
-              <>
-                <label className="mb-1 flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={registrationDisabled}
-                    onChange={(e) => setRegistrationDisabled(e.target.checked)}
-                  />
-                  {t('setup.closeRegistration')}
-                </label>
-                <p className="mb-4 text-xs text-t-muted">{t('setup.closeRegistrationHint')}</p>
-              </>
-            )}
-            {errorBox}
-            <div className="flex gap-2">
-              <Button
-                className="flex-1"
-                disabled={busy}
-                onClick={() => (oidcOnly ? (setOidcOnly(false), setStep('account')) : saveAuth(false))}
-              >
-                {t(oidcOnly ? 'setup.back' : 'setup.skip')}
-              </Button>
-              <Button type="submit" variant="primary" className="flex-1" disabled={busy}>
-                {t('settings.save')}
-              </Button>
-            </div>
-          </Panel>
-        )}
+            </Panel>
+          )}
 
-        {(step === 'import' || step === 'server' || step === 'storage' || step === 'meta') && (
-          <SetupSteps step={step} onGo={setStep} onFinish={() => setStep('done')} headingRef={headingRef} />
-        )}
+          {(step === 'import' || step === 'server' || step === 'storage' || step === 'meta') && (
+            <SetupSteps
+              step={step}
+              onGo={setStep}
+              onFinish={() => {
+                sessionStorage.setItem(FINISHING_KEY, '1')
+                setStep('done')
+              }}
+              headingRef={headingRef}
+            />
+          )}
 
-        {step === 'done' && (
-          <Panel className="animate-fadeIn p-6 text-center">
-            {heading(t('setup.stepDone'))}
-            <p className="mb-4 text-sm text-t-secondary" role="status">
-              {t('setup.done')}
-            </p>
-            <Button variant="primary" className="w-full" onClick={finish}>
-              {t('setup.start')}
-            </Button>
-          </Panel>
-        )}
+          {step === 'done' && (
+            <Panel className="animate-fadeIn p-6 text-center">
+              {heading(t('setup.stepDone'))}
+              <p className="mb-4 text-sm text-t-secondary" role="status">
+                {t('setup.done')}
+              </p>
+              <Button variant="primary" className="w-full" onClick={finish}>
+                {t('setup.start')}
+              </Button>
+            </Panel>
+          )}
+        </div>
       </div>
     </main>
   )

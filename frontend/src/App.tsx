@@ -42,7 +42,7 @@ import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage }
 import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions, ShellFooter, WIDE_MQ } from './components/PageActions'
 import { SeriesModalProvider, TITLE_PATH } from './components/SeriesModal'
-import Setup from './pages/Setup'
+import Setup, { FINISHING_KEY } from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Files from './pages/Files'
@@ -129,7 +129,8 @@ function AdminGate({ email }: { email: string }) {
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
   })
-  if (data?.onboardingDone === false)
+  // the wizard's closing step outlives the save that marks onboarding done
+  if (data?.onboardingDone === false || sessionStorage.getItem(FINISHING_KEY))
     return <Setup initialStep="import" onDone={() => qc.invalidateQueries({ queryKey: ['settings'] })} />
   return <Shell email={email} />
 }
