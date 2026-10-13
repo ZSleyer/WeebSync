@@ -972,6 +972,8 @@ export function CatalogGrid({
   const [rematchInCard, setRematchInCard] = useState(false)
   // the folder whose match is being explained
   const [why, setWhy] = useState<CatalogItem | null>(null)
+  // the folder's source shows on any title matching looked at: the first one
+  const whyHere = (data?.items ?? []).find((it) => it.source && !it.pending)
   const toast = useToast()
   // a title plays from its first episode; the player walks on from there
   const play = async (e: Entry) => {
@@ -1064,6 +1066,7 @@ export function CatalogGrid({
             onSelect(e)
           }}
           onRematch={rematchInside}
+          onWhy={(it) => setWhy(it)}
           onFiles={(e) => {
             series.close()
             onOpenFiles(e.path)
@@ -1356,7 +1359,14 @@ export function CatalogGrid({
               </p>
             )
           )}
-          {path && <ScopeRuleLine serverId={serverId} path={path} kindLabel={scopeLabel} />}
+          {path && (
+            <ScopeRuleLine
+              serverId={serverId}
+              path={path}
+              kindLabel={scopeLabel}
+              onWhy={whyHere ? () => setWhy(whyHere) : undefined}
+            />
+          )}
         </div>
         {/* a leaf folder holds files, not titles: offer the classic list instead
           of leaving the user at a dead end */}
@@ -2072,6 +2082,7 @@ function CatalogVersions({
   selected,
   onSelect,
   onRematch,
+  onWhy,
   onFiles,
   onSync,
   onWatch,
@@ -2080,6 +2091,8 @@ function CatalogVersions({
   selected?: string
   onSelect: (e: Entry) => void
   onRematch: (it: CatalogItem) => void
+  /** why this version got its series, or none */
+  onWhy?: (it: CatalogItem) => void
   onFiles: (e: Entry) => void
   // a card bundling several folders cannot sync "the" title - the version is
   // picked here, where each row stands for exactly one folder
@@ -2127,6 +2140,17 @@ function CatalogVersions({
               <Replace aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
               {t('remote.changeMatch')}
             </Button>
+            {onWhy && it.source && !it.pending && (
+              <Button
+                size="sm"
+                className="shrink-0"
+                aria-label={`${t('explain.whyMatch')}: ${it.entry.name}`}
+                onClick={() => onWhy(it)}
+              >
+                <CircleHelp aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('explain.why')}
+              </Button>
+            )}
           </li>
         ))}
       </ul>

@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  CircleHelp,
   ChevronRight,
   Clock,
   Download as DownloadIcon,
@@ -43,11 +44,13 @@ const STATUS_ICON: Record<Download['status'], LucideIcon> = {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { flushSync } from 'react-dom'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
+import { filesLink } from '../components/playLinks'
 import {
   ActionBar,
   Badge,
   Button,
+  IconButton,
   CalendarEntry,
   Count,
   Cover,
@@ -1238,6 +1241,7 @@ function Attention({ watches }: { watches: Watch[] }) {
   const [open, toggle] = useFold('attention')
   const { open: openSeries } = useSeriesModal()
   const act = useWatchActions()
+  const navigate = useNavigate()
   if (needy.length === 0) return null
   const shown = needy.slice(0, 5)
   return (
@@ -1310,6 +1314,20 @@ function Attention({ watches }: { watches: Watch[] }) {
                         ))}
                       </span>
                     </Link>
+                    {/* why, where the answer lies: unsorted files in their
+                        folder, everything else on the card, which explains
+                        what the watch waits for and what its last check left */}
+                    <IconButton
+                      aria-label={`${t('explain.why')} ${watchTitle(w)}`}
+                      title={t('explain.why')}
+                      onClick={() =>
+                        w.attention?.[0] === 'unsorted' && w.localPath
+                          ? navigate(filesLink(0, w.localPath))
+                          : openSeries({ ...seriesTarget(w), tab: 'episodes' })
+                      }
+                    >
+                      <CircleHelp aria-hidden />
+                    </IconButton>
                   </div>
                 </SwipeRow>
               ))}

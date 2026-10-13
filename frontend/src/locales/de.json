@@ -655,6 +655,7 @@
     "transcoding": "Der Browser kann diese Datei nicht direkt abspielen. Der Server wandelt sie beim Abspielen um, Spulen startet die Umwandlung an der neuen Stelle neu."
   },
   "remote": {
+    "scopeSource": "Die Ordner hier werden als {{kind}} gesucht.",
     "title": "REMOTE",
     "sub": "browse · sync · download",
     "source": "Quelle",
@@ -1913,6 +1914,7 @@
     "doneSub": "Alles auf der Platte"
   },
   "explain": {
+    "whySource": "Warum?",
     "why": "Warum?",
     "whyMatch": "Warum diese Serie?",
     "whyNone": "Warum kein Treffer?",

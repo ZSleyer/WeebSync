@@ -655,6 +655,7 @@
     "transcoding": "The browser cannot play this file directly. The server converts it while it plays, and seeking restarts the conversion at the new position."
   },
   "remote": {
+    "scopeSource": "The folders here are looked up as {{kind}}.",
     "title": "REMOTE",
     "sub": "browse · sync · download",
     "source": "Source",
@@ -1913,6 +1914,7 @@
     "doneSub": "Everything is on the disk"
   },
   "explain": {
+    "whySource": "Why?",
     "why": "Why?",
     "whyMatch": "Why this series?",
     "whyNone": "Why no match?",

@@ -13,11 +13,14 @@ export default function ScopeRuleLine({
   serverId,
   path,
   kindLabel,
+  onWhy,
 }: {
   serverId: number
   path: string
   /** the readable name of the folder's mark, e.g. "Anime (AniList)" */
   kindLabel: (kind: string) => string
+  /** opens why a title here got its source, shown with a sentence naming it */
+  onWhy?: () => void
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -64,11 +67,20 @@ export default function ScopeRuleLine({
         }
       />
     )
-  } else {
-    return null
   }
+  // where the titles here look for themselves, and the way to why
+  const source = onWhy && (
+    <span className="flex w-full flex-wrap items-center gap-x-2">
+      {t('remote.scopeSource', { kind: kindLabel(data.scope) })}
+      <button type="button" className="min-h-6 text-accent underline-offset-2 hover:underline" onClick={onWhy}>
+        {t('explain.whySource')}
+      </button>
+    </span>
+  )
+  if (!body && !source) return null
   return (
     <div className="flex w-full flex-wrap items-center gap-2 text-xs text-t-muted">
+      {source}
       {body}
       {error && (
         <span className="text-err" role="alert">
