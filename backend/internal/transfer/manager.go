@@ -474,6 +474,26 @@ type EnqueueResult struct {
 	// Owned: files whose episode the library already holds under another
 	// name, so they were not fetched (see EnqueueSkipping)
 	Owned int
+	// Skips: why files were not queued, at most maxSkips. Files that are
+	// already there are only counted (Skipped), they are the normal case.
+	Skips []Skip
+}
+
+// Skip is one file a check did not queue, and why.
+type Skip struct {
+	Path   string `json:"path"`
+	Reason string `json:"reason" enums:"outside_roots,language,worse_variant,owned,uploading,queued,blocked"`
+	Detail string `json:"detail,omitempty"` // worse_variant: the release kept instead
+}
+
+// maxSkips caps EnqueueResult.Skips: enough to explain a check, small enough
+// to store with the watch.
+const maxSkips = 50
+
+func (r *EnqueueResult) skip(remote, reason, detail string) {
+	if len(r.Skips) < maxSkips {
+		r.Skips = append(r.Skips, Skip{Path: remote, Reason: reason, Detail: detail})
+	}
 }
 
 func (m *Manager) Enqueue(userID, serverID int64, remotePath, localRel string, nameFn func(string) string, langFilter func(string) bool, sizeGuard, flat, replaceOld bool) (res EnqueueResult, err error) {
@@ -559,7 +579,8 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 	for _, j := range jobs {
 		local, lerr := ResolveLocal(m.roots(), j.localRel)
 		if lerr != nil {
-			continue // target outside the allowed roots: skip this file
+			res.skip(j.remote, "outside_roots", "") // target outside the allowed roots
+			continue
 		}
 		// language filter: skip files whose name/folder lacks the wanted dub/sub
 		// tag; count a video as "waiting" when its target is not yet local (so a
@@ -570,9 +591,11 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 				if rerr != nil {
 					res.Filtered++
 					res.FilteredTargets = append(res.FilteredTargets, local)
+					res.skip(j.remote, "language", "")
 				} else if _, serr := rooted.Root.Stat(rooted.Name); serr != nil {
 					res.Filtered++
 					res.FilteredTargets = append(res.FilteredTargets, local)
+					res.skip(j.remote, "language", "")
 				}
 				if rooted != nil {
 					rooted.Close()
@@ -592,6 +615,7 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 			win, lose = lose, j
 		}
 		*cur = win
+		res.skip(lose.remote, "worse_variant", path.Base(win.remote))
 		slog.Debug("variant dropped", "reason", "another release renames to the same file",
 			"kept", logSafe(path.Base(win.remote)), "dropped", logSafe(path.Base(lose.remote)))
 	}
@@ -600,6 +624,7 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 		j := *best[local]
 		rooted, rerr := OpenLocal(m.roots(), local)
 		if rerr != nil {
+			res.skip(j.remote, "outside_roots", "")
 			continue
 		}
 		// sync: skip files that already exist with the right size. Counted, so
@@ -615,11 +640,13 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 		// another size still replaces it as before
 		if serr != nil && owned != nil && owned(local) {
 			res.Owned++
+			res.skip(j.remote, "owned", "")
 			continue
 		}
 		// probably still being uploaded: wait for a later check
 		if sizeGuard && VideoExt[strings.ToLower(path.Ext(j.remote))] && looksUploading(j.size, dirSizes[j.dir]) {
 			res.Uploading++
+			res.skip(j.remote, "uploading", "")
 			continue
 		}
 		// skip duplicates already in the queue. A row waiting out a retry
@@ -639,6 +666,7 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 			  AND ((user_id = ? AND server_id = ? AND remote_path = ?) OR local_path = ?)`,
 			userID, serverID, j.remote, local).Scan(&existing)
 		if existing > 0 {
+			res.skip(j.remote, "queued", "")
 			continue
 		}
 		// skip a file whose last attempt failed for a reason that still holds. A
@@ -649,6 +677,7 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 		// block: the moment the directory accepts a write the file becomes a
 		// candidate again, without the user retrying every download by hand.
 		if m.blocked(userID, serverID, j.remote, filepath.Dir(local), probed) {
+			res.skip(j.remote, "blocked", "")
 			continue
 		}
 		// a new row joins the end of the queue

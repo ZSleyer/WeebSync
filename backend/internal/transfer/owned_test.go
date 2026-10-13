@@ -39,6 +39,17 @@ func TestEnqueueSkippingLeavesOwnedEpisodes(t *testing.T) {
 	if len(res.IDs) != 1 || res.Owned != 1 {
 		t.Fatalf("queued %d, owned %d; want 1 and 1", len(res.IDs), res.Owned)
 	}
+	if len(res.Skips) != 1 || res.Skips[0].Reason != "owned" || !strings.HasSuffix(res.Skips[0].Path, "S01E01.mkv") {
+		t.Fatalf("skips = %+v, want one owned skip for E01", res.Skips)
+	}
+	// a second check finds E02 in the queue: said so, not silently dropped
+	res, err = m.EnqueueSkipping(1, 1, "/x/Show", "Show", nil, nil, owned, false, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Skips) != 2 || res.Skips[1].Reason != "queued" {
+		t.Fatalf("skips = %+v, want owned then queued", res.Skips)
+	}
 
 	d.Exec(`DELETE FROM downloads`)
 	if err := os.WriteFile(filepath.Join(root, "Show", "Show - S01E01.mkv"), make([]byte, 50), 0o600); err != nil {

@@ -173,6 +173,9 @@ func TestEnqueuePicksBestVariantPerTarget(t *testing.T) {
 	if queued != "/x/Show/"+ger {
 		t.Errorf("queued %q, want the GerJapDub release", queued)
 	}
+	if len(res.Skips) != 1 || res.Skips[0].Reason != "worse_variant" || res.Skips[0].Path != "/x/Show/"+jap || res.Skips[0].Detail != ger {
+		t.Errorf("skips = %+v, want the JapDub dropped for the GerJapDub", res.Skips)
+	}
 
 	// that download lands: the next check must leave it alone instead of
 	// replacing it with the other variant
