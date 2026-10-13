@@ -1138,20 +1138,18 @@
     "usersConfirmDelete": "Benutzer \"{{email}}\" löschen? Alle Server und Downloads dieses Benutzers werden entfernt.",
     "look": "Darstellung",
     "theme": "Theme",
-    "accent": "Akzent",
-    "theme_system": "System",
-    "theme_dark": "Dunkel",
-    "theme_light": "Hell",
-    "accents": {
-      "violet": "Violett",
-      "acid": "Acid",
-      "crimson": "Karmesin",
-      "cyan": "Cyan",
-      "blue": "Blau",
-      "green": "Grün",
-      "pink": "Pink",
-      "orange": "Orange"
+    "scheme": "Farbschema",
+    "schemes": {
+      "lycoris": "Lycoris",
+      "recoil": "Recoil"
     },
+    "schemeHint": {
+      "lycoris": "Rot führt: live, neu und die Hauptaktion. Türkis steht für Sync und Erklärungen.",
+      "recoil": "Türkis führt: live, neu und die Hauptaktion. Rot steht für Sync und Erklärungen."
+    },
+    "theme_system": "System",
+    "theme_dark": "Dunkel (OLED)",
+    "theme_light": "Hell",
     "motion": "Animationen aktiviert",
     "language": "Sprache",
     "notifications": "Push-Benachrichtigungen",

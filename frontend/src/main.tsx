@@ -12,21 +12,14 @@ import { ToastProvider } from './components/toast'
 import { ConfirmProvider } from './components/confirm'
 import { registerServiceWorker } from './push'
 import { applyTheme, readThemePref } from './theme'
+import { applyScheme, readScheme } from './scheme'
 
 registerServiceWorker()
 
 // apply persisted look before first paint
 const root = document.documentElement
-// orange is the default accent. Violet was, and a stored violet is far more
-// likely the old default than a choice, so it becomes orange once. Picking
-// violet after that sticks.
-let accent = localStorage.getItem('weebsync.accent')
-if (accent === 'violet' && !localStorage.getItem('weebsync.accent.v2')) {
-  accent = 'orange'
-  localStorage.setItem('weebsync.accent', accent)
-}
-localStorage.setItem('weebsync.accent.v2', '1')
-root.dataset.accent = accent ?? 'orange'
+// the colour scheme (an old free accent choice moves over to its scheme once)
+applyScheme(readScheme())
 applyTheme(readThemePref())
 if (localStorage.getItem('weebsync.motion') === 'off') root.dataset.motion = 'off'
 

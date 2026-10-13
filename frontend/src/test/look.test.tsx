@@ -16,20 +16,24 @@ vi.mock('../locales', () => ({
 describe('Look', () => {
   afterEach(() => {
     localStorage.clear()
-    delete document.documentElement.dataset.accent
+    delete document.documentElement.dataset.scheme
     delete document.documentElement.dataset.motion
   })
 
-  it('offers the accents as one radio group that follows the document', () => {
-    document.documentElement.dataset.accent = 'cyan'
+  it('offers the two schemes and paints the document in the picked one', () => {
     render(<Look />)
-    const radios = screen.getAllByRole('radio')
-    expect(radios).toHaveLength(8)
-    expect(screen.getByRole('radio', { name: /cyan/ })).toBeChecked()
-    fireEvent.click(screen.getByRole('radio', { name: /crimson/ }))
-    expect(document.documentElement.dataset.accent).toBe('crimson')
-    expect(localStorage.getItem('weebsync.accent')).toBe('crimson')
-    expect(screen.getByRole('radio', { name: /crimson/ })).toBeChecked()
+    const group = screen.getByRole('group', { name: 'settings.scheme' })
+    expect(group).toBeInTheDocument()
+    const lycoris = screen.getByRole('button', { name: /settings.schemes.lycoris/ })
+    const recoil = screen.getByRole('button', { name: /settings.schemes.recoil/ })
+    expect(lycoris).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(recoil)
+    expect(document.documentElement.dataset.scheme).toBe('recoil')
+    expect(localStorage.getItem('weebsync.scheme')).toBe('recoil')
+    expect(recoil).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(lycoris)
+    expect(document.documentElement.dataset.scheme).toBeUndefined()
+    expect(localStorage.getItem('weebsync.scheme')).toBe('lycoris')
   })
 
   it('stores the theme choice and switches the language', () => {

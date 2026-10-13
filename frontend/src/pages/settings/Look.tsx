@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Check } from 'lucide-react'
 import { Badge, Checkbox, Panel, revealTransition, Segmented } from 'fluid-lycoris'
 import { LOCALES } from '../../locales'
 import { applyTheme, readThemePref, THEME_KEY, type ThemePref } from '../../theme'
-import { setFavicon } from '../../favicon'
+import { applyScheme, SCHEME_KEY, SCHEMES, type Scheme } from '../../scheme'
 
-const ACCENTS = ['orange', 'acid', 'crimson', 'cyan', 'blue', 'green', 'pink', 'violet'] as const
 const THEMES: ThemePref[] = ['system', 'dark', 'light']
 
 // label above its control on a phone, in a column beside it from sm up
@@ -15,12 +13,12 @@ const ROW = 'grid gap-2 sm:grid-cols-[6rem_1fr] sm:items-center'
 const LABEL = 'text-xs text-t-muted'
 
 // Every choice here applies at once and is the preview of itself: the page
-// is painted in the accent it picks. Stored per browser, no save button.
+// is painted in the scheme it picks. Stored per browser, no save button.
 export default function Look() {
   const { t, i18n } = useTranslation()
   const root = document.documentElement
   const [theme, setTheme] = useState<ThemePref>(readThemePref)
-  const [accent, setAccent] = useState(root.dataset.accent ?? 'orange')
+  const [scheme, setScheme] = useState<Scheme>(root.dataset.scheme === 'recoil' ? 'recoil' : 'lycoris')
   const [motion, setMotion] = useState(root.dataset.motion !== 'off')
   const lang = LOCALES.find((l) => i18n.language.startsWith(l.code))?.code ?? LOCALES[0].code
 
@@ -29,18 +27,16 @@ export default function Look() {
     localStorage.setItem(THEME_KEY, th)
     applyTheme(th)
   }
-  // the new accent spreads from the swatch that was picked, over the whole
+  // the new scheme spreads from the option that was picked, over the whole
   // page - the page is the preview of the choice
-  const pickAccent = (a: string, swatch: Element | null) => {
+  const pickScheme = (s: Scheme) => {
     const apply = () => {
-      flushSync(() => setAccent(a))
-      root.dataset.accent = a
-      // the icon reads the accent off the root, so only once it is set
-      setFavicon()
+      flushSync(() => setScheme(s))
+      applyScheme(s)
     }
-    localStorage.setItem('weebsync.accent', a)
-    const r = swatch?.getBoundingClientRect()
-    if (r) void revealTransition(r.left + r.width / 2, r.top + r.height / 2, apply)
+    localStorage.setItem(SCHEME_KEY, s)
+    const r = (document.activeElement as HTMLElement | null)?.getBoundingClientRect()
+    if (r && r.width) void revealTransition(r.left + r.width / 2, r.top + r.height / 2, apply)
     else apply()
   }
   const pickMotion = (m: boolean) => {
@@ -72,34 +68,28 @@ export default function Look() {
             options={THEMES.map((th) => ({ value: th, label: t(`settings.theme_${th}`) }))}
           />
         </div>
-        <div role="radiogroup" aria-label={t('settings.accent')} className={ROW}>
-          <span className={LABEL}>{t('settings.accent')}</span>
-          <div className="flex flex-wrap gap-x-3 gap-y-2">
-            {ACCENTS.map((a) => (
-              <label key={a} className="flex cursor-pointer flex-col items-center gap-1">
-                <input
-                  type="radio"
-                  name="accent"
-                  value={a}
-                  checked={accent === a}
-                  onChange={(e) => pickAccent(a, e.currentTarget.nextElementSibling)}
-                  className="peer sr-only"
-                />
-                {/* the swatch paints its own preset: the [data-accent] rules
-                    redefine the accent variable on this very element, which
-                    the frozen theme token (bg-accent) would not follow */}
-                <span
-                  aria-hidden
-                  data-accent={a}
-                  className="grid size-8 place-items-center rounded-full bg-[var(--accent-blue)] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-t-primary [@media(pointer:coarse)]:size-11"
-                >
-                  {accent === a && <Check size="1.1em" strokeWidth={3} className="text-bg-primary" />}
-                </span>
-                <span className="text-ctl-sm text-t-muted peer-checked:text-t-primary">
-                  {t(`settings.accents.${a}`)}
-                </span>
-              </label>
-            ))}
+        <div className={ROW}>
+          <span className={LABEL}>{t('settings.scheme')}</span>
+          <div className="flex flex-col gap-1">
+            <Segmented
+              aria-label={t('settings.scheme')}
+              value={scheme}
+              onChange={pickScheme}
+              options={SCHEMES.map((s) => ({
+                value: s,
+                label: (
+                  // each option shows its own pair: the lead colour first
+                  <span className="inline-flex items-center gap-2">
+                    <span aria-hidden data-scheme={s} className="inline-flex">
+                      <span className="size-2.5 rounded-full bg-[var(--accent)]" />
+                      <span className="-ml-1 size-2.5 rounded-full bg-[var(--accent-2)]" />
+                    </span>
+                    {t(`settings.schemes.${s}`)}
+                  </span>
+                ),
+              }))}
+            />
+            <span className="text-ctl-sm text-t-muted">{t(`settings.schemeHint.${scheme}`)}</span>
           </div>
         </div>
         <Checkbox

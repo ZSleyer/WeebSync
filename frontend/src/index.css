@@ -17,11 +17,12 @@
 
 /* ── The app's older token names, kept as aliases of the Fluid Lycoris
    tokens so the app's own rules and inline styles keep working. Re-declared on
-   every themed or accented element: an alias resolves where it is declared,
-   so a nested light section or a preview swatch needs its own copy. ── */
+   every themed element and every element carrying a scheme: an alias
+   resolves where it is declared, so a nested light section or a scheme
+   preview needs its own copy. ── */
 :root,
 [data-theme],
-[data-accent] {
+[data-scheme] {
   --bg-primary: var(--bg);
   --bg-secondary: var(--bg-2);
   --bg-card: var(--card);
@@ -38,31 +39,6 @@
   --text-muted: var(--fg-3);
   --text-faint: var(--fg-3);
 }
-
-/* ── Accent presets (each ≥4.5:1 on its mode's surfaces). "orange", the old
-   default, now means the theme's own accent. ── */
-[data-accent="violet"]  { --accent: #a685f0; }
-[data-accent="acid"]    { --accent: #c8e04a; }
-[data-accent="crimson"] { --accent: #f26389; }
-[data-accent="cyan"]    { --accent: #3fd4e0; }
-[data-accent="blue"]    { --accent: #7ab8ff; }
-[data-accent="green"]   { --accent: #3fe08c; }
-[data-accent="pink"]    { --accent: #f47ad0; }
-[data-theme="light"][data-accent="violet"]  { --accent: #6d28d9; }
-[data-theme="light"][data-accent="acid"]    { --accent: #566800; }
-[data-theme="light"][data-accent="crimson"] { --accent: #b8144a; }
-[data-theme="light"][data-accent="cyan"]    { --accent: #0b6379; }
-[data-theme="light"][data-accent="blue"]    { --accent: #1d53cc; }
-[data-theme="light"][data-accent="green"]   { --accent: #14753a; }
-[data-theme="light"][data-accent="pink"]    { --accent: #be185d; }
-/* Descendant variants so accent swatches inside light theme get light values */
-[data-theme="light"] [data-accent="violet"]  { --accent: #6d28d9; }
-[data-theme="light"] [data-accent="acid"]    { --accent: #566800; }
-[data-theme="light"] [data-accent="crimson"] { --accent: #b8144a; }
-[data-theme="light"] [data-accent="cyan"]    { --accent: #0b6379; }
-[data-theme="light"] [data-accent="blue"]    { --accent: #1d53cc; }
-[data-theme="light"] [data-accent="green"]   { --accent: #14753a; }
-[data-theme="light"] [data-accent="pink"]    { --accent: #be185d; }
 
 /* Installed app: no pull-to-refresh and no rubber band at the ends. Chrome
    decides pull-to-refresh by the root's overscroll-behavior; on a phone <main>

@@ -1138,20 +1138,18 @@
     "usersConfirmDelete": "Delete user \"{{email}}\"? All of this user's servers and downloads will be removed.",
     "look": "Appearance",
     "theme": "Theme",
-    "accent": "Accent",
-    "theme_system": "System",
-    "theme_dark": "Dark",
-    "theme_light": "Light",
-    "accents": {
-      "violet": "Violet",
-      "acid": "Acid",
-      "crimson": "Crimson",
-      "cyan": "Cyan",
-      "blue": "Blue",
-      "green": "Green",
-      "pink": "Pink",
-      "orange": "Orange"
+    "scheme": "Colour scheme",
+    "schemes": {
+      "lycoris": "Lycoris",
+      "recoil": "Recoil"
     },
+    "schemeHint": {
+      "lycoris": "Red leads: live, new and the main action. Teal stands for sync and explanations.",
+      "recoil": "Teal leads: live, new and the main action. Red stands for sync and explanations."
+    },
+    "theme_system": "System",
+    "theme_dark": "Dark (OLED)",
+    "theme_light": "Light",
     "motion": "Animations enabled",
     "language": "Language",
     "notifications": "Push notifications",

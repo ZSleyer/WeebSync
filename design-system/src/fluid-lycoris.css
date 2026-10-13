@@ -118,6 +118,22 @@
   }
 }
 
+/* Lycoris named explicitly: the default pair, for a preview of the scheme
+   inside a page that wears the other one */
+[data-scheme="lycoris"] {
+  --accent: #ef6177;
+  --on-accent: #1a0509;
+  --accent-2: #33c2b5;
+  --on-accent-2: #03201d;
+}
+[data-theme="light"][data-scheme="lycoris"],
+[data-theme="light"] [data-scheme="lycoris"] {
+  --accent: #b3263f;
+  --on-accent: #ffffff;
+  --accent-2: #0c7069;
+  --on-accent-2: #ffffff;
+}
+
 /* Recoil: the scheme that swaps the halves. The accent turns teal and the
    accent-2 red, so the main action is teal and sync is red - the code stays
    a pair, only the leading colour changes. */
