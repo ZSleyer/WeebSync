@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, BookOpen, Compass, FolderOpen, House, LogOut, RefreshCw, Search, Settings } from 'lucide-react'
 import {
   createBrowserRouter,
@@ -124,9 +124,20 @@ function AdminGate({ email }: { email: string }) {
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
   })
+  // leaving the closing step: the settings already say done, so their refetch
+  // changes nothing and would not render this again; the click does
+  const [, rerender] = useReducer((n: number) => n + 1, 0)
   // the wizard's closing step outlives the save that marks onboarding done
   if (data?.onboardingDone === false || sessionStorage.getItem(FINISHING_KEY))
-    return <Setup initialStep="import" onDone={() => qc.invalidateQueries({ queryKey: ['settings'] })} />
+    return (
+      <Setup
+        initialStep="import"
+        onDone={() => {
+          rerender()
+          void qc.invalidateQueries({ queryKey: ['settings'] })
+        }}
+      />
+    )
   return <Shell email={email} />
 }
 
