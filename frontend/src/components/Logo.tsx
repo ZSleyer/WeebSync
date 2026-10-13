@@ -1,8 +1,9 @@
 import { useId, useLayoutEffect, useRef } from 'react'
 import { LOGO_H, LOGO_PATH_S, LOGO_PATH_W, LOGO_W } from '../logo'
 
-// The mark inline, so the S follows the accent live and the W the text
-// colour. Decorative: whatever wraps it names the destination.
+// The mark inline, so the S follows the second accent (teal) live and the W
+// the text colour, which the host sets to the first accent (red) where the
+// brand shows. Decorative: whatever wraps it names the destination.
 //
 // It draws itself in on mount and again whenever `replayKey` changes (the
 // shell passes the route), one of four intros at random each time. The SVG
@@ -204,14 +205,14 @@ export default function Logo({
           </g>
           <g data-k="gs">
             <g clipPath={`url(#${id}l)`}>
-              <path d={LOGO_PATH_S} fill="var(--accent-blue)" />
+              <path d={LOGO_PATH_S} fill="var(--accent-2)" />
             </g>
           </g>
         </g>
         <g data-k="st-w" clipPath={`url(#${id}ws)`} fill="currentColor">
           {stripeRows(0)}
         </g>
-        <g data-k="st-s" clipPath={`url(#${id}ss)`} fill="var(--accent-blue)">
+        <g data-k="st-s" clipPath={`url(#${id}ss)`} fill="var(--accent-2)">
           {stripeRows(540)}
         </g>
         <path data-k="ln-w" d={LOGO_PATH_W} {...line} stroke="currentColor" strokeWidth="1.5" strokeDasharray="1 1" />
@@ -219,7 +220,7 @@ export default function Logo({
           data-k="ln-s"
           d={LOGO_PATH_S}
           {...line}
-          stroke="var(--accent-blue)"
+          stroke="var(--accent-2)"
           strokeWidth="1.5"
           strokeDasharray="1 1"
         />
@@ -227,7 +228,7 @@ export default function Logo({
           data-k="hd-w"
           d={LOGO_PATH_W}
           {...line}
-          stroke="var(--accent-blue)"
+          stroke="var(--accent-2)"
           strokeWidth="3"
           strokeDasharray={`${HEAD} 1`}
         />

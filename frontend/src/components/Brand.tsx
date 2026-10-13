@@ -352,16 +352,16 @@ export default function Brand({
       data-anchor
       aria-hidden
       viewBox={`0 0 ${LOGO_W} ${LOGO_H}`}
-      className={`pointer-events-none invisible absolute top-1/2 w-auto -translate-y-1/2 ${
+      className={`pointer-events-none invisible absolute top-1/2 w-auto -translate-y-1/2 text-accent ${
         variant === 'hero' ? 'left-1/2 h-14 -translate-x-1/2' : 'left-0 h-[1.15em]'
       }`}
     />
   )
 
   const wordmark = (
-    <span data-word className="relative inline-block whitespace-nowrap" aria-label="WeebSync" role="img">
+    <span data-word className="relative inline-block whitespace-nowrap text-accent" aria-label="WeebSync" role="img">
       {[...'WEEB'].map(ch)}
-      <span className="relative text-accent">
+      <span className="relative text-accent-2">
         {[...'SYNC'].map((c, i) => ch(c, i + 4))}
         {ruby}
       </span>
@@ -381,7 +381,7 @@ export default function Brand({
       {heroMark && (
         <Logo
           intro={intro}
-          className="pointer-events-none absolute top-1/2 left-1/2 h-14 w-auto -translate-x-1/2 -translate-y-1/2"
+          className="pointer-events-none absolute top-1/2 left-1/2 h-14 w-auto -translate-x-1/2 -translate-y-1/2 text-accent"
         />
       )}
     </div>
