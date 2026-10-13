@@ -1,0 +1,640 @@
+/* ── Player ──
+   The page: the picture on top, what the file is under it. On a phone it is
+   a full-screen overlay over the whole app column (html.playing, set by the
+   page), the picture sticky and edge to edge, the rest scrolling under it.
+   On a desktop the sidebar stays and the picture is a rounded frame.
+   Inside the picture a gradient band at the top (back, title, chips) and one
+   at the bottom (scrubber over the buttons), the big play button and the
+   double-tap flashes in the middle. The picture stays dark in both themes:
+   video is watched against black, only the accent comes from the theme. */
+
+.t-player-page {
+  --pl-accent: var(--accent);
+  display: flex;
+  flex-direction: column;
+}
+/* the player is dark in both themes: the light theme's accent comes back
+   up to the lightness the dark one has, same hue, so it holds on black */
+[data-theme='light'] .t-player-page { --pl-accent: oklch(from var(--accent) 0.7 c h); }
+
+@media (width < 64rem) {
+  html.playing .t-player-page {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--bg);
+  }
+  .t-player-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-top: env(safe-area-inset-top, 0px);
+    background: #000;
+  }
+  .t-player { max-height: calc(100dvh - 7.5rem); }
+}
+@media (width >= 64rem) {
+  .t-player { border-radius: 0.75rem; max-height: 70vh; }
+}
+
+.t-player {
+  --pl-fg: #fff;
+  /* glass for the floating pieces: chips, pills, cards */
+  --pl-glass: rgb(10 10 12 / 0.62);
+  --pl-hit: 2.75rem;
+  --pl-dock-h: 4.5rem; /* the dock's height, measured by the player; this is the first paint */
+  position: relative;
+  display: block;
+  width: 100%;
+  /* 16:9, narrowing instead of spilling once the height runs out */
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
+  /* the controls fit the player's own width, not the window's */
+  container: player / inline-size;
+  background: #000;
+  overflow: hidden;
+  color: var(--pl-fg);
+  font-family: var(--font-sans);
+  user-select: none;
+  -webkit-user-select: none;
+
+  --media-primary-color: var(--pl-fg);
+  --media-secondary-color: transparent;
+  --media-icon-color: var(--pl-fg);
+  --media-font-family: var(--font-mono);
+  --media-font-size: 13px;
+  --media-control-background: transparent;
+  --media-control-hover-background: rgb(255 255 255 / 0.1);
+  --media-control-height: 22px;
+  --media-control-padding: 10px;
+  --media-button-icon-width: 22px;
+  --media-button-icon-height: 22px;
+  --media-focus-box-shadow: inset 0 0 0 2px var(--pl-accent);
+  --media-control-transition-in: opacity var(--dur-2) var(--ease-out);
+  --media-control-transition-out: opacity var(--dur-3) var(--ease-in);
+
+  /* scrubber: a 4px track that grows to 6px under the pointer, accent fill,
+     the buffered part lighter, and the knob: a short bar on the logo's 9 degree
+     slant that springs up to full height under the pointer or focus */
+  --media-range-track-height: 4px;
+  --media-range-track-border-radius: 2px;
+  --media-range-track-background: rgb(255 255 255 / 0.25);
+  --media-time-range-buffered-color: rgb(255 255 255 / 0.4);
+  --media-range-bar-color: var(--pl-accent);
+  --media-range-thumb-width: 7px;
+  --media-range-thumb-height: 16px;
+  --media-range-thumb-border-radius: 2px;
+  --media-range-thumb-background: var(--pl-accent);
+  --media-range-thumb-box-shadow: 0 0 0 2px rgb(0 0 0 / 0.35);
+  --media-range-thumb-opacity: 1;
+  --media-range-thumb-transform: skewX(-9deg) scaleY(0.4);
+  --media-range-thumb-transition: transform 260ms var(--spring);
+  --media-range-track-transition: height var(--dur-1) var(--ease-out);
+  --media-preview-time-background: var(--pl-glass);
+  --media-preview-time-border-radius: 4px;
+  --media-preview-time-padding: 3px 6px;
+  --media-preview-time-margin: 0 0 6px;
+
+  --media-tooltip-background: var(--pl-glass);
+  --media-tooltip-border-radius: 4px;
+  --media-tooltip-arrow-display: none;
+
+  --media-menu-background: transparent; /* the menu box carries the surface */
+  --media-menu-border: 0;
+  --media-menu-border-radius: 0.75rem;
+  --media-menu-item-hover-background: rgb(255 255 255 / 0.1);
+  --media-menu-item-checked-background: transparent;
+  /* the check sits after the label (our own icon in the suffix slot) */
+  --media-menu-item-checked-indicator-display: none;
+  --media-menu-item-focus-shadow: inset 0 0 0 2px var(--pl-accent);
+  --media-menu-transition-in: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+  --media-menu-transition-out: opacity var(--dur-1) var(--ease-in), transform var(--dur-1) var(--ease-in);
+  --media-menu-transform-out: translateY(4px) scale(0.98);
+}
+.t-player:fullscreen {
+  aspect-ratio: auto;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+}
+
+/* before the file is read: the black frame with the way out and the words */
+.t-player--idle { display: grid; }
+.t-player--idle .t-player-top { position: absolute; inset: 0 0 auto; }
+.t-player-idle {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 3.5rem 1rem 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+/* ── top band: back, the series and the episode, the file's chips ── */
+.t-player-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem 1.625rem;
+  background: linear-gradient(rgb(0 0 0 / 0.65), transparent);
+  line-height: 1.25; /* the host sets 0 */
+  align-self: stretch;
+  pointer-events: auto;
+}
+.t-player:fullscreen .t-player-top {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+  padding-inline: max(0.625rem, env(safe-area-inset-left, 0px)) max(0.625rem, env(safe-area-inset-right, 0px));
+}
+.t-player-title {
+  flex: 1;
+  display: grid;
+  min-width: 3rem;
+}
+.t-player-title > b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 0.9375rem/1.25 var(--f-display);
+}
+.t-player-title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+.t-player-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+.t-player-chip {
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: var(--pl-glass);
+  font: 500 0.6875rem/1.2 var(--f-mono);
+  white-space: nowrap;
+}
+/* playing straight from the file is good news: green, as on the dark ground */
+.t-player-mode[data-mode='direct'] { color: #34d67a; }
+.t-player-mode[data-mode='transcode'] { color: var(--pl-accent); }
+/* a pill that asks something of the viewer or reports trouble */
+.t-player-pill {
+  flex-shrink: 0;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  background: var(--pl-glass);
+  font-size: 0.8125rem;
+  line-height: 2rem;
+  white-space: nowrap;
+}
+.t-player-pill--go { background: var(--pl-accent); color: #000; font-weight: 500; cursor: pointer; }
+.t-player-pill--err { color: #ff9a5c; }
+.t-player-pill:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* the round 44px buttons of the bands and cards */
+.t-pl-ic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+}
+.t-pl-ic--sm { width: 2rem; height: 2rem; }
+@media (hover: hover) {
+  .t-pl-ic:hover { background: rgb(255 255 255 / 0.1); }
+}
+.t-pl-ic:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--pl-accent); }
+
+/* ── cards over the corner above the dock: resume, next episode ── */
+.t-player-card {
+  position: absolute;
+  z-index: 4;
+  right: 0.75rem;
+  bottom: calc(var(--pl-dock-h) + 0.25rem);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+  border-radius: 0.75rem;
+  background: var(--pl-glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-size: 0.875rem;
+  line-height: 1.3;
+  pointer-events: auto;
+}
+.t-player-card-btn {
+  flex: none;
+  height: 2.125rem;
+  padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+  font-weight: 500;
+  cursor: pointer;
+}
+.t-player-card-btn--go { background: var(--pl-accent); color: #000; }
+.t-player-card-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .t-player-card { animation: t-pl-card-in var(--dur-2) var(--ease-out); }
+}
+@keyframes t-pl-card-in { from { opacity: 0; translate: 0 8px; } }
+
+/* ── menus: dark glass over the dock's right corner, 42px rows, the value
+   at the right, the picked row in the accent with a check after it ── */
+.t-player-menu {
+  z-index: 5;
+  width: min(300px, calc(100% - 1.25rem));
+  min-width: 0;
+  /* media-chrome pins the menu over its button inside the dock; this puts
+     it over the dock instead (--pl-dock-h is measured) */
+  right: 0.625rem;
+  bottom: calc(var(--pl-dock-h) - 0.5rem);
+  padding: 6px;
+  border-radius: 0.75rem;
+  background: rgb(14 14 16 / 0.86);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: #fff;
+  transform-origin: bottom right;
+  line-height: 1.3;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  --media-font-size: 0.875rem;
+  --media-font-family: var(--font-sans);
+  --media-menu-item-description-max-width: 9rem;
+}
+.t-player:fullscreen .t-player-menu { right: max(1.5rem, env(safe-area-inset-right, 0px)); }
+/* the subtitle and audio menus are plain media-chrome menus: media-chrome
+   lifts only its own settings menu out of the flow */
+media-chrome-menu.t-player-menu { position: absolute; }
+/* opened straight from its button, there is no menu to go back to */
+media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
+/* never taller than the room above the dock; it scrolls inside instead */
+.t-player-menu { --media-menu-max-height: calc(100cqi * 9 / 16 - var(--pl-dock-h) - 1rem); }
+.t-player:fullscreen .t-player-menu {
+  --media-menu-max-height: calc(100dvh - var(--pl-dock-h) - max(1rem, env(safe-area-inset-top, 0px)));
+}
+.t-player-menu::part(container) { overflow: hidden auto; }
+.t-player-menu [slot='submenu'] { --media-menu-transform-out: none; }
+.t-player-menu:has(> [aria-expanded='true'])::part(container) { overflow: visible; }
+.t-player-menu :is(media-settings-menu-item, media-chrome-menu-item) {
+  box-sizing: border-box;
+  min-height: 2.625rem;
+  padding: 0 0.625rem;
+  border-radius: 0.5rem;
+  gap: 0.75rem;
+}
+@media (pointer: coarse) {
+  .t-player-menu :is(media-settings-menu-item, media-chrome-menu-item) { min-height: 2.75rem; }
+}
+.t-player-menu [slot='description'] { color: rgb(255 255 255 / 0.6); font-size: 0.8125rem; }
+.t-player-menu media-chrome-menu-item[aria-checked='true'] { color: var(--pl-accent); font-weight: 500; }
+.t-pm-check { width: 1.125rem; height: 1.125rem; flex: none; visibility: hidden; color: var(--pl-accent); }
+[aria-checked='true'] > .t-pm-check { visibility: visible; }
+.t-player-menu [slot='title'] {
+  padding: 0.625rem 0.625rem 0.5rem;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
+  font-weight: 600;
+}
+
+/* ── bottom band: scrubber over the button row ── */
+.t-player-dock {
+  position: relative;
+  z-index: 1;
+  align-self: stretch;
+  padding: 1.375rem 0.5rem 0.25rem;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.72));
+}
+.t-player:fullscreen .t-player-dock {
+  padding: 1.375rem max(1.5rem, env(safe-area-inset-right, 0px)) max(0.75rem, env(safe-area-inset-bottom, 0px))
+    max(1.5rem, env(safe-area-inset-left, 0px));
+}
+.t-player-top { position: relative; z-index: 1; }
+.t-player-btn svg { width: var(--media-button-icon-width); height: var(--media-button-icon-height); }
+.t-player-scrub,
+.t-player-bar { display: flex; width: 100%; align-items: center; }
+.t-player-scrub { padding-inline: 0.5rem; }
+.t-player-scrub media-time-range {
+  flex: 1;
+  height: 1.375rem; /* the hit area, not the drawn track */
+  --media-control-hover-background: transparent;
+  --media-control-padding: 0;
+}
+.t-player-scrub media-time-range:is(:hover, :focus-visible) {
+  --media-range-track-height: 6px;
+  --media-range-thumb-transform: skewX(-9deg);
+}
+.t-player-scrub media-time-range:active { --media-range-thumb-transform: skewX(-9deg) scale(1.15, 1.1); }
+/* the knob shows with the controls only */
+.t-player[userinactive]:not([mediapaused]) .t-player-scrub media-time-range { --media-range-thumb-opacity: 0; }
+
+.t-player-bar > *,
+.t-player-volume > * { border-radius: 50%; }
+.t-player-bar :is(media-play-button, media-seek-backward-button, media-seek-forward-button, media-mute-button,
+  media-settings-menu-button, media-chrome-menu-button, media-fullscreen-button, .t-player-btn) {
+  min-width: var(--pl-hit);
+  min-height: var(--pl-hit);
+  justify-content: center;
+}
+/* the time is a button (elapsed or remaining): a 24px target like the rest */
+.t-player-time {
+  min-height: 24px;
+  min-width: 24px;
+  padding-inline: 0.5rem;
+  border-radius: 4px !important;
+  align-items: center;
+  white-space: nowrap;
+}
+/* volume slides out of the mute button instead of always taking room */
+.t-player-volume { display: inline-flex; align-items: center; }
+.t-player-volume media-volume-range {
+  width: 0;
+  padding-inline: 0;
+  opacity: 0;
+  overflow: hidden;
+  border-radius: 4px;
+  --media-range-thumb-width: 12px;
+  --media-range-thumb-height: 12px;
+  --media-range-thumb-border-radius: 50%;
+  --media-range-thumb-transform: none;
+  --media-range-thumb-background: #fff;
+  --media-range-bar-color: #fff;
+  transition: width var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+}
+.t-player-volume:focus-within media-volume-range { width: 5rem; padding-inline: 8px; opacity: 1; }
+@media (hover: hover) {
+  .t-player-volume:hover media-volume-range { width: 5rem; padding-inline: 8px; opacity: 1; }
+}
+.t-player-btn {
+  display: inline-grid;
+  place-items: center;
+  color: var(--pl-fg);
+  border-radius: 50%;
+}
+@media (hover: hover) {
+  .t-player-btn:hover:not(:disabled) { background: rgb(255 255 255 / 0.1); }
+}
+.t-player-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--pl-accent); }
+.t-player-btn:disabled { opacity: 0.35; }
+.t-player-back { margin-left: -0.375rem; }
+
+/* subtitles on: a short straight accent bar under the icon */
+.t-player-cc { position: relative; }
+.t-player-cc::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 14px;
+  height: 2px;
+  margin-left: -7px;
+  border-radius: 1px;
+  background: var(--pl-accent);
+  opacity: 0;
+  scale: 0.4 1;
+  transition: opacity var(--dur-1) var(--ease-out), scale var(--m3-spatial-dur) var(--m3-spatial);
+}
+.t-player-cc[data-on]::after { opacity: 1; scale: 1; }
+/* the icons of the bar's own buttons, sized like media-chrome's */
+.t-player-icon { display: inline-grid; place-items: center; }
+.t-player-icon svg { width: var(--media-button-icon-width); height: var(--media-button-icon-height); }
+/* a state change morphs the icon in on the spatial spring (Material 3 Expressive) */
+.t-player-icon--morph svg { animation: m3-icon-in var(--m3-spatial-dur) var(--m3-spatial); }
+@keyframes m3-icon-in { from { scale: 0.6; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .t-player-icon--morph svg { animation: none; } }
+:root[data-motion='off'] .t-player-icon--morph svg { animation: none; }
+
+/* ── middle: the big play button only while paused, the loading mark and
+   its step, the double-tap flashes ── */
+.t-player-center {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: 100%;
+  pointer-events: none;
+}
+.t-player-bigplay {
+  grid-column: 2;
+  grid-row: 1;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  background: var(--pl-glass);
+  --media-button-icon-width: 34px;
+  --media-button-icon-height: 34px;
+  pointer-events: auto;
+  opacity: 0;
+  scale: 0.85;
+  visibility: hidden;
+  transition: opacity var(--dur-2) var(--ease-out), scale var(--dur-2) var(--ease-out), visibility 0s var(--dur-2);
+}
+.t-player[mediapaused]:not([medialoading]) .t-player-bigplay {
+  opacity: 1;
+  scale: 1;
+  visibility: visible;
+  transition: opacity var(--dur-2) var(--ease-out), scale var(--dur-2) var(--ease-out);
+}
+.t-player-spinner { grid-column: 2; grid-row: 1; --media-loading-icon-width: 84px; }
+.t-player-logo { display: block; width: 84px; color: #e6ebf0; filter: drop-shadow(0 1px 6px rgb(0 0 0 / 0.6)); }
+.t-player-logo svg { display: block; width: 100%; height: auto; }
+.t-player-step {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: center;
+  margin-top: 0.75rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--pl-glass);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+}
+.t-player-step--err { color: #ff9a5c; }
+/* the words follow media-chrome's own spinner, so they never outstay it */
+.t-player:not([medialoading]) .t-player-step:not(.t-player-step--err) { display: none; }
+.t-player--idle .t-player-step { display: block; margin: 0; }
+.t-player-flash {
+  justify-self: center;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--pl-glass);
+  font: 600 1rem/1 var(--f-sans);
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0;
+  scale: 0.9;
+  transition: opacity var(--dur-2) var(--ease-in), scale var(--dur-2) var(--ease-in);
+}
+.t-player-flash[data-on] {
+  opacity: 1;
+  scale: 1;
+  transition: opacity var(--dur-1) var(--ease-out), scale var(--dur-1) var(--ease-out);
+}
+
+/* the picture fills the player and never more; the subtitles sit on exactly
+   that box and never move - libass places them where the script says */
+.t-player video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.t-player-subs {
+  position: absolute;
+  pointer-events: none;
+}
+/* libpgs draws at the disc's own size and fits it like the picture */
+.t-player-subs-pgs {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@media (pointer: coarse) {
+  .t-player-volume media-volume-range { display: none; } /* the device has its own */
+}
+.t-player-time--short { display: none; }
+
+/* as the player narrows, the controls a viewer reaches for least step out
+   first; play, time, subtitles, settings and fullscreen always stay. Rules
+   here never target .t-player itself: a container cannot query its own size. */
+@container player (width < 520px) {
+  .t-player-bar .t-player-pip { display: none; }
+  .t-player-chip:not(.t-player-mode) { display: none; }
+  .t-player-card { right: 0.375rem; max-width: calc(100% - 0.75rem); font-size: 0.8125rem; }
+}
+@container player (width < 480px) {
+  .t-player-bar :is(media-seek-backward-button, media-seek-forward-button, .t-player-prev, .t-player-nextep) { display: none; }
+  .t-player-time { font-size: 12px; }
+  .t-player-bigplay { width: 3.5rem; height: 3.5rem; --media-button-icon-width: 28px; --media-button-icon-height: 28px; }
+}
+@container player (width < 440px) {
+  /* a phone has its own volume keys */
+  .t-player-bar .t-player-volume { display: none; }
+  .t-player-time--full { display: none; }
+  .t-player-time--short { display: inline-flex; }
+  .t-player-time { padding-inline: 0.25rem; }
+}
+@container player (width < 360px) {
+  .t-player-title > b {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-player {
+    --media-control-transition-in: none;
+    --media-control-transition-out: none;
+    --media-menu-transition-in: none;
+    --media-menu-transition-out: none;
+    --media-range-thumb-transition: none;
+    --media-range-track-transition: none;
+  }
+  .t-player *,
+  .t-player-bigplay { transition: none !important; translate: none !important; scale: none !important; }
+}
+:root[data-motion='off'] .t-player-card { animation: none; }
+
+/* ── under the picture: the title and this file, the folder's episodes ── */
+.t-player-info {
+  display: grid;
+  gap: 1.125rem;
+  padding: 1rem 0 2.5rem;
+}
+@media (width < 64rem) {
+  html.playing .t-player-info { padding-inline: 1rem; }
+}
+@media (width >= 64rem) {
+  .t-player-info { padding-top: 1.25rem; }
+}
+.t-pi-head {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 0.875rem;
+  align-items: start;
+}
+.t-pi-head--bare { grid-template-columns: minmax(0, 1fr); }
+@media (width >= 64rem) {
+  .t-pi-head { grid-template-columns: 5.25rem minmax(0, 1fr); }
+  .t-pi-head--bare { grid-template-columns: minmax(0, 1fr); }
+}
+.t-pi-quiet { font-size: 0.8125rem; color: var(--fg-3); }
+.t-pi-title {
+  margin: 2px 0 4px;
+  font: 600 1.25rem/1.2 var(--f-display);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.t-pi-title > span { font-size: 0.9375rem; color: var(--fg-3); }
+.t-pi-open { margin-top: 0.5rem; }
+.t-pi-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  font-size: 0.875rem;
+  color: var(--fg-2);
+  text-wrap: pretty;
+}
+.t-pi-cols { display: grid; gap: 1.25rem; }
+@media (width >= 64rem) {
+  .t-pi-cols { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 3rem; }
+}
+.t-pi-dl {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+.t-pi-dl dt { color: var(--fg-3); }
+.t-pi-dl dd { color: var(--fg); overflow-wrap: anywhere; }
+.t-pi-mono { font: 0.78125rem/1.4 var(--f-mono); }
+.t-pi-ok { margin-left: 6px; font-size: 0.75rem; color: var(--ok); }
+.t-pi-eps {
+  max-height: 26rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.t-pi-eps button {
+  display: grid;
+  grid-template-columns: 1.125rem minmax(0, 1fr) auto;
+  gap: 0.625rem;
+  align-items: center;
+  width: 100%;
+  min-height: 2.75rem;
+  padding-block: 0.375rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.875rem;
+  text-align: start;
+  color: var(--fg);
+}
+.t-pi-eps li:last-child button { border-bottom: 0; }
+.t-pi-eps button[aria-current] { color: var(--accent); font-weight: 500; }
+.t-pi-eps button:disabled { color: var(--fg-3); cursor: default; }
+@media (hover: hover) {
+  .t-pi-eps button:not(:disabled):hover .t-pi-label { text-decoration: underline; text-underline-offset: 3px; }
+}
+.t-pi-eps button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
+.t-pi-mark { display: grid; place-items: center; }
+.t-pi-label { min-width: 0; overflow-wrap: anywhere; }
+.t-pi-code { margin-right: 0.5rem; font: 0.8125rem var(--f-mono); color: var(--fg-3); }
+.t-pi-st { font-size: 0.75rem; color: var(--fg-3); white-space: nowrap; }
