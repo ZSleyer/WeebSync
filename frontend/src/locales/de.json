@@ -1834,6 +1834,16 @@
     "pausedNote": "Pausierte Aufgaben starten nicht mehr von selbst, bis sie hier fortgesetzt werden.",
     "resume": "Fortsetzen"
   },
+  "live": {
+    "loading_one": "Eine Folge lädt",
+    "loading_other": "{{count}} Folgen laden",
+    "waiting_one": "Eine Folge wartet",
+    "waiting_other": "{{count}} Folgen warten",
+    "paused": "Pausiert oder wartet auf den Server",
+    "done_one": "Folge geladen",
+    "done_other": "{{count}} Folgen geladen",
+    "doneSub": "Alles auf der Platte"
+  },
   "explain": {
     "why": "Warum?",
     "whyMatch": "Warum diese Serie?",

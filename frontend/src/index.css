@@ -2770,3 +2770,12 @@ li.t-swiperow { border-radius: 0; }
 .t-ep-file--here .t-ep-file__icon { border-color: var(--color-accent); color: var(--color-accent); }
 @media (pointer: coarse) { .t-ep-file__play { min-height: 2.75rem; } }
 @media (prefers-reduced-motion: reduce) { .t-ep-file__play, .t-ep-file__icon { transition: none; } }
+
+/* Live activity: the ring follows the bytes of the queue, and when the queue
+   runs dry the check pops in once. Both stand still without motion. */
+.t-live-ring { transition: stroke-dashoffset var(--dur-3) var(--ease-out), stroke var(--dur-2); }
+:root[data-motion="off"] .t-live-ring { transition: none; }
+@media (prefers-reduced-motion: reduce) { .t-live-ring { transition: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="off"]) .t-live-check { animation: t-tick var(--dur-2) var(--ease-out); }
+}

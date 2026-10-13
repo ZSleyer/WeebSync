@@ -1834,6 +1834,16 @@
     "pausedNote": "A held task no longer starts on its own until it is resumed here.",
     "resume": "Resume"
   },
+  "live": {
+    "loading_one": "One episode downloading",
+    "loading_other": "{{count}} episodes downloading",
+    "waiting_one": "One episode waiting",
+    "waiting_other": "{{count}} episodes waiting",
+    "paused": "Paused or waiting for the server",
+    "done_one": "Episode downloaded",
+    "done_other": "{{count}} episodes downloaded",
+    "doneSub": "Everything is on the disk"
+  },
   "explain": {
     "why": "Why?",
     "whyMatch": "Why this series?",

@@ -36,6 +36,7 @@ import Tips from './components/Tips'
 import ScrollMemory from './components/ScrollMemory'
 import PageScroll from './components/PageScroll'
 import CommandPalette from './components/CommandPalette'
+import { LiveActivity } from './components/LiveActivity'
 import { useBack } from './components/playLinks'
 import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
 import RedirectWithQuery from './components/RedirectWithQuery'
@@ -439,6 +440,8 @@ function Shell({ email }: { email: string }) {
           </NavLink>
         ))}
       </nav>
+      {/* what transfers right now, above settings where the eye rests last */}
+      <LiveActivity variant="rail" />
       {/* settings at the foot, apart from the pages: visited rarely, but
           always in the same place */}
       <div className="py-2">
@@ -553,7 +556,12 @@ function Shell({ email }: { email: string }) {
               bar={bar}
               tabs={tabs}
               mainKey={topPage(location.pathname)}
-              notice={<UpdateToast />}
+              notice={
+                <>
+                  <UpdateToast />
+                  <LiveActivity variant="pill" hideOnDashboard />
+                </>
+              }
               footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
               aside={<div ref={setAside} className="contents" />}
               before={
