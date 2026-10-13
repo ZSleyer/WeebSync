@@ -312,14 +312,88 @@ func (s *Server) matchBatch(batch []matchJob) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
+	results, infos, _, err := s.searchChain(ctx, batch)
+	if err != nil {
+		return
+	}
+
+	// pick the best-scoring candidate per folder instead of the first hit;
+	// a non-confident best for an explicit sequel folder is kept tentatively
+	// so the relations pass can confirm or discard it
+	picked := make([]*anilist.Media, len(batch))
+	rescue := make([]bool, len(batch))
+	for i := range batch {
+		if len(results[i]) == 0 {
+			slog.Debug("match unresolved", "folder", logSafe(batch[i].folder), "reason", "no candidates after fallbacks")
+			continue
+		}
+		idx, ok := match.Pick(infos[i], results[i])
+		switch {
+		case ok:
+			picked[i] = &results[i][idx]
+			slog.Debug("match picked", "folder", logSafe(batch[i].folder), "media", picked[i].ID,
+				"title", picked[i].Title.Romaji, "candidates", len(results[i]), "confident", true)
+		case rescuable(infos[i], results[i][idx], batch[i].manga):
+			picked[i], rescue[i] = &results[i][idx], true
+			// sequel folder, best candidate has no season marker: keep it
+			// tentatively for the relations pass to confirm or discard
+			slog.Debug("match picked", "folder", logSafe(batch[i].folder), "media", picked[i].ID,
+				"title", picked[i].Title.Romaji, "candidates", len(results[i]),
+				"confident", false, "rescue", true, "season", infos[i].Season)
+		default:
+			slog.Debug("match unresolved", "folder", logSafe(batch[i].folder),
+				"candidates", len(results[i]), "reason", "no confident candidate")
+		}
+	}
+	s.fixSequelPicks(ctx, infos, picked, rescue)
+	for i, b := range batch {
+		mediaID := 0
+		if picked[i] != nil {
+			mediaID = picked[i].ID
+			s.Anilist.CacheMedia(picked[i])
+		}
+		src := "anilist"
+		if b.manga {
+			src = mangaSource
+		}
+		s.persistMatch(b.serverID, b.folder, mediaID, false, src)
+	}
+}
+
+// rescuable reports whether a non-confident best candidate is kept for the
+// relations pass: the folder names a sequel season and the candidate carries
+// no season marker, so its SEQUEL chain may still lead to the right entry.
+func rescuable(info match.Info, best anilist.Media, manga bool) bool {
+	return info.Season >= 2 && match.SeasonOf(best) == 0 && !manga
+}
+
+// searchStep is one search of the match chain for one folder: the stage that
+// ran it, the query and how many candidates came back (-1: the request failed).
+type searchStep struct {
+	Stage  string `json:"stage" enums:"search,unfiltered,alt-title,normalized,stripped-markers"`
+	Query  string `json:"query"`
+	Season string `json:"season,omitempty"`
+	Year   int    `json:"year,omitempty"`
+	Hits   int    `json:"hits"`
+}
+
+// searchChain runs the catalog search for a batch of folders: the title with
+// the season folder's context, then the fallbacks for whatever came back
+// empty. It returns the candidates and the parsed name per folder, and every
+// search that ran for it, so an explanation replays exactly what matching did.
+func (s *Server) searchChain(ctx context.Context, batch []matchJob) ([][]anilist.Media, []match.Info, [][]searchStep, error) {
 	reqs := make([]anilist.SearchReq, len(batch))
+	trace := make([][]searchStep, len(batch))
 	for i, b := range batch {
 		season, year := seasonFromPath(b.folder)
 		reqs[i] = anilist.SearchReq{Query: GuessTitle(b.name), Season: season, Year: year, Force: b.force, Manga: b.manga}
 	}
 	results, err := s.Anilist.SearchBatch(ctx, reqs)
 	if err != nil {
-		return
+		return nil, nil, nil, err
+	}
+	for i := range batch {
+		trace[i] = append(trace[i], searchStep{Stage: "search", Query: reqs[i].Query, Season: reqs[i].Season, Year: reqs[i].Year, Hits: len(results[i])})
 	}
 	// fallback chain for empty results: season-filtered miss → unfiltered
 	// search → alternative title from parens ("Romaji (English)" folders) →
@@ -333,7 +407,15 @@ func (s *Server) matchBatch(batch []matchJob) {
 		for n, i := range idx {
 			sub[n] = build(i)
 		}
-		if fb, ferr := s.Anilist.SearchBatch(ctx, sub); ferr == nil {
+		fb, ferr := s.Anilist.SearchBatch(ctx, sub)
+		for n, i := range idx {
+			hits := -1
+			if ferr == nil {
+				hits = len(fb[n])
+			}
+			trace[i] = append(trace[i], searchStep{Stage: stage, Query: sub[n].Query, Hits: hits})
+		}
+		if ferr == nil {
 			for n, i := range idx {
 				results[i] = fb[n]
 				// which rescue stage recovered a previously empty result, and
@@ -387,48 +469,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 	runFallback("stripped-markers", stripped, func(i int) anilist.SearchReq {
 		return anilist.SearchReq{Query: match.StripMarkers(reqs[i].Query), Force: reqs[i].Force, Manga: reqs[i].Manga}
 	})
-
-	// pick the best-scoring candidate per folder instead of the first hit;
-	// a non-confident best for an explicit sequel folder is kept tentatively
-	// so the relations pass can confirm or discard it
-	picked := make([]*anilist.Media, len(batch))
-	rescue := make([]bool, len(batch))
-	for i := range batch {
-		if len(results[i]) == 0 {
-			slog.Debug("match unresolved", "folder", logSafe(batch[i].folder), "reason", "no candidates after fallbacks")
-			continue
-		}
-		idx, ok := match.Pick(infos[i], results[i])
-		switch {
-		case ok:
-			picked[i] = &results[i][idx]
-			slog.Debug("match picked", "folder", logSafe(batch[i].folder), "media", picked[i].ID,
-				"title", picked[i].Title.Romaji, "candidates", len(results[i]), "confident", true)
-		case infos[i].Season >= 2 && match.SeasonOf(results[i][idx]) == 0 && !batch[i].manga:
-			picked[i], rescue[i] = &results[i][idx], true
-			// sequel folder, best candidate has no season marker: keep it
-			// tentatively for the relations pass to confirm or discard
-			slog.Debug("match picked", "folder", logSafe(batch[i].folder), "media", picked[i].ID,
-				"title", picked[i].Title.Romaji, "candidates", len(results[i]),
-				"confident", false, "rescue", true, "season", infos[i].Season)
-		default:
-			slog.Debug("match unresolved", "folder", logSafe(batch[i].folder),
-				"candidates", len(results[i]), "reason", "no confident candidate")
-		}
-	}
-	s.fixSequelPicks(ctx, infos, picked, rescue)
-	for i, b := range batch {
-		mediaID := 0
-		if picked[i] != nil {
-			mediaID = picked[i].ID
-			s.Anilist.CacheMedia(picked[i])
-		}
-		src := "anilist"
-		if b.manga {
-			src = mangaSource
-		}
-		s.persistMatch(b.serverID, b.folder, mediaID, false, src)
-	}
+	return results, infos, trace, nil
 }
 
 // fixSequelPicks resolves folders that name season N but whose pick carries
