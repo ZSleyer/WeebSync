@@ -1804,6 +1804,16 @@ export interface Schemas {
     connected: boolean
     error?: string
   }
+  'api.backdropResponse': {
+    /**
+     * Large is the same picture at its original size, for screens that need more
+     */
+    large: string
+    /**
+     * URL is TMDB's 1280 px backdrop
+     */
+    url: string
+  }
   'api.catalogExplainResponse': {
     /**
      * other folders in the same directory with the same series: one card

@@ -4215,6 +4215,23 @@
                 ],
                 "type": "object"
             },
+            "api.backdropResponse": {
+                "properties": {
+                    "large": {
+                        "description": "Large is the same picture at its original size, for screens that need more",
+                        "type": "string"
+                    },
+                    "url": {
+                        "description": "URL is TMDB's 1280 px backdrop",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "url",
+                    "large"
+                ],
+                "type": "object"
+            },
             "api.catalogExplainResponse": {
                 "properties": {
                     "bundle": {
@@ -13246,6 +13263,61 @@
                 "summary": "Background job status",
                 "tags": [
                     "Admin"
+                ]
+            }
+        },
+        "/api/media/backdrop": {
+            "get": {
+                "description": "A sharper wide picture for an AniList title, from its TMDB entry when the anime id mapping knows one.",
+                "parameters": [
+                    {
+                        "description": "Metadata source: anilist (default)",
+                        "in": "query",
+                        "name": "source",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Media id",
+                        "in": "query",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.backdropResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Media backdrop",
+                "tags": [
+                    "Suggestions"
                 ]
             }
         },

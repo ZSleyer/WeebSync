@@ -774,3 +774,40 @@ func (c *Client) Collection(ctx context.Context, id int) ([]anilist.Media, error
 	c.store(cacheKey, string(payload))
 	return list, nil
 }
+
+// Backdrop is a title's widest backdrop (path and width in px), from its
+// image list rather than the one picked for the details: that one is
+// sometimes a small upload while a large one sits beside it. Cached like the
+// details; empty when the title has none.
+func (c *Client) Backdrop(ctx context.Context, kind string, id int) (string, int, error) {
+	key := fmt.Sprintf("tmdb:backdrop:%s:%d", kind, id)
+	var best struct {
+		Path  string `json:"file_path"`
+		Width int    `json:"width"`
+	}
+	if payload, ok := c.cached(key); ok && json.Unmarshal([]byte(payload), &best) == nil {
+		return best.Path, best.Width, nil
+	}
+	var r struct {
+		Backdrops []struct {
+			Path  string  `json:"file_path"`
+			Width int     `json:"width"`
+			Lang  *string `json:"iso_639_1"`
+			Vote  float64 `json:"vote_average"`
+		} `json:"backdrops"`
+	}
+	// textless pictures first (no language), then the English and Japanese ones
+	params := url.Values{"include_image_language": {"null,en,ja"}}
+	if err := c.get(ctx, fmt.Sprintf("/%s/%d/images", kind, id), params, &r); err != nil {
+		return "", 0, err
+	}
+	for _, b := range r.Backdrops {
+		if b.Width > best.Width || (b.Width == best.Width && b.Lang == nil) {
+			best.Path, best.Width = b.Path, b.Width
+		}
+	}
+	if raw, err := json.Marshal(best); err == nil {
+		c.store(key, string(raw))
+	}
+	return best.Path, best.Width, nil
+}
