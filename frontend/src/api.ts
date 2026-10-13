@@ -184,6 +184,9 @@ export type Review = Schemas['anilist.Review']
 // The title card's secondary content, from GET /api/media/extras. Every list
 // is present; a source that has no such thing sends it empty.
 export type MediaExtras = Schemas['api.mediaExtrasResponse']
+// A recommended title: the media record plus `rating`, the AniList vote count
+// behind the recommendation (absent for TMDB).
+export type RecommendedMedia = Schemas['api.recommendedMedia']
 
 // the display title of a watch: the override, else the record's, else the folder
 /** Which provider record a suggestion's `media` is: anime is AniList, the rest TMDB. */

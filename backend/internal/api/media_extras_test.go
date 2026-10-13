@@ -35,7 +35,7 @@ func TestMediaExtras(t *testing.T) {
 		t.Fatalf("cached: got %d: %s", rec.Code, rec.Body)
 	}
 	body := rec.Body.Bytes()
-	for _, want := range []string{`"relationType":"SEQUEL"`, `"id":9`, `"name":"Frieren"`, `"site":"Crunchyroll"`, `"title":"Ep 1 discussion"`} {
+	for _, want := range []string{`"relationType":"SEQUEL"`, `"id":9`, `"rating":9`, `"name":"Frieren"`, `"site":"Crunchyroll"`, `"title":"Ep 1 discussion"`} {
 		if !jsonHas(body, want) {
 			t.Errorf("cached body lacks %s: %s", want, body)
 		}

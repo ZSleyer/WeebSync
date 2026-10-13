@@ -13,10 +13,20 @@ import (
 // Every list is present, empty where the source has nothing.
 type mediaExtrasResponse struct {
 	Relations       []anilist.Relation     `json:"relations"`
-	Recommendations []anilist.Media        `json:"recommendations"`
+	Recommendations []recommendedMedia     `json:"recommendations"`
 	Characters      []anilist.Character    `json:"characters"`
 	Links           []anilist.ExternalLink `json:"links"`
 	Threads         []anilist.Thread       `json:"threads"`
+}
+
+// recommendedMedia is a recommended title with the strength of the
+// recommendation. Media is embedded so the JSON stays the flat media object
+// every card already reads, with rating beside its fields.
+type recommendedMedia struct {
+	anilist.Media
+	// Rating is the net vote count AniList users gave the recommendation;
+	// absent for TMDB, which has no votes on it.
+	Rating int `json:"rating,omitempty"`
 }
 
 // handleMediaExtras serves the title card's secondary tabs, lazily:
@@ -41,7 +51,7 @@ func (s *Server) handleMediaExtras(w http.ResponseWriter, r *http.Request) {
 	}
 	out := mediaExtrasResponse{
 		Relations:       []anilist.Relation{},
-		Recommendations: []anilist.Media{},
+		Recommendations: []recommendedMedia{},
 		Characters:      []anilist.Character{},
 		Links:           []anilist.ExternalLink{},
 		Threads:         []anilist.Thread{},
@@ -70,7 +80,7 @@ func (s *Server) handleMediaExtras(w http.ResponseWriter, r *http.Request) {
 			out.Relations = rels[id]
 		}
 		for _, rc := range recs[id] {
-			out.Recommendations = append(out.Recommendations, rc.Media)
+			out.Recommendations = append(out.Recommendations, recommendedMedia{Media: rc.Media, Rating: rc.Rating})
 		}
 		out.Characters, out.Links, out.Threads = x.Characters, x.Links, x.Threads
 	case strings.HasPrefix(source, "tmdb:"):
@@ -79,7 +89,10 @@ func (s *Server) handleMediaExtras(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadGateway, err.Error())
 			return
 		}
-		out.Recommendations, out.Characters = recs, cast
+		for _, m := range recs {
+			out.Recommendations = append(out.Recommendations, recommendedMedia{Media: m})
+		}
+		out.Characters = cast
 	default:
 		writeErr(w, http.StatusBadRequest, "unknown source")
 		return

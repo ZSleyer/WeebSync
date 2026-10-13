@@ -2095,7 +2095,7 @@ export interface Schemas {
   'api.mediaExtrasResponse': {
     characters: Schemas['anilist.Character'][]
     links: Schemas['anilist.ExternalLink'][]
-    recommendations: Schemas['anilist.Media'][]
+    recommendations: Schemas['api.recommendedMedia'][]
     relations: Schemas['anilist.Relation'][]
     threads: Schemas['anilist.Thread'][]
   }
@@ -2228,6 +2228,135 @@ export interface Schemas {
       auth: string
       p256dh: string
     }
+  }
+  'api.recommendedMedia': {
+    /**
+     * AiringSchedule is every not-yet-aired episode AniList has dated ahead
+     * (usually the whole current cour), for the multi-week calendar view.
+     */
+    airingSchedule?: {
+      nodes: Schemas['anilist.AiringSlot'][]
+    }
+    averageScore: number
+    bannerImage: string
+    chapters?: number
+    coverImage: {
+      /**
+       * Color is the artwork's dominant colour as a hex string. The poster
+       * frame shows it while the file loads. Empty on older cache entries
+       * and for artwork AniList has not measured.
+       */
+      color?: string
+      /**
+       * ExtraLarge is the same artwork at twice the edge (460px rather than
+       * 230px). A poster tile on a phone is around 200 CSS px wide, which a
+       * 230px file has to stretch two to three times over at the device
+       * pixel ratios those screens run at. Empty on cache entries written
+       * before the field existed; consumers fall back to Large.
+       */
+      extraLarge?: string
+      large: string
+      /**
+       * Medium is the 100px-wide artwork, for list rows and thumbnails
+       * where Large would be downloaded only to be shrunk. Empty on cache
+       * entries written before the field existed; consumers fall back to
+       * Large.
+       */
+      medium?: string
+    }
+    description: string
+    endDate?: number
+    episodes: number
+    /**
+     * ExternalLinks are the streaming and official sites AniList lists for
+     * the title; the Crunchyroll one carries the series id the dub recorder
+     * reads releases under (see CrunchyrollID).
+     */
+    externalLinks?: Schemas['anilist.ExternalLink'][]
+    format: string
+    genres?: string[]
+    id: number
+    /**
+     * NextAiring is the upcoming episode's release slot (RELEASING titles);
+     * nil for finished titles or cache entries predating the field.
+     */
+    nextAiringEpisode: {
+      /**
+       * unix seconds
+       */
+      airingAt: number
+      episode: number
+    } | null
+    /**
+     * Popularity is the audience size (AniList: users on their lists, TMDB:
+     * vote count). Comparable within one source, which is all the catalog
+     * sorts across: the metadata source is picked per folder.
+     */
+    popularity?: number
+    /**
+     * Rating is the net vote count AniList users gave the recommendation;
+     * absent for TMDB, which has no votes on it.
+     */
+    rating?: number
+    /**
+     * Schedule is the flattened release list (absolute episode numbers), filled
+     * from AiringSchedule.Nodes here and from season episodes by TMDB. Ahead of
+     * now, except for the week TMDB keeps behind it for the airings recorder.
+     */
+    schedule?: Schemas['anilist.AiringSlot'][]
+    /**
+     * Schema is the payload version this entry was written with, see MediaSchema.
+     */
+    schema?: number
+    seasonYear: number
+    /**
+     * provider page for cross-checking
+     */
+    siteUrl?: string
+    /**
+     * YYYYMMDD, 0 = unknown
+     */
+    startDate?: number
+    /**
+     * FINISHED | RELEASING | NOT_YET_RELEASED | CANCELLED | HIATUS
+     */
+    status: string
+    /**
+     * main studios/networks
+     */
+    studios?: string[]
+    title: {
+      english: string
+      /**
+       * original-script title, stored per locale, never displayed directly
+       */
+      native?: string
+      /**
+       * Preferred is the canonical display title we compute (localized,
+       * never native Japanese). Set by the API layer once the media's source
+       * is known; consumers render this instead of guessing romaji/english.
+       */
+      preferred?: string
+      romaji: string
+    }
+    trailer: {
+      id: string
+      /**
+       * "youtube" | "dailymotion"
+       */
+      site: string
+      thumbnail: string
+    } | null
+    /**
+     * Type is ANIME or MANGA (light novels are MANGA with format NOVEL).
+     * AniList ids are unique across both, so one id never means two works.
+     */
+    type?: string
+    /**
+     * Volumes and Chapters are the MANGA counterparts of Episodes, 0 while
+     * the work is still running or AniList does not know.
+     */
+    volumes?: number
   }
   'api.rematchRequest': {
     all: boolean
