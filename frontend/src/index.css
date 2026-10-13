@@ -1839,33 +1839,11 @@ li.t-swiperow { border-radius: 0; }
   background: var(--progress-color, var(--accent-blue));
   transition: width var(--dur-3) var(--ease-out), background-color var(--dur-2) var(--ease-out);
 }
-/* the wave (Progress wave): the fill is a drawn path, the rest of the track
-   a flat line that starts right where the wave ends, no gap, with a stop dot
-   at its far end. Taller than the bar, for the wave's swing */
+/* the wave (Progress wave): the fill and the rest of the track are drawn
+   paths, the track from right where the wave ends, no gap, and a dot on the
+   wave's head marks where it stands. Taller than the bar, for the swing */
 .t-progress--wave { position: relative; height: 12px; overflow: visible; background: none; border-radius: 0; --wave-w: 4px; }
 .t-progress--wave.t-progress--sm { height: 10px; --wave-w: 2.6px; }
-.t-progress--wave::after {
-  content: '';
-  position: absolute;
-  top: calc(50% - var(--wave-w) / 2);
-  left: calc(var(--p, 0) * 100%);
-  right: 0;
-  height: var(--wave-w);
-  border-radius: 9999px;
-  background: var(--bg-hover);
-  transition: left var(--dur-3) var(--ease-out);
-}
-.t-progress--wave::before {
-  content: '';
-  position: absolute;
-  z-index: 1;
-  right: 0;
-  top: calc(50% - var(--wave-w) / 2);
-  width: var(--wave-w);
-  height: var(--wave-w);
-  border-radius: 50%;
-  background: var(--progress-color, var(--accent-blue));
-}
 .t-progress-wave { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .t-progress-wave path {
   fill: none;
@@ -1874,6 +1852,9 @@ li.t-swiperow { border-radius: 0; }
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.t-progress-wave .t-progress-track { stroke: var(--bg-hover); }
+/* the dot on the wave's head: where the transfer stands */
+.t-progress-wave .t-progress-head { r: calc(var(--wave-w) * 0.9); fill: var(--progress-color, var(--accent-blue)); }
 .t-progress--ok { --progress-color: var(--accent-green); }
 .t-progress--warn { --progress-color: var(--accent-yellow); }
 .t-progress--err { --progress-color: var(--accent-red); }

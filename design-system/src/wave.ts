@@ -6,12 +6,16 @@ import { useEffect, useRef } from 'react'
  * height follows the progress (growing in over the first tenth, flattening
  * into the line over the last), and it eases into every change. A bar that
  * stops settles flat. Both ends run out onto the middle line over half a wave,
- * so the head meets the flat track without a step. One animation frame loop
- * serves every bar on the page and stops when none is left.
+ * so the head meets the flat track without a step; a dot sits on the head and
+ * marks where the transfer stands. The track is drawn in the
+ * same frame, under the wave and from where it ends, and the progress glides
+ * to each new value: wave and track never part or overlap. One animation
+ * frame loop serves every bar on the page and stops when none is left.
  */
 interface Bar {
   svg: SVGSVGElement
   pct: number
+  shown: number // the progress drawn, gliding to pct
   active: boolean
   wave: number // px per wave
   amp: number // px, full height
@@ -51,12 +55,19 @@ function frame(now: number) {
     const w = b.svg.clientWidth
     const h = b.svg.clientHeight
     if (!w || !h) continue
-    const p = b.pct / 100
+    b.shown += (b.pct - b.shown) * (calm ? 1 : Math.min(1, dt * 6))
+    const p = b.shown / 100
     const target = b.active ? b.amp * waveRamp(p) : 0
     b.a += (target - b.a) * (calm ? 1 : Math.min(1, dt * 4))
     if (b.active && !calm) b.ph = (b.ph + dt * 2 * Math.PI) % (2 * Math.PI)
+    const end = Math.min(w, w * p)
     b.svg.setAttribute('viewBox', `0 0 ${w} ${h}`)
-    b.svg.firstElementChild?.setAttribute('d', wavePath(Math.min(w, w * p), h / 2, b.a, b.wave, b.ph))
+    const [track, wave, head] = b.svg.children
+    track?.setAttribute('d', end < w ? `M${end.toFixed(1)} ${h / 2}H${w}` : '')
+    wave?.setAttribute('d', wavePath(end, h / 2, b.a, b.wave, b.ph))
+    // the dot marks where the transfer stands, riding the wave's head
+    head?.setAttribute('cx', end.toFixed(1))
+    head?.setAttribute('cy', String(h / 2))
   }
   raf = bars.size ? requestAnimationFrame(frame) : 0
 }
@@ -68,7 +79,7 @@ export function useWave(pct: number, active: boolean, wave: number, amp: number)
   useEffect(() => {
     const svg = ref.current
     if (!svg) return
-    const b: Bar = { svg, pct: 0, active: false, wave, amp, a: 0, ph: 0 }
+    const b: Bar = { svg, pct: 0, shown: -1, active: false, wave, amp, a: 0, ph: 0 }
     bar.current = b
     bars.add(b)
     if (!raf) {
@@ -82,6 +93,8 @@ export function useWave(pct: number, active: boolean, wave: number, amp: number)
   }, [wave, amp])
   useEffect(() => {
     if (!bar.current) return
+    // the first value is drawn as it is, the next ones glide
+    if (bar.current.shown < 0) bar.current.shown = pct
     bar.current.pct = pct
     bar.current.active = active
   }, [pct, active, wave, amp])

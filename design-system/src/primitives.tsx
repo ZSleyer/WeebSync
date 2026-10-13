@@ -1,7 +1,6 @@
 import type {
   AnchorHTMLAttributes,
   ButtonHTMLAttributes,
-  CSSProperties,
   HTMLAttributes,
   InputHTMLAttributes,
   KeyboardEvent,
@@ -309,7 +308,6 @@ export function Progress({ value, label, size = 'md', active, wave, tone = 'acce
         wave && 't-progress--wave',
         className,
       )}
-      style={wave ? ({ '--p': pct / 100 } as CSSProperties) : undefined}
     >
       {wave ? (
         <WaveFill pct={pct} active={!!active} small={size === 'sm'} />
@@ -324,7 +322,9 @@ function WaveFill({ pct, active, small }: { pct: number; active: boolean; small:
   const ref = useWave(pct, active, small ? 20 : 24, small ? 2.2 : 3)
   return (
     <svg ref={ref} className="t-progress-wave" aria-hidden="true">
+      <path className="t-progress-track" />
       <path />
+      <circle className="t-progress-head" r="0" />
     </svg>
   )
 }
