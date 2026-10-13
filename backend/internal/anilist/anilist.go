@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -20,7 +21,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const endpoint = "https://graphql.anilist.co"
+// endpoint is AniList's GraphQL API; ANILIST_BASE_URL points it at a mirror
+// or a stand-in, the way TMDB_BASE_URL does for TMDB
+var endpoint = func() string {
+	if v := os.Getenv("ANILIST_BASE_URL"); v != "" {
+		return v
+	}
+	return "https://graphql.anilist.co"
+}()
 
 // AiringSlot is one scheduled episode release (absolute episode numbering,
 // unix seconds). Shared by AniList (airingSchedule) and TMDB (season episodes).
