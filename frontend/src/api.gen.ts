@@ -2320,6 +2320,10 @@ export interface Schemas {
     color: string
     host: string
     /**
+     * HostKey is the pinned SSH host key's fingerprint, empty while none is trusted
+     */
+    hostKey?: string
+    /**
      * one of serverIcons, empty = the name stands alone
      */
     icon: string

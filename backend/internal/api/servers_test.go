@@ -1,13 +1,17 @@
 package api
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/ch4d1/weebsync/internal/secret"
+	"golang.org/x/crypto/ssh"
 )
 
 func TestServerColor(t *testing.T) {
@@ -63,5 +67,36 @@ func TestServerNameTrimmed(t *testing.T) {
 	path := "/api/servers/" + strconv.FormatInt(list[0].ID, 10)
 	if rec := doReq(mux, "PUT", path, `{"name":" \t ","protocol":"sftp","host":"example.com","username":"u"}`, userC); rec.Code != http.StatusBadRequest {
 		t.Fatalf("blank name on update: got %d, want 400", rec.Code)
+	}
+}
+
+func TestServerListShowsPinnedHostKey(t *testing.T) {
+	if err := secret.Init(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	mux, s, _, userC, _, _ := setupUsersTest(t)
+	s.Conns = pool.New()
+	body := `{"name":"seedbox","protocol":"sftp","host":"example.com","username":"u","password":"p"}`
+	if rec := doReq(mux, "POST", "/api/servers", body, userC); rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body)
+	}
+	list := func() []serverInfo {
+		var l []serverInfo
+		json.Unmarshal(doReq(mux, "GET", "/api/servers", "", userC).Body.Bytes(), &l)
+		return l
+	}
+	l := list()
+	if l[0].HostKey != "" {
+		t.Fatalf("no key pinned yet, got %q", l[0].HostKey)
+	}
+	pub, _, _ := ed25519.GenerateKey(nil)
+	sk, _ := ssh.NewPublicKey(pub)
+	key := base64.StdEncoding.EncodeToString(sk.Marshal())
+	path := "/api/servers/" + strconv.FormatInt(l[0].ID, 10) + "/trust-hostkey"
+	if rec := doReq(mux, "POST", path, `{"key":"`+key+`"}`, userC); rec.Code != http.StatusOK {
+		t.Fatalf("trust: %d %s", rec.Code, rec.Body)
+	}
+	if got := list()[0].HostKey; !strings.HasPrefix(got, "ssh-ed25519 SHA256:") {
+		t.Fatalf("fingerprint = %q", got)
 	}
 }

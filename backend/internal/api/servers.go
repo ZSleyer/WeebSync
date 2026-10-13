@@ -26,6 +26,8 @@ type serverInfo struct {
 	MaxConnections int    `json:"maxConnections"`
 	Icon           string `json:"icon"`  // one of serverIcons, empty = the name stands alone
 	Color          string `json:"color"` // one of serverColors, empty = picked from the id
+	// HostKey is the pinned SSH host key's fingerprint, empty while none is trusted
+	HostKey string `json:"hostKey,omitempty" example:"ssh-ed25519 SHA256:..."`
 }
 
 // serverIcons is the picture a server may show in the files page's source
@@ -97,7 +99,7 @@ func (in *serverInput) valid() bool {
 // @Router   /api/servers [get]
 func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path, max_connections, icon, color
+	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path, max_connections, icon, color, host_key
 		FROM servers WHERE user_id = ? ORDER BY name`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -107,9 +109,13 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	list := []serverInfo{}
 	for rows.Next() {
 		var si serverInfo
-		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath, &si.MaxConnections, &si.Icon, &si.Color); err != nil {
+		var key string
+		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath, &si.MaxConnections, &si.Icon, &si.Color, &key); err != nil {
 			dbErr(w)
 			return
+		}
+		if key != "" {
+			si.HostKey, _ = remote.KeyLabel(key)
 		}
 		list = append(list, si)
 	}

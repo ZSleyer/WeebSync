@@ -5488,6 +5488,11 @@
                     "host": {
                         "type": "string"
                     },
+                    "hostKey": {
+                        "description": "HostKey is the pinned SSH host key's fingerprint, empty while none is trusted",
+                        "example": "ssh-ed25519 SHA256:...",
+                        "type": "string"
+                    },
                     "icon": {
                         "description": "one of serverIcons, empty = the name stands alone",
                         "type": "string"
