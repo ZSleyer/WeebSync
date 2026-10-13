@@ -257,6 +257,18 @@
     "passkeyFailed": "Passkey-Anmeldung fehlgeschlagen."
   },
   "account": {
+    "sessionsTitle": "Sitzungen",
+    "sessionsHint": "Wo dein Konto gerade angemeldet ist. Eine Sitzung, die du nicht kennst, beendest du hier.",
+    "sessionsThis": "Dieses Gerät",
+    "sessionsEnd": "Abmelden",
+    "sessionsEndOthers": "Alle anderen abmelden",
+    "sessionsEndOthersTitle": "Alle anderen Sitzungen beenden?",
+    "sessionsEndOthersHint_one": "Eine andere Sitzung wird abgemeldet. Dieses Gerät bleibt angemeldet.",
+    "sessionsEndOthersHint_other": "{{count}} andere Sitzungen werden abgemeldet. Dieses Gerät bleibt angemeldet.",
+    "sessionsSince": "Seit {{when}}",
+    "sessionsOld": "Begonnen vor dem Update, ohne Datum",
+    "sessionsSso": "über SSO",
+    "sessionsUnknown": "Unbekannter Browser",
     "oidcOnly": "Diese Instanz nutzt ausschließlich OIDC - die Zwei-Faktor-Einstellungen laufen über deinen Identity-Provider.",
     "passkeyTitle": "Passkeys & Security-Keys",
     "passkeyHint": "Passkeys erlauben passwortloses Anmelden. Security-Keys (z. B. YubiKey) dienen als zweiter Faktor nach dem Passwort.",

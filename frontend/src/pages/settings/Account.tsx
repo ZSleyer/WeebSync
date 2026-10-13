@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Panel } from '@weebsync/design-system'
-import { api } from '../../api'
+import { api, type SessionInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { registerCredential } from '../../webauthn'
 import { useAuth } from '../../hooks'
@@ -17,12 +17,16 @@ export default function Account() {
   return (
     <section className="max-w-xl" aria-label={t('settings.nav.account')}>
       {cfg && cfg.authMode !== 'password' ? (
-        <Panel className="p-5 text-sm text-t-muted">{t('account.oidcOnly')}</Panel>
+        <div className="space-y-4">
+          <Panel className="p-5 text-sm text-t-muted">{t('account.oidcOnly')}</Panel>
+          <SessionsSection />
+        </div>
       ) : (
         <div className="space-y-4">
           <PasswordSection />
           <PasskeySection />
           <TotpSection />
+          <SessionsSection />
         </div>
       )}
     </section>
@@ -381,6 +385,125 @@ function TotpSection() {
         </div>
       )}
 
+      {error && (
+        <p className="mt-3 text-sm text-err" role="alert">
+          {error}
+        </p>
+      )}
+    </Panel>
+  )
+}
+
+// "Firefox on Linux" from a user agent string: enough to tell sessions apart,
+// not a device database. The raw string stays in the row's title.
+export function browserOf(ua: string): string {
+  if (!ua) return ''
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /Firefox\//.test(ua)
+      ? 'Firefox'
+      : /Chrom(e|ium)\//.test(ua)
+        ? 'Chrome'
+        : /Safari\//.test(ua)
+          ? 'Safari'
+          : ''
+  const os = /Android/.test(ua)
+    ? 'Android'
+    : /iPhone|iPad/.test(ua)
+      ? 'iOS'
+      : /Windows/.test(ua)
+        ? 'Windows'
+        : /Mac OS X/.test(ua)
+          ? 'macOS'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : ''
+  return [browser, os].filter(Boolean).join(' · ') || ua.slice(0, 40)
+}
+
+// Where the account is signed in: every browser with when it began, this one
+// marked. Another one can be ended on its own, or all others at once - the
+// answer to a session the user does not recognize.
+function SessionsSection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const confirm = useConfirm()
+  const { data: sessions } = useQuery<SessionInfo[]>({
+    queryKey: ['sessions'],
+    queryFn: () => api.get('/api/auth/sessions'),
+  })
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true)
+    setError('')
+    try {
+      await fn()
+      qc.invalidateQueries({ queryKey: ['sessions'] })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('app.error'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const others = (sessions ?? []).filter((x) => !x.current)
+  const endOthers = async () => {
+    const ok = await confirm({
+      title: t('account.sessionsEndOthersTitle'),
+      message: t('account.sessionsEndOthersHint', { count: others.length }),
+      confirmLabel: t('account.sessionsEndOthers'),
+      destructive: true,
+    })
+    if (ok) void run(() => api.del('/api/auth/sessions/others'))
+  }
+  const when = (iso: string) =>
+    iso
+      ? new Date(iso).toLocaleString([], {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : ''
+  return (
+    <Panel className="p-5" aria-label={t('account.sessionsTitle')}>
+      <Badge tone="accent">{t('account.sessionsTitle')}</Badge>
+      <p className="mt-2 text-xs text-t-muted">{t('account.sessionsHint')}</p>
+      {sessions && (
+        <ul className="mt-3 divide-y divide-border-subtle/50">
+          {sessions.map((x) => (
+            <li key={x.id} className="flex items-center gap-2 py-2 text-sm">
+              <span className="min-w-0 flex-1" title={x.userAgent}>
+                <span className="block truncate text-t-secondary">
+                  {browserOf(x.userAgent) || t('account.sessionsUnknown')}
+                </span>
+                <span className="block text-xs text-t-muted">
+                  {x.createdAt ? t('account.sessionsSince', { when: when(x.createdAt) }) : t('account.sessionsOld')}
+                  {x.oidc ? ` · ${t('account.sessionsSso')}` : ''}
+                </span>
+              </span>
+              {x.current ? (
+                <Badge tone="ok">{t('account.sessionsThis')}</Badge>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={busy}
+                  onClick={() => void run(() => api.del(`/api/auth/sessions/${x.id}`))}
+                >
+                  {t('account.sessionsEnd')}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {others.length > 1 && (
+        <Button size="sm" className="mt-3" disabled={busy} onClick={endOthers}>
+          {t('account.sessionsEndOthers')}
+        </Button>
+      )}
       {error && (
         <p className="mt-3 text-sm text-err" role="alert">
           {error}

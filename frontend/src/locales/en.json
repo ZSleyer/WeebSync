@@ -257,6 +257,18 @@
     "passkeyFailed": "Passkey sign-in failed."
   },
   "account": {
+    "sessionsTitle": "Sessions",
+    "sessionsHint": "Where your account is signed in right now. End a session you do not recognize here.",
+    "sessionsThis": "This device",
+    "sessionsEnd": "Sign out",
+    "sessionsEndOthers": "Sign out all others",
+    "sessionsEndOthersTitle": "End all other sessions?",
+    "sessionsEndOthersHint_one": "One other session will be signed out. This device stays signed in.",
+    "sessionsEndOthersHint_other": "{{count}} other sessions will be signed out. This device stays signed in.",
+    "sessionsSince": "Since {{when}}",
+    "sessionsOld": "Began before the update, no date",
+    "sessionsSso": "via SSO",
+    "sessionsUnknown": "Unknown browser",
     "oidcOnly": "This instance is OIDC-only - two-factor settings are handled by your identity provider.",
     "passkeyTitle": "Passkeys & security keys",
     "passkeyHint": "Passkeys allow passwordless sign-in. Security keys (e.g. YubiKey) act as a second factor after your password.",

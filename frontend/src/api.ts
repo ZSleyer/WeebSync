@@ -92,6 +92,7 @@ export type NameExplain = Schemas['api.nameExplainResponse']
 export type NamePiece = Schemas['api.namePiece']
 export type WatchExplain = Schemas['api.watchExplainResponse']
 export type WatchCheck = Schemas['api.WatchCheckResponse']
+export type SessionInfo = Schemas['api.sessionInfo']
 
 // What a sync did. The counters answer the question a bare "0 queued" leaves
 // open: nothing to do, or something wrong?
