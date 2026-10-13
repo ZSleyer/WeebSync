@@ -2495,6 +2495,21 @@ li.t-swiperow { border-radius: 0; }
   transition: opacity var(--dur-1) var(--ease-out), scale var(--m3-spatial-dur) var(--m3-spatial);
 }
 .t-player-cc[data-on]::after { opacity: 1; scale: 1; }
+/* The navigation's icon moves once as its page becomes the current one, on
+   Material 3 Expressive's spatial spring: each in its own way (data-nav).
+   aria-current lands on the link, so a switch plays it and a still page
+   does not. */
+[aria-current='page'] .t-nav-icon { animation: var(--m3-spatial-dur) var(--m3-spatial) both; transform-origin: 50% 60%; }
+[aria-current='page'] .t-nav-icon[data-nav='hop'] { animation-name: nav-hop; }
+[aria-current='page'] .t-nav-icon[data-nav='turn'] { animation-name: nav-turn; transform-origin: 50% 50%; animation-duration: 500ms; }
+[aria-current='page'] .t-nav-icon[data-nav='needle'] { animation-name: nav-needle; transform-origin: 50% 50%; animation-duration: 500ms; }
+[aria-current='page'] .t-nav-icon[data-nav='open'] { animation-name: nav-open; transform-origin: 25% 85%; }
+@keyframes nav-hop { from { translate: 0 3px; scale: 0.82; } }
+@keyframes nav-turn { from { rotate: -150deg; } }
+@keyframes nav-needle { from { rotate: -60deg; } }
+@keyframes nav-open { from { rotate: -10deg; scale: 0.8; } }
+@media (prefers-reduced-motion: reduce) { [aria-current='page'] .t-nav-icon { animation: none; } }
+:root[data-motion='off'] [aria-current='page'] .t-nav-icon { animation: none; }
 /* the icons of the bar's own buttons, sized like media-chrome's */
 .t-player-icon { display: inline-grid; place-items: center; }
 .t-player-icon svg { width: var(--media-button-icon-width); height: var(--media-button-icon-height); }

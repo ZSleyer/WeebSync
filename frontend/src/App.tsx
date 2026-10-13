@@ -68,16 +68,19 @@ import Data, { StorePage } from './pages/settings/Data'
 // Auto-Sync, the phone's last tab is the search, under the thumb. Settings is
 // the gear in the app bar (phone) and the foot of the sidebar (desktop);
 // Rename is a tool on a folder, reached from Files.
+// motion: how the icon moves once as its page becomes the current one (see
+// .t-nav-icon in index.css): the house hops, the arrows turn, the needle
+// swings, the folder opens up
 const TABS = [
-  { to: '/', key: 'nav.dashboard', icon: House },
-  { to: '/watches', key: 'nav.watches', icon: RefreshCw },
-  { to: '/suggestions', key: 'nav.suggestions', icon: Compass },
-  { to: '/files', key: 'nav.files', icon: FolderOpen },
+  { to: '/', key: 'nav.dashboard', icon: House, motion: 'hop' },
+  { to: '/watches', key: 'nav.watches', icon: RefreshCw, motion: 'turn' },
+  { to: '/suggestions', key: 'nav.suggestions', icon: Compass, motion: 'needle' },
+  { to: '/files', key: 'nav.files', icon: FolderOpen, motion: 'open' },
 ]
 const PHONE_TABS = TABS
 // the rules sit beside settings on a desktop: read more often than the rest
-const RULES = { to: '/settings/rules', key: 'nav.rules', icon: BookOpen }
-const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings }
+const RULES = { to: '/settings/rules', key: 'nav.rules', icon: BookOpen, motion: 'open' }
+const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings, motion: 'turn' }
 const NAV = [...TABS, SETTINGS]
 type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
@@ -384,7 +387,7 @@ function Shell({ email }: { email: string }) {
     window.location.href = '/?loggedout=1'
   }
 
-  const icon = (n: NavEntry) => <n.icon aria-hidden size="1.25em" className="shrink-0" />
+  const icon = (n: NavEntry) => <n.icon aria-hidden size="1.25em" className="t-nav-icon shrink-0" data-nav={n.motion} />
   // the dot sits on the icon's corner, so it works in a row and in a stacked tab
   const dotted = (node: ReactNode, show: boolean) => (
     <span className="relative shrink-0">
