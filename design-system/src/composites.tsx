@@ -1934,13 +1934,26 @@ export interface SegmentedProps<T extends string> {
   className?: string
 }
 
+/** Where the thumb of a segmented control stands: the picked option's index, or -1 when none is picked. */
+export function segmentIndex<T extends string>(options: SegmentedOption<T>[], value: T): number {
+  return options.findIndex((o) => o.value === value)
+}
+
 /**
- * One choice out of a few, as a group of pressed buttons: list or calendar,
- * login or register. The pressed option renders as the primary button.
+ * One choice out of a few, as a group of pressed buttons on a quiet track:
+ * list or calendar, light or dark. A thumb glides under the picked option on
+ * the calm spring; the columns are equally wide, so the glide is one step.
  */
 export function Segmented<T extends string>({ value, onChange, options, size = 'sm', className, ...aria }: SegmentedProps<T>) {
+  const i = segmentIndex(options, value)
   return (
-    <div role="group" {...aria} className={cx('flex flex-wrap gap-1', className)}>
+    <div
+      role="group"
+      {...aria}
+      className={cx('t-seg', size === 'md' && 't-seg--md', className)}
+      style={{ '--n': options.length, '--i': Math.max(i, 0) } as CSSProperties}
+    >
+      {i >= 0 && <span aria-hidden className="t-seg-thumb" />}
       {options.map((o) => (
         <button
           key={o.value}
@@ -1948,7 +1961,7 @@ export function Segmented<T extends string>({ value, onChange, options, size = '
           aria-pressed={o.value === value}
           aria-label={o['aria-label']}
           onClick={() => onChange(o.value)}
-          className={buttonClass({ size, variant: o.value === value ? 'primary' : 'default' })}
+          className="t-seg-btn"
         >
           {o.label}
         </button>

@@ -76,6 +76,7 @@ export {
   PageHeader,
   navItemClass,
   Segmented,
+  segmentIndex,
   Sparkline,
   StatTile,
   SuggestionCard,
@@ -118,6 +119,9 @@ export type {
 
 export { Row, RowAction, Rows, SectionHeading, TextLink } from './content'
 export type { CodeTone, GlyphTone, RowActionProps, RowProps, RowsProps, SectionHeadingProps, TextLinkProps } from './content'
+
+export { SettingsField, Switch } from './controls'
+export type { SettingsFieldProps, SwitchProps } from './controls'
 
 export { CloseLabelContext, Dialog } from './dialog'
 export type { DialogProps } from './dialog'
