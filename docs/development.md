@@ -26,7 +26,7 @@ yarn lint && yarn format:check && yarn test && yarn build
 
 - **Backend:** Go with the standard `net/http`, `modernc.org/sqlite`, `pkg/sftp`, `jlaffaye/ftp`, `anitogo`
 - **Frontend:** React, TypeScript, Vite, Tailwind v4, TanStack Query
-- **Design system:** `design-system/`, built from the app's own toolchain
+- **Design system:** `design-system/`, the reusable package `fluid-lycoris` (theme CSS, Tailwind bridge, React components), built from the app's own toolchain
 
 ## Releases
 

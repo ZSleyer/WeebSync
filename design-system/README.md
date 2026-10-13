@@ -1,86 +1,115 @@
-# WeebSync Tempest
+# Fluid Lycoris
 
-WeebSync's copy of the Tempest design language, kept here so the app's controls
-can be tuned without touching the Encounty repo it came from.
+A design system for media apps: Material 3 Expressive motion with a two-colour
+code taken from Lycoris Recoil. Red (the Lycoris half) and teal (the Recoil
+half) each mean one thing, the rest of the palette stays quiet, and every
+movement runs on a spring that comes to rest cleanly.
 
-**This is a review gallery, not a component library.** There is no bundle and no
-component API - the page pulls in the app's real stylesheet and renders every
-control we reuse, so sizes and spacing can be measured instead of eyeballed.
+The package holds three things:
 
-## Token source of truth
+- `src/fluid-lycoris.css`: the theme tokens (dark and light), the control
+  metrics and the styles of every `t-*` primitive. Plain CSS.
+- `src/tailwind.css`: a Tailwind v4 bridge that maps utilities such as
+  `text-t-muted`, `bg-bg-card` and `rounded-md` onto the tokens and points
+  Tailwind's content scan at the package.
+- `src/index.ts`: presentational React components and hooks. Props only: no
+  data fetching, no router, no i18n, no app names. Every text arrives as a prop.
 
-`frontend/src/index.css`. The gallery imports the built stylesheet, so whatever
-it shows is what the app renders. Nothing here is imported by the app.
+## Using it in a project
 
-## Control metrics
+```css
+/* the host loads the fonts: Chakra Petch (500-700), IBM Plex Sans (400-600),
+   IBM Plex Mono (400-500), e.g. from @fontsource */
+@import "tailwindcss";
+@import "fluid-lycoris/fluid-lycoris.css";
+@import "fluid-lycoris/tailwind.css";
+/* the host's own rules come after, so they win at equal specificity */
+```
 
-One height per family, fixed line boxes, all driven by variables in
-`:root` (touch overrides them under `@media (pointer: coarse)`):
+```tsx
+import { Button, Dialog, Segmented } from 'fluid-lycoris'
+```
 
-| Variable | Desktop | Touch | Used by |
+React 18 or newer is a peer dependency. Contracts the stylesheet relies on:
+
+| On `<html>` | Meaning |
+|---|---|
+| `data-theme="dark"` / `"light"` | the theme; without the attribute dark is the default and the OS light preference is followed |
+| `data-scheme="recoil"` | swap the two halves of the colour code (see below); absent means Lycoris |
+| `data-motion="off"` | an in-app "reduce motion" switch, on top of `prefers-reduced-motion` |
+| class `kbd` | set once keyboard navigation starts; focus rings only show then |
+
+Inside this repository the app resolves `fluid-lycoris` to `src/` through an
+alias (vite, vitest and tsconfig), so there is no build step. `./build.sh`
+produces `dist/` (an ES bundle with types) and copies the app's compiled
+stylesheet to `styles.css` for the gallery in `index.html`.
+
+## Tokens
+
+### Colour
+
+| Token | Dark (OLED) | Light | Use |
 |---|---|---|---|
-| `--ctl-h` | 36px | 2.667rem (48px) | `.t-input`, `.t-select`, `.t-btn` |
-| `--ctl-h-sm` | 26px | 2.222rem (40px) | `.t-btn--sm`, `.t-iconbtn`, `.t-divider` |
-| `--ctl-fs` / `--ctl-lh` | 14 / 20px | 0.889 / 1.333rem | full-size controls |
-| `--ctl-fs-sm` / `--ctl-lh-sm` | 11 / 16px | 0.722 / 1.111rem | small controls, `.t-label`, `.t-count` |
-| `--nav-h` | 3.33rem | 3.33rem | `NavItem` bottom tabs, the shell's tab bar |
+| `--bg` | `#000000` | `#fdf8f8` | the page |
+| `--bg-2` | `#05070d` | `#ffffff` | bars, sheets, fields |
+| `--card` | `#0b1120` | `#ffffff` | cards, dialogs |
+| `--hover` | `#131b2e` | `#fbe9ec` | hover and selected ground |
+| `--line` | `#1f2a40` | `#ecd3d8` | decorative hairlines |
+| `--line-strong` | `#6b819c` | `#8a6f76` | edges that must be seen (3:1) |
+| `--fg` / `--fg-2` / `--fg-3` | `#eef2f7` / `#bccadb` / `#8ea2b9` | `#1b2238` / `#3a4462` / `#5a6380` | text, three steps |
+| `--accent` / `--on-accent` | `#ef6177` / `#1a0509` | `#b3263f` / `#ffffff` | red |
+| `--accent-2` / `--on-accent-2` | `#33c2b5` / `#03201d` | `#0c7069` / `#ffffff` | teal |
+| `--tint-1` / `--tint-2` | red / teal mixed into black | `#fcecf5` / `#e9faf8` | quiet grounds, ribbons |
+| `--ok` / `--warn` / `--err` | `#5fd38d` / `#f2c46b` / `#ff9a5c` | `#1d6b3d` / `#7d5200` / `#a8440a` | states |
+| `--fl-ink` / `--fl-cream` | `#000000` / `#f4ead6` | `#1b2238` / `#f4ead6` | art: ink lines, cream fills |
+| `--scrim` | black 66% | navy 32% | behind sheets |
 
-Composites that add no height of their own: `ActionBar` (a row of small
-controls, the shell's `footer` row above the tab bar on a phone, sticky at
-the bottom of the document on desktop), `Disclosure` (summary at
-`--ctl-h-sm`), `Segmented` (small buttons). `AppBar` slots are `--ctl-h` tall
-so a control in the bar meets the touch size.
+Every text colour clears 4.5:1 on `--bg`, `--bg-2`, `--card` and `--hover` of
+its theme. `--err` leans orange because the accent is already red, so an error
+always carries an icon and a word as well.
 
-Why the fixed line box: `.t-input` and `.t-select` used to inherit their font
-from the surrounding element while `.t-btn` carried its own, so the same three
-controls came out 33px, 37px and 41.5px depending on where they sat. Any new
-control class must take its height from these variables rather than from
-padding plus inherited text.
+### Colour code
 
-`.t-toolbar` narrows both variables to `2rem` for its own row - that is the one
-sanctioned exception, and it works by overriding the variables, not the rules.
+- **Red (`--accent`)**: live, new, the main action, the "today" and "discover"
+  areas, the slanted marker of a section heading.
+- **Teal (`--accent-2`)**: sync, matching, rules, "why?" explanations, airing
+  times, the sync and files areas of the navigation, their section markers.
 
-## Radii
+The **Recoil** scheme (`data-scheme="recoil"`) swaps the two values: the main
+action turns teal and sync turns red. The pairing stays intact, which is why
+the package offers this switch instead of free accent colours.
 
-One scale, tied to the control heights the same way. Every `t-*` class takes
-its radius from these variables, and Tailwind's `rounded-xs` … `rounded-2xl`
-are bridged onto the same steps (`@theme inline` in `index.css`), so a one-off
-box in the app lands on the scale too. Bare `rounded` is not bridged - use a
-step.
+### Shape and type
 
-| Variable | Desktop | Touch | Utility | Used by |
-|---|---|---|---|---|
-| `--r-xs` | 4px | 4px | `rounded-xs` | a cover inside a padded panel (concentric floor) |
-| `--r-chip` | 4px | 4px | `rounded-sm` | `.t-label`, checkbox |
-| `--r-ctl-sm` | 4px | 6px | - | `.t-btn--sm`, `.t-iconbtn`, `--sm` inputs, toolbar chips |
-| `--r-ctl` | 6px | 8px | `rounded-md` | `.t-btn`, `.t-input`, `.t-select`, `.t-tabs`, notes, tooltips |
-| `--r-menu` | 8px | 8px | `rounded-lg` | `Menu`, dropdown lists, sub-boxes, chat bubbles, floating `ActionBar` |
-| `--r-panel` | 10px | 10px | `rounded-xl` | `.t-panel`, composer, `FileBrowser` |
-| `--r-dialog` | 12px | 12px | `rounded-2xl` | `<dialog>`; the phone sheet is 0 |
-| full | - | - | `rounded-full` | dots, avatars, progress bars, the sheet's close button |
+- Radii: `--r-xs` 4, `--r-chip` 4, `--r-ctl-sm` 4 (6 on touch), `--r-ctl` 6
+  (8 on touch), `--r-menu` 8, `--r-panel` 10, `--r-dialog` 12, `--r-cover` 6,
+  `--r-sheet` 20. Nested boxes follow the concentric rule: inner radius =
+  outer radius minus the padding between them, never below `--r-xs`.
+- Covers are rounded and carry no ring, border or inset shadow.
+- Control metrics: `--ctl-h`, `--ctl-h-sm`, `--ctl-fs*`, `--ctl-lh*`; touch
+  (`pointer: coarse`) raises them. A new control takes its height and radius
+  from these variables, never from padding plus inherited text.
+- Fonts: `--f-display` (Chakra Petch), `--f-sans` (IBM Plex Sans), `--f-mono`
+  (IBM Plex Mono). Type scale: `--fs-tab`, `--fs-caption`, `--fs-meta`,
+  `--fs-link`, `--fs-body`, `--fs-section`, `--fs-sheet`, `--fs-title`,
+  `--fs-title-lg`, `--fs-big`. Sentence case everywhere; nothing is
+  uppercased or tracked except a brand mark.
 
-Nested boxes follow the concentric rule: inner radius = outer radius minus the
-padding between them, never below `--r-xs`. A `Cover` in a `p-3` panel is
-`10 − 12 → 4`, in a `p-2` entry `10 − 8 → 4`; a flush cover in a catalog tile
-has no radius of its own and is clipped by the tile (`overflow-clip`).
+## Motion
 
-A new control class takes its radius from `--r-*` the way it takes its height
-from `--ctl-*`. `.t-toolbar` steps its controls down to `--r-ctl-sm` on touch,
-where its boxes are the small height.
-
-## Layout conventions
-
-- Two-column form rows: one shared grid (`ROW_GRID` in `RenameOptions.tsx`), so
-  the column edge never shifts between sections of the same dialog.
-- Caption above a control: `.t-field` (flex column, `gap: 4px`, control pinned
-  to the bottom) - never padding on the control itself, that would override its
-  own and shrink it below its neighbour.
-- A control next to a button: `items-stretch`, so the button takes the field's
-  height instead of floating at its own.
-- Icons: `size="1em"` so they ride the text size of their container.
-
-## Regenerating
-
-Open `index.html` directly (it references `../frontend/dist/assets/index-*.css`
-via `build.sh`, which copies the current build in). Run `./build.sh` after a
-frontend build to refresh the stylesheet copy.
+- Springs: `--m3-spatial` (Material 3 Expressive fast spatial spring) and
+  `--spring` carry one small overshoot and are for things that move or grow:
+  a press, a morph. `--spring-calm` has none and is for sheets, toasts,
+  thumbs and small parts. Colour and opacity never ride a spring.
+- Durations `--dur-1` 120ms (hover, tick), `--dur-2` 200ms (panel, toast,
+  every exit), `--dur-3` 280ms (dialog, sheet); `--d-1..3` are aliases.
+  Enter eases out, exit eases in and is shorter.
+- A clickable cover zooms its art to 1.06 inside its frame on hover and sinks
+  the frame to 0.97 on press. Animated layers keep `will-change` so an
+  animation never ends in a raster jolt.
+- Nothing loops. An animation plays once on entry or on an event and comes to
+  rest.
+- `prefers-reduced-motion` and `data-motion="off"` cut every animation and
+  transition to an instant change; state still changes.
+- View transitions are progressive: without `document.startViewTransition`
+  the state changes without the animation.
