@@ -5,9 +5,6 @@ import { ArrowUp, Check, RefreshCw } from 'lucide-react'
 import { haptic, useMediaQuery } from 'fluid-lycoris'
 import { WIDE_MQ } from './PageActions'
 
-// How far a phone page has to scroll before the large title has gone and the
-// app bar's title takes over: about the title's own height.
-const DOCK_PX = 56
 // the ring's circumference at r = 20 in a 44 box
 const RING = 2 * Math.PI * 20
 
@@ -29,8 +26,8 @@ const NO_PULL = 'input, textarea, select, [contenteditable], [data-no-pull], dia
 
 /**
  * What a phone page does while it scrolls (below lg <main> is the scroller):
- * the large title docks into the app bar, the bar's hairline shows how far
- * down the page is, and from a screen down a button leads back to the top,
+ * the page is named in the app bar (no large in-page title), the bar's
+ * hairline shows how far down the page is, and from a screen down a button leads back to the top,
  * its ring showing the same progress. Rendered inside <main>, so it remounts
  * with each route. Nothing of it runs on a desktop, where the document scrolls
  * and the page header simply stays at the top.
@@ -94,8 +91,7 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
     const onStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null
       mode = 'off'
-      // any top-level page, with or without a large title: on Files it is how
-      // a folder is listed again
+      // any top-level page: on Files it is how a folder is listed again
       if (busy || e.touches.length !== 1 || main.scrollTop > 0) return
       // a page that scrolls a box of its own (Files' list) keeps the pull
       // for that box until it too is at its top
@@ -173,9 +169,8 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
     }
   }, [wide, stacked, qc, t])
 
-  // a layout effect: the attributes have to be on the shell before the first
-  // paint, or a stacked screen flashes its large title and a top-level one
-  // its app bar title
+  // a layout effect: the attribute has to be on the shell before the first
+  // paint, or a stacked screen flashes its in-page heading
   useLayoutEffect(() => {
     const main = button.current?.closest('main')
     const shell = main?.closest<HTMLElement>('.app-shell')
@@ -186,13 +181,8 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
     let frame = 0
     const update = () => {
       frame = 0
-      // looked up every time: a page may render its header once its data is in
-      const header = stacked ? null : main.querySelector<HTMLElement>('.t-page-header')
       const top = main.scrollTop
       const room = main.scrollHeight - main.clientHeight
-      shell.toggleAttribute('data-large', !!header)
-      header?.style.setProperty('--dock', clamp(top / DOCK_PX).toFixed(3))
-      shell.toggleAttribute('data-docked', !header || top >= DOCK_PX * 0.75)
       // only a page that is really longer than the screen gets the progress
       const long = room > main.clientHeight * 0.5
       const p = long ? clamp(top / room) : 0
@@ -213,8 +203,6 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
       main.removeEventListener('scroll', schedule)
       ro?.disconnect()
       shell.removeAttribute('data-stacked')
-      shell.removeAttribute('data-large')
-      shell.removeAttribute('data-docked')
       if (line) line.style.transform = ''
     }
   }, [stacked, wide])

@@ -9,12 +9,13 @@ import { useTransfers } from './transfers'
 // how long the finished state stays up before the activity folds away
 const DONE_MS = 4000
 // ring geometry, in px: Firefox ignores a unitless stroke-dashoffset
-const R = 15
+const R = 16
 const C = 2 * Math.PI * R
 
 /**
- * What is transferring right now, wherever the user is: a pill above the tab
- * bar on a phone, a block at the foot of the sidebar on a desktop. A ring
+ * What is transferring right now, wherever the user is: a pill riding the
+ * bottom edge of the page on a phone, a block at the foot of the sidebar on a
+ * desktop (shell.css). A ring
  * fills with the bytes of the whole queue, the line says how many and how
  * fast. When the queue runs dry the ring closes into a check for a moment,
  * then the activity leaves. Both open the transfers: the pill grows into
@@ -72,12 +73,12 @@ export function LiveActivity({ variant }: { variant: 'pill' | 'rail' }) {
       : t('live.paused')
 
   const ring = (
-    <span className="relative inline-grid size-9 shrink-0 place-items-center" aria-hidden>
-      <svg viewBox="0 0 36 36" className="absolute inset-0 size-full -rotate-90">
-        <circle cx="18" cy="18" r={R} fill="none" strokeWidth="3" className="stroke-border-subtle" />
+    <span className="relative inline-grid size-10 shrink-0 place-items-center" aria-hidden>
+      <svg viewBox="0 0 40 40" className="absolute inset-0 size-full -rotate-90">
+        <circle cx="20" cy="20" r={R} fill="none" strokeWidth="3" className="stroke-border-subtle" />
         <circle
-          cx="18"
-          cy="18"
+          cx="20"
+          cy="20"
           r={R}
           fill="none"
           strokeWidth="3"
@@ -90,38 +91,25 @@ export function LiveActivity({ variant }: { variant: 'pill' | 'rail' }) {
       {done ? (
         <Check size="1em" className="t-live-check text-ok" />
       ) : (
-        <span className="font-mono text-ctl-sm tabular-nums">{active.length}</span>
+        <span className="t-live-count">{active.length}</span>
       )}
     </span>
   )
-  const label = `${line}, ${sub}`
-  return variant === 'pill' ? (
+  // the label first, the ring at the end: the eye reads what, then how far
+  return (
     <button
       type="button"
-      aria-label={label}
+      aria-label={`${line}, ${sub}`}
       aria-haspopup="dialog"
+      aria-expanded={variant === 'rail' ? transfers.shown : undefined}
       onClick={(e) => transfers.open(e.currentTarget)}
-      className="t-live-pill mx-auto flex w-fit max-w-full items-center gap-3 rounded-full border border-border-subtle bg-bg-card py-1.5 pr-4 pl-1.5 lg:hidden"
+      className={`t-live t-live--${variant}`}
     >
-      {ring}
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-medium">{line}</span>
-        <span className="block truncate text-ctl-sm text-t-secondary">{sub}</span>
+      <span className="t-live-lbl">
+        <span className="t-live-line">{line}</span>
+        <span className="t-live-rate">{sub}</span>
       </span>
-    </button>
-  ) : (
-    <button
-      type="button"
-      aria-label={label}
-      aria-haspopup="dialog"
-      onClick={(e) => transfers.open(e.currentTarget)}
-      className="mx-3 mb-2 text-left flex items-center gap-3 rounded-md border border-border-subtle bg-bg-card p-2 hover:border-border-input"
-    >
       {ring}
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-medium">{line}</span>
-        <span className="block truncate text-ctl-sm text-t-secondary">{sub}</span>
-      </span>
     </button>
   )
 }

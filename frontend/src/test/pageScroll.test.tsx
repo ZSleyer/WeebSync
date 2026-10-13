@@ -22,24 +22,16 @@ const page = (stacked: boolean, qc = new QueryClient(), title = true) =>
   )
 
 describe('PageScroll', () => {
-  it('docks the large title into the app bar once the page has scrolled past it', async () => {
+  it('names a top-level page in the app bar only, with no large title to dock', () => {
     const { container } = page(false)
     const shell = container.querySelector('.app-shell')!
-    const main = container.querySelector('main')!
-    expect(shell).toHaveAttribute('data-large')
-    expect(shell).not.toHaveAttribute('data-docked')
-    main.scrollTop = 100
-    fireEvent.scroll(main)
-    await waitFor(() => expect(shell).toHaveAttribute('data-docked'))
-    expect((container.querySelector('.t-page-header') as HTMLElement).style.getPropertyValue('--dock')).toBe('1.000')
+    expect(shell).not.toHaveAttribute('data-stacked')
+    expect(shell).not.toHaveAttribute('data-large')
   })
 
-  it('leaves a stacked screen to its app bar title', () => {
+  it('marks a stacked screen, whose in-page heading the app bar replaces', () => {
     const { container } = page(true)
-    const shell = container.querySelector('.app-shell')!
-    expect(shell).toHaveAttribute('data-stacked')
-    expect(shell).not.toHaveAttribute('data-large')
-    expect(shell).toHaveAttribute('data-docked')
+    expect(container.querySelector('.app-shell')).toHaveAttribute('data-stacked')
   })
   // at the top of a top-level page a pull down brings the page along, and
   // letting go past the mark reloads what the page shows

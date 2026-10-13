@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, BookOpen, Compass, FolderOpen, House, LogOut, RefreshCw, Search, Settings } from 'lucide-react'
+import { ArrowLeft, BookOpen, Compass, FolderOpen, House, RefreshCw, Search, Settings } from 'lucide-react'
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -14,7 +14,7 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppBar, AppShell, Button, navItemClass, PageHeader, TabBar, useMediaQuery } from 'fluid-lycoris'
+import { AppShell, enterPage, Kbd, PageHeader, TabBar, useMediaQuery } from 'fluid-lycoris'
 import { api, type Download } from './api'
 import { updateText, useAuth, useEvents, useKeyboardUp, useUpdateHint } from './hooks'
 import Brand from './components/Brand'
@@ -85,6 +85,11 @@ const PHONE_TABS = TABS
 const RULES = { to: '/rules', key: 'nav.rules', icon: BookOpen, motion: 'open' }
 const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings, motion: 'turn' }
 const NAV = [...TABS, SETTINGS]
+// the sync side of the colour code: their entries light up teal, not red
+const TEAL = ['/watches', '/files']
+// how long a page's entry runs (the last wipe and the widest rise) before
+// its mark comes off
+const ENTER_MS = 1200
 type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
 
@@ -399,7 +404,7 @@ function Shell({ email }: { email: string }) {
   // How the screen changes, decided once per navigation (a plain re-render
   // must not replay it). <main> is keyed on the top-level page, so it only
   // remounts - and animates - when the page changes; a move inside a page
-  // (a settings section, a suggestions tab) animates the section's own
+  // (a settings section, a discover section) animates the section's own
   // outlet and leaves its heading, menu and tabs standing. A back swipe the
   // browser already animated plays nothing on top.
   const wide = useMediaQuery(WIDE_MQ)
@@ -412,187 +417,151 @@ function Shell({ email }: { email: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
 
+  // Entering a page or one of its sections: the title and the section
+  // headings wipe in, the rows rise in one wave (enterPage). Played once per
+  // address; the mark is taken off again once it ran, so a polled list that
+  // remounts its rows later does not rise a second time.
+  const barTitle = useRef<HTMLSpanElement>(null)
+  const deskTitle = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const main = document.querySelector<HTMLElement>('.app-shell > main')
+    if (!main) return
+    const extra = [barTitle.current, deskTitle.current].filter((e): e is HTMLSpanElement => !!e)
+    enterPage(main, extra)
+    const id = setTimeout(() => [main, ...extra].forEach((e) => e.removeAttribute('data-wipe')), ENTER_MS)
+    return () => clearTimeout(id)
+  }, [location.pathname, location.search])
+
   // No sideways swipe between the pages: it fought every horizontal gesture
   // inside them (row swipes, the calendar, the tab decks) and was the least
   // reliable of them. The tab bar is one tap away.
 
-  const logout = async () => {
-    try {
-      await api.post('/api/auth/logout')
-    } catch {
-      /* drop to the login screen either way - the user wants out */
-    }
-    // full reload to the root: guarantees the app re-gates on a fresh /api/auth/me
-    // (which is now 401) and wipes every cached query of the previous user -
-    // a plain cache reset raced the data-router re-render and left stale content.
-    // ?loggedout: in auto-redirect mode the login page would otherwise send
-    // the user straight back to the provider, which signs them in again
-    window.location.href = '/?loggedout=1'
-  }
-
-  const icon = (n: NavEntry) => <n.icon aria-hidden size="1.25em" className="t-nav-icon shrink-0" data-nav={n.motion} />
+  // red for Heute and Entdecken, teal for the sync side: Auto-Sync, Dateien
+  const tone = (n: NavEntry) => (TEAL.includes(n.to) ? 'teal' : undefined)
+  const icon = (n: NavEntry) => <n.icon aria-hidden className="t-nav-icon" data-nav={n.motion} />
   // the dot sits on the icon's corner, so it works in a row and in a stacked tab
-  const dotted = (node: ReactNode, show: boolean) => (
-    <span className="relative shrink-0">
-      {node}
-      {show && (
-        <>
-          <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-warn" />
-          <span className="sr-only">{t('app.updateHint')}</span>
-        </>
-      )}
-    </span>
-  )
+  const dotted = (node: ReactNode, show: boolean) =>
+    show ? (
+      <span className="ws-dot">
+        {node}
+        <i aria-hidden />
+        <span className="sr-only">{t('app.updateHint')}</span>
+      </span>
+    ) : (
+      node
+    )
+  const screenTitle = title ? t(title) : 'WeebSync'
 
-  const settingsOpen = onPath(SETTINGS, location.pathname) && !onPath(RULES, location.pathname)
+  const settingsOpen = onPath(SETTINGS, location.pathname)
   const sidebar = (
-    <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
-      <div className="border-b border-border-subtle px-4 py-5">
-        <h1 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
-          {/* the mark is the way home from anywhere, as on every site */}
-          <Link to="/" className="rounded-xs">
-            {/* folds into the mark and back out on every page change */}
-            <Brand variant="rail" slogan={t('app.tagline')} replayKey={location.pathname} className="mt-3 mb-2" />
-          </Link>
-        </h1>
+    <aside className="ws-side" aria-label={t('nav.side')}>
+      <div className="ws-brand">
+        {/* the mark is the way home from anywhere, as on every site */}
+        <Link to="/" className="rounded-xs" aria-label={t('nav.dashboard')}>
+          {/* folds into the mark and back out on every page change */}
+          <Brand variant="rail" slogan={t('app.tagline')} replayKey={location.pathname} className="mt-3 mb-2" />
+        </Link>
       </div>
       {/* the way into the palette, and where its shortcut is learnt */}
-      <div className="px-3 pt-3">
-        <button
-          type="button"
-          onClick={() => setPalette(true)}
-          className="flex w-full items-center gap-2 rounded-md border border-border-subtle px-3 py-1.5 text-sm text-t-muted hover:border-border-input hover:text-t-secondary"
-        >
-          <Search aria-hidden size="1em" className="shrink-0" />
-          <span className="flex-1 text-left">{t('palette.title')}</span>
-          <kbd className="font-mono text-ctl-sm">{`${/Mac|iP/.test(navigator.platform) ? '⌘' : t('palette.ctrl')} + K`}</kbd>
-        </button>
-      </div>
-      <nav className="min-h-0 flex-1 overflow-y-auto py-3" aria-label={t('nav.main')}>
+      <button type="button" onClick={() => setPalette(true)} aria-haspopup="dialog" className="ws-palette">
+        <Search aria-hidden size="1.125rem" className="shrink-0" />
+        <span>{t('palette.title')}</span>
+        <Kbd>{`${/Mac|iP/.test(navigator.platform) ? '⌘' : t('palette.ctrl')} K`}</Kbd>
+      </button>
+      <nav className="ws-side-nav" aria-label={t('nav.main')}>
         {TABS.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.to === '/'}
-            className={({ isActive }) => navItemClass('sidebar', isActive)}
-          >
+          <NavLink key={n.to} to={n.to} end={n.to === '/'} className="ws-side-link" data-tone={tone(n)}>
             {icon(n)}
             {t(n.key)}
           </NavLink>
         ))}
       </nav>
-      {/* what transfers right now, above settings where the eye rests last */}
-      <MiniPlayer variant="rail" />
-      <LiveActivity variant="rail" />
       {/* settings at the foot, apart from the pages: visited rarely, but
-          always in the same place */}
-      <div className="py-2">
+          always in the same place; above them what transfers right now */}
+      <div className="ws-side-foot">
+        <MiniPlayer variant="rail" />
+        <LiveActivity variant="rail" />
         <PhoneHint />
-        <NavLink to={RULES.to} className={({ isActive }) => navItemClass('sidebar', isActive)}>
+        <NavLink to={RULES.to} className="ws-side-link">
           {icon(RULES)}
           {t(RULES.key)}
         </NavLink>
-        {/* the rules live under settings, but only one entry is the page open */}
-        <Link
-          to={SETTINGS.to}
-          aria-current={settingsOpen ? 'page' : undefined}
-          className={navItemClass('sidebar', settingsOpen)}
-        >
+        <Link to={SETTINGS.to} aria-current={settingsOpen ? 'page' : undefined} className="ws-side-link">
           {dotted(icon(SETTINGS), !!update)}
           {t(SETTINGS.key)}
         </Link>
-      </div>
-      <div className="border-t border-border-subtle p-4">
         {update && (
-          <Link to="/settings/about" className="mb-3 flex items-center gap-2 text-xs text-warn hover:underline">
+          <Link to="/settings/about" className="ws-update">
             <span aria-hidden className="size-2 shrink-0 rounded-full bg-warn" />
             <span className="min-w-0 truncate">{updateLine}</span>
           </Link>
         )}
-        <p className="mb-2 truncate font-mono text-xs text-t-muted" title={email}>
+        {/* who is signed in; signing out lives in the account card in settings */}
+        <p className="ws-who" title={email}>
           {email}
         </p>
-        <Button size="sm" className="w-full" onClick={logout}>
-          <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('app.logout')}
-        </Button>
       </div>
     </aside>
   )
 
-  // the phone's top bar: back link on a stacked screen, the screen title as
-  // the page's h1, and the slot pages fill with their secondary controls
+  // the phone's top bar: back link on a stacked screen, else the small mark;
+  // the screen title as the page's h1 (no large title in the page), and the
+  // slot pages fill with their secondary controls
   const bar = (
-    <AppBar
-      leading={
-        back ? (
-          <Link
-            to={back}
-            aria-label={t('nav.back')}
-            className="t-iconbtn text-t-secondary hover:text-t-primary"
-            onClick={(e) => {
-              if (!backHistory) return
-              e.preventDefault()
-              goBack()
-            }}
-          >
-            <ArrowLeft aria-hidden size="1.25em" />
-          </Link>
-        ) : (
-          <Link
-            to="/"
-            aria-label={t('nav.dashboard')}
-            className="inline-flex min-h-(--ctl-h-sm) min-w-(--ctl-h-sm) items-center justify-center rounded-xs px-1 text-t-primary"
-          >
-            <Logo replayKey={location.pathname} className="h-5 w-auto" active={transferring} />
-          </Link>
-        )
-      }
-      title={title ? t(title) : 'WeebSync'}
-      actions={
-        <>
-          <div ref={setActions} className="flex items-center gap-1" />
-          {/* the gear on every top-level page; a stacked screen has its back
-              link instead, and Settings itself needs no way into itself */}
-          {!back && !onPath(SETTINGS, location.pathname) && (
-            <Link
-              to={SETTINGS.to}
-              aria-label={t(SETTINGS.key)}
-              className="t-iconbtn text-t-secondary hover:text-t-primary"
-            >
-              {dotted(icon(SETTINGS), !!update)}
-            </Link>
-          )}
-        </>
-      }
-    />
+    <header className="ws-top">
+      {back ? (
+        <Link
+          to={back}
+          aria-label={t('nav.back')}
+          className="ws-iconbtn -ml-2"
+          onClick={(e) => {
+            if (!backHistory) return
+            e.preventDefault()
+            goBack()
+          }}
+        >
+          <ArrowLeft aria-hidden />
+        </Link>
+      ) : (
+        <Link to="/" aria-label={t('nav.dashboard')} className="ws-top-mark">
+          <Logo replayKey={location.pathname} className="h-5 w-auto" active={transferring} />
+        </Link>
+      )}
+      <h1 className="min-w-0 flex-1 truncate">
+        <span ref={barTitle} className="t-appbar-title">
+          {screenTitle}
+        </span>
+      </h1>
+      <div ref={setActions} className="flex items-center gap-1" />
+      {/* the gear on every top-level page; a stacked screen has its back
+          link instead, and Settings itself needs no way into itself */}
+      {!back && !onPath(SETTINGS, location.pathname) && (
+        <Link to={SETTINGS.to} aria-label={t(SETTINGS.key)} className="ws-iconbtn">
+          {dotted(<Settings aria-hidden />, !!update)}
+        </Link>
+      )}
+      {/* how far the page below has been read; PageScroll moves it */}
+      <span aria-hidden className="t-scroll-line" />
+    </header>
   )
 
-  // the phone's tab bar: every top-level page
+  // the phone's tab bar: every top-level page, then the search
   const tabs = (
     <TabBar aria-label={t('nav.main')} hidden={keyboard}>
-      <div className="flex">
+      <div className="ws-tabs">
         {PHONE_TABS.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.to === '/'}
-            className={({ isActive }) => navItemClass('bottomTab', isActive)}
-          >
+          <NavLink key={n.to} to={n.to} end={n.to === '/'} className="ws-tab" data-tone={tone(n)}>
+            <span aria-hidden className="ws-pip" />
             {icon(n)}
-            <span className="max-w-full truncate whitespace-nowrap">{t(n.key)}</span>
+            <span>{t(n.key)}</span>
           </NavLink>
         ))}
         {/* the search as Ctrl+K is on the desktop: the last entry, where the
             thumb rests, drawn like the tabs but opening the search */}
-        <button
-          type="button"
-          onClick={() => setPalette(true)}
-          aria-haspopup="dialog"
-          className={navItemClass('bottomTab', false)}
-        >
-          <Search aria-hidden size="1.25em" className="shrink-0" />
-          <span className="max-w-full truncate whitespace-nowrap">{t('palette.title')}</span>
+        <button type="button" onClick={() => setPalette(true)} aria-haspopup="dialog" className="ws-tab">
+          <span aria-hidden className="ws-pip" />
+          <Search aria-hidden />
+          <span>{t('palette.title')}</span>
         </button>
       </div>
     </TabBar>
@@ -614,7 +583,6 @@ function Shell({ email }: { email: string }) {
                     <>
                       <UpdateToast />
                       <MiniPlayer variant="pill" />
-                      <LiveActivity variant="pill" />
                     </>
                   }
                   footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
@@ -627,12 +595,29 @@ function Shell({ email }: { email: string }) {
                     </>
                   }
                 >
+                  {/* the desktop's title row: a top-level page's h1 over the
+                      content; a stacked screen keeps its own heading. Only
+                      rendered wide: on a phone the pull to refresh moves the
+                      first thing in <main> */}
+                  {wide && !back && (
+                    <header className="ws-title">
+                      <h1>
+                        <span ref={deskTitle}>{screenTitle}</span>
+                      </h1>
+                    </header>
+                  )}
                   {/* at most one one-time hint, above whatever page is open */}
                   <Tips />
                   <RouteTransition cls={motion.page}>
                     <Outlet />
                   </RouteTransition>
                   <PageScroll stacked={!!back} />
+                  {/* what transfers right now, riding the page's bottom edge */}
+                  {!wide && (
+                    <div className="ws-live-wrap">
+                      <LiveActivity variant="pill" />
+                    </div>
+                  )}
                 </AppShell>
               </TransfersProvider>
             </SeriesModalProvider>

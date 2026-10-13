@@ -30,7 +30,7 @@ const dl = (id: number, status: Download['status'], size: number, transferred: n
   }) as Download
 
 // the opener the pill reaches; each test sets its own
-const transfers: Transfers = { open: () => {} }
+const transfers: Transfers = { open: () => {}, shown: false }
 
 function setup(downloads: Download[], open: (from?: HTMLElement | null) => void = () => {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
@@ -61,7 +61,7 @@ describe('LiveActivity', () => {
     const { container } = setup([dl(1, 'running', 100, 50, 10), dl(2, 'queued', 100, 0)])
     expect(screen.getByText('live.loading:2')).toBeTruthy()
     const ring = container.querySelectorAll('circle')[1]
-    const c = 2 * Math.PI * 15
+    const c = 2 * Math.PI * 16
     // 50 of 200 bytes: three quarters of the ring still open
     expect(parseFloat(ring.getAttribute('stroke-dashoffset')!)).toBeCloseTo(c * 0.75, 1)
   })

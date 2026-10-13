@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Copy, Smartphone } from 'lucide-react'
-import { Button, navItemClass } from 'fluid-lycoris'
+import { Button } from 'fluid-lycoris'
 import qrcode from 'qrcode-generator'
 import { api, type Tips as TipsState } from '../api'
 import { useToast } from './toast'
@@ -52,7 +52,7 @@ export default function PhoneHint() {
 
   return (
     <>
-      <button type="button" popoverTarget="phone-hint" className={navItemClass('sidebar', false, 'w-full')}>
+      <button type="button" popoverTarget="phone-hint" className="ws-side-link">
         <Smartphone aria-hidden size="1.25em" className="shrink-0" />
         {t('tips.phone')}
       </button>

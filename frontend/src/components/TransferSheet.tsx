@@ -30,8 +30,9 @@ export function TransfersProvider({ children, panel }: { children: ReactNode; pa
         if (!wide && el) void morphTransition(el, () => flushSync(() => setShown(true)), false, true)
         else setShown(true)
       },
+      shown,
     }),
-    [wide],
+    [wide, shown],
   )
   return (
     <TransfersCtx.Provider value={api}>
