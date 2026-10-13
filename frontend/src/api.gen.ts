@@ -2337,6 +2337,20 @@ export interface Schemas {
     rootPath: string
     username: string
   }
+  'api.sessionInfo': {
+    /**
+     * "" for sessions older than the column
+     */
+    createdAt: string
+    current: boolean
+    expiresAt: string
+    id: string
+    oidc: boolean
+    userAgent: string
+  }
+  'api.sessionsEndedResponse': {
+    ended: number
+  }
   'api.settingsPayload': {
     /**
      * write-only, optional (local servers need none)

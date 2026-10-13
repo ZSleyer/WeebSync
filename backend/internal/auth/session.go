@@ -129,6 +129,10 @@ func UserFrom(ctx context.Context) *User {
 	return u
 }
 
+// TokenHash is how a session token is stored: callers that list or end
+// sessions match the request's own session by it.
+func TokenHash(token string) string { return hashToken(token) }
+
 func hashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])
@@ -149,8 +153,14 @@ func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID
 	}
 	token := hex.EncodeToString(raw)
 	expires := time.Now().Add(sessionTTL)
-	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub) VALUES (?, ?, ?, ?, ?)`,
-		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub); err != nil {
+	// the browser it began in, so the account page can tell sessions apart;
+	// capped, it is shown and nothing else
+	ua := r.UserAgent()
+	if len(ua) > 300 {
+		ua = ua[:300]
+	}
+	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub, created_at, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub, time.Now().UTC().Format(time.RFC3339), ua); err != nil {
 		return err
 	}
 	SetCookie(w, r, &http.Cookie{

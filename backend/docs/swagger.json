@@ -5558,6 +5558,49 @@
                 ],
                 "type": "object"
             },
+            "api.sessionInfo": {
+                "properties": {
+                    "createdAt": {
+                        "description": "\"\" for sessions older than the column",
+                        "type": "string"
+                    },
+                    "current": {
+                        "type": "boolean"
+                    },
+                    "expiresAt": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "oidc": {
+                        "type": "boolean"
+                    },
+                    "userAgent": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "createdAt",
+                    "expiresAt",
+                    "userAgent",
+                    "oidc",
+                    "current"
+                ],
+                "type": "object"
+            },
+            "api.sessionsEndedResponse": {
+                "properties": {
+                    "ended": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "ended"
+                ],
+                "type": "object"
+            },
             "api.settingsPayload": {
                 "properties": {
                     "aiApiKey": {
@@ -9961,6 +10004,138 @@
                     }
                 },
                 "summary": "Set a new password from a reset link",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/auth/sessions": {
+            "get": {
+                "description": "The signed-in browsers of the account, newest first.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.sessionInfo"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "List sessions",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/auth/sessions/others": {
+            "delete": {
+                "description": "Signs every browser of the account out except this one.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.sessionsEndedResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "End all other sessions",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
+        "/api/auth/sessions/{id}": {
+            "delete": {
+                "description": "Signs one browser of the account out. Not the current one: that is logout.",
+                "parameters": [
+                    {
+                        "description": "Session id from the list",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "End a session",
                 "tags": [
                     "Auth"
                 ]
