@@ -1677,6 +1677,7 @@
     "open": "Öffnen"
   },
   "suggestions": {
+    "hidden": "„{{name}}“ ausgeblendet",
     "title": "ENTDECKEN",
     "navLabel": "Vorschlagsbereiche",
     "groupDiscover": "Für dich",

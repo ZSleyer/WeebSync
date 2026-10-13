@@ -426,7 +426,6 @@ function SugCard({
   onSync: (w: { serverId: number; name: string; initial: WatchFields }) => void
   onNotice: (s: string) => void
 }) {
-  const fail = useFailToast()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -489,15 +488,8 @@ function SugCard({
     }
   }
 
-  const dismiss = async () => {
-    try {
-      await api.post('/api/suggestions/dismiss', { kind: 'suggestion', refKey: it.refKey, label: it.title })
-      qc.invalidateQueries({ queryKey: ['suggestions'] })
-      qc.invalidateQueries({ queryKey: ['dismissed'] })
-    } catch (e) {
-      fail(e)
-    }
-  }
+  const hide = useDismiss()
+  const dismiss = () => hide('suggestion', it.refKey, it.title)
 
   const rematch = async () => {
     if (!it.candidates.length) return
@@ -741,6 +733,31 @@ function SugCard({
   )
 }
 
+// Hiding a suggestion, an upgrade or a duplicate: gone at once, back with the
+// toast's undo instead of a trip to the ignored list
+function useDismiss() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const fail = useFailToast()
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['suggestions'] })
+    qc.invalidateQueries({ queryKey: ['dismissed'] })
+  }
+  return async (kind: 'suggestion' | 'upgrade' | 'duplicate', refKey: string, label: string) => {
+    try {
+      await api.post('/api/suggestions/dismiss', { kind, refKey, label })
+      refresh()
+      toast({
+        message: t('suggestions.hidden', { name: label }),
+        undo: () => void api.del('/api/suggestions/dismiss', { kind, refKey }).then(refresh, fail),
+      })
+    } catch (e) {
+      fail(e)
+    }
+  }
+}
+
 // The ignored bucket lists dismissed suggestions, upgrades and duplicates and
 // restores them. A bucket like the others, not a modal: on a phone a modal
 // over the list was one more layer to close.
@@ -783,7 +800,6 @@ export function IgnoredSection() {
 // ── Upgrades ──
 
 export function UpgradesSection() {
-  const fail = useFailToast()
   const { t } = useTranslation()
   const { data: defaults } = useWatchDefaults()
   const navigate = useNavigate()
@@ -828,15 +844,8 @@ export function UpgradesSection() {
       return { ...d, order: next.filter((a) => d[a]) }
     })
   const order: Axis[] = dims ? orderOf(dims) : [...AXES]
-  const dismiss = async (u: UpgradeSuggestion) => {
-    try {
-      await api.post('/api/suggestions/dismiss', { kind: 'upgrade', refKey: u.key, label: u.title })
-      qc.invalidateQueries({ queryKey: ['suggestions'] })
-      qc.invalidateQueries({ queryKey: ['dismissed'] })
-    } catch (e) {
-      fail(e)
-    }
-  }
+  const hide = useDismiss()
+  const dismiss = (u: UpgradeSuggestion) => hide('upgrade', u.key, u.title)
 
   const items = data?.upgrades ?? []
   return (
@@ -953,15 +962,8 @@ export function DuplicatesSection() {
   const { data, isLoading } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
     refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
   })
-  const dismiss = async (d: DuplicateItem) => {
-    try {
-      await api.post('/api/suggestions/dismiss', { kind: 'duplicate', refKey: d.refKey, label: d.title })
-      qc.invalidateQueries({ queryKey: ['suggestions'] })
-      qc.invalidateQueries({ queryKey: ['dismissed'] })
-    } catch (e) {
-      fail(e)
-    }
-  }
+  const hide = useDismiss()
+  const dismiss = (d: DuplicateItem) => hide('duplicate', d.refKey, d.title)
   // one copy (a folder, or one file of a doubled episode) goes to the trash
   // folder beside it; the server rebuilds the suggestions afterwards. The
   // trash keeps it, so no question first: the line's undo takes it back out

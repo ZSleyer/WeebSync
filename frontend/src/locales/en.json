@@ -1677,6 +1677,7 @@
     "open": "Open"
   },
   "suggestions": {
+    "hidden": "“{{name}}” hidden",
     "title": "DISCOVER",
     "navLabel": "Suggestion sections",
     "groupDiscover": "For you",
