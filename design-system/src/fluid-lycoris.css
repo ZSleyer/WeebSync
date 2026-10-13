@@ -2098,15 +2098,16 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
   padding: 0 7px;
   font: 600 0.6875rem/1 var(--f-sans);
   border-radius: 4px;
-  color: var(--fg);
-  background: color-mix(in oklab, var(--bg) 82%, transparent);
+  /* dark ground in both themes: the chip sits on cover art, not on the page */
+  color: #fff;
+  background: rgb(0 0 0 / 0.72);
 }
 .t-cover-status { left: 6px; }
 .t-cover-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-3); }
 .t-cover-status[data-status="live"]::before { background: var(--accent-2); }
 .t-cover-status[data-status="soon"]::before { background: var(--accent); }
 .t-cover-score { right: 6px; font-variant-numeric: tabular-nums; }
-.t-cover-score > svg { width: 11px; height: 11px; fill: var(--warn); }
+.t-cover-score > svg { width: 11px; height: 11px; fill: #f2c46b; }
 .t-cover-bar {
   position: absolute;
   inset: auto 0 0;
