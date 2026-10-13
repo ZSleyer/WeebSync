@@ -311,6 +311,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/servers/{id}/catalog", authed(http.HandlerFunc(s.handleCatalog)))
 	mux.Handle("PUT /api/servers/{id}/catalog/match", authed(http.HandlerFunc(s.handleCatalogMatch)))
 	mux.Handle("POST /api/servers/{id}/catalog/rematch", authed(http.HandlerFunc(s.handleCatalogRematch)))
+	mux.Handle("GET /api/servers/{id}/catalog/explain", authed(http.HandlerFunc(s.handleCatalogExplain)))
 	mux.Handle("GET /api/servers/{id}/catalog/scope", authed(http.HandlerFunc(s.handleCatalogScopeGet)))
 	mux.Handle("PUT /api/servers/{id}/catalog/scope", authed(http.HandlerFunc(s.handleCatalogScope)))
 	mux.Handle("GET /api/catalog/scope-hints", authed(http.HandlerFunc(s.handleScopeHints)))
