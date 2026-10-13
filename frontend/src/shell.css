@@ -422,3 +422,12 @@
     bottom: 4.5rem;
   }
 }
+
+/* ── A full-page overlay (the series detail, a reader): whoever opens one
+   sets data-overlay on <html>, and the page under it is hidden rather than
+   bleeding through. The overlay itself is fixed and leaves the sidebar
+   standing (left: var(--side-w)); on a phone it ends above the tab bar
+   (--nav-h plus --safe-b, both from the design system). ── */
+html[data-overlay] .app-shell > main {
+  visibility: hidden;
+}

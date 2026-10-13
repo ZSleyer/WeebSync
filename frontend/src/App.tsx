@@ -427,9 +427,19 @@ function Shell({ email }: { email: string }) {
     const main = document.querySelector<HTMLElement>('.app-shell > main')
     if (!main) return
     const extra = [barTitle.current, deskTitle.current].filter((e): e is HTMLSpanElement => !!e)
-    enterPage(main, extra)
-    const id = setTimeout(() => [main, ...extra].forEach((e) => e.removeAttribute('data-wipe')), ENTER_MS)
-    return () => clearTimeout(id)
+    // only once the new route has painted (two frames): starting the entry
+    // in the same frame as the mount made the first frames drop on a phone
+    let id: ReturnType<typeof setTimeout> | undefined
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        enterPage(main, extra)
+        id = setTimeout(() => [main, ...extra].forEach((e) => e.removeAttribute('data-wipe')), ENTER_MS)
+      })
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(id)
+    }
   }, [location.pathname, location.search])
 
   // No sideways swipe between the pages: it fought every horizontal gesture
