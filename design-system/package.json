@@ -12,10 +12,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./fluid-lycoris.css": "./src/fluid-lycoris.css",
+    "./tailwind.css": "./src/tailwind.css",
     "./styles.css": "./styles.css"
   },
   "files": [
     "dist",
+    "src/fluid-lycoris.css",
+    "src/tailwind.css",
     "styles.css"
   ],
   "sideEffects": [

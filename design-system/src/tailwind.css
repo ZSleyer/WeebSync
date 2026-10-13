@@ -1,0 +1,71 @@
+/* Fluid Lycoris - Tailwind v4 bridge.
+   Import after "tailwindcss" in a host that uses Tailwind: the components use
+   utilities like text-t-muted, bg-bg-card and rounded-md, and this maps them
+   onto the theme tokens in fluid-lycoris.css. The @source line lets Tailwind
+   see the class names used inside the package's own components. */
+@source ".";
+
+/* Tailwind's rounded-* utilities land on the same scale as the t-* classes.
+   `inline` makes a utility emit the var() itself, so a control inside a
+   toolbar follows the toolbar's override exactly like the classes do. Bare
+   `rounded` is not on the scale - use a step. */
+@theme inline {
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-chip);
+  --radius-md: var(--r-ctl);
+  --radius-lg: var(--r-menu);
+  --radius-xl: var(--r-panel);
+  --radius-2xl: var(--r-dialog);
+  --radius-3xl: var(--r-dialog);
+  --radius-4xl: var(--r-dialog);
+  /* the small type steps of the controls, so dense meta text (sizes, dates,
+     counts) grows with the touch scale instead of staying at a fixed 10px */
+  --text-ctl-sm: var(--ctl-fs-sm);
+  --text-ctl-xs: var(--ctl-fs-xs);
+}
+
+@theme {
+  --font-display: "Chakra Petch", sans-serif;
+  --font-sans: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-card: var(--bg-card);
+  --color-bg-hover: var(--bg-hover);
+  --color-accent: var(--accent-blue);
+  --color-ok: var(--accent-green);
+  --color-warn: var(--accent-yellow);
+  --color-err: var(--accent-red);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-input: var(--border-input);
+  --color-border-active: var(--border-active);
+  --color-t-primary: var(--text-primary);
+  --color-t-secondary: var(--text-secondary);
+  --color-t-muted: var(--text-muted);
+  --color-t-faint: var(--text-faint);
+}
+
+/* Re-bind the Tailwind colour bridge on every themed element, not just :root.
+   A custom property that points at another one is resolved where it is
+   DEFINED, so `--color-t-primary: var(--text-primary)` in :root freezes to the
+   root theme - a `[data-theme="light"]` section nested inside a dark page kept
+   handing its text the dark value (white on white, 1.12:1). Re-declaring the
+   bridge here re-resolves it against whatever theme the element carries. */
+[data-theme] {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-card: var(--bg-card);
+  --color-bg-hover: var(--bg-hover);
+  --color-accent: var(--accent-blue);
+  --color-ok: var(--accent-green);
+  --color-warn: var(--accent-yellow);
+  --color-err: var(--accent-red);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-input: var(--border-input);
+  --color-border-active: var(--border-active);
+  --color-t-primary: var(--text-primary);
+  --color-t-secondary: var(--text-secondary);
+  --color-t-muted: var(--text-muted);
+  --color-t-faint: var(--text-faint);
+}
