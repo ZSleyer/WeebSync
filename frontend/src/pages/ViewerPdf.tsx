@@ -8,7 +8,7 @@ import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-d
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import Loading from '../components/Loading'
 import { doneKey, streamUrl } from '../components/playLinks'
-import { Paged } from './Viewer'
+import { Paged, useNextBook } from './Viewer'
 
 GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -24,6 +24,7 @@ GlobalWorkerOptions.workerSrc = workerUrl
  */
 export default function ViewerPdf({ server, path }: { server: number; path: string }) {
   const { t } = useTranslation()
+  const nextHref = useNextBook(server, path)
   const doc = useQuery({
     queryKey: ['pdf', server, path],
     queryFn: () => getDocument({ url: streamUrl(server, path), disableAutoFetch: true, enableXfa: false }).promise,
@@ -47,6 +48,7 @@ export default function ViewerPdf({ server, path }: { server: number; path: stri
       done={doneKey(server, path)}
       direction="western"
       label={path.split('/').pop() ?? ''}
+      nextHref={nextHref}
       render={(i, fit) => (
         <PdfPage key={i} pdf={pdf} n={i + 1} fit={fit} alt={t('viewer.pageOf', { page: i + 1, count: pdf.numPages })} />
       )}

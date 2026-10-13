@@ -540,6 +540,16 @@
     "total_other": "{{count}} entries · {{size}}"
   },
   "viewer": {
+    "layout": "Page layout",
+    "layout_single": "Single page",
+    "layout_double": "Two pages",
+    "layout_scroll": "Continuous",
+    "overview": "All pages",
+    "endTitle": "End of the volume",
+    "endNext": "The next volume is in the same folder.",
+    "endLast": "No further volume in this folder.",
+    "nextVolume": "Next volume",
+    "fromStart": "Read from the start",
     "title": "Viewer",
     "open": "Open",
     "openItem": "Open {{name}}",

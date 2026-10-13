@@ -1,23 +1,40 @@
-import { lazy, Suspense, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import {
   ArrowLeftRight,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
+  GalleryVertical,
+  LayoutGrid,
   Maximize,
   MoonStar,
   MoveHorizontal,
   MoveVertical,
+  RectangleVertical,
   SkipBack,
   SkipForward,
+  type LucideIcon,
 } from 'lucide-react'
 import {
   buttonClass,
   Cover,
+  Dialog,
   EmptyState,
   IconButton,
+  Modal,
   Panel,
   Select,
   Tab,
@@ -29,7 +46,16 @@ import { api, type Entry } from '../api'
 import Loading from '../components/Loading'
 import Markdown from '../components/Markdown'
 import FileIcon from '../components/FileIcon'
-import { doneKey, filesLink, listFolder, streamUrl, viewHref, viewKind, type ViewKind } from '../components/playLinks'
+import {
+  doneKey,
+  filesLink,
+  isBook,
+  listFolder,
+  streamUrl,
+  viewHref,
+  viewKind,
+  type ViewKind,
+} from '../components/playLinks'
 import {
   decodeText,
   epubRootfile,
@@ -142,10 +168,17 @@ function Failed({ error }: { error: unknown }) {
 
 // ---- paged reading: comics, PDFs, a folder of pictures ----
 
+export type PageLayout = 'single' | 'double' | 'scroll'
+
+// a spread opens on an odd page: the cover stands alone, then 1+2, 3+4 …
+export const spreadOf = (p: number) => (p === 0 ? 0 : p - ((p - 1) % 2))
+
 /**
- * One page at a time, turned by swipe, tap on the outer thirds, the arrow
- * keys or the slider. Right to left reverses all of it, the way a manga reads.
- * The page shown is remembered per file.
+ * One page at a time, two side by side, or the whole book as one long strip
+ * the way a webtoon reads. Pages turn by swipe, tap on the outer thirds, the
+ * arrow keys or the slider; right to left reverses all of it, the way a
+ * manga reads. The page shown is remembered per file; past the last one the
+ * end of the volume offers the next.
  */
 export function Paged({
   count,
@@ -154,8 +187,10 @@ export function Paged({
   direction,
   render,
   preload,
+  thumb,
   label,
   done,
+  nextHref,
 }: {
   count: number
   /** storage key for the reading position; empty = not remembered */
@@ -169,9 +204,13 @@ export function Paged({
   direction: 'manga' | 'western'
   render: (i: number, fit: 'width' | 'height') => ReactNode
   preload?: (i: number) => void
+  /** a small picture of a page for the overview; without it the overview lists numbers */
+  thumb?: (i: number) => string
   label: string
   /** storage key set once the last page was shown: the volume is read */
   done?: string
+  /** the next volume of the folder, offered once this one is through */
+  nextHref?: string
 }) {
   const { t } = useTranslation()
   const [stored, setStored] = useStored<number>(pageKey || 'viewer.none', initial)
@@ -180,14 +219,42 @@ export function Paged({
   const setPage = (i: number) => (pageKey ? setStored(i) : setLocal(i))
   const [rtl, setRtl] = useStored<string>(`viewer.rtl.${direction}`, direction === 'manga' ? '1' : '0')
   const [fit, setFit] = useStored<'width' | 'height'>('viewer.fit', 'height')
+  // kept per direction like the reading way: a manga in spreads leaves the PDFs alone
+  const [layout, setLayout] = useStored<PageLayout>(`viewer.layout.${direction}`, 'single')
+  const [overview, setOverview] = useState(false)
+  // past the last page: the end of the volume stands in for a page
+  const [ended, setEnded] = useState(false)
   const isRtl = rtl === '1'
+  const scroll = layout === 'scroll'
   const box = useRef<HTMLDivElement>(null)
 
+  // the pages shown together: a spread in double, else the one page
+  const start = layout === 'double' ? spreadOf(page) : page
+  const shown = layout === 'double' && start > 0 && start + 1 < count ? [start, start + 1] : [start]
+  const last = shown[shown.length - 1]
+
+  // the strip mounts pages as they come near and keeps them, so nothing
+  // above the reader shrinks under it
+  const [near, setNear] = useState<[number, number]>([page - 1, page + 2])
+  const widen = (i: number) => setNear(([lo, hi]) => [Math.min(lo, i - 1), Math.max(hi, i + 2)])
+  const toPage = (i: number) => {
+    setEnded(false)
+    setPage(i)
+    if (scroll) {
+      widen(i)
+      requestAnimationFrame(() => box.current?.querySelector(`[data-page="${i}"]`)?.scrollIntoView())
+    } else box.current?.scrollTo({ top: 0 })
+  }
   const go = (d: number) => {
-    const n = page + d
-    if (n >= 0 && n < count) {
-      setPage(n)
-      box.current?.scrollTo({ top: 0 })
+    if (ended) {
+      if (d < 0) setEnded(false)
+      return
+    }
+    const n = layout === 'double' ? (d > 0 ? (start === 0 ? 1 : start + 2) : start <= 1 ? 0 : start - 2) : page + d
+    if (n >= 0 && n < count) toPage(n)
+    else if (n >= count && d > 0) {
+      if (scroll) box.current?.scrollTo({ top: box.current.scrollHeight })
+      else setEnded(true)
     }
   }
   const next = () => go(1)
@@ -197,20 +264,41 @@ export function Paged({
   const right = isRtl ? prev : next
 
   useEffect(() => {
-    for (let i = page + 1; i <= page + 2 && i < count; i++) preload?.(i)
-  }, [page, count, preload])
+    for (let i = last + 1; i <= last + 2 && i < count; i++) preload?.(i)
+  }, [last, count, preload])
   useEffect(() => {
-    if (!done || count === 0 || page < count - 1) return
+    if (!done || count === 0 || last < count - 1) return
     try {
       localStorage.setItem(done, '1')
     } catch {
       // not remembered
     }
-  }, [done, page, count])
+  }, [done, last, count])
 
   // the page takes focus on opening, so the arrow keys turn pages without a
   // click into it first
   useEffect(() => box.current?.focus({ preventScroll: true }), [])
+
+  // the strip: the page across the middle of the reader is the page read
+  const onCentre = useEffectEvent((i: number) => {
+    if (i === page) return
+    setPage(i)
+    widen(i)
+  })
+  const toRead = useEffectEvent(() => box.current?.querySelector(`[data-page="${page}"]`)?.scrollIntoView())
+  useEffect(() => {
+    const root = box.current
+    if (!scroll || !root) return
+    toRead()
+    const io = new IntersectionObserver(
+      (es) => {
+        for (const e of es) if (e.isIntersecting) onCentre(Number((e.target as HTMLElement).dataset.page))
+      },
+      { root, rootMargin: '-50% 0px -50% 0px' },
+    )
+    for (const el of root.querySelectorAll('[data-page]')) io.observe(el)
+    return () => io.disconnect()
+  }, [scroll, count])
 
   // a pinched-in page pans instead of turning
   const [zoomed, setZoomed] = useState(false)
@@ -222,20 +310,23 @@ export function Paged({
     return () => vv.removeEventListener('resize', on)
   }, [])
   // the hook's onNext is a swipe to the left, which is "left" here too
-  const swipe = useSwipe({ onNext: right, onPrev: left, disabled: zoomed, mouse: false })
+  const swipe = useSwipe({ onNext: right, onPrev: left, disabled: zoomed || scroll, mouse: false })
 
   const onKey = (e: KeyboardEvent) => {
     const k = e.key
+    // the strip scrolls by the keys the browser gives it
+    if (scroll && k !== 'Home' && k !== 'End') return
     if (k === 'ArrowLeft') left()
     else if (k === 'ArrowRight') right()
     else if (k === 'PageDown' || k === ' ') next()
     else if (k === 'PageUp') prev()
-    else if (k === 'Home') setPage(0)
-    else if (k === 'End') setPage(count - 1)
+    else if (k === 'Home') toPage(0)
+    else if (k === 'End') toPage(count - 1)
     else return
     e.preventDefault()
   }
   const onTap = (e: MouseEvent<HTMLDivElement>) => {
+    if (scroll || ended) return
     const r = e.currentTarget.getBoundingClientRect()
     const x = (e.clientX - r.left) / r.width
     if (x < 1 / 3) left()
@@ -246,6 +337,66 @@ export function Paged({
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
     else el?.requestFullscreen?.().catch(() => {})
   }
+
+  const end = (
+    <div className="grid max-w-sm justify-items-center gap-3 p-6 text-center text-white">
+      <p className="font-display text-lg font-semibold text-balance">{t('viewer.endTitle')}</p>
+      <p className="text-sm text-pretty text-white/70">{nextHref ? t('viewer.endNext') : t('viewer.endLast')}</p>
+      <div className="flex flex-wrap justify-center gap-2">
+        {nextHref && (
+          <Link to={nextHref} replace className={buttonClass({ variant: 'primary' })}>
+            {t('viewer.nextVolume')}
+          </Link>
+        )}
+        <button type="button" className={buttonClass()} onClick={() => toPage(0)}>
+          {t('viewer.fromStart')}
+        </button>
+      </div>
+    </div>
+  )
+
+  let body: ReactNode = null
+  if (count > 0 && scroll)
+    body = (
+      <div className="mx-auto flex w-full max-w-3xl flex-col">
+        {Array.from({ length: count }, (_, i) => (
+          <div key={i} data-page={i} className="w-full">
+            {i >= near[0] && i <= near[1] ? render(i, 'width') : <div className="aspect-[2/3] w-full" />}
+          </div>
+        ))}
+        {/* past the strip counts as its last page, so the volume reads as done */}
+        <div data-page={count - 1} className="grid min-h-[60dvh] place-items-center">
+          {end}
+        </div>
+      </div>
+    )
+  else if (count > 0 && ended) body = end
+  else if (count > 0 && shown.length === 2)
+    // the spread meets in the middle: the first page hugs the gutter from its side
+    body = (
+      <div className={`absolute inset-0 flex ${isRtl ? 'flex-row-reverse' : ''}`}>
+        {shown.map((i) => (
+          <div
+            key={i}
+            className={`flex h-full w-1/2 items-center ${(i === shown[0]) !== isRtl ? 'justify-end' : 'justify-start'}`}
+          >
+            {render(i, 'height')}
+          </div>
+        ))}
+      </div>
+    )
+  else if (count > 0) body = render(start, layout === 'double' ? 'height' : fit)
+
+  const centred = !scroll && (ended || layout === 'double' || fit === 'height')
+  const pageText = t('viewer.pageOf', {
+    page: shown.length === 2 ? `${shown[0] + 1}–${shown[1] + 1}` : page + 1,
+    count,
+  })
+  const layouts: [PageLayout, LucideIcon][] = [
+    ['single', RectangleVertical],
+    ['double', BookOpen],
+    ['scroll', GalleryVertical],
+  ]
 
   return (
     <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -261,13 +412,13 @@ export function Paged({
         onKeyDown={onKey}
         onClick={onTap}
         {...swipe}
-        className={`t-reader-page relative min-h-0 flex-1 overflow-auto bg-black ${fit === 'height' ? 'grid place-items-center' : ''}`}
+        className={`t-reader-page relative min-h-0 flex-1 overflow-auto bg-black ${centred ? 'grid place-items-center' : ''}`}
         style={{ touchAction: 'pan-y pinch-zoom' }}
       >
-        {count > 0 ? render(page, fit) : null}
+        {body}
       </div>
       <Toolbar className="border-t border-border-subtle p-2">
-        <IconButton aria-label={t('viewer.pageLeft')} onClick={left} disabled={isRtl ? page >= count - 1 : page <= 0}>
+        <IconButton aria-label={t('viewer.pageLeft')} onClick={left} disabled={isRtl ? ended : page <= 0 && !ended}>
           <ChevronLeft aria-hidden />
         </IconButton>
         <input
@@ -276,20 +427,40 @@ export function Paged({
           max={Math.max(count, 1)}
           value={page + 1}
           dir={isRtl ? 'rtl' : 'ltr'}
-          onChange={(e) => setPage(Number(e.target.value) - 1)}
+          onChange={(e) => toPage(Number(e.target.value) - 1)}
           aria-label={t('viewer.page')}
-          aria-valuetext={t('viewer.pageOf', { page: page + 1, count })}
+          aria-valuetext={pageText}
           className="t-reader-slider min-w-24 flex-1"
         />
-        <IconButton aria-label={t('viewer.pageRight')} onClick={right} disabled={isRtl ? page <= 0 : page >= count - 1}>
+        <IconButton aria-label={t('viewer.pageRight')} onClick={right} disabled={isRtl ? page <= 0 && !ended : ended}>
           <ChevronRight aria-hidden />
         </IconButton>
         <span className="min-w-16 text-center font-mono text-xs tabular-nums text-t-muted" aria-live="polite">
-          {t('viewer.pageOf', { page: page + 1, count })}
+          {pageText}
         </span>
         {/* the reading options keep to the right edge: on a phone they wrap into a
           second row under the page controls instead of trailing them */}
-        <span className="ml-auto flex items-center gap-2">
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <span role="group" aria-label={t('viewer.layout')} className="flex items-center gap-1">
+            {layouts.map(([l, Icon]) => (
+              <IconButton
+                key={l}
+                aria-label={t(`viewer.layout_${l}`)}
+                title={t(`viewer.layout_${l}`)}
+                aria-pressed={layout === l}
+                onClick={() => {
+                  setLayout(l)
+                  setEnded(false)
+                  setNear([page - 1, page + 2])
+                }}
+              >
+                <Icon aria-hidden />
+              </IconButton>
+            ))}
+          </span>
+          <IconButton aria-label={t('viewer.overview')} title={t('viewer.overview')} onClick={() => setOverview(true)}>
+            <LayoutGrid aria-hidden />
+          </IconButton>
           <IconButton
             aria-label={t('viewer.rtl')}
             aria-pressed={isRtl}
@@ -298,13 +469,15 @@ export function Paged({
           >
             <ArrowLeftRight aria-hidden />
           </IconButton>
-          <IconButton
-            aria-label={fit === 'height' ? t('viewer.fitWidth') : t('viewer.fitHeight')}
-            title={fit === 'height' ? t('viewer.fitWidth') : t('viewer.fitHeight')}
-            onClick={() => setFit(fit === 'height' ? 'width' : 'height')}
-          >
-            {fit === 'height' ? <MoveHorizontal aria-hidden /> : <MoveVertical aria-hidden />}
-          </IconButton>
+          {layout === 'single' && (
+            <IconButton
+              aria-label={fit === 'height' ? t('viewer.fitWidth') : t('viewer.fitHeight')}
+              title={fit === 'height' ? t('viewer.fitWidth') : t('viewer.fitHeight')}
+              onClick={() => setFit(fit === 'height' ? 'width' : 'height')}
+            >
+              {fit === 'height' ? <MoveHorizontal aria-hidden /> : <MoveVertical aria-hidden />}
+            </IconButton>
+          )}
           {document.fullscreenEnabled && (
             <IconButton aria-label={t('viewer.fullscreen')} title={t('viewer.fullscreen')} onClick={fullscreen}>
               <Maximize aria-hidden />
@@ -312,7 +485,76 @@ export function Paged({
           )}
         </span>
       </Toolbar>
+      {overview && (
+        <Overview
+          count={count}
+          at={page}
+          thumb={thumb}
+          rtl={isRtl}
+          onPick={(i) => {
+            setOverview(false)
+            toPage(layout === 'double' ? spreadOf(i) : i)
+          }}
+          onClose={() => setOverview(false)}
+        />
+      )}
     </Panel>
+  )
+}
+
+/** Every page of the book at a glance, to jump to one. */
+function Overview({
+  count,
+  at,
+  thumb,
+  rtl,
+  onPick,
+  onClose,
+}: {
+  count: number
+  at: number
+  thumb?: (i: number) => string
+  rtl: boolean
+  onPick: (i: number) => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  // the overview opens on the page being read
+  const cur = useRef<HTMLButtonElement>(null)
+  useEffect(() => cur.current?.scrollIntoView({ block: 'center' }), [])
+  return (
+    <Dialog width="max-w-3xl" aria-label={t('viewer.overview')} onClose={onClose}>
+      <Modal className="max-w-none" title={t('viewer.overview')} onClose={onClose} closeLabel={t('common.close')}>
+        <ol
+          dir={rtl ? 'rtl' : 'ltr'}
+          className={`grid gap-2 ${thumb ? 'grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))]' : 'grid-cols-[repeat(auto-fill,minmax(3rem,1fr))]'}`}
+        >
+          {Array.from({ length: count }, (_, i) => (
+            <li key={i}>
+              <button
+                ref={i === at ? cur : undefined}
+                type="button"
+                aria-current={i === at ? 'page' : undefined}
+                aria-label={t('viewer.pageOf', { page: i + 1, count })}
+                onClick={() => onPick(i)}
+                className={`grid w-full gap-1 rounded-md p-1 text-center text-xs tabular-nums hover:bg-bg-hover ${i === at ? 'bg-bg-hover text-accent ring-2 ring-accent' : 'text-t-muted'}`}
+              >
+                {thumb && (
+                  <img
+                    src={thumb(i)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="aspect-[2/3] w-full rounded-sm bg-black object-cover"
+                  />
+                )}
+                {i + 1}
+              </button>
+            </li>
+          ))}
+        </ol>
+      </Modal>
+    </Dialog>
   )
 }
 
@@ -337,8 +579,17 @@ const warm = (src: string) => {
 
 // ---- unpacked books ----
 
+/** The book after this one in its folder, for the end of a volume. */
+export function useNextBook(server: number, path: string) {
+  const folder = useQuery(folderOf(server, path))
+  const books = (folder.data ?? []).filter((e) => !e.isDir && isBook(e.name)).sort(byName)
+  const i = books.findIndex((e) => e.path === path)
+  return i >= 0 && i + 1 < books.length ? viewHref(server, books[i + 1].path) : undefined
+}
+
 function BookView({ server, path }: { server: number; path: string }) {
   const { t } = useTranslation()
+  const nextHref = useNextBook(server, path)
   const book = useQuery({
     queryKey: ['read-open', server, path],
     queryFn: () => api.get<ReaderBook>(`/api/read/open?server=${server}&path=${encodeURIComponent(path)}`),
@@ -358,7 +609,9 @@ function BookView({ server, path }: { server: number; path: string }) {
       done={doneKey(server, path)}
       direction="manga"
       label={path.split('/').pop() ?? ''}
+      nextHref={nextHref}
       preload={(i) => warm(bookUrl(b.base, pages[i]))}
+      thumb={(i) => bookUrl(b.base, pages[i])}
       render={(i, fit) => (
         <PageImage
           src={bookUrl(b.base, pages[i])}
@@ -570,6 +823,7 @@ function ImageView({ server, path }: { server: number; path: string }) {
       direction="western"
       label={path.split('/').pop() ?? ''}
       preload={(i) => warm(streamUrl(server, list[i]))}
+      thumb={(i) => streamUrl(server, list[i])}
       render={(i, fit) => <PageImage src={streamUrl(server, list[i])} fit={fit} alt={list[i].split('/').pop() ?? ''} />}
     />
   )

@@ -540,6 +540,16 @@
     "total_other": "{{count}} Einträge · {{size}}"
   },
   "viewer": {
+    "layout": "Seitenansicht",
+    "layout_single": "Einzelseite",
+    "layout_double": "Doppelseite",
+    "layout_scroll": "Fortlaufend",
+    "overview": "Seitenübersicht",
+    "endTitle": "Band zu Ende",
+    "endNext": "Der nächste Band liegt im selben Ordner.",
+    "endLast": "Im Ordner folgt kein weiterer Band.",
+    "nextVolume": "Nächster Band",
+    "fromStart": "Von vorn lesen",
     "title": "Ansicht",
     "open": "Öffnen",
     "openItem": "{{name}} öffnen",
