@@ -69,6 +69,11 @@
     "later": "Later"
   },
   "tips": {
+    "phone": "On your phone",
+    "phoneTitle": "WeebSync on your phone",
+    "phoneQr": "QR code with the address of this WeebSync",
+    "copy": "Copy",
+    "phoneOff": "Don't show again",
     "label": "Tip",
     "close": "Hide tip",
     "install": "Install",

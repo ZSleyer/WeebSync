@@ -13,7 +13,8 @@ const desktop = { desktop: true, touch: false, installed: false }
 
 describe('pickTip', () => {
   it('tells a desktop about the phone interface', () => {
-    expect(pickTip(desktop, [])).toBe('mobile-ui')
+    // the desktop's way onto the phone lives in the sidebar, not in a hint
+    expect(pickTip(desktop, [])).toBeNull()
   })
 
   it('offers the install on a phone browser, not in the installed app', () => {
@@ -22,14 +23,12 @@ describe('pickTip', () => {
   })
 
   it('shows nothing once the hint is closed', () => {
-    expect(pickTip(desktop, ['mobile-ui'])).toBeNull()
     expect(pickTip(phone, ['install-pwa'])).toBeNull()
   })
 
-  it('shows one hint at a time, the next once the first is closed', () => {
+  it('offers the install to a desktop with a finger too', () => {
     const both = { desktop: true, touch: true, installed: false }
-    expect(pickTip(both, [])).toBe('mobile-ui')
-    expect(pickTip(both, ['mobile-ui'])).toBe('install-pwa')
+    expect(pickTip(both, [])).toBe('install-pwa')
   })
 })
 
@@ -51,10 +50,10 @@ describe('Tips', () => {
     vi.restoreAllMocks()
   })
 
-  // a desktop: a mouse on a wide screen, in a browser tab
-  const asDesktop = () => {
+  // a phone: a finger, in a browser tab
+  const asPhone = () => {
     window.matchMedia = ((q: string) => ({
-      matches: q.includes('pointer: fine'),
+      matches: q.includes('pointer: coarse'),
       media: q,
       addEventListener: () => {},
       removeEventListener: () => {},
@@ -72,15 +71,15 @@ describe('Tips', () => {
   }
 
   it('shows nothing while the list is loading', () => {
-    asDesktop()
+    asPhone()
     vi.spyOn(api, 'get').mockReturnValue(new Promise(() => {}))
     mount()
     expect(screen.queryByRole('complementary')).toBeNull()
   })
 
   it('keeps a hint closed elsewhere hidden', async () => {
-    asDesktop()
-    vi.spyOn(api, 'get').mockResolvedValue({ dismissed: ['mobile-ui'] })
+    asPhone()
+    vi.spyOn(api, 'get').mockResolvedValue({ dismissed: ['install-pwa'] })
     const qc = mount()
     // past loading, so the empty page is the decision and not the wait
     await waitFor(() => expect(qc.getQueryState(['tips'])?.status).toBe('success'))
@@ -88,14 +87,14 @@ describe('Tips', () => {
   })
 
   it('closes the hint at once and tells the server', async () => {
-    asDesktop()
+    asPhone()
     vi.spyOn(api, 'get').mockResolvedValue({ dismissed: [] })
     const post = vi.spyOn(api, 'post').mockResolvedValue({ status: 'ok' })
     mount()
-    expect(await screen.findByText('tips.mobileUi')).toBeInTheDocument()
+    expect(await screen.findByText('tips.installOther')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'tips.close' }))
     // the query cache tells its observers on the next tick
-    await waitFor(() => expect(screen.queryByText('tips.mobileUi')).toBeNull())
-    expect(post).toHaveBeenCalledWith('/api/auth/tips/dismiss', { key: 'mobile-ui' })
+    await waitFor(() => expect(screen.queryByText('tips.installOther')).toBeNull())
+    expect(post).toHaveBeenCalledWith('/api/auth/tips/dismiss', { key: 'install-pwa' })
   })
 })

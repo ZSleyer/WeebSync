@@ -2548,6 +2548,21 @@ li.t-swiperow { border-radius: 0; }
 @keyframes nav-open { from { rotate: -10deg; scale: 0.8; } }
 @media (prefers-reduced-motion: reduce) { [aria-current='page'] .t-nav-icon { animation: none; } }
 :root[data-motion='off'] [aria-current='page'] .t-nav-icon { animation: none; }
+/* PhoneHint: beside the sidebar's foot, out of the top layer's centre */
+.t-phone-pop {
+  position: fixed;
+  inset: auto auto 5rem calc(13rem + 0.5rem);
+  margin: 0;
+  width: 18rem;
+  padding: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-dialog);
+  background: var(--bg-card);
+  color: inherit;
+}
+.t-phone-pop:popover-open { animation: t-phone-in var(--dur-2) var(--ease-out); }
+@keyframes t-phone-in { from { opacity: 0; translate: -6px 0; } }
+@media (prefers-reduced-motion: reduce) { .t-phone-pop:popover-open { animation: none; } }
 /* the icons of the bar's own buttons, sized like media-chrome's */
 .t-player-icon { display: inline-grid; place-items: center; }
 .t-player-icon svg { width: var(--media-button-icon-width); height: var(--media-button-icon-height); }

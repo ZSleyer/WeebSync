@@ -27,6 +27,7 @@ import ScrollMemory from './components/ScrollMemory'
 import PageScroll from './components/PageScroll'
 import CommandPalette from './components/CommandPalette'
 import { LiveActivity } from './components/LiveActivity'
+import PhoneHint from './components/PhoneHint'
 import { AudioProvider, MiniPlayer } from './components/AudioPlayer'
 import { useBack } from './components/playLinks'
 import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
@@ -444,6 +445,7 @@ function Shell({ email }: { email: string }) {
       {/* settings at the foot, apart from the pages: visited rarely, but
           always in the same place */}
       <div className="py-2">
+        <PhoneHint />
         <NavLink to={RULES.to} className={({ isActive }) => navItemClass('sidebar', isActive)}>
           {icon(RULES)}
           {t(RULES.key)}

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, Lightbulb, Smartphone, X } from 'lucide-react'
+import { Download, Lightbulb, X } from 'lucide-react'
 import { Button, IconButton, Panel, useMediaQuery } from '@weebsync/design-system'
 import { api, type Tips as TipsState } from '../api'
 import { WIDE_MQ } from './PageActions'
@@ -11,7 +11,8 @@ import { WIDE_MQ } from './PageActions'
 // closes it on the phone. The keys are free strings; the backend only checks
 // their shape.
 
-export type TipKey = 'mobile-ui' | 'install-pwa'
+// The desktop's way onto the phone is PhoneHint in the sidebar, not a hint here.
+export type TipKey = 'install-pwa'
 
 export interface TipEnv {
   // a mouse on a wide screen
@@ -25,7 +26,6 @@ export interface TipEnv {
 // pickTip decides which hint shows, if any. The order is the priority.
 export function pickTip(env: TipEnv, dismissed: readonly string[]): TipKey | null {
   const wanted: TipKey[] = []
-  if (env.desktop) wanted.push('mobile-ui')
   if (env.touch && !env.installed) wanted.push('install-pwa')
   return wanted.find((k) => !dismissed.includes(k)) ?? null
 }
@@ -113,21 +113,17 @@ export default function Tips() {
     changed()
   }
 
-  const Icon = tip === 'mobile-ui' ? Smartphone : Lightbulb
-  const body =
-    tip === 'mobile-ui'
-      ? t('tips.mobileUi')
-      : installPrompt
-        ? t('tips.installPrompt')
-        : {
-            ios: t('tips.installIos'),
-            firefox: t('tips.installFirefox'),
-            other: t('tips.installOther'),
-          }[installHint(navigator.userAgent, navigator.maxTouchPoints)]
+  const body = installPrompt
+    ? t('tips.installPrompt')
+    : {
+        ios: t('tips.installIos'),
+        firefox: t('tips.installFirefox'),
+        other: t('tips.installOther'),
+      }[installHint(navigator.userAgent, navigator.maxTouchPoints)]
 
   return (
     <Panel as="aside" aria-label={t('tips.label')} className="mb-4 flex items-start gap-3 p-3 lg:mb-6">
-      <Icon aria-hidden size="1.25em" className="mt-0.5 shrink-0 text-accent" />
+      <Lightbulb aria-hidden size="1.25em" className="mt-0.5 shrink-0 text-accent" />
       <div className="min-w-0 flex-1">
         <p className="text-sm text-t-secondary">{body}</p>
         {tip === 'install-pwa' && installPrompt && (
