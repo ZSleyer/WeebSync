@@ -1622,6 +1622,11 @@
     "canceled": "canceled"
   },
   "servers": {
+    "hostKeys": "Host keys",
+    "hostKeysHint": "The key WeebSync trusts for each SFTP server. If a server presents another one, every connection stops until you have reviewed the new key.",
+    "hostKeyNone": "No key trusted yet",
+    "hostKeyCheck": "Check",
+    "hostKeySame": "Unchanged",
     "title": "SERVERS",
     "add": "Add server",
     "none": "No servers configured yet.",

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Lock, LockOpen, Pencil, Plus, PlugZap, Save, Trash2, X } from 'lucide-react'
+import { KeyRound, Lock, LockOpen, Pencil, Plus, PlugZap, Save, Trash2, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -56,8 +56,11 @@ export default function Servers() {
   // trusts anything - the user reviews old/new fingerprints and accepts or
   // rejects explicitly
   const [keyConflict, setKeyConflict] = useState<Record<number, KeyConflict | undefined>>({})
+  // where the check ran: the review shows up there, on the card or in the key list
+  const [checkedIn, setCheckedIn] = useState<Record<number, 'card' | 'keys'>>({})
 
-  const test = async (id: number) => {
+  const test = async (id: number, where: 'card' | 'keys' = 'card') => {
+    setCheckedIn((m) => ({ ...m, [id]: where }))
     setTestResult((r) => ({ ...r, [id]: '…' }))
     setKeyConflict((m) => ({ ...m, [id]: undefined }))
     try {
@@ -66,6 +69,7 @@ export default function Servers() {
     } catch (e) {
       const kc = keyConflictOf(e)
       if (kc) setKeyConflict((m) => ({ ...m, [id]: kc }))
+      else qc.invalidateQueries({ queryKey: ['servers'] })
       setTestResult((r) => ({ ...r, [id]: e instanceof Error ? e.message : t('app.error') }))
     }
   }
@@ -152,18 +156,68 @@ export default function Servers() {
                 {testResult[s.id]}
               </p>
             )}
-            {keyConflict[s.id] && (
+            {keyConflict[s.id] && checkedIn[s.id] !== 'keys' && (
               <HostKeyPrompt
                 className="mt-2"
                 serverId={s.id}
                 conflict={keyConflict[s.id]!}
-                onAccepted={() => test(s.id)}
+                onAccepted={() => {
+                  qc.invalidateQueries({ queryKey: ['servers'] })
+                  void test(s.id)
+                }}
                 onRejected={() => rejectKey(s.id)}
               />
             )}
           </Panel>
         ))}
       </div>
+
+      {/* every SFTP server's pinned key in one place: a check shows a changed
+          key as the old and the new fingerprint, to accept or reject */}
+      {servers.some((s) => s.protocol === 'sftp') && (
+        <section className="mt-8" aria-labelledby="host-keys">
+          <h3 id="host-keys" className="mb-1 font-display font-semibold tracking-wider">
+            {t('servers.hostKeys')}
+          </h3>
+          <p className="mb-3 text-sm text-pretty text-t-secondary">{t('servers.hostKeysHint')}</p>
+          <Panel>
+            <ul className="divide-y divide-border-subtle">
+              {servers
+                .filter((s) => s.protocol === 'sftp')
+                .map((s) => (
+                  <li key={s.id} className="grid gap-2 p-3">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="min-w-28 font-medium">{s.name}</span>
+                      {s.hostKey ? (
+                        <code className="min-w-0 flex-1 font-mono text-xs break-all text-t-secondary">{s.hostKey}</code>
+                      ) : (
+                        <span className="flex-1 text-sm text-warn">{t('servers.hostKeyNone')}</span>
+                      )}
+                      {checkedIn[s.id] === 'keys' && testResult[s.id] === 'ok' && (
+                        <Badge tone="ok">{t('servers.hostKeySame')}</Badge>
+                      )}
+                      <Button size="sm" onClick={() => test(s.id, 'keys')}>
+                        <KeyRound aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                        {t('servers.hostKeyCheck')}
+                      </Button>
+                    </div>
+                    {checkedIn[s.id] === 'keys' && keyConflict[s.id] && (
+                      <HostKeyPrompt
+                        serverId={s.id}
+                        conflict={keyConflict[s.id]!}
+                        onAccepted={() => {
+                          qc.invalidateQueries({ queryKey: ['servers'] })
+                          void test(s.id, 'keys')
+                        }}
+                        onRejected={() => rejectKey(s.id)}
+                      />
+                    )}
+                  </li>
+                ))}
+            </ul>
+          </Panel>
+        </section>
+      )}
 
       <ScopeRules />
       {dialogOpen && <ServerDialog editing={editing} onClose={() => setDialogOpen(false)} />}
