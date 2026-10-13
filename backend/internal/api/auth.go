@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"net/mail"
 	"net/url"
@@ -184,6 +185,27 @@ type LoginResponse struct {
 	Webauthn          bool   `json:"webauthn,omitempty"`
 }
 
+// LoginRefusedResponse is a wrong email or password, with how many attempts
+// are left before the rate limit pauses this address and how long that pause
+// lasts. Both are missing when the limit does not hold (a trusted network).
+type LoginRefusedResponse struct {
+	Error        string `json:"error"`
+	AttemptsLeft *int   `json:"attemptsLeft,omitempty"`
+	PauseSeconds int    `json:"pauseSeconds,omitempty"`
+}
+
+// loginRefused answers a wrong email or password, counting what is left.
+func (s *Server) loginRefused(w http.ResponseWriter, r *http.Request) {
+	out := LoginRefusedResponse{Error: "invalid credentials"}
+	if s.authLimiter != nil {
+		if n, pause, ok := s.authLimiter.left(auth.ClientIP(r)); ok {
+			out.AttemptsLeft = &n
+			out.PauseSeconds = int(math.Ceil(pause.Seconds()))
+		}
+	}
+	writeJSON(w, http.StatusUnauthorized, out)
+}
+
 // handleLogin authenticates email + password.
 // @Summary  Log in with email and password
 // @Description Returns a session cookie on success, or a twoFactorRequired challenge (with a short-lived token) when TOTP or a security key is enrolled. Disabled while OIDC-only auth is active.
@@ -193,7 +215,7 @@ type LoginResponse struct {
 // @Param    body body credentials true "Credentials"
 // @Success  200 {object} LoginResponse
 // @Failure  400 {object} ErrorResponse
-// @Failure  401 {object} ErrorResponse
+// @Failure  401 {object} LoginRefusedResponse
 // @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Router   /api/auth/login [post]
@@ -217,11 +239,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == sql.ErrNoRows || hash == "" {
 		auth.DummyVerify(c.Password) // equalize timing so unknown emails aren't distinguishable
-		writeErr(w, http.StatusUnauthorized, "invalid credentials")
+		s.loginRefused(w, r)
 		return
 	}
 	if !auth.VerifyPassword(c.Password, hash) {
-		writeErr(w, http.StatusUnauthorized, "invalid credentials")
+		s.loginRefused(w, r)
 		return
 	}
 	// Without a mail server there is no inbox to check and no link could come:

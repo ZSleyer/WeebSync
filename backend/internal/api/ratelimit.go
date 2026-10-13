@@ -103,6 +103,22 @@ func (l *ipLimiter) take(ip string) (bool, time.Duration) {
 	return false, time.Duration((1 - e.lim.Tokens()) / float64(l.rate) * float64(time.Second))
 }
 
+// left says how many attempts ip has before the limiter refuses it, and how
+// long the pause then lasts (the time one attempt takes to come back). ok is
+// false for a caller the limit does not hold for (a trusted network).
+func (l *ipLimiter) left(ip string) (n int, pause time.Duration, ok bool) {
+	if l.trusted != nil && l.trusted(ip) {
+		return 0, 0, false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	n = l.burst
+	if e, found := l.ips[ip]; found {
+		n = max(int(e.lim.Tokens()), 0)
+	}
+	return n, time.Duration(float64(time.Second) / float64(l.rate)), true
+}
+
 // ipTrusted reports whether ipStr falls inside an admin-configured trusted
 // network. The setting is a CSV of CIDRs (10.0.0.0/8) or bare IPs - the same
 // shape as the trusted-proxy list, so both share one matcher.
