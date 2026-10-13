@@ -2420,16 +2420,13 @@ li.t-swiperow { border-radius: 0; }
 .t-player-scrub media-time-range:hover,
 .t-player-scrub media-time-range:focus-visible {
   --media-range-track-height: 6px;
-  --media-range-thumb-opacity: 1;
-  --media-range-thumb-transform: skewX(-9deg);
+  --media-range-thumb-transform: none;
 }
-/* the handle as a slanted bar with a glow of the accent, the cut of the S in
-   the mark, rather than a round dot */
+/* the handle: a plain dot that is always there, so a phone without hover
+   sees where it is too, and grows to full size under the pointer or focus */
 .t-player-scrub media-time-range {
-  --media-range-thumb-width: 7px;
-  --media-range-thumb-height: 18px;
-  --media-range-thumb-border-radius: 2px;
-  --media-range-thumb-box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent) 70%, transparent), 0 0 0 2px rgb(0 0 0 / 0.35);
+  --media-range-thumb-opacity: 1;
+  --media-range-thumb-transform: scale(0.75);
 }
 .t-player-bar > *,
 .t-player-volume > * { border-radius: var(--r-ctl); }
