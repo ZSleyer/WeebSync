@@ -3,6 +3,7 @@ import {
   ArrowDownWideNarrow,
   BookOpen,
   Check,
+  CircleHelp,
   Download,
   Eye,
   Files as FilesIcon,
@@ -96,6 +97,7 @@ import { applyDefaults, useFolderKind, useWatchDefaults } from '../components/wa
 import { useConfirm } from '../components/confirm'
 import { useAuth, useProviders } from '../hooks'
 import Loading from '../components/Loading'
+import { CatalogWhy } from '../components/CatalogWhy'
 import { InlineRename, type Renaming } from '../components/InlineRename'
 
 // Where the browser is looking: the local library or one of the servers. An
@@ -858,6 +860,8 @@ export function CatalogGrid({
   const [keyRejectedFor, setKeyRejectedFor] = useState<string | null>(null)
   const [rematch, setRematch] = useState<CatalogItem | null>(null)
   const [rematchInCard, setRematchInCard] = useState(false)
+  // the folder whose match is being explained
+  const [why, setWhy] = useState<CatalogItem | null>(null)
   const toast = useToast()
   // a title plays from its first episode; the player walks on from there
   const play = async (e: Entry) => {
@@ -967,6 +971,19 @@ export function CatalogGrid({
   const actionsFor = (g: CatalogGroup): TileAction[] => {
     const it = g.items[0]
     const multi = g.items.length > 1
+    // why this series, or why none: only for a folder matching has looked at
+    const whyAction: TileAction[] =
+      !g.pending && it.source
+        ? [
+            {
+              key: 'why',
+              icon: <CircleHelp aria-hidden size="1.2em" />,
+              label: t(g.media ? 'explain.whyMatch' : 'explain.whyNone'),
+              aria: `${t(g.media ? 'explain.whyMatch' : 'explain.whyNone')}: ${it.entry.name}`,
+              onClick: () => setWhy(it),
+            },
+          ]
+        : []
     return g.media
       ? [
           {
@@ -1010,6 +1027,7 @@ export function CatalogGrid({
                   : []),
                 ...(cardActions?.(it.entry) ?? []),
               ]),
+          ...whyAction,
         ]
       : [
           playAction(it.entry),
@@ -1037,6 +1055,7 @@ export function CatalogGrid({
                 },
               ]
             : []),
+          ...whyAction,
           ...(cardActions?.(it.entry) ?? []),
         ]
   }
@@ -1486,6 +1505,18 @@ export function CatalogGrid({
           elsewhere={data?.elsewhere ?? {}}
           onOpenFolder={onOpenFiles}
         />
+        {why && (
+          <CatalogWhy
+            serverId={serverId}
+            folder={why.entry.path}
+            onClose={() => setWhy(null)}
+            onRematch={() => {
+              setRematch(why)
+              setRematchInCard(false)
+              setWhy(null)
+            }}
+          />
+        )}
         {rematch &&
           (rematchInCard ? (
             <SeriesCardView onClose={() => setRematch(null)}>
