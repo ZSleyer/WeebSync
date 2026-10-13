@@ -145,7 +145,14 @@ type WatchCreateResponse struct {
 
 // WatchCheckResponse acknowledges a queued manual watch check.
 type WatchCheckResponse struct {
-	Status string `json:"status" example:"checking"`
+	Status string `json:"status" enums:"checking,checked" example:"checking"`
+	// with wait=1: what the check did. Queued are the new download ids, so
+	// the caller can follow them; Error is a failed check's reason
+	Queued    []int64 `json:"queued,omitempty"`
+	Uploading int     `json:"uploading,omitempty"`
+	Filtered  int     `json:"filtered,omitempty"`
+	Owned     int     `json:"owned,omitempty"`
+	Error     string  `json:"error,omitempty"`
 }
 
 // watchCategory buckets a watch for the calendar's Animeserie/Animefilm/Serie/Film
@@ -394,11 +401,14 @@ func (s *Server) loadWatch(id int64) (Watch, bool) {
 }
 
 // runWatch checks one watch now: stamps last_check first (self-reset), then
-// enqueues missing/changed files through the normal transfer queue.
-func (s *Server) runWatch(id int64) {
+// enqueues missing/changed files through the normal transfer queue. It
+// reports what it did for a caller that waits on it; the loop ignores it.
+func (s *Server) runWatch(id int64) (out WatchCheckResponse) {
+	out.Status = "checked"
 	w, ok := s.loadWatch(id)
 	if !ok {
-		return
+		out.Error = "watch not found"
+		return out
 	}
 	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
@@ -408,7 +418,8 @@ func (s *Server) runWatch(id int64) {
 	skip, err := s.pendingRemotePaths(w.ID)
 	if err != nil {
 		slog.Warn("watch check skipped: waiting files unreadable", "watch", w.ID, "err", err)
-		return
+		out.Error = err.Error()
+		return out
 	}
 	res, err := s.Transfers.EnqueueSkipping(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
 		nameFn, andNotPending(s.watchLangFilter(w), skip), s.watchOwned(w), true, !w.Subfolder, false)
@@ -460,6 +471,12 @@ func (s *Server) runWatch(id int64) {
 	skipsJSON, _ := json.Marshal(skips)
 	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ?, last_filtered_eps = ?,
 		last_owned = ?, check_attempts = ?, retry_at = ?, last_skips = ? WHERE id = ?`, result, queued, uploading, filtered, epKeysCSV(filteredKeys), owned, attempts, retryAt, string(skipsJSON), id)
+	if err != nil {
+		out.Error = result
+		return out
+	}
+	out.Queued, out.Uploading, out.Filtered, out.Owned = ids, uploading, filtered, owned
+	return out
 }
 
 // watchBackoff staggers the wait before a failed check is repeated: a minute,
@@ -2063,7 +2080,9 @@ func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {
 // @Description  Queues an immediate check of one watch and resets its countdown. Reachable with a session cookie (own watches only) or a machine API token (any watch).
 // @Tags         Watches
 // @Produce      json
-// @Param        id  path  int  true  "Watch ID"
+// @Param        id    path   int     true   "Watch ID"
+// @Param        wait  query  string  false  "1: run the check now and answer with what it did (200)"
+// @Success      200  {object}  WatchCheckResponse
 // @Success      202  {object}  WatchCheckResponse
 // @Failure      404  {object}  ErrorResponse
 // @Security     CookieAuth
@@ -2081,6 +2100,12 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 	s.DB.QueryRow(q, args...).Scan(&owned)
 	if owned == 0 {
 		writeErr(w, http.StatusNotFound, "watch not found")
+		return
+	}
+	// a button that turns into the progress of what it started has to know
+	// what that was: wait=1 runs the check in the request
+	if r.URL.Query().Get("wait") == "1" {
+		writeJSON(w, http.StatusOK, s.runWatch(id))
 		return
 	}
 	go s.runWatch(id)

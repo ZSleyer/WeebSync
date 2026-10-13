@@ -77,7 +77,10 @@ func TestWatchCheckDoesNotRequeueHopelessDownload(t *testing.T) {
 	}
 	watchID, _ := res.LastInsertId()
 
-	s.runWatch(watchID)
+	// the ids come back, so a button can follow what its check started
+	if out := s.runWatch(watchID); len(out.Queued) != 1 || out.Error != "" {
+		t.Fatalf("runWatch = %+v, want one queued id", out)
+	}
 	if n := countDownloads(t, s); n != 1 {
 		t.Fatalf("first check queued %d downloads, want 1", n)
 	}

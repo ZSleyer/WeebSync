@@ -51,7 +51,10 @@ func TestWatchCheckFailureSchedulesRetry(t *testing.T) {
 		return
 	}
 
-	s.runWatch(watchID)
+	// a waiting caller gets the failure handed back, not only stored
+	if out := s.runWatch(watchID); out.Error == "" || out.Status != "checked" {
+		t.Errorf("runWatch = %+v, want the dial error", out)
+	}
 	attempts, retryAt, result := read()
 	if attempts != 1 {
 		t.Errorf("check_attempts = %d, want 1", attempts)

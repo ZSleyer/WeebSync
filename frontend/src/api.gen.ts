@@ -1384,7 +1384,16 @@ export interface Schemas {
     wantSub: string
   }
   'api.WatchCheckResponse': {
-    status: string
+    error?: string
+    filtered?: number
+    owned?: number
+    /**
+     * with wait=1: what the check did. Queued are the new download ids, so
+     * the caller can follow them; Error is a failed check's reason
+     */
+    queued?: number[]
+    status: "checking" | "checked"
+    uploading?: number
   }
   'api.WatchCreateResponse': {
     id: number

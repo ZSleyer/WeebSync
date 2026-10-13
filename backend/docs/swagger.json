@@ -3046,9 +3046,33 @@
             },
             "api.WatchCheckResponse": {
                 "properties": {
+                    "error": {
+                        "type": "string"
+                    },
+                    "filtered": {
+                        "type": "integer"
+                    },
+                    "owned": {
+                        "type": "integer"
+                    },
+                    "queued": {
+                        "description": "with wait=1: what the check did. Queued are the new download ids, so\nthe caller can follow them; Error is a failed check's reason",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "status": {
+                        "enum": [
+                            "checking",
+                            "checked"
+                        ],
                         "example": "checking",
                         "type": "string"
+                    },
+                    "uploading": {
+                        "type": "integer"
                     }
                 },
                 "required": [
@@ -18385,9 +18409,27 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "description": "1: run the check now and answer with what it did (200)",
+                        "in": "query",
+                        "name": "wait",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.WatchCheckResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
                     "202": {
                         "content": {
                             "application/json": {
