@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import {
   BookOpen,
   CalendarDays,
@@ -38,6 +39,7 @@ import {
   Badge,
   Button,
   Count,
+  localTransition,
   CalendarDay,
   DayTimeline,
   CalendarEntry,
@@ -184,6 +186,21 @@ export default function Watches() {
   }, [])
   // manga sit apart from what is watched: their own list, their own counts
   const [kind, setKind] = usePersistedView('weebsync.watches.kind', ['video', 'manga'] as const, 'video', 'kind')
+  // A sort, a filter, video or manga, list or grid: the rows and tiles move to
+  // their new places instead of jumping. Only those on screen get a name, so a
+  // long list does not freeze a phone (90 named covers held a Pixel 550 ms).
+  const reorder = (update: () => void) => {
+    const name = (on: boolean) =>
+      document.querySelectorAll<HTMLElement>('[data-wid]').forEach((el) => {
+        const r = el.getBoundingClientRect()
+        el.style.viewTransitionName = on && r.bottom > 0 && r.top < innerHeight ? `watch-${el.dataset.wid}` : ''
+      })
+    name(true)
+    void localTransition(null, () => {
+      flushSync(update)
+      name(true)
+    }).finally(() => name(false))
+  }
   const hasManga = watches.some((w) => w.category === 'manga')
   const ofKind = hasManga ? watches.filter((w) => (w.category === 'manga') === (kind === 'manga')) : watches
   const navigate = useNavigate()
@@ -523,7 +540,7 @@ export default function Watches() {
                       selected={sort === o.v}
                       trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
                       onClick={() => {
-                        setSort(o.v)
+                        reorder(() => setSort(o.v))
                         setViewOpen(false)
                       }}
                     >
@@ -542,7 +559,7 @@ export default function Watches() {
           <Segmented
             aria-label={t('watch.view')}
             value={mode}
-            onChange={setMode}
+            onChange={(m) => (m === 'calendar' || mode === 'calendar' ? setMode(m) : reorder(() => setMode(m)))}
             options={(
               [
                 ['list', List, 'watch.viewList'],
@@ -566,7 +583,7 @@ export default function Watches() {
             <Segmented
               aria-label={t('watch.kind')}
               value={kind}
-              onChange={setKind}
+              onChange={(k) => reorder(() => setKind(k))}
               options={[
                 { value: 'video', label: t('watch.kindVideo') },
                 { value: 'manga', label: t('watch.kindManga') },
@@ -619,7 +636,7 @@ export default function Watches() {
             <Button
               size="sm"
               aria-pressed={filter === 'attention'}
-              onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')}
+              onClick={() => reorder(() => setFilter(filter === 'attention' ? 'all' : 'attention'))}
               className={`ml-auto ${filter === 'attention' ? 'border-warn text-warn' : ''}`}
             >
               <TriangleAlert aria-hidden size="1em" />
@@ -870,7 +887,7 @@ export default function Watches() {
           {grouped.length === 0 && filter === 'attention' && (
             <EmptyState>
               <p>{t('watch.attentionEmpty')}</p>
-              <Button size="sm" className="mt-3" onClick={() => setFilter('all')}>
+              <Button size="sm" className="mt-3" onClick={() => reorder(() => setFilter('all'))}>
                 {t('watch.attentionShowAll')}
               </Button>
             </EmptyState>
@@ -892,7 +909,13 @@ export default function Watches() {
                 {layout === 'grid' ? (
                   <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
                     {items.map((w) => (
-                      <Press as="li" key={w.id} className="min-w-0" onLongPress={narrow ? () => setMore(w) : undefined}>
+                      <Press
+                        as="li"
+                        key={w.id}
+                        data-wid={w.id}
+                        className="min-w-0"
+                        onLongPress={narrow ? () => setMore(w) : undefined}
+                      >
                         <WatchTile
                           watch={w}
                           onOpen={() => showSeries(w)}
@@ -931,7 +954,7 @@ export default function Watches() {
                 ) : (
                   <ul className="grid grid-cols-1 gap-3">
                     {items.map((w) => (
-                      <Press as="li" key={w.id} onLongPress={narrow ? () => setMore(w) : undefined}>
+                      <Press as="li" key={w.id} data-wid={w.id} onLongPress={narrow ? () => setMore(w) : undefined}>
                         <MediaCard
                           cover={w.media?.coverImage?.large}
                           coverTint={w.media?.coverImage?.color ?? undefined}
