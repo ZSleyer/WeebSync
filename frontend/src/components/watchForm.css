@@ -1,0 +1,12 @@
+/* The watch form, in a dialog or replacing the series page: sentence-case
+   section heads instead of chips, room between the sections instead of
+   rules. */
+.ws-form-title {
+  font: 700 1.375rem/1.2 var(--f-display);
+  margin: 0;
+  text-wrap: balance;
+}
+.ws-form-h {
+  font: 600 1.0625rem/1.2 var(--f-display);
+  margin: 0 0 0.5rem;
+}

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useProviders } from '../hooks'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Dialog, Field, IconButton, Input, Select } from 'fluid-lycoris'
+import { Button, Dialog, Field, IconButton, Input, Select } from 'fluid-lycoris'
 import { api, ApiError, plexStreamLabel, plexStreamOptions, type SubfolderMode } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
@@ -23,6 +23,7 @@ import {
   useTargetFolder,
 } from './useTargetFolder'
 import { useFolderKind } from './watchDefaults'
+import './watchForm.css'
 
 export interface WatchFields extends RenameRule {
   remotePath: string
@@ -334,7 +335,7 @@ export function WatchForm({
           </IconButton>
         )}
         <div className="min-w-0 self-center">
-          <h3 className="font-display font-semibold tracking-wider">{title}</h3>
+          <h2 className="ws-form-title">{title}</h2>
           {info?.map((line, i) => (
             <p key={i} className="mt-1 text-ctl-sm text-t-secondary">
               {line}
@@ -343,9 +344,9 @@ export function WatchForm({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
-        <section className="space-y-3" aria-label={t('watch.sectionPaths')}>
-          <Badge tone="accent">{t('watch.sectionPaths')}</Badge>
+      <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-4">
+        <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionPaths')}>
+          <h3 className="ws-form-h">{t('watch.sectionPaths')}</h3>
           {pathRow('remote')}
           {pathRow('local')}
           <SubfolderChoice
@@ -388,8 +389,8 @@ export function WatchForm({
           )}
         </section>
 
-        <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionMeta')}>
-          <Badge tone="accent">{t('watch.sectionMeta')}</Badge>
+        <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionMeta')}>
+          <h3 className="ws-form-h">{t('watch.sectionMeta')}</h3>
           {/* same 50/50 split as every other two-column row in this dialog,
                 so the column edge never shifts between sections */}
           <div className={ROW_GRID}>
@@ -441,8 +442,8 @@ export function WatchForm({
         {manga && <p className="border-t border-border-subtle pt-4 text-ctl-sm text-t-muted">{t('watch.mangaHint')}</p>}
         {!manga && (
           <>
-            <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionFilter')}>
-              <Badge tone="accent">{t('watch.sectionFilter')}</Badge>
+            <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionFilter')}>
+              <h3 className="ws-form-h">{t('watch.sectionFilter')}</h3>
               <div className={ROW_GRID}>
                 {(['wantDub', 'wantSub'] as const).map((key) => {
                   const opts = key === 'wantDub' ? langs.dub : langs.sub
@@ -492,8 +493,8 @@ export function WatchForm({
               </div>
             </section>
 
-            <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionPlex')}>
-              <Badge tone="accent">{t('watch.sectionPlex')}</Badge>
+            <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionPlex')}>
+              <h3 className="ws-form-h">{t('watch.sectionPlex')}</h3>
               {/* which show the track selection acts on. Only on an existing
                 watch: the binding hangs on its series, which a watch that is
                 not saved yet does not have. */}
@@ -534,9 +535,9 @@ export function WatchForm({
               </div>
             </section>
 
-            <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionRename')}>
+            <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionRename')}>
               <div className="flex items-center justify-between">
-                <Badge tone="accent">{t('watch.sectionRename')}</Badge>
+                <h3 className="ws-form-h">{t('watch.sectionRename')}</h3>
                 <label className="flex items-center gap-2 text-sm text-t-secondary">
                   <input type="checkbox" checked={renameOn} onChange={(e) => setRenameOn(e.target.checked)} />
                   {t('watch.renameToggle')}
