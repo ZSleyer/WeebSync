@@ -4833,6 +4833,26 @@
                 ],
                 "type": "object"
             },
+            "api.moveResult": {
+                "properties": {
+                    "kept": {
+                        "description": "Kept names the entries left behind because the new folder already has\none of the same name: a move never overwrites",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "moved": {
+                        "description": "Moved counts the entries now in the new folder",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "moved"
+                ],
+                "type": "object"
+            },
             "api.nameExplainRequest": {
                 "properties": {
                     "name": {
@@ -6417,6 +6437,21 @@
                     "local",
                     "size",
                     "at"
+                ],
+                "type": "object"
+            },
+            "api.watchUpdateResponse": {
+                "properties": {
+                    "moved": {
+                        "$ref": "#/components/schemas/api.moveResult"
+                    },
+                    "status": {
+                        "example": "ok",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "status"
                 ],
                 "type": "object"
             },
@@ -18585,7 +18620,7 @@
                 ]
             },
             "put": {
-                "description": "Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written.",
+                "description": "Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written. With moveFiles the old target folder's entries are moved into the new one first (within one media root, never overwriting).",
                 "parameters": [
                     {
                         "description": "Watch ID",
@@ -18619,7 +18654,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.OkResponse"
+                                    "$ref": "#/components/schemas/api.watchUpdateResponse"
                                 }
                             }
                         },
@@ -18653,7 +18688,7 @@
                                 }
                             }
                         },
-                        "description": "Conflict"
+                        "description": "a duplicate watch, or the files could not be moved (moveFiles)"
                     },
                     "415": {
                         "content": {

@@ -2064,6 +2064,17 @@ export interface Schemas {
     relations: Schemas['anilist.Relation'][]
     threads: Schemas['anilist.Thread'][]
   }
+  'api.moveResult': {
+    /**
+     * Kept names the entries left behind because the new folder already has
+     * one of the same name: a move never overwrites
+     */
+    kept?: string[]
+    /**
+     * Moved counts the entries now in the new folder
+     */
+    moved: number
+  }
   'api.nameExplainRequest': {
     name: string
   }
@@ -2719,6 +2730,10 @@ export interface Schemas {
     local: string
     remote: string
     size: number
+  }
+  'api.watchUpdateResponse': {
+    moved?: Schemas['api.moveResult']
+    status: string
   }
   'api.watchWait': {
     /**

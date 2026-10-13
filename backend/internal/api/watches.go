@@ -1840,16 +1840,16 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 // handleWatchUpdate edits an existing watch; a path change re-checks the folder.
 //
 // @Summary      Update watch
-// @Description  Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written.
+// @Description  Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written. With moveFiles the old target folder's entries are moved into the new one first (within one media root, never overwriting).
 // @Tags         Watches
 // @Accept       json
 // @Produce      json
 // @Param        id    path  int     true  "Watch ID"
 // @Param        body  body  object  true  "Watch fields to update (remotePath required)"
-// @Success      200  {object}  OkResponse
+// @Success      200  {object}  watchUpdateResponse
 // @Failure      400  {object}  WriteCheckError  "invalid input; errorCode and path are set when the local target refused a write"
 // @Failure      404  {object}  ErrorResponse
-// @Failure      409  {object}  ErrorResponse
+// @Failure      409  {object}  ErrorResponse  "a duplicate watch, or the files could not be moved (moveFiles)"
 // @Failure      415  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/watches/{id} [put]
@@ -1879,6 +1879,8 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		DubLagDays      int    `json:"dubLagDays"`
 		PlexAudioLang   string `json:"plexAudioLang"`
 		PlexSubLang     string `json:"plexSubLang"`
+		// MoveFiles takes what the old target folder holds along to the new one
+		MoveFiles bool `json:"moveFiles"`
 	}
 	if !readJSON(w, r, &in) {
 		return
@@ -1903,14 +1905,26 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	var oldRemote, oldLocal, oldAudio, oldSub string
 	var serverID int64
-	if err := s.DB.QueryRow(`SELECT server_id, remote_path, local_path, plex_audio_lang, plex_sub_lang FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
-		Scan(&serverID, &oldRemote, &oldLocal, &oldAudio, &oldSub); err != nil {
+	var oldSubfolder bool
+	if err := s.DB.QueryRow(`SELECT server_id, remote_path, local_path, plex_audio_lang, plex_sub_lang, subfolder FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
+		Scan(&serverID, &oldRemote, &oldLocal, &oldAudio, &oldSub, &oldSubfolder); err != nil {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
 	}
 	// same as on create: say so now, not through a failed download later
 	if s.rejectUnwritable(w, in.LocalPath) {
 		return
+	}
+	// the files follow the target before it is saved: a move that fails leaves
+	// the watch on the folder its files are still in
+	var moved *moveResult
+	if from, to := watchFolder(oldLocal, oldRemote, oldSubfolder), watchFolder(in.LocalPath, in.RemotePath, in.Subfolder); in.MoveFiles && from != to {
+		res, err := s.moveFolderContents(from, to)
+		if err != nil {
+			writeErr(w, http.StatusConflict, "files not moved: "+err.Error())
+			return
+		}
+		moved = &res
 	}
 	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?, dub_lag_days = ?, plex_audio_lang = ?, plex_sub_lang = ?
 		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.DubLagDays, in.PlexAudioLang, in.PlexSubLang, id, u.ID)
@@ -1940,7 +1954,14 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 			s.applyPlexStreamsJob(wt)
 		}
 	}
-	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+	writeJSON(w, http.StatusOK, watchUpdateResponse{Status: "ok", Moved: moved})
+}
+
+// watchUpdateResponse confirms a watch update; Moved is set when its files
+// were taken along to a new target folder.
+type watchUpdateResponse struct {
+	Status string      `json:"status" example:"ok"`
+	Moved  *moveResult `json:"moved,omitempty"`
 }
 
 // linkMedia records a manual folder→media match so the overview shows real
