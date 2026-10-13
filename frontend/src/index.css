@@ -1092,8 +1092,10 @@ main:has(.page-fill) {
      padding, so the last row sat flush against the bottom edge. Growing from
      the content instead (`flex: 1 0 auto`) keeps the wrapper as tall as its
      page, and <main>'s bottom padding lands after it. A page that fills the
-     screen by design keeps the cap - that is the whole point of `.page-fill`. */
-  .app-shell > main:not(:has(.page-fill)) > * {
+     screen by design keeps the cap - that is the whole point of `.page-fill`.
+     The one-time hint above the page (an aside) keeps its own height: grown,
+     it took the room of a short page and stood there half empty. */
+  .app-shell > main:not(:has(.page-fill)) > :not(aside) {
     flex: 1 0 auto;
   }
   /* the modal lock below works by freezing the scroller behind the dialog -
