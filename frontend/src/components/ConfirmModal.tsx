@@ -1,7 +1,7 @@
-import { Check, Trash2, X } from 'lucide-react'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog } from 'fluid-lycoris'
+import './confirm.css'
 
 export interface ConfirmOptions {
   title?: string
@@ -11,8 +11,9 @@ export interface ConfirmOptions {
   destructive?: boolean
 }
 
-// Custom confirmation modal on the design system's <Dialog> (same mechanics as
-// every other modal): CRT reveal, backdrop-click and Escape both cancel.
+// The confirm box: a plain question with two answers, no header bar, no
+// icons. Cancel comes first and holds the focus, so Enter on a destructive
+// question keeps things as they are. Backdrop and Escape both cancel.
 // Controlled: the parent unmounts it after onConfirm/onCancel.
 export default function ConfirmModal({
   title,
@@ -28,49 +29,26 @@ export default function ConfirmModal({
   // the message is the question itself: screen readers announce it with
   // the title when focus lands in the dialog
   const messageId = useId()
-  // Escape and the backdrop both close the dialog, and both mean "cancel";
-  // the two buttons report their decision and let the parent unmount us.
   return (
     <Dialog
       onClose={onCancel}
-      danger={destructive}
       width="max-w-md"
+      className="ws-confirm"
       aria-labelledby={titleId}
       aria-describedby={messageId}
     >
-      <header className="flex items-center gap-2 border-b border-border-subtle px-5 py-4">
-        {destructive && (
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-err">
-            <path
-              d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
-        <h3 id={titleId} className="font-display font-semibold tracking-wider">
-          {title ?? t('common.confirmTitle')}
-        </h3>
-      </header>
-      <div id={messageId} className="px-5 py-4 text-sm whitespace-pre-line text-t-secondary">
-        {message}
+      <div className="ws-confirm-in">
+        <h2 id={titleId}>{title ?? t('common.confirmTitle')}</h2>
+        <p id={messageId}>{message}</p>
+        <div className="ws-confirm-foot">
+          <Button onClick={onCancel} autoFocus>
+            {cancelLabel ?? t('common.cancel')}
+          </Button>
+          <Button variant={destructive ? 'danger-fill' : 'primary'} onClick={onConfirm}>
+            {confirmLabel ?? t('common.confirm')}
+          </Button>
+        </div>
       </div>
-      <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
-        <Button onClick={onCancel} autoFocus>
-          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {cancelLabel ?? t('common.cancel')}
-        </Button>
-        <Button variant={destructive ? 'danger' : 'primary'} onClick={onConfirm}>
-          {destructive ? (
-            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          ) : (
-            <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          )}
-          {confirmLabel ?? t('common.confirm')}
-        </Button>
-      </footer>
     </Dialog>
   )
 }
