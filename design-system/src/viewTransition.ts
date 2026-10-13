@@ -101,7 +101,17 @@ export function revealTransition(x: number, y: number, update: () => void): Prom
  * not paired - it rises from the edge, and a poster growing into a sheet would
  * fly against the way it moves.
  */
-export function morphTransition(from: HTMLElement, update: () => void | Promise<void>, back = false): Promise<void> {
+export function morphTransition(
+  from: HTMLElement,
+  update: () => void | Promise<void>,
+  back = false,
+  /**
+   * The hero morph: paired on a phone too, the sheet growing out of the
+   * element (the live pill into the transfer sheet), on the spatial spring.
+   * Only for the few morphs the motion rule names as heroes.
+   */
+  hero = false,
+): Promise<void> {
   const root = document.documentElement
   const still =
     root.dataset.motion === 'off' ||
@@ -109,10 +119,11 @@ export function morphTransition(from: HTMLElement, update: () => void | Promise<
   if (!document.startViewTransition || still || !from.isConnected) {
     return Promise.resolve(update())
   }
-  const pair = typeof matchMedia !== 'function' || !matchMedia(SHEET_MQ).matches
+  const pair = hero || typeof matchMedia !== 'function' || !matchMedia(SHEET_MQ).matches
   holdLocal()
   root.setAttribute('data-vt-morph', '')
   if (back) root.setAttribute('data-vt-back', '')
+  if (hero) root.setAttribute('data-vt-hero', '')
   const name = (on: boolean) => {
     if (pair) from.style.viewTransitionName = on ? 'morph-dialog' : ''
   }
@@ -129,6 +140,7 @@ export function morphTransition(from: HTMLElement, update: () => void | Promise<
     dropLocal()
     root.removeAttribute('data-vt-morph')
     root.removeAttribute('data-vt-back')
+    root.removeAttribute('data-vt-hero')
     from.style.viewTransitionName = ''
   }
   return t.finished.then(done, done)

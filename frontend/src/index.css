@@ -1770,6 +1770,9 @@ li.t-swiperow { border-radius: 0; }
   animation-timing-function: var(--ease-out);
 }
 :root[data-vt-back]::view-transition-group(morph-dialog) { animation-duration: var(--dur-2); animation-timing-function: var(--ease-in); }
+/* the hero morph (the live pill into its sheet): longer, on the spatial
+   spring with its small overshoot, both ways */
+:root[data-vt-hero]::view-transition-group(morph-dialog) { animation-duration: 420ms; animation-timing-function: var(--m3-spatial); border-radius: var(--r-dialog); }
 ::view-transition-old(morph-dialog),
 ::view-transition-new(morph-dialog) { height: 100%; object-fit: cover; }
 ::view-transition-old(morph-dialog) { animation: t-fade-out var(--dur-1) var(--ease-in) both; }
