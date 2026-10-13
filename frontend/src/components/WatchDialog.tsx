@@ -14,7 +14,14 @@ import RenameOptions, { FromEpisodeField, Hint, ROW_GRID, type RenameProfile, ty
 import RenamePreview from './RenamePreview'
 import { useRenamePreview } from './useRenamePreview'
 import SubfolderChoice from './SubfolderChoice'
-import { seasonInPath, subfolderMode, subfolderTargetDir, syncRequestPath, useTargetFolder } from './useTargetFolder'
+import {
+  seasonInPath,
+  subfolderMode,
+  subfolderTargetDir,
+  syncRequestPath,
+  syncTargetDir,
+  useTargetFolder,
+} from './useTargetFolder'
 import { useFolderKind } from './watchDefaults'
 
 export interface WatchFields extends RenameRule {
@@ -40,6 +47,8 @@ export interface WatchFields extends RenameRule {
   // one-off upgrade sync only: move the copy being improved on to the trash
   // once the new file is in place. Undefined hides the option.
   replaceOld?: boolean
+  // editing only: the files in the old target folder move to the new one
+  moveFiles?: boolean
 }
 
 export interface WatchFormProps {
@@ -155,6 +164,13 @@ export function WatchForm({
   // the folder the files really land in, and whether it is there yet
   const targetDir = subfolderTargetDir(f.localPath, f.remotePath, subMode, seriesTitle, subSep, seasonFolder)
   const { entries: targetEntries, missing: targetMissing } = useTargetFolder(targetDir)
+  // a watch moved to another folder: its files can come along. The folders as
+  // the backend sees them (the stored path, plus the remote folder's name with
+  // a subfolder), so this asks exactly when the server would move something
+  const oldFolder = initial.localPath ? syncTargetDir(initial.localPath, initial.remotePath, initial.subfolder) : ''
+  const newFolder = syncTargetDir(syncRequestPath(subMode, f.localPath, targetDir), f.remotePath, subMode === 'remote')
+  const targetMoved = watchId !== undefined && oldFolder !== '' && oldFolder !== newFolder
+  const [moveFiles, setMoveFiles] = useState(true)
 
   // the preview runs regardless of the rename switch: it is also where the
   // target comparison is shown, and that matters most when nothing is renamed.
@@ -219,6 +235,7 @@ export function WatchForm({
         ...rest,
         localPath: syncRequestPath(subMode, f.localPath, targetDir),
         subfolder: subMode === 'remote',
+        ...(targetMoved ? { moveFiles } : {}),
       }
       // rename off = keep original names, persist empty rules
       const note = await onSave(renameOn ? saved : { ...saved, template: '', pattern: '', replacement: '' })
@@ -353,6 +370,22 @@ export function WatchForm({
           {/* no folder name: several levels can be missing at once, and
                 naming only the innermost reads as if the rest were there */}
           {targetMissing && <p className="text-ctl-sm text-t-muted">{t('watch.targetMissing')}</p>}
+          {targetMoved && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={moveFiles}
+                onChange={(e) => setMoveFiles(e.target.checked)}
+              />
+              <span>
+                {t('watch.moveFiles')}
+                <span className="block font-mono text-ctl-sm break-all text-t-muted">
+                  {oldFolder} → {newFolder}
+                </span>
+              </span>
+            </label>
+          )}
         </section>
 
         <section className="space-y-3 border-t border-border-subtle pt-4" aria-label={t('watch.sectionMeta')}>

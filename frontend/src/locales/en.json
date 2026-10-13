@@ -795,6 +795,7 @@
     "openFolder": "Open folder: {{folder}}"
   },
   "watch": {
+    "moveFiles": "Take the files already there to the new folder",
     "viewCalendar": "Calendar",
     "sumSeries_one": "{{count}} series",
     "sumSeries_other": "{{count}} series",
