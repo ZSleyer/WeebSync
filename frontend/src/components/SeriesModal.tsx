@@ -535,6 +535,15 @@ function SeriesCard({
   const target = cur
   const source = cur.source || 'anilist'
 
+  // AniList's banner is a wide strip that a phone's taller hero blows up; the
+  // same title's TMDB backdrop, when the id mapping knows one, is sharper
+  const { data: backdrop } = useQuery<{ url: string; large: string }>({
+    queryKey: ['backdrop', cur.id],
+    queryFn: () => api.get(`/api/media/backdrop?id=${cur.id}`),
+    enabled: source === 'anilist',
+    staleTime: 24 * 60 * 60_000,
+  })
+
   // a related title arrives as its trimmed node: fetch the record behind it
   const thin = !cur.media || cur.media.description === undefined
   const { data: fetched } = useQuery<Media>({
@@ -548,6 +557,10 @@ function SeriesCard({
     retry: false,
   })
   const media = fetched ?? cur.media
+  const art = backdrop?.url || media?.bannerImage
+  // TMDB pictures come in sizes: the full one for screens that need it
+  const big = backdrop?.large || (art?.includes('/w1280/') ? art.replace('/w1280/', '/original/') : '')
+  const artSet = big ? `${art} 1280w, ${big} 3840w` : undefined
 
   // the watches behind the title: several are normal (a split season, two
   // servers); the one the caller came from leads
@@ -698,7 +711,7 @@ function SeriesCard({
   useLayoutEffect(() => {
     lag()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [media?.bannerImage, !!media])
+  }, [art, !!media])
   useEffect(() => onName(name), [name, onName])
 
   // The jump row marks the section being read (aria-current): the first one
@@ -817,7 +830,7 @@ function SeriesCard({
             aria-label={t('common.close')}
             title={t('common.close')}
             onClick={() => (origin ? void morphTransition(origin, onClose, true) : onClose())}
-            className={`absolute top-1 right-2 z-30 bg-bg-card/90 ${media?.bannerImage ? 't-hero-btn rounded-full!' : ''}`}
+            className={`absolute top-1 right-2 z-30 bg-bg-card/90 ${art ? 't-hero-btn rounded-full!' : ''}`}
           >
             <X aria-hidden size="1.2em" />
           </IconButton>
@@ -827,9 +840,16 @@ function SeriesCard({
             than the page sliding over it. */}
           <div ref={scroller} onScroll={lag} className="min-h-0 flex-1 overflow-y-auto">
             <header ref={head} className="relative">
-              {media?.bannerImage && (
+              {art && (
                 <div className="t-hero">
-                  <img ref={banner} src={media.bannerImage} alt="" className="t-hero__art" />
+                  <img
+                    ref={banner}
+                    src={art}
+                    srcSet={artSet}
+                    sizes="(min-width: 64rem) 32rem, 100vw"
+                    alt=""
+                    className="t-hero__art"
+                  />
                   <div ref={heroTitle} className="t-hero__title">
                     <h3 className="line-clamp-2 font-display text-2xl font-semibold tracking-wider">{name}</h3>
                     {englishTitle && <p className="truncate font-mono text-xs text-t-secondary">{englishTitle}</p>}
@@ -841,12 +861,12 @@ function SeriesCard({
                   aria-label={t('series.back')}
                   title={t('series.back')}
                   onClick={onBack}
-                  className={`absolute top-1 left-2 z-10 bg-bg-card/90 ${media?.bannerImage ? 't-hero-btn rounded-full!' : ''}`}
+                  className={`absolute top-1 left-2 z-10 bg-bg-card/90 ${art ? 't-hero-btn rounded-full!' : ''}`}
                 >
                   <ArrowLeft aria-hidden size="1.2em" />
                 </IconButton>
               )}
-              <div className={`flex gap-4 px-5 pt-4 pb-3 ${media?.bannerImage ? '' : 'pr-12'}`}>
+              <div className={`flex gap-4 px-5 pt-4 pb-3 ${art ? '' : 'pr-12'}`}>
                 {media?.coverImage?.large && (
                   <div className="shrink-0">
                     <Cover
@@ -858,7 +878,7 @@ function SeriesCard({
                 )}
                 <div className="min-w-0 flex-1">
                   {/* with a banner the title stands on the picture above */}
-                  {!media?.bannerImage && (
+                  {!art && (
                     <>
                       <h3 className="font-display font-semibold tracking-wider">{name}</h3>
                       {englishTitle && <p className="text-sm text-t-muted">{englishTitle}</p>}

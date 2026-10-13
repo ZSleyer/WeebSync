@@ -727,6 +727,9 @@ a.t-label {
   width: 100%;
   height: calc(100% + 20px);
   object-fit: cover;
+  /* a 16:9 backdrop has its faces in the upper part; a banner strip barely
+     moves */
+  object-position: 50% 30%;
   will-change: transform;
 }
 .t-hero__title {
