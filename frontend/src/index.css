@@ -2779,3 +2779,8 @@ li.t-swiperow { border-radius: 0; }
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-motion="off"]) .t-live-check { animation: t-tick var(--dur-2) var(--ease-out); }
 }
+
+/* "Check now" fills with the downloads it started */
+.t-check-fill { transition: transform var(--dur-3) var(--ease-out); }
+:root[data-motion="off"] .t-check-fill { transition: none; }
+@media (prefers-reduced-motion: reduce) { .t-check-fill { transition: none; } }

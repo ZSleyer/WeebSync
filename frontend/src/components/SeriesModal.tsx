@@ -71,6 +71,7 @@ import { isVideo, playHref, viewHref, watchFolder } from './playLinks'
 import { WatchForm } from './WatchDialog'
 import { useWatchActions, watchFields } from './watchActions'
 import { WatchExplain } from './WatchExplain'
+import { CheckButton } from './CheckButton'
 
 /** What a caller hands the title card: which title, and what it already knows. */
 export interface SeriesTarget {
@@ -1308,10 +1309,7 @@ function WatchBlock({
         <p className="min-w-0 flex-1 truncate font-mono text-ctl-sm text-t-muted" title={w.remotePath}>
           {w.serverName}:{w.remotePath} → {w.localPath}
         </p>
-        <Button size="sm" onClick={() => act.check(w.id)}>
-          <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('watch.checkNow')}
-        </Button>
+        <CheckButton watchId={w.id} act={act} />
         <ActionMenu label={t('watch.moreActions', { title: watchTitle(w) })} title={watchTitle(w)} actions={menu} />
       </div>
       {(act.error || w.lastResult) && <p className="mt-2 text-ctl-sm text-err">{act.error || w.lastResult}</p>}

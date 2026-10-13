@@ -339,7 +339,7 @@ describe('SeriesModalProvider', () => {
     const bar = screen.getByRole('dialog').querySelector('footer')!
     expect(within(bar).getByRole('button', { name: /servers.edit/ })).toBeInTheDocument()
     fireEvent.click(within(bar).getByRole('button', { name: /watch.checkNow/ }))
-    expect(post).toHaveBeenCalledWith('/api/watches/1/check')
+    expect(post).toHaveBeenCalledWith('/api/watches/1/check?wait=1')
     // the header's X closes the card
     fireEvent.click(screen.getByRole('button', { name: 'common.close' }))
     expect(screen.queryByRole('dialog')).toBeNull()

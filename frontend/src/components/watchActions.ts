@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api, mediaTitle, type Watch } from '../api'
+import { api, mediaTitle, type Watch, type WatchCheck } from '../api'
 import { useUndoableRemove } from './toast'
 import type { WatchFields } from './WatchDialog'
 
@@ -54,14 +54,20 @@ export function useWatchActions() {
   const inFlight = useRef(new Set<number>())
   const fail = (err: unknown) => setError(err instanceof Error ? err.message : t('app.error'))
 
-  const check = async (id: number) => {
+  /**
+   * Runs a check and waits for it, so the caller learns which downloads it
+   * started. Undefined when a check of this watch is already on its way or
+   * the request failed (the error is kept for the caller).
+   */
+  const check = async (id: number): Promise<WatchCheck | undefined> => {
     // a ref, not the state: two clicks in one frame both see the old state
     if (inFlight.current.has(id)) return
     inFlight.current.add(id)
     setChecking(new Set(inFlight.current))
     setError('')
+    let out: WatchCheck
     try {
-      await api.post(`/api/watches/${id}/check`)
+      out = await api.post<WatchCheck>(`/api/watches/${id}/check?wait=1`)
     } catch (err) {
       fail(err)
       return
@@ -69,7 +75,11 @@ export function useWatchActions() {
       inFlight.current.delete(id)
       setChecking(new Set(inFlight.current))
     }
-    setTimeout(() => refreshOne(id), 1500)
+    // the new rows exist now: the queue and the live activity show them at once
+    qc.invalidateQueries({ queryKey: ['downloads'] })
+    refreshOne(id)
+    if (out.error) setError(out.error)
+    return out
   }
   const applyPlexStreams = async (id: number) => {
     setError('')
