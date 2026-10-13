@@ -85,6 +85,13 @@ export type CatalogResponse = Schemas['api.catalogResponse']
 
 export type Watch = Schemas['api.Watch']
 
+// Explanations: why a folder got its series, what a name says, what a watch
+// waits for. Computed on request, nothing of it is stored.
+export type CatalogExplain = Schemas['api.catalogExplainResponse']
+export type NameExplain = Schemas['api.nameExplainResponse']
+export type NamePiece = Schemas['api.namePiece']
+export type WatchExplain = Schemas['api.watchExplainResponse']
+
 // What a sync did. The counters answer the question a bare "0 queued" leaves
 // open: nothing to do, or something wrong?
 export type SyncResult = Schemas['api.DownloadCreateResponse']
