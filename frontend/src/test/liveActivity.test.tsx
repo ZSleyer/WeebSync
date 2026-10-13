@@ -1,8 +1,9 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { LiveActivity } from '../components/LiveActivity'
+import { TransfersCtx, type Transfers } from '../components/transfers'
 import type { Download } from '../api'
 
 vi.mock(import('react-i18next'), async (importOriginal) => ({
@@ -28,20 +29,34 @@ const dl = (id: number, status: Download['status'], size: number, transferred: n
     userId: 1,
   }) as Download
 
-function setup(downloads: Download[]) {
+// the opener the pill reaches; each test sets its own
+const transfers: Transfers = { open: () => {} }
+
+function setup(downloads: Download[], open: (from?: HTMLElement | null) => void = () => {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   qc.setQueryData(['downloads'], downloads)
+  transfers.open = open
   const view = render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/watches']}>
-        <LiveActivity variant="pill" hideOnDashboard />
-      </MemoryRouter>
+      <TransfersCtx.Provider value={transfers}>
+        <MemoryRouter initialEntries={['/watches']}>
+          <LiveActivity variant="pill" />
+        </MemoryRouter>
+      </TransfersCtx.Provider>
     </QueryClientProvider>,
   )
   return { qc, ...view }
 }
 
 describe('LiveActivity', () => {
+  it('opens the transfers, growing out of the pill', () => {
+    const open = vi.fn()
+    setup([dl(1, 'running', 100, 50, 10)], open)
+    const pill = screen.getByRole('button')
+    fireEvent.click(pill)
+    expect(open).toHaveBeenCalledWith(pill)
+  })
+
   it('fills the ring with the bytes of the whole queue and counts it', () => {
     const { container } = setup([dl(1, 'running', 100, 50, 10), dl(2, 'queued', 100, 0)])
     expect(screen.getByText('live.loading:2')).toBeTruthy()

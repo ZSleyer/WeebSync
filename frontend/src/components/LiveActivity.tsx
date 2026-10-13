@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import { Check } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation } from 'react-router'
 import { api, fmtSpeed, type Download } from '../api'
 import { countdown } from '../countdown'
 import { useTransfers } from './transfers'
@@ -22,9 +21,8 @@ const C = 2 * Math.PI * R
  * their sheet, the sidebar's block opens their panel.
  * Reads the shared ['downloads'] query, so it costs no request of its own.
  */
-export function LiveActivity({ variant, hideOnDashboard }: { variant: 'pill' | 'rail'; hideOnDashboard?: boolean }) {
+export function LiveActivity({ variant }: { variant: 'pill' | 'rail' }) {
   const { t } = useTranslation()
-  const { pathname } = useLocation()
   const transfers = useTransfers()
   const q = useQuery({ queryKey: ['downloads'], queryFn: () => api.get<Download[]>('/api/downloads') })
   const all = q.data ?? []
@@ -56,7 +54,6 @@ export function LiveActivity({ variant, hideOnDashboard }: { variant: 'pill' | '
   // the check only while the queue stays empty: a new download ends it
   const done = active.length === 0 ? landed : 0
   if (active.length === 0 && !done) return null
-  if (hideOnDashboard && pathname === '/') return null
 
   const size = active.reduce((s, d) => s + d.size, 0)
   const got = active.reduce((s, d) => s + d.transferred, 0)

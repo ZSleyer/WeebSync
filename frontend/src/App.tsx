@@ -573,7 +573,7 @@ function Shell({ email }: { email: string }) {
                     <>
                       <UpdateToast />
                       <MiniPlayer variant="pill" />
-                      <LiveActivity variant="pill" hideOnDashboard />
+                      <LiveActivity variant="pill" />
                     </>
                   }
                   footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}

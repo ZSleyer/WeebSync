@@ -1082,18 +1082,17 @@ export default function Dashboard() {
         </div>
       ) : (
         // a phone reads top to bottom, so the order is by what needs the
-        // reader: a running transfer first, then what needs a hand, what is
-        // coming and what went wrong; the quiet idle queue, the hints and
-        // the disks after that
+        // reader: what needs a hand, what is coming, then the queue to manage.
+        // What transfers right now is the live pill's, a tap away in its
+        // sheet, so the queue does not push the rest down while it runs
         <div className="flex flex-col gap-6">
-          {activeAll.length > 0 && transfer}
           {watchState ?? (
             <>
               <Attention watches={watches} />
               <UpNext watches={watches} />
             </>
           )}
-          {activeAll.length === 0 && transfer}
+          {transfer}
           {history}
           <FolderHints />
           <BackgroundWork />
