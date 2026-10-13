@@ -291,6 +291,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/watches", authed(http.HandlerFunc(s.handleWatchCreate)))
 	mux.Handle("PUT /api/watches/{id}", authed(http.HandlerFunc(s.handleWatchUpdate)))
 	mux.Handle("DELETE /api/watches/{id}", authed(http.HandlerFunc(s.handleWatchDelete)))
+	mux.Handle("GET /api/watches/{id}/explain", authed(http.HandlerFunc(s.handleWatchExplain)))
 	checkH := http.HandlerFunc(s.handleWatchCheck)
 	mux.Handle("POST /api/watches/{id}/check", s.bearerOr(authed(checkH), checkH))
 	mux.Handle("POST /api/watches/{id}/plex-streams", authed(http.HandlerFunc(s.handleWatchPlexStreams)))

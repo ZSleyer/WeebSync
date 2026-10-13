@@ -10,6 +10,27 @@ import (
 	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
+func TestWaitReason(t *testing.T) {
+	cases := []struct {
+		retryAt  int64
+		filtered int
+		waiting  bool
+		airingAt int64
+		want     string
+	}{
+		{100, 3, true, 50, "retry_backoff"},
+		{0, 3, true, 50, "lang_backlog"},
+		{0, 0, true, 50, "until_slot"},
+		{0, 0, true, 0, "finished_idle"},
+		{0, 0, false, 50, "interval"},
+	}
+	for _, c := range cases {
+		if got := waitReason(c.retryAt, c.filtered, c.waiting, c.airingAt); got != c.want {
+			t.Errorf("waitReason(%+v) = %s, want %s", c, got, c.want)
+		}
+	}
+}
+
 // The explanation replays the match from the search cache: the season folder
 // gives the search its context, the sequel entry wins on its season marker,
 // and the stored match and the scope mark come along.
