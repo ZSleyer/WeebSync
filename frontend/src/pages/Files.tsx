@@ -4,6 +4,7 @@ import {
   BookOpen,
   Check,
   CircleHelp,
+  Copy,
   Download,
   Eye,
   Files as FilesIcon,
@@ -22,6 +23,7 @@ import {
   Trash2,
   Undo2,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
@@ -184,6 +186,8 @@ export default function Files() {
   // choice too (the download folder itself) and must not refill
   const [localPath, setLocalPath] = useState<string | null>(null)
   const [selection, setSelection] = useState<Entry | null>(null)
+  // a finger held on a row: its actions as a sheet
+  const [sheet, setSheet] = useState<Entry | null>(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   // the dialogs carry their own entry: a catalog card acts on itself without
@@ -430,6 +434,96 @@ export default function Files() {
         ]
       : []
 
+  // what a picked entry can do: the bar on a phone, the info panel on a
+  // desktop and the sheet a long press opens read the same list, so they agree
+  const actionsOf = (e: Entry): FileAction[] => [
+    ...(isVideo(e.name)
+      ? [{ key: 'play', icon: Play, label: t('player.play'), onClick: () => playFile(e) }]
+      : !e.isDir && viewKind(e.name)
+        ? [{ key: 'open', icon: BookOpen, label: t('viewer.open'), onClick: () => playFile(e) }]
+        : []),
+    ...(canEdit
+      ? [
+          {
+            key: 'rename',
+            icon: Pencil,
+            label: t('local.rename'),
+            aria: t('local.renameItem', { name: e.name }),
+            onClick: () => renameLocal(e),
+          },
+          // the batch renamer works on a folder's episodes; it opens with
+          // this folder already chosen
+          ...(e.isDir
+            ? [
+                {
+                  key: 'episodes',
+                  icon: PenLine,
+                  label: t('local.renameEpisodes'),
+                  onClick: () => goTo(`/rename?path=${encodeURIComponent(e.path.replace(/^\//, ''))}`),
+                },
+              ]
+            : []),
+          {
+            key: 'delete',
+            icon: Trash2,
+            label: t('local.delete'),
+            aria: t('local.deleteItem', { name: e.name }),
+            variant: 'danger' as const,
+            onClick: () => removeLocal(e),
+          },
+        ]
+      : []),
+    ...(!isLocal
+      ? [
+          {
+            key: 'watch',
+            icon: Eye,
+            label: t('watch.add'),
+            disabled: !e.isDir,
+            onClick: () => {
+              setWatchEntry(e)
+              setInCard(false)
+            },
+          },
+          {
+            key: 'sync',
+            icon: Download,
+            label: t('remote.syncOpen'),
+            variant: 'primary' as const,
+            onClick: () => {
+              setSyncEntry(e)
+              setInCard(false)
+            },
+          },
+        ]
+      : []),
+  ]
+  const actionButton = (a: FileAction, className = '') => (
+    <Button
+      key={a.key}
+      size="sm"
+      variant={a.variant}
+      disabled={a.disabled}
+      aria-label={a.aria}
+      onClick={a.onClick}
+      className={className}
+    >
+      <a.icon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+      {a.label}
+    </Button>
+  )
+  const undo = notice && (
+    <span className="flex items-center gap-2 text-xs text-t-secondary" role="status">
+      {notice}
+      {lastIds.length > 0 && (
+        <Button size="sm" variant="danger" onClick={cancelLast}>
+          <Undo2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('remote.undoSync')}
+        </Button>
+      )}
+    </span>
+  )
+
   const navigate = (p: string) => {
     setPath(p.replace(/^\//, ''))
     setSelection(null)
@@ -467,137 +561,153 @@ export default function Files() {
           />
         </EmptyState>
       ) : (
-        <Panel as="section" className="flex min-h-64 min-w-0 flex-1 flex-col lg:min-h-0" aria-label={t('files.title')}>
-          <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            {/* names the source, switches it, and holds the way to a new one */}
-            <SourcePicker value={source} servers={servers} onChange={pickSource} className="shrink-0" />
-            <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">
-              {selection ? selection.path : path ? `/${path}` : t('remote.noSelection')}
-            </span>
-            {!isLocal && (
-              <>
-                <Input
-                  className="w-40 sm:w-56"
-                  size="sm"
-                  type="search"
-                  placeholder={
-                    path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')
-                  }
-                  aria-label={t('remote.search')}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onFocus={() => setSearchFocus(true)}
-                  onBlur={() => {
-                    setSearchFocus(false)
-                    rememberSearch(query)
-                  }}
-                />
-              </>
-            )}
-          </div>
-          {/* Recent searches only while the field is focused and still empty,
+        <div className="flex min-h-0 flex-1 gap-4">
+          <Panel
+            as="section"
+            className="flex min-h-64 min-w-0 flex-1 flex-col lg:min-h-0"
+            aria-label={t('files.title')}
+          >
+            <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+              {/* names the source, switches it, and holds the way to a new one */}
+              <SourcePicker value={source} servers={servers} onChange={pickSource} className="shrink-0" />
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-t-muted">
+                {selection ? selection.path : path ? `/${path}` : t('remote.noSelection')}
+              </span>
+              {!isLocal && (
+                <>
+                  <Input
+                    className="w-40 sm:w-56"
+                    size="sm"
+                    type="search"
+                    placeholder={
+                      path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')
+                    }
+                    aria-label={t('remote.search')}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onFocus={() => setSearchFocus(true)}
+                    onBlur={() => {
+                      setSearchFocus(false)
+                      rememberSearch(query)
+                    }}
+                  />
+                </>
+              )}
+            </div>
+            {/* Recent searches only while the field is focused and still empty,
               in the flow instead of floating: typing hands over to the live
               results. No <datalist> - mobile browsers (Chrome, Firefox, iOS
               Safari) float its suggestions over the input and the results and
               keep them there while typing. */}
-          {!isLocal && searchFocus && !query && recentSearches.length > 0 && (
-            <div
-              className="flex flex-wrap items-center gap-1.5 border-b border-border-subtle px-3 py-2"
-              aria-label={t('remote.recentSearches')}
-              // keep focus in the input, so a tap here does not close the row first
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              <span className="text-xs text-t-muted">{t('remote.recentSearches')}</span>
-              {recentSearches.map((q) => (
-                <span
-                  key={q}
-                  className="flex min-h-8 max-w-full items-center rounded-full border border-border-input text-sm text-t-primary"
-                >
-                  <button
-                    type="button"
-                    className="min-w-0 truncate py-1 pr-1 pl-3 hover:text-accent"
-                    onClick={() => setQuery(q)}
+            {!isLocal && searchFocus && !query && recentSearches.length > 0 && (
+              <div
+                className="flex flex-wrap items-center gap-1.5 border-b border-border-subtle px-3 py-2"
+                aria-label={t('remote.recentSearches')}
+                // keep focus in the input, so a tap here does not close the row first
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <span className="text-xs text-t-muted">{t('remote.recentSearches')}</span>
+                {recentSearches.map((q) => (
+                  <span
+                    key={q}
+                    className="flex min-h-8 max-w-full items-center rounded-full border border-border-input text-sm text-t-primary"
                   >
-                    {q}
-                  </button>
-                  <button
-                    type="button"
-                    className="grid size-8 shrink-0 place-items-center text-t-muted hover:text-err"
-                    aria-label={t('remote.forgetSearch', { q })}
-                    onClick={() => forgetSearch(q)}
-                  >
-                    <X size={14} />
-                  </button>
-                </span>
-              ))}
-            </div>
+                    <button
+                      type="button"
+                      className="min-w-0 truncate py-1 pr-1 pl-3 hover:text-accent"
+                      onClick={() => setQuery(q)}
+                    >
+                      {q}
+                    </button>
+                    <button
+                      type="button"
+                      className="grid size-8 shrink-0 place-items-center text-t-muted hover:text-err"
+                      aria-label={t('remote.forgetSearch', { q })}
+                      onClick={() => forgetSearch(q)}
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {error && (
+              <p className="border-b border-border-subtle px-3 py-2 text-xs text-err" role="alert">
+                {error}
+              </p>
+            )}
+            {!isLocal && query.trim() ? (
+              <SearchResults
+                serverId={active}
+                path={path}
+                query={query}
+                onOpenDir={(p) => {
+                  navigate(p)
+                  setQuery('')
+                }}
+                onSelect={setSelection}
+                onPlay={playFile}
+                selected={selection?.path}
+              />
+            ) : view === 'classic' ? (
+              <FileBrowser
+                queryKey={isLocal ? ['local'] : ['remote', active]}
+                fetchPath={browseUrl}
+                path={path}
+                onNavigate={navigate}
+                onSelect={setSelection}
+                selected={selection?.path}
+                emptyHint={isLocal ? t('remote.emptyLocal') : undefined}
+                serverId={isLocal ? undefined : active}
+                renaming={inPlace}
+                onPlay={playFile}
+                sortable
+                onLongPress={(e) => {
+                  setSelection(e)
+                  if (actionsOf(e).some((a) => !a.disabled)) setSheet(e)
+                }}
+              />
+            ) : (
+              <CatalogGrid
+                serverId={active}
+                path={path}
+                onNavigate={navigate}
+                onSelect={setSelection}
+                selected={selection?.path}
+                onSync={
+                  isLocal
+                    ? undefined
+                    : (e, card) => {
+                        setSyncEntry(e)
+                        setInCard(!!card)
+                      }
+                }
+                onWatch={
+                  isLocal
+                    ? undefined
+                    : (e, card) => {
+                        setWatchEntry(e)
+                        setInCard(!!card)
+                      }
+                }
+                cardActions={isLocal ? cardActions : undefined}
+                renaming={inPlace}
+                onOpenFiles={(p) => {
+                  // opening a title's files navigates into a subfolder; the view
+                  // re-derives from that folder's own scope (marks don't inherit,
+                  // so it lands in the classic list) - no explicit reset needed
+                  navigate(p)
+                  if (isLocal) setView('classic')
+                }}
+              />
+            )}
+          </Panel>
+          {selection && (
+            <FileInfo entry={selection} actions={actionsOf(selection).map((a) => actionButton(a, 'justify-start'))}>
+              {undo}
+            </FileInfo>
           )}
-          {error && (
-            <p className="border-b border-border-subtle px-3 py-2 text-xs text-err" role="alert">
-              {error}
-            </p>
-          )}
-          {!isLocal && query.trim() ? (
-            <SearchResults
-              serverId={active}
-              path={path}
-              query={query}
-              onOpenDir={(p) => {
-                navigate(p)
-                setQuery('')
-              }}
-              onSelect={setSelection}
-              onPlay={playFile}
-              selected={selection?.path}
-            />
-          ) : view === 'classic' ? (
-            <FileBrowser
-              queryKey={isLocal ? ['local'] : ['remote', active]}
-              fetchPath={browseUrl}
-              path={path}
-              onNavigate={navigate}
-              onSelect={setSelection}
-              selected={selection?.path}
-              emptyHint={isLocal ? t('remote.emptyLocal') : undefined}
-              serverId={isLocal ? undefined : active}
-              renaming={inPlace}
-              onPlay={playFile}
-            />
-          ) : (
-            <CatalogGrid
-              serverId={active}
-              path={path}
-              onNavigate={navigate}
-              onSelect={setSelection}
-              selected={selection?.path}
-              onSync={
-                isLocal
-                  ? undefined
-                  : (e, card) => {
-                      setSyncEntry(e)
-                      setInCard(!!card)
-                    }
-              }
-              onWatch={
-                isLocal
-                  ? undefined
-                  : (e, card) => {
-                      setWatchEntry(e)
-                      setInCard(!!card)
-                    }
-              }
-              cardActions={isLocal ? cardActions : undefined}
-              renaming={inPlace}
-              onOpenFiles={(p) => {
-                // opening a title's files navigates into a subfolder; the view
-                // re-derives from that folder's own scope (marks don't inherit,
-                // so it lands in the classic list) - no explicit reset needed
-                navigate(p)
-                if (isLocal) setView('classic')
-              }}
-            />
-          )}
-        </Panel>
+        </div>
       )}
 
       {/* action bar: the last row of the page-fill column, directly above the
@@ -608,7 +718,7 @@ export default function Files() {
         <Panel
           role="region"
           aria-label={t('remote.selectionBar')}
-          className="mt-4 flex flex-wrap items-center gap-2 p-3"
+          className={`mt-4 flex flex-wrap items-center gap-2 p-3 ${selection ? 'lg:hidden' : ''}`}
         >
           {selection && (
             <span className="min-w-28 flex-1 truncate text-sm text-t-secondary" title={selection.path}>
@@ -616,90 +726,26 @@ export default function Files() {
               {selection.name}
             </span>
           )}
-          {notice && (
-            <span className="flex items-center gap-2 text-xs text-t-secondary" role="status">
-              {notice}
-              {lastIds.length > 0 && (
-                <Button size="sm" variant="danger" onClick={cancelLast}>
-                  <Undo2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('remote.undoSync')}
-                </Button>
-              )}
-            </span>
-          )}
-          {selection && isVideo(selection.name) && (
-            <Button size="sm" onClick={() => playFile(selection)}>
-              <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('player.play')}
-            </Button>
-          )}
-          {selection && !isVideo(selection.name) && viewKind(selection.name) && (
-            <Button size="sm" onClick={() => playFile(selection)}>
-              <BookOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('viewer.open')}
-            </Button>
-          )}
-          {selection && canEdit && (
-            <>
-              <Button
-                size="sm"
-                aria-label={t('local.renameItem', { name: selection.name })}
-                onClick={() => renameLocal(selection)}
-              >
-                <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('local.rename')}
-              </Button>
-              {selection.isDir && (
-                // the batch renamer works on a folder's episodes; it opens
-                // with this folder already chosen
-                <Button
-                  size="sm"
-                  onClick={() => goTo(`/rename?path=${encodeURIComponent(selection.path.replace(/^\//, ''))}`)}
-                >
-                  <PenLine aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('local.renameEpisodes')}
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="danger"
-                aria-label={t('local.deleteItem', { name: selection.name })}
-                onClick={() => removeLocal(selection)}
-              >
-                <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('local.delete')}
-              </Button>
-            </>
-          )}
-          {selection && !isLocal && (
-            <>
-              <Button
-                size="sm"
-                disabled={!selection.isDir}
-                onClick={() => {
-                  setWatchEntry(selection)
-                  setInCard(false)
-                }}
-              >
-                <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('watch.add')}
-              </Button>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => {
-                  setSyncEntry(selection)
-                  setInCard(false)
-                }}
-              >
-                <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('remote.syncOpen')}
-              </Button>
-            </>
-          )}
+          {undo}
+          {selection && actionsOf(selection).map((x) => actionButton(x))}
         </Panel>
       )}
 
+      {sheet && (
+        <ActionSheet
+          title={sheet.name}
+          actions={actionsOf(sheet)
+            .filter((x) => !x.disabled)
+            .map((x) => ({
+              key: x.key,
+              label: x.label,
+              icon: <x.icon aria-hidden size="1.1em" />,
+              danger: x.variant === 'danger',
+              onClick: x.onClick,
+            }))}
+          onClose={() => setSheet(null)}
+        />
+      )}
       {syncEntry &&
         syncSeed &&
         (inCard ? (
@@ -719,6 +765,70 @@ export default function Files() {
           <WatchDialog {...watchProps(watchEntry)} />
         ))}
     </div>
+  )
+}
+
+interface FileAction {
+  key: string
+  icon: LucideIcon
+  label: string
+  aria?: string
+  variant?: 'primary' | 'danger'
+  disabled?: boolean
+  onClick: () => void
+}
+
+// The selection on a desktop: what it is, where it lies and what it can do,
+// beside the list instead of a bar under it
+function FileInfo({ entry, actions, children }: { entry: Entry; actions: ReactNode; children?: ReactNode }) {
+  const { t, i18n } = useTranslation()
+  const toast = useToast()
+  const ext = entry.name.includes('.') ? (entry.name.split('.').pop() ?? '').toUpperCase() : ''
+  const time = Date.parse(entry.modTime) || 0
+  const copy = () =>
+    navigator.clipboard.writeText(entry.path).then(
+      () => toast({ message: t('files.pathCopied') }),
+      () => toast({ message: t('files.copyFailed') }),
+    )
+  return (
+    <Panel
+      as="aside"
+      aria-label={t('files.info')}
+      className="hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto p-4 lg:flex"
+    >
+      <div className="flex items-start gap-3">
+        <FileIcon isDir={entry.isDir} name={entry.name} className="mt-0.5 size-6" />
+        <h3 className="min-w-0 font-semibold break-words text-t-primary">{entry.name}</h3>
+      </div>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+        <dt className="text-t-muted">{t('files.kind')}</dt>
+        <dd className="text-t-secondary">{entry.isDir ? t('files.kindFolder') : ext || t('files.kindFile')}</dd>
+        {!entry.isDir && (
+          <>
+            <dt className="text-t-muted">{t('files.colSize')}</dt>
+            <dd className="font-mono text-t-secondary">{fmtBytes(entry.size)}</dd>
+          </>
+        )}
+        {time > 0 && (
+          <>
+            <dt className="text-t-muted">{t('files.colDate')}</dt>
+            <dd className="text-t-secondary">
+              {new Date(time).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })}
+            </dd>
+          </>
+        )}
+      </dl>
+      <div className="grid gap-1.5">
+        <span className="text-xs text-t-muted">{t('files.where')}</span>
+        <code className="font-mono text-xs break-all text-t-secondary">{entry.path}</code>
+        <Button size="sm" className="justify-self-start" onClick={copy}>
+          <Copy aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+          {t('files.copyPath')}
+        </Button>
+      </div>
+      <div className="mt-auto grid gap-2">{actions}</div>
+      {children}
+    </Panel>
   )
 }
 
