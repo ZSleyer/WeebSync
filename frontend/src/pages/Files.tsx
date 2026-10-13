@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import {
-  ArrowDownWideNarrow,
   BookOpen,
   Check,
   CircleHelp,
@@ -10,8 +10,6 @@ import {
   Files as FilesIcon,
   Folder,
   Info,
-  LayoutGrid,
-  List,
   MoreHorizontal,
   PenLine,
   Pencil,
@@ -19,7 +17,6 @@ import {
   RefreshCw,
   Replace,
   Search,
-  Star,
   Trash2,
   Undo2,
   X,
@@ -48,11 +45,16 @@ import {
   EmptyState,
   IconButton,
   Input,
-  MediaCard,
   Menu,
   MenuItem,
   Panel,
-  Segmented,
+  Row,
+  RowAction,
+  Rows,
+  SectionHeading,
+  Select,
+  enterPage,
+  localTransition,
   useMenu,
   useReveal,
 } from 'fluid-lycoris'
@@ -68,8 +70,19 @@ import {
   type SearchResult,
   type ServerInfo,
   type SubfolderMode,
+  type Watch,
 } from '../api'
-import { CATALOG_SORTS, sortGroups, useCatalogSort, type CatalogSort } from '../components/catalogSort'
+import {
+  CATALOG_SORTS,
+  CATALOG_STATUSES,
+  filterByStatus,
+  sortGroups,
+  useCatalogSort,
+  useCatalogStatus,
+  type CatalogSort,
+  type CatalogStatus,
+} from '../components/catalogSort'
+import { CatalogPendingTile, CatalogTile, useTileRise, vtName } from '../components/CatalogTile'
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
 import { scopeChanged, useCatalogView } from '../components/useCatalogView'
@@ -77,7 +90,6 @@ import ScopeRuleLine from '../components/ScopeRuleLine'
 import { FileBrowser, LocalPicker, PathCrumbs, PlayIcon } from '../components/FileBrowser'
 import { catalogTitle, firstVideo, isVideo, playHref, viewHref, viewKind } from '../components/playLinks'
 import PathInput from '../components/PathInput'
-import PillSelect from '../components/PillSelect'
 import FileIcon from '../components/FileIcon'
 import PageActions from '../components/PageActions'
 import { TrashButton } from './Trash'
@@ -950,7 +962,7 @@ export function CatalogGrid({
   /** the folder whose name is being edited in place */
   renaming?: Renaming
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const confirm = useConfirm()
   const goTo = useNavigate()
   // the title being looked into for its first episode, so its button can show it
@@ -1173,23 +1185,8 @@ export function CatalogGrid({
         ]
   }
   const [scopeError, setScopeError] = useState('')
-  // poster grid or rows; remembered across folders and visits
-  const [layout, setLayoutState] = useState<'grid' | 'list'>(() => {
-    try {
-      return localStorage.getItem(LAYOUT_KEY) === 'list' ? 'list' : 'grid'
-    } catch {
-      return 'grid'
-    }
-  })
-  const setLayout = (v: 'grid' | 'list') => {
-    setLayoutState(v)
-    try {
-      localStorage.setItem(LAYOUT_KEY, v)
-    } catch {
-      // storage can be off
-    }
-  }
   const [sort, setSort] = useCatalogSort()
+  const [status, setStatus] = useCatalogStatus()
   const pendingCount = items.filter((i) => i.pending).length
   const noMatchCount = items.filter((i) => !i.media && !i.pending).length
 
@@ -1225,13 +1222,24 @@ export function CatalogGrid({
     }
   }
 
+  // the watches say what a remote folder is to the user: an Auto-Sync, and
+  // how many of its episodes are on disk already
+  const { data: watches = [] } = useQuery<Watch[]>({
+    queryKey: ['watches'],
+    queryFn: () => api.get('/api/watches'),
+    enabled: serverId !== 0,
+  })
+  const watchOf = (g: CatalogGroup) =>
+    serverId === 0
+      ? undefined
+      : watches.find((w) => w.serverId === serverId && g.items.some((v) => v.entry.path === w.remotePath))
+
   // bundle folders matched to the same anime into one card; the version
   // (folder) is picked in a dialog. Unmatched/pending folders stay individual.
   // The source belongs in the key: AniList, TMDB series, TMDB films and TVDB
   // number their entries independently, so a film and a show can share an id
   // and would otherwise collapse into one card that hides both their buttons.
-  const revealBox = useRef<HTMLDivElement & HTMLUListElement>(null)
-  const groups = useMemo(() => {
+  const allGroups = useMemo(() => {
     const out: CatalogGroup[] = []
     const byMedia = new Map<string, CatalogGroup>()
     for (const it of items) {
@@ -1245,9 +1253,68 @@ export function CatalogGrid({
       if (it.media) byMedia.set(key, g)
       out.push(g)
     }
-    return sortGroups(out, sort)
-  }, [items, sort])
-  useReveal(revealBox, '.t-reveal', `${layout}:${groups.length}`)
+    return out
+  }, [items])
+  // the grid holds the titles and the folders still being matched; a folder
+  // matching found nothing for lists under its own heading, and one without a
+  // source (no scope yet, an alphabet shelf) is plain structure
+  const tiles = useMemo(
+    () =>
+      filterByStatus(
+        sortGroups(
+          allGroups.filter((g) => g.media || g.pending),
+          sort,
+        ),
+        status,
+      ),
+    [allGroups, sort, status],
+  )
+  const unmatched = allGroups.filter((g) => !g.media && !g.pending && g.items[0].source)
+  const plain = allGroups.filter((g) => !g.media && !g.pending && !g.items[0].source)
+  const seriesCount = allGroups.filter((g) => g.media).length
+
+  // a folder that was being matched and now is: its cover arrives from a zoom
+  const pendingNow = items
+    .filter((i) => i.pending)
+    .map((i) => i.entry.path)
+    .join('\n')
+  const [pendingBefore, setPendingBefore] = useState(pendingNow)
+  const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set())
+  if (pendingBefore !== pendingNow) {
+    const was = new Set(pendingBefore.split('\n'))
+    setFresh(new Set(items.filter((i) => i.media && was.has(i.entry.path)).map((i) => i.entry.path)))
+    setPendingBefore(pendingNow)
+  }
+
+  // the grid enters with the page and with another folder; a sort or filter
+  // change morphs the tiles to their new places instead (no rise on top), and
+  // the scroll reveal is set up again after every re-render of the list
+  const grid = useRef<HTMLDivElement>(null)
+  const root = useRef<HTMLDivElement>(null)
+  useTileRise(grid, `${serverId}:${path}:${isLoading}`)
+  useEffect(() => {
+    if (!isLoading && root.current) enterPage(root.current)
+  }, [serverId, path, isLoading])
+  useReveal(grid, '.t-reveal', `${path}:${sort}:${status}:${tiles.length}`)
+  const reflow = (update: () => void) => {
+    const box = grid.current
+    const cells = () => (box ? ([...box.children] as HTMLElement[]) : [])
+    const name = () => {
+      const h = innerHeight
+      for (const c of cells()) {
+        const r = c.getBoundingClientRect()
+        // only the tiles on screen morph: every named tile is a snapshot
+        c.style.setProperty('--vt', r.bottom > 0 && r.top < h && c.dataset.vt ? c.dataset.vt : 'none')
+      }
+    }
+    name()
+    void localTransition(box, () => {
+      flushSync(update)
+      name()
+    }).finally(() => {
+      for (const c of cells()) c.style.removeProperty('--vt')
+    })
+  }
 
   // the breadcrumb is outside the loading/error branches on purpose: without
   // it a slow or failing folder would be a dead end with no way back up
@@ -1270,9 +1337,16 @@ export function CatalogGrid({
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {crumbs}
-        <p className="p-6 text-sm text-t-muted" role="status">
-          {t('remote.catalogLoading')}
-        </p>
+        {/* the real grid's shape while the folder loads, so nothing jumps */}
+        <div className="ws-cat-grid mt-12" role="status" aria-label={t('remote.catalogLoading')}>
+          {Array.from({ length: 9 }, (_, i) => (
+            <div key={i} className="ws-cat-tile ws-cat-tile--pending animate-pulse" aria-hidden>
+              <span className="ws-cat-cover ws-cat-sk" />
+              <span className="mt-2 h-3 w-4/5 rounded-xs bg-bg-hover" />
+              <span className="mt-1.5 h-2.5 w-1/2 rounded-xs bg-bg-hover" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   if (error) {
@@ -1290,52 +1364,83 @@ export function CatalogGrid({
             onRejected={() => setKeyRejectedFor(listing)}
           />
         ) : (
-          <p className="p-6 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>
+          <p className="py-6 text-sm text-err">{error instanceof Error ? error.message : t('app.error')}</p>
         )}
       </div>
     )
   }
 
+  const subOf = (g: CatalogGroup): ReactNode => {
+    const it = g.items[0]
+    if (watchOf(g)) return <span className="ws-cat-sub--sync">{t('catalog.autoSync')}</span>
+    if (g.items.length > 1) return t('remote.versions', { count: g.items.length })
+    if (it.local) return `${t('local.videoCount', { count: it.local.videos })} · ${fmtBytes(it.local.bytes)}`
+    const next = g.media?.nextAiringEpisode
+    if (next) {
+      const at = new Date(next.airingAt * 1000)
+      return t('catalog.nextShort', {
+        episode: next.episode,
+        day: at.toLocaleDateString(i18n.language, { weekday: 'short' }),
+      })
+    }
+    return undefined
+  }
+  const haveOf = (g: CatalogGroup) => watchOf(g)?.localFiles ?? g.items[0].local?.videos ?? 0
+  const folderName = (name: string) => name.replace(/\s*\[[^\]]*\]\s*$/, '') || name
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div ref={root} className="flex min-h-0 flex-1 flex-col">
       {crumbs}
       {/* touch-action is only read up to the nearest scroll container, and on a
           phone this one fills the screen - the page's swipe zone sits above it
           and the browser never sees it, so a sideways drag in here became a
           scroll gesture and the page never turned. It has to allow the
           horizontal axis itself. */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-4" style={{ touchAction: 'pan-y pinch-zoom' }}>
-        {/* one row of chips: what the folder is matched against, how the cards
-          are ordered, and the rest behind the overflow. It used to be two
-          labelled selects and up to three buttons, which stacked into five
-          rows on a phone before the first card */}
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <PillSelect
-            label={t('remote.scope')}
-            placeholder={t('remote.scopeNone')}
+      <div className="min-h-0 flex-1 overflow-y-auto pt-2 pb-4" style={{ touchAction: 'pan-y pinch-zoom' }}>
+        {/* what the folder is matched against, how the tiles are ordered and
+            which airing state they show; the rest behind the overflow */}
+        <div className="ws-cat-head">
+          <Select
+            wrapperClassName="ws-cat-sel"
+            aria-label={t('remote.scope')}
             value={data?.scope ?? ''}
-            onChange={setScope}
-            options={scopeOptions}
-          />
-          {groups.length > 1 && (
-            <PillSelect
-              label={t('remote.sort')}
-              value={sort}
-              onChange={(v) => setSort(v as CatalogSort)}
-              icon={<ArrowDownWideNarrow aria-hidden size="1em" className="shrink-0 text-t-muted" />}
-              options={CATALOG_SORTS.map((c) => ({ value: c, label: t(`remote.sort_${c}`) }))}
-            />
-          )}
-          {groups.length > 0 && (
-            <Segmented
-              aria-label={t('remote.layout')}
-              value={layout}
-              onChange={setLayout}
-              options={[
-                { value: 'grid', 'aria-label': t('remote.layoutGrid'), label: <LayoutGrid aria-hidden size="1em" /> },
-                { value: 'list', 'aria-label': t('remote.layoutList'), label: <List aria-hidden size="1em" /> },
-              ]}
-            />
+            onChange={(e) => void setScope(e.target.value)}
+          >
+            {data?.scope === '' && <option value="">{t('remote.scopeNone')}</option>}
+            {scopeOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+          {tiles.length + (status ? 1 : 0) > 1 && (
+            <>
+              <Select
+                wrapperClassName="ws-cat-sel"
+                aria-label={t('remote.sort')}
+                value={sort}
+                onChange={(e) => reflow(() => setSort(e.target.value as CatalogSort))}
+              >
+                {CATALOG_SORTS.map((c) => (
+                  <option key={c} value={c}>
+                    {t(`remote.sort_${c}`)}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                wrapperClassName="ws-cat-sel"
+                aria-label={t('remote.statusFilter')}
+                value={status}
+                onChange={(e) => reflow(() => setStatus(e.target.value as CatalogStatus | ''))}
+              >
+                <option value="">{t('remote.status_all')}</option>
+                {CATALOG_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {t(`remote.status_${s}`)}
+                  </option>
+                ))}
+              </Select>
+            </>
           )}
           <CatalogActions
             canRematch={data?.scope !== '' && pendingCount === 0 && items.length > 0}
@@ -1343,274 +1448,151 @@ export function CatalogGrid({
             onRematch={triggerRematch}
             onClearScope={data && data.scope !== '' ? () => setScope('') : undefined}
           />
-          {scopeError && (
-            <span className="text-xs text-err" role="alert">
-              {scopeError}
-            </span>
-          )}
-          {data?.scope === '' ? (
-            <p className="w-full text-xs text-t-muted" role="status">
-              {t('remote.scopePick')}
-            </p>
-          ) : (
-            pendingCount > 0 && (
-              <p className="text-xs text-t-muted" role="status">
-                {t('remote.matchingCount', { count: pendingCount })}
-              </p>
-            )
-          )}
-          {path && (
-            <ScopeRuleLine
-              serverId={serverId}
-              path={path}
-              kindLabel={scopeLabel}
-              onWhy={whyHere ? () => setWhy(whyHere) : undefined}
-            />
-          )}
         </div>
+        {scopeError && (
+          <p className="ws-cat-note text-err!" role="alert">
+            {scopeError}
+          </p>
+        )}
+        {data?.scope === '' ? (
+          <p className="ws-cat-note" role="status">
+            {t('remote.scopePick')}
+          </p>
+        ) : (
+          pendingCount > 0 && (
+            <p className="ws-cat-note" role="status">
+              {t('remote.matchingCount', { count: pendingCount })}
+            </p>
+          )
+        )}
+        {path && (
+          <ScopeRuleLine
+            serverId={serverId}
+            path={path}
+            kindLabel={scopeLabel}
+            onWhy={whyHere ? () => setWhy(whyHere) : undefined}
+          />
+        )}
         {/* a leaf folder holds files, not titles: offer the classic list instead
           of leaving the user at a dead end */}
         {items.length === 0 && (
-          <div className="flex flex-wrap items-center gap-3 p-6">
+          <div className="flex flex-wrap items-center gap-3 py-6">
             <p className="text-sm text-t-muted">{t('remote.noFolders')}</p>
             <Button size="sm" onClick={() => onOpenFiles(path)}>
               {t('remote.showFiles')}
             </Button>
           </div>
         )}
-        {/* minmax(0, …) tracks and min-w-0 tiles: a folder name like
-            "Title [GerJapDub,GerEngSub,…]" is a truncated nowrap line, and
-            with auto minimums its full length set the tile's width - the
-            cards ran off the panel and the posters overlapped */}
-        {layout === 'list' ? (
-          <ul ref={revealBox} className="grid grid-cols-[minmax(0,1fr)] gap-3">
-            {groups.map((g) => {
-              const it = g.items[0]
-              const multi = g.items.length > 1
-              const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
-              const isSelected = g.items.some((v) => v.entry.path === selected)
-              const name = mediaTitle(g.media, it.entry.name)
-              return (
-                <Press as="li" key={g.key} onLongPress={() => setSheet(g)} className="t-reveal">
-                  <MediaCard
-                    className={isSelected ? 'outline-2 outline-accent' : undefined}
-                    cover={g.media?.coverImage?.large}
-                    onCover={g.media ? () => showDetail(g) : undefined}
-                    coverLabel={g.media ? t('remote.detailsFor', { name }) : undefined}
-                    title={name}
-                    pathTitle={g.items.map((v) => v.entry.path).join('\n')}
-                    path={
-                      multi ? (
-                        t('remote.versions', { count: g.items.length })
-                      ) : renaming?.path === it.entry.path ? (
-                        <InlineRename name={it.entry.name} onDone={renaming.onDone} className="mt-1 font-mono" />
+        {plain.length > 0 && (
+          <Rows dense className="ws-cat-section">
+            {plain.map((g) => (
+              <Row
+                key={g.key}
+                leading={<Folder size={18} />}
+                tone="accent-2"
+                title={
+                  <button type="button" className="text-left" onClick={() => onNavigate(g.items[0].entry.path)}>
+                    {g.items[0].entry.name}
+                  </button>
+                }
+              />
+            ))}
+          </Rows>
+        )}
+        {unmatched.length > 0 && (
+          <section className="ws-cat-section" aria-labelledby="cat-nomatch">
+            <SectionHeading
+              id="cat-nomatch"
+              tone="accent-2"
+              title={t('catalog.noMatchTitle')}
+              action={<span className="text-sm text-t-muted tabular-nums">{unmatched.length}</span>}
+            />
+            <Rows>
+              {unmatched.map((g) => {
+                const it = g.items[0]
+                return (
+                  <Row
+                    key={g.key}
+                    leading={<Folder size={18} />}
+                    title={
+                      renaming?.path === it.entry.path ? (
+                        <InlineRename name={it.entry.name} onDone={renaming.onDone} className="w-full" />
                       ) : (
-                        it.entry.name
+                        <span className="break-words">{folderName(it.entry.name)}</span>
                       )
                     }
-                    meta={g.pending ? t('remote.matching') : !g.media && it.source ? t('remote.noMatch') : undefined}
-                    badges={
-                      <>
-                        {kind && (
-                          <Badge size="sm" tone={kind === 'movie' ? 'accent' : 'neutral'}>
-                            {t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
-                          </Badge>
-                        )}
-                        {g.media && g.media.seasonYear > 0 && <Badge size="sm">{g.media.seasonYear}</Badge>}
-                        {g.media && g.media.episodes > 0 && <Badge size="sm">{g.media.episodes} EP</Badge>}
-                        {g.media && g.media.averageScore > 0 && (
-                          <Badge size="sm" tone="accent">
-                            <Star
-                              aria-hidden
-                              size="1em"
-                              className="mr-0.5 inline align-[-0.125em]"
-                              fill="currentColor"
-                              strokeWidth={0}
-                            />
-                            {g.media.averageScore}
-                          </Badge>
-                        )}
-                        {it.local && (
-                          <>
-                            <Badge
-                              size="sm"
-                              tone={
-                                g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes
-                                  ? 'ok'
-                                  : 'neutral'
-                              }
-                            >
-                              {t('local.videoCount', { count: it.local.videos })}
-                            </Badge>
-                            <Badge size="sm">{fmtBytes(it.local.bytes)}</Badge>
-                          </>
-                        )}
-                      </>
+                    sub={t('catalog.noMatchSub')}
+                    trailing={
+                      <span className="flex shrink-0 items-center">
+                        <RowAction tone="accent-2" onClick={() => setWhy(it)}>
+                          {t('catalog.why')}
+                        </RowAction>
+                        <IconButton
+                          aria-label={t('catalog.moreFor', { name: it.entry.name })}
+                          title={t('catalog.more')}
+                          onClick={() => setSheet(g)}
+                        >
+                          <MoreHorizontal aria-hidden size="1.2em" />
+                        </IconButton>
+                      </span>
                     }
-                    actions={<TileActions actions={actionsFor(g)} max={2} className="flex gap-1.5" />}
                   />
-                </Press>
-              )
-            })}
-          </ul>
-        ) : (
-          <div ref={revealBox} className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-            {groups.map((g) => {
-              const it = g.items[0]
-              const multi = g.items.length > 1
-              // the file-count heuristic reads a season that has aired one episode
-              // so far as a film; where a match exists, it knows better
-              const kind = g.media && g.media.episodes > 1 ? 'series' : it.kind
-              const isSelected = g.items.some((v) => v.entry.path === selected)
-              return (
-                <Press key={g.key} onLongPress={() => setSheet(g)} className="t-reveal flex min-w-0">
-                  <Panel
-                    as="article"
-                    className={`group relative flex min-w-0 flex-1 flex-col overflow-clip transition-colors hover:border-accent/50! ${isSelected ? 'outline-2 outline-accent' : ''}`}
-                  >
-                    {/* a matched title plays from its card (episodes section); an
-                        unmatched folder has no card, so its poster plays directly:
-                        a round button over it, in on hover or focus, always there
-                        on touch */}
-                    {!g.media && (
-                      <div className="t-poster-zone">
-                        <button
-                          type="button"
-                          className="t-poster-play"
-                          aria-label={t('player.playItem', { name: mediaTitle(g.media, it.entry.name) })}
-                          title={t('player.play')}
-                          aria-busy={starting === it.entry.path}
-                          onClick={() => play(it.entry)}
-                        >
-                          <Play
-                            aria-hidden
-                            size="1.4em"
-                            fill="currentColor"
-                            strokeWidth={0}
-                            className="translate-x-px"
-                          />
-                        </button>
-                      </div>
-                    )}
-                    {/* rematch tucked away as a pencil over the cover (hover/focus);
-                  unmatched folders keep the explicit button below instead */}
-                    {g.media && !multi && !!it.source && (
-                      <Button
-                        size="sm"
-                        className="absolute top-1.5 right-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                        aria-label={t('remote.changeMatch')}
-                        title={t('remote.changeMatch')}
-                        onClick={() => {
-                          setRematch(it)
-                          setRematchInCard(false)
-                        }}
-                      >
-                        <Pencil aria-hidden size="1.2em" />
-                      </Button>
-                    )}
-                    <button
-                      className="text-left"
-                      onClick={() => (g.media ? showDetail(g) : onSelect(it.entry))}
-                      // a matched tile is named by what it shows (WCAG 2.5.3); the
-                      // unmatched one shows no text of its own
-                      aria-label={g.media ? undefined : t('remote.selectItem', { name: it.entry.name })}
-                    >
-                      {g.media?.coverImage?.large ? (
-                        <Cover
-                          size="fill"
-                          src={g.media.coverImage.extraLarge || g.media.coverImage.large}
-                          loading="lazy"
-                          className="opacity-90 transition-opacity group-hover:opacity-100"
-                        />
-                      ) : g.pending ? (
-                        <Cover size="fill" className="animate-pulse text-t-muted">
-                          {t('remote.matching')}
-                        </Cover>
-                      ) : (
-                        <Cover size="fill" className="text-t-muted">
-                          {it.source ? t('remote.noMatch') : ''}
-                        </Cover>
-                      )}
-                      <div className="p-2">
-                        <h3
-                          className="line-clamp-2 text-sm font-medium text-t-primary"
-                          title={mediaTitle(g.media, it.entry.name)}
-                        >
-                          {mediaTitle(g.media, it.entry.name)}
-                        </h3>
-                        {multi ? (
-                          <p className="font-mono text-ctl-xs text-accent">
-                            {t('remote.versions', { count: g.items.length })}
-                          </p>
-                        ) : (
-                          // while renamed, the name moves out of the tile's
-                          // button into a field below it: no input in a button
-                          renaming?.path !== it.entry.path && (
-                            <p className="truncate font-mono text-ctl-xs text-t-muted" title={it.entry.name}>
-                              {it.entry.name}
-                            </p>
-                          )
-                        )}
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {kind && (
-                            <Badge tone={kind === 'movie' ? 'accent' : 'neutral'}>
-                              {t(kind === 'movie' ? 'remote.kindMovie' : 'remote.kindSeries')}
-                            </Badge>
-                          )}
-                          {g.media && (
-                            <>
-                              {g.media.seasonYear > 0 && <Badge>{g.media.seasonYear}</Badge>}
-                              {g.media.episodes > 0 && <Badge>{g.media.episodes} EP</Badge>}
-                              {g.media.averageScore > 0 && (
-                                <Badge tone="accent">
-                                  <Star
-                                    aria-hidden
-                                    size="1em"
-                                    className="mr-0.5 inline align-[-0.125em]"
-                                    fill="currentColor"
-                                    strokeWidth={0}
-                                  />
-                                  {g.media.averageScore}
-                                </Badge>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        {/* local catalog: what is actually on disk, and how it
-                      compares to what the provider lists */}
-                        {it.local && (
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                            <Badge
-                              tone={
-                                g.media && g.media.episodes > 0 && it.local.videos >= g.media.episodes
-                                  ? 'ok'
-                                  : 'neutral'
-                              }
-                            >
-                              {t('local.videoCount', { count: it.local.videos })}
-                            </Badge>
-                            <Badge>{fmtBytes(it.local.bytes)}</Badge>
-                            {it.local.modTime && (
-                              <span className="font-mono text-ctl-xs text-t-faint" title={t('local.lastChange')}>
-                                {new Date(it.local.modTime).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                    {!multi && renaming?.path === it.entry.path && (
-                      <div className="px-2 pb-2">
-                        <InlineRename name={it.entry.name} onDone={renaming.onDone} className="w-full font-mono" />
-                      </div>
-                    )}
-                    {/* the poster's button plays: the narrow footer keeps its room */}
-                    <TileActions actions={actionsFor(g).filter((a) => a.key !== 'play')} />
-                  </Panel>
-                </Press>
-              )
-            })}
-          </div>
+                )
+              })}
+            </Rows>
+            {tiles.length > 0 && (
+              <SectionHeading
+                className="mt-6"
+                tone="accent-2"
+                title={t('catalog.matchedTitle')}
+                action={<span className="text-sm text-t-muted tabular-nums">{seriesCount}</span>}
+              />
+            )}
+          </section>
+        )}
+        {status && tiles.length === 0 && items.length > 0 && <p className="ws-cat-note">{t('catalog.noneInStatus')}</p>}
+        <div ref={grid} className="ws-cat-grid">
+          {tiles.map((g) => {
+            const it = g.items[0]
+            const name = mediaTitle(g.media, it.entry.name)
+            return (
+              <Press
+                key={g.key}
+                onLongPress={() => setSheet(g)}
+                onContextMenu={(e) => {
+                  // a right click lists the tile's actions, like a long press
+                  if (matchMedia('(pointer: fine)').matches) {
+                    e.preventDefault()
+                    setSheet(g)
+                  }
+                }}
+                className="ws-cat-cell t-reveal"
+                data-vt={vtName(g.key)}
+                data-fresh={fresh.has(it.entry.path) || undefined}
+              >
+                {g.media ? (
+                  <CatalogTile
+                    media={g.media}
+                    name={name}
+                    sub={subOf(g)}
+                    have={haveOf(g)}
+                    selected={g.items.some((v) => v.entry.path === selected)}
+                    onOpen={() => showDetail(g)}
+                  />
+                ) : (
+                  <CatalogPendingTile name={folderName(it.entry.name)} />
+                )}
+                {g.media && g.items.length === 1 && renaming?.path === it.entry.path && (
+                  <InlineRename name={it.entry.name} onDone={renaming.onDone} className="mt-1 w-full font-mono" />
+                )}
+              </Press>
+            )
+          })}
+        </div>
+        {items.length > 0 && (
+          <p className="ws-cat-foot">
+            {t('catalog.footFolders', { count: items.length })}, {t('catalog.footSeries', { count: seriesCount })}
+          </p>
         )}
         {sheet && (
           <ActionSheet
@@ -1787,84 +1769,8 @@ export interface TileAction {
 }
 
 const SEARCH_KEY = 'weebsync.search.recent'
-const LAYOUT_KEY = 'weebsync.files.layout'
 // few enough to fit two rows on a phone
 const SEARCH_KEEP = 5
-
-// The footer of a catalog tile. A touch device gives a small button 40px of
-// height, and four of them across a 140px tile leave 28px of width each -
-// upright slabs. Three is what fits at a sane width, so the third slot becomes
-// an overflow as soon as there is a fourth action. The buttons share the row
-// in equal parts, so every tile ends in the same bar.
-const CARD_ACTIONS = 'relative mx-2 mb-2 mt-auto flex gap-1.5 [&_.t-btn]:min-w-6! [&_.t-btn]:flex-1 [&_.t-btn]:px-1!'
-
-function TileActions({
-  actions,
-  max = 3,
-  className = CARD_ACTIONS,
-}: {
-  actions: TileAction[]
-  max?: number
-  className?: string
-}) {
-  const { t } = useTranslation()
-  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
-  if (actions.length === 0) return null
-  // up to `max` buttons; past that the last slot is the overflow
-  const inline = actions.length > max ? actions.slice(0, max - 1) : actions
-  const rest = actions.slice(inline.length)
-  const more = t('remote.tileActions')
-  return (
-    <div className={className} ref={ref} style={anchorStyle}>
-      {inline.map((a) => (
-        <Button
-          key={a.key}
-          size="sm"
-          variant={a.danger ? 'danger' : 'default'}
-          aria-label={a.aria}
-          title={a.label}
-          onClick={a.onClick}
-        >
-          {a.icon}
-        </Button>
-      ))}
-      {rest.length > 0 && (
-        // a sibling of the other buttons, not a box around one: wrapped, the
-        // slot sized itself and came out narrower than the rest of the row
-        <>
-          <Button
-            size="sm"
-            aria-label={more}
-            title={more}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            onClick={() => setOpen((o) => !o)}
-          >
-            <MoreHorizontal aria-hidden size="1.2em" />
-          </Button>
-          {open && (
-            <Menu kind="menu" anchor={anchor} placement="top-end" aria-label={more}>
-              {rest.map((a) => (
-                <MenuItem
-                  key={a.key}
-                  onClick={() => {
-                    setOpen(false)
-                    a.onClick()
-                  }}
-                >
-                  <span className={`flex items-center gap-2 ${a.danger ? 'text-err' : ''}`}>
-                    {a.icon}
-                    {a.label}
-                  </span>
-                </MenuItem>
-              ))}
-            </Menu>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
 
 // blankWatch is what a dialog starts from before the user's defaults apply.
 const blankWatch = (remotePath: string, localPath: string): WatchFields => ({

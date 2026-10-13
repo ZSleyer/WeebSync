@@ -1,0 +1,104 @@
+/* ═══ Dateien > Katalog: the head, the tile grid and the unmatched rows ═══ */
+
+.ws-cat-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.ws-cat-head > .t-select-wrap,
+.ws-cat-head > .ws-cat-sel { flex: 1 1 9rem; min-width: 0; }
+.ws-cat-note { font-size: 0.8125rem; color: var(--fg-3); margin: 0 0 1rem; }
+
+.ws-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem 0.75rem;
+}
+@media (width >= 40rem) {
+  .ws-cat-grid { grid-template-columns: repeat(auto-fill, minmax(9.25rem, 1fr)); gap: 1.5rem 1.125rem; }
+}
+/* off-screen tiles skip layout and paint until they come near; the size
+   stands in for them so the scrollbar does not jump */
+.ws-cat-cell { min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 18rem; }
+/* the page-entry rise: the tiles wait hidden through the first paint */
+.ws-cat-grid[data-rise-wait] > * { opacity: 0; }
+
+.ws-cat-tile {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  text-align: start;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--r-cover, 6px);
+}
+.ws-cat-tile--pending { cursor: default; }
+.ws-cat-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.ws-cat-tile[data-sel] .ws-cat-cover { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* the cover's frame clips the art zoom and the peek sliding up from its foot */
+.ws-cat-cover {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--r-cover, 6px);
+  aspect-ratio: 2 / 3;
+}
+.ws-cat-cover > .t-cover { width: 100%; height: 100%; }
+.ws-cat-sk { background: var(--hover); }
+
+.ws-cat-name {
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--fg);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.ws-cat-facts { margin-top: 0.125rem; font-size: 0.75rem; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.ws-cat-sub { font-size: 0.75rem; color: var(--fg-3); }
+.ws-cat-sub--sync { color: var(--accent-2); }
+.ws-cat-tile--pending :is(.ws-cat-name, .ws-cat-sub) { color: var(--fg-3); }
+
+/* studio and next airing on #000 at 82%, white: readable on any cover art */
+.ws-cat-peek {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  display: grid;
+  gap: 0.125rem;
+  padding: 1.375rem 0.5rem 0.5rem;
+  font-size: 0.71875rem;
+  line-height: 1.35;
+  color: #fff;
+  background: linear-gradient(rgb(0 0 0 / 0), rgb(0 0 0 / 0.82) 1.25rem);
+  opacity: 0;
+  translate: 0 100%;
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .ws-cat-tile:is(:hover, :focus-visible) .ws-cat-peek { opacity: 1; translate: 0 0; }
+  .ws-cat-tile:is(:hover, :focus-visible) .t-cover-bar { opacity: 0; }
+  .ws-cat-tile:focus-visible .t-cover > img { scale: 1.06; }
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not([data-motion="off"]) .ws-cat-peek {
+      transition: translate 420ms var(--spring-calm), opacity 260ms var(--ease-out);
+    }
+    :root:not([data-motion="off"]) .ws-cat-cover .t-cover-bar { transition: opacity var(--dur-2) var(--ease-out); }
+  }
+}
+
+/* a freshly matched cover arrives from a slight zoom */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="off"]) .ws-cat-cell[data-fresh] .t-cover > img[data-loaded] {
+    animation: ws-cat-fresh 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+@keyframes ws-cat-fresh { from { opacity: 0; transform: scale(1.04); } }
+
+.ws-cat-foot { margin-top: 1rem; font-size: 0.875rem; color: var(--fg-3); }
+.ws-cat-section { margin-bottom: 1.5rem; }
