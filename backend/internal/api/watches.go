@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -452,8 +453,13 @@ func (s *Server) runWatch(id int64) {
 	} else {
 		slog.Debug("watch checked", "id", id, "queued", 0, "owned", owned)
 	}
+	skips := res.Skips
+	if err != nil || skips == nil {
+		skips = []transfer.Skip{}
+	}
+	skipsJSON, _ := json.Marshal(skips)
 	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ?, last_filtered_eps = ?,
-		last_owned = ?, check_attempts = ?, retry_at = ? WHERE id = ?`, result, queued, uploading, filtered, epKeysCSV(filteredKeys), owned, attempts, retryAt, id)
+		last_owned = ?, check_attempts = ?, retry_at = ?, last_skips = ? WHERE id = ?`, result, queued, uploading, filtered, epKeysCSV(filteredKeys), owned, attempts, retryAt, string(skipsJSON), id)
 }
 
 // watchBackoff staggers the wait before a failed check is repeated: a minute,
