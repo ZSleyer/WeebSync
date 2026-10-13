@@ -158,8 +158,8 @@
 .t-glass {
   background: var(--glass-bg);
   border-color: var(--glass-line);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
   box-shadow: inset 0 1px 0 var(--glass-hi), 0 12px 32px -12px rgb(0 0 0 / 0.5);
 }
 @supports not (backdrop-filter: blur(1px)) {
@@ -2201,3 +2201,59 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
 }
 @keyframes t-fill { from { transform: scaleX(0); } }
 @keyframes t-enter-rise { from { opacity: 0; translate: 0 14px; } }
+
+/* ── Select: the trigger is a button (no native popup); the listbox is glass
+   in the top layer, the picked option in the accent with a check ── */
+button.t-select { display: flex; align-items: center; text-align: start; cursor: pointer; }
+.t-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-listbox { list-style: none; margin-block: 0.25rem 0; padding-inline: 0.25rem; max-width: min(90vw, 28rem); }
+.t-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--ctl-h);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r-item);
+  font-size: 0.875rem;
+  color: var(--fg-2);
+  cursor: pointer;
+}
+.t-option[data-active] { background: var(--hover); color: var(--fg); }
+.t-option[aria-selected="true"] { color: var(--accent); }
+.t-option[aria-selected="true"] > svg { flex: none; font-size: 1.125rem; }
+.t-option[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+.kbd button.t-select[aria-expanded="true"]:focus-visible { outline-offset: 2px; }
+
+/* ── Range: a 4px track and a round thumb drawn by the theme ── */
+input[type='range'] {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 1.5rem; /* the thumb's row is the touch target (WCAG 2.5.8) */
+  background: transparent;
+  cursor: pointer;
+}
+input[type='range']::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--line-strong); }
+input[type='range']::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line-strong); }
+input[type='range']::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: calc(2px - 0.5625rem);
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+input[type='range']::-moz-range-thumb { width: 1.125rem; height: 1.125rem; border: 0; border-radius: 50%; background: var(--accent); }
+input[type='range']:disabled { opacity: 0.45; cursor: not-allowed; }
+.kbd input[type='range']:focus-visible { outline: none; }
+.kbd input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+.kbd input[type='range']:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+
+/* ── Search fields: no UA clear button or decoration; a page that wants a
+   clear button draws its own ── */
+input[type='search'] { -webkit-appearance: none; appearance: none; }
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-decoration,
+input[type='search']::-webkit-search-results-button,
+input[type='search']::-webkit-search-results-decoration { -webkit-appearance: none; appearance: none; display: none; }

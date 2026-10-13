@@ -7,7 +7,6 @@ import type {
   LabelHTMLAttributes,
   ReactNode,
   Ref,
-  SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -143,24 +142,6 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
 
 export function Input({ size = 'md', className, ...rest }: InputProps) {
   return <input {...rest} className={cx('t-input', size === 'sm' && 't-input--sm', className)} />
-}
-
-export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
-  children: ReactNode
-  size?: 'md' | 'sm'
-  /** class for the wrapper that draws the chevron, not the select itself */
-  wrapperClassName?: string
-}
-
-/** Native select plus the chevron the wrapper draws. */
-export function Select({ size = 'md', className, wrapperClassName, children, ...rest }: SelectProps) {
-  return (
-    <span className={cx('t-select-wrap block', wrapperClassName)}>
-      <select {...rest} className={cx('t-select', size === 'sm' && 't-select--sm', className)}>
-        {children}
-      </select>
-    </span>
-  )
 }
 
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {

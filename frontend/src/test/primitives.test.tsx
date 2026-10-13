@@ -192,15 +192,15 @@ describe('Select', () => {
     expect(select).not.toHaveAttribute('size')
   })
 
-  it('renders its options as children of the select', () => {
+  it('shows the picked option on the trigger and keeps the list closed', () => {
     render(
       <Select aria-label="Sortierung" defaultValue="b">
         <option value="a">A</option>
         <option value="b">B</option>
       </Select>,
     )
-    expect(screen.getAllByRole('option')).toHaveLength(2)
-    expect(screen.getByRole('combobox')).toHaveValue('b')
+    expect(screen.getByRole('combobox')).toHaveTextContent('B')
+    expect(screen.queryByRole('listbox')).toBeNull()
   })
 })
 

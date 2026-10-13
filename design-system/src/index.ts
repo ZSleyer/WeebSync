@@ -18,7 +18,6 @@ export {
   ROW_GRID,
   Skeleton,
   Slot,
-  Select,
   Surface,
   Tab,
   Tabs,
@@ -45,7 +44,6 @@ export type {
   SkeletonProps,
   SlotProps,
   RadioProps,
-  SelectProps,
   SurfaceProps,
   TabProps,
   TabsProps,
@@ -125,6 +123,8 @@ export { Art, CoverBar, CoverScore, coverShare, CoverStatus } from './media'
 export type { ArtProps, CoverBarProps, CoverScoreProps, CoverStatusKind, CoverStatusProps } from './media'
 export { enterPage, RISE_MAX_STEPS, RISE_STEP_MS, riseSteps, useEnterPage, useWipe, Wipe, wipeOutMs } from './wipe'
 export type { WipePhase, WipeProps } from './wipe'
+export { Select, selectOptions, stepOption, typeAhead } from './select'
+export type { SelectOption, SelectProps } from './select'
 export { Rail, railEdges } from './rail'
 export type { RailEdges, RailProps } from './rail'
 export { SettingsField, Switch } from './controls'
