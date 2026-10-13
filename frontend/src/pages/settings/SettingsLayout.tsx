@@ -17,9 +17,8 @@ import {
 } from 'lucide-react'
 import { Navigate, NavLink } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Button, Input, navItemClass, Panel, useMediaQuery } from 'fluid-lycoris'
-import { api } from '../../api'
-import { useAuth, useUpdateHint } from '../../hooks'
+import { Button, Input, navItemClass, useMediaQuery } from 'fluid-lycoris'
+import { logout, useAuth, useUpdateHint } from '../../hooks'
 import { WIDE_MQ } from '../../components/PageActions'
 import { SectionOutlet } from '../../components/RouteTransition'
 import { SectionHub, SectionNav, type SectionGroup } from '../../components/SectionNav'
@@ -149,40 +148,38 @@ export function useSettingsGroups(): SectionGroup[] {
   ]
 }
 
-// The hub at /settings: one row per section with a hint, and the account row
-// with Logout. On a phone it is the screen behind the app bar's gear.
+// Who is signed in, and the way out: at the top of the settings menu on a
+// phone and on a desktop (the sidebar has no logout of its own).
+export function AccountCard() {
+  const { t } = useTranslation()
+  const { data: user } = useAuth()
+  return (
+    <section
+      aria-label={t('settings.nav.account')}
+      className="flex items-center justify-between gap-3 rounded-[var(--r-panel)] border border-border-subtle p-3"
+    >
+      <strong className="min-w-0 truncate text-sm font-medium" title={user?.email}>
+        {user?.email}
+      </strong>
+      <Button size="sm" onClick={() => void logout()}>
+        <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+        {t('app.logout')}
+      </Button>
+    </section>
+  )
+}
+
+// The hub at /settings: one row per section with a hint, and the account
+// card on top. On a phone it is the screen behind the app bar's gear.
 // Desktop has the side menu with the same sections, so there the
 // index opens the first section instead of listing the menu a second time.
 export function SettingsHub() {
-  const { t } = useTranslation()
-  const { data: user } = useAuth()
   const groups = useSettingsGroups()
   const wide = useMediaQuery(WIDE_MQ)
   if (wide) return <Navigate to="/settings/general" replace />
-  const logout = async () => {
-    try {
-      await api.post('/api/auth/logout')
-    } catch {
-      /* drop to the login screen either way */
-    }
-    window.location.href = '/'
-  }
   return (
     <SettingsSearch groups={groups}>
-      <SectionHub
-        groups={groups}
-        before={
-          <Panel className="flex items-center justify-between gap-3 p-3">
-            <span className="min-w-0 truncate font-mono text-xs text-t-muted" title={user?.email}>
-              {user?.email}
-            </span>
-            <Button size="sm" onClick={logout}>
-              <LogOut aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('app.logout')}
-            </Button>
-          </Panel>
-        }
-      />
+      <SectionHub groups={groups} before={<AccountCard />} />
     </SettingsSearch>
   )
 }
@@ -201,7 +198,8 @@ export default function SettingsLayout() {
       </header>
 
       <div className="flex flex-1 flex-col gap-6 lg:flex-row">
-        <div className="hidden shrink-0 lg:block lg:w-52">
+        <div className="hidden shrink-0 lg:flex lg:w-52 lg:flex-col lg:gap-4">
+          <AccountCard />
           <SettingsSearch groups={groups}>
             <SectionNav label={t('settings.navLabel')} groups={groups} />
           </SettingsSearch>

@@ -5,6 +5,23 @@ import i18n, { syncLocale } from './locales'
 
 let localeSynced = false
 
+/**
+ * Signs out and reloads at the root: a full reload re-gates the app on a
+ * fresh /api/auth/me (now 401) and drops every cached query of the previous
+ * user (a plain cache reset raced the data router's re-render and left stale
+ * content). `?loggedout`: in auto-redirect mode the login page would
+ * otherwise send the user straight back to the provider, which signs them in
+ * again.
+ */
+export async function logout() {
+  try {
+    await api.post('/api/auth/logout')
+  } catch {
+    // drop to the login screen either way: the user wants out
+  }
+  window.location.href = '/?loggedout=1'
+}
+
 export function useAuth() {
   return useQuery<User | null>({
     queryKey: ['me'],
