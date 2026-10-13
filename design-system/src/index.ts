@@ -64,6 +64,7 @@ export {
   timelineGap,
   CalendarEntry,
   Cover,
+  coverHue,
   Disclosure,
   EmptyState,
   FileBrowser,
@@ -120,6 +121,8 @@ export type {
 export { Row, RowAction, Rows, SectionHeading, TextLink } from './content'
 export type { CodeTone, GlyphTone, RowActionProps, RowProps, RowsProps, SectionHeadingProps, TextLinkProps } from './content'
 
+export { Art, CoverBar, CoverScore, coverShare, CoverStatus } from './media'
+export type { ArtProps, CoverBarProps, CoverScoreProps, CoverStatusKind, CoverStatusProps } from './media'
 export { SettingsField, Switch } from './controls'
 export type { SettingsFieldProps, SwitchProps } from './controls'
 

@@ -18,6 +18,8 @@
   --radius-2xl: var(--r-dialog);
   --radius-3xl: var(--r-dialog);
   --radius-4xl: var(--r-dialog);
+  --radius-cover: var(--r-cover);
+  --radius-sheet: var(--r-sheet);
   /* the small type steps of the controls, so dense meta text (sizes, dates,
      counts) grows with the touch scale instead of staying at a fixed 10px */
   --text-ctl-sm: var(--ctl-fs-sm);

@@ -34,19 +34,41 @@ export interface CoverProps {
   loading?: 'eager' | 'lazy'
   /** the poster's own colour (AniList's coverImage.color), shown until it loads */
   tint?: string
+  /**
+   * without an image: the title on a gradient in its own hue, instead of the
+   * hatched placeholder. Decorative - the tile around it names the title.
+   */
+  title?: string
   /** shown over the placeholder, e.g. a matching hint */
   children?: ReactNode
   className?: string
 }
 
+/** A stable hue (0-359) for a title, so its fallback cover keeps its colour between renders and visits. */
+export function coverHue(title: string): number {
+  let h = 0
+  for (let i = 0; i < title.length; i++) h = (h * 31 + title.charCodeAt(i)) >>> 0
+  return h % 360
+}
+
 /**
  * Poster thumbnail in a fixed frame. The frame decides the size and the image
  * is cropped into it, so a poster of any aspect ratio leaves the layout alone.
+ * Rounded, never ringed. Inside a button or link the art zooms on hover and
+ * the frame sinks on press (the stylesheet does it).
  */
-export function Cover({ src, size = 'md', alt = '', loading, tint, children, className }: CoverProps) {
+export function Cover({ src, size = 'md', alt = '', loading, tint, title, children, className }: CoverProps) {
   const frame = cx(COVER_BOX[size], size === 'fill' ? undefined : 'shrink-0')
   const box = cx(frame, className)
   if (!src) {
+    if (title) {
+      return (
+        <span className={cx('t-cover t-cover--fallback', box)} style={{ '--h': coverHue(title) } as CSSProperties}>
+          <b aria-hidden>{title}</b>
+          {children}
+        </span>
+      )
+    }
     return (
       <div className={cx('t-hatch grid place-items-center', box)}>{children}</div>
     )
@@ -81,7 +103,7 @@ export function Cover({ src, size = 'md', alt = '', loading, tint, children, cla
 function CoverButton({ src, tint, onClick, label, size, loading }: { src?: string; tint?: string; onClick?: () => void; label?: string; size?: CoverProps['size']; loading?: CoverProps['loading'] }) {
   if (!onClick) return <Cover src={src} tint={tint} size={size} loading={loading} />
   return (
-    <button type="button" aria-label={label} onClick={onClick} className="shrink-0 cursor-pointer rounded-xs">
+    <button type="button" aria-label={label} onClick={onClick} className="shrink-0 cursor-pointer rounded-cover">
       <Cover src={src} tint={tint} size={size} loading={loading} />
     </button>
   )

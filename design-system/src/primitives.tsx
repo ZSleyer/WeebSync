@@ -319,16 +319,14 @@ function WaveFill({ pct, active, small }: { pct: number; active: boolean; small:
   )
 }
 
-// The poster frames, shared by Cover and the cover-shaped Skeleton. The
-// radius follows the concentric rule against the panel each size sits in: a
-// calendar entry pads 8px around a small cover (10 - 8 = 2, floored to the xs
-// step), a media card 12px around a medium one. The fill size is flush with
-// its tile, which clips it - no radius of its own.
+// The poster frames, shared by Cover and the cover-shaped Skeleton. Every
+// size rounds by --r-cover: covers are the only cards, so they keep their own
+// corners wherever they sit.
 export const COVER_BOX = {
-  sm: 'h-14 w-10 rounded-xs',
-  md: 'h-20 w-14 rounded-xs',
-  lg: 'h-24 w-16 rounded-xs',
-  fill: 'aspect-2/3 w-full',
+  sm: 'h-14 w-10 rounded-cover',
+  md: 'h-20 w-14 rounded-cover',
+  lg: 'h-24 w-16 rounded-cover',
+  fill: 'aspect-2/3 w-full rounded-cover',
 } as const
 
 export interface SkeletonProps {

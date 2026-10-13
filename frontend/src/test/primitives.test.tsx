@@ -526,7 +526,7 @@ describe('Skeleton', () => {
 
   it('takes the poster frame of the matching cover size', () => {
     const { container } = render(<Skeleton shape="cover" size="sm" />)
-    expect(container.firstElementChild).toHaveClass('t-hatch', 'h-14', 'w-10', 'rounded-xs')
+    expect(container.firstElementChild).toHaveClass('t-hatch', 'h-14', 'w-10', 'rounded-cover')
   })
 
   it('leaves a block to the caller to size', () => {

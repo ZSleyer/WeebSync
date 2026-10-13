@@ -1998,3 +1998,100 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
 .t-sf--row > .t-sf-h { grid-column: 1 / -1; }
 .t-sf-l { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--fg); }
 .t-sf-h { margin: 0; font-size: var(--fs-meta); color: var(--fg-3); }
+
+/* ── Covers: rounded, no ring. Without art, the title on a gradient in its
+   own hue (--h). ── */
+.t-cover { position: relative; }
+.t-cover--fallback { display: block; background: linear-gradient(180deg, oklch(0.5 0.1 var(--h)) 0 55%, oklch(0.24 0.06 var(--h))); }
+.t-cover--fallback > b {
+  position: absolute;
+  inset: auto 0.5rem 0.5rem;
+  font: 700 var(--cover-fs, 0.8125rem)/1.02 var(--f-display);
+  text-transform: uppercase;
+  color: #fff;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.4);
+}
+/* every clickable cover answers the same way: the art zooms inside its frame
+   on hover, the frame sinks on press. Both layers stay promoted, so neither
+   movement ends in a raster jolt. */
+:is(button, a, [role="button"], [data-open]) .t-cover { will-change: scale; }
+:is(button, a, [role="button"], [data-open]) .t-cover > img { will-change: scale; transform-origin: 50% 40%; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :is(button, a, [role="button"], [data-open]) .t-cover > img {
+    transition: opacity var(--dur-3) var(--ease-out), scale 420ms var(--spring-calm);
+  }
+  :is(button, a, [role="button"], [data-open]):hover .t-cover > img { scale: 1.06; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(button, a, [role="button"], [data-open]) .t-cover { transition: scale 260ms var(--spring); }
+  :is(button, a, [role="button"], [data-open]):active .t-cover { scale: 0.97; transition-duration: 90ms; }
+}
+/* a row being dragged sideways is not a press */
+:is(.dragging, [data-drag]) .t-cover,
+:is(.dragging, [data-drag]) .t-cover > img { scale: none !important; }
+
+/* ── Art: a banner or backdrop as one layer, picture and dot screen
+   together, 5px past its frame on every side so an edge line baked into the
+   source never shows. The frame (the host's) clips. ── */
+.t-art {
+  position: absolute;
+  inset: -5px;
+  display: block;
+  overflow: hidden;
+  will-change: scale;
+  transform-origin: 50% 40%;
+}
+.t-art > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: 50% 35%;
+}
+.t-art-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle, rgb(0 0 0 / 0.55) 1px, transparent 1.4px) 0 0 / 5px 5px;
+  -webkit-mask-image: linear-gradient(var(--tone-dir, to top), #000, transparent 45%);
+  mask-image: linear-gradient(var(--tone-dir, to top), #000, transparent 45%);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :is(button, a, [role="button"], [data-open]) .t-art { transition: scale 420ms var(--spring-calm); }
+  :is(button, a, [role="button"], [data-open]):hover .t-art { scale: 1.06; }
+}
+
+/* ── Chips on a catalog cover: status top left, score top right, and a thin
+   teal bar along the foot for what is on disk ── */
+.t-cover-chip {
+  position: absolute;
+  top: 6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 1.25rem;
+  padding: 0 7px;
+  font: 600 0.6875rem/1 var(--f-sans);
+  border-radius: 4px;
+  color: var(--fg);
+  background: color-mix(in oklab, var(--bg) 82%, transparent);
+}
+.t-cover-status { left: 6px; }
+.t-cover-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-3); }
+.t-cover-status[data-status="live"]::before { background: var(--accent-2); }
+.t-cover-status[data-status="soon"]::before { background: var(--accent); }
+.t-cover-score { right: 6px; font-variant-numeric: tabular-nums; }
+.t-cover-score > svg { width: 11px; height: 11px; fill: var(--warn); }
+.t-cover-bar {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 2;
+  height: 4px;
+  background: color-mix(in oklab, var(--bg) 70%, transparent);
+}
+.t-cover-bar > i { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: var(--accent-2); }

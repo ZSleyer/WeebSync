@@ -12,6 +12,7 @@ import {
   DayTimeline,
   timelineGap,
   Cover,
+  coverHue,
   Disclosure,
   EmptyState,
   FileBrowser,
@@ -44,7 +45,7 @@ describe('Cover', () => {
     const img = screen.getByRole('img', { name: 'Poster' })
     expect(img).toHaveAttribute('src', '/p.jpg')
     expect(img).toHaveAttribute('loading', 'lazy')
-    expect(img).toHaveClass('object-cover', 'h-14', 'w-10', 'shrink-0', 'rounded-xs')
+    expect(img).toHaveClass('object-cover', 'h-14', 'w-10', 'shrink-0', 'rounded-cover')
   })
 
   it('drops shrink-0 for the fill size, which stretches to its grid cell', () => {
@@ -52,8 +53,16 @@ describe('Cover', () => {
     const img = screen.getByRole('img', { name: 'Poster' })
     expect(img).toHaveClass('aspect-2/3', 'w-full')
     expect(img).not.toHaveClass('shrink-0')
-    // flush with its tile, which clips it - no radius of its own
-    expect(img).not.toHaveClass('rounded-xs')
+    // covers keep their own corners wherever they sit
+    expect(img).toHaveClass('rounded-cover')
+  })
+
+  it('draws the title on its own hue when there is no art', () => {
+    const { container } = render(<Cover title="Lycoris Recoil" />)
+    const box = container.firstElementChild as HTMLElement
+    expect(box).toHaveClass('t-cover', 't-cover--fallback')
+    expect(box.style.getPropertyValue('--h')).toBe(String(coverHue('Lycoris Recoil')))
+    expect(screen.getByText('Lycoris Recoil')).toHaveAttribute('aria-hidden')
   })
 
   it('leaves the image out of the accessibility tree without an alt text', () => {
