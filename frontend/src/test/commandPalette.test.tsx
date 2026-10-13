@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CalendarDays, LayoutDashboard } from 'lucide-react'
-import CommandPalette from '../components/CommandPalette'
+import CommandPalette, { groupHits } from '../components/CommandPalette'
 import { SeriesModalProvider } from '../components/SeriesModal'
 import { api } from '../api'
 
@@ -155,5 +155,29 @@ describe('CommandPalette', () => {
     fireEvent.click(screen.getByRole('button', { name: 'palette.forget' }))
     expect(screen.queryByText('palette.recent')).toBeNull()
     expect(JSON.parse(localStorage.getItem('weebsync.palette.recent') ?? '[]')).toEqual([])
+  })
+
+  it('groups typed hits by kind, pages first, the series under their own heading', async () => {
+    app()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'nav' } })
+    const pages = await screen.findByText('palette.groups.pages')
+    const settings = screen.getByText('palette.groups.settings')
+    expect(pages.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe('groupHits', () => {
+  const e = (group: 'pages' | 'series' | 'settings', label: string) => ({ group, label })
+  it('keeps the group order and puts a match at the start first inside a group', () => {
+    const hits = groupHits(
+      [e('settings', 'Plex'), e('series', 'One Piece'), e('pages', 'Kalender'), e('series', 'Piece of Cake')],
+      'piece',
+    )
+    expect(hits.map((h) => h.label)).toEqual(['Piece of Cake', 'One Piece'])
+  })
+  it('caps the series at six', () => {
+    const many = Array.from({ length: 9 }, (_, i) => e('series', `Show ${i}`))
+    expect(groupHits(many, 'show')).toHaveLength(6)
   })
 })

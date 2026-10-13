@@ -1,0 +1,179 @@
+/* ── Command palette: full screen with the field on top on a phone, a 640px
+   box 12vh from the top with key hints at its foot on a desktop. Overrides
+   the design system's dialog box by weight (dialog.pal-dlg). ── */
+dialog.pal-dlg {
+  --dialog-max-h: 100dvh;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg-2);
+  box-shadow: none;
+}
+dialog.pal-dlg > .pal-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pal-in {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.625rem;
+  padding: calc(0.625rem + var(--safe-t)) 0.5rem 0.625rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.pal-glass { flex: none; color: var(--fg-3); }
+.pal-in input {
+  flex: 1;
+  min-width: 0;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.0625rem;
+  outline: none;
+}
+.pal-in input::placeholder { color: var(--fg-3); }
+.pal-in input::-webkit-search-cancel-button { display: none; }
+.pal-x {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--fg-3);
+  cursor: pointer;
+}
+.pal-x-kbd { display: none; }
+
+.pal-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.25rem 0.5rem calc(0.75rem + var(--safe-b) + var(--kb, 0px));
+}
+.pal-list > ul { margin: 0; padding: 0; list-style: none; }
+.pal-g {
+  margin: 0.875rem 0.5rem 0.375rem;
+  font: 600 0.8125rem/1 var(--f-display);
+  color: var(--fg-3);
+}
+.pal-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--r-ctl);
+  color: var(--fg);
+  cursor: pointer;
+}
+.pal-row[aria-selected="true"] { background: var(--hover); }
+.pal-cover {
+  flex: none;
+  width: 1.875rem;
+  height: 2.625rem;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--hover);
+}
+.pal-ic { display: grid; flex: none; place-items: center; width: 1.875rem; color: var(--fg-3); }
+.pal-t { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.pal-t > strong { overflow: hidden; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.pal-sub { display: flex; align-items: center; gap: 0.375rem; min-width: 0; font-size: 0.8125rem; color: var(--fg-3); }
+.pal-sub-t { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pal-where { flex: none; max-width: 45%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pal-path { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+/* the Delete hint shows on the lit recent row of a pointer that hovers; the
+   X forgets on a touch screen, which has no Delete key */
+.pal-hint { display: none; flex: none; }
+.pal-forget {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.375rem -0.5rem -0.375rem 0;
+  border: 0;
+  background: none;
+  color: var(--fg-3);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pal-forget { display: none; }
+  .pal-row[aria-selected="true"] .pal-hint { display: inline-block; }
+}
+.pal-status { margin: 0; padding: 0.5rem; font-size: 0.8125rem; color: var(--fg-3); }
+.pal-none { display: flex; align-items: center; gap: 0.5rem; margin: 0; padding: 1.5rem 0.5rem; color: var(--fg-3); }
+.pal-foot { display: none; }
+
+@media (min-width: 64rem) {
+  dialog.pal-dlg {
+    --dialog-max-h: min(560px, 76vh);
+    width: min(640px, 92vw);
+    height: auto;
+    max-height: var(--dialog-max-h);
+    margin: 12vh auto auto;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    box-shadow: 0 24px 48px -12px rgb(0 0 0 / 0.6);
+  }
+  dialog.pal-dlg > .pal-body { height: auto; max-height: var(--dialog-max-h); }
+  .pal-in { padding: 0.5rem 0.5rem 0.5rem 1rem; }
+  .pal-x-icon { display: none; }
+  .pal-x-kbd { display: inline-block; }
+  .pal-foot {
+    display: flex;
+    flex: none;
+    gap: 1.125rem;
+    margin: 0;
+    padding: 0.625rem 1rem;
+    border-top: 1px solid var(--line);
+    font-size: 0.75rem;
+    color: var(--fg-3);
+  }
+  .pal-foot .t-kbd { margin-right: 0.1875rem; }
+}
+
+/* ── Motion: a phone slides it up 16px (220ms), a desktop fades it in with
+   a small lift (150ms); closing is a 100ms fade either way. ── */
+dialog.pal-dlg {
+  transition:
+    opacity 220ms var(--ease-out),
+    transform 220ms var(--ease-out),
+    overlay 220ms allow-discrete,
+    display 220ms allow-discrete;
+}
+dialog.pal-dlg:not([open]) {
+  opacity: 0;
+  transform: none;
+  transition-duration: 100ms;
+  transition-timing-function: var(--ease-in);
+}
+@starting-style {
+  dialog.pal-dlg[open] { opacity: 0; transform: translateY(16px); }
+}
+@media (min-width: 64rem) {
+  dialog.pal-dlg { transition-duration: 150ms; }
+  @starting-style {
+    dialog.pal-dlg[open] { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.pal-dlg,
+  dialog.pal-dlg:not([open]) { transition: none; }
+}
+:root[data-motion="off"] dialog.pal-dlg,
+:root[data-motion="off"] dialog.pal-dlg:not([open]) { transition: none; }

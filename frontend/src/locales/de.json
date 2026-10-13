@@ -91,9 +91,24 @@
     "recent": "Zuletzt geöffnet",
     "discover": "Entdecken",
     "forget": "„{{name}}“ aus „Zuletzt geöffnet“ entfernen",
-    "none": "Nichts gefunden.",
+    "none": "Nichts gefunden für „{{q}}“.",
     "hint": "Einen Namen tippen: Kalender, Plex, eine Serie …",
     "local": "Lokale Bibliothek",
+    "entries_one": "{{count}} Eintrag",
+    "entries_other": "{{count}} Einträge",
+    "groups": {
+      "pages": "Seiten",
+      "series": "Serien",
+      "discover": "Entdecken",
+      "settings": "Einstellungen",
+      "files": "Dateien"
+    },
+    "keys": {
+      "choose": "wählen",
+      "open": "öffnen",
+      "delete": "Entf",
+      "forget": "aus „Zuletzt geöffnet“ entfernen"
+    },
     "searching": "Durchsucht die Server-Indexe …"
   },
   "nav": {

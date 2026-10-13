@@ -91,9 +91,24 @@
     "recent": "Recently opened",
     "discover": "Discover",
     "forget": "Remove \"{{name}}\" from recently opened",
-    "none": "Nothing found.",
+    "none": "Nothing found for \"{{q}}\".",
     "hint": "Type a name: calendar, Plex, a series …",
     "local": "Local library",
+    "entries_one": "{{count}} entry",
+    "entries_other": "{{count}} entries",
+    "groups": {
+      "pages": "Pages",
+      "series": "Series",
+      "discover": "Discover",
+      "settings": "Settings",
+      "files": "Files"
+    },
+    "keys": {
+      "choose": "choose",
+      "open": "open",
+      "delete": "Del",
+      "forget": "remove from recently opened"
+    },
     "searching": "Searching the server indexes …"
   },
   "nav": {

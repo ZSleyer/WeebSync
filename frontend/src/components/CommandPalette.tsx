@@ -3,7 +3,7 @@ import { File, Folder, Search, Sparkles, Settings, Tv, X, type LucideIcon } from
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Count, Dialog } from 'fluid-lycoris'
+import { Dialog, Kbd } from 'fluid-lycoris'
 import { api, mediaTitle, type ServerInfo, type Watch } from '../api'
 import { localColor, serverColor, tint, type SourceColorName } from './sourceColor'
 import { useSeriesModal } from './SeriesModal'
@@ -11,6 +11,7 @@ import { filesLink } from './playLinks'
 import { PANELS, useSettingsGroups } from '../pages/settings/SettingsLayout'
 import { useSuggestionGroups } from '../pages/Suggestions'
 import { DISCOVER_BASE, legacyDiscoverPath } from '../discoverRoutes'
+import './palette.css'
 
 export interface PalettePage {
   to: string
@@ -18,17 +19,26 @@ export interface PalettePage {
   icon: LucideIcon
 }
 
+/** the kinds of hit, in the order their groups are listed while typing */
+const GROUPS = ['pages', 'series', 'discover', 'settings', 'files'] as const
+type Group = (typeof GROUPS)[number]
+// how many hits a group shows at most; series get covers, so fewer
+const GROUP_MAX: Record<Group, number> = { pages: 8, series: 6, discover: 8, settings: 10, files: 12 }
+
 interface Entry {
   id: string
+  group: Group
   label: string
   /** where it lives, under the label */
   sub: string
+  /** what a query is matched against besides the label */
+  find?: string
   /** a folder path after the sub; cut from its start, the end names the place */
   path?: string
   icon: LucideIcon
+  /** a series' cover, drawn instead of the icon */
+  cover?: string
   run: () => void
-  /** a number at the end, e.g. how many suggestions wait in a list */
-  count?: number
   /** a source's tint (server or local library) for the icon and a dot */
   tint?: SourceColorName
 }
@@ -49,6 +59,23 @@ interface SearchHit {
   path: string
   name: string
   isDir: boolean
+}
+
+/**
+ * The hits for a query, grouped by kind in the fixed order of GROUPS. Inside
+ * a group a match at the start of the name comes before one further in, and
+ * otherwise the group keeps its own order.
+ */
+export function groupHits<E extends { group: Group; label: string; find?: string }>(entries: E[], needle: string) {
+  return GROUPS.flatMap((g) =>
+    entries
+      .filter((e) => e.group === g)
+      .map((e) => ({ e, pos: `${e.label} ${e.find ?? ''}`.toLocaleLowerCase().indexOf(needle) }))
+      .filter((x) => x.pos >= 0)
+      .sort((a, b) => Number(a.pos !== 0) - Number(b.pos !== 0))
+      .slice(0, GROUP_MAX[g])
+      .map((x) => x.e),
+  )
 }
 
 /**
@@ -116,43 +143,47 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   }
   // an entry's `to` is relative to its page, unless it leads elsewhere
   const under = (base: string, to: string) => (to.startsWith('/') ? to : `${base}/${to}`)
-  const sectionsOf = (base: string, groups: typeof settings, where: string): Entry[] =>
-    groups.flatMap((g) =>
-      g.items.map((i) => ({
-        id: under(base, i.to),
-        label: t(i.key),
-        sub: where,
-        icon: i.icon,
-        run: go(under(base, i.to)),
-      })),
-    )
-  const settingSections = sectionsOf('/settings', settings, t('nav.settings'))
+  const settingSections: Entry[] = settings.flatMap((g) =>
+    g.items.map((i) => ({
+      id: under('/settings', i.to),
+      group: 'settings' as const,
+      label: t(i.key),
+      sub: i.hint ? t(i.hint) : t('nav.settings'),
+      find: t('nav.settings'),
+      icon: i.icon,
+      run: go(under('/settings', i.to)),
+    })),
+  )
+  // the lists of Entdecken, each with how much waits in it
+  const discover: Entry[] = suggestions.flatMap((g) =>
+    g.items.map((i) => ({
+      id: `${DISCOVER_BASE}/${i.to}`,
+      group: 'discover' as const,
+      label: t(i.key),
+      sub: i.count ? t('palette.entries', { count: i.count }) : t(g.label),
+      find: t('nav.suggestions'),
+      icon: i.icon,
+      run: go(`${DISCOVER_BASE}/${i.to}`),
+    })),
+  )
   const entries: Entry[] = [
-    ...pages.map((p) => ({ id: p.to, label: t(p.key), sub: t('palette.page'), icon: p.icon, run: go(p.to) })),
-    ...sectionsOf(DISCOVER_BASE, suggestions, t('nav.suggestions')),
-    ...settingSections,
-    // a panel only where its section is listed: no admin panel for a user
-    ...PANELS.flatMap((p) => {
-      const section = settingSections.find((s) => s.id === `/settings/${p.to.split('#')[0]}`)
-      return section
-        ? [
-            {
-              id: `/settings/${p.to}`,
-              label: p.label ?? t(p.key!),
-              sub: `${t('nav.settings')} · ${section.label}`,
-              icon: Settings,
-              run: go(`/settings/${p.to}`),
-            },
-          ]
-        : []
-    }),
+    ...pages.map((p) => ({
+      id: p.to,
+      group: 'pages' as const,
+      label: t(p.key),
+      sub: t('palette.page'),
+      icon: p.icon,
+      run: go(p.to),
+    })),
     ...watches
       .filter((w) => w.media)
       .map((w) => ({
         id: `watch:${w.id}`,
+        group: 'series' as const,
         label: w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || ''),
         sub: t('nav.watches'),
         icon: Tv,
+        cover: w.media!.coverImage?.medium || w.media!.coverImage?.large || undefined,
         run: () => {
           onClose()
           // the palette's history entry goes first, then the card pushes its
@@ -174,6 +205,24 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
           const timer = setTimeout(once, 300)
         },
       })),
+    ...discover,
+    ...settingSections,
+    // a panel only where its section is listed: no admin panel for a user
+    ...PANELS.flatMap((p) => {
+      const section = settingSections.find((s) => s.id === `/settings/${p.to.split('#')[0]}`)
+      return section
+        ? [
+            {
+              id: `/settings/${p.to}`,
+              group: 'settings' as const,
+              label: p.label ?? t(p.key!),
+              sub: `${t('nav.settings')} · ${section.label}`,
+              icon: Settings,
+              run: go(`/settings/${p.to}`),
+            },
+          ]
+        : []
+    }),
   ]
 
   const needle = q.trim().toLocaleLowerCase()
@@ -192,16 +241,6 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
     }
   }
   const recent = recentIds.flatMap((id) => entries.filter((e) => e.id === id))
-  const discover: Entry[] = suggestions.flatMap((g) =>
-    g.items.map((i) => ({
-      id: `${DISCOVER_BASE}/${i.to}`,
-      label: t(i.key),
-      sub: t(g.label),
-      icon: i.icon,
-      count: i.count,
-      run: go(`${DISCOVER_BASE}/${i.to}`),
-    })),
-  )
   // a file opens the folder it lies in
   const files: Entry[] =
     needle && asked.toLocaleLowerCase() === needle
@@ -209,6 +248,7 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
           const dir = h.isDir ? h.path : h.path.slice(0, h.path.lastIndexOf('/'))
           return {
             id: `file:${h.serverId}:${h.path}`,
+            group: 'files' as const,
             label: h.name,
             sub: h.serverName || t('palette.local'),
             path: dir.slice(0, dir.lastIndexOf('/')) || '/',
@@ -221,17 +261,9 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
           }
         })
       : []
+  // the server already matched the files; they are only capped here
   const shown: Entry[] = needle
-    ? [
-        ...entries
-          .map((e) => ({ e, pos: `${e.label} ${e.sub}`.toLocaleLowerCase().indexOf(needle) }))
-          .filter((x) => x.pos >= 0)
-          // a match at the start of the name before one further in
-          .sort((a, b) => Number(a.pos !== 0) - Number(b.pos !== 0))
-          .slice(0, 30)
-          .map((x) => x.e),
-        ...files,
-      ]
+    ? [...groupHits(entries, needle), ...files.slice(0, GROUP_MAX.files)]
     : [...recent, ...discover.filter((d) => !recent.some((r) => r.id === d.id))]
   const sel = Math.min(at, shown.length - 1)
 
@@ -266,9 +298,10 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
     }
   }
 
-  // On a phone the box stands at the bottom, under the thumb, right above the
-  // keyboard: iOS does not shrink the layout for the keyboard, so the dialog
-  // is lifted by what the visual viewport lost at the bottom.
+  // On a phone the palette fills the screen and the keyboard covers its lower
+  // part. iOS does not shrink the layout for the keyboard, so the list gets
+  // what the visual viewport lost at the bottom as extra padding, and its
+  // last rows can still be scrolled into view.
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
@@ -297,124 +330,162 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   }, [needle])
 
   const optionId = (i: number) => `${listId}-${i}`
-  const heading = (text: string) => (
-    <li role="presentation" className="px-2 pt-2 pb-1.5 font-mono text-ctl-sm tracking-wider text-t-muted uppercase">
-      {text}
-    </li>
-  )
+  // the heading above row i, if a new group starts there
+  const headingAt = (i: number): string | null => {
+    if (!needle) {
+      if (i === 0 && recent.length > 0) return t('palette.recent')
+      if (i === recent.length) return t('palette.discover')
+      return null
+    }
+    const g = shown[i].group
+    return i === 0 || shown[i - 1].group !== g ? t(`palette.groups.${g}`) : null
+  }
+  const closeLabel = t('common.close')
   return (
-    // a centred box on a desktop; on a phone it stands at the bottom with the
-    // field last, so field and results are where the thumb is
+    // full screen with the field on top on a phone; a 640px box with key
+    // hints at its foot on a desktop (palette.css)
     <Dialog
-      width="max-w-lg"
+      width="pal-w"
       sheet={false}
       onClose={onClose}
       aria-label={t('palette.title')}
-      className="max-sm:mt-auto max-sm:mb-[calc(var(--kb,0px)+var(--safe-b)+0.5rem)]"
+      className="pal-dlg"
+      bodyClassName="pal-body"
     >
-      <div className="flex flex-col">
-        <div className="flex items-center gap-2 border-b border-border-subtle px-4">
-          <Search aria-hidden size="1.1em" className="shrink-0 text-t-muted" />
-          <input
-            autoFocus
-            role="combobox"
-            aria-expanded
-            aria-controls={listId}
-            aria-activedescendant={shown[sel] ? optionId(sel) : undefined}
-            aria-label={t('palette.title')}
-            placeholder={t('palette.placeholder')}
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value)
-              setAt(0)
-            }}
-            onKeyDown={onKeyDown}
-            className="min-w-0 flex-1 bg-transparent py-3.5 text-base text-t-primary outline-none placeholder:text-t-muted sm:text-sm"
-          />
-          <kbd className="rounded-xs border border-border-subtle px-1.5 font-mono text-ctl-sm text-t-muted max-sm:hidden">
+      <div className="pal-in">
+        <Search aria-hidden size={20} className="pal-glass" />
+        <input
+          autoFocus
+          role="combobox"
+          aria-expanded
+          aria-controls={listId}
+          aria-activedescendant={shown[sel] ? optionId(sel) : undefined}
+          aria-label={t('palette.title')}
+          placeholder={t('palette.placeholder')}
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value)
+            setAt(0)
+          }}
+          onKeyDown={onKeyDown}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        {/* an X on a phone, the Escape key cap on a desktop: one button */}
+        <button type="button" className="pal-x" aria-label={closeLabel} title={closeLabel} onClick={onClose}>
+          <X aria-hidden size={22} className="pal-x-icon" />
+          <Kbd className="pal-x-kbd" aria-hidden>
             Esc
-          </kbd>
-        </div>
-        <div ref={scroller} className="max-h-[min(60dvh,26rem)] overflow-y-auto p-2 max-sm:max-h-[min(50dvh,26rem)]">
-          <ul id={listId} role="listbox" aria-label={t('palette.title')}>
-            {shown.map((e, i) => (
+          </Kbd>
+        </button>
+      </div>
+      <div ref={scroller} className="pal-list">
+        <ul id={listId} role="listbox" aria-label={t('palette.title')}>
+          {shown.map((e, i) => {
+            const head = headingAt(i)
+            const isRecent = !needle && i < recent.length
+            return (
               <Fragment key={e.id}>
-                {!needle && i === 0 && recent.length > 0 && heading(t('palette.recent'))}
-                {!needle && i === recent.length && heading(t('palette.discover'))}
+                {head && (
+                  <li role="presentation" className="pal-g">
+                    {head}
+                  </li>
+                )}
                 <li
                   id={optionId(i)}
                   role="option"
                   aria-selected={i === sel}
                   onMouseMove={() => i !== sel && setAt(i)}
                   onClick={() => run(e)}
-                  className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm ${
-                    i === sel ? 'bg-bg-hover text-t-primary' : 'text-t-secondary'
-                  }`}
+                  className="pal-row"
                 >
-                  <e.icon
-                    aria-hidden
-                    size="1.1em"
-                    className={`shrink-0 ${e.tint ? 't-src' : ''}`}
-                    style={e.tint ? tint(e.tint) : undefined}
-                  />
+                  {e.cover ? (
+                    <img src={e.cover} alt="" loading="lazy" decoding="async" className="pal-cover" />
+                  ) : (
+                    <span className="pal-ic">
+                      <e.icon
+                        aria-hidden
+                        size={20}
+                        className={e.tint ? 't-src' : undefined}
+                        style={e.tint ? tint(e.tint) : undefined}
+                      />
+                    </span>
+                  )}
                   {/* name above, where it lives below: the name never has to
                       share its line with a long path */}
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate">{e.label}</span>
-                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-t-muted">
-                      {e.tint && <span aria-hidden className="t-src-dot shrink-0" style={tint(e.tint)} />}
-                      <span className={e.path ? 'max-w-[45%] shrink-0 truncate' : 'truncate'}>{e.sub}</span>
+                  <span className="pal-t">
+                    <strong>{e.label}</strong>
+                    <span className="pal-sub">
+                      {e.tint && <span aria-hidden className="t-src-dot" style={tint(e.tint)} />}
+                      <span className={e.path ? 'pal-where' : 'pal-sub-t'}>{e.sub}</span>
                       {e.path && (
                         <>
                           <span aria-hidden>·</span>
                           {/* rtl puts the ellipsis at the start, bdi keeps the path itself in order */}
-                          <span dir="rtl" className="min-w-0 truncate text-left" title={e.path}>
+                          <span dir="rtl" className="pal-path" title={e.path}>
                             <bdi>{e.path}</bdi>
                           </span>
                         </>
                       )}
                     </span>
                   </span>
-                  {e.count ? <Count className="shrink-0">{e.count}</Count> : null}
-                  {!needle && i < recent.length && (
-                    // forgets the entry; the row itself still opens it. Out of
-                    // the tab order: Delete does the same from the field
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      aria-label={t('palette.forget', { name: e.label })}
-                      title={t('palette.forget', { name: e.label })}
-                      onClick={(ev) => {
-                        ev.stopPropagation()
-                        forget(e.id)
-                      }}
-                      className="t-iconbtn -my-1 -mr-1 shrink-0 text-t-muted hover:text-t-primary"
-                    >
-                      <X aria-hidden size="1em" />
-                    </button>
+                  {isRecent && (
+                    <>
+                      {/* a pointer that hovers learns the key; Delete works from the field */}
+                      <Kbd aria-hidden className="pal-hint">
+                        {t('palette.keys.delete')}
+                      </Kbd>
+                      {/* a touch screen has no Delete key: the X forgets the entry,
+                          the row itself still opens it */}
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        aria-label={t('palette.forget', { name: e.label })}
+                        title={t('palette.forget', { name: e.label })}
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          forget(e.id)
+                        }}
+                        className="pal-forget"
+                      >
+                        <X aria-hidden size={18} />
+                      </button>
+                    </>
                   )}
                 </li>
               </Fragment>
-            ))}
-          </ul>
-          {needle.length >= 2 && (isFetching || asked.toLocaleLowerCase() !== needle) && (
-            <p className="px-2 py-2 text-xs text-t-muted" role="status">
-              {t('palette.searching')}
-            </p>
-          )}
-          {needle && shown.length === 0 && !isFetching && asked.toLocaleLowerCase() === needle && (
-            <p className="px-2 py-3 text-sm text-t-muted" role="status">
-              {t('palette.none')}
-            </p>
-          )}
-          {!needle && shown.length === 0 && (
-            <p className="flex items-center gap-2 px-2 py-3 text-sm text-t-muted">
-              <Sparkles aria-hidden size="1em" />
-              {t('palette.hint')}
-            </p>
-          )}
-        </div>
+            )
+          })}
+        </ul>
+        {needle.length >= 2 && (isFetching || asked.toLocaleLowerCase() !== needle) && (
+          <p className="pal-status" role="status">
+            {t('palette.searching')}
+          </p>
+        )}
+        {needle && shown.length === 0 && !isFetching && asked.toLocaleLowerCase() === needle && (
+          <p className="pal-none" role="status">
+            {t('palette.none', { q: q.trim() })}
+          </p>
+        )}
+        {!needle && shown.length === 0 && (
+          <p className="pal-none">
+            <Sparkles aria-hidden size={16} />
+            {t('palette.hint')}
+          </p>
+        )}
       </div>
+      <p className="pal-foot" aria-hidden>
+        <span>
+          <Kbd>↑</Kbd>
+          <Kbd>↓</Kbd> {t('palette.keys.choose')}
+        </span>
+        <span>
+          <Kbd>Enter</Kbd> {t('palette.keys.open')}
+        </span>
+        <span>
+          <Kbd>{t('palette.keys.delete')}</Kbd> {t('palette.keys.forget')}
+        </span>
+      </p>
     </Dialog>
   )
 }
