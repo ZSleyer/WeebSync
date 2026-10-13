@@ -190,11 +190,15 @@ export default function Servers() {
                 .map((s) => (
                   <li key={s.id} className="grid gap-2 p-3">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="min-w-28 font-medium">{s.name}</span>
+                      <span className="min-w-28 flex-1 font-medium sm:flex-none">{s.name}</span>
                       {s.hostKey ? (
-                        <code className="min-w-0 flex-1 font-mono text-xs break-all text-t-secondary">{s.hostKey}</code>
+                        <code className="order-last w-full font-mono text-xs break-all text-t-secondary sm:order-none sm:w-auto sm:min-w-0 sm:flex-1">
+                          {s.hostKey}
+                        </code>
                       ) : (
-                        <span className="flex-1 text-sm text-warn">{t('servers.hostKeyNone')}</span>
+                        <span className="order-last w-full text-sm text-warn sm:order-none sm:w-auto sm:flex-1">
+                          {t('servers.hostKeyNone')}
+                        </span>
                       )}
                       {checkedIn[s.id] === 'keys' && testResult[s.id] === 'ok' && (
                         <Badge tone="ok">{t('servers.hostKeySame')}</Badge>
