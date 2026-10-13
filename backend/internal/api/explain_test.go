@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/dbtest"
@@ -84,5 +86,83 @@ func TestExplainFolder(t *testing.T) {
 	}
 	if len(out.Bundle) != 1 || !strings.HasSuffix(out.Bundle[0], "[JapDub]") {
 		t.Errorf("bundle = %v, want the JapDub sibling", out.Bundle)
+	}
+}
+
+// TestWatchExplainLastSteps covers the language and version steps of the
+// newest file: name tags against the filter, the cached probe where the name
+// says nothing, and the older copy an upgrade moved into the trash.
+func TestWatchExplainLastSteps(t *testing.T) {
+	d := dbtest.Open(t)
+	s := &Server{DB: d, DownloadRoot: t.TempDir()}
+	mux := http.NewServeMux()
+	s.Register(mux)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'example.com', 22, 'u', X'00', '/')`)
+	c := cookieForUser(t, d, 1)
+	d.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, want_dub) VALUES (1, 1, '/x/Show', '/lib', 'Ger')`)
+
+	explain := func() watchExplainResponse {
+		t.Helper()
+		rec := doReq(mux, "GET", "/api/watches/1/explain", "", c)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("explain: got %d: %s", rec.Code, rec.Body)
+		}
+		var out watchExplainResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		if out.Last == nil {
+			t.Fatalf("no last file: %s", rec.Body)
+		}
+		return out
+	}
+
+	// tagged name, no upgrade: languages from the name, the filter it passed,
+	// nothing replaced
+	d.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, status, updated_at)
+		VALUES (1, 1, '/x/Show/Show - 02 [GerJapDub][GerSub].mkv', '/lib/Show/Show - S01E02.mkv', 1, 'done', '2026-10-01 10:00:00')`)
+	got := explain().Last
+	if got.Lang == nil || got.Lang.From != "name" || strings.Join(got.Lang.Dub, ",") != "Ger,Jap" ||
+		strings.Join(got.Lang.Sub, ",") != "Ger" || got.Lang.WantDub != "Ger" {
+		t.Errorf("tagged lang = %+v", got.Lang)
+	}
+	if got.Replaced != "" {
+		t.Errorf("replaced without an upgrade: %q", got.Replaced)
+	}
+
+	// untagged name: only a cached probe can answer, and without one the step
+	// shows the filter alone
+	d.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, status, updated_at, replace_old)
+		VALUES (1, 1, '/x/Show/Show - 03 v2.mkv', '/lib/Show/Show - S01E03.mkv', 1, 'done', '2026-10-02 10:00:00', 1)`)
+	got = explain().Last
+	if got.Lang == nil || got.Lang.From != "" || got.Lang.Dub != nil || got.Lang.WantDub != "Ger" {
+		t.Errorf("untagged, unprobed lang = %+v", got.Lang)
+	}
+	d.Exec(`INSERT INTO anilist_cache (key, payload) VALUES (?, '{"Dub":["ger","jpn"],"Sub":["und"]}')`,
+		langProbeKey(1, "/x/Show/Show - 03 v2.mkv"))
+	got = explain().Last
+	if got.Lang == nil || got.Lang.From != "probe" || strings.Join(got.Lang.Dub, ",") != "Ger,Jap" || got.Lang.Sub != nil {
+		t.Errorf("probed lang = %+v", got.Lang)
+	}
+
+	// the upgrade's trash: the same episode trashed at the finish wins over
+	// another episode, a sidecar and a copy trashed days apart
+	at := time.Date(2026, 10, 2, 10, 0, 0, 0, time.UTC).Unix()
+	trash := "/lib/Show/" + trashDir + "/"
+	d.Exec(`INSERT INTO trash_files (path, trashed_at) VALUES (?, ?), (?, ?), (?, ?), (?, ?)`,
+		trash+"Show - S01E03.mkv", at+2,
+		trash+"Show - S01E04.mkv", at+1,
+		trash+"Show - S01E03.ass", at+2,
+		trash+"Show - S01E03 [old].mkv", at-3*86400)
+	if got := explain().Last.Replaced; got != "Show - S01E03.mkv" {
+		t.Errorf("replaced = %q, want the trashed S01E03", got)
+	}
+
+	// a plain watch download replaced nothing, whatever the trash holds
+	d.Exec(`UPDATE downloads SET replace_old = 0`)
+	if got := explain().Last.Replaced; got != "" {
+		t.Errorf("replaced without replace_old: %q", got)
 	}
 }

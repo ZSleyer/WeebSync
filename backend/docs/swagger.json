@@ -6730,10 +6730,18 @@
                     "at": {
                         "type": "string"
                     },
+                    "lang": {
+                        "$ref": "#/components/schemas/api.watchLastLang",
+                        "description": "Lang is the language step: what the file carries and what the watch\nasked for. Absent when neither is known."
+                    },
                     "local": {
                         "type": "string"
                     },
                     "remote": {
+                        "type": "string"
+                    },
+                    "replaced": {
+                        "description": "Replaced is the version step: the file name of the older copy this one\nmoved into the trash folder (an upgrade sync, a v2 over its v1). Absent\nwhen it replaced nothing or the trash has been emptied since.",
                         "type": "string"
                     },
                     "size": {
@@ -6746,6 +6754,42 @@
                     "size",
                     "at"
                 ],
+                "type": "object"
+            },
+            "api.watchLastLang": {
+                "description": "Lang is the language step: what the file carries and what the watch\nasked for. Absent when neither is known.",
+                "properties": {
+                    "dub": {
+                        "description": "Dub and Sub are the audio and subtitle languages as app language codes\n(\"Ger\", \"Jap\").",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "from": {
+                        "description": "From says where they were read: name is the file's (or its folder's)\nlanguage tags, probe the tracks a header probe of the remote file found.",
+                        "enum": [
+                            "name",
+                            "probe"
+                        ],
+                        "type": "string"
+                    },
+                    "sub": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "wantDub": {
+                        "description": "WantDub and WantSub are the watch's language filter the file passed.",
+                        "type": "string"
+                    },
+                    "wantSub": {
+                        "type": "string"
+                    }
+                },
                 "type": "object"
             },
             "api.watchUpdateResponse": {
@@ -19232,7 +19276,7 @@
         },
         "/api/watches/{id}/explain": {
             "get": {
-                "description": "The reason a watch waits, its newest file and the files its last check did not queue.",
+                "description": "The reason a watch waits, its newest file with the language it carried and the older copy it replaced, and the files its last check did not queue.",
                 "parameters": [
                     {
                         "description": "Watch id",

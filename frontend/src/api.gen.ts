@@ -2919,9 +2919,42 @@ export interface Schemas {
   }
   'api.watchLastFile': {
     at: string
+    /**
+     * Lang is the language step: what the file carries and what the watch
+     * asked for. Absent when neither is known.
+     */
+    lang?: Schemas['api.watchLastLang']
     local: string
     remote: string
+    /**
+     * Replaced is the version step: the file name of the older copy this one
+     * moved into the trash folder (an upgrade sync, a v2 over its v1). Absent
+     * when it replaced nothing or the trash has been emptied since.
+     */
+    replaced?: string
     size: number
+  }
+  /**
+   * Lang is the language step: what the file carries and what the watch
+   * asked for. Absent when neither is known.
+   */
+  'api.watchLastLang': {
+    /**
+     * Dub and Sub are the audio and subtitle languages as app language codes
+     * ("Ger", "Jap").
+     */
+    dub?: string[]
+    /**
+     * From says where they were read: name is the file's (or its folder's)
+     * language tags, probe the tracks a header probe of the remote file found.
+     */
+    from?: "name" | "probe"
+    sub?: string[]
+    /**
+     * WantDub and WantSub are the watch's language filter the file passed.
+     */
+    wantDub?: string
+    wantSub?: string
   }
   'api.watchUpdateResponse': {
     moved?: Schemas['api.moveResult']
