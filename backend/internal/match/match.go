@@ -320,13 +320,42 @@ func seasonScore(info Info, have int) int {
 
 var ovaFormats = map[string]bool{"OVA": true, "SPECIAL": true, "ONA": true}
 
+// Signal is one reason a candidate gained or lost points. Code is stable and
+// translated by the frontend, Arg carries the detail a sentence needs (the
+// season, the year). Points sum to Scored.Score.
+type Signal struct {
+	Code   string `json:"code"`
+	Points int    `json:"points"`
+	Arg    string `json:"arg,omitempty"`
+}
+
+// Scored is one candidate as Pick saw it. Vetoed candidates aired in another
+// era than the folder names and were never scored.
+type Scored struct {
+	Index   int      `json:"index"`
+	Score   int      `json:"score"`
+	Vetoed  bool     `json:"vetoed,omitempty"`
+	Signals []Signal `json:"signals"`
+}
+
+// MinScore is the bar below which Pick is not confident: no shared token at
+// all, or one among many.
+const MinScore = 20
+
 // Pick returns the index of the best-scoring candidate for info. confident
 // is false when the folder explicitly names a sequel season or a movie and
 // no candidate plausibly is one - better unmatched than the wrong base entry.
 // Ties keep the lowest index (today's first-hit behavior).
 func Pick(info Info, list []anilist.Media) (int, bool) {
+	i, ok, _ := PickExplain(info, list)
+	return i, ok
+}
+
+// PickExplain is Pick with its reasons: every candidate with the signals that
+// make up its score, in list order.
+func PickExplain(info Info, list []anilist.Media) (int, bool, []Scored) {
 	if len(list) == 0 {
-		return 0, false
+		return 0, false, nil
 	}
 	names := []string{FoldKey(info.Full)}
 	sets := []map[string]bool{tokens(info.Full)}
@@ -334,12 +363,14 @@ func Pick(info Info, list []anilist.Media) (int, bool) {
 		names = append(names, FoldKey(info.Alt))
 		sets = append(sets, tokens(info.Alt))
 	}
+	out := make([]Scored, 0, len(list))
 	best, bestScore := 0, -1<<30
 	for i, m := range list {
 		// a folder that names its year ("Skyscraper (2018)", "One Piece (2022)")
 		// is not the entry that aired decades away, however well the title
 		// fits: that is how a live-action film got filed under an anime
 		if info.Year != 0 && m.SeasonYear != 0 && abs(m.SeasonYear-info.Year) > 2 {
+			out = append(out, Scored{Index: i, Vetoed: true, Signals: []Signal{{Code: "year_veto", Arg: strconv.Itoa(m.SeasonYear)}}})
 			continue
 		}
 		cands := []string{
@@ -348,13 +379,18 @@ func Pick(info Info, list []anilist.Media) (int, bool) {
 			FoldKey(StripMarkers(m.Title.Romaji)),
 			FoldKey(StripMarkers(m.Title.English)),
 		}
-		score := 0
+		sig := []Signal{}
+		add := func(code string, pts int, arg string) {
+			if pts != 0 {
+				sig = append(sig, Signal{Code: code, Points: pts, Arg: arg})
+			}
+		}
 		for _, n := range names {
 			// space-blind equality also catches spelling-variant spacing
 			// ("YuruYuri" vs "Yuru Yuri", "PERSONA5" vs "Persona 5")
 			if n != "" && (n == cands[0] || n == cands[1] ||
 				squash(n) == squash(cands[0]) || squash(n) == squash(cands[1])) {
-				score += 100
+				add("title_fold", 100, "")
 				break
 			}
 		}
@@ -364,7 +400,7 @@ func Pick(info Info, list []anilist.Media) (int, bool) {
 		for _, t := range []string{m.Title.Romaji, m.Title.English} {
 			if t != "" && (Normalize(t) == Normalize(info.Full) || (info.Alt != "" && Normalize(t) == Normalize(info.Alt))) {
 				strict = true
-				score += 15
+				add("title_strict", 15, "")
 				break
 			}
 		}
@@ -374,7 +410,7 @@ func Pick(info Info, list []anilist.Media) (int, bool) {
 				bestDice = max(bestDice, dice(set, tokens(c)))
 			}
 		}
-		score += int(bestDice * 50)
+		add("words", int(bestDice*50), strconv.Itoa(int(bestDice*100)))
 		// the folder names the entry with fewer words ("Frieren" for "Sousou
 		// no Frieren"): whole-token containment of the folder name in the
 		// title, with the folder side substantial enough that a stray word
@@ -382,50 +418,56 @@ func Pick(info Info, list []anilist.Media) (int, bool) {
 		// ("Haikyu OVA") must not hand the base entry a bonus over the OVA.
 		for _, n := range names {
 			if n != "" && (contains(n, cands[0]) || contains(n, cands[1])) {
-				score += 25
+				add("contained", 25, "")
 				break
 			}
 		}
 		// a strictly equal title overrides a season contradiction: the
 		// folder "K-On!!" IS the entry titled "K-ON!!"/"K-ON! Season 2"
-		if ss := seasonScore(info, SeasonOf(m)); ss > 0 || !strict {
-			score += ss
+		have := SeasonOf(m)
+		if ss := seasonScore(info, have); ss > 0 || !strict {
+			add("season", ss, strconv.Itoa(have))
 		}
 		if info.Movie {
 			switch m.Format {
 			case "MOVIE":
-				score += 30
+				add("movie_format", 30, m.Format)
 			case "TV":
-				score -= 20
+				add("movie_format", -20, m.Format)
 			}
 		}
 		if info.OVA && ovaFormats[m.Format] {
-			score += 25
+			add("ova_format", 25, m.Format)
 		}
 		if info.Year != 0 && m.SeasonYear != 0 && abs(m.SeasonYear-info.Year) <= 1 {
-			score += 10
+			add("year", 10, strconv.Itoa(m.SeasonYear))
 		}
 		// teaser/PV entries carry season markers of the season they announce
 		// and must never beat the real thing
 		if promoRe.MatchString(m.Title.Romaji) || promoRe.MatchString(m.Title.English) {
-			score -= 60
+			add("promo", -60, "")
 		}
+		score := 0
+		for _, x := range sig {
+			score += x.Points
+		}
+		out = append(out, Scored{Index: i, Score: score, Signals: sig})
 		if score > bestScore {
 			best, bestScore = i, score
 		}
 	}
 	if bestScore == -1<<30 {
-		return 0, false // every candidate aired in another era
+		return 0, false, out // every candidate aired in another era
 	}
 	// below this nothing about the titles agrees: no shared token at all, or
 	// one among many. Before, a first season took whatever the search
 	// returned and "Skyscraper" became Detective Conan. The bar stays low
 	// because folders are often named in German ("Detektiv Conan") while the
 	// entry carries romaji and English, and one shared word is all they have.
-	if bestScore < 20 {
-		return best, false
+	if bestScore < MinScore {
+		return best, false, out
 	}
-	return best, true
+	return best, true, out
 }
 
 // contains reports whether the folder's fold key is a whole-token run inside

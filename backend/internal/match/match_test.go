@@ -124,6 +124,53 @@ func TestPick(t *testing.T) {
 	}
 }
 
+// The explanation must be the decision: signals add up to the score, the
+// pick is the first highest score, and confidence is the same bar.
+func TestPickExplainAgrees(t *testing.T) {
+	lists := [][]anilist.Media{quintuplets, heroAcademia, fruitsBasket, yamiShibai, fireForce, noGunsLife, psychoPass, haikyuu}
+	names := []string{
+		"5-toubun no Hanayome S2 [GerSub]", "5-toubun no Hanayome (The Quintessential Quintuplets Movie) [GerDub]",
+		"Boku no Hero Academia S3 (My Hero Academia S3) [GerDub]", "Fruits Basket [GerDub,GerSub]", "Yami Shibai 10 [GerSub]",
+		"En'en no Shouboutai Ni no Shou (Fire Force S2) [GerDub]", "Psycho-Pass 2 [GerDub,GerSub]", "Haikyu OVA [GerSub]",
+		"Kingdom S3 [GerSub]", "Skyscraper (2018) [GerDub]",
+	}
+	for _, name := range names {
+		info := ParseName(name, GuessTitle(name), GuessAltTitle(name))
+		for _, list := range lists {
+			idx, ok := Pick(info, list)
+			eidx, eok, scored := PickExplain(info, list)
+			if idx != eidx || ok != eok {
+				t.Fatalf("%q: Pick = %d,%v but PickExplain = %d,%v", name, idx, ok, eidx, eok)
+			}
+			if len(scored) != len(list) {
+				t.Fatalf("%q: %d scored for %d candidates", name, len(scored), len(list))
+			}
+			best, bestScore := -1, 0
+			for i, s := range scored {
+				if s.Index != i {
+					t.Fatalf("%q: scored[%d].Index = %d", name, i, s.Index)
+				}
+				if s.Vetoed {
+					continue
+				}
+				sum := 0
+				for _, g := range s.Signals {
+					sum += g.Points
+				}
+				if sum != s.Score {
+					t.Errorf("%q cand %d: signals sum %d, score %d", name, i, sum, s.Score)
+				}
+				if best < 0 || s.Score > bestScore {
+					best, bestScore = i, s.Score
+				}
+			}
+			if best >= 0 && (best != idx || ok != (bestScore >= MinScore)) {
+				t.Errorf("%q: explained best %d (%d), Pick %d confident=%v", name, best, bestScore, idx, ok)
+			}
+		}
+	}
+}
+
 func TestPickOVA(t *testing.T) {
 	// the OVA-format candidate must beat the TV base entry
 	got, ok := pick(t, "Haikyu OVA [GerSub]", haikyuu)
