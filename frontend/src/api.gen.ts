@@ -304,6 +304,11 @@ export interface Schemas {
      */
     cover?: string
     /**
+     * CoverLarge is the same poster at twice the edge (AniList's extraLarge),
+     * for a srcset; empty where the provider has only the one size
+     */
+    coverLarge?: string
+    /**
      * remote show folder, the parent of a season subfolder
      */
     folder: string
@@ -322,12 +327,29 @@ export interface Schemas {
     watchId?: number
   }
   'api.DownloadItemMeta': {
+    /**
+     * Dub and Sub are the audio and subtitle languages the names advertise,
+     * as app language codes ("Ger", "Jap")
+     */
+    dub?: string[]
     episode?: number
     /**
      * group key
      */
     g: string
+    rate?: number
+    /**
+     * Res is the video height the file names advertise (1080 for "1080p"),
+     * 0 when they say none
+     */
+    res?: number
     season?: number
+    /**
+     * Secs and Rate describe a done download's last run: how long it took
+     * and its mean speed in bytes per second. Zero when not measured.
+     */
+    secs?: number
+    sub?: string[]
     /**
      * episode title, only when the provider cache is warm
      */
@@ -2858,8 +2880,9 @@ export interface Schemas {
      */
     errorCode?: string
     /**
-     * FinishedAt is when a done row landed (UTC, as SQLite writes it), for
-     * "new here"; empty while it is not done. Only the list fills it.
+     * FinishedAt is when a finished row (done, error, canceled) ended (UTC,
+     * as SQLite writes it), for "new here" and the history; empty while it
+     * is still on its way. Only the list fills it.
      */
     finishedAt?: string
     id: number

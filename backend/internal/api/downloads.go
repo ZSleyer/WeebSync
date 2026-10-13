@@ -23,10 +23,10 @@ import (
 // @Router   /api/downloads [get]
 func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	// a done row's last update is the moment it landed: the status change
-	// is its last write
+	// a finished row's last update is the moment it ended (landed, failed or
+	// was cancelled): the status change is its last write
 	rows, err := s.DB.Query(`SELECT id, user_id, server_id, remote_path, local_path, size, transferred, status, error, error_code, rate_limit, attempts, retry_at, replace_old, queue_pos, created_at,
-		CASE WHEN status = 'done' THEN COALESCE(updated_at, '') ELSE '' END
+		CASE WHEN status IN ('done', 'error', 'canceled') THEN COALESCE(updated_at, '') ELSE '' END
 		FROM downloads WHERE user_id = ? ORDER BY id DESC LIMIT 500`, u.ID)
 	if err != nil {
 		dbErr(w)

@@ -623,6 +623,10 @@
                         "description": "provider poster url, loaded straight by the browser",
                         "type": "string"
                     },
+                    "coverLarge": {
+                        "description": "CoverLarge is the same poster at twice the edge (AniList's extraLarge),\nfor a srcset; empty where the provider has only the one size",
+                        "type": "string"
+                    },
                     "folder": {
                         "description": "remote show folder, the parent of a season subfolder",
                         "type": "string"
@@ -664,6 +668,14 @@
             },
             "api.DownloadItemMeta": {
                 "properties": {
+                    "dub": {
+                        "description": "Dub and Sub are the audio and subtitle languages the names advertise,\nas app language codes (\"Ger\", \"Jap\")",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "episode": {
                         "type": "integer"
                     },
@@ -671,8 +683,26 @@
                         "description": "group key",
                         "type": "string"
                     },
+                    "rate": {
+                        "type": "integer"
+                    },
+                    "res": {
+                        "description": "Res is the video height the file names advertise (1080 for \"1080p\"),\n0 when they say none",
+                        "type": "integer"
+                    },
                     "season": {
                         "type": "integer"
+                    },
+                    "secs": {
+                        "description": "Secs and Rate describe a done download's last run: how long it took\nand its mean speed in bytes per second. Zero when not measured.",
+                        "type": "integer"
+                    },
+                    "sub": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     },
                     "title": {
                         "description": "episode title, only when the provider cache is warm",
@@ -6666,7 +6696,7 @@
                         "type": "string"
                     },
                     "finishedAt": {
-                        "description": "FinishedAt is when a done row landed (UTC, as SQLite writes it), for\n\"new here\"; empty while it is not done. Only the list fills it.",
+                        "description": "FinishedAt is when a finished row (done, error, canceled) ended (UTC,\nas SQLite writes it), for \"new here\" and the history; empty while it\nis still on its way. Only the list fills it.",
                         "type": "string"
                     },
                     "id": {

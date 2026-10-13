@@ -58,8 +58,9 @@ type Download struct {
 	// QueuePos orders the queue: the scheduler starts the lowest first.
 	QueuePos  int64  `json:"queuePos"`
 	CreatedAt string `json:"createdAt"`
-	// FinishedAt is when a done row landed (UTC, as SQLite writes it), for
-	// "new here"; empty while it is not done. Only the list fills it.
+	// FinishedAt is when a finished row (done, error, canceled) ended (UTC,
+	// as SQLite writes it), for "new here" and the history; empty while it
+	// is still on its way. Only the list fills it.
 	FinishedAt string `json:"finishedAt,omitempty"`
 }
 
@@ -249,6 +250,9 @@ func (m *Manager) startDownload(id int64) {
 	m.active[id] = r
 	m.mu.Unlock()
 
+	// the start of this run and the bytes it resumes from: the history's
+	// duration and rate are measured from here to the row's last write
+	m.execRetry("startedAt", `UPDATE downloads SET started_at = datetime('now'), start_bytes = transferred WHERE id = ?`, id)
 	m.setStatus(id, "running", "", "")
 	m.wg.Add(1)
 	go func() {
