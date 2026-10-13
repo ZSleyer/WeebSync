@@ -8,36 +8,44 @@
    a dialog. Hairline borders, flat fills, no glow; only dots, avatars and
    progress bars are fully round. */
 
-/* ── Theme variables (WCAG AA pairs) ──
-   Dark is OLED black: a true black page, neutral grey surfaces stepping up
-   from it, no blue cast. The text is an off-white rather than #eef3f8 - on
-   black, pure white halates. Every text and accent token clears 4.5:1 on all
-   four surfaces, checked with the contrast script in the plan; the hover
-   surface is the tightest pair (crimson accent on a selected row, 4.6:1),
-   so it must not get lighter. */
+/* ── Theme tokens ──
+   Colour code: the accent (red, the Lycoris half) is live, new and the main
+   action; accent-2 (teal, the Recoil half) is sync, matching, rules,
+   explanations and airing times. A scheme may swap the two, never mix them.
+   Dark is the default and OLED: a true black page, surfaces that carry only a
+   shimmer of navy. Light is white with blush and mint. Every text colour
+   clears 4.5:1 on bg, bg-2, card and hover in its theme; --line-strong is the
+   3:1 edge of a field or an unchecked box (WCAG 1.4.11), --line the
+   decorative hairline. --err leans orange because the accent is already red:
+   an error always carries an icon and a word as well. */
 :root,
 [data-theme="dark"] {
-  --bg-primary: #000000;
-  --bg-secondary: #0b0b0d;
-  --bg-card: #141417;
-  --bg-hover: #1c1c20;
-  --accent-blue: #ffa14a; /* orange, the default; user-themable via [data-accent] */
-  --accent-green: #34d67a;
-  --accent-yellow: #ffb020;
-  --accent-red: #f56b6b;
-  --border-subtle: #2a2a30;
-  /* the edge of a text field or an unchecked box is its only boundary, so
-     it needs 3:1 against every surface it sits on (WCAG 1.4.11) - the
-     hairline is decorative and stays at 1.5 */
-  --border-input: #6a6a74;
-  --border-active: var(--accent-blue);
-  --text-primary: #e6ebf0;
-  --text-secondary: #b7c5d3;
-  --text-muted: #8fa3b5;
-  --text-faint: #8899ab;
+  --bg: #000000;
+  --bg-2: #05070d;
+  --card: #0b1120;
+  --hover: #131b2e;
+  --line: #1f2a40;
+  --line-strong: #6b819c;
+  --fg: #eef2f7;
+  --fg-2: #bccadb;
+  --fg-3: #8ea2b9;
+  --accent: #ef6177;
+  --on-accent: #1a0509;
+  --accent-2: #33c2b5;
+  --on-accent-2: #03201d;
+  --tint-1: color-mix(in oklab, #ef6177 16%, #000000);
+  --tint-2: color-mix(in oklab, #33c2b5 14%, #000000);
+  --ok: #5fd38d;
+  --warn: #f2c46b;
+  --err: #ff9a5c;
+  --scrim: rgb(0 0 0 / 0.66);
+  /* the art colours: the two halves of the code, the cream of the key visual
+     and the ink of a printed line */
+  --fl-ink: #000000;
+  --fl-cream: #f4ead6;
   --scrollbar-track: #000000;
-  --scrollbar-thumb: #2a2a30;
-  --scrollbar-thumb-hover: #4a4a54;
+  --scrollbar-thumb: #1f2a40;
+  --scrollbar-thumb-hover: #3a4b68;
   /* glass for floating layers: tinted black, never grey, so on an OLED panel
      it reads as depth rather than a milky veil. 78% keeps grey text at 4.5:1
      even with a white poster behind it (66% fell to ~4.3:1). */
@@ -47,29 +55,98 @@
   color-scheme: dark;
 }
 
+/* light: set by [data-theme="light"], or by the OS when the host sets no
+   theme at all (the two blocks carry the same values) */
 [data-theme="light"] {
-  --bg-primary: #eef1f4;
-  --bg-secondary: #f8fafb;
-  --bg-card: #ffffff;
-  --bg-hover: #e2e7ed;
-  --accent-blue: #b03a0b;
-  --accent-green: #0c5f2c;
-  --accent-yellow: #854307;
-  --accent-red: #b91c1c;
-  --border-subtle: #c3ccd6;
-  --border-input: #767f8b;
-  --border-active: var(--accent-blue);
-  --text-primary: #0a1628;
-  --text-secondary: #2d4059;
-  --text-muted: #4a5f73;
-  --text-faint: #556270;
-  --scrollbar-track: #eef1f4;
-  --scrollbar-thumb: #c3ccd6;
-  --scrollbar-thumb-hover: #8fa3b5;
+  --bg: #fdf8f8;
+  --bg-2: #ffffff;
+  --card: #ffffff;
+  --hover: #fbe9ec;
+  --line: #ecd3d8;
+  --line-strong: #8a6f76;
+  --fg: #1b2238;
+  --fg-2: #3a4462;
+  --fg-3: #5a6380;
+  --accent: #b3263f;
+  --on-accent: #ffffff;
+  --accent-2: #0c7069;
+  --on-accent-2: #ffffff;
+  --tint-1: #fcecf5;
+  --tint-2: #e9faf8;
+  --ok: #1d6b3d;
+  --warn: #7d5200;
+  --err: #a8440a;
+  --scrim: rgb(27 34 56 / 0.32);
+  --fl-ink: #1b2238;
+  --scrollbar-track: #fdf8f8;
+  --scrollbar-thumb: #ecd3d8;
+  --scrollbar-thumb-hover: #8a6f76;
   --glass-bg: rgb(255 255 255 / 0.8);
-  --glass-line: rgb(10 22 40 / 0.12);
+  --glass-line: rgb(27 34 56 / 0.12);
   --glass-hi: rgb(255 255 255 / 0.7);
   color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg: #fdf8f8;
+    --bg-2: #ffffff;
+    --card: #ffffff;
+    --hover: #fbe9ec;
+    --line: #ecd3d8;
+    --line-strong: #8a6f76;
+    --fg: #1b2238;
+    --fg-2: #3a4462;
+    --fg-3: #5a6380;
+    --accent: #b3263f;
+    --on-accent: #ffffff;
+    --accent-2: #0c7069;
+    --on-accent-2: #ffffff;
+    --tint-1: #fcecf5;
+    --tint-2: #e9faf8;
+    --ok: #1d6b3d;
+    --warn: #7d5200;
+    --err: #a8440a;
+    --scrim: rgb(27 34 56 / 0.32);
+    --fl-ink: #1b2238;
+    --scrollbar-track: #fdf8f8;
+    --scrollbar-thumb: #ecd3d8;
+    --scrollbar-thumb-hover: #8a6f76;
+    --glass-bg: rgb(255 255 255 / 0.8);
+    --glass-line: rgb(27 34 56 / 0.12);
+    --glass-hi: rgb(255 255 255 / 0.7);
+    color-scheme: light;
+  }
+}
+
+/* Recoil: the scheme that swaps the halves. The accent turns teal and the
+   accent-2 red, so the main action is teal and sync is red - the code stays
+   a pair, only the leading colour changes. */
+[data-scheme="recoil"] {
+  --accent: #33c2b5;
+  --on-accent: #03201d;
+  --accent-2: #ef6177;
+  --on-accent-2: #1a0509;
+  --tint-1: color-mix(in oklab, #33c2b5 14%, #000000);
+  --tint-2: color-mix(in oklab, #ef6177 16%, #000000);
+}
+[data-theme="light"][data-scheme="recoil"],
+[data-theme="light"] [data-scheme="recoil"] {
+  --accent: #0c7069;
+  --on-accent: #ffffff;
+  --accent-2: #b3263f;
+  --on-accent-2: #ffffff;
+  --tint-1: #e9faf8;
+  --tint-2: #fcecf5;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme])[data-scheme="recoil"] {
+    --accent: #0c7069;
+    --on-accent: #ffffff;
+    --accent-2: #b3263f;
+    --on-accent-2: #ffffff;
+    --tint-1: #e9faf8;
+    --tint-2: #fcecf5;
+  }
 }
 
 /* ── Glass: only for layers that float over content (menus, the player's
@@ -86,10 +163,10 @@
   box-shadow: inset 0 1px 0 var(--glass-hi), 0 12px 32px -12px rgb(0 0 0 / 0.5);
 }
 @supports not (backdrop-filter: blur(1px)) {
-  .t-glass { background: var(--bg-secondary); }
+  .t-glass { background: var(--bg-2); }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .t-glass { background: var(--bg-secondary); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .t-glass { background: var(--bg-2); backdrop-filter: none; -webkit-backdrop-filter: none; }
   /* :root for weight - the player's own block comes later in the file */
   :root .t-player { --pl-surface: rgb(0 0 0 / 0.9); --pl-blur: none; }
 }
@@ -106,6 +183,25 @@
      that makes a state change feel physical. Colour and opacity never use it */
   --m3-spatial: linear(0, 0.21 4.5%, 0.53 10%, 0.79 16%, 0.95 22%, 1.03 29%, 1.05 35%, 1.04 43%, 1.015 57%, 1.002 75%, 1);
   --m3-spatial-dur: 350ms;
+  /* the spring with one small overshoot, for the hero morphs and presses */
+  --spring: linear(0, 0.06 2.4%, 0.22 5.2%, 0.5 9%, 0.68 12%, 0.83 15.5%, 0.93 19.5%, 1.02 25%, 1.04 30%, 1.03 38%, 1.01 48%, 1 64%, 1);
+  /* no overshoot: sheets, toasts, thumbs and other small parts */
+  --spring-calm: linear(0, 0.1 3%, 0.32 8%, 0.6 15%, 0.8 22%, 0.91 30%, 0.97 40%, 0.99 52%, 1 70%, 1);
+  /* type: Chakra Petch for display, IBM Plex for text and figures (the host
+     loads the fonts). Sentence case everywhere; only a brand mark tracks. */
+  --f-display: "Chakra Petch", "Bahnschrift", "DIN Alternate", system-ui, sans-serif;
+  --f-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --fs-tab: 0.6875rem; /* tab labels, badges */
+  --fs-caption: 0.75rem; /* small captions */
+  --fs-meta: 0.8125rem; /* a row's second line, counts */
+  --fs-link: 0.875rem; /* text links, row actions */
+  --fs-body: 0.9375rem; /* body and row titles */
+  --fs-section: 1.0625rem; /* section headings */
+  --fs-sheet: 1.25rem; /* sheet and dialog titles */
+  --fs-title: 1.375rem; /* page title on a phone */
+  --fs-title-lg: 1.75rem; /* page title on a desktop */
+  --fs-big: 2rem; /* a big figure */
   --ctl-h: 36px; /* input, select, button */
   --ctl-h-sm: 26px; /* small + icon buttons */
   --ctl-fs: 14px;
@@ -125,6 +221,8 @@
   --r-menu: 8px; /* menus, dropdown lists, sub-boxes, chat bubbles */
   --r-panel: 10px; /* .t-panel, composer, file browser */
   --r-dialog: 12px; /* dialog, and the phone sheet's top corners */
+  --r-cover: 6px; /* covers: rounded, never ringed */
+  --r-sheet: 20px; /* the phone sheet's top corners, the hero banner */
   /* Motion: enter eases out, exit eases in and is shorter; nothing over
      300ms, nothing moves more than 8px or scales below 0.98, nothing
      transforms on hover. All of it sits under the reduced-motion gate. */
@@ -133,6 +231,10 @@
   --dur-1: 120ms; /* hover, tick, popover */
   --dur-2: 200ms; /* route, panel, toast, every exit */
   --dur-3: 280ms; /* dialog, sheet */
+  /* the short names the component styles of the reference mock use */
+  --d-1: var(--dur-1);
+  --d-2: var(--dur-2);
+  --d-3: var(--dur-3);
   /* height of the mobile tab bar - the bar sets it, <main> reserves it */
   --nav-h: 3.33rem;
   /* System-bar insets. Both engines report a bottom inset in a browser tab on a
@@ -189,10 +291,10 @@ html {
 
 body {
   margin: 0;
-  font-family: var(--font-sans);
+  font-family: var(--f-sans);
   -webkit-font-smoothing: antialiased;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
+  background-color: var(--bg);
+  color: var(--fg);
   line-height: 1.5;
 }
 
@@ -231,8 +333,8 @@ body {
    toast relies on the cascade it sits in. */
 .t-panel {
   position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: var(--r-panel);
 }
 /* A region that opened inside a panel (a search under a row, a disclosure's
@@ -240,7 +342,7 @@ body {
    Boxes inside boxes read as clutter; the indent alone says "belongs to the
    line above". */
 .t-inset {
-  border-inline-start: 2px solid var(--border-subtle);
+  border-inline-start: 2px solid var(--line);
   padding-block: 0.25rem;
   padding-inline-start: 0.75rem;
 }
@@ -257,22 +359,22 @@ body {
     max-width: 100%;
     min-height: 2rem;
     padding-inline: 0.75rem;
-    border: 1px solid var(--border-input);
+    border: 1px solid var(--line-strong);
     border-radius: 9999px;
     font-size: 0.875rem;
-    color: var(--text-primary);
+    color: var(--fg);
     transition: border-color var(--dur-1) var(--ease-out);
   }
   @media (hover: hover) {
-    .t-pill:hover { border-color: color-mix(in srgb, var(--accent-blue) 60%, transparent); }
+    .t-pill:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
   }
 }
 
 /* Destructive area: the border itself carries the warning. The danger body
    of a dialog is a direct child without a border of its own, so the dialog
    takes the tint instead. */
-.t-panel--danger { border-color: color-mix(in srgb, var(--accent-red) 65%, transparent); }
-dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--accent-red) 65%, transparent); }
+.t-panel--danger { border-color: color-mix(in srgb, var(--err) 65%, transparent); }
+dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--err) 65%, transparent); }
 
 /* Hatch texture: faint 135° diagonal hairlines. A placeholder texture for
    covers and skeletons, no longer the page background. */
@@ -280,7 +382,7 @@ dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--accent-r
   background-image: repeating-linear-gradient(
     135deg,
     transparent 0 7px,
-    color-mix(in srgb, var(--text-primary) 3%, transparent) 7px 8px
+    color-mix(in srgb, var(--fg) 3%, transparent) 7px 8px
   );
 }
 
@@ -296,10 +398,10 @@ dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--accent-r
      text-xs, and chips in different sections stop matching */
   line-height: var(--ctl-lh-sm);
   font-weight: 600;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--line);
   border-radius: var(--r-chip);
   padding: 0 6px;
-  color: var(--text-muted);
+  color: var(--fg-3);
   /* one box for every chip: decorative ones then match the interactive ones,
      which need 24px to clear the target-size floor of WCAG 2.5.8 */
   min-height: 1.5rem;
@@ -333,12 +435,12 @@ dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--accent-r
   padding-block: 3px;
 }
 .t-label--accent {
-  border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent);
-  color: var(--accent-blue);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
 }
-.t-label--ok    { border-color: color-mix(in srgb, var(--accent-green) 55%, transparent); color: var(--accent-green); }
-.t-label--warn  { border-color: color-mix(in srgb, var(--accent-yellow) 55%, transparent); color: var(--accent-yellow); }
-.t-label--err   { border-color: color-mix(in srgb, var(--accent-red) 55%, transparent); color: var(--accent-red); }
+.t-label--ok    { border-color: color-mix(in srgb, var(--ok) 55%, transparent); color: var(--ok); }
+.t-label--warn  { border-color: color-mix(in srgb, var(--warn) 55%, transparent); color: var(--warn); }
+.t-label--err   { border-color: color-mix(in srgb, var(--err) 55%, transparent); color: var(--err); }
 
 /* An interactive chip has to look interactive. The gap badge is the only way
    into the episode list, and as a chip among decorative chips nothing said it
@@ -375,13 +477,13 @@ a.t-label {
 .t-divider-rule {
   flex: 1;
   height: 1px;
-  background: var(--border-subtle);
+  background: var(--line);
 }
 .t-count {
-  font-family: var(--font-mono);
+  font-family: var(--f-mono);
   font-size: var(--ctl-fs-sm);
   line-height: var(--ctl-lh-sm);
-  color: var(--text-muted);
+  color: var(--fg-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -392,16 +494,16 @@ a.t-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
+  font-family: var(--f-display);
   font-weight: 600;
   letter-spacing: 0.04em;
   font-size: var(--ctl-fs);
   line-height: var(--ctl-lh);
   min-height: var(--ctl-h);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--line);
   border-radius: var(--r-ctl);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  background: var(--bg-2);
+  color: var(--fg);
   padding: 7px 14px;
   cursor: pointer;
   transition: border-color var(--dur-1), background-color var(--dur-1), transform 80ms var(--ease-out);
@@ -411,15 +513,15 @@ a.t-label {
 .t-btn--danger:active:not(:disabled) { transform: scale(0.98); }
 .t-btn:is(:disabled, [aria-disabled='true']) { opacity: 0.45; cursor: not-allowed; }
 .t-btn--primary {
-  background: var(--accent-blue);
-  border-color: var(--accent-blue);
-  color: var(--bg-primary);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
-.t-btn--danger { color: var(--accent-red); border-color: color-mix(in srgb, var(--accent-red) 45%, transparent); }
+.t-btn--danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, transparent); }
 @media (hover: hover) {
-  .t-btn:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); background: var(--bg-hover); }
-  .t-btn--primary:hover { background: color-mix(in srgb, var(--accent-blue) 85%, var(--bg-primary)); }
-  .t-btn--danger:hover { border-color: var(--accent-red); background: color-mix(in srgb, var(--accent-red) 10%, transparent); }
+  .t-btn:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--hover); }
+  .t-btn--primary:hover { background: color-mix(in srgb, var(--accent) 85%, var(--bg)); }
+  .t-btn--danger:hover { border-color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
 }
 /* WCAG 2.5.8 target size; the shared variable keeps it level with every other
    small control in the same row */
@@ -461,12 +563,12 @@ a.t-label {
 .t-tabs {
   display: flex;
   flex-wrap: wrap;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--line);
   border-radius: var(--r-ctl);
   /* the bar rounds, the tabs stay square (their underline would curve): the
      corner tabs are clipped by the bar instead */
   overflow: clip;
-  background: var(--bg-secondary);
+  background: var(--bg-2);
 }
 /* the clip would cut the outer focus ring off - draw it inside the tab */
 .kbd .t-tab:focus-visible { outline-offset: -2px; }
@@ -475,11 +577,11 @@ a.t-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
+  font-family: var(--f-display);
   font-weight: 600;
   letter-spacing: 0.04em;
   font-size: 14px;
-  color: var(--text-muted);
+  color: var(--fg-3);
   padding: 8px 14px;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -489,14 +591,14 @@ a.t-label {
   transition: color var(--dur-1), background-color var(--dur-1), border-color var(--dur-1);
 }
 @media (hover: hover) {
-  .t-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .t-tab:hover { color: var(--fg); background: var(--hover); }
 }
 .t-tab[aria-selected="true"],
 /* a row of jump links marks the section in view the same way */
 .t-tab[aria-current="true"] {
-  color: var(--accent-blue);
-  background: var(--bg-card);
-  border-bottom-color: var(--accent-blue);
+  color: var(--accent);
+  background: var(--card);
+  border-bottom-color: var(--accent);
 }
 /* The gliding selection (Tabs places it): the card fill and the underline
    move as one piece. The tabs sit above it; once it stands, the selected tab
@@ -510,8 +612,8 @@ a.t-label {
   top: 0;
   width: 0;
   pointer-events: none;
-  background: var(--bg-card);
-  border-bottom: 2px solid var(--accent-blue);
+  background: var(--card);
+  border-bottom: 2px solid var(--accent);
   transition: transform var(--dur-2) var(--ease-out), width var(--dur-2) var(--ease-out), height var(--dur-2) var(--ease-out);
 }
 .t-tabs:not([data-ink]) .t-tabs-ink { display: none; }
@@ -560,13 +662,13 @@ a.t-label {
   /* the close button sits over the end: the title stops short of it */
   padding: 0 3.5rem 0 1.25rem;
   pointer-events: none;
-  background: color-mix(in srgb, var(--bg-card) calc(var(--q, 0) * 100%), transparent);
-  font: 600 0.9375rem/1.2 var(--font-display);
+  background: color-mix(in srgb, var(--card) calc(var(--q, 0) * 100%), transparent);
+  font: 600 0.9375rem/1.2 var(--f-display);
   letter-spacing: 0.04em;
 }
 .t-dock > span { min-width: 0; opacity: var(--q, 0); }
 /* the bar's hairline arrives with its fill */
-.t-dock { border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) calc(var(--q, 0) * 100%), transparent); }
+.t-dock { border-bottom: 1px solid color-mix(in srgb, var(--line) calc(var(--q, 0) * 100%), transparent); }
 
 /* The card's hero: the banner runs full bleed under the docked bar and fades
    into the card at its foot, the big title and its line sit on the picture.
@@ -577,14 +679,14 @@ a.t-label {
   position: relative;
   height: 11rem;
   overflow: hidden;
-  background: var(--bg-hover);
+  background: var(--hover);
 }
 .t-hero::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(transparent 35%, var(--bg-card));
+  background: linear-gradient(transparent 35%, var(--card));
 }
 .t-hero__art {
   position: absolute;
@@ -603,13 +705,13 @@ a.t-label {
   z-index: 1;
   will-change: transform, opacity;
   /* a soft halo in the card's colour: a busy picture never swallows the line */
-  text-shadow: 0 1px 12px color-mix(in srgb, var(--bg-card) 85%, transparent);
+  text-shadow: 0 1px 12px color-mix(in srgb, var(--card) 85%, transparent);
 }
 /* over the picture the round buttons are dark discs with a white mark; as the
    bar fills in they turn into its plain icon buttons */
 .t-hero-btn {
   background: color-mix(in srgb, #000 calc((1 - var(--q, 0)) * 45%), transparent) !important;
-  color: color-mix(in srgb, #fff calc((1 - var(--q, 0)) * 100%), var(--text-primary));
+  color: color-mix(in srgb, #fff calc((1 - var(--q, 0)) * 100%), var(--fg));
 }
 
 /* Disclosure on the native details element: the marker is drawn as a chevron
@@ -634,9 +736,9 @@ summary::-webkit-details-marker { display: none; }
   font-size: var(--ctl-fs);
   line-height: var(--ctl-lh);
   min-height: var(--ctl-h);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-input);
+  background: var(--bg-2);
+  color: var(--fg);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-ctl);
   padding: 7px 10px;
   width: 100%;
@@ -656,14 +758,14 @@ summary::-webkit-details-marker { display: none; }
 }
 .t-input:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 }
-.t-input::placeholder { color: var(--text-faint); }
-.t-input[aria-invalid='true'] { border-color: var(--accent-red); }
+.t-input::placeholder { color: var(--fg-3); }
+.t-input[aria-invalid='true'] { border-color: var(--err); }
 /* env-locked and other read-only fields: visibly muted, value stays legible */
 .t-input:disabled, .t-select:disabled {
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+  color: var(--fg-3);
+  background: color-mix(in srgb, var(--bg-2) 60%, transparent);
   border-style: dashed;
   cursor: not-allowed;
 }
@@ -677,8 +779,8 @@ summary::-webkit-details-marker { display: none; }
   top: 50%;
   width: 6px;
   height: 6px;
-  border-right: 1px solid var(--text-muted);
-  border-bottom: 1px solid var(--text-muted);
+  border-right: 1px solid var(--fg-3);
+  border-bottom: 1px solid var(--fg-3);
   transform: translateY(-70%) rotate(45deg);
   pointer-events: none;
 }
@@ -688,9 +790,9 @@ summary::-webkit-details-marker { display: none; }
   line-height: var(--ctl-lh);
   min-height: var(--ctl-h);
   appearance: none;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-input);
+  background: var(--bg-2);
+  color: var(--fg);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-ctl);
   padding: 7px 30px 7px 10px;
   width: 100%;
@@ -698,12 +800,12 @@ summary::-webkit-details-marker { display: none; }
 }
 .t-select:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 }
-option { background-color: var(--bg-secondary); color: var(--text-primary); }
+option { background-color: var(--bg-2); color: var(--fg); }
 
 /* Accent surfaces carry dark text (WCAG 1.4.3) */
-.bg-accent { color: var(--bg-primary) !important; }
+.bg-accent { color: var(--on-accent) !important; }
 
 /* Visible keyboard focus everywhere - but only once keyboard navigation
    started (html.kbd, set in main.tsx), so programmatic focus never paints
@@ -712,7 +814,7 @@ option { background-color: var(--bg-secondary); color: var(--text-primary); }
   outline: none;
 }
 .kbd :focus-visible {
-  outline: 2px solid var(--accent-blue);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -813,18 +915,18 @@ input[type='checkbox'] {
   height: 1.5rem;
   flex-shrink: 0;
   position: relative;
-  border: 1px solid var(--border-input);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-chip);
-  background: var(--bg-card);
+  background: var(--card);
   cursor: pointer;
 }
 @media (hover: hover) {
-  input[type='checkbox']:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+  input[type='checkbox']:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
 }
 input[type='checkbox']:checked,
 input[type='checkbox']:indeterminate {
-  background: var(--accent-blue);
-  border-color: var(--accent-blue);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 input[type='checkbox']:checked::after {
   content: '';
@@ -834,8 +936,8 @@ input[type='checkbox']:checked::after {
   /* fractions of the box, so the mark grows with the touch-sized box */
   width: 40%;
   height: 20%;
-  border-left: 2px solid var(--bg-primary);
-  border-bottom: 2px solid var(--bg-primary);
+  border-left: 2px solid var(--on-accent);
+  border-bottom: 2px solid var(--on-accent);
   transform: translate(-50%, -70%) rotate(-45deg);
   animation: t-tick var(--dur-1) var(--ease-out);
 }
@@ -846,14 +948,14 @@ input[type='checkbox']:indeterminate::after {
   top: 50%;
   width: 40%;
   height: 2px;
-  background: var(--bg-primary);
+  background: var(--on-accent);
   transform: translate(-50%, -50%);
 }
 input[type='checkbox']:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px var(--bg-primary),
-    0 0 0 4px var(--accent-blue);
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--accent);
 }
 input[type='checkbox']:disabled { opacity: 0.45; cursor: not-allowed; }
 @media (pointer: coarse) {
@@ -874,15 +976,15 @@ input[type='radio'] {
   height: 1.5rem;
   flex-shrink: 0;
   position: relative;
-  border: 1px solid var(--border-input);
+  border: 1px solid var(--line-strong);
   border-radius: 50%;
-  background: var(--bg-card);
+  background: var(--card);
   cursor: pointer;
 }
 @media (hover: hover) {
-  input[type='radio']:hover { border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent); }
+  input[type='radio']:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
 }
-input[type='radio']:checked { border-color: var(--accent-blue); }
+input[type='radio']:checked { border-color: var(--accent); }
 input[type='radio']:checked::after {
   content: '';
   position: absolute;
@@ -891,15 +993,15 @@ input[type='radio']:checked::after {
   width: 0.75rem;
   height: 0.75rem;
   border-radius: 50%;
-  background: var(--accent-blue);
+  background: var(--accent);
   transform: translate(-50%, -50%);
   animation: t-tick var(--dur-1) var(--ease-out);
 }
 input[type='radio']:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px var(--bg-primary),
-    0 0 0 4px var(--accent-blue);
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--accent);
 }
 input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
 
@@ -918,7 +1020,7 @@ input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
   top: 0;
   bottom: 0;
   width: 2px;
-  background: var(--rail, var(--border-subtle));
+  background: var(--rail, var(--line));
 }
 .t-ep:first-child::before { top: 50%; }
 .t-ep:last-child::before { bottom: 50%; }
@@ -931,10 +1033,10 @@ input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
   padding: 2px;
   border: 1.5px solid currentColor;
   border-radius: 9999px;
-  background: var(--bg-card);
+  background: var(--card);
 }
-.t-ep[data-state="have"] { --rail: color-mix(in srgb, var(--accent-green) 55%, transparent); }
-.t-ep[data-state="gone"] { --rail: color-mix(in srgb, var(--accent-red) 55%, transparent); }
+.t-ep[data-state="have"] { --rail: color-mix(in srgb, var(--ok) 55%, transparent); }
+.t-ep[data-state="gone"] { --rail: color-mix(in srgb, var(--err) 55%, transparent); }
 @keyframes t-ep-in { from { opacity: 0.3; transform: translateX(8px); } }
 @media (prefers-reduced-motion: no-preference) {
   /* the query is useReveal's SCROLL_REVEAL_MQ: a finger drags the content,
@@ -991,7 +1093,7 @@ input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
   right: 0;
   bottom: -1px;
   height: 2px;
-  background: var(--accent-blue);
+  background: var(--accent);
   transform-origin: left;
   transform: scaleX(0);
   pointer-events: none;
@@ -1017,8 +1119,8 @@ input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  background: var(--bg-card);
-  border-left: 1px solid var(--border-subtle);
+  background: var(--card);
+  border-left: 1px solid var(--line);
 }
 .t-sidepanel .dialog-body {
   --dialog-max-h: none;
@@ -1041,9 +1143,9 @@ html:has(dialog[open]) {
 }
 
 dialog {
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--line);
   border-radius: var(--r-dialog);
   padding: 0;
   /* Preflight resets margin:0 - restore UA centering for :modal.
@@ -1191,7 +1293,7 @@ dialog .overflow-y-auto {
        opaque, above it, and covering the stretch below it down to the edge */
     position: relative;
     z-index: 1;
-    background: var(--bg-card);
+    background: var(--card);
   }
   dialog.dialog-sheet .dialog-body > footer::after {
     content: "";
@@ -1330,7 +1432,7 @@ details[open]::details-content { height: auto; }
 
 /* A poster frame (Cover): the poster's colour, or the hover ground, until the
    file arrives, then the image fades in over it. */
-.t-cover { display: block; overflow: hidden; background: var(--cover-tint, var(--bg-hover)); }
+.t-cover { display: block; overflow: hidden; background: var(--cover-tint, var(--hover)); }
 .t-cover > img { display: block; opacity: 0; transition: opacity var(--dur-3) var(--ease-out); }
 .t-cover > img[data-loaded] { opacity: 1; }
 
@@ -1393,7 +1495,7 @@ details[open]::details-content { height: auto; }
   border-radius: var(--r-chip);
   background: rgb(0 0 0 / 0.6);
   color: #fff;
-  font: 500 0.6875rem/1 var(--font-mono);
+  font: 500 0.6875rem/1 var(--f-mono);
 }
 :root[data-motion="off"] .t-posterband__item { transform: none; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .t-posterband__item { transform: none; opacity: 1; } }
@@ -1426,16 +1528,16 @@ li.t-swiperow { border-radius: 0; }
   padding: 0 0.25rem;
   border: 0;
   cursor: pointer;
-  font: 600 0.6875rem/1.2 var(--font-display);
+  font: 600 0.6875rem/1.2 var(--f-display);
   letter-spacing: 0.03em;
   text-align: center;
-  color: var(--bg-primary);
-  background: var(--tone, var(--accent-blue));
+  color: var(--on-accent);
+  background: var(--tone, var(--accent));
 }
-.t-swiperow__action[data-tone="ok"] { --tone: var(--accent-green); }
-.t-swiperow__action[data-tone="warn"] { --tone: var(--accent-yellow); }
-.t-swiperow__action[data-tone="err"] { --tone: var(--accent-red); }
-.t-swiperow__action:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -4px; }
+.t-swiperow__action[data-tone="ok"] { --tone: var(--ok); }
+.t-swiperow__action[data-tone="warn"] { --tone: var(--warn); }
+.t-swiperow__action[data-tone="err"] { --tone: var(--err); }
+.t-swiperow__action:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
 
 /* A list row that folds away: its height runs to nothing and the list's gap
    with it, so the rows below close up instead of jumping. Exits ease in and
@@ -1521,13 +1623,13 @@ li.t-swiperow { border-radius: 0; }
   border-radius: 9999px;
   /* the hover ground, not the secondary: on a card the secondary is a
      shade off the card itself, and an empty bar vanished */
-  background: var(--bg-hover);
+  background: var(--hover);
 }
 .t-progress--sm { height: 4px; }
 .t-progress-bar {
   height: 100%;
   border-radius: 9999px;
-  background: var(--progress-color, var(--accent-blue));
+  background: var(--progress-color, var(--accent));
   transition: width var(--dur-3) var(--ease-out), background-color var(--dur-2) var(--ease-out);
 }
 /* the wave (Progress wave): the fill and the rest of the track are drawn
@@ -1538,23 +1640,23 @@ li.t-swiperow { border-radius: 0; }
 .t-progress-wave { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .t-progress-wave path {
   fill: none;
-  stroke: var(--progress-color, var(--accent-blue));
+  stroke: var(--progress-color, var(--accent));
   stroke-width: var(--wave-w);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.t-progress-wave .t-progress-track { stroke: var(--bg-hover); }
+.t-progress-wave .t-progress-track { stroke: var(--hover); }
 /* the dot on the wave's head: where the transfer stands */
-.t-progress-wave .t-progress-head { r: calc(var(--wave-w) * 0.9); fill: var(--progress-color, var(--accent-blue)); }
-.t-progress--ok { --progress-color: var(--accent-green); }
-.t-progress--warn { --progress-color: var(--accent-yellow); }
-.t-progress--err { --progress-color: var(--accent-red); }
+.t-progress-wave .t-progress-head { r: calc(var(--wave-w) * 0.9); fill: var(--progress-color, var(--accent)); }
+.t-progress--ok { --progress-color: var(--ok); }
+.t-progress--warn { --progress-color: var(--warn); }
+.t-progress--err { --progress-color: var(--err); }
 .t-progress-running {
   background-image: linear-gradient(
     45deg,
-    color-mix(in srgb, var(--bg-primary) 18%, transparent) 25%,
+    color-mix(in srgb, var(--bg) 18%, transparent) 25%,
     transparent 25% 50%,
-    color-mix(in srgb, var(--bg-primary) 18%, transparent) 50% 75%,
+    color-mix(in srgb, var(--bg) 18%, transparent) 50% 75%,
     transparent 75%
   );
   background-size: 28px 28px;
@@ -1611,10 +1713,10 @@ li.t-swiperow { border-radius: 0; }
   /* the day has no hard ends: the axis softens at the top and below - from
      a faint start, never from nothing, so it reads as a tail, not a spike */
   background: linear-gradient(
-    color-mix(in srgb, var(--border-subtle) 40%, transparent),
-    var(--border-subtle) 2.5rem,
-    var(--border-subtle) calc(100% - 2.5rem),
-    color-mix(in srgb, var(--border-subtle) 40%, transparent)
+    color-mix(in srgb, var(--line) 40%, transparent),
+    var(--line) 2.5rem,
+    var(--line) calc(100% - 2.5rem),
+    color-mix(in srgb, var(--line) 40%, transparent)
   );
 }
 /* the filled stretch softens with it at the top */
@@ -1635,7 +1737,7 @@ li.t-swiperow { border-radius: 0; }
   height: 0.45rem;
   border-radius: 999px;
   /* solid and on the axis, so the line runs into it, not through it */
-  background: var(--border-input);
+  background: var(--line-strong);
   z-index: 1;
 }
 /* a stretch that had to be cut short says how long it really was, the way
@@ -1654,9 +1756,9 @@ li.t-swiperow { border-radius: 0; }
   top: -0.55rem;
   padding: 0.15rem 0.4rem;
   border-radius: var(--r-chip);
-  background: var(--bg-hover);
-  color: var(--text-muted);
-  font: 500 0.625rem/1 var(--font-mono);
+  background: var(--hover);
+  color: var(--fg-3);
+  font: 500 0.625rem/1 var(--f-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1668,19 +1770,19 @@ li.t-swiperow { border-radius: 0; }
   left: calc(var(--axis) - var(--pad) - 1px);
   top: 0;
   bottom: 0;
-  border-left: 2px solid var(--color-accent);
+  border-left: 2px solid var(--accent);
 }
 /* the row's content steps back, not the row: dimming the <li> dimmed its
    stretch of the filled axis and its dot too, and the line came out dark
    beside every card and bright between them, as if broken */
 .t-timeline__row[data-past] > * { opacity: 0.6; }
-.t-timeline__row[data-past]::before { background: var(--color-accent); }
+.t-timeline__row[data-past]::before { background: var(--accent); }
 
 /* now, on today's panel: it drifts down past the releases as the clock runs,
    the time beside it saying what the line is */
 .t-timeline > .t-timeline__now {
   height: 0;
-  border-top: 2px solid var(--color-accent);
+  border-top: 2px solid var(--accent);
   /* the line starts on the axis, in its dot, not left of it */
   margin-left: calc(var(--axis) - var(--pad));
   /* it marks a time on the axis, so it stays at that time: it used to stick
@@ -1695,9 +1797,9 @@ li.t-swiperow { border-radius: 0; }
   top: -0.65rem;
   padding: 0.15rem 0.4rem;
   border-radius: var(--r-chip);
-  background: var(--color-accent);
-  color: var(--bg-primary);
-  font: 600 0.625rem/1 var(--font-mono);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 600 0.625rem/1 var(--f-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1709,6 +1811,6 @@ li.t-swiperow { border-radius: 0; }
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 999px;
-  background: var(--color-accent);
+  background: var(--accent);
   translate: -50% -50%;
 }

@@ -11,7 +11,7 @@ const DARK_MQ = '(prefers-color-scheme: dark)'
 // the browser's own chrome (address bar, status bar, task switcher) takes the
 // app's secondary surface, the colour the app bar and sidebar sit on; these are
 // the fallbacks for when the stylesheet is not there to ask (tests, first paint)
-const BAR_COLOR: Record<Theme, string> = { dark: '#0b0b0d', light: '#f8fafb' }
+const BAR_COLOR: Record<Theme, string> = { dark: '#05070d', light: '#ffffff' }
 
 export function resolveTheme(pref: ThemePref, systemDark: boolean): Theme {
   return pref === 'system' ? (systemDark ? 'dark' : 'light') : pref
@@ -32,7 +32,7 @@ let unwatch: (() => void) | undefined
 export function syncThemeColor() {
   const root = document.documentElement
   const theme: Theme = root.dataset.theme === 'light' ? 'light' : 'dark'
-  const color = getComputedStyle(root).getPropertyValue('--bg-secondary').trim() || BAR_COLOR[theme]
+  const color = getComputedStyle(root).getPropertyValue('--bg-2').trim() || BAR_COLOR[theme]
   // index.html carries one per OS scheme; a fixed choice overrides both
   for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', color)
 }

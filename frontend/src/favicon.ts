@@ -14,8 +14,8 @@ export function faviconSvg(accent: string): string {
 }
 
 export function currentAccent(): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue('--accent-blue').trim()
-  return v || '#ffa14a'
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
+  return v || '#ef6177'
 }
 
 export function setFavicon(accent = currentAccent()) {

@@ -19,7 +19,7 @@ export const Flat = () => (
 
 /** Below two samples there is nothing to draw: the box keeps its size, the line waits. */
 export const Empty = () => (
-  <div className="text-accent" style={{ outline: '1px dashed var(--border-subtle)', width: 96 }}>
+  <div className="text-accent" style={{ outline: '1px dashed var(--line)', width: 96 }}>
     <Sparkline values={[3]} label="Gesamtgeschwindigkeit, letzte 60 Sekunden" />
   </div>
 )

@@ -40,7 +40,7 @@ export function Surface({ children, theme, flush, className }: SurfaceProps) {
     <div
       data-theme={theme}
       className={cx(flush ? undefined : 'p-4', className)}
-      style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+      style={{ background: 'var(--bg)', color: 'var(--fg)' }}
     >
       {children}
     </div>

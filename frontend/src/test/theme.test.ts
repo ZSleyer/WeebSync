@@ -60,10 +60,10 @@ describe('applyTheme', () => {
     stubMatchMedia(false)
     applyTheme('dark')
     expect(document.documentElement.dataset.theme).toBe('dark')
-    expect(meta()).toBe('#0b0b0d')
+    expect(meta()).toBe('#05070d')
     applyTheme('light')
     expect(document.documentElement.dataset.theme).toBe('light')
-    expect(meta()).toBe('#f8fafb')
+    expect(meta()).toBe('#ffffff')
   })
 
   it('follows the OS while set to system, and stops once fixed', () => {

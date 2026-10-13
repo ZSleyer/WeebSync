@@ -39,7 +39,7 @@ export const HeroCard = () => (
 )
 
 export const LightMode = () => (
-  <div data-theme="light" style={{ background: 'var(--bg-primary)', padding: 12, maxWidth: 480 }}>
+  <div data-theme="light" style={{ background: 'var(--bg)', padding: 12, maxWidth: 480 }}>
     <HeroCard />
   </div>
 )

@@ -15,7 +15,7 @@ export const WithLink = () => (
       trailing={
         <a
           href="#"
-          style={{ display: 'inline-flex', alignItems: 'center', minHeight: 24, fontSize: 11, color: 'var(--accent-blue)' }}
+          style={{ display: 'inline-flex', alignItems: 'center', minHeight: 24, fontSize: 11, color: 'var(--accent)' }}
         >
           Alle anzeigen →
         </a>

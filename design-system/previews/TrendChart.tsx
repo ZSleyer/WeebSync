@@ -28,7 +28,7 @@ export const Empty = () => (
 )
 
 export const LightMode = () => (
-  <div data-theme="light" style={{ background: 'var(--bg-primary)', padding: 12, maxWidth: 420 }}>
+  <div data-theme="light" style={{ background: 'var(--bg)', padding: 12, maxWidth: 420 }}>
     <Speed />
   </div>
 )

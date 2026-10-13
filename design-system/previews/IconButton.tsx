@@ -9,10 +9,10 @@ const Question = () => (
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: '9999px',
-      border: '1px solid var(--border-subtle)',
+      border: '1px solid var(--line)',
       fontSize: 10,
       lineHeight: 1,
-      color: 'var(--text-secondary)',
+      color: 'var(--fg-2)',
     }}
   >
     ?
@@ -21,7 +21,7 @@ const Question = () => (
 
 export const Help = () => (
   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Dub-Sprache</span>
+    <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Dub-Sprache</span>
     <IconButton aria-label="Hilfe zur Dub-Sprache">
       <Question />
     </IconButton>
@@ -30,6 +30,6 @@ export const Help = () => (
 
 export const Close = () => (
   <IconButton aria-label="Schließen">
-    <span style={{ fontSize: 14, lineHeight: 1, color: 'var(--text-secondary)' }}>×</span>
+    <span style={{ fontSize: 14, lineHeight: 1, color: 'var(--fg-2)' }}>×</span>
   </IconButton>
 )

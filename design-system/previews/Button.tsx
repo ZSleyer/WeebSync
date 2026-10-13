@@ -32,7 +32,7 @@ export const Disabled = () => (
 
 /** Every weight on a light surface. */
 export const LightMode = () => (
-  <div data-theme="light" style={{ background: 'var(--bg-primary)', padding: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+  <div data-theme="light" style={{ background: 'var(--bg)', padding: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
     <Button>Abbrechen</Button>
     <Button variant="primary">Speichern</Button>
     <Button variant="danger">Löschen</Button>

@@ -20,12 +20,12 @@ export const Sizes = () => (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
       <Badge tone="ok">Nächste: Folge 62</Badge>
       <Badge tone="warn">31 ausstehend</Badge>
-      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>md</span>
+      <span style={{ color: 'var(--fg-3)', fontSize: 12 }}>md</span>
     </div>
     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
       <Badge tone="ok" size="sm">Nächste: Folge 62</Badge>
       <Badge tone="warn" size="sm">31 ausstehend</Badge>
-      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>sm</span>
+      <span style={{ color: 'var(--fg-3)', fontSize: 12 }}>sm</span>
     </div>
   </div>
 )
@@ -43,7 +43,7 @@ export const Multiline = () => (
 
 export const InContext = () => (
   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 20 }}>
-    <span style={{ color: 'var(--text-secondary)' }}>Neben großem Text:</span>
+    <span style={{ color: 'var(--fg-2)' }}>Neben großem Text:</span>
     <Badge tone="accent">Gleiche Höhe</Badge>
     <Badge tone="ok">Unabhängig vom Kontext</Badge>
   </div>
@@ -79,7 +79,7 @@ export const Semantics = () => (
   <div style={{ display: 'grid', gap: 12, maxWidth: 320 }}>
     <Badge as="h3" tone="accent" className="w-fit">Sonntag, 27.07.</Badge>
     <Badge as="h4" className="w-fit">Beschreibung</Badge>
-    <fieldset style={{ border: '1px solid var(--border-subtle)', padding: 12 }}>
+    <fieldset style={{ border: '1px solid var(--line)', padding: 12 }}>
       <Badge as="legend">Zwei-Faktor-Anmeldung</Badge>
       <Checkbox label="Mit Authenticator-App bestätigen" defaultChecked />
     </fieldset>
@@ -91,7 +91,7 @@ export const Semantics = () => (
 )
 
 export const LightMode = () => (
-  <div data-theme="light" style={{ background: 'var(--bg-primary)', padding: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+  <div data-theme="light" style={{ background: 'var(--bg)', padding: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
     <Badge>Umbenennen</Badge>
     <Badge tone="accent">Überwacht</Badge>
     <Badge tone="ok">Komplett</Badge>

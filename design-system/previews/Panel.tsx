@@ -29,7 +29,7 @@ export const Compact = () => (
 )
 
 export const LightMode = () => (
-  <div data-theme="light" style={{ background: 'var(--bg-primary)', padding: 12, maxWidth: 420 }}>
+  <div data-theme="light" style={{ background: 'var(--bg)', padding: 12, maxWidth: 420 }}>
     <Panel className="p-5">
       <Badge tone="accent">Server</Badge>
       <p className="mt-2 text-sm text-t-secondary">Dieselbe Fläche auf hellem Grund.</p>

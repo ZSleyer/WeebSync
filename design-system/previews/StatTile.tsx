@@ -24,7 +24,7 @@ export const Pair = () => (
 )
 
 export const LightMode = () => (
-  <div data-theme="light" style={{ background: 'var(--bg-primary)', padding: 12, maxWidth: 320 }}>
+  <div data-theme="light" style={{ background: 'var(--bg)', padding: 12, maxWidth: 320 }}>
     <StatTile
       label="Speed"
       value="2,4 MiB/s"

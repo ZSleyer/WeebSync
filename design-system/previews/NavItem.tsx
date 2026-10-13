@@ -1,7 +1,7 @@
 import { NavItem } from 'fluid-lycoris'
 
 export const Sidebar = () => (
-  <nav style={{ maxWidth: 220, background: 'var(--bg-secondary)', paddingBlock: 8 }}>
+  <nav style={{ maxWidth: 220, background: 'var(--bg-2)', paddingBlock: 8 }}>
     <NavItem icon="▣">Dashboard</NavItem>
     <NavItem icon="↻" active>Auto-Sync</NavItem>
     <NavItem icon="✦">Vorschläge</NavItem>

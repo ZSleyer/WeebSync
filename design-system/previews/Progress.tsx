@@ -26,7 +26,7 @@ export const Tones = () => (
 )
 
 export const LightMode = () => (
-  <div data-theme="light" style={{ background: 'var(--bg-primary)', padding: 12, maxWidth: 420, display: 'grid', gap: 12 }}>
+  <div data-theme="light" style={{ background: 'var(--bg)', padding: 12, maxWidth: 420, display: 'grid', gap: 12 }}>
     <Progress value={42} active label="Fortschritt Frieren S01E12" />
     <Progress value={88} tone="warn" size="sm" label="Speicher, 88 % belegt" />
   </div>

@@ -72,7 +72,7 @@ export const AnyPosterRatio = () => (
 
 /** The same card on a light surface - tokens flip, contrast holds. */
 export const LightMode = () => (
-  <div data-theme="light" style={{ background: 'var(--bg-primary)', padding: 12 }}>
+  <div data-theme="light" style={{ background: 'var(--bg)', padding: 12 }}>
     <MediaCard
       title="One Piece"
       cover={COVER_OP}

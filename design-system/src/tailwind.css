@@ -25,25 +25,30 @@
 }
 
 @theme {
-  --font-display: "Chakra Petch", sans-serif;
-  --font-sans: "IBM Plex Sans", sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --font-display: var(--f-display);
+  --font-sans: var(--f-sans);
+  --font-mono: var(--f-mono);
 
-  --color-bg-primary: var(--bg-primary);
-  --color-bg-secondary: var(--bg-secondary);
-  --color-bg-card: var(--bg-card);
-  --color-bg-hover: var(--bg-hover);
-  --color-accent: var(--accent-blue);
-  --color-ok: var(--accent-green);
-  --color-warn: var(--accent-yellow);
-  --color-err: var(--accent-red);
-  --color-border-subtle: var(--border-subtle);
-  --color-border-input: var(--border-input);
-  --color-border-active: var(--border-active);
-  --color-t-primary: var(--text-primary);
-  --color-t-secondary: var(--text-secondary);
-  --color-t-muted: var(--text-muted);
-  --color-t-faint: var(--text-faint);
+  --color-bg-primary: var(--bg);
+  --color-bg-secondary: var(--bg-2);
+  --color-bg-card: var(--card);
+  --color-bg-hover: var(--hover);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+  --color-border-subtle: var(--line);
+  --color-border-input: var(--line-strong);
+  --color-border-active: var(--accent);
+  --color-t-primary: var(--fg);
+  --color-t-secondary: var(--fg-2);
+  --color-t-muted: var(--fg-3);
+  --color-t-faint: var(--fg-3);
+  --color-accent-2: var(--accent-2);
+  --color-on-accent: var(--on-accent);
+  --color-on-accent-2: var(--on-accent-2);
+  --color-tint-1: var(--tint-1);
+  --color-tint-2: var(--tint-2);
 }
 
 /* Re-bind the Tailwind colour bridge on every themed element, not just :root.
@@ -53,19 +58,24 @@
    handing its text the dark value (white on white, 1.12:1). Re-declaring the
    bridge here re-resolves it against whatever theme the element carries. */
 [data-theme] {
-  --color-bg-primary: var(--bg-primary);
-  --color-bg-secondary: var(--bg-secondary);
-  --color-bg-card: var(--bg-card);
-  --color-bg-hover: var(--bg-hover);
-  --color-accent: var(--accent-blue);
-  --color-ok: var(--accent-green);
-  --color-warn: var(--accent-yellow);
-  --color-err: var(--accent-red);
-  --color-border-subtle: var(--border-subtle);
-  --color-border-input: var(--border-input);
-  --color-border-active: var(--border-active);
-  --color-t-primary: var(--text-primary);
-  --color-t-secondary: var(--text-secondary);
-  --color-t-muted: var(--text-muted);
-  --color-t-faint: var(--text-faint);
+  --color-bg-primary: var(--bg);
+  --color-bg-secondary: var(--bg-2);
+  --color-bg-card: var(--card);
+  --color-bg-hover: var(--hover);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+  --color-border-subtle: var(--line);
+  --color-border-input: var(--line-strong);
+  --color-border-active: var(--accent);
+  --color-t-primary: var(--fg);
+  --color-t-secondary: var(--fg-2);
+  --color-t-muted: var(--fg-3);
+  --color-t-faint: var(--fg-3);
+  --color-accent-2: var(--accent-2);
+  --color-on-accent: var(--on-accent);
+  --color-on-accent-2: var(--on-accent-2);
+  --color-tint-1: var(--tint-1);
+  --color-tint-2: var(--tint-2);
 }

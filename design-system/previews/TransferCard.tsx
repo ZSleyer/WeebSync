@@ -78,7 +78,7 @@ export const Selected = () => (
 )
 
 export const LightMode = () => (
-  <div data-theme="light" style={{ background: 'var(--bg-primary)', padding: 12, maxWidth: 560 }}>
+  <div data-theme="light" style={{ background: 'var(--bg)', padding: 12, maxWidth: 560 }}>
     <Hero />
   </div>
 )

@@ -475,7 +475,7 @@ export function TrendChart({
           <span
             ref={dotRef}
             aria-hidden
-            className="pointer-events-none absolute size-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current shadow-[0_0_0_2px_var(--bg-card)]"
+            className="pointer-events-none absolute size-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current shadow-[0_0_0_2px_var(--card)]"
             style={{ left: `${((at === null ? TREND_W : g.x(g.last - at)) / TREND_W) * 100}%`, top: `${((at === null ? g.edgeY : g.y(g.shown[g.last - at])) / height) * 100}%` }}
           />
         )}
