@@ -2188,15 +2188,16 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
   100% { transform: scaleX(0); transform-origin: right; }
 }
 
-/* entering a page (enterPage): meters fill from zero, and every visible item
-   rises 14px with a fade, in 35ms steps (--ri, capped at 14). Once per entry. */
+/* entering a page (enterPage): meters fill from zero, and every item rises
+   14px with a fade in one left-to-right wave (--rd, 0..260ms from its place
+   across the screen). Once per entry. */
 @media (prefers-reduced-motion: no-preference) {
   [data-wipe="in"] .t-progress:not(.t-progress--wave) > .t-progress-bar {
     transform-origin: left;
     animation: t-fill 900ms var(--spring-calm) 200ms both;
   }
   [data-wipe="in"] :is(.t-rows > .t-row, .t-shelf > *, [data-rise] > *, .t-rise):not(.t-reveal) {
-    animation: t-enter-rise 520ms var(--spring-calm) calc(min(var(--ri, 0), 14) * 35ms) both;
+    animation: t-enter-rise 520ms var(--spring-calm) var(--rd, 0ms) both;
   }
 }
 @keyframes t-fill { from { transform: scaleX(0); } }
@@ -2257,3 +2258,26 @@ input[type='search']::-webkit-search-cancel-button,
 input[type='search']::-webkit-search-decoration,
 input[type='search']::-webkit-search-results-button,
 input[type='search']::-webkit-search-results-decoration { -webkit-appearance: none; appearance: none; display: none; }
+
+/* duotone art: the picture in grey under a multiply tint in the colour code;
+   a hover eases both off together */
+.t-art[data-duo] > img { filter: grayscale(1) contrast(1.25) brightness(1.05); }
+.t-art[data-duo]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--accent);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.t-art[data-duo="accent-2"]::before { background: var(--accent-2); }
+.t-art-dots { z-index: 2; }
+@media (hover: hover) {
+  :is(button, a, [role="button"], [data-open]):hover .t-art[data-duo] > img { filter: grayscale(0.6) contrast(1.15) brightness(1.05); }
+  :is(button, a, [role="button"], [data-open]):hover .t-art[data-duo]::before { opacity: 0.5; }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .t-art[data-duo] > img { transition: filter 420ms var(--spring-calm); }
+  .t-art[data-duo]::before { transition: opacity 420ms var(--spring-calm); }
+}

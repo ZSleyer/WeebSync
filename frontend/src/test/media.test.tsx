@@ -31,6 +31,11 @@ describe('Art', () => {
     expect(layer.querySelector('.t-art-dots')).not.toBeNull()
     expect(layer.style.getPropertyValue('--tone-dir')).toBe('to left')
   })
+
+  it('marks a duotone layer with its half of the colour code', () => {
+    const { container } = render(<Art src="/b.jpg" duo="accent-2" />)
+    expect(container.firstElementChild).toHaveAttribute('data-duo', 'accent-2')
+  })
 })
 
 describe('cover chips', () => {

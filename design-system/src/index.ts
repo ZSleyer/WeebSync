@@ -121,7 +121,7 @@ export type { CodeTone, GlyphTone, RowActionProps, RowProps, RowsProps, SectionH
 
 export { Art, CoverBar, CoverScore, coverShare, CoverStatus } from './media'
 export type { ArtProps, CoverBarProps, CoverScoreProps, CoverStatusKind, CoverStatusProps } from './media'
-export { enterPage, RISE_MAX_STEPS, RISE_STEP_MS, riseSteps, useEnterPage, useWipe, Wipe, wipeOutMs } from './wipe'
+export { enterPage, RISE_SPAN_MS, riseDelay, useEnterPage, useWipe, Wipe, wipeOutMs } from './wipe'
 export type { WipePhase, WipeProps } from './wipe'
 export { Select, selectOptions, stepOption, typeAhead } from './select'
 export type { SelectOption, SelectProps } from './select'

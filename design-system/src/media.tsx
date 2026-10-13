@@ -9,6 +9,8 @@ export interface ArtProps {
   dots?: boolean
   /** the side the dots gather at, as a gradient direction ("to top", "to left") */
   dotsFrom?: string
+  /** duotone: the picture in grey under a tint of one half of the colour code; eases off on hover */
+  duo?: 'accent' | 'accent-2'
   /** the CSS object-position of the picture */
   position?: string
   loading?: 'eager' | 'lazy'
@@ -22,10 +24,11 @@ export interface ArtProps {
  * (`overflow: hidden`). Inside a button or link the whole layer zooms on
  * hover, dots included, never the picture alone.
  */
-export function Art({ src, alt = '', dots, dotsFrom, position, loading, className }: ArtProps) {
+export function Art({ src, alt = '', dots, dotsFrom, duo, position, loading, className }: ArtProps) {
   return (
     <span
       className={cx('t-art', className)}
+      data-duo={duo}
       style={dotsFrom ? ({ '--tone-dir': dotsFrom } as CSSProperties) : undefined}
     >
       <img src={src} alt={alt} loading={loading} style={position ? { objectPosition: position } : undefined} />

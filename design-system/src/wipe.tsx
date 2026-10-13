@@ -79,31 +79,24 @@ export function Wipe({ show, children, appear, index = 0, color, as: Tag = 'span
 const WIPE_SELECTOR = '.t-page-title, .t-appbar-title, .t-sec-title'
 /** what enterPage lets rise: rows, shelf items, and the children of a [data-rise] container */
 const RISE_SELECTOR = ':is(.t-rows > .t-row, .t-shelf > *, [data-rise] > *, .t-rise):not(.t-reveal)'
-/** the rise staggers in 35ms steps, capped at 14 steps (in time, not in count) */
-export const RISE_STEP_MS = 35
-export const RISE_MAX_STEPS = 14
-
-/** Whether a box is at least partly inside the viewport; an unmeasured box (no layout) counts as visible. */
-function onScreen(el: HTMLElement): boolean {
-  const r = el.getBoundingClientRect()
-  if (!r.width && !r.height) return true
-  return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth
-}
+/** the rise runs as one wave from left to right: its delay grows with the item's place across the screen, up to this */
+export const RISE_SPAN_MS = 260
 
 /**
- * The stagger step of each item that rises: visible items count up in
- * document order (capped), items off screen start at once.
+ * The rise delay of an item from where it stands across the screen: 0ms at
+ * the left edge, RISE_SPAN_MS at the right. Not from its order or its height,
+ * so every visible row starts at the same moment and a grid rises as one wave.
  */
-export function riseSteps(visible: boolean[]): number[] {
-  let n = 0
-  return visible.map((v) => (v ? Math.min(n++, RISE_MAX_STEPS) : 0))
+export function riseDelay(left: number, viewportWidth: number): number {
+  if (!(viewportWidth > 0)) return 0
+  return Math.round(Math.min(1, Math.max(0, left / viewportWidth)) * RISE_SPAN_MS)
 }
 
 /**
  * Entering a page, or switching what a part of it shows (a segment, a tab, a
  * filter): its title and section headings wipe in, staggered (a heading's
- * marker stands at once), its meters fill from zero, and every visible item
- * rises 14px with a fade, staggered in 35ms steps up to 14. Plays once per
+ * marker stands at once), its meters fill from zero, and every item rises
+ * 14px with a fade in one wave from left to right (riseDelay). Plays once per
  * call; call it when the page is entered or the content switched, not on
  * every render.
  */
@@ -113,9 +106,10 @@ export function enterPage(root: HTMLElement, extra: HTMLElement[] = []) {
     el.classList.add('t-wipe')
     el.style.setProperty('--i', String(Math.min(i, MAX_STAGGER)))
   })
-  const items = [...root.querySelectorAll<HTMLElement>(RISE_SELECTOR)]
-  const steps = riseSteps(items.map(onScreen))
-  items.forEach((el, i) => el.style.setProperty('--ri', String(steps[i])))
+  const width = typeof innerWidth === 'number' ? innerWidth : 0
+  for (const el of root.querySelectorAll<HTMLElement>(RISE_SELECTOR)) {
+    el.style.setProperty('--rd', `${riseDelay(el.getBoundingClientRect().left, width)}ms`)
+  }
   for (const el of new Set([root, ...extra])) {
     el.removeAttribute('data-wipe')
     // a reflow between, so the same value starts the animation again
