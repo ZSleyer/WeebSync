@@ -435,6 +435,12 @@
     "limitInvalid": "Kein gültiges Limit: gib 0 oder mehr ein, oder lass das Feld für kein Limit leer."
   },
   "files": {
+    "colName": "Name",
+    "colSize": "Größe",
+    "colDate": "Geändert",
+    "sortBy": "Sortieren nach",
+    "sortAsc": "aufsteigend",
+    "sortDesc": "absteigend",
     "title": "DATEIEN",
     "sub": "lokale bibliothek · server · sync",
     "local": "Lokale Bibliothek",

@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import { BookOpen, Eye, FolderOpen, FolderPlus, Pencil, Play } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Eye, FolderOpen, FolderPlus, Pencil, Play } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button, Input } from '@weebsync/design-system'
 import { api, ApiError, fmtBytes, keyConflictOf, type Entry } from '../api'
 import FileIcon from './FileIcon'
+import { useStored } from '../hooks/useStored'
+import Press from './Press'
 import HostKeyPrompt from './HostKeyPrompt'
 import Loading from './Loading'
 import PathInput from './PathInput'
@@ -108,6 +110,22 @@ export function PathCrumbs({
   )
 }
 
+type SortKey = 'name' | 'size' | 'date'
+const time = (e: Entry) => Date.parse(e.modTime) || 0
+const byName = (a: Entry, b: Entry) => a.name.localeCompare(b.name, undefined, { numeric: true })
+const ORDER: Record<SortKey, (a: Entry, b: Entry) => number> = {
+  name: byName,
+  size: (a, b) => a.size - b.size,
+  date: (a, b) => time(a) - time(b),
+}
+
+/** A listing in the order picked: folders first, then by name, size or date, either way round. */
+export function sortEntries(entries: Entry[], sort: string) {
+  const desc = sort.startsWith('-')
+  const by = ORDER[sort.replace('-', '') as SortKey] ?? byName
+  return entries.slice().sort((a, b) => Number(b.isDir) - Number(a.isDir) || (desc ? -1 : 1) * by(a, b) || byName(a, b))
+}
+
 // Breadcrumb + list view over a browse endpoint. Works for the local
 // picker (/api/browse/local) and the classic remote view.
 export function FileBrowser({
@@ -123,6 +141,8 @@ export function FileBrowser({
   serverId,
   renaming,
   onPlay,
+  sortable,
+  onLongPress,
 }: {
   queryKey: unknown[]
   fetchPath: (path: string) => string
@@ -140,8 +160,34 @@ export function FileBrowser({
   renaming?: Renaming
   /** opens a video in the player: its row's icon becomes the play button */
   onPlay?: (e: Entry) => void
+  /** the file manager's columns: name, size and date to sort by */
+  sortable?: boolean
+  /** a finger held on a row: the row's actions */
+  onLongPress?: (e: Entry) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  // '-date' is newest first; kept across folders and visits
+  const [sort, setSort] = useStored<string>('weebsync.files.sort', 'name')
+  const by = sort.replace('-', '') as SortKey
+  const desc = sort.startsWith('-')
+  // a column clicked again turns round; dates start with the newest
+  const pick = (k: SortKey) => setSort(by === k ? (desc ? k : `-${k}`) : k === 'date' ? '-date' : k)
+  const day = (e: Entry) =>
+    time(e) > 0
+      ? new Date(e.modTime).toLocaleDateString(i18n.language, { day: '2-digit', month: '2-digit', year: '2-digit' })
+      : ''
+  const head = (k: SortKey, label: string, className: string) => (
+    <button
+      type="button"
+      aria-pressed={by === k}
+      onClick={() => pick(k)}
+      className={`flex min-h-6 items-center gap-1 hover:text-t-primary ${by === k ? 'text-t-primary' : ''} ${className}`}
+    >
+      {label}
+      {by === k && (desc ? <ArrowDown aria-hidden size="1em" /> : <ArrowUp aria-hidden size="1em" />)}
+      {by === k && <span className="sr-only">{t(desc ? 'files.sortDesc' : 'files.sortAsc')}</span>}
+    </button>
+  )
   const qc = useQueryClient()
   const {
     data: entries = [],
@@ -155,6 +201,9 @@ export function FileBrowser({
   const listing = `${serverId}:${path}`
   const [rejectedFor, setRejectedFor] = useState<string | null>(null)
   const conflict = serverId !== undefined && rejectedFor !== listing ? keyConflictOf(error) : null
+  // the folders' select button gets a column of its own, kept empty on the
+  // files, so the size and date line up down the list
+  const selCol = !!sortable && !!onSelect && !selectDirsOnly && entries.some((e) => e.isDir)
 
   const crumbs = path.split('/').filter(Boolean)
 
@@ -216,55 +265,81 @@ export function FileBrowser({
             </Button>
           </div>
         )}
+        {sortable && entries.length > 0 && (
+          <div
+            role="group"
+            aria-label={t('files.sortBy')}
+            className="flex items-center gap-2 border-b border-border-subtle px-3 py-1 text-xs text-t-muted"
+          >
+            {head('name', t('files.colName'), 'mr-auto')}
+            {head('size', t('files.colSize'), 'w-20 justify-end')}
+            {head('date', t('files.colDate'), 'hidden w-20 justify-end sm:flex')}
+            {selCol && <span aria-hidden className="w-20 shrink-0" />}
+          </div>
+        )}
         <ul>
-          {entries
-            .slice()
-            .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name))
-            .map((e) => {
-              const selectable = onSelect && (!selectDirsOnly || e.isDir)
-              if (renaming?.path === e.path)
-                return (
-                  <li key={e.path} className="flex items-center gap-2 border-b border-border-subtle/50 px-3 py-1">
-                    <FileIcon isDir={e.isDir} name={e.name} />
-                    <InlineRename name={e.name} onDone={renaming.onDone} />
-                  </li>
-                )
-              const playable = !!onPlay && !e.isDir && (isVideo(e.name) || !!viewKind(e.name))
+          {sortEntries(entries, sortable ? sort : 'name').map((e) => {
+            const selectable = onSelect && (!selectDirsOnly || e.isDir)
+            if (renaming?.path === e.path)
               return (
-                <li key={e.path} className="group/row flex items-stretch border-b border-border-subtle/50">
-                  {playable && <PlayIcon name={e.name} onPlay={() => onPlay(e)} />}
-                  <button
-                    type="button"
-                    className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-3 text-left text-sm transition-colors hover:bg-bg-hover ${
-                      playable ? 'pl-1' : 'pl-3'
-                    } ${selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'}`}
-                    onClick={() => {
-                      if (e.isDir) onNavigate(e.path.replace(/^\//, ''))
-                      else if (selectable) onSelect(e)
-                    }}
-                    // a video plays and a book opens on a double click; anything else is picked
-                    onDoubleClick={() => (playable ? onPlay(e) : selectable && onSelect(e))}
-                  >
-                    {!playable && <FileIcon isDir={e.isDir} name={e.name} />}
-                    <span className="min-w-0 flex-1 truncate" title={e.name}>
-                      {e.name}
-                    </span>
-                    {!e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>}
-                  </button>
-                  {selectable && e.isDir && (
-                    <Button
-                      size="sm"
-                      className="my-1 mr-2 shrink-0"
-                      aria-label={t('remote.selectItem', { name: e.name })}
-                      onClick={() => onSelect(e)}
-                    >
-                      {t('remote.select')}
-                    </Button>
-                  )}
-                  {actions?.(e)}
+                <li key={e.path} className="flex items-center gap-2 border-b border-border-subtle/50 px-3 py-1">
+                  <FileIcon isDir={e.isDir} name={e.name} />
+                  <InlineRename name={e.name} onDone={renaming.onDone} />
                 </li>
               )
-            })}
+            const playable = !!onPlay && !e.isDir && (isVideo(e.name) || !!viewKind(e.name))
+            return (
+              <Press
+                as="li"
+                key={e.path}
+                onLongPress={onLongPress && (() => onLongPress(e))}
+                className="group/row flex items-stretch border-b border-border-subtle/50"
+              >
+                {playable && <PlayIcon name={e.name} onPlay={() => onPlay(e)} />}
+                <button
+                  type="button"
+                  className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-3 text-left text-sm transition-colors hover:bg-bg-hover ${
+                    playable ? 'pl-1' : 'pl-3'
+                  } ${selected === e.path ? 'bg-bg-hover text-accent' : 'text-t-secondary'}`}
+                  onClick={() => {
+                    if (e.isDir) onNavigate(e.path.replace(/^\//, ''))
+                    else if (selectable) onSelect(e)
+                  }}
+                  // a video plays and a book opens on a double click; anything else is picked
+                  onDoubleClick={() => (playable ? onPlay(e) : selectable && onSelect(e))}
+                >
+                  {!playable && <FileIcon isDir={e.isDir} name={e.name} />}
+                  <span className="min-w-0 flex-1 truncate" title={e.name}>
+                    {e.name}
+                  </span>
+                  {sortable ? (
+                    <>
+                      <span className="w-20 shrink-0 text-right font-mono text-xs text-t-muted">
+                        {!e.isDir && fmtBytes(e.size)}
+                      </span>
+                      <span className="hidden w-20 shrink-0 text-right font-mono text-xs text-t-muted sm:block">
+                        {day(e)}
+                      </span>
+                    </>
+                  ) : (
+                    !e.isDir && <span className="shrink-0 font-mono text-xs text-t-muted">{fmtBytes(e.size)}</span>
+                  )}
+                </button>
+                {selectable && e.isDir && (
+                  <Button
+                    size="sm"
+                    className={`my-1 mr-2 shrink-0 ${selCol ? 'w-18' : ''}`}
+                    aria-label={t('remote.selectItem', { name: e.name })}
+                    onClick={() => onSelect(e)}
+                  >
+                    {t('remote.select')}
+                  </Button>
+                )}
+                {selCol && !e.isDir && <span aria-hidden className="mr-2 w-18 shrink-0" />}
+                {actions?.(e)}
+              </Press>
+            )
+          })}
         </ul>
       </div>
     </div>

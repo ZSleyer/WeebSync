@@ -435,6 +435,12 @@
     "limitInvalid": "Not a usable limit: enter 0 or more, or leave the field empty for none."
   },
   "files": {
+    "colName": "Name",
+    "colSize": "Size",
+    "colDate": "Modified",
+    "sortBy": "Sort by",
+    "sortAsc": "ascending",
+    "sortDesc": "descending",
     "title": "FILES",
     "sub": "local library · servers · sync",
     "local": "Local library",
