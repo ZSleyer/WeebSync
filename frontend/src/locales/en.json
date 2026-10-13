@@ -92,14 +92,15 @@
     "searching": "Searching the server indexes …"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "Today",
     "watches": "Auto-sync",
+    "rules": "Rules",
     "calendar": "Calendar",
     "servers": "Servers",
     "rename": "Rename",
     "settings": "Settings",
     "main": "Main navigation",
-    "suggestions": "Suggestions",
+    "suggestions": "Discover",
     "assistant": "Assistant",
     "back": "Back",
     "files": "Files"
@@ -358,7 +359,7 @@
     "sumQueued_one": "{{count}} waiting",
     "sumQueued_other": "{{count}} waiting",
     "sumIdle": "nothing running",
-    "title": "DASHBOARD",
+    "title": "TODAY",
     "sub": "transfer queue",
     "transferSection": "Transfer",
     "idle": "Nothing running right now. <go>Open Files</go>",
@@ -760,6 +761,7 @@
     "openFolder": "Open folder: {{folder}}"
   },
   "watch": {
+    "viewCalendar": "Calendar",
     "sumSeries_one": "{{count}} series",
     "sumSeries_other": "{{count}} series",
     "sumToday_one": "{{count}} episode today",
@@ -1661,9 +1663,9 @@
     "open": "Open"
   },
   "suggestions": {
-    "title": "SUGGESTIONS",
+    "title": "DISCOVER",
     "navLabel": "Suggestion sections",
-    "groupDiscover": "Discover",
+    "groupDiscover": "For you",
     "groupLibrary": "Library",
     "groupHidden": "Hidden",
     "groupAssistant": "AI",

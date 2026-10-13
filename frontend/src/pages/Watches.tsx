@@ -33,7 +33,7 @@ const GROUP_ICON: Record<string, LucideIcon> = {
 }
 import { useQuery } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import {
   Badge,
   Button,
@@ -102,9 +102,8 @@ const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date(
 // folder on an interval; the list polls so check results appear live. The
 // same data drives the calendar, its own page at /calendar: what airs when
 // is a question of its own, not a way of looking at the list.
-export default function Watches({ calendar = false }: { calendar?: boolean }) {
+export default function Watches() {
   const { t } = useTranslation()
-  const [params] = useSearchParams()
   const { data: watches = [], isLoading } = useQuery<Watch[]>({
     queryKey: ['watches'],
     queryFn: () => api.get('/api/watches'),
@@ -140,9 +139,16 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
   // the backend owns the schedule (interval, smart sync, 12h stale re-check),
   // so this only formats what it sends
   const untilCheck = (ts: number) => (ts * 1000 <= now ? t('watch.checkDue') : countdown(t, ts, false, now))
-  const view = calendar ? 'calendar' : 'list'
-  // list or grid, picked in the view menu with the sort order
-  const [layout, setLayout] = usePersistedView('weebsync.watches.layout', ['list', 'grid'] as const, 'list', 'layout')
+  // one page, three ways to look at it: the list, the grid of covers, and
+  // the calendar of what airs when (the old /calendar lands here)
+  const [mode, setMode] = usePersistedView(
+    'weebsync.watches.mode',
+    ['list', 'grid', 'calendar'] as const,
+    'list',
+    'view',
+  )
+  const view = mode === 'calendar' ? 'calendar' : 'list'
+  const layout = mode === 'grid' ? 'grid' : 'list'
   // the dashboard's "+N more" lands here with ?filter=attention; the chip
   // below toggles it by hand
   const [filter, setFilter] = usePersistedView(
@@ -454,18 +460,15 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
     (x) => x.items.length > 0,
   )
 
-  // the calendar used to be a view of this page; old links still land there
-  if (!calendar && params.get('view') === 'calendar') return <Navigate to="/calendar" replace />
-
   return (
     <div>
       <PageHeader
         className="mb-4"
-        title={calendar ? t('nav.calendar') : t('watch.title')}
+        title={t('watch.title')}
         sub={
           watches.length === 0
             ? t('watch.sub')
-            : calendar
+            : view === 'calendar'
               ? t('watch.sumToday', { count: todayCount })
               : t('watch.sumSeries', { count: watches.length })
         }
@@ -527,28 +530,6 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
                       {t(o.k)}
                     </MenuItem>
                   ))}
-                  <MenuHeading>{t('watch.layout')}</MenuHeading>
-                  {(
-                    [
-                      ['list', List, 'watch.viewList'],
-                      ['grid', LayoutGrid, 'watch.viewGrid'],
-                    ] as const
-                  ).map(([v, Icon, k]) => (
-                    <MenuItem
-                      key={v}
-                      selected={layout === v}
-                      trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
-                      onClick={() => {
-                        setLayout(v)
-                        setViewOpen(false)
-                      }}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Icon aria-hidden size="1em" />
-                        {t(k)}
-                      </span>
-                    </MenuItem>
-                  ))}
                 </Menu>
               )}
             </div>
@@ -556,6 +537,98 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
         </PageActions>
       )}
 
+      {watches.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Segmented
+            aria-label={t('watch.view')}
+            value={mode}
+            onChange={setMode}
+            options={(
+              [
+                ['list', List, 'watch.viewList'],
+                ['grid', LayoutGrid, 'watch.viewGrid'],
+                ['calendar', CalendarDays, 'watch.viewCalendar'],
+              ] as const
+            ).map(([v, Icon, k]) => ({
+              value: v,
+              // icons alone on a phone, so the filters share the row
+              'aria-label': t(k),
+              label: (
+                <span className="flex items-center gap-1.5">
+                  <Icon aria-hidden size="1.1em" />
+                  <span className="hidden sm:inline">{t(k)}</span>
+                </span>
+              ),
+            }))}
+          />
+          {/* video or manga: only once there is a manga to tell apart */}
+          {view === 'list' && hasManga && (
+            <Segmented
+              aria-label={t('watch.kind')}
+              value={kind}
+              onChange={setKind}
+              options={[
+                { value: 'video', label: t('watch.kindVideo') },
+                { value: 'manga', label: t('watch.kindManga') },
+              ]}
+            />
+          )}
+          {/* week, agenda or posters: the calendar's own way to look */}
+          {view === 'calendar' && calShown.length > 0 && (
+            <Segmented
+              aria-label={t('watch.calMode')}
+              className="ml-auto"
+              value={calMode}
+              onChange={setCalMode}
+              options={[
+                {
+                  value: 'week',
+                  'aria-label': t('watch.calWeek'),
+                  label: (
+                    <>
+                      <CalendarRange aria-hidden size="1em" />
+                      <span className="ml-1 hidden sm:inline">{t('watch.calWeek')}</span>
+                    </>
+                  ),
+                },
+                {
+                  value: 'agenda',
+                  'aria-label': t('watch.calAgenda'),
+                  label: (
+                    <>
+                      <List aria-hidden size="1em" />
+                      <span className="ml-1 hidden sm:inline">{t('watch.calAgenda')}</span>
+                    </>
+                  ),
+                },
+                {
+                  value: 'poster',
+                  'aria-label': t('watch.calPoster'),
+                  label: (
+                    <>
+                      <GalleryHorizontal aria-hidden size="1em" />
+                      <span className="ml-1 hidden sm:inline">{t('watch.calPoster')}</span>
+                    </>
+                  ),
+                },
+              ]}
+            />
+          )}
+          {/* the attention filter: only while something needs a hand, or it is on */}
+          {view === 'list' && (attentionCount > 0 || filter === 'attention') && (
+            <Button
+              size="sm"
+              aria-pressed={filter === 'attention'}
+              onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')}
+              className={`ml-auto ${filter === 'attention' ? 'border-warn text-warn' : ''}`}
+            >
+              <TriangleAlert aria-hidden size="1em" />
+              <span className="ml-1">{t('watch.group.attention')}</span>
+              <Count className="ml-1">{attentionCount}</Count>
+            </Button>
+          )}
+        </div>
+      )}
       {view === 'list' && searching && (
         <label className="mb-4 block lg:hidden">
           <span className="sr-only">{t('watch.search')}</span>
@@ -577,38 +650,10 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
       {view === 'list' && needle && shownWatches.length === 0 && (
         <p className="mb-4 text-sm text-t-secondary">{t('watch.searchNone', { query: query.trim() })}</p>
       )}
-      {/* video or manga: only once there is a manga to tell apart */}
-      {view === 'list' && hasManga && (
-        <Segmented
-          aria-label={t('watch.kind')}
-          value={kind}
-          onChange={setKind}
-          className="mb-4"
-          options={[
-            { value: 'video', label: t('watch.kindVideo') },
-            { value: 'manga', label: t('watch.kindManga') },
-          ]}
-        />
-      )}
-      {/* the attention filter: only while something needs a hand, or it is on */}
-      {view === 'list' && (attentionCount > 0 || filter === 'attention') && (
-        <div className="mb-4 flex justify-end">
-          <Button
-            size="sm"
-            aria-pressed={filter === 'attention'}
-            onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')}
-            className={filter === 'attention' ? 'border-warn text-warn' : ''}
-          >
-            <TriangleAlert aria-hidden size="1em" />
-            <span className="ml-1">{t('watch.group.attention')}</span>
-            <Count className="ml-1">{attentionCount}</Count>
-          </Button>
-        </div>
-      )}
-      {view === 'calendar' && calShown.length > 0 ? (
-        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+      {view === 'calendar' && calShown.length > 0 && calCats.length > 1 ? (
+        <div className="mb-4">
           {calCats.length > 1 && (
-            <div role="group" aria-label={t('watch.calFilter')} className="mr-auto flex flex-wrap gap-1.5">
+            <div role="group" aria-label={t('watch.calFilter')} className="flex flex-wrap gap-1.5">
               <Badge
                 as="button"
                 type="button"
@@ -632,43 +677,6 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
               ))}
             </div>
           )}
-          <Segmented
-            aria-label={t('watch.calMode')}
-            value={calMode}
-            onChange={setCalMode}
-            options={[
-              {
-                value: 'week',
-                'aria-label': t('watch.calWeek'),
-                label: (
-                  <>
-                    <CalendarRange aria-hidden size="1em" />
-                    <span className="ml-1 hidden sm:inline">{t('watch.calWeek')}</span>
-                  </>
-                ),
-              },
-              {
-                value: 'agenda',
-                'aria-label': t('watch.calAgenda'),
-                label: (
-                  <>
-                    <List aria-hidden size="1em" />
-                    <span className="ml-1 hidden sm:inline">{t('watch.calAgenda')}</span>
-                  </>
-                ),
-              },
-              {
-                value: 'poster',
-                'aria-label': t('watch.calPoster'),
-                label: (
-                  <>
-                    <GalleryHorizontal aria-hidden size="1em" />
-                    <span className="ml-1 hidden sm:inline">{t('watch.calPoster')}</span>
-                  </>
-                ),
-              },
-            ]}
-          />
         </div>
       ) : null}
 

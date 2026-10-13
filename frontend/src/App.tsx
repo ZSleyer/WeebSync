@@ -1,15 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import {
-  ArrowLeft,
-  CalendarDays,
-  FolderOpen,
-  LayoutDashboard,
-  LogOut,
-  RefreshCw,
-  Search,
-  Settings,
-  Sparkles,
-} from 'lucide-react'
+import { ArrowLeft, BookOpen, Compass, FolderOpen, House, LogOut, RefreshCw, Search, Settings } from 'lucide-react'
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -72,21 +62,20 @@ import Jobs from './pages/settings/Jobs'
 import Matching, { MatchesPage } from './pages/settings/Matching'
 import Data, { StorePage } from './pages/settings/Data'
 
-// The phone's tab bar holds every top-level page - no "more" sheet: a menu
-// behind a button is found half as often as one in sight. Settings is the
-// gear in the app bar (phone) and the foot of the sidebar (desktop); Rename
-// is a tool on a folder, reached from Files.
+// Four pages, the same on every device - no "more" sheet: a menu behind a
+// button is found half as often as one in sight. The calendar is a view of
+// Auto-Sync, the phone's last tab is the search, under the thumb. Settings is
+// the gear in the app bar (phone) and the foot of the sidebar (desktop);
+// Rename is a tool on a folder, reached from Files.
 const TABS = [
-  { to: '/', key: 'nav.dashboard', icon: LayoutDashboard },
-  { to: '/calendar', key: 'nav.calendar', icon: CalendarDays },
+  { to: '/', key: 'nav.dashboard', icon: House },
   { to: '/watches', key: 'nav.watches', icon: RefreshCw },
-  { to: '/suggestions', key: 'nav.suggestions', icon: Sparkles },
+  { to: '/suggestions', key: 'nav.suggestions', icon: Compass },
   { to: '/files', key: 'nav.files', icon: FolderOpen },
 ]
-// The phone's tab bar holds four of them and the search as the last entry,
-// under the thumb; the suggestions open from the search's empty field
-// instead of a tab of their own.
-const PHONE_TABS = TABS.filter((n) => n.to !== '/suggestions')
+const PHONE_TABS = TABS
+// the rules sit beside settings on a desktop: read more often than the rest
+const RULES = { to: '/settings/rules', key: 'nav.rules', icon: BookOpen }
 const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings }
 const NAV = [...TABS, SETTINGS]
 type NavEntry = (typeof NAV)[number]
@@ -167,7 +156,10 @@ export const router = createBrowserRouter(
       <Route path="/remote" element={<RedirectWithQuery to="/files" />} />
       <Route path="/local" element={<RedirectWithQuery to="/files" rewrite={(p) => (p.set('source', 'local'), p)} />} />
       <Route path="/browser" element={<RedirectWithQuery to="/files" />} />
-      <Route path="/calendar" element={<Watches calendar />} handle={h('nav.calendar')} />
+      <Route
+        path="/calendar"
+        element={<RedirectWithQuery to="/watches" rewrite={(p) => (p.set('view', 'calendar'), p)} />}
+      />
       <Route path="/watches" element={<Watches />} handle={h('nav.watches')} />
       <Route path="/suggestions" element={<SuggestionsLayout />} handle={h('nav.suggestions')}>
         <Route index element={<SuggestionsHub />} />
@@ -405,6 +397,7 @@ function Shell({ email }: { email: string }) {
     </span>
   )
 
+  const settingsOpen = onPath(SETTINGS, location.pathname) && !onPath(RULES, location.pathname)
   const sidebar = (
     <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col self-start border-r border-border-subtle bg-bg-secondary lg:flex">
       <div className="border-b border-border-subtle px-4 py-5">
@@ -446,10 +439,19 @@ function Shell({ email }: { email: string }) {
       {/* settings at the foot, apart from the pages: visited rarely, but
           always in the same place */}
       <div className="py-2">
-        <NavLink to={SETTINGS.to} className={({ isActive }) => navItemClass('sidebar', isActive)}>
+        <NavLink to={RULES.to} className={({ isActive }) => navItemClass('sidebar', isActive)}>
+          {icon(RULES)}
+          {t(RULES.key)}
+        </NavLink>
+        {/* the rules live under settings, but only one entry is the page open */}
+        <Link
+          to={SETTINGS.to}
+          aria-current={settingsOpen ? 'page' : undefined}
+          className={navItemClass('sidebar', settingsOpen)}
+        >
           {dotted(icon(SETTINGS), !!update)}
           {t(SETTINGS.key)}
-        </NavLink>
+        </Link>
       </div>
       <div className="border-t border-border-subtle p-4">
         {update && (

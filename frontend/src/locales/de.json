@@ -92,14 +92,15 @@
     "searching": "Durchsucht die Server-Indexe …"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "Heute",
     "watches": "Auto-Sync",
+    "rules": "Regeln",
     "calendar": "Kalender",
     "servers": "Server",
     "rename": "Umbenennen",
     "settings": "Einstellungen",
     "main": "Hauptnavigation",
-    "suggestions": "Vorschläge",
+    "suggestions": "Entdecken",
     "assistant": "Assistent",
     "back": "Zurück",
     "files": "Dateien"
@@ -358,7 +359,7 @@
     "sumQueued_one": "{{count}} wartet",
     "sumQueued_other": "{{count}} warten",
     "sumIdle": "nichts läuft",
-    "title": "DASHBOARD",
+    "title": "HEUTE",
     "sub": "transfer queue",
     "transferSection": "Übertragung",
     "idle": "Gerade läuft nichts. <go>Dateien öffnen</go>",
@@ -760,6 +761,7 @@
     "openFolder": "Ordner öffnen: {{folder}}"
   },
   "watch": {
+    "viewCalendar": "Kalender",
     "sumSeries_one": "{{count}} Serie",
     "sumSeries_other": "{{count}} Serien",
     "sumToday_one": "{{count}} Folge heute",
@@ -1661,9 +1663,9 @@
     "open": "Öffnen"
   },
   "suggestions": {
-    "title": "VORSCHLÄGE",
+    "title": "ENTDECKEN",
     "navLabel": "Vorschlagsbereiche",
-    "groupDiscover": "Entdecken",
+    "groupDiscover": "Für dich",
     "groupLibrary": "Bibliothek",
     "groupHidden": "Ausgeblendet",
     "groupAssistant": "KI",
