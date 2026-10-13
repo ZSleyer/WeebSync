@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   BookOpen,
   CalendarDays,
@@ -15,6 +15,7 @@ import {
   List,
   Pencil,
   RefreshCw,
+  Search,
   SlidersHorizontal,
   Trash2,
   TriangleAlert,
@@ -45,6 +46,7 @@ import {
   Divider,
   EmptyState,
   IconButton,
+  Input,
   MediaCard,
   Menu,
   MenuItem,
@@ -87,6 +89,13 @@ import { SkeletonCards } from '../components/Loading'
 
 type CalCategory = 'anime-series' | 'anime-movie' | 'series' | 'movie'
 const CAL_CATEGORIES: readonly CalCategory[] = ['anime-series', 'anime-movie', 'series', 'movie']
+// case and accents folded, so "chaos" finds "Chäos"
+const fold = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/\p{Mn}/gu, '')
+    .toLowerCase()
+
 const isToday = (ts: number) => new Date(ts * 1000).toDateString() === new Date().toDateString()
 
 // Watches: persistent auto-sync overview. Each watch re-checks its remote
@@ -151,6 +160,22 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
     'cal',
   )
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
+  // search: a field beside the view menu on a desktop, behind a magnifier in
+  // the app bar on a phone; "/" focuses it on a desktop, as on most sites
+  const [query, setQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || el.closest('input, textarea, select, [contenteditable]')) return
+      e.preventDefault()
+      setSearching(true)
+      // the desktop field; on a phone the field that opens focuses itself
+      requestAnimationFrame(() => document.getElementById('watch-search')?.focus())
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   // manga sit apart from what is watched: their own list, their own counts
   const [kind, setKind] = usePersistedView('weebsync.watches.kind', ['video', 'manga'] as const, 'video', 'kind')
   const hasManga = watches.some((w) => w.category === 'manga')
@@ -420,7 +445,11 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
             ? 'waiting'
             : 'idle'
   const GROUP_ORDER = ['attention', 'syncing', 'idle', 'waiting', 'complete'] as const
-  const shownWatches = filter === 'attention' ? sorted.filter(needsAttention) : sorted
+  // the search: title or folder, case and accents folded; the list just
+  // narrows, the groups and the order stay
+  const needle = fold(query.trim())
+  const matches = (w: Watch) => !needle || fold(`${nameOf(w)} ${w.remotePath}`).includes(needle)
+  const shownWatches = (filter === 'attention' ? sorted.filter(needsAttention) : sorted).filter(matches)
   const grouped = GROUP_ORDER.map((g) => ({ g, items: shownWatches.filter((w) => groupOf(w) === g) })).filter(
     (x) => x.items.length > 0,
   )
@@ -446,6 +475,30 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
       {view === 'list' && watches.length > 0 && (
         <PageActions>
           <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
+            <label className="hidden lg:block">
+              <span className="sr-only">{t('watch.search')}</span>
+              <Input
+                id="watch-search"
+                type="search"
+                size="sm"
+                value={query}
+                placeholder={t('watch.searchHint')}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-64"
+              />
+            </label>
+            <span className="lg:hidden">
+              <IconButton
+                aria-label={t('watch.search')}
+                aria-expanded={searching}
+                onClick={() => {
+                  setSearching((v) => !v)
+                  if (searching) setQuery('')
+                }}
+              >
+                <Search aria-hidden size="1.2em" />
+              </IconButton>
+            </span>
             <div className="relative" ref={viewRef} style={viewAnchorStyle}>
               <Button
                 size="sm"
@@ -503,6 +556,27 @@ export default function Watches({ calendar = false }: { calendar?: boolean }) {
         </PageActions>
       )}
 
+      {view === 'list' && searching && (
+        <label className="mb-4 block lg:hidden">
+          <span className="sr-only">{t('watch.search')}</span>
+          <Input
+            type="search"
+            autoFocus
+            value={query}
+            placeholder={t('watch.searchHint')}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setQuery('')
+                setSearching(false)
+              }
+            }}
+          />
+        </label>
+      )}
+      {view === 'list' && needle && shownWatches.length === 0 && (
+        <p className="mb-4 text-sm text-t-secondary">{t('watch.searchNone', { query: query.trim() })}</p>
+      )}
       {/* video or manga: only once there is a manga to tell apart */}
       {view === 'list' && hasManga && (
         <Segmented
