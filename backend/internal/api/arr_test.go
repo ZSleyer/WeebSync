@@ -104,6 +104,66 @@ func TestNewznabFeed(t *testing.T) {
 	if len(got) != 2 || !strings.Contains(strings.Join(got, "|"), "Roboco The Movie (2025)") {
 		t.Errorf("movie RSS without a TMDB id: %q", got)
 	}
+
+	// a text search finds a show by any of its titles or by its folder; the
+	// number Sonarr's anime search appends picks the episode
+	s.DB.Exec(`INSERT INTO series_titles (series_id, source, locale, title) VALUES (1, 'anilist', 'x-jat', 'Sousou no Frieren')`)
+	if got := titles("t=search&q=Sousou+no+Frieren"); len(got) != 3 {
+		t.Errorf("search by another title: %q", got)
+	}
+	if got := titles("t=tvsearch&q=frieren+02"); len(got) != 1 || !strings.Contains(got[0], "S02E02") {
+		t.Errorf("anime search with a number: %q", got)
+	}
+	if got := titles("t=tvsearch&q=Frieren+S02E01"); len(got) != 1 || !strings.Contains(got[0], "S02E01") {
+		t.Errorf("search with SxxEyy: %q", got)
+	}
+	if got := titles("t=search&q=kiki+1989"); len(got) != 1 || !strings.HasPrefix(got[0], "Kiki") {
+		t.Errorf("plain search reaches films, the year is no episode: %q", got)
+	}
+	if got := titles("t=tvsearch&q=kiki"); len(got) != 0 {
+		t.Errorf("tv search must not list films: %q", got)
+	}
+	if got := titles("t=search&q=roboco&cat=5000"); len(got) != 0 {
+		t.Errorf("tv categories must not list films: %q", got)
+	}
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season) VALUES (1, '/seed/Black Clover S2', '', 2)`)
+	addRemoteFiles(t, s, 1, "/seed/Black Clover S2", map[string]int64{"Black Clover S2 - 01.mkv": 100})
+	if got := titles("t=search&q=Black+Clover"); len(got) != 1 {
+		t.Errorf("search by folder name, no series: %q", got)
+	}
+
+	// a number that is part of the title is not taken for an episode
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season) VALUES (1, '/seed/Mob Psycho 100', '', 1)`)
+	addRemoteFiles(t, s, 1, "/seed/Mob Psycho 100", map[string]int64{"Mob Psycho 100 - 01.mkv": 100})
+	if got := titles("t=search&q=Mob+Psycho+100"); len(got) != 1 {
+		t.Errorf("title ending in a number: %q", got)
+	}
+
+	// the RSS sync pages: the second page carries the rest, not the first again
+	page1, page2 := titles("t=tvsearch&limit=2"), titles("t=tvsearch&limit=2&offset=2")
+	if len(page1) != 2 || len(page2) != 1 || page2[0] == page1[0] || page2[0] == page1[1] {
+		t.Errorf("paging: %q then %q", page1, page2)
+	}
+}
+
+func TestSplitArrQuery(t *testing.T) {
+	for _, c := range []struct {
+		q           string
+		words       string
+		se, ep, num int
+	}{
+		{"Black Clover", "black clover", 0, 0, 0},
+		{"Black Clover 05", "black clover", 0, 0, 5},
+		{"Black Clover S02E01", "black clover", 2, 1, 0},
+		{"Black Clover S02", "black clover", 2, 0, 0},
+		{"86", "86", 0, 0, 0},
+		{"Kiki's Delivery Service", "kiki s delivery service", 0, 0, 0},
+	} {
+		_, words, se, ep, num := splitArrQuery(c.q)
+		if strings.Join(words, " ") != c.words || se != c.se || ep != c.ep || num != c.num {
+			t.Errorf("%q: %q %d %d %d", c.q, words, se, ep, num)
+		}
+	}
 }
 
 // Off until a key exists: an install that never set the source up answers

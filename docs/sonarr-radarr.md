@@ -114,8 +114,11 @@ Spirited Away (2001) German DL 1080p BluRay-WeebSync
   the name (`BluRay`, `DVD`, `HDTV`), else *WEB-DL*.
 - Search works by TVDB id (series) and TMDB id (movies); the RSS feed lists the
   newest files, and for movies every matched film, also one the id lists do
-  not know yet (Radarr reads it by title and year). Free-text search returns
-  nothing, on purpose.
+  not know yet (Radarr reads it by title and year). The feed pages by
+  `offset`, so Prowlarr's *Load more* goes past the first 100. A text search
+  matches any title the catalog knows for a show (English, Romaji, German ...)
+  or its folder name; a trailing `S02E01`, `S02` or episode number (Sonarr's
+  anime search sends `Title 05`) narrows it to that episode.
 - Radarr's indexer test asks for the newest films. On a server whose season
   folders hold almost none, mark the folder the films live in, or the test
   finds nothing.

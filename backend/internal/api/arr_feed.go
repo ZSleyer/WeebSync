@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/rename"
@@ -316,14 +317,21 @@ func xmlText(s string) string {
 	return b.String()
 }
 
-// newznabFeed answers a search. Without an id it is the RSS sync: the newest
-// files of every matched folder. A text query alone finds nothing - the apps
-// search by id, and guessing a show from free text is how wrong grabs happen.
+// newznabFeed answers a search. Without an id or a query it is the RSS sync:
+// the newest files of every matched folder, paged by offset. A text query
+// finds the shows whose title or folder carries its words; the app parses
+// the synthetic names against the series it asked for, so a loose title
+// match grabs nothing wrong.
 func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool) {
 	limit := 100
 	if l, err := strconv.Atoi(r.FormValue("limit")); err == nil && l > 0 && l < limit {
 		limit = l
 	}
+	offset, _ := strconv.Atoi(r.FormValue("offset"))
+	offset = min(max(offset, 0), 10000)
+	wantSe, _ := strconv.Atoi(r.FormValue("season"))
+	wantEp, _ := strconv.Atoi(r.FormValue("ep"))
+	wantNum := 0
 	var files []arrFile
 	switch {
 	case movie && r.FormValue("tmdbid") != "":
@@ -336,18 +344,45 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 		// episode is only known after naming, so the cap is generous
 		files = s.arrFiles(`cv.is_movie = 0 AND (cv.show_key = ? OR (cv.series_id > 0 AND cv.series_id IN
 			(SELECT series_id FROM series_provider WHERE source = 'tvdb' AND media_id = ?)))`, 2000, "tvdb:"+strconv.Itoa(id), id)
-	case r.FormValue("q") == "" && r.FormValue("imdbid") == "":
+	case r.FormValue("q") != "":
+		kind := "cv.is_movie = 0 AND "
+		switch {
+		case movie:
+			kind = "cv.is_movie = 1 AND "
+		case r.FormValue("t") == "search" && anyMovieCat(r.FormValue("cat")):
+			kind = "" // a plain search over TV and movie categories wants both
+		}
+		byTitle := func(words []string) []arrFile {
+			like := "%" + strings.Join(words, "%") + "%"
+			return s.arrFiles(kind+`(cv.folder LIKE ? OR (cv.series_id > 0 AND (
+				cv.series_id IN (SELECT id FROM series WHERE title LIKE ?) OR
+				cv.series_id IN (SELECT series_id FROM series_titles WHERE title LIKE ?))))`, 2000+offset, like, like, like)
+		}
+		all, words, se, ep, num := splitArrQuery(r.FormValue("q"))
+		// the whole query first: in "Mob Psycho 100" the number is the title
+		if len(all) > 0 {
+			files = byTitle(all)
+		}
+		if len(files) == 0 && len(words) < len(all) {
+			files = byTitle(words)
+			if se > 0 {
+				wantSe, wantEp = se, ep
+			}
+			wantNum = num
+		}
+	case r.FormValue("imdbid") == "":
+		// ponytail: twice the page, as files without an episode number drop
+		// out after naming and a short page would end the app's paging
+		n := 2 * (offset + limit)
 		if movie {
 			// every matched film, not only those with a TMDB id: Radarr reads
 			// a film in the feed by title and year, and a new anime film is
 			// matched long before the id lists carry its TMDB id
-			files = s.arrFiles(`cv.is_movie = 1 AND cv.show_key != ''`, limit)
+			files = s.arrFiles(`cv.is_movie = 1 AND cv.show_key != ''`, n)
 		} else {
-			files = s.arrFiles(`cv.is_movie = 0 AND cv.show_key LIKE 'tvdb:%'`, limit)
+			files = s.arrFiles(`cv.is_movie = 0 AND cv.show_key LIKE 'tvdb:%'`, n)
 		}
 	}
-	wantSe, _ := strconv.Atoi(r.FormValue("season"))
-	wantEp, _ := strconv.Atoi(r.FormValue("ep"))
 
 	base := arrBaseURL(r)
 	key := r.URL.Query().Get("apikey")
@@ -363,8 +398,16 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 		if rel.absNum == 0 && ((wantSe > 0 && rel.se != wantSe) || (wantEp > 0 && rel.ep != wantEp)) {
 			continue
 		}
-		if n++; n > limit {
+		// "Show 05" from an anime search names the absolute number or the
+		// episode within the season; a film's number is its year
+		if wantNum > 0 && !rel.isMovie && rel.absNum != wantNum && rel.ep != wantNum {
+			continue
+		}
+		if n++; n > offset+limit {
 			break
+		}
+		if n <= offset {
+			continue
 		}
 		// only offer what can be looked up again: the grab names nothing but
 		// the guid
@@ -383,9 +426,52 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 	fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:newznab="http://www.newznab.com/DTD/2010/feeds/attributes/">
 <channel><title>WeebSync</title><description>WeebSync remote files</description>
-<newznab:response offset="0" total="%d"/>
+<newznab:response offset="%d" total="%d"/>
 %s</channel></rss>
-`, min(n, limit), items.String())
+`, offset, n, items.String())
+}
+
+var (
+	arrQuerySeRe  = regexp.MustCompile(`^s(\d{1,2})(?:e(\d{1,4}))?$`)
+	arrQueryNumRe = regexp.MustCompile(`^e?(\d{1,4})$`)
+)
+
+// splitArrQuery reads a text search the way the apps write one: the title
+// words, lowercased, then an optional "S02", "S02E01" or bare episode number
+// ("05"). all is every word, words the title without that tail. A lone number
+// stays the title, there is a show called 86.
+func splitArrQuery(q string) (all, words []string, se, ep, num int) {
+	all = strings.FieldsFunc(strings.ToLower(q), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	if len(all) < 2 {
+		return all, all, 0, 0, 0
+	}
+	last, head := all[len(all)-1], all[:len(all)-1]
+	if m := arrQuerySeRe.FindStringSubmatch(last); m != nil {
+		se, _ = strconv.Atoi(m[1])
+		ep, _ = strconv.Atoi(m[2])
+		return all, head, se, ep, 0
+	}
+	if m := arrQueryNumRe.FindStringSubmatch(last); m != nil {
+		num, _ = strconv.Atoi(m[1])
+		return all, head, 0, 0, num
+	}
+	return all, all, 0, 0, 0
+}
+
+// anyMovieCat reports whether a category list includes movies (2xxx); no
+// list at all includes everything.
+func anyMovieCat(cat string) bool {
+	if cat == "" {
+		return true
+	}
+	for _, c := range strings.Split(cat, ",") {
+		if strings.HasPrefix(strings.TrimSpace(c), "2") {
+			return true
+		}
+	}
+	return false
 }
 
 func writeNewznabItem(b *strings.Builder, rel arrRelease, base, key string) {
