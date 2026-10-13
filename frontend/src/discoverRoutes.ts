@@ -39,7 +39,8 @@ export const discoverPath = (id: DiscoverSection) => `${DISCOVER_BASE}/${slugOf(
  */
 export function legacyDiscoverPath(path: string): string {
   const m = /^\/suggestions(?:\/([^/?#]*))?\/?([?#].*)?$/.exec(path)
-  if (!m) return path
+  // deeper than a section never existed: the page itself
+  if (!m) return /^\/suggestions\//.test(path) ? DISCOVER_BASE : path
   const [, part, rest = ''] = m
   const [query, hash = ''] = rest.startsWith('#') ? ['', rest.slice(1)] : rest.slice(1).split('#')
   const params = new URLSearchParams(query)

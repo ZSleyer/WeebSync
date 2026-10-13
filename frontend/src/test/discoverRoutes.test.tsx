@@ -49,6 +49,7 @@ describe('discover sections', () => {
     expect(legacyDiscoverPath('/suggestions?tab=upgrades')).toBe('/discover/upgrades')
     expect(legacyDiscoverPath('/suggestions/upgrades?x=1#top')).toBe('/discover/upgrades?x=1#top')
     expect(legacyDiscoverPath('/suggestions/gone')).toBe('/discover')
+    expect(legacyDiscoverPath('/suggestions/a/b')).toBe('/discover')
     // anything else stays as it is
     expect(legacyDiscoverPath('/files')).toBe('/files')
     expect(legacyDiscoverPath('/suggestionsx')).toBe('/suggestionsx')

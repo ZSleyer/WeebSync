@@ -419,8 +419,10 @@ function Shell({ email }: { email: string }) {
 
   // Entering a page or one of its sections: the title and the section
   // headings wipe in, the rows rise in one wave (enterPage). Played once per
-  // address; the mark is taken off again once it ran, so a polled list that
-  // remounts its rows later does not rise a second time.
+  // path, not per query: Files writes its search field to the URL, and a
+  // switch inside a page is the page's own useEnterPage call. The mark is
+  // taken off again once it ran, so a polled list that remounts its rows
+  // later does not rise a second time.
   const barTitle = useRef<HTMLSpanElement>(null)
   const deskTitle = useRef<HTMLSpanElement>(null)
   useEffect(() => {
@@ -440,7 +442,7 @@ function Shell({ email }: { email: string }) {
       cancelAnimationFrame(frame)
       clearTimeout(id)
     }
-  }, [location.pathname, location.search])
+  }, [location.pathname])
 
   // No sideways swipe between the pages: it fought every horizontal gesture
   // inside them (row swipes, the calendar, the tab decks) and was the least
