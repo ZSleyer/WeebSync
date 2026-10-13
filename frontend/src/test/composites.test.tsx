@@ -715,11 +715,21 @@ describe('Modal and EmptyState', () => {
     expect(answer).toHaveTextContent('Zurücksetzen')
   })
 
-  it('renders the empty state on a panel with an optional chip', () => {
-    const { container } = render(<EmptyState label="leer">Noch nichts hier</EmptyState>)
-    expect(container.firstElementChild).toHaveClass('t-panel', 'text-center')
-    expect(screen.getByText('leer')).toHaveClass('t-label', 't-label--accent')
+  it('renders the empty state as a quiet line, no panel, no chip', () => {
+    const { container } = render(<EmptyState label="Leer">Noch nichts hier</EmptyState>)
+    expect(container.firstElementChild).toHaveClass('t-empty')
+    expect(container.firstElementChild).not.toHaveClass('t-panel')
+    expect(screen.getByText('Leer')).toHaveClass('t-empty-label')
     expect(screen.getByText('Noch nichts hier')).toBeInTheDocument()
+  })
+
+  it('renders an inline empty state as a list item', () => {
+    const { container } = render(
+      <ul>
+        <EmptyState inline>Nichts offen.</EmptyState>
+      </ul>,
+    )
+    expect(container.querySelector('li')).toHaveClass('t-empty', 't-empty--inline')
   })
 })
 

@@ -1584,28 +1584,28 @@ export function Modal({ title, info, children, footer, secondary, onClose, close
 }
 
 export interface EmptyStateProps {
-  /** short chip heading */
+  /** an optional first line, set a little stronger */
   label?: ReactNode
   /** the message; may carry links, so it is rendered inline, not wrapped */
   children: ReactNode
+  /** inside a Rows list: a left-aligned list item instead of a centred block */
+  inline?: boolean
   className?: string
 }
 
 /**
- * Centred placeholder for an empty list. The muted colour sits on the panel so
- * a message with an embedded link keeps its accent colour.
+ * What an empty list says: a quiet line, centred under the heading, or a
+ * plain item inside the list. No panel, no chip.
  */
-export function EmptyState({ label, children, className }: EmptyStateProps) {
-  return (
-    <Panel className={cx('p-8 text-center text-t-muted', className)}>
-      {label && (
-        <Badge tone="accent" className="mb-3">
-          {label}
-        </Badge>
-      )}
+export function EmptyState({ label, children, inline, className }: EmptyStateProps) {
+  const body = (
+    <>
+      {label && <strong className="t-empty-label">{label}</strong>}
       {children}
-    </Panel>
+    </>
   )
+  if (inline) return <li className={cx('t-empty t-empty--inline', className)}>{body}</li>
+  return <div className={cx('t-empty', className)}>{body}</div>
 }
 
 export interface AppShellProps {

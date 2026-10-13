@@ -116,6 +116,9 @@ export type {
   DayTimelineProps,
 } from './composites'
 
+export { Row, RowAction, Rows, SectionHeading, TextLink } from './content'
+export type { CodeTone, GlyphTone, RowActionProps, RowProps, RowsProps, SectionHeadingProps, TextLinkProps } from './content'
+
 export { CloseLabelContext, Dialog } from './dialog'
 export type { DialogProps } from './dialog'
 export { useBackEntry } from './useBackEntry'
