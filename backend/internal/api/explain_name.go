@@ -90,6 +90,11 @@ func explainName(name string) nameExplainResponse {
 		return false
 	}
 	put := func(kind, value string, a, b int) {
+		// a span that does not cut the name on rune boundaries is kept as a
+		// value without a place rather than sliced into broken text
+		if a >= 0 && (a > b || b > len(name) || !utf8.ValidString(name[a:b])) {
+			a, b = -1, -1
+		}
 		if a >= 0 && taken(a, b) {
 			return
 		}
@@ -168,8 +173,10 @@ func explainName(name string) nameExplainResponse {
 		}
 	}
 	if info.Title != "" {
-		if i := strings.Index(strings.ToLower(name), strings.ToLower(info.Title)); i >= 0 {
-			put("title", info.Title, i, i+len(info.Title))
+		// case-blind search on the name itself: lowering both sides first can
+		// change byte lengths ("İ") and the offsets would miss the original
+		if loc := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(info.Title)).FindStringIndex(name); loc != nil {
+			put("title", info.Title, loc[0], loc[1])
 		} else {
 			put("title", info.Title, -1, -1)
 		}

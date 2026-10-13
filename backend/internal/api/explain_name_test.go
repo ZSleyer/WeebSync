@@ -62,6 +62,19 @@ func TestExplainName(t *testing.T) {
 			last = p.End
 		}
 	}
+	// letters whose lower case has another byte length must not shift the
+	// offsets off the name, nor panic slicing it
+	for _, n := range []string{"İstanbul Tokyo S2 - 03 [GerSub].mkv", "ẞTRASSE İİİ - 0 [x].mkv", "ﬀ - 0v1"} {
+		r := explainName(n)
+		for _, p := range r.Pieces {
+			if p.Start >= 0 && slice16(n, p.Start, p.End) == "" {
+				t.Errorf("%q: %s has an empty span", n, p.Kind)
+			}
+		}
+	}
+	if p, ok := pieceOf(explainName("İstanbul Tokyo S2 [GerSub]"), "title"); !ok || p.Start != 0 {
+		t.Errorf("title piece = %+v, want it at the start", p)
+	}
 	if r := explainName("Kusuriya no Hitorigoto 3rd Season [GerDub]"); r.Parse.Season != 3 {
 		t.Errorf("parse season = %d, want 3", r.Parse.Season)
 	}
