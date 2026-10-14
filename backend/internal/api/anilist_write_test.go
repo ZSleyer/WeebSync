@@ -90,7 +90,7 @@ func linkedServer(t *testing.T) (*Server, *http.ServeMux, *http.Cookie, *fakeAni
 }
 
 func TestAnilistWritesNeedTheSwitch(t *testing.T) {
-	_, mux, c, fake, _ := linkedServer(t)
+	s, mux, c, fake, _ := linkedServer(t)
 	fake.answer = func(string, map[string]any) string { return `{"data":{"SaveMediaListEntry":{"id":5}}}` }
 
 	// off by default: refused before AniList hears of it
@@ -125,6 +125,16 @@ func TestAnilistWritesNeedTheSwitch(t *testing.T) {
 	doReq(mux, "PUT", "/api/anilist/permissions", `{"list":false}`, c)
 	if rec := doReq(mux, "POST", "/api/anilist/progress", `{"mediaId":9,"progress":4}`, c); rec.Code != http.StatusForbidden {
 		t.Fatalf("switched off again: got %d", rec.Code)
+	}
+
+	// a disconnect takes the permissions with it: the next account starts
+	// with nothing allowed
+	doReq(mux, "PUT", "/api/anilist/permissions", `{"list":true,"social":true}`, c)
+	if rec := doReq(mux, "DELETE", "/api/anilist/connect", "", c); rec.Code != http.StatusOK {
+		t.Fatalf("disconnect: got %d", rec.Code)
+	}
+	if p := s.anilistPerms(1); p.List || p.Social {
+		t.Fatalf("switches survived the disconnect: %+v", p)
 	}
 }
 

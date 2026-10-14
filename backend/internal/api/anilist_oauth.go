@@ -262,6 +262,9 @@ func (s *Server) handleAnilistDisconnect(w http.ResponseWriter, r *http.Request)
 		dbErr(w)
 		return
 	}
+	// the write permissions were given for this account: a later one, maybe
+	// someone else's, starts with nothing allowed again
+	s.DB.Exec(`UPDATE users SET anilist_write_list = 0, anilist_write_social = 0 WHERE id = ?`, u.ID)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
