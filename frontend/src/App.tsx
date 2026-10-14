@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { ArrowLeft, BookOpen, Compass, RefreshCw, Search, Settings } from 'lucide-react'
-import { FolderIcon, HouseIcon } from './components/NavIcons'
+import { DashboardIcon, FolderIcon } from './components/NavIcons'
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -60,10 +60,10 @@ import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/Settin
 // the gear in the app bar (phone) and the foot of the sidebar (desktop);
 // Rename is a tool on a folder, reached from Files.
 // motion: how the icon moves once as its page becomes the current one (see
-// .t-nav-icon in index.css): the house opens its door, the arrows turn, the
-// needle swings, the folder tips its front open
+// .t-nav-icon in index.css): the tiles grow in, the arrows turn, the needle
+// swings, the folder swings its front open
 const TABS = [
-  { to: '/', key: 'nav.dashboard', icon: HouseIcon, motion: 'door' },
+  { to: '/', key: 'nav.dashboard', icon: DashboardIcon, motion: 'tiles' },
   { to: '/watches', key: 'nav.watches', icon: RefreshCw, motion: 'turn' },
   { to: DISCOVER_BASE, key: 'nav.suggestions', icon: Compass, motion: 'needle' },
   { to: '/files', key: 'nav.files', icon: FolderIcon, motion: 'flap' },

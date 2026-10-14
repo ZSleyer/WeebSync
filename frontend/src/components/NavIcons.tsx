@@ -1,12 +1,12 @@
-import { useEffect, useEffectEvent, useRef, type RefObject } from 'react'
+import { useEffect, useEffectEvent, useRef, type CSSProperties, type RefObject } from 'react'
 import type { LucideProps } from 'lucide-react'
 
-// Two navigation icons drawn in lucide's grid with a moving part, played as
-// their page becomes the current one: the house's door swings out on its
-// hinge and shuts again, the folder's front tips open and stays open while
-// the page is current. Lucide's own House and Folder are one path each and
-// can't do that. The parts morph their outline with SVG <animate>, which
-// every engine runs (WebKit can't animate the CSS d property).
+// Two navigation icons drawn in lucide's grid with moving parts, played as
+// their page becomes the current one: the dashboard's tiles grow in one by
+// one, the folder's front swings open and stays open while the page is
+// current. Lucide's own icons are one piece and can't do that. The folder
+// morphs its outline with SVG <animate>, which every engine runs (WebKit
+// can't animate the CSS d property).
 
 const base = {
   xmlns: 'http://www.w3.org/2000/svg',
@@ -54,46 +54,30 @@ function play(a: SVGAnimationElement | null) {
   else a.beginElement()
 }
 
-// the leaf of the door, shut in its frame and swung out past the hinge
-// (x 15): the free edge comes round to the right and stands taller, nearer
-// the eye
-const SHUT = 'M9 21L9 12L15 12L15 21'
-const OUT = 'M17.6 21.6L17.6 10.4L15 12L15 21'
+// Heute's sign: lucide's dashboard grid, the tiles growing in one after
+// the other as the page becomes current (.t-nav-tile in index.css)
+const TILES = [
+  { x: 3, y: 3, h: 9 },
+  { x: 14, y: 3, h: 5 },
+  { x: 14, y: 12, h: 9 },
+  { x: 3, y: 16, h: 5 },
+]
 
-export function HouseIcon(props: LucideProps) {
-  const ref = useRef<SVGSVGElement>(null)
-  const swing = useRef<SVGAnimationElement>(null)
-  const show = useRef<SVGAnimationElement>(null)
-  useCurrent(ref, (current, first) => {
-    // once, on the way in; at rest the house is the plain sign
-    if (!current || first || still()) return
-    swing.current?.beginElement()
-    show.current?.beginElement()
-  })
+export function DashboardIcon(props: LucideProps) {
   return (
-    <svg ref={ref} {...svg(props)}>
-      <path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
-      <path d={SHUT} opacity="0">
-        <animate
-          ref={swing}
-          attributeName="d"
-          values={`${SHUT};${OUT};${OUT};${SHUT}`}
-          keyTimes="0;0.38;0.62;1"
-          calcMode="spline"
-          keySplines="0.3 0 0.2 1;0 0 1 1;0.4 0 0.6 1"
-          dur="0.65s"
-          begin="indefinite"
+    <svg {...svg(props)}>
+      {TILES.map((r, i) => (
+        <rect
+          key={i}
+          className="t-nav-tile"
+          style={{ '--i': i } as CSSProperties}
+          width="7"
+          height={r.h}
+          x={r.x}
+          y={r.y}
+          rx="1"
         />
-        <animate
-          ref={show}
-          attributeName="opacity"
-          values="0;1;1;0"
-          keyTimes="0;0.1;0.9;1"
-          dur="0.65s"
-          begin="indefinite"
-        />
-      </path>
+      ))}
     </svg>
   )
 }
