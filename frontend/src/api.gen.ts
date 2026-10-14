@@ -213,6 +213,7 @@ export interface Schemas {
     body: string
     createdAt: number
     id: number
+    isLiked: boolean
     likes: number
     replies: Schemas['anilist.ThreadComment'][]
     replyTo?: string
@@ -227,6 +228,11 @@ export interface Schemas {
     body: string
     createdAt: number
     id: number
+    /**
+     * IsLiked: the reading user likes it; always false on an anonymous read
+     */
+    isLiked: boolean
+    likes: number
     replies: number
     title: string
     url: string
@@ -1911,6 +1917,19 @@ export interface Schemas {
      */
     scoreFormat?: string
   }
+  'api.anilistLikeRequest': {
+    id: number
+    /**
+     * ThreadID is the thread a liked comment belongs to, so its cached pages
+     * are dropped; the thread's own id for type THREAD
+     */
+    threadId?: number
+    type: "THREAD" | "THREAD_COMMENT"
+  }
+  'api.anilistLikeResponse': {
+    liked: boolean
+    likes: number
+  }
   'api.anilistMeResponse': {
     /**
      * Allow: the write switches, off until the user turns them on
@@ -1936,6 +1955,16 @@ export interface Schemas {
   'api.anilistProgressRequest': {
     mediaId: number
     progress: number
+  }
+  'api.anilistReplyRequest': {
+    comment: string
+    /**
+     * ParentCommentID answers that comment; absent answers the thread
+     */
+    parentCommentId?: number
+  }
+  'api.anilistReplyResponse': {
+    id: number
   }
   'api.anilistSuggestion': {
     candidates: Schemas['api.plexCandidate'][]

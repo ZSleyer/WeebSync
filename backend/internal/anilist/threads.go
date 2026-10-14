@@ -44,6 +44,9 @@ type ThreadPost struct {
 	CreatedAt int64      `json:"createdAt"`
 	URL       string     `json:"url"`
 	User      ThreadUser `json:"user"`
+	Likes     int        `json:"likes"`
+	// IsLiked: the reading user likes it; always false on an anonymous read
+	IsLiked bool `json:"isLiked"`
 }
 
 // ThreadComment is one comment. Top-level comments carry their replies
@@ -55,6 +58,7 @@ type ThreadComment struct {
 	Likes     int             `json:"likes"`
 	CreatedAt int64           `json:"createdAt"`
 	User      ThreadUser      `json:"user"`
+	IsLiked   bool            `json:"isLiked"`
 	ReplyTo   string          `json:"replyTo,omitempty"`
 	Replies   []ThreadComment `json:"replies"`
 }
@@ -72,6 +76,7 @@ type rawComment struct {
 	ID        int    `json:"id"`
 	Comment   string `json:"comment"`
 	LikeCount int    `json:"likeCount"`
+	IsLiked   bool   `json:"isLiked"`
 	CreatedAt int64  `json:"createdAt"`
 	User      struct {
 		Name   string `json:"name"`
@@ -84,7 +89,7 @@ type rawComment struct {
 
 func (r rawComment) flat() ThreadComment {
 	return ThreadComment{
-		ID: r.ID, Body: clip(r.Comment), Likes: r.LikeCount, CreatedAt: r.CreatedAt,
+		ID: r.ID, Body: clip(r.Comment), Likes: r.LikeCount, IsLiked: r.IsLiked, CreatedAt: r.CreatedAt,
 		User: ThreadUser{Name: r.User.Name, Avatar: r.User.Avatar.Medium}, Replies: []ThreadComment{},
 	}
 }
@@ -129,15 +134,40 @@ func clip(s string) string {
 	return strings.TrimRight(s, " \n") + " …"
 }
 
-func threadKey(id, page int) string { return fmt.Sprintf("thread1:%d:%d", id, page) }
+// threadKey names a cached page: thread1:<id>:<page>, with :u<viewer> for
+// a read under a user's token (whose likes it carries).
+func threadKey(id, page, viewer int) string {
+	if viewer > 0 {
+		return fmt.Sprintf("thread1:%d:%d:u%d", id, page, viewer)
+	}
+	return fmt.Sprintf("thread1:%d:%d", id, page)
+}
+
+// InvalidateThread drops every cached page of a thread, anonymous and per
+// user, after a reply or a like changed it. A key range, not LIKE, so the
+// primary key index answers it.
+func (c *Client) InvalidateThread(id int) {
+	c.DB.Exec(`DELETE FROM anilist_cache WHERE key >= ? AND key < ?`,
+		fmt.Sprintf("thread1:%d:", id), fmt.Sprintf("thread1:%d;", id))
+}
 
 // Thread fetches a thread's opening post and one page (1-based) of its
-// comments, anonymously, cached for threadTTL under thread1:<id>:<page>.
+// comments anonymously; see ThreadAs.
 func (c *Client) Thread(ctx context.Context, id, page int) (*ThreadPage, error) {
+	return c.ThreadAs(ctx, "", 0, id, page)
+}
+
+// ThreadAs fetches a thread page with token as the reading user (viewer is
+// their AniList id), so the likes say whether that user likes them; an empty
+// token reads anonymously. Cached for threadTTL per thread, page and viewer.
+func (c *Client) ThreadAs(ctx context.Context, token string, viewer, id, page int) (*ThreadPage, error) {
 	if page < 1 {
 		page = 1
 	}
-	key := threadKey(id, page)
+	if token == "" {
+		viewer = 0
+	}
+	key := threadKey(id, page, viewer)
 	var payload, fetched string
 	if err := c.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, key).
 		Scan(&payload, &fetched); err == nil {
@@ -158,6 +188,8 @@ func (c *Client) Thread(ctx context.Context, id, page int) (*ThreadPage, error) 
 				ViewCount  int    `json:"viewCount"`
 				CreatedAt  int64  `json:"createdAt"`
 				SiteURL    string `json:"siteUrl"`
+				LikeCount  int    `json:"likeCount"`
+				IsLiked    bool   `json:"isLiked"`
 				User       struct {
 					Name   string `json:"name"`
 					Avatar struct {
@@ -173,13 +205,13 @@ func (c *Client) Thread(ctx context.Context, id, page int) (*ThreadPage, error) 
 			} `json:"Page"`
 		} `json:"data"`
 	}
+	// isLiked asked for at the top level also comes back inside the
+	// childComments JSON, which mirrors the selection
 	gql := `query ($id: Int, $page: Int) {
-		Thread(id: $id) { id title body(asHtml: false) replyCount viewCount createdAt siteUrl user { name avatar { medium } } }
-		Page(page: $page, perPage: ` + fmt.Sprint(threadPerPage) + `) { pageInfo { hasNextPage } threadComments(threadId: $id) { id comment(asHtml: false) likeCount createdAt user { name avatar { medium } } childComments } }
+		Thread(id: $id) { id title body(asHtml: false) replyCount viewCount createdAt siteUrl likeCount isLiked user { name avatar { medium } } }
+		Page(page: $page, perPage: ` + fmt.Sprint(threadPerPage) + `) { pageInfo { hasNextPage } threadComments(threadId: $id) { id comment(asHtml: false) likeCount isLiked createdAt user { name avatar { medium } } childComments } }
 	}`
-	// the reader is anonymous on purpose: a public thread reads the same for
-	// everyone, so one cached page serves every user
-	if err := c.queryAs(ctx, "", gql, map[string]any{"id": id, "page": page}, &resp); err != nil {
+	if err := c.queryAs(ctx, token, gql, map[string]any{"id": id, "page": page}, &resp); err != nil {
 		return nil, err
 	}
 	th := resp.Data.Thread
@@ -190,6 +222,7 @@ func (c *Client) Thread(ctx context.Context, id, page int) (*ThreadPage, error) 
 		Thread: ThreadPost{
 			ID: th.ID, Title: th.Title, Body: clip(th.Body), Replies: th.ReplyCount, Views: th.ViewCount,
 			CreatedAt: th.CreatedAt, URL: th.SiteURL, User: ThreadUser{Name: th.User.Name, Avatar: th.User.Avatar.Medium},
+			Likes: th.LikeCount, IsLiked: th.IsLiked,
 		},
 		Comments:    []ThreadComment{},
 		HasNextPage: resp.Data.Page.PageInfo.HasNextPage,
@@ -202,4 +235,56 @@ func (c *Client) Thread(ctx context.Context, id, page int) (*ThreadPage, error) 
 	b, _ := json.Marshal(out)
 	c.store(key, string(b))
 	return &out, nil
+}
+
+// ThreadCommentMax caps a reply in characters. AniList documents no limit
+// for forum comments; this keeps a reply to what a forum post is.
+const ThreadCommentMax = 10000
+
+// SaveThreadComment posts a reply to a thread as the token's user, under
+// parent when it answers a comment (0 = the thread itself). Returns the new
+// comment's id.
+func (c *Client) SaveThreadComment(ctx context.Context, token string, threadID, parent int, text string) (int, error) {
+	vars := map[string]any{"t": threadID, "c": text}
+	gql := `mutation ($t: Int, $c: String) { SaveThreadComment(threadId: $t, comment: $c) { id } }`
+	if parent > 0 {
+		vars["parent"] = parent
+		gql = `mutation ($t: Int, $c: String, $parent: Int) { SaveThreadComment(threadId: $t, comment: $c, parentCommentId: $parent) { id } }`
+	}
+	var resp struct {
+		Data struct {
+			SaveThreadComment *struct {
+				ID int `json:"id"`
+			} `json:"SaveThreadComment"`
+		} `json:"data"`
+	}
+	if err := c.queryAs(ctx, token, gql, vars, &resp); err != nil {
+		return 0, err
+	}
+	if resp.Data.SaveThreadComment == nil {
+		return 0, fmt.Errorf("anilist: reply not saved")
+	}
+	return resp.Data.SaveThreadComment.ID, nil
+}
+
+// ToggleLike likes or unlikes a thread (THREAD) or a comment
+// (THREAD_COMMENT) as the token's user and returns the new state.
+func (c *Client) ToggleLike(ctx context.Context, token string, id int, typ string) (liked bool, likes int, err error) {
+	var resp struct {
+		Data struct {
+			ToggleLikeV2 *struct {
+				LikeCount int  `json:"likeCount"`
+				IsLiked   bool `json:"isLiked"`
+			} `json:"ToggleLikeV2"`
+		} `json:"data"`
+	}
+	gql := `mutation ($id: Int, $type: LikeableType) { ToggleLikeV2(id: $id, type: $type) {
+		... on Thread { likeCount isLiked } ... on ThreadComment { likeCount isLiked } } }`
+	if err := c.queryAs(ctx, token, gql, map[string]any{"id": id, "type": typ}, &resp); err != nil {
+		return false, 0, err
+	}
+	if resp.Data.ToggleLikeV2 == nil {
+		return false, 0, fmt.Errorf("anilist: like not saved")
+	}
+	return resp.Data.ToggleLikeV2.IsLiked, resp.Data.ToggleLikeV2.LikeCount, nil
 }

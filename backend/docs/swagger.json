@@ -454,6 +454,9 @@
                     "id": {
                         "type": "integer"
                     },
+                    "isLiked": {
+                        "type": "boolean"
+                    },
                     "likes": {
                         "type": "integer"
                     },
@@ -477,6 +480,7 @@
                     "likes",
                     "createdAt",
                     "user",
+                    "isLiked",
                     "replies"
                 ],
                 "type": "object"
@@ -515,6 +519,13 @@
                     "id": {
                         "type": "integer"
                     },
+                    "isLiked": {
+                        "description": "IsLiked: the reading user likes it; always false on an anonymous read",
+                        "type": "boolean"
+                    },
+                    "likes": {
+                        "type": "integer"
+                    },
                     "replies": {
                         "type": "integer"
                     },
@@ -539,7 +550,9 @@
                     "views",
                     "createdAt",
                     "url",
-                    "user"
+                    "user",
+                    "likes",
+                    "isLiked"
                 ],
                 "type": "object"
             },
@@ -4401,6 +4414,44 @@
                 ],
                 "type": "object"
             },
+            "api.anilistLikeRequest": {
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "threadId": {
+                        "description": "ThreadID is the thread a liked comment belongs to, so its cached pages\nare dropped; the thread's own id for type THREAD",
+                        "type": "integer"
+                    },
+                    "type": {
+                        "enum": [
+                            "THREAD",
+                            "THREAD_COMMENT"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "type"
+                ],
+                "type": "object"
+            },
+            "api.anilistLikeResponse": {
+                "properties": {
+                    "liked": {
+                        "type": "boolean"
+                    },
+                    "likes": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "liked",
+                    "likes"
+                ],
+                "type": "object"
+            },
             "api.anilistMeResponse": {
                 "properties": {
                     "allow": {
@@ -4459,6 +4510,32 @@
                 "required": [
                     "mediaId",
                     "progress"
+                ],
+                "type": "object"
+            },
+            "api.anilistReplyRequest": {
+                "properties": {
+                    "comment": {
+                        "type": "string"
+                    },
+                    "parentCommentId": {
+                        "description": "ParentCommentID answers that comment; absent answers the thread",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "comment"
+                ],
+                "type": "object"
+            },
+            "api.anilistReplyResponse": {
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "id"
                 ],
                 "type": "object"
             },
@@ -9565,6 +9642,92 @@
                 ]
             }
         },
+        "/api/anilist/likes": {
+            "post": {
+                "description": "Toggle the linked user's like on a forum thread or comment and return the new state. Needs the replies-and-likes switch (403 otherwise); rate-limited per user (429).",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.anilistLikeRequest",
+                                        "description": "What to like",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "What to like",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.anilistLikeResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "replies and likes turned off in the settings"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Like on AniList",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
         "/api/anilist/me": {
             "get": {
                 "description": "Report the linked AniList account and configuration state for the settings UI.",
@@ -9886,7 +10049,7 @@
         },
         "/api/anilist/threads/{id}": {
             "get": {
-                "description": "Opening post and one page (25 top-level comments) of an AniList forum thread. Bodies are AniList markdown, capped in size; replies are flattened under their top-level comment, at most three levels deep.",
+                "description": "Opening post and one page (25 top-level comments) of an AniList forum thread. Bodies are AniList markdown, capped in size; replies are flattened under their top-level comment, at most three levels deep. isLiked is set only for a user who allowed replies and likes.",
                 "parameters": [
                     {
                         "description": "AniList thread id",
@@ -9944,6 +10107,103 @@
                     }
                 ],
                 "summary": "AniList thread",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/anilist/threads/{id}/comments": {
+            "post": {
+                "description": "Post a comment in a forum thread, or under one of its comments, as the linked user. Needs the replies-and-likes switch (403 otherwise); at most 10000 characters; a few per minute (429 beyond).",
+                "parameters": [
+                    {
+                        "description": "AniList thread id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.anilistReplyRequest",
+                                        "description": "The reply",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "The reply",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.anilistReplyResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "replies and likes turned off in the settings"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Reply in an AniList thread",
                 "tags": [
                     "Suggestions"
                 ]

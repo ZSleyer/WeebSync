@@ -98,6 +98,8 @@ type Server struct {
 	// the passkey challenge: the login page asks for one on every visit, so it
 	// gets a budget of its own instead of eating the password attempts
 	challengeLimiter *ipLimiter
+	// replies and likes on AniList, per user: a few a minute
+	socialLimiter *ipLimiter
 
 	// pending download-notification digests: "userID|category" → items, plus
 	// the flush timer each key is waiting on (restarted on every new item)
@@ -137,6 +139,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// a challenge guesses nothing; the cap only keeps the ceremony store small
 	if s.challengeLimiter == nil {
 		s.challengeLimiter = newIPLimiter(60, 30, s.ipTrusted)
+	}
+	if s.socialLimiter == nil {
+		s.socialLimiter = newIPLimiter(12, 6, nil)
 	}
 	mux.HandleFunc("POST /api/auth/register", s.authLimiter.limit(s.handleRegister))
 	mux.HandleFunc("POST /api/auth/login", s.authLimiter.limit(s.handleLogin))
@@ -307,6 +312,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/anilist/search", authed(http.HandlerFunc(s.handleAnilistSearch)))
 	mux.Handle("GET /api/anilist/media/{id}", authed(http.HandlerFunc(s.handleAnilistMedia)))
 	mux.Handle("GET /api/anilist/threads/{id}", authed(http.HandlerFunc(s.handleAnilistThread)))
+	mux.Handle("POST /api/anilist/threads/{id}/comments", authed(http.HandlerFunc(s.handleAnilistReply)))
+	mux.Handle("POST /api/anilist/likes", authed(http.HandlerFunc(s.handleAnilistLike)))
 	mux.Handle("GET /api/media/reviews", authed(http.HandlerFunc(s.handleMediaReviews)))
 	mux.Handle("GET /api/media/extras", authed(http.HandlerFunc(s.handleMediaExtras)))
 	mux.Handle("GET /api/media/backdrop", authed(http.HandlerFunc(s.handleMediaBackdrop)))
