@@ -331,17 +331,14 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 		if rem, perr := strconv.Atoi(resp.Header.Get("X-RateLimit-Remaining")); perr == nil && rem < 5 {
 			c.limiter.ReserveN(time.Now(), c.limiter.Burst())
 		}
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			return fmt.Errorf("anilist: HTTP %d", resp.StatusCode)
-		}
 		raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 		resp.Body.Close()
 		if err != nil {
 			return err
 		}
-		// GraphQL errors arrive with HTTP 200: surface them instead of
-		// handing callers an empty result they might cache for a day
+		// GraphQL errors come in the body, with a 200 or with the status
+		// they name (a missing list entry is an HTTP 404): surface them
+		// instead of a bare status, or an empty result callers might cache
 		var envelope struct {
 			Errors []struct {
 				Message string `json:"message"`
@@ -349,14 +346,21 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 			} `json:"errors"`
 		}
 		if json.Unmarshal(raw, &envelope) == nil && len(envelope.Errors) > 0 {
-			return &GraphQLError{Message: envelope.Errors[0].Message, Status: envelope.Errors[0].Status}
+			status := envelope.Errors[0].Status
+			if status == 0 && resp.StatusCode != http.StatusOK {
+				status = resp.StatusCode
+			}
+			return &GraphQLError{Message: envelope.Errors[0].Message, Status: status}
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("anilist: HTTP %d", resp.StatusCode)
 		}
 		return json.Unmarshal(raw, out)
 	}
 }
 
-// GraphQLError is an error AniList reported inside a 200 answer. Status
-// carries the HTTP-like code it names (404 for a missing list entry).
+// GraphQLError is an error AniList reported in its answer's body. Status
+// carries the code it names (404 for a missing list entry).
 type GraphQLError struct {
 	Message string
 	Status  int
