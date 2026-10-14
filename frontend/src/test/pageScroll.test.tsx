@@ -4,6 +4,13 @@ import { describe, expect, it, vi } from 'vitest'
 import PageScroll from '../components/PageScroll'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
+// the reload itself is smoothRefresh's business (its own test); here only whether a pull asks for it
+const refresh = vi.hoisted(() =>
+  vi.fn(async (_qc: unknown, before?: () => unknown) => {
+    await before?.()
+  }),
+)
+vi.mock('../smoothRefresh', () => ({ smoothRefresh: refresh }))
 
 // jsdom's matchMedia matches nothing, so the component sees a phone
 const page = (stacked: boolean, qc = new QueryClient(), title = true) =>
@@ -37,7 +44,8 @@ describe('PageScroll', () => {
   // letting go past the mark reloads what the page shows
   it('reloads the page on a pull from the top, and only past the mark', async () => {
     const qc = new QueryClient()
-    const refetch = vi.spyOn(qc, 'refetchQueries').mockResolvedValue()
+    refresh.mockClear()
+    const refetch = refresh
     const { container } = page(false, qc)
     const main = container.querySelector('main')!
     const content = main.firstElementChild as HTMLElement
@@ -56,7 +64,8 @@ describe('PageScroll', () => {
   // Files has no large title; a pull there lists the folder again
   it('reloads a top-level page without a large title too', async () => {
     const qc = new QueryClient()
-    const refetch = vi.spyOn(qc, 'refetchQueries').mockResolvedValue()
+    refresh.mockClear()
+    const refetch = refresh
     const { container } = page(false, qc, false)
     const main = container.querySelector('main')!
     fireEvent.touchStart(main, { touches: [{ clientX: 100, clientY: 100 }] })
@@ -69,7 +78,8 @@ describe('PageScroll', () => {
   // pull on the page behind
   it('leaves a drag inside a dialog alone', async () => {
     const qc = new QueryClient()
-    const refetch = vi.spyOn(qc, 'refetchQueries').mockResolvedValue()
+    refresh.mockClear()
+    const refetch = refresh
     const { container } = page(false, qc)
     const main = container.querySelector('main')!
     const dialog = main.appendChild(document.createElement('dialog'))
@@ -86,7 +96,8 @@ describe('PageScroll', () => {
   // is a scroll, not a refresh
   it('leaves a scrolled inner box its own scroll', async () => {
     const qc = new QueryClient()
-    const refetch = vi.spyOn(qc, 'refetchQueries').mockResolvedValue()
+    refresh.mockClear()
+    const refetch = refresh
     const { container } = page(false, qc, false)
     const main = container.querySelector('main')!
     const box = main.firstElementChild!.appendChild(document.createElement('div'))
