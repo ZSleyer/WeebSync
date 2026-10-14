@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -57,6 +58,12 @@ func env(key, fallback string) string {
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
+// the web manifest's own type: Go's table does not know the extension and
+// served it as text/plain, which browsers tolerate but audits flag
+func init() {
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+}
+
 func main() {
 	addr := env("WEEBSYNC_ADDR", ":8080")
 
