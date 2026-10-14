@@ -37,12 +37,6 @@
   }
 }
 
-/* The route wraps the page in its own header (an h2): the page brings its
-   own h1 for the desktop, and the phone's app bar names it, so that header
-   stands down. */
-div:has(> .ws-rules) > .t-page-header {
-  display: none;
-}
 .ws-rules-h1 {
   display: none;
   margin: 0 0 1rem;

@@ -14,7 +14,7 @@ import {
 } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AppShell, enterPage, Kbd, PageHeader, TabBar, useMediaQuery } from 'fluid-lycoris'
+import { AppShell, enterPage, Kbd, TabBar, useMediaQuery } from 'fluid-lycoris'
 import { api, type Download } from './api'
 import { updateText, useAuth, useEvents, useKeyboardUp, useUpdateHint } from './hooks'
 import Brand from './components/Brand'
@@ -94,17 +94,6 @@ const TEAL = ['/watches', '/files']
 const ENTER_MS = 1200
 type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
-
-// The rules outside the settings frame: their own heading over the page
-function RulesPage() {
-  const { t } = useTranslation()
-  return (
-    <div className="flex flex-col">
-      <PageHeader className="mb-6" title={t('settings.nav.rules')} />
-      <Rules />
-    </div>
-  )
-}
 
 // Files keeps its folder in state and writes it to the URL itself, so a link
 // into it from the search would be written over. A jump (navigation state
@@ -262,7 +251,7 @@ export const router = createBrowserRouter(
           from settings; on a phone it stacks on settings */}
       <Route
         path={RULES.to}
-        element={<RulesPage />}
+        element={<Rules />}
         handle={{ title: 'settings.nav.rules', back: '/settings', backHistory: true }}
       />
       <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
