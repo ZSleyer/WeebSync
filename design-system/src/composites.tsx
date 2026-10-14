@@ -3,6 +3,7 @@ import {
   Fragment,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -1964,12 +1965,36 @@ export function segmentIndex<T extends string>(options: SegmentedOption<T>[], va
 /**
  * One choice out of a few, as a group of pressed buttons on a quiet track:
  * list or calendar, light or dark. A thumb glides under the picked option on
- * the calm spring; the columns are equally wide, so the glide is one step.
+ * the calm spring. The options share the width equally while their labels
+ * fit; a label that does not fit keeps its own width and the rest wrap to a
+ * second line, so a label never runs over its neighbour. The thumb is placed
+ * on the picked button itself, which is why it follows either layout.
  */
 export function Segmented<T extends string>({ value, onChange, options, size = 'sm', className, ...aria }: SegmentedProps<T>) {
   const i = segmentIndex(options, value)
+  const box = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el || i < 0 || typeof ResizeObserver !== 'function') return
+    const place = () => {
+      const b = el.querySelectorAll<HTMLElement>('.t-seg-btn')[i]
+      if (!b) return
+      el.style.setProperty('--seg-x', `${b.offsetLeft}px`)
+      el.style.setProperty('--seg-y', `${b.offsetTop}px`)
+      el.style.setProperty('--seg-w', `${b.offsetWidth}px`)
+      el.style.setProperty('--seg-h', `${b.offsetHeight}px`)
+      // the first placement lands, every later one glides
+      el.dataset.placed = el.dataset.placed === undefined ? '' : 'glide'
+    }
+    place()
+    // a wrap, a font that loads late, a label that changes: the thumb follows
+    const ro = new ResizeObserver(place)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [i, options.length])
   return (
     <div
+      ref={box}
       role="group"
       {...aria}
       className={cx('t-seg', size === 'md' && 't-seg--md', className)}
@@ -1985,7 +2010,7 @@ export function Segmented<T extends string>({ value, onChange, options, size = '
           onClick={() => onChange(o.value)}
           className="t-seg-btn"
         >
-          {o.label}
+        {o.label}
         </button>
       ))}
     </div>
