@@ -244,6 +244,18 @@ function decodeFirst(srcs: (string | undefined)[]) {
   return Promise.race([Promise.all(all), new Promise((r) => setTimeout(r, 180))])
 }
 
+// Runs `fn` once the next frame is drawn. A requestAnimationFrame alone still
+// lands in the frame being prepared, which, called from a morph's update
+// callback, is the one the morph snapshots. Returns the cancel.
+function afterFrame(fn: () => void) {
+  let t: ReturnType<typeof setTimeout> | undefined
+  const id = requestAnimationFrame(() => (t = setTimeout(fn)))
+  return () => {
+    cancelAnimationFrame(id)
+    clearTimeout(t)
+  }
+}
+
 /**
  * The morph between an origin on the page and its counterpart in the series
  * page: the two share a name for the transition, the rest of the series page
@@ -385,13 +397,11 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     // The step back waits for the next frame: the page is gone already, and
     // the router's render of the step would otherwise land in the frame a
     // closing morph snapshots (one long frame instead of two short ones).
-    requestAnimationFrame(() =>
-      setTimeout(() => {
-        const idx = history.state?.idx
-        const delta = typeof idx === 'number' && typeof e.bg === 'number' ? e.bg - idx : 0
-        nav(delta < 0 ? delta : -(e.n + 1))
-      }),
-    )
+    afterFrame(() => {
+      const idx = history.state?.idx
+      const delta = typeof idx === 'number' && typeof e.bg === 'number' ? e.bg - idx : 0
+      nav(delta < 0 ? delta : -(e.n + 1))
+    })
   }, [nav])
   const api = useMemo(() => ({ open: (t: SeriesTarget) => void open(t), close }), [open, close])
 
@@ -732,7 +742,7 @@ function SeriesCard({
     const h = title.current
     if (!root || !h || typeof IntersectionObserver === 'undefined') return
     let io: IntersectionObserver | undefined
-    const id = requestAnimationFrame(() => {
+    const cancel = afterFrame(() => {
       const bar = root.querySelector<HTMLElement>('.ws-d-bar')?.offsetHeight ?? 52
       io = new IntersectionObserver(
         ([e]) => root.toggleAttribute('data-docked', !e.isIntersecting && (e.boundingClientRect?.top ?? 0) < bar + 30),
@@ -741,19 +751,19 @@ function SeriesCard({
       io.observe(h)
     })
     return () => {
-      cancelAnimationFrame(id)
+      cancel()
       io?.disconnect()
     }
   }, [viewOn])
 
   // focus moves into the page as it opens: the page under it is hidden
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
+    const cancel = afterFrame(() => {
       const el = scroller.current
       // a section the page jumped to in the meantime keeps its focus
       if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true })
     })
-    return () => cancelAnimationFrame(id)
+    return cancel
   }, [])
 
   // The jump row marks the section being read (aria-current): the first one
@@ -784,7 +794,7 @@ function SeriesCard({
     }
     let spy: IntersectionObserver | undefined
     let ahead: IntersectionObserver | undefined
-    const id = requestAnimationFrame(() => {
+    const cancel = afterFrame(() => {
       const s = new IntersectionObserver(
         (entries) => {
           entries.forEach((e) => seen.set(e.target, e.isIntersecting))
@@ -808,7 +818,7 @@ function SeriesCard({
       ahead = a
     })
     return () => {
-      cancelAnimationFrame(id)
+      cancel()
       spy?.disconnect()
       ahead?.disconnect()
     }
@@ -819,7 +829,7 @@ function SeriesCard({
   // to the middle, sideways only (scrollIntoView would move the page too)
   const tabRow = useRef<HTMLElement>(null)
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
+    const cancel = afterFrame(() => {
       const row = tabRow.current
       const a = row?.querySelector<HTMLElement>('[aria-current="true"]')
       if (!row || !a) return
@@ -829,7 +839,7 @@ function SeriesCard({
       })
       markOverflow(row)
     })
-    return () => cancelAnimationFrame(id)
+    return cancel
   }, [current, sections.length])
 
   const jump = (k: SeriesTab, smooth = true) => {
