@@ -142,7 +142,7 @@ function useHashPanel() {
 export default function Integrations() {
   const { t } = useTranslation()
   useHashPanel()
-  const { form, set, save, saved, locked, dirty, issue, reset } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty, issue, reset, clearSecret } = useSettingsForm()
   if (!form) return null
 
   // one panel per provider, the connection status as its first line and the
@@ -154,7 +154,7 @@ export default function Integrations() {
       <SettingsPanel id="anilist" title="AniList">
         <AnilistAccount />
         <AnilistWrites />
-        <AnilistOwnApp form={form} set={set} locked={locked} />
+        <AnilistOwnApp form={form} set={set} locked={locked} clearSecret={clearSecret} />
       </SettingsPanel>
 
       <SettingsPanel id="tmdb" title="TMDB">
@@ -166,6 +166,7 @@ export default function Integrations() {
           stored={form.tmdbApiKeySet}
           value={form.tmdbApiKey ?? ''}
           onChange={(v) => set('tmdbApiKey', v)}
+          onRemove={() => clearSecret('tmdbApiKey')}
         />
       </SettingsPanel>
 
@@ -178,6 +179,7 @@ export default function Integrations() {
           stored={form.tvdbApiKeySet}
           value={form.tvdbApiKey ?? ''}
           onChange={(v) => set('tvdbApiKey', v)}
+          onRemove={() => clearSecret('tvdbApiKey')}
         />
       </SettingsPanel>
 
@@ -190,6 +192,7 @@ export default function Integrations() {
           stored={form.animescheduleTokenSet}
           value={form.animescheduleToken ?? ''}
           onChange={(v) => set('animescheduleToken', v)}
+          onRemove={() => clearSecret('animescheduleToken')}
         />
       </SettingsPanel>
 
@@ -212,6 +215,7 @@ export default function Integrations() {
           stored={form.plexTokenSet}
           value={form.plexToken ?? ''}
           onChange={(v) => set('plexToken', v)}
+          onRemove={() => clearSecret('plexToken')}
         />
         {form.plexTokenSet && form.plexUrl && (
           <>
@@ -264,6 +268,7 @@ export default function Integrations() {
           stored={form.aiApiKeySet}
           value={form.aiApiKey ?? ''}
           onChange={(v) => set('aiApiKey', v)}
+          onRemove={() => clearSecret('aiApiKey')}
         />
         <AiModelField value={form.aiModel} locked={locked('aiModel')} onChange={(m) => set('aiModel', m)} />
         <TextSetting
@@ -290,7 +295,7 @@ export default function Integrations() {
         />
       </SettingsPanel>
 
-      <Smtp form={form} set={set} locked={locked} dirty={dirty} />
+      <Smtp form={form} set={set} locked={locked} dirty={dirty} clearSecret={clearSecret} />
       <SaveBar form={form} save={save} saved={saved} dirty={dirty} reset={reset} />
     </>
   )
@@ -511,10 +516,12 @@ function AnilistOwnApp({
   form,
   set,
   locked,
+  clearSecret,
 }: {
   form: SettingsState
   set: <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => void
   locked: (k: keyof SettingsState) => boolean
+  clearSecret: (k: keyof SettingsState) => void
 }) {
   const { t } = useTranslation()
   const { data } = useQuery(ANILIST_ME)
@@ -536,6 +543,7 @@ function AnilistOwnApp({
           stored={form.anilistSecretSet}
           value={form.anilistClientSecret ?? ''}
           onChange={(v) => set('anilistClientSecret', v)}
+          onRemove={() => clearSecret('anilistClientSecret')}
         />
       </div>
       <TextSetting

@@ -13,12 +13,14 @@ export default function Smtp({
   set,
   locked,
   dirty,
+  clearSecret,
 }: {
   form: SettingsState
   set: <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => void
   locked: (k: keyof SettingsState) => boolean
   /** unsaved edits: the test mails with the saved settings, so it waits */
   dirty: boolean
+  clearSecret: (k: keyof SettingsState) => void
 }) {
   const { t } = useTranslation()
   // a wrong host or sender shows up here instead of as a verification mail
@@ -86,6 +88,7 @@ export default function Smtp({
           stored={form.smtpPasswordSet}
           value={form.smtpPassword ?? ''}
           onChange={(v) => set('smtpPassword', v)}
+          onRemove={() => clearSecret('smtpPassword')}
         />
       </div>
       <TextSetting

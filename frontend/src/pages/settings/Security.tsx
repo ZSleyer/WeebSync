@@ -23,7 +23,7 @@ export const linesToCsv = (lines: string) => lines.split('\n').join(',')
 
 export default function Security() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked, dirty, reset } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty, reset, clearSecret } = useSettingsForm()
   const modeId = useId()
   const issuerId = useId()
 
@@ -142,6 +142,7 @@ export default function Security() {
             stored={form.oidcClientSecretSet}
             value={form.oidcClientSecret ?? ''}
             onChange={(v) => set('oidcClientSecret', v)}
+            onRemove={() => clearSecret('oidcClientSecret')}
           />
         </div>
         <TextSetting

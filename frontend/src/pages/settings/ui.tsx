@@ -1,6 +1,7 @@
 import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Input, SettingsField, Switch, Textarea } from 'fluid-lycoris'
+import { Button, Input, SettingsField, Switch, Textarea } from 'fluid-lycoris'
+import { useConfirm } from '../../components/confirm'
 import './settings.css'
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(' ')
@@ -183,15 +184,29 @@ export interface SecretSettingProps extends FieldBase {
   stored: boolean
   value: string
   onChange: (value: string) => void
+  /** clears the stored secret right away, after a confirm */
+  onRemove?: () => void
 }
 
 /**
- * A write-only secret: an empty field keeps the stored one, "-" clears it.
- * The word beside it says whether one is stored.
+ * A write-only secret: an empty field keeps the stored one. The word beside
+ * it says whether one is stored; Entfernen asks, then clears it at once.
  */
-export function SecretSetting({ label, hint, env, issue, className, stored, value, onChange }: SecretSettingProps) {
+export function SecretSetting({
+  label,
+  hint,
+  env,
+  issue,
+  className,
+  stored,
+  value,
+  onChange,
+  onRemove,
+}: SecretSettingProps) {
   const { t } = useTranslation()
+  const confirm = useConfirm()
   const id = useId()
+  const name = typeof label === 'string' ? label : ''
   return (
     <SettingsField
       label={label}
@@ -217,6 +232,23 @@ export function SecretSetting({ label, hint, env, issue, className, stored, valu
         <span id={id + 's'} className={cx('sec-st', stored && 'ok')}>
           {stored ? t('settings.secretStored') : t('settings.secretMissing')}
         </span>
+        {stored && !env && onRemove && (
+          <Button
+            size="sm"
+            aria-label={t('settings.secretRemoveLabel', { name })}
+            onClick={async () => {
+              const ok = await confirm({
+                title: t('settings.secretRemoveTitle', { name }),
+                message: t('settings.secretRemoveHint'),
+                confirmLabel: t('settings.secretRemove'),
+                destructive: true,
+              })
+              if (ok) onRemove()
+            }}
+          >
+            {t('settings.secretRemove')}
+          </Button>
+        )}
       </div>
       <Issue id={id + 'i'} msg={issue} />
     </SettingsField>

@@ -73,7 +73,7 @@ export interface SettingsState {
   fieldIssues?: Record<string, string>
 }
 
-// secrets are write-only: "" keeps the stored value, "-" clears it
+// secrets are write-only: "" keeps the stored value, "-" clears it (clearSecret)
 const BLANK_SECRETS = {
   anilistClientSecret: '',
   tmdbApiKey: '',
@@ -102,6 +102,28 @@ export function useSettingsForm() {
   const form = edited ?? seeded
   const [saved, setSaved] = useState(false)
 
+  const refresh = (fresh: SettingsState) => {
+    qc.setQueryData(['settings'], fresh)
+    // dependent queries gate UI on the saved config (AniList connect button,
+    // Plex sections, SMTP availability, suggestion pages) - refetch them all
+    for (const key of [
+      'anilist-me',
+      'plex-me',
+      'plex-sections',
+      'email-prefs',
+      'anilist-suggestions',
+      'plex-suggestions',
+      'tmdb-me',
+      'tmdb-suggestions',
+      'tvdb-me',
+      'animeschedule-me',
+      'ai-status',
+      'ai-models',
+      'me',
+    ])
+      qc.invalidateQueries({ queryKey: [key] })
+  }
+
   const save = useMutation({
     meta: { silent: true },
     mutationFn: (s: SettingsState) =>
@@ -114,25 +136,7 @@ export function useSettingsForm() {
         ),
       ),
     onSuccess: (fresh) => {
-      qc.setQueryData(['settings'], fresh)
-      // dependent queries gate UI on the saved config (AniList connect button,
-      // Plex sections, SMTP availability, suggestion pages) - refetch them all
-      for (const key of [
-        'anilist-me',
-        'plex-me',
-        'plex-sections',
-        'email-prefs',
-        'anilist-suggestions',
-        'plex-suggestions',
-        'tmdb-me',
-        'tmdb-suggestions',
-        'tvdb-me',
-        'animeschedule-me',
-        'ai-status',
-        'ai-models',
-        'me',
-      ])
-        qc.invalidateQueries({ queryKey: [key] })
+      refresh(fresh)
       // back to the seeded form: a copy of `fresh` would read as dirty as soon
       // as a refetch changed anything in `data` (a false unsaved warning)
       setForm(null)
@@ -140,6 +144,19 @@ export function useSettingsForm() {
       setTimeout(() => setSaved(false), 1200)
     },
   })
+
+  // clear one secret on its own ("-"), keeping the other unsaved edits: they
+  // only pick up the fresh *Set flags
+  const clear = useMutation({
+    mutationFn: (k: keyof SettingsState) => api.put<SettingsState>('/api/settings', { [k]: '-' }),
+    onSuccess: (fresh, k) => {
+      refresh(fresh)
+      setForm((f) =>
+        f ? { ...f, ...Object.fromEntries(Object.entries(fresh).filter(([n]) => n.endsWith('Set'))), [k]: '' } : f,
+      )
+    },
+  })
+  const clearSecret = (k: keyof SettingsState) => clear.mutate(k)
 
   const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) =>
     setForm((f) => {
@@ -167,7 +184,7 @@ export function useSettingsForm() {
   // drop the edits: back to the fetched state
   const reset = () => setForm(null)
 
-  return { form, set, save, saved, locked, dirty, issue, reset }
+  return { form, set, save, saved, locked, dirty, issue, reset, clearSecret }
 }
 
 // Error line under a field, wired to its input via aria-describedby.
